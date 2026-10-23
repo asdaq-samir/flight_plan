@@ -701,7 +701,7 @@ def _recent_trace(hex_id: str):
         if hex_id in _RECENT:
             return _RECENT[hex_id]
     try:
-        resp = requests.get(RECENT_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
+        resp = _globe_get(RECENT_URL.format(last2=hex_id[-2:], hex=hex_id), TIMEOUT_S)
         if resp.status_code == 404:
             trace = None
         elif resp.status_code == 200:
@@ -710,7 +710,7 @@ def _recent_trace(hex_id: str):
                 trace = None
         else:
             return UNREAD
-    except (requests.RequestException, ValueError):
+    except (requests.RequestException, ValueError, _GlobeRefused):
         return UNREAD
     with _LOCK:
         _RECENT[hex_id] = trace
@@ -790,6 +790,35 @@ def _asked(text: str, adsbx_tried: bool = False) -> tuple[list[dict], dict]:
 ADSBX_BY = {"hex": "icao", "callsign": "callsign", "reg": "registration"}
 
 
+#: How long the globe's files are not asked for after it turns the planner
+#: away, s. Since 2026-10-23 adsb.lol answers the planner's requests for
+#: its trace files with a "Verification" page and a 403, a browser check
+#: the planner cannot pass; asked again on every card, each refusal took
+#: 0.7 to 4 s, and a card's past flights asked for fourteen days of them,
+#: 5 to 13 s, before showing what it had anyway (the recorded track).
+GLOBE_BACKOFF_S = 600.0
+_GLOBE = {"blocked_until": -math.inf}
+
+
+class _GlobeRefused(Exception):
+    """The globe turned the planner away, now or within GLOBE_BACKOFF_S."""
+
+
+def _globe_get(url: str, timeout: float):
+    """A file off adsb.lol's globe, or _GlobeRefused where it is turning
+    the planner away: a 403 or a 429, or a page in place of the file (its
+    verification wall answers 200 to some), starts GLOBE_BACKOFF_S without
+    asking."""
+    if _clock() < _GLOBE["blocked_until"]:
+        raise _GlobeRefused("adsb.lol's globe turned the planner away a moment ago")
+    resp = requests.get(url, headers=HEADERS, timeout=timeout)
+    page = "html" in str(resp.headers.get("content-type") or "").lower()
+    if resp.status_code in (403, 429) or (resp.status_code == 200 and page):
+        _GLOBE["blocked_until"] = _clock() + GLOBE_BACKOFF_S
+        raise _GlobeRefused(f"adsb.lol's globe answered {resp.status_code}")
+    return resp
+
+
 def _trace(hex_id: str) -> dict | None:
     """An airplane's trace today, read once a minute; None where there is
     none or it cannot be had (the flight is then drawn without its past).
@@ -806,7 +835,7 @@ def _trace(hex_id: str) -> dict | None:
             if hex_id in _TRACES:
                 return _TRACES[hex_id]
         try:
-            resp = requests.get(TRACE_URL.format(last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=TIMEOUT_S)
+            resp = _globe_get(TRACE_URL.format(last2=hex_id[-2:], hex=hex_id), TIMEOUT_S)
             if resp.status_code == 200:
                 trace = resp.json()
                 # Anything but an object is not a trace: no past, not a 500.
@@ -816,7 +845,7 @@ def _trace(hex_id: str) -> dict | None:
                 trace = None
             else:
                 return None
-        except (requests.RequestException, ValueError):
+        except (requests.RequestException, ValueError, _GlobeRefused):
             return None
         with _LOCK:
             _TRACES[hex_id] = trace
@@ -1376,7 +1405,7 @@ def _day_trace(hex_id: str, day) -> dict | None | _Unread:
         if key in _DAYS:
             return _DAYS[key]
     try:
-        resp = requests.get(HISTORY_URL.format(day=day, last2=hex_id[-2:], hex=hex_id), headers=HEADERS, timeout=HISTORY_TIMEOUT_S)
+        resp = _globe_get(HISTORY_URL.format(day=day, last2=hex_id[-2:], hex=hex_id), HISTORY_TIMEOUT_S)
         if resp.status_code == 404:
             trace = None
         else:
@@ -1384,7 +1413,7 @@ def _day_trace(hex_id: str, day) -> dict | None | _Unread:
             trace = resp.json()
             if not isinstance(trace, dict):
                 trace = None
-    except (requests.RequestException, ValueError):
+    except (requests.RequestException, ValueError, _GlobeRefused):
         return UNREAD
     with _LOCK:
         _DAYS[key] = trace
