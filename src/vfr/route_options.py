@@ -14,6 +14,8 @@ A grid of cells round the route is read once:
   METAR for a flight leaving soon, under the pilot's minimums -- never
   under 91.155's basic ones -- closes the cells round its field, and one
   in MVFR marks them marginal;
+- the G-AIRMETs between the fields: IFR and mountains obscured closed,
+  low-level turbulence, icing and wind shear marginal;
 - thunderstorms, by AIM 7-1-29's "avoid by at least 20 miles": a TAF or a
   METAR with TS or VCTS, and a convective SIGMET's area, close the cells
   within 20 nm; any other SIGMET under 18,000 ft (severe turbulence or
@@ -275,6 +277,47 @@ def _sigmets(grid: _Grid, window: tuple) -> None:
             grid.close(mask, "storm", f"Convective SIGMET {raw}".strip())
         else:
             grid.close(mask, "sigmet", f"SIGMET for {hazard.lower() or 'a hazard'} {raw}".strip())
+
+
+#: The G-AIRMETs that close cells -- IFR and mountains obscured, where VFR
+#: is not to be had (AIM 7-1-6, the G-AIRMET) -- and those that mark them
+#: marginal.
+GAIRMET_CLOSES = {"IFR conditions", "Mountains obscured"}
+GAIRMET_MARKS = {"Turbulence", "Icing", "Low-level wind shear"}
+
+
+def _gairmets(grid: _Grid, window: tuple, top_ft: float) -> None:
+    """The G-AIRMETs valid over the flight (each a snapshot, three hours
+    apart, taken within GAIRMET_SNAPSHOT_S of it): the weather between the
+    fields that report, which their TAFs and METARs alone left open. IFR
+    and mountain obscuration close their areas; low-level turbulence,
+    icing reaching under the airplane's top and wind shear mark theirs."""
+    import shapely
+    from shapely.geometry import Polygon
+
+    start, end = window
+    for advisory in weather._dataset("gairmets"):
+        valid = advisory.get("valid")
+        if valid is None or valid < start - weather.GAIRMET_SNAPSHOT_S or valid > end + weather.GAIRMET_SNAPSHOT_S:
+            continue
+        coords = advisory.get("coords") or []
+        hazard = advisory.get("hazard")
+        if len(coords) < 3 or hazard not in GAIRMET_CLOSES | GAIRMET_MARKS:
+            continue
+        low = advisory.get("altitude_low_ft")
+        if hazard == "Icing" and low is not None and low >= top_ft:
+            continue
+        area = Polygon([(lon, lat) for lat, lon in coords])
+        if not area.is_valid:
+            area = area.buffer(0)
+        mask = shapely.contains_xy(area, grid.lon_grid, grid.lat_grid)
+        # "IFR conditions" as it is, "Mountains obscured" in the line.
+        words = hazard if hazard[:2].isupper() else hazard[0].lower() + hazard[1:]
+        name = f"G-AIRMET for {words}"
+        if hazard in GAIRMET_CLOSES:
+            grid.close(mask, "weather", name)
+        else:
+            grid.mark(mask, "marginal", name)
 
 
 def _airspace(grid: _Grid, window: tuple) -> list[str]:
@@ -581,6 +624,10 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         _sigmets(grid, window)
     except weather.WeatherServiceError:
         unchecked.append("SIGMETs")
+    try:
+        _gairmets(grid, window, top)
+    except weather.WeatherServiceError:
+        unchecked.append("G-AIRMETs")
     unchecked += _airspace(grid, window)
     gs = _groundspeeds(grid, floor, top, tas, fcst_hr)
 

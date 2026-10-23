@@ -41,7 +41,7 @@ def taf(ident, lat, lon, ceiling=None, visibility=10.0, wx=""):
 def sky(monkeypatch):
     """Flat ground, no wind, no airspace; the TAFs, METARs and SIGMETs
     the test puts in `data`."""
-    data = {"tafs": [], "metars": {}, "airsigmets": []}
+    data = {"tafs": [], "metars": {}, "airsigmets": [], "gairmets": []}
     monkeypatch.setattr(weather, "_dataset", lambda name: data[name])
     monkeypatch.setattr(weather, "wind_stations", lambda fcst_hr="06": ([], np.array([]), np.array([]), []))
     monkeypatch.setattr(terrain_detour, "_heights_ft", lambda lats, lons: np.zeros(lats.shape))
@@ -145,3 +145,11 @@ def test_the_pilots_own_route_is_kept_and_what_it_crosses_said(sky):
     assert [crossing["hazards"][i]["name"] for i in crossing["current"]] == ["Thunderstorms forecast at STRM"]
     clear = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS, current=round_it)
     assert clear["current"] == []
+
+
+def test_an_ifr_g_airmet_between_the_fields_is_gone_round(sky):
+    sky["gairmets"].append({"hazard": "IFR conditions", "valid": time.time(), "altitude_low_ft": None,
+                            "coords": [(-0.3, 1.7), (0.3, 1.7), (0.3, 2.3), (-0.3, 2.3)]})
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert [out["hazards"][i]["name"] for i in out["direct"]] == ["G-AIRMET for IFR conditions"]
+    assert out["options"][0]["crosses"] == []
