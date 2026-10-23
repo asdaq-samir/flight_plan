@@ -153,3 +153,14 @@ def test_an_ifr_g_airmet_between_the_fields_is_gone_round(sky):
     out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
     assert [out["hazards"][i]["name"] for i in out["direct"]] == ["G-AIRMET for IFR conditions"]
     assert out["options"][0]["crosses"] == []
+
+
+def test_where_nothing_keeps_clear_the_way_crossing_least_is_offered_with_what_it_crosses(monkeypatch, sky):
+    # A wall of high ground across the whole grid, over the airplane's reach.
+    monkeypatch.setattr(terrain_detour, "_heights_ft",
+                        lambda lats, lons: np.where(np.abs(lons - 2.0) < 0.3, 20000.0, 0.0))
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert out["options"], "a way is offered all the same"
+    crossing = out["options"][0]
+    assert [out["hazards"][i]["kind"] for i in crossing["crosses"]] == ["terrain"]
+    assert len(crossing["stops"]) <= route_options.MAX_TURNS

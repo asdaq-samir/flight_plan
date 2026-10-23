@@ -72,6 +72,10 @@ export default function RouteChoices({ found, stops, onPick, onDirect }: {
               <>
                 <span className="block tabular-nums">{wayTime(option)} · {stopsWords} · {grouped(Math.round(option.distance_nm))} nm</span>
                 {round.length > 0 && <span className="block">Round {inLine(round)}</span>}
+                {/* Where no way keeps clear: the one crossing least, with
+                    what it crosses, a warning (the owner's "a warning tick
+                    or a label is enough"). */}
+                {option.crosses.length > 0 && <span className="block text-destructive-ink">Crosses {inLine(option.crosses.map(name))}</span>}
                 {option.marginal.length > 0 && <span className="block text-caution-ink">Passes {inLine(option.marginal.map(name))}</span>}
               </>
             )}
