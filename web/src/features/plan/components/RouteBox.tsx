@@ -266,10 +266,23 @@ export default function RouteBox({
   // be dragged ("it's still scrolling even when in one line", 2026-10-21).
   // Read as the box or its pills change.
   const [lineOver, setLineOver] = useState(false);
+  // Two lines of pills at the most, the rest a scroll down, at the owner's
+  // ask ("FPL should not be bigger than two lines, the rest can scrolled to
+  // see", 2026-10-24): measured off a pill, so it holds at any text size --
+  // the 6 rem it was showed a third line's top at the owner's larger text.
+  const [twoLines, setTwoLines] = useState<number | null>(null);
   useEffect(() => {
     const el = slide.current;
     if (!el) return;
-    const read = () => setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
+    const read = () => {
+      setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
+      const pill = el.firstElementChild as HTMLElement | null;
+      if (!pill?.offsetHeight) return;
+      const style = getComputedStyle(el);
+      const gap = parseFloat(style.rowGap) || 0;
+      const pad = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+      setTwoLines(Math.ceil(pill.offsetHeight * 2 + gap + pad));
+    };
     const sized = new ResizeObserver(read);
     sized.observe(el);
     const changed = new MutationObserver(read);
@@ -456,7 +469,7 @@ export default function RouteBox({
                 96 px, a phone at a larger text size (pills 2rem tall, the
                 lines' gap and padding with them) needed 98 for two lines,
                 and two lines scrolled with no third (the owner's notice). */}
-            <div ref={slide} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
+            <div ref={slide} style={twoLines ? { maxHeight: twoLines } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
               // Its own lines scrolled first under a finger, then the sheet
               // dragged (use-detent-drag's data-scroll-first).
               data-scroll-first="">
