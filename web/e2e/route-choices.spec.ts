@@ -68,15 +68,14 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   // Both on the chart beside the route, each its callout.
   const chips = page.locator("[data-route-way]");
   await expect(chips).toHaveCount(2);
-  // A way's callout tapped shows it, its name on the callout too.
+  // A way's callout tapped puts it in FPL as its card comes into sight --
+  // the route box and the course line its own -- the other still beside it.
   await chips.last().click();
-  await expect(chips.filter({ hasText: "Best Weather" })).toHaveCount(1);
-
-  // Use puts it in the route.
-  await sideDrawer(page).getByTestId("route-choice-weather-use").click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
-  // The one picked is the route now, the other still beside it.
   await expect(chips).toHaveCount(1);
+  // Use keeps a way: it is the route.
+  await sideDrawer(page).getByTestId("route-choice-weather-use").click();
+  await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
 
 });
