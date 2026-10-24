@@ -81,7 +81,9 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   page.on("request", request => {
     if (new URL(request.url()).pathname.endsWith("/navlog")) planned.push(new URL(request.url()).searchParams.get("stops") ?? "");
   });
-  await chips.last().click();
+  // By its way, not its place in the pane: the one shown is drawn again
+  // with its name, and goes to the end.
+  await page.locator('[data-route-way="weather"]').click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
   await expect(chips).toHaveCount(1);

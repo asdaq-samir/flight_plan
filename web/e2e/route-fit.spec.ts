@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo, mapStill, openPanel, settle, sideDrawer, slow, airportSearch } from "./helpers";
+import { airportMark, closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo, mapStill, openPanel, settle, sideDrawer, slow, airportSearch } from "./helpers";
 
 /**
  * The map and the sheet move together, as in Maps: opened fresh, the map
@@ -276,12 +276,17 @@ test("panned off the route, the location arrow turns to the route, and a tap fit
   await expect(arrow).toHaveAttribute("data-face", "position");
 });
 
-/** The field's marker on the screen and not under the card: in the map's
- *  box is not enough, the card covers part of it. */
-async function fieldClearOfCard(page: Page, field: Locator) {
-  await expect(field).toBeInViewport({ timeout: slow(10_000) });
+/** The field's mark on the screen and not under the card: in the map's
+ *  box is not enough, the card covers part of it. The chart's fields are
+ *  drawn on a canvas (AirportCanvas), each said on its hook, its dot 12
+ *  points across. */
+async function fieldClearOfCard(page: Page, ident: string) {
+  const viewport = page.viewportSize()!;
   await expect(async () => {
-    const mark = (await field.boundingBox())!;
+    const drawn = await airportMark(page, ident);
+    expect(drawn, `${ident} drawn`).not.toBeNull();
+    const mark = { x: drawn!.x - 6, y: drawn!.y - 6, width: 12, height: 12 };
+    expect(mark.x >= 0 && mark.y >= 0 && mark.x + 12 <= viewport.width && mark.y + 12 <= viewport.height, `${ident} on the screen`).toBe(true);
     const sheet = (await sideDrawer(page).boundingBox())!;
     expect(apart(mark, sheet), `field ${JSON.stringify(mark)} under the card ${JSON.stringify(sheet)}`).toBe(true);
   }).toPass({ timeout: slow(10_000) });
@@ -301,14 +306,13 @@ test("an airport's card keeps its field in sight: the next position the GPS give
   await search.fill("KDLH");
   await page.getByTestId("search-result").filter({ hasText: "KDLH" }).first().click();
   await expect(sideDrawer(page).getByTestId("place-card")).toBeVisible();
-  const field = page.locator(".leaflet-marker-icon", { hasText: /^KDLH$/ }).first();
-  await fieldClearOfCard(page, field);
+  await fieldClearOfCard(page, "KDLH");
 
   // The GPS moves on: the map stays on the field, as Maps' does once a
   // place is picked, until the location arrow is tapped.
   await context.setGeolocation({ latitude: 42.33, longitude: -88.08 });
   await page.waitForTimeout(2000);
-  await fieldClearOfCard(page, field);
+  await fieldClearOfCard(page, "KDLH");
 });
 
 test("from half way to all the way up and back, the map stays exactly where it is", async ({ page }) => {
