@@ -81,10 +81,12 @@ function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, use
           <span className="flex min-w-0 items-center gap-1 font-semibold">
             <span className="truncate">{title}</span>
             {used ? <Check className="size-4 shrink-0 text-tint" aria-label="In use" />
-              : best ? <span className="shrink-0 rounded-full bg-primary/12 px-1.5 text-tint">Best</span> : null}
+              : best && !(shown && action) ? <span className="shrink-0 rounded-full bg-primary/12 px-1.5 text-tint">Best</span> : null}
           </span>
-          {!(shown && action) && <span className="shrink-0 font-bold tabular-nums">{figure}</span>}
         </span>
+        {/* The time in large figures on its own line, the name whole over
+            it (the owner's screenshot: "Your Ro…", "Fas…" beside it). */}
+        <span className="text-[1.375rem] leading-7 font-bold tabular-nums">{figure}</span>
         <span className={cn("truncate", TEXT.note, clock ? "text-muted-foreground tabular-nums" : lineInk ?? "text-muted-foreground")}>
           {clock ?? line}
         </span>
@@ -92,7 +94,7 @@ function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, use
       </button>
       {shown && action && (
         <Button size="sm" className="absolute top-1 right-1.5 h-6 rounded-full px-2.5" onClick={action.run} data-testid={action.testId}>
-          {action.label} · {figure}
+          {action.label}
         </Button>
       )}
     </div>
@@ -157,7 +159,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, picked,
           less the room over and under them: up to the figures at the
           foot, at the owner's "a bit bigger just up to the calculations". */}
       <div
-        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-1.25rem),9rem)] snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none]"
+        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-0.75rem),9rem)] snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none]"
         data-slides=""
       >
         <Card
