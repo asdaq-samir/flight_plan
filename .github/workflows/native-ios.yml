@@ -71,6 +71,8 @@ jobs:
           # it (a resolution failure names its cause on the next line), the
           # tests, and the verdict.
           grep -nE "error:|error\b|Could not|Test (Case|Suite)|Executed|\*\* (BUILD|TEST)" -A6 "$RUNNER_TEMP/xcodebuild.log" | tail -200 || true
+          # Each test's own line, and the verdict.
+          grep -E "✔ Test|✘ Test|Test run with" "$RUNNER_TEMP/xcodebuild.log" || true
           grep -qE "\*\* TEST SUCCEEDED \*\*" "$RUNNER_TEMP/xcodebuild.log"
       # What the generator made of the planner's document, for the next
       # screen's author: the operations' names, so a call is written right
