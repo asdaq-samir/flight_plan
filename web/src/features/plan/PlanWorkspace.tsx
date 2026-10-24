@@ -499,8 +499,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // selected and all the cards go away"). By the route's ends alone: a
   // route picked and then changed by hand (a point added, a fuel stop
   // taken out) is still the pilot's pick, and planned.
-  const [routesChosen, setRoutesChosen] = useState<string | null>(null);
   const chosenKey = `${planned.dep}|${planned.dest ?? ""}`;
+  // A route in the address as the page opens -- a saved flight, a link
+  // shared, the page loaded again -- was picked before: planned at once,
+  // its Routes a tap away; one entered here gets the cards first.
+  const [routesChosen, setRoutesChosen] = useState<string | null>(
+    () => (routeOf(planned.dep, planned.dest, planned.stops) !== null ? chosenKey : null));
   // The route with the fuel stops it needs put in, the planner's grid's
   // (RouteOptions.own), for its card before anything is planned.
   const own = routeWays?.own;

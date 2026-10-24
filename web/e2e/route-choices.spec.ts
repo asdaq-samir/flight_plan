@@ -24,6 +24,7 @@ const WAYS = {
       fuel_gal: 27.0, landings: 1, crosses: [], marginal: [1],
       bands: [{ kind: "vfr", min: 90 }, { kind: "mvfr", min: 40 }, { kind: "vfr", min: 60 }], tail_kt: 4, floor_ft: 2400 },
   ],
+  own: null,
   direct: [0], ends: [], current: [], current_marginal: [],
   current_along: { bands: [{ kind: "vfr", min: 60 }, { kind: "storm", min: 30 }, { kind: "vfr", min: 82 }], tail_kt: 6, floor_ft: 2100 },
   hazards: [
@@ -46,6 +47,10 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
+  // A route in the address was picked before (a saved flight, a link):
+  // planned at once, its Routes a tap away in the route box.
+  await expect(sideDrawer(page).getByTestId("route-choices")).toHaveCount(0);
+  await sideDrawer(page).getByTestId("route-routes").click();
   const current = sideDrawer(page).getByTestId("route-choice-current");
   await expect(current).toContainText("Your Route · Crosses storms", { timeout: slow(30_000) });
 
@@ -70,12 +75,22 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await expect(chips).toHaveCount(2);
   // A way's callout tapped puts it in FPL as its card comes into sight --
   // the route box and the course line its own -- the other still beside it.
+  // Nothing planned while the routes are browsed (the owner's "Don't
+  // plan anything unless a route is picked", 2026-10-24).
+  const planned: string[] = [];
+  page.on("request", request => {
+    if (new URL(request.url()).pathname.endsWith("/navlog")) planned.push(new URL(request.url()).searchParams.get("stops") ?? "");
+  });
   await chips.last().click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
   await expect(chips).toHaveCount(1);
-  // Use keeps a way: it is the route.
+  await page.waitForTimeout(1_000);
+  expect(planned.filter(stops => stops.includes("KEAU"))).toEqual([]);
+  // Use keeps a way: it is the route, the cards put away and it planned.
   await sideDrawer(page).getByTestId("route-choice-weather-use").click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
+  await expect(sideDrawer(page).getByTestId("route-choices")).toHaveCount(0);
+  await expect.poll(() => planned.some(stops => stops.includes("KEAU")), { timeout: slow(15_000) }).toBe(true);
 
 });
