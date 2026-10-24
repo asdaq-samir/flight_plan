@@ -2424,8 +2424,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       {/* Round buttons of their own again, the capsule round them taken
           off at the owner's ask ("let's go back to round buttons, I don't
           like the capsule", 2026-10-24), twelve apart so their 44-point
-          areas meet (index.css): Routes, the Brief, the route's menu. */}
-      <div className="ml-auto flex shrink-0 items-center gap-3" data-testid="route-actions">
+          areas meet (index.css): Routes, the Brief, the route's menu. The
+          eight before them (pl-2) keep the Profile button's 44 points and
+          the first one's from overlapping on a narrow panel (the nightly
+          audit's P1 on iPhone SE and the iPad slide-over, 24 Oct). */}
+      <div className="ml-auto flex shrink-0 items-center gap-3 pl-2" data-testid="route-actions">
         {/* The Routes' cards again, once one was used (RouteChoices), in the
             Brief's place, at the owner's ask ("brief button with routes"). */}
         {routed && !s.local && flightRules === "vfr" && (
