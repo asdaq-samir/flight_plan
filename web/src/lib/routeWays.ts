@@ -35,3 +35,11 @@ export function wayTime(option: RouteOption, scale = 1): string {
 export function isRoute(option: RouteOption, stops: string[]): boolean {
   return option.stops.length === stops.length && option.stops.every((s, i) => sameField(s, stops[i]!));
 }
+
+/** Whether FPL has routes to offer for one with these stops: a way not the
+ *  route itself, its fuel stops' card, or something it meets to say. */
+export function routesOffered(found: RouteOptions | undefined, stops: string[], withFuel: boolean): boolean {
+  if (!found) return false;
+  const meets = stops.length ? found.current : found.direct;
+  return meets.length > 0 || withFuel || found.options.some(o => offered(o) && !isRoute(o, stops));
+}

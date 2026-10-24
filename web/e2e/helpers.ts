@@ -439,7 +439,11 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
 export async function openNavLog(page: Page) {
   await openTab(page, "Nav Log");
   const sheet = navLogSheet(page);
-  if (!(await sheet.isVisible())) await sideDrawer(page).getByTestId("route-navlog").click();
+  // From the route's menu: its button's place is the Brief's (2026-10-24).
+  if (!(await sheet.isVisible())) {
+    await sideDrawer(page).getByTestId("share-route").click();
+    await page.getByTestId("route-navlog").click();
+  }
   await expect(sheet).toBeVisible();
   return sheet;
 }

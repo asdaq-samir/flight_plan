@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, MapPin, Plane, Route, TowerControl } from "lucide-react";
 import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -36,7 +36,7 @@ import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
-import { useCardTitle, usePanelDragging, CAPSULE, CAPSULE_SEPARATOR, IN_CAPSULE } from "../../components/mapChrome";
+import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
 import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
@@ -57,7 +57,7 @@ import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import RouteChoices from "./components/RouteChoices";
 import type { RouteWay } from "../../lib/map/RouteWaysLayer";
-import { gridScale, isRoute, offered, wayTime, wayTitle } from "../../lib/routeWays";
+import { gridScale, isRoute, offered, routesOffered, wayTime, wayTitle } from "../../lib/routeWays";
 
 /** No ways on the chart: one array for good, so the map's memo holds. */
 const NO_WAYS: RouteWay[] = [];
@@ -1999,11 +1999,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The way shown on the map and under the cards, by its kind (RouteChoices):
   // a card or the way's line tapped shows it, Use puts it in the route.
   const [wayShown, setWayShown] = useState<string | null>(null);
+  // A card used: its way the route and the cards put away, the route's
+  // list under them in their place, until the route changes (the owner's
+  // "No need to have the route at the bottom yet. Only do that once
+  // selected and all the cards go away"). By the route's ends and stops.
+  const [routesChosen, setRoutesChosen] = useState<string | null>(null);
+  const chosenKey = (stops: string[]) => `${planned.dep}|${stops.join(",")}|${planned.dest ?? ""}`;
   const pickRoute = useCallback((option: RouteOption) => {
     setBrowsing(null);
     setWayShown(null);
+    setRoutesChosen(`${planned.dep}|${option.stops.join(",")}|${planned.dest ?? ""}`);
     if (!isRoute(option, planned.stops)) setStops(option.stops, option.fuel);
-  }, [setStops, planned.stops, setBrowsing]);
+  }, [setStops, planned.stops, planned.dep, planned.dest, setBrowsing]);
   // The route with the planner's fuel stops put in, every flight's that
   // needs them (the totals' fuel stops, keepFuelStops' way): its time and
   // miles from the route's own, each stop's miles added at the route's
@@ -2029,8 +2036,19 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (!fuelCard) return;
     setBrowsing(null);
     setWayShown(null);
+    setRoutesChosen(`${planned.dep}|${fuelCard.stops.join(",")}|${planned.dest ?? ""}`);
     if (!sameStops(fuelCard.stops, planned.stops)) setStops(fuelCard.stops, fuelCard.added);
-  }, [fuelCard, setStops, planned.stops, setBrowsing]);
+  }, [fuelCard, setStops, planned.stops, planned.dep, planned.dest, setBrowsing]);
+  // Your Route used: the route as it was kept, the cards put away.
+  const keepOwn = useCallback(() => {
+    const own = browsing ? browsing.stops : planned.stops;
+    setWayShown(null);
+    setRoutesChosen(`${planned.dep}|${own.join(",")}|${planned.dest ?? ""}`);
+    if (browsing) {
+      setBrowsing(null);
+      setStops(browsing.stops, browsing.fuel);
+    }
+  }, [browsing, planned.stops, planned.dep, planned.dest, setStops, setBrowsing]);
   // A card come into sight: its way put in FPL, the route as it was kept.
   const previewWay = useCallback((kind: string | null) => {
     setWayShown(kind);
@@ -2062,16 +2080,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       key: o.kind, path: o.path as [number, number][], label: wayTime(o, gridScale(routeWays, browsing?.ownMinutes ?? s.totals?.ete_min)), name: wayTitle(o),
     }))
     : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops, browsing?.ownMinutes, s.totals?.ete_min]);
-  const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
+  // Routes in the route box: the cards again, from the route as it is.
+  const showRoutes = useCallback(() => setRoutesChosen(null), []);
+  // The cards while there is a choice to make; once one is used, the route's list.
+  const choosing = routed && !s.local && flightRules === "vfr" && routesChosen !== chosenKey(baseStops) && routesOffered(routeWays, baseStops, !!fuelCard);
+  const routeChoices = useMemo(() => (choosing
     ? <RouteChoices found={routeWays} stops={baseStops} depart={depart || null}
         ownMinutes={browsing ? browsing.ownMinutes : s.totals?.ete_min ?? null} ownNm={browsing ? browsing.ownNm : s.totals?.distance_nm ?? null}
-        full={panel === "full"} picked={wayShown} withFuel={fuelCard} onUseFuel={keepWithFuel} onPreview={previewWay} onPick={pickRoute} /> : null),
-  [routed, s.local, flightRules, routeWays, baseStops, depart, browsing, s.totals?.ete_min, s.totals?.distance_nm, panel, wayShown, fuelCard, keepWithFuel, previewWay, pickRoute]);
+        full={panel === "full"} picked={wayShown} withFuel={fuelCard} onUseFuel={keepWithFuel} onUseOwn={keepOwn} onPreview={previewWay} onPick={pickRoute} /> : null),
+  [choosing, routeWays, baseStops, depart, browsing, s.totals?.ete_min, s.totals?.distance_nm, panel, wayShown, fuelCard, keepWithFuel, keepOwn, previewWay, pickRoute]);
   const routeList = useMemo(() => (
     <>
-    {/* The ways to fly it, over its points (RouteChoices). */}
+    {/* The ways to fly it (RouteChoices) while one is to be picked; the
+        route's points once it is. */}
     {routeChoices}
-    <ProceduresRoute
+    {!routeChoices && <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
       picked={pickedPatterns} onPick={pickPattern} onPreselect={preselectPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff}
       onPreselectTakeoff={preselectTakeoff} autoPicked={autoPicked} fit={runwayFitInputs}
@@ -2082,7 +2105,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} fuel={tankFigures}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches}
-    />
+    />}
     </>
   ), [routeChoices, procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
@@ -2247,6 +2270,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // Plan again in the route's own menu, at the owner's pick ("A") to
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
+      onNavLog={card === undefined && course ? openNavLogCard : undefined}
     />
   );
 
@@ -2343,17 +2367,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           44 points, at the altitude's end, and the Brief's meet, not overlap
           (the iOS audit's P1, 93c88a64); the airplane and the altitude two
           narrower in their padding for it, so the row keeps its one line. */}
-      {/* One capsule of the glass round the three (CAPSULE), at the owner's
-          ask, the buttons in it plain (IN_CAPSULE), 12 apart as before. */}
-      <div className={cn("ml-auto flex shrink-0 items-center gap-3", CAPSULE)} data-testid="route-actions">
-        {/* The Brief, a card over FPL (BriefCard), in the folder's place,
-            at the owner's ask ("we don't need the folder button because we
-            have a saved section with tiles instead. So then we can have a
-            brief button which can open a new brief card"), marked as the
-            worst of its pages is. */}
+      {/* Round buttons of their own again, the capsule round them taken
+          off at the owner's ask ("let's go back to round buttons, I don't
+          like the capsule", 2026-10-24), twelve apart so their 44-point
+          areas meet (index.css): Routes, the Brief, the route's menu. */}
+      <div className="ml-auto flex shrink-0 items-center gap-3" data-testid="route-actions">
+        {/* The Routes' cards again, once one was used (RouteChoices), in the
+            Brief's place, at the owner's ask ("brief button with routes"). */}
+        {routed && !s.local && flightRules === "vfr" && (
+          <RoundButton label="Routes" onClick={showRoutes} aria-pressed={choosing} className="size-8" data-testid="route-routes">
+            <Route className="size-[1.125rem]" strokeWidth={2} />
+          </RoundButton>
+        )}
+        {/* The Brief, a card over FPL (BriefCard), in the nav log's place
+            at the owner's ask ("replace navlog button with brief"), marked
+            as the worst of its pages is; the nav log in the route's menu. */}
         {routed && (
           <RoundButton
-            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className={cn("size-8", IN_CAPSULE)}
+            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
             data-testid="route-brief" data-finding={briefMark ?? undefined}
           >
             <span className="relative">
@@ -2367,19 +2398,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             </span>
           </RoundButton>
         )}
-        {/* The nav log, in a sheet of its own (NavLogView), in the
-            Procedures' place, at the owner's ask ("We can replace the
-            approaches button with the navlog button"): FPL lists the route
-            in order instead, its procedures with it (ProceduresRoute). */}
-        {routed && (
-          <RoundButton label="Nav log" onClick={openNavLogCard} disabled={!course} className={cn("size-8", IN_CAPSULE, routed && CAPSULE_SEPARATOR)} data-testid="route-navlog">
-            <ListOrdered className="size-[1.125rem]" strokeWidth={2} />
-          </RoundButton>
-        )}
-        {/* The side view, a card as the nav log is (ProfileCard), is opened
-            from the altitude's own button beside the airplane, at the
-            owner's ask ("we won't need a separate profile button next to
-            navlog"). */}
         {/* Not before there is a route, at the owner's ask ("the share
             button should not appear before a route is entered"): the box
             clears itself (its own clear). */}

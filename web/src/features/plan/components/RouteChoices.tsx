@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
 import type { RouteOption, RouteOptions } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
-import { gridScale, isRoute, offered, wayTitle } from "../../../lib/routeWays";
+import { gridScale, isRoute, offered, routesOffered, wayTitle } from "../../../lib/routeWays";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
 
@@ -120,12 +120,14 @@ function Card({ minutes, arrive, nm, landings = 0, name, warning, bands, used, b
  * the route is already the best of every kind, needs no fuel and meets
  * nothing.
  */
-export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, withFuel, onUseFuel, full = false, picked, onPreview, onPick }: {
+export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, withFuel, onUseFuel, onUseOwn, full = false, picked, onPreview, onPick }: {
   found: RouteOptions | undefined;
   /** The route with the planner's fuel stops put in (the totals' fuel
    *  stops), its time and miles as they come to; null where it needs none. */
   withFuel: { minutes: number; nm: number; landings: number } | null;
   onUseFuel: () => void;
+  /** The route as it is kept, the cards put away. */
+  onUseOwn: () => void;
   /** The sheet all the way up: the cards a list, one under another (the
    *  owner's screenshot of Maps with its sheet up, "When card is full"). */
   full?: boolean;
@@ -164,8 +166,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   }, [at, keysKey]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   if (!found) return null;
-  const others = ways.filter(o => !isRoute(o, stops));
-  if (!meets.length && !others.length && !withFuel) return null;
+  if (!routesOffered(found, stops, !!withFuel)) return null;
   // The planner's ways are timed on its coarse grid, the route by its nav
   // log: each way's air time scaled by how the two differ on the route
   // itself, so the four are told alike -- the "Fastest" came out slower
@@ -191,8 +192,8 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
     <>
         <Card
           minutes={ownMinutes} arrive={arrive(ownMinutes)} nm={ownNm} name="Your Route"
-          warning={meets.length ? `Crosses ${kindWords(meets[0]!)}` : null} bands={found.current_along?.bands} used
-          testId="route-choice-current" listed={full} shown={picked === null} onShow={() => onPreview(null)}
+          warning={meets.length ? `Crosses ${kindWords(meets[0]!)}` : null} bands={found.current_along?.bands}
+          onUse={onUseOwn} testId="route-choice-current" listed={full} shown={picked === null} onShow={() => onPreview(null)}
         />
         {withFuel && (
           <Card
