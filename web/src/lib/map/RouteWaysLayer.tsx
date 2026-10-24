@@ -1,7 +1,7 @@
 import L from "leaflet";
 import { memo, useMemo } from "react";
 import { Marker, Polyline } from "react-leaflet";
-import { MAP_BLUE } from "./chartColors";
+import { COURSE_MAGENTA } from "./chartColors";
 import { made } from "./icons";
 import { text } from "./airportMark";
 
@@ -18,23 +18,26 @@ export interface RouteWay {
 
 // One style for good: react-leaflet restyles a path whose pathOptions is a
 // new object, and a literal is one at every render.
-const WAY_STYLE: L.PathOptions = { color: MAP_BLUE, weight: 6, opacity: 0.35, lineCap: "round", lineJoin: "round" };
-/** The one shown (FPL's Routes' card picked): the tint at full strength. */
-const SHOWN_STYLE: L.PathOptions = { color: MAP_BLUE, weight: 7, opacity: 0.9, lineCap: "round", lineJoin: "round" };
+// Faded and solid magenta, the course line's own, at the owner's ask
+// ("show all suggested routes on the map with faded magenta instead of
+// blue, and make that route solid magenta as browsed").
+const WAY_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 6, opacity: 0.35, lineCap: "round", lineJoin: "round" };
+/** The one shown (FPL's Routes' card in sight): solid magenta. */
+const SHOWN_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 7, opacity: 1, lineCap: "round", lineJoin: "round" };
 const NO_WAYS: RouteWay[] = [];
 /** Where along each way its chip sits, a share of its length, one apiece. */
 const WAY_SHARES = [0.35, 0.6, 0.8];
-/** The chip's fill: the map's blue a step darker, white words at 12
- *  points on it 4.5:1 and more (WCAG 1.4.3; the map's own #007aff is 4.0). */
-const WAY_CHIP = "#0062cc";
+/** The chip's fill: the line's magenta a step darker, white words at 13
+ *  points on it 6:1 (WCAG 1.4.3 asks 4.5; the line's own #e600e6 is 3.8). */
+const WAY_CHIP = "#b000b0";
 
-/** The chip on a way's line: its names and time, white on the tint, as
- *  Maps marks the routes beside the one picked; 22 tall, its 44-point hit
- *  area a pseudo-element round it. */
+/** The chip on a way's line: its names and time, as Maps marks the
+ *  routes beside the one picked, in the line's magenta; 24 tall, its
+ *  44-point hit area a pseudo-element round it. */
 const wayIcon = made(function wayIcon(label: string, name: string, shown: boolean) {
-  // A callout as Maps puts on its routes: the one shown filled in the
-  // tint with its name under its time, the others white with the time in
-  // the tint; a tail down to the line. Sized to its words, so the marker
+  // A callout as Maps puts on its routes: the one shown filled in
+  // magenta with its name under its time, the others white with the time in
+  // magenta; a tail down to the line. Sized to its words, so the marker
   // has a box (a hit test, a test's "visible").
   const lines = shown && name ? 2 : 1;
   const width = Math.ceil(Math.max(label.length, shown ? name.length : 0) * 7.6) + 22;
@@ -80,8 +83,7 @@ const Way = memo(function Way({ way, shown, at: share, onPick }: { way: RouteWay
 });
 
 /**
- * The ways FPL's Routes offer beside the route, drawn under it in a pale
- * tint as Maps draws the routes it did not pick, each with a chip of its
+ * The ways FPL's Routes offer beside the route, drawn under it in faded magenta as Maps draws the routes it did not pick, each with a chip of its
  * names and time, the one shown (FPL's Routes' card picked) at full
  * strength; a tap on either shows that way, as a tap on its card does
  * (RouteChoices), whose Use puts it in the route.

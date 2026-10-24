@@ -613,7 +613,7 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
 
 def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = None, fcst_hr: str = "06",
             min_ceiling_ft: float | None = None, min_visibility_sm: float | None = None,
-            current: list[tuple] | None = None, fields=None) -> dict:
+            current: list[tuple] | None = None, current_idents: list[str] | None = None, fields=None) -> dict:
     """The ways to fly from `dep` to `dest` ({"ident", "lat", "lon"}) in
     an airplane of `profile` (vfr.aircraft's: cruise_tas_kt, fuel_burn_gph,
     usable_fuel_gal, service_ceiling_ft): {"options": [{"kind", "title",
@@ -691,8 +691,10 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             same["kinds"].append(kind)
             continue
         found.append(option)
+    own = _own(grid, gs, current or [start, end], current_idents or [], profile, table, reserve_gal)
     return {
         "options": found,
+        "own": own,
         "direct": _crossed(grid, [start, end]),
         # The ends' own weather, which no way round can change: said, as
         # the briefing says it, for the pilot to judge.
@@ -704,6 +706,42 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         "current_marginal": _crossed(grid, current, marginal=True) if current else [],
         "hazards": grid.hazards,
         "unchecked": unchecked,
+    }
+
+
+def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], profile: dict, table, reserve_gal: float) -> dict | None:
+    """The pilot's own route with the fuel stops it needs put in where they
+    fall along it -- its own points kept, in order -- for FPL's card of it
+    before anything is planned (the owner's "Don't plan anything unless a
+    route is picked", 2026-10-24): its points, the fuel stops among them,
+    its miles, minutes and fuel, and what it meets. None where no chain of
+    fields with fuel reaches."""
+    stops = _stops(grid, gs, path, profile, table, reserve_gal, fewest=False)
+    if stops is None:
+        return None
+    along = [0.0]
+    for a, b in zip(path, path[1:]):
+        along.append(along[-1] + _line_minutes(grid, gs, a, b))
+    points = [(at, {"ident": ident, "lat": p[0], "lon": p[1], "fuel": False})
+              for at, ident, p in zip(along[1:-1], idents, path[1:-1])]
+    points += [(stop["at"], {"ident": stop["ident"], "lat": stop["lat"], "lon": stop["lon"], "fuel": True}) for stop in stops]
+    points.sort(key=lambda p: p[0])
+    way = [path[0]] + [(p["lat"], p["lon"]) for _, p in points] + [path[-1]]
+    distance = sum(float(geo.distance_nm(a[0], a[1], b[0], b[1])) for a, b in zip(way, way[1:]))
+    air = sum(_line_minutes(grid, gs, a, b) for a, b in zip(way, way[1:]))
+    return {
+        "kind": "own", "kinds": ["own"], "title": "Your Route",
+        "stops": [p["ident"] for _, p in points],
+        "fuel": [p["ident"] for _, p in points if p["fuel"]],
+        "path": [[round(lat, 5), round(lon, 5)] for lat, lon in way],
+        "distance_nm": round(distance, 1),
+        "air_min": round(air, 1),
+        "ground_min": TURNAROUND_MIN * len(stops),
+        "fuel_gal": round(air / 60.0 * float(profile["fuel_burn_gph"]), 1),
+        "landings": len(stops),
+        "crosses": _crossed(grid, way),
+        "marginal": _crossed(grid, way, marginal=True),
+        **_along(grid, gs, way, float(profile["cruise_tas_kt"])),
     }
 
 

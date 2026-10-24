@@ -220,7 +220,11 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   );
   // The cards' height: the sheet's room all the way up, less the gaps,
   // shared by them; a card's three lines at the least, 4.5 rem.
-  const cardHeight = { "--route-card": `max(4.5rem, calc((var(--full-body, 32rem) - ${keys.length - 1} * 0.75rem - 1rem) / ${keys.length}))` } as CSSProperties;
+  // At half the row's dots under the cards come out of that height, 1 rem
+  // with their gap and the padding, so they stay in sight above the
+  // figures (the owner's "make sure I can see the three dots").
+  const share = `(var(--full-body, 32rem) - ${keys.length - 1} * 0.75rem - 1rem) / ${keys.length}`;
+  const cardHeight = { "--route-card": full ? `max(4.5rem, calc(${share}))` : `max(4.5rem, calc(${share} - 1rem))` } as CSSProperties;
   if (full) {
     return (
       <section aria-label="Routes" style={cardHeight} className="flex flex-col gap-3 pb-4" data-testid="route-choices">

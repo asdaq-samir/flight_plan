@@ -81,7 +81,7 @@ const LINE_OVER_PX = 8;
 
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop, holdFor,
   footer,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
@@ -130,6 +130,11 @@ export default function RouteBox({
   /** A suggested fuel stop taken out of the box, the pilot not wanting it
    *  (its menu's Remove); the route's menu or FPL's Routes put it back. */
   onHideFuelStop?: (ident: string) => void;
+  /** The routes FPL's Routes' cards are browsing, each its points end to
+   *  end: where any of them takes two lines the box keeps two lines'
+   *  height while they are browsed, so it does not grow and shrink from
+   *  card to card (the owner, 2026-10-24). */
+  holdFor?: string[][];
   /** The route's buttons -- the airplane, the altitude, the Brief, the nav
    *  log and Share -- in the box under its lines, as a message box has its
    *  own under what is typed, at the owner's ask ("I want the route box
@@ -275,9 +280,15 @@ export default function RouteBox({
   // see", 2026-10-24): measured off a pill, so it holds at any text size --
   // the 6 rem it was showed a third line's top at the owner's larger text.
   const [twoLines, setTwoLines] = useState<number | null>(null);
+  // Whether a route browsed (holdFor) takes two lines: each laid out as
+  // the box lays its pills, a line filled before the next is begun, by
+  // the widths of the pills and arrows in it now and the idents' own.
+  const [holdTwo, setHoldTwo] = useState(false);
+  const holdKey = (holdFor ?? []).map(r => r.join(",")).join("|");
   useEffect(() => {
     const el = slide.current;
     if (!el) return;
+    const routes = holdKey ? holdKey.split("|").map(r => r.split(",")) : [];
     const read = () => {
       setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
       const pill = el.firstElementChild as HTMLElement | null;
@@ -286,13 +297,14 @@ export default function RouteBox({
       const gap = parseFloat(style.rowGap) || 0;
       const pad = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
       setTwoLines(Math.ceil(pill.offsetHeight * 2 + gap + pad));
+      setHoldTwo(routes.some(route => takesTwoLines(el, route.map(pointName))));
     };
     const sized = new ResizeObserver(read);
     sized.observe(el);
     const changed = new MutationObserver(read);
     changed.observe(el, { childList: true, subtree: true });
     return () => { sized.disconnect(); changed.disconnect(); };
-  }, []);
+  }, [holdKey]);
   const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
   const toEnd = (e: MouseEvent<HTMLDivElement>) => {
     if (!isRoom(e)) return;
@@ -473,7 +485,7 @@ export default function RouteBox({
                 96 px, a phone at a larger text size (pills 2rem tall, the
                 lines' gap and padding with them) needed 98 for two lines,
                 and two lines scrolled with no third (the owner's notice). */}
-            <div ref={slide} style={twoLines ? { maxHeight: twoLines } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
+            <div ref={slide} style={twoLines ? { maxHeight: twoLines, minHeight: holdTwo ? twoLines : undefined } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
               // Its own lines scrolled first under a finger, then the sheet
               // dragged (use-detent-drag's data-scroll-first).
               data-scroll-first="">
@@ -809,4 +821,28 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       </ContextMenuContent>
     </ContextMenu>
   );
+}
+
+/** Whether a route of these names would wrap in the box `el` to a second
+ *  line: its pills as wide as the box's own are for their words (the
+ *  widest pill's room round its words, so it errs to two), an arrow
+ *  between each, as the box wraps them. */
+function takesTwoLines(el: HTMLElement, names: string[]): boolean {
+  const pills = [...el.querySelectorAll<HTMLElement>("[data-testid=route-dep],[data-testid=stop],[data-testid=route-dest]")];
+  const arrow = el.querySelector<HTMLElement>("[data-testid=route-arrow]");
+  const context = document.createElement("canvas").getContext("2d");
+  if (!pills.length || !context) return false;
+  context.font = getComputedStyle(pills[0]!).font;
+  const words = (text: string) => context.measureText(text).width;
+  const room = Math.max(...pills.map(p => p.offsetWidth - words((p.textContent ?? "").trim())));
+  const style = getComputedStyle(el);
+  const line = el.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+  const columnGap = parseFloat(style.columnGap) || 0;
+  const widths = names.flatMap((name, i) => [...(i ? [arrow?.offsetWidth ?? 12] : []), room + words(name)]);
+  let used = 0;
+  for (const w of widths) {
+    if (used && used + columnGap + w > line) return true;
+    used += (used ? columnGap : 0) + w;
+  }
+  return false;
 }

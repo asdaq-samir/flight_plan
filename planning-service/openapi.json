@@ -9159,7 +9159,8 @@
             "enum": [
               "fastest",
               "weather",
-              "stops"
+              "stops",
+              "own"
             ],
             "title": "Kind",
             "type": "string"
@@ -9169,7 +9170,8 @@
               "enum": [
                 "fastest",
                 "weather",
-                "stops"
+                "stops",
+                "own"
               ],
               "type": "string"
             },
@@ -9288,6 +9290,16 @@
             },
             "title": "Options",
             "type": "array"
+          },
+          "own": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteOption"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "unchecked": {
             "items": {

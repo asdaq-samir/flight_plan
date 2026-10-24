@@ -3,7 +3,7 @@ import { hoursMinutes } from "./clock";
 import { sameField } from "./procedures";
 
 /** A way's names, the kinds it is the best of (FPL's Routes, the map's lines). */
-const KIND_TITLES: Record<RouteOption["kind"], string> = { fastest: "Fastest", weather: "Best Weather", stops: "" };
+const KIND_TITLES: Record<RouteOption["kind"], string> = { fastest: "Fastest", weather: "Best Weather", stops: "", own: "" };
 
 /** The ways FPL offers (the owner's four routes, 2026-10-23: the route,
  *  it with its fuel stops, the best weather's and the fastest, each with
