@@ -52,7 +52,7 @@ function Strip({ bands }: { bands: { kind: string; min: number }[] }) {
  *  arrival and miles, and its name -- or what it crosses, in red -- with
  *  Use at the right where it is not the route already; the weather met
  *  along it a thin strip at its foot. */
-function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, testId }: {
+function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, testId, listed = false, shown = false, onShow }: {
   minutes: number | null;
   arrive: string | null;
   nm: number | null;
@@ -63,10 +63,23 @@ function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, te
   best?: boolean;
   onUse?: () => void;
   testId: string;
+  /** In the list all the way up, one under another, white on the sheet's
+   *  grey with the one shown ringed in the tint, as Maps lists its routes
+   *  with its sheet up; else one of the swiped row at half. */
+  listed?: boolean;
+  shown?: boolean;
+  onShow?: () => void;
 }) {
   return (
-    <div data-testid={testId} className="relative flex h-full w-full shrink-0 snap-center items-center gap-3 rounded-3xl bg-foreground/6 px-4">
-      <div className="flex min-w-0 flex-1 flex-col">
+    <div
+      data-testid={testId} aria-current={listed && shown ? true : undefined}
+      className={cn("relative flex w-full shrink-0 items-center gap-3 rounded-3xl px-4",
+        listed ? cn("bg-card py-4", shown ? "border-2 border-primary shadow-[0_2px_12px_rgba(0,122,255,0.15)]" : "border-2 border-transparent")
+          : "h-full snap-center bg-foreground/6")}
+    >
+      {/* All the way up the card's face shows its way, Use its own button over it. */}
+      {listed && onShow && <button type="button" aria-label={`Show ${name}`} aria-pressed={shown} onClick={onShow} className="absolute inset-0 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-ring" />}
+      <div className="pointer-events-none flex min-w-0 flex-1 flex-col">
         <span className="text-[1.625rem] leading-8 font-bold tabular-nums">{minutes ? minutesWords(minutes) : "—"}</span>
         <span className={cn("truncate text-muted-foreground tabular-nums", TEXT.note)}>
           {[arrive && `${arrive} ETA`, nm && `${grouped(Math.round(nm))} nm`].filter(Boolean).join(" · ")}
@@ -77,7 +90,7 @@ function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, te
       </div>
       {used ? <Check className="size-6 shrink-0 text-tint" aria-label="In use" />
         : onUse && (
-          <Button className="h-12 shrink-0 rounded-2xl px-5 text-[1.0625rem] font-bold" onClick={onUse} data-testid={`${testId}-use`}>Use</Button>
+          <Button className="relative h-12 shrink-0 rounded-2xl px-5 text-[1.0625rem] font-bold" onClick={onUse} data-testid={`${testId}-use`}>Use</Button>
         )}
       {bands && bands.length > 0 && <Strip bands={bands} />}
     </div>
@@ -96,8 +109,11 @@ function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, te
  * room between the route box and the figures at its foot. Nothing where
  * the route is already the best of every kind and meets nothing.
  */
-export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, picked, onPreview, onPick, onDirect }: {
+export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, full = false, picked, onPreview, onPick, onDirect }: {
   found: RouteOptions | undefined;
+  /** The sheet all the way up: the cards a list, one under another (the
+   *  owner's screenshot of Maps with its sheet up, "When card is full"). */
+  full?: boolean;
   /** The route's own time en route and miles as planned (the nav log's). */
   ownMinutes: number | null;
   ownNm: number | null;
@@ -148,6 +164,43 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
       if (kind !== picked) onPreview(kind);
     });
   };
+  const cards = (
+    <>
+        <Card
+          minutes={ownMinutes} arrive={arrive(ownMinutes)} nm={ownNm} name="Your Route"
+          warning={meets.length ? `Crosses ${kindWords(meets[0]!)}` : null} bands={found.current_along?.bands} used
+          testId="route-choice-current" listed={full} shown={picked === null} onShow={() => onPreview(null)}
+        />
+        {ranked.map(option => {
+          const used = isRoute(option, stops);
+          const minutes = option.air_min + option.ground_min;
+          return (
+            <Card
+              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} name={wayTitle(option)}
+              warning={option.crosses.length ? `Crosses ${kindWords(option.crosses[0]!)}` : null}
+              bands={option.bands} used={used} best={option === ranked[0] && !used}
+              onUse={used ? undefined : () => onPick(option)} testId={`route-choice-${option.kind}`}
+              listed={full} shown={picked === option.kind} onShow={() => onPreview(option.kind)}
+            />
+          );
+        })}
+        {straight && (
+          <Card
+            minutes={null} arrive={null} nm={null} name="Straight Line"
+            warning={found.direct.length ? `Crosses ${kindWords(found.direct[0]!)}` : null}
+            onUse={onDirect} testId="route-choice-direct"
+            listed={full} shown={picked === "direct"} onShow={() => onPreview("direct")}
+          />
+        )}
+    </>
+  );
+  if (full) {
+    return (
+      <section aria-label="Routes" className="flex flex-col gap-3 pb-4" data-testid="route-choices">
+        {cards}
+      </section>
+    );
+  }
   return (
     <section aria-label="Routes" className="flex flex-col gap-1.5 pb-1" data-testid="route-choices">
       {/* The route box's width, one at a time (the owner's "make them same
@@ -160,30 +213,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
         className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-1.75rem),8rem)] snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 [scrollbar-width:none]"
         data-slides=""
       >
-        <Card
-          minutes={ownMinutes} arrive={arrive(ownMinutes)} nm={ownNm} name="Your Route"
-          warning={meets.length ? `Crosses ${kindWords(meets[0]!)}` : null} bands={found.current_along?.bands} used
-          testId="route-choice-current"
-        />
-        {ranked.map(option => {
-          const used = isRoute(option, stops);
-          const minutes = option.air_min + option.ground_min;
-          return (
-            <Card
-              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} name={wayTitle(option)}
-              warning={option.crosses.length ? `Crosses ${kindWords(option.crosses[0]!)}` : null}
-              bands={option.bands} used={used} best={option === ranked[0] && !used}
-              onUse={used ? undefined : () => onPick(option)} testId={`route-choice-${option.kind}`}
-            />
-          );
-        })}
-        {straight && (
-          <Card
-            minutes={null} arrive={null} nm={null} name="Straight Line"
-            warning={found.direct.length ? `Crosses ${kindWords(found.direct[0]!)}` : null}
-            onUse={onDirect} testId="route-choice-direct"
-          />
-        )}
+        {cards}
       </div>
       <div className="flex justify-center gap-2" aria-hidden="true">
         {keys.map((key, i) => <span key={key ?? "own"} className={cn("size-1.5 rounded-full", i === at ? "bg-foreground/70" : "bg-foreground/20")} />)}

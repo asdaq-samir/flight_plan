@@ -1983,9 +1983,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }))
     : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
-    ? <RouteChoices found={routeWays} stops={planned.stops} depart={depart || null} ownMinutes={s.totals?.ete_min ?? null} ownNm={s.totals?.distance_nm ?? null} picked={wayShown}
+    ? <RouteChoices found={routeWays} stops={planned.stops} depart={depart || null} ownMinutes={s.totals?.ete_min ?? null} ownNm={s.totals?.distance_nm ?? null} full={panel === "full"} picked={wayShown}
         onPreview={setWayShown} onPick={pickRoute} onDirect={flyDirect} /> : null),
-  [routed, s.local, flightRules, routeWays, planned.stops, depart, s.totals?.ete_min, s.totals?.distance_nm, wayShown, pickRoute, flyDirect]);
+  [routed, s.local, flightRules, routeWays, planned.stops, depart, s.totals?.ete_min, s.totals?.distance_nm, panel, wayShown, pickRoute, flyDirect]);
   const routeList = useMemo(() => (
     <>
     {/* The ways to fly it, over its points (RouteChoices). */}
