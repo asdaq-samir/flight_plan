@@ -72,11 +72,11 @@ function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, use
   return (
     <div
       data-testid={testId} aria-current={shown || undefined}
-      className={cn("relative flex w-[54%] max-w-56 min-w-44 shrink-0 snap-start flex-col rounded-xl border bg-card",
+      className={cn("relative flex h-full w-[54%] max-w-56 min-w-44 shrink-0 snap-start flex-col rounded-xl border bg-card",
         shown ? "border-2 border-primary" : "border-border")}
     >
       {/* The card's face shows it; Use, its own button at the top right. */}
-      <button type="button" onClick={onShow} aria-pressed={shown} className="flex flex-col gap-0.5 px-2.5 py-1.5 text-left outline-none">
+      <button type="button" onClick={onShow} aria-pressed={shown} className="flex min-h-0 flex-1 flex-col justify-between gap-0.5 px-2.5 py-2 text-left outline-none">
         <span className={cn("flex w-full items-baseline justify-between gap-2", TEXT.note)}>
           <span className="flex min-w-0 items-center gap-1 font-semibold">
             <span className="truncate">{title}</span>
@@ -153,7 +153,13 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, picked,
     <section aria-label="Routes" className="flex flex-col pb-2" data-testid="route-choices">
       {/* The cards in the half sheet's room between the route box and
           the figures, so at half the map and the ways are both in sight. */}
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none]" data-slides="">
+      {/* As tall as the half sheet's body leaves (MapPanel's --half-body),
+          less the room over and under them: up to the figures at the
+          foot, at the owner's "a bit bigger just up to the calculations". */}
+      <div
+        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-1.25rem),9rem)] snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none]"
+        data-slides=""
+      >
         <Card
           title="Your Route" figure={ownMinutes ? minutesWords(ownMinutes) : "—"} line={crossesLine}
           lineInk={meets.length ? "text-destructive-ink" : undefined} bands={current?.bands}
