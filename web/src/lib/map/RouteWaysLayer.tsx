@@ -34,7 +34,7 @@ const WAY_CHIP = "#b000b0";
 /** The chip on a way's line: its names and time, as Maps marks the
  *  routes beside the one picked, in the line's magenta; 24 tall, its
  *  44-point hit area a pseudo-element round it. */
-const wayIcon = made(function wayIcon(label: string, name: string, shown: boolean) {
+const wayIcon = made(function wayIcon(key: string, label: string, name: string, shown: boolean) {
   // A callout as Maps puts on its routes: the one shown filled in
   // magenta with its name under its time, the others white with the time in
   // magenta; a tail down to the line. Sized to its words, so the marker
@@ -47,7 +47,7 @@ const wayIcon = made(function wayIcon(label: string, name: string, shown: boolea
   return L.divIcon({
     className: "",
     iconSize: [width, height], iconAnchor: [14, height + 7],
-    html: `<span data-route-way="" class="relative flex h-full w-full flex-col justify-center rounded-xl px-2.5 text-[13px] leading-4 font-semibold shadow-[0_1px_4px_rgba(0,0,0,.35)] after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']" style="background-color:${fill};color:${ink}">` +
+    html: `<span data-route-way="${text(key)}" class="relative flex h-full w-full flex-col justify-center rounded-xl px-2.5 text-[13px] leading-4 font-semibold shadow-[0_1px_4px_rgba(0,0,0,.35)] after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']" style="background-color:${fill};color:${ink}">` +
       `<span class="whitespace-nowrap tabular-nums">${text(label)}</span>` +
       (lines === 2 ? `<span class="whitespace-nowrap font-medium">${text(name)}</span>` : "") +
       `<span aria-hidden="true" class="absolute left-2 top-full h-0 w-0 border-x-[6px] border-t-[8px] border-x-transparent" style="border-top-color:${fill}"></span></span>`,
@@ -77,7 +77,7 @@ const Way = memo(function Way({ way, shown, at: share, onPick }: { way: RouteWay
   return (
     <>
       <Polyline positions={way.path} pathOptions={shown ? SHOWN_STYLE : WAY_STYLE} eventHandlers={events} />
-      <Marker position={at} icon={wayIcon(way.label, way.name ?? "", shown)} eventHandlers={events} keyboard={false} zIndexOffset={shown ? 1000 : 0} />
+      <Marker position={at} icon={wayIcon(way.key, way.label, way.name ?? "", shown)} eventHandlers={events} keyboard={false} zIndexOffset={shown ? 1000 : 0} />
     </>
   );
 });

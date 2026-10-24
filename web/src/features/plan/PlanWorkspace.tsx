@@ -2113,14 +2113,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (option) setStops(option.stops, option.fuel);
   }, [browsing, planned.stops, searchParams, ownWithFuel, ownMinutes, ownNm, routeWays, setStops, setBrowsing]);
 
-  // The same ways on the chart beside the route, in the pale tint (RouteWaysLayer).
-  const wayLines = useMemo((): RouteWay[] => (routeWays && routed && !s.local && flightRules === "vfr"
+  // The same ways on the chart beside the route, in faded magenta (RouteWaysLayer).
+  // Only while the cards are up: a route picked is the route alone on the
+  // chart, the other ways put away with their cards.
+  const wayLines = useMemo((): RouteWay[] => (choosing && routeWays
     ? routeWays.options.filter(o => offered(o) && !isRoute(o, planned.stops)).map(o => ({
       // Its time alone on the chart, the cards saying which is which (the
       // owner's "avoid putting too much text": the names ran over each other).
       key: o.kind, path: o.path as [number, number][], label: wayTime(o, gridScale(routeWays, browsing ? browsing.ownMinutes : ownMinutes)), name: wayTitle(o),
     }))
-    : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops, browsing, ownMinutes]);
+    : NO_WAYS), [choosing, routeWays, planned.stops, browsing, ownMinutes]);
   // Routes in the route box: the cards again, from the route as it is.
   const showRoutes = useCallback(() => setRoutesChosen(null), []);
   const routeChoices = useMemo(() => {
