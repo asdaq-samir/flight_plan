@@ -76,3 +76,18 @@ def test_a_tiles_pixels_go_into_their_cells_highest_and_lowest(monkeypatch):
     assert high[reached].max() == round(500 * ground_grid.M_TO_FT)
     assert low[reached].min() == round(-20 * ground_grid.M_TO_FT)
     assert np.median(high[reached]) == round(100 * ground_grid.M_TO_FT)
+
+
+def test_a_grid_built_after_the_planner_started_is_taken_up(monkeypatch, tmp_path):
+    clock = [1000.0]
+    monkeypatch.setattr("time.monotonic", lambda: clock[0])
+    monkeypatch.setattr(ground_grid, "HIGH_PATH", tmp_path / "high.npy")
+    monkeypatch.setattr(ground_grid, "LOW_PATH", tmp_path / "low.npy")
+    monkeypatch.setattr(ground_grid, "DONE_PATH", tmp_path / "done.json")
+    monkeypatch.setattr(ground_grid, "_HELD", {})
+    assert ground_grid._grids() is None
+    np.save(tmp_path / "high.npy", np.zeros((2, 2), dtype=np.int16))
+    np.save(tmp_path / "low.npy", np.zeros((2, 2), dtype=np.int16))
+    assert ground_grid._grids() is None            # not looked for again yet
+    clock[0] += ground_grid.LOOK_AGAIN_S + 1
+    assert ground_grid._grids() is not None
