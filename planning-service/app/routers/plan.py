@@ -411,7 +411,7 @@ def resolve_altitude(
             legs = navlog.with_climbs(navlog.legs(fix_list, altitude_ft, profile, fcst_hr), departure_elevation(r), profile)
         except WeatherServiceError as err:
             return NoWinds(selection, options, err, figures)
-        caution = own_altitude_caution(selection, legs, (r.dep_ident, r.dest_ident))
+        caution = own_altitude_caution(selection, legs, (r.dep_ident, r.dest_ident), profile)
         return Flown(selection, options, None, altitude_ft, legs, cautions=(caution,) if caution else (), figures=figures)
     if failure is not None:
         return NoWinds(selection, options, failure, figures)
@@ -428,7 +428,7 @@ def resolve_altitude(
         except WeatherServiceError as err:
             return NoWinds(selection, options, err, figures)
         between = (r.dep_ident, r.dest_ident)
-        caution = own_altitude_caution(selection, legs, between) or {
+        caution = own_altitude_caution(selection, legs, between, profile) or {
             "from_ident": between[0], "to_ident": between[1], "altitude_ft": anyway, "reasons": []}
         caution = {**caution, "reasons": [*prohibited_caution(selection), *caution["reasons"]]}
         return Flown(selection, options, None, anyway, legs, cautions=(caution,) if caution["reasons"] else (),
