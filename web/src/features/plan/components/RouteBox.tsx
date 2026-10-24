@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, Coffee, Fuel, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
+import { ArrowRight, Coffee, Fuel, PlaneLanding, PlaneTakeoff, Plus, Route, Trash2, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -12,6 +12,7 @@ import ClearButton from "../../../components/ClearButton";
 import { PANEL_FIELD } from "../../../components/panelField";
 import { CommandList } from "../../../components/ui/command";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "../../../components/ui/context-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import { PointMenuItems } from "./PointControls";
 import { CONTEXT_MENU, useAfterMenu } from "./pointMenu";
 import { InputGroup } from "../../../components/ui/input-group";
@@ -80,7 +81,7 @@ const LINE_OVER_PX = 8;
 
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop,
   footer,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
@@ -126,6 +127,9 @@ export default function RouteBox({
    *  until added; a tap adds them, as FPL's Add fuel stop does. */
   fuelStops?: FuelStopSuggestion[];
   onKeepFuelStops?: (after: string, idents: string[]) => void;
+  /** A suggested fuel stop taken out of the box, the pilot not wanting it
+   *  (its menu's Remove); the route's menu or FPL's Routes put it back. */
+  onHideFuelStop?: (ident: string) => void;
   /** The route's buttons -- the airplane, the altitude, the Brief, the nav
    *  log and Share -- in the box under its lines, as a message box has its
    *  own under what is typed, at the owner's ask ("I want the route box
@@ -520,7 +524,11 @@ export default function RouteBox({
                         .flatMap(f => f.stops.map(stop => (
                           <Fragment key={`fuel-${stop.ident}`}>
                             <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-                            <FuelStopChip ident={stop.ident} reason={f.reason} onAdd={onKeepFuelStops ? () => onKeepFuelStops(point, f.stops.map(s => s.ident)) : undefined} />
+                            <FuelStopChip
+                              ident={stop.ident} reason={f.reason}
+                              onAdd={onKeepFuelStops ? () => onKeepFuelStops(point, f.stops.map(s => s.ident)) : undefined}
+                              onHide={onHideFuelStop ? () => onHideFuelStop(stop.ident) : undefined}
+                            />
                           </Fragment>
                         )))}
                     </Fragment>
@@ -603,22 +611,46 @@ function frdWords(ident: string): string {
 }
 
 /** A fuel stop suggested and not yet in the route (FuelStopRow's), in the
- *  box: dashed in the caution's colour with the pump, a tap adding it. */
-function FuelStopChip({ ident, reason = "fuel", onAdd }: { ident: string; reason?: "fuel" | "break"; onAdd?: () => void }) {
+ *  box: dashed in the caution's colour with the pump; a tap its menu, to
+ *  add it to the route or take it out of the box, at the owner's ask
+ *  ("Fuel stops should also have a way to delete them and add them back as
+ *  pleased", 2026-10-24). A stop added is the route's own, taken out by its
+ *  pill's menu as any stop is, and suggested again if the tanks need it. */
+function FuelStopChip({ ident, reason = "fuel", onAdd, onHide }: { ident: string; reason?: "fuel" | "break"; onAdd?: () => void; onHide?: () => void }) {
   // A break on a long flight the tanks hold wears a cup, not the pump.
   const Glyph = reason === "break" ? Coffee : Fuel;
-  return (
-    <button
-      type="button" onClick={onAdd} disabled={!onAdd} data-testid="route-fuel-stop"
-      aria-label={`Suggested ${reason === "break" ? "stop" : "fuel stop"} ${ident}: add it to the route`}
-      className={cn(
-        "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-caution bg-background/70 px-2 font-semibold whitespace-nowrap text-caution-ink outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
-        TEXT.detail,
-      )}
-    >
+  const chip = cn(
+    "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-caution bg-background/70 px-2 font-semibold whitespace-nowrap text-caution-ink outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+    TEXT.detail,
+  );
+  const face = (
+    <>
       <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
       {ident}
-    </button>
+    </>
+  );
+  if (!onHide) {
+    return (
+      <button
+        type="button" onClick={onAdd} disabled={!onAdd} data-testid="route-fuel-stop"
+        aria-label={`Suggested ${reason === "break" ? "stop" : "fuel stop"} ${ident}: add it to the route`} className={chip}
+      >
+        {face}
+      </button>
+    );
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" data-testid="route-fuel-stop" aria-label={`Suggested ${reason === "break" ? "stop" : "fuel stop"} ${ident}`} className={chip}>
+          {face}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {onAdd && <DropdownMenuItem onSelect={onAdd} data-testid="route-fuel-stop-add"><Plus />Add to Route</DropdownMenuItem>}
+        <DropdownMenuItem variant="destructive" onSelect={onHide} data-testid="route-fuel-stop-remove"><Trash2 />Remove</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

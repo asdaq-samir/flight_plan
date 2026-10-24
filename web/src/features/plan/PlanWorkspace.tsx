@@ -250,6 +250,7 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
  *  offers them. */
 const FLIGHT_RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
 const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
+const NO_IDENTS: string[] = [];
 
 /** The route as the address has it, "dep|stops|dest", kept as a Direct to
  *  goes in (directToPoint) for its Cancel. */
@@ -1168,7 +1169,22 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The fuel stops the planner suggests for a flight too long for its
   // tanks (the totals' fuel_stops), kept: put in after the flight's
   // departure, in order, as many as the planner takes.
-  const fuelStops = s.local ? NO_FUEL_STOPS : s.totals?.fuel_stops ?? NO_FUEL_STOPS;
+  const allFuelStops = s.local ? NO_FUEL_STOPS : s.totals?.fuel_stops ?? NO_FUEL_STOPS;
+  // Suggested fuel stops the pilot took out of the route box (its chip's
+  // Remove), for this route: left out of the box, the list and the map,
+  // and put back by the route menu's Show Fuel Stops, at the owner's ask
+  // ("Fuel stops should also have a way to delete them and add them back
+  // as pleased", 2026-10-24). FPL's Routes keep their own card for them.
+  const fuelRoute = `${planned.dep}|${planned.stops.join(",")}|${planned.dest ?? ""}`;
+  const [hiddenFuel, setHiddenFuel] = useState<{ route: string; idents: string[] }>({ route: "", idents: [] });
+  const hiddenHere = hiddenFuel.route === fuelRoute ? hiddenFuel.idents : NO_IDENTS;
+  const fuelStops = useMemo(() => (hiddenHere.length
+    ? allFuelStops.map(f => ({ ...f, stops: f.stops.filter(x => !hiddenHere.includes(x.ident)) })).filter(f => f.stops.length)
+    : allFuelStops), [allFuelStops, hiddenHere]);
+  const hideFuelStop = useCallback((ident: string) => setHiddenFuel(was => ({
+    route: fuelRoute, idents: [...(was.route === fuelRoute ? was.idents : []), ident],
+  })), [fuelRoute]);
+  const showFuelStops = useCallback(() => setHiddenFuel({ route: "", idents: [] }), []);
   // The tanks for FPL's fuel at each point: the fuel check's usable fuel,
   // allowance and reserve, the first flight's where the route has stops
   // (each is filled again), the strictest reserve of them.
@@ -2016,7 +2032,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // miles from the route's own, each stop's miles added at the route's
   // own speed and the owner's 30 minutes on the ground at each.
   const withFuel = useMemo(() => {
-    const suggested = fuelStops.filter(f => f.reason !== "break" && f.stops.length);
+    // From every suggestion, those taken out of the box too: the Routes'
+    // card is the way they are added back as well.
+    const suggested = allFuelStops.filter(f => f.reason !== "break" && f.stops.length);
     const ete = s.totals?.ete_min, nm = s.totals?.distance_nm;
     if (!suggested.length || !ete || !nm) return null;
     let stops = planned.stops;
@@ -2030,7 +2048,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (!added.length) return null;
     const extra = suggested.flatMap(f => f.stops).reduce((sum, x) => sum + x.added_nm, 0);
     return { stops, added, nm: nm + extra, minutes: ete + extra * (ete / nm) + 30 * added.length, landings: added.length };
-  }, [fuelStops, s.totals?.ete_min, s.totals?.distance_nm, planned.stops, planned.dep]);
+  }, [allFuelStops, s.totals?.ete_min, s.totals?.distance_nm, planned.stops, planned.dep]);
   const fuelCard = browsing ? browsing.withFuel : withFuel;
   const keepWithFuel = useCallback(() => {
     if (!fuelCard) return;
@@ -2271,6 +2289,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
       onNavLog={card === undefined && course ? openNavLogCard : undefined}
+      onShowFuel={card === undefined && hiddenHere.length ? showFuelStops : undefined}
     />
   );
 
@@ -2699,7 +2718,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onChange={setRoute} onTypedProcedures={typeProcedures}
           adding={!!addingStop} onAddingChange={addingChange}
           via={addingStop === "via" ? s.unflyable?.detours : undefined}
-          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops}
+          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop}
           // An airport's pill tapped: its card over the route, as a tap on
           // it on the chart opens it, at the pilot's ask; closed, the route.
           onOpenAirport={selectPlace}
