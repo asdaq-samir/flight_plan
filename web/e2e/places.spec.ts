@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart } from "./helpers";
+import { airportMark, airportMarks, clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -353,30 +353,32 @@ async function airportToTap(page: Page) {
     await page.waitForTimeout(400);
   }
   // Its chip, or this close in, its grey one for no report; further out
-  // an invisible target where it reports nothing.
-  const AIRPORTS = ".leaflet-airports-pane .leaflet-marker-icon, .leaflet-airports-pane path.leaflet-airport-target";
-  await expect.poll(() => page.locator(AIRPORTS).count(), { timeout: slow(20000) }).toBeGreaterThan(1);
+  // the field's place on the chart, which a tap opens all the same (the
+  // canvas's marks, AirportCanvas).
+  await expect.poll(async () => (await airportMarks(page)).length, { timeout: slow(20000) }).toBeGreaterThan(1);
   // And until they have all come: the view's own answer redraws them, and
   // a tap as it does lands on the chart.
   let drawn = -1;
   await expect(async () => {
-    const now = await page.locator(AIRPORTS).count();
+    const now = (await airportMarks(page)).length;
     const still = now === drawn;
     drawn = now;
     await page.waitForTimeout(500);
     expect(still).toBe(true);
   }).toPass({ timeout: slow(15_000) });
-  // One whose middle nothing else covers, asked again while the map is
-  // still drawing under a busy runner.
-  const find = () => page.evaluate(selector => {
-    for (const el of document.querySelectorAll(selector)) {
-      const r = el.getBoundingClientRect();
-      const x = r.left + r.width / 2, y = r.top + r.height / 2;
-      const hit = document.elementFromPoint(x, y);
-      if (hit && (hit === el || el.contains(hit))) return { x, y };
-    }
-    return null;
-  }, AIRPORTS);
+  // One whose middle nothing else covers -- the chart itself under it, no
+  // marker or control -- asked again while the map is still drawing under
+  // a busy runner.
+  const find = async () => {
+    const marks = (await airportMarks(page)).filter(m => m.x > 20 && m.y > 20);
+    return page.evaluate(points => {
+      for (const { x, y } of points) {
+        const hit = document.elementFromPoint(x, y);
+        if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x, y };
+      }
+      return null;
+    }, marks.map(m => ({ x: m.x, y: m.y })));
+  };
   await expect.poll(find, { timeout: slow(10000), message: "an airport on the chart with nothing over it" }).not.toBeNull();
   const at = await find();
   expect(at, "an airport on the chart with nothing over it").not.toBeNull();
@@ -500,26 +502,24 @@ test("the airport whose card is open wears a ring round its mark, clear of it on
   await settle(page);
   // Its card at the pill's size, the chart over it in sight.
   await grabberTo(page, "peek");
-  const marker = page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "C81" });
-  const mark = marker.locator("[data-airport-mark]");
   const ring = page.locator("[data-selected-airport]");
-  await expect(mark).toBeVisible({ timeout: slow(15000) });
+  await expect.poll(async () => (await airportMark(page, "C81"))?.chip, { timeout: slow(15000) }).toBe(true);
   await expect(ring).toBeVisible();
-  // Measured once the map has stopped moving the two together.
+  // Measured once the map has stopped moving the two together. The mark
+  // is 26 across (AIRPORT_MARK), drawn on the airports' canvas.
   await expect(async () => {
-    const c = (await mark.boundingBox())!, r = (await ring.boundingBox())!;
-    expect(Math.abs(c.x + c.width / 2 - (r.x + r.width / 2))).toBeLessThan(1);
-    expect(Math.abs(c.y + c.height / 2 - (r.y + r.height / 2))).toBeLessThan(1);
+    const c = (await airportMark(page, "C81"))!, r = (await ring.boundingBox())!;
+    expect(Math.abs(c.x - (r.x + r.width / 2))).toBeLessThan(1);
+    expect(Math.abs(c.y - (r.y + r.height / 2))).toBeLessThan(1);
     // Its red-orange 3 wide and clear of the mark: the circle it was,
     // smaller than the chip it went round, lay under it all but a sliver.
-    expect(r.width - c.width).toBeGreaterThanOrEqual(11);
-    expect(r.height - c.height).toBeGreaterThanOrEqual(11);
+    expect(r.width - 26).toBeGreaterThanOrEqual(11);
+    expect(r.height - 26).toBeGreaterThanOrEqual(11);
   }).toPass({ timeout: slow(10000) });
-  // The ident beside the mark is over the ring, not hidden under it.
-  const ident = marker.locator("span").filter({ hasText: "C81" });
-  const at = (await ident.boundingBox())!;
-  const top = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.textContent ?? "", [at.x + 3, at.y + at.height / 2]);
-  expect(top).toBe("C81");
+  // The ident beside the mark is over the ring, not hidden under it: the
+  // airports' canvas in a pane over the ring's.
+  const z = (pane: string) => page.locator(`.leaflet-${pane}-pane`).evaluate(el => Number(getComputedStyle(el).zIndex));
+  expect(await z("airports")).toBeGreaterThan(await z("selected-airport"));
 
   // Put away, the ring goes with the card.
   await closeCard(page, "place-close");
@@ -544,29 +544,28 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
   await openMapSettings(page);
   await page.getByTestId("military-toggle").click();
   await page.keyboard.press("Escape");
-  const markOf = (ident: string) => page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: ident }).locator("[data-airport-mark]");
+  // Each drawn from its airspace, its use and its weather (AirportCanvas,
+  // airportMarkSvg's look; the look itself is the route's own marks', in
+  // classb.spec).
+  const markOf = (ident: string) => airportMark(page, ident);
   for (const [ident, space] of [["KBBB", "B"], ["KCCC", "C"], ["KDDD", "D"], ["KEEE", "E"], ["KGGG", "G"], ["KMIL", "C"], ["KUNK", ""]]) {
-    await expect(markOf(ident!)).toHaveAttribute("data-airspace", space!, { timeout: slow(15000) });
+    await expect.poll(async () => (await markOf(ident!))?.space, { timeout: slow(15000) }).toBe(space);
   }
   // The M on a blue disc whatever the airspace over it, and a private
   // field's R on a magenta one.
-  await expect(markOf("KMIL")).toHaveAttribute("data-use", "military");
-  await expect(markOf("KMIL")).toContainText("M");
-  await expect(markOf("KMIL").locator("circle").first()).toHaveAttribute("fill", "#2465b8");
-  await expect(markOf("KPVT")).toHaveAttribute("data-use", "private");
-  await expect(markOf("KPVT")).toContainText("R");
-  await expect(markOf("KPVT").locator("circle").first()).toHaveAttribute("fill", "#c0309f");
-  await expect(markOf("KCCC")).not.toHaveAttribute("data-use");
+  expect((await markOf("KMIL"))!.use).toBe("military");
+  expect((await markOf("KPVT"))!.use).toBe("private");
+  expect((await markOf("KCCC"))!.use).toBe("");
   // The disc in its METAR's colour: VFR green, IFR red (no report's
   // grey, classb.spec).
-  await expect(markOf("KBBB").locator("[data-weather]")).toHaveCSS("fill", "rgb(26, 127, 55)");
-  await expect(markOf("KGGG").locator("[data-weather]")).toHaveCSS("fill", "rgb(179, 38, 30)");
+  expect((await markOf("KBBB"))!.weather.toLowerCase()).toBe("#1a7f37");
+  expect((await markOf("KGGG"))!.weather.toLowerCase()).toBe("#b3261e");
 });
 
 test("closer in, the airports that report wear their weather's colour, and a tap on one opens its card", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  const chips = page.locator(".leaflet-airports-pane .leaflet-marker-icon");
+  const chips = { count: async () => (await airportMarks(page)).filter(m => m.chip).length };
   await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
   // At the whole route's zoom on a phone, past the sectional's scale, only
   // the biggest fields that report wear their marks, each with its room
@@ -578,17 +577,11 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   if (page.viewportSize()!.width < 768) {
     await mapStill(page);
     await expect.poll(() => chips.count(), { timeout: slow(20000) }).toBeGreaterThan(0);
-    const nearest = await chips.evaluateAll(marks => {
-      const at = marks.map(mark => {
-        const box = mark.getBoundingClientRect();
-        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
-      });
-      let least = Number.POSITIVE_INFINITY;
-      for (let i = 0; i < at.length; i++) {
-        for (let j = i + 1; j < at.length; j++) least = Math.min(least, Math.hypot(at[i]!.x - at[j]!.x, at[i]!.y - at[j]!.y));
-      }
-      return least;
-    });
+    const at = (await airportMarks(page)).filter(m => m.chip);
+    let nearest = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < at.length; i++) {
+      for (let j = i + 1; j < at.length; j++) nearest = Math.min(nearest, Math.hypot(at[i]!.x - at[j]!.x, at[i]!.y - at[j]!.y));
+    }
     expect(nearest).toBeGreaterThanOrEqual(78);
   }
 
@@ -606,20 +599,20 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   await mapStill(page);
   await expect.poll(() => chips.count(), { timeout: slow(20000) }).toBeGreaterThan(0);
   // The route's own airports keep their own chips: none drawn twice.
-  expect(await chips.filter({ hasText: /^C81$/ }).count()).toBe(0);
+  expect((await airportMarks(page)).filter(m => m.chip && m.ident === "C81")).toHaveLength(0);
 
   // One whose middle nothing else covers, found and tapped again while
   // the map is still settling from the zoom (a CI runner's last frames
   // moved the chip from under the tap).
   await expect(async () => {
-    const at = await chips.evaluateAll(els => {
-      for (const el of els) {
-        const r = el.getBoundingClientRect();
-        const x = r.left + r.width / 2, y = r.top + r.height / 2;
-        if (el.contains(document.elementFromPoint(x, y))) return { x, y, ident: el.textContent?.trim() ?? "" };
+    const drawn = (await airportMarks(page)).filter(m => m.chip);
+    const at = await page.evaluate(marks => {
+      for (const m of marks) {
+        const hit = document.elementFromPoint(m.x, m.y);
+        if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return m;
       }
       return null;
-    });
+    }, drawn);
     expect(at, "a chip with nothing over it").not.toBeNull();
     await page.mouse.click(at!.x, at!.y);
     await expect(page).toHaveURL(new RegExp(`[?&]place=${at!.ident}`), { timeout: 2000 });
@@ -641,7 +634,7 @@ test("a tap a little off an airport's mark opens its card, the route's own as an
   await expect(card(page)).toBeVisible({ timeout: slow(15000) });
   // The departure's chip, the route's (the marker pane), not the chart's.
   await tapNear(page, page.locator(".leaflet-marker-pane .leaflet-marker-icon", { hasText: "C81" }).first(), /[?&]place=C81(&|$)/);
-  await tapNear(page, page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: "KUGN" }), /[?&]place=KUGN(&|$)/);
+  await tapNear(page, () => airportMark(page, "KUGN"), /[?&]place=KUGN(&|$)/);
 });
 
 test("the airport search answers from the phone's own copy, asking the planner nothing as it is typed", async ({ page }) => {
