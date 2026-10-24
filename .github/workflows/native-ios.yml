@@ -17,7 +17,9 @@ on:
       - planning-service/openapi.json
       - .github/workflows/native-ios.yml
   push:
-    branches: [main]
+    # And a native-app branch of Claude's: its builds run from the branch
+    # itself (a dispatch by name needs the file on main first).
+    branches: [main, "claude/native-*"]
     paths:
       - ios/**
       - planning-service/openapi.json
