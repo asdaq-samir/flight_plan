@@ -56,3 +56,13 @@ struct BriefingTests {
         #expect(briefing.tfrs?.first?.crosses == true && briefing.forecast?.minCeilingFt == 800)
     }
 }
+
+/// The ways to fly a route, as the planner offers them.
+struct RoutesTests {
+    @Test func theOptionsCarryTheirStopsPathAndWhatTheyCross() throws {
+        let json = #"{"options":[{"kind":"weather","kinds":["weather"],"title":"Round the storms by KEAU","stops":["KEAU"],"fuel":["KEAU"],"path":[[42.3,-88.1],[44.9,-91.5],[46.8,-92.2]],"distance_nm":340.0,"air_min":180.0,"ground_min":30.0,"fuel_gal":31.0,"landings":1,"crosses":[],"marginal":[0],"tail_kt":-3.0,"floor_ft":3500}],"own":{"kind":"own","kinds":[],"title":"Your route","stops":[],"fuel":[],"path":[[42.3,-88.1],[46.8,-92.2]],"distance_nm":323.5,"air_min":165.0,"ground_min":0.0,"fuel_gal":29.0,"landings":0,"crosses":[0],"marginal":[]},"direct":[0],"ends":[],"hazards":[{"kind":"storm","name":"Thunderstorms near KMSP"}],"unchecked":["TFRs"]}"#
+        let routes = try Planner.snakeCase.decode(RouteOptions.self, from: Data(json.utf8))
+        #expect(routes.options[0].stops == ["KEAU"] && routes.options[0].path.count == 3 && routes.options[0].marginal == [0])
+        #expect(routes.own?.crosses == [0] && routes.hazards[0].name == "Thunderstorms near KMSP" && routes.unchecked == ["TFRs"])
+    }
+}

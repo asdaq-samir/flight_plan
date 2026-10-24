@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 /// The map under a sheet with three sizes -- the pill, half and full, as
@@ -26,6 +27,7 @@ struct RootView: View {
         ChartMap(
             template: charts.template, minZoom: charts.base?.minZoom ?? 5, maxZoom: charts.base?.maxZoom ?? 12,
             course: plan.course, checkpoints: plan.checkpoints,
+            shownWay: plan.shownWay?.path.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil } ?? [],
             // A field tapped on the chart opens its card, half way up, as
             // the web app does.
             onAirport: { ident in

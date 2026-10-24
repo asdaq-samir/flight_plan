@@ -272,6 +272,51 @@ struct AheadAlert: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
+/// The ways to fly a route, as Maps offers its routes (RouteOptions,
+/// vfr.route_options): the direct line and the ways round what it meets
+/// -- storms, weather under minimums, terrain over the ceiling, TFRs --
+/// each with its stops, its time, its fuel and what it still crosses.
+/// Every judgment in it is the planner's.
+struct RouteHazard: Codable, Equatable, Sendable {
+    var kind: String?
+    var name: String?
+    var title: String?
+    var detail: String?
+}
+
+struct RouteOption: Codable, Equatable, Sendable, Identifiable {
+    let kind: String
+    var kinds: [String] = []
+    let title: String
+    var stops: [String] = []
+    var fuel: [String] = []
+    /// The way as pairs of latitude and longitude.
+    var path: [[Double]] = []
+    let distanceNm: Double
+    let airMin: Double
+    var groundMin: Double = 0
+    let fuelGal: Double
+    var landings: Int = 0
+    /// Indexes into the hazards this way still crosses, and those it
+    /// passes near.
+    var crosses: [Int] = []
+    var marginal: [Int] = []
+    var tailKt: Double?
+    var floorFt: Int?
+
+    var id: String { kind + ":" + stops.joined(separator: ",") }
+}
+
+struct RouteOptions: Codable, Equatable, Sendable {
+    var options: [RouteOption] = []
+    var own: RouteOption?
+    var hazards: [RouteHazard] = []
+    var unchecked: [String] = []
+    /// What the direct line crosses, and the ends.
+    var direct: [Int] = []
+    var ends: [Int] = []
+}
+
 /// A field's card (AirportPlace).
 struct AirportPlace: Codable, Equatable, Sendable {
     let ident: String

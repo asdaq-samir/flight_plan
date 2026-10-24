@@ -5,6 +5,9 @@ import SwiftUI
 /// view with their flight categories, and the route's course line.
 /// MKMapView rather than SwiftUI's Map, for the tile overlay and the
 /// renderers the route and the marks need.
+/// A way from Routes, told from the course line by its class.
+final class WayPolyline: MKPolyline {}
+
 struct ChartMap: UIViewRepresentable {
     let template: TileTemplate?
     let minZoom: Int
@@ -13,6 +16,8 @@ struct ChartMap: UIViewRepresentable {
     let course: Course?
     /// The route's checkpoints, numbered along it.
     let checkpoints: [Checkpoint]
+    /// A way from Routes shown beside the course, dashed.
+    let shownWay: [CLLocationCoordinate2D]
     /// A field's mark tapped.
     var onAirport: ((String) -> Void)?
     /// Own ship kept in the middle; a pan by the pilot ends it.
@@ -71,6 +76,17 @@ struct ChartMap: UIViewRepresentable {
             context.coordinator.checkpointMarks = checkpoints.enumerated().map { CheckpointAnnotation(number: $0.offset + 1, checkpoint: $0.element) }
             map.addAnnotations(context.coordinator.checkpointMarks)
         }
+        if context.coordinator.wayShown.map({ $0.latitude }) != shownWay.map({ $0.latitude }) {
+            context.coordinator.wayShown = shownWay
+            if let line = context.coordinator.wayLine { map.removeOverlay(line) }
+            context.coordinator.wayLine = nil
+            if shownWay.count >= 2 {
+                let line = WayPolyline(coordinates: shownWay, count: shownWay.count)
+                map.addOverlay(line, level: .aboveLabels)
+                context.coordinator.wayLine = line
+                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
+            }
+        }
         if context.coordinator.courseShown != course {
             context.coordinator.courseShown = course
             if let line = context.coordinator.courseLine { map.removeOverlay(line) }
@@ -97,6 +113,8 @@ struct ChartMap: UIViewRepresentable {
         var courseLine: MKPolyline?
         var courseShown: Course?
         var checkpointsShown: [Checkpoint] = []
+        var wayShown: [CLLocationCoordinate2D] = []
+        var wayLine: WayPolyline?
         var checkpointMarks: [CheckpointAnnotation] = []
         var onAirport: ((String) -> Void)?
         var setFollowing: ((Bool) -> Void)?
@@ -109,6 +127,14 @@ struct ChartMap: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
+            if let way = overlay as? WayPolyline {
+                // A way from Routes, dashed in the tint, beside the course.
+                let renderer = MKPolylineRenderer(polyline: way)
+                renderer.strokeColor = UIColor.systemBlue
+                renderer.lineWidth = 3
+                renderer.lineDashPattern = [6, 6]
+                return renderer
+            }
             if let line = overlay as? MKPolyline {
                 // The web app's magenta course line, a halo under it.
                 let renderer = MKPolylineRenderer(polyline: line)
