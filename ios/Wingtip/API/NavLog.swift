@@ -83,13 +83,17 @@ struct AltitudeSelection: Codable, Equatable, Sendable {
 }
 
 /// One leg of the log, with the figures its row shows.
-struct Leg: Codable, Equatable, Sendable, Identifiable {
+struct Leg: Codable, Hashable, Sendable, Identifiable {
     var from: String
     var to: String
     var distanceNm: Double
     var altitudeFt: Double
     var trueCourseDeg: Double
     var magneticHeadingDeg: Double
+    var wcaDeg: Double = 0
+    var trueHeadingDeg: Double = 0
+    var magneticVariationDeg: Double = 0
+    var climbMin: Double?
     var groundspeedKt: Double?
     var eteMin: Double?
     var fuelGal: Double?
@@ -100,16 +104,16 @@ struct Leg: Codable, Equatable, Sendable, Identifiable {
 
     var id: String { "\(from)-\(to)" }
 
-    struct Wind: Codable, Equatable, Sendable {
+    struct Wind: Codable, Hashable, Sendable {
         var directionDeg: Double?
         var speedKt: Double?
     }
 
-    struct TopOfClimb: Codable, Equatable, Sendable {
+    struct TopOfClimb: Codable, Hashable, Sendable {
         var alongNm: Double?
     }
 
-    struct TopOfDescent: Codable, Equatable, Sendable {
+    struct TopOfDescent: Codable, Hashable, Sendable {
         var alongNm: Double?
     }
 }

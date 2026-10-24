@@ -154,13 +154,14 @@ struct FPLView: View {
                 if !plan.legs.isEmpty {
                     Section(plan.altitudeFt.map { "Nav log · \(Int($0).formatted()) ft" } ?? "Nav log") {
                         ForEach(plan.legs) { leg in
-                            LegRow(leg: leg)
+                            NavigationLink(value: leg) { LegRow(leg: leg) }
                         }
                     }
                 }
             }
             .navigationTitle("Flight plan")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: Leg.self) { leg in LegDetailView(leg: leg) }
             .navigationDestination(for: String.self) { page in
                 switch page {
                 case "profile": ProfileCard()
