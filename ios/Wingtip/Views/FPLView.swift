@@ -64,6 +64,14 @@ struct FPLView: View {
                         }
                         .accessibilityLabel("Profile")
                         .buttonStyle(.plain)
+                        // The Brief, marked where the planner says VFR is
+                        // not recommended.
+                        NavigationLink(value: "brief") {
+                            Image(systemName: "doc.text")
+                                .foregroundStyle((plan.briefing?.vfrNotRecommended?.isEmpty ?? true) ? Color.accentColor : Color.red)
+                        }
+                        .accessibilityLabel("Brief")
+                        .buttonStyle(.plain)
                     }
                     .toolbar {
                         if focused == .altitude {
@@ -105,7 +113,11 @@ struct FPLView: View {
             .navigationTitle("Flight plan")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: String.self) { page in
-                if page == "profile" { ProfileCard() }
+                switch page {
+                case "profile": ProfileCard()
+                case "brief": BriefView()
+                default: EmptyView()
+                }
             }
             .toolbar {
                 if !plan.stops.isEmpty {

@@ -107,6 +107,16 @@ enum Planner {
         try await fetch(RouteProfile.self, "/api/route-profile", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")])
     }
 
+    /// The briefing for the route, with the flight's time where the nav
+    /// log has given one, so the forecast is read for the hours flown
+    /// (/api/briefing).
+    static func briefing(dep: String, dest: String, stops: [String], eteMin: Double?) async throws -> Briefing {
+        try await fetch(Briefing.self, "/api/briefing", [
+            "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","),
+            "ete_min": eteMin.map { String(Int($0.rounded())) },
+        ])
+    }
+
     /// The planner's airplane types (/api/aircraft-profiles).
     static func aircraftProfiles() async throws -> [AircraftProfile] {
         struct Answer: Decodable { let profiles: [AircraftProfile] }

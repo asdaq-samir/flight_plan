@@ -173,6 +173,78 @@ struct RouteProfile: Codable, Equatable, Sendable {
     let airspace: [ProfileAirspace]
 }
 
+/// The briefing for a route (Briefing): what a flight service briefer
+/// says, in the planner's order. Every judgment in it is the planner's;
+/// the app shows it and computes none.
+struct Hazard: Codable, Equatable, Sendable {
+    var type: String?
+    var hazard: String?
+    var raw: String?
+    var altitudeLowFt: Double?
+    var altitudeHighFt: Double?
+}
+
+struct GAirmet: Codable, Equatable, Sendable {
+    let hazard: String
+    var severity: String?
+    var dueTo: String?
+    var validAt: String?
+    var altitudeLowFt: Double?
+    var altitudeHighFt: Double?
+    var fromFreezingLevel: Bool? = false
+}
+
+struct RouteTfr: Codable, Equatable, Sendable, Identifiable {
+    let notamId: String
+    let alongTrackNm: Double
+    var crosses: Bool = false
+    var activeNow: Bool = false
+    var title: String?
+    var kind: String?
+    var purpose: String?
+    var effective: String?
+    var expires: String?
+    var floorFt: Double?
+    var ceilingFt: Double?
+
+    var id: String { notamId }
+}
+
+struct Pirep: Codable, Equatable, Sendable {
+    let alongTrackNm: Double
+    var raw: String?
+    var aircraft: String?
+    var altitudeFt: Double?
+    var turbulence: String?
+    var icing: String?
+    var urgent: Bool? = false
+    var observedAt: String?
+}
+
+struct ForecastStation: Codable, Equatable, Sendable {
+    var ident: String?
+    var raw: String?
+    var minCeilingFt: Double?
+    var minVisibilitySm: Double?
+}
+
+struct Forecast: Codable, Equatable, Sendable {
+    var minCeilingFt: Double?
+    var minVisibilitySm: Double?
+    var stations: [ForecastStation] = []
+}
+
+struct Briefing: Codable, Equatable, Sendable {
+    var hazards: [Hazard] = []
+    var forecast: Forecast?
+    var metars: [String: Metar?] = [:]
+    var gairmets: [GAirmet]? = []
+    var pireps: [Pirep]? = []
+    var tfrs: [RouteTfr]? = []
+    var vfrNotRecommended: [String]? = []
+    var weatherUnavailable: [String] = []
+}
+
 /// A field's card (AirportPlace).
 struct AirportPlace: Codable, Equatable, Sendable {
     let ident: String

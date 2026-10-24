@@ -28,6 +28,8 @@ final class Plan {
     private(set) var checkpoints: [Checkpoint] = []
     private(set) var profile: RouteProfile?
     private(set) var altitude: NavLogAltitude?
+    private(set) var briefing: Briefing?
+    private(set) var briefingProblem: String?
     private(set) var legs: [Leg] = []
     private(set) var altitudeFt: Double?
     private(set) var totals: Totals?
@@ -45,8 +47,20 @@ final class Plan {
     func clear() {
         running?.cancel()
         dep = ""; dest = ""; stops = []
-        course = nil; checkpoints = []; profile = nil; altitude = nil; legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false
+        course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil
+        legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil
+    }
+
+    /// The briefing, as the web app fetches it as soon as the route is known
+    /// and again as the nav log gives the flight's time.
+    func brief(dep: String, dest: String, stops: [String], eteMin: Double?) async {
+        do {
+            briefing = try await Planner.briefing(dep: dep, dest: dest, stops: stops, eteMin: eteMin)
+            briefingProblem = nil
+        } catch {
+            briefingProblem = error.localizedDescription
+        }
     }
 
     /// Plans the route as entered: the course first, for the map, then
@@ -98,6 +112,9 @@ final class Plan {
                         self.legs = fresh
                         self.totals = totals
                         self.stage = nil
+                        // The briefing for the flight's own hours, once
+                        // the nav log says how long it takes.
+                        Task { [weak self] in await self?.brief(dep: dep, dest: dest, stops: stops, eteMin: totals.eteMin) }
                     case .error(let error):
                         self.problem = error
                         self.stage = nil
