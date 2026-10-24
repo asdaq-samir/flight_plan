@@ -80,6 +80,11 @@ jobs:
         run: |
           client=$(find ~/Library/Developer/Xcode/DerivedData -path '*PlannerAPI*' -name 'Client.swift' 2>/dev/null | head -1)
           [ -n "$client" ] && grep -oE 'public func [A-Za-z0-9_]+' "$client" | sort -u || echo "no generated client found"
+          # And the schemas' members, for a property the generator may have
+          # left out or named otherwise; with its own warnings on the way.
+          types=$(find ~/Library/Developer/Xcode/DerivedData -path '*PlannerAPI*' -name 'Types.swift' 2>/dev/null | head -1)
+          [ -n "$types" ] && grep -nE 'public struct [A-Za-z]+:|public var [A-Za-z_]+:' "$types" | head -400 || echo "no generated types found"
+          grep -iE "openapi.*(warning|skip|unsupported)" "$RUNNER_TEMP/xcodebuild.log" | head -40 || true
       - name: The log, on failure
         if: failure()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4

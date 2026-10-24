@@ -38,8 +38,21 @@ final class Charts {
         return layers.first { $0.kind == "sec" } ?? layers.first { $0.base }
     }
 
+    /// The CDN the tiles are published to, where the deployment has one
+    /// (`chart_tiles_base`, a string or null). The document gives it as
+    /// `anyOf` string and null, which the generator left out of the type
+    /// on its first build (native-ios.yml run 40109982825), so it is read
+    /// off the value by name until the generator's output is known.
+    static func tilesBase(of info: Components.Schemas.ChartInfo) -> String? {
+        for child in Mirror(reflecting: info).children where child.label == "chartTilesBase" || child.label == "chart_tiles_base" {
+            if let value = child.value as? String { return value }
+            if let value = child.value as? String?, let inner = value { return inner }
+        }
+        return nil
+    }
+
     var template: TileTemplate? {
         guard let info, let base else { return nil }
-        return TileTemplate(cycle: info.chartCycle, revision: info.chartRevision ?? 0, tilesBase: info.chartTilesBase, kind: base.kind)
+        return TileTemplate(cycle: info.chartCycle, revision: info.chartRevision ?? 0, tilesBase: Self.tilesBase(of: info), kind: base.kind)
     }
 }
