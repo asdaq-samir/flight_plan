@@ -2518,7 +2518,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directs={mapDirects}
           onProcedureFix={showFix}
           fuelStops={alongPins ?? fuelStopPins}
-          ways={wayLines} wayShown={wayShown} onPickWay={setWayShown}
+          ways={wayLines} wayShown={wayShown} onPickWay={previewWay}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
