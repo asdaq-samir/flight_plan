@@ -25,7 +25,7 @@ struct NavLogTests {
     @Test func theCourseLineBecomesCoordinates() throws {
         let json = #"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth","lat":46.84,"lon":-92.19},"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[44.5,-90.0],[46.84,-92.19]]}"#
         let course = try Planner.snakeCase.decode(Course.self, from: Data(json.utf8))
-        #expect(course.coordinates.count == 3 && course.coordinates[1].latitude == 44.5 && course.stops.isEmpty)
+        #expect(course.coordinates.count == 3 && course.coordinates[1].latitude == 44.5 && (course.stops ?? []).isEmpty)
     }
 
     @Test func minutesReadAsHoursAndMinutes() {

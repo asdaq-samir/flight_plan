@@ -21,9 +21,6 @@ struct FPLView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(!plan.routed || plan.planning)
                     }
-                    if !plan.stops.isEmpty {
-                        Text("via " + plan.stops.joined(separator: ", ")).font(.subheadline).foregroundStyle(.secondary)
-                    }
                     if let stage = plan.stage {
                         Label(stage, systemImage: "ellipsis").font(.footnote).foregroundStyle(.secondary)
                     }
@@ -34,6 +31,18 @@ struct FPLView: View {
                             if let advice = problem.advice { Text(advice).font(.footnote).foregroundStyle(.secondary) }
                         }
                         .foregroundStyle(Color.orange)
+                    }
+                }
+                if !plan.stops.isEmpty {
+                    // The stops in order, each a swipe from going and all
+                    // of them draggable into another order, as the web
+                    // app's route list has them.
+                    Section("Stops") {
+                        ForEach(Array(plan.stops.enumerated()), id: \.offset) { _, stop in
+                            Text(stop).font(.body.monospaced())
+                        }
+                        .onDelete { at in plan.stops.remove(atOffsets: at); plan.plan() }
+                        .onMove { from, to in plan.stops.move(fromOffsets: from, toOffset: to); plan.plan() }
                     }
                 }
                 if let totals = plan.totals {
@@ -58,6 +67,9 @@ struct FPLView: View {
             .navigationTitle("Flight plan")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                if !plan.stops.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) { EditButton() }
+                }
                 if plan.routed {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Clear", role: .destructive) { plan.clear() }

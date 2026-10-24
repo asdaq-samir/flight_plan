@@ -15,7 +15,9 @@ struct CourseEnd: Codable, Equatable, Sendable {
 struct Course: Codable, Equatable, Sendable {
     let departure: CourseEnd
     let destination: CourseEnd
-    var stops: [CourseEnd] = []
+    /// Optional in the type: a synthesized Codable does not fall back to
+    /// a `var`'s default when the key is missing (the first build's test).
+    var stops: [CourseEnd]?
     let distanceNm: Double
     let bearingDeg: Double
     /// The great-circle line as pairs of latitude and longitude.

@@ -14,6 +14,10 @@ struct RootView: View {
 
     enum Tabs: Hashable { case fpl, airport, aircraft, setup }
 
+    /// The sheet's lowest size, the pill: the figures' line and the tabs'
+    /// names, as the web app's pill is.
+    static let pill = PresentationDetent.height(132)
+
     var body: some View {
         ChartMap(
             template: charts.template, minZoom: charts.base?.minZoom ?? 5, maxZoom: charts.base?.maxZoom ?? 12,
@@ -28,8 +32,8 @@ struct RootView: View {
         )
         .ignoresSafeArea()
         .sheet(isPresented: $sheetUp) {
-            SheetView(tab: $tab, airports: $airports)
-                .presentationDetents([.height(132), .medium, .large], selection: $detent)
+            SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
+                .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 .presentationBackground(.regularMaterial)
                 .presentationCornerRadius(24)
@@ -43,6 +47,8 @@ struct RootView: View {
 struct SheetView: View {
     @Binding var tab: RootView.Tabs
     @Binding var airports: [String]
+    /// At the pill: the figures over the tab bar, nothing else.
+    var pill: Bool
 
     var body: some View {
         TabView(selection: $tab) {
@@ -59,6 +65,18 @@ struct SheetView: View {
                 SetupView()
             }
         }
+        // The pill shows the flight's figures where the tab's own content
+        // would be out of sight anyway, over the tab bar.
+        .overlay(alignment: .top) {
+            if pill {
+                FiguresStrip()
+                    .padding(.top, 14)
+                    .frame(maxWidth: .infinity)
+                    .background(.regularMaterial)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: pill)
     }
 }
 
