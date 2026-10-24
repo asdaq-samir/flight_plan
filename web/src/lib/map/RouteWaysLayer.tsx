@@ -10,8 +10,10 @@ import { text } from "./airportMark";
 export interface RouteWay {
   key: string;
   path: [number, number][];
-  /** Its names and its time, "Best Weather · 3 h 40 min". */
+  /** Its time, "3 h 40 min". */
   label: string;
+  /** Its name, said on its callout while it is the one shown, "Best Weather". */
+  name?: string;
 }
 
 // One style for good: react-leaflet restyles a path whose pathOptions is a
@@ -29,14 +31,23 @@ const WAY_CHIP = "#0062cc";
 /** The chip on a way's line: its names and time, white on the tint, as
  *  Maps marks the routes beside the one picked; 22 tall, its 44-point hit
  *  area a pseudo-element round it. */
-const wayIcon = made(function wayIcon(label: string) {
-  // Sized to its words, so the marker has a box (a hit test, a test's
-  // "visible"): about 7 a letter at 12 points, and the chip's padding.
-  const width = Math.ceil(label.length * 6.6) + 18;
+const wayIcon = made(function wayIcon(label: string, name: string, shown: boolean) {
+  // A callout as Maps puts on its routes: the one shown filled in the
+  // tint with its name under its time, the others white with the time in
+  // the tint; a tail down to the line. Sized to its words, so the marker
+  // has a box (a hit test, a test's "visible").
+  const lines = shown && name ? 2 : 1;
+  const width = Math.ceil(Math.max(label.length, shown ? name.length : 0) * 7.6) + 22;
+  const height = lines === 2 ? 40 : 24;
+  const fill = shown ? WAY_CHIP : "#ffffff";
+  const ink = shown ? "#ffffff" : WAY_CHIP;
   return L.divIcon({
     className: "",
-    iconSize: [width, 22], iconAnchor: [width / 2, 11],
-    html: `<span data-route-way="" class="relative flex h-full w-full items-center justify-center whitespace-nowrap rounded-full px-2 text-[12px] leading-[18px] font-semibold text-white shadow-[0_1px_3px_rgba(0,0,0,.35)] after:absolute after:-inset-x-1 after:-inset-y-[11px] after:content-['']" style="background-color:${WAY_CHIP}">${text(label)}</span>`,
+    iconSize: [width, height], iconAnchor: [14, height + 7],
+    html: `<span data-route-way="" class="relative flex h-full w-full flex-col justify-center rounded-xl px-2.5 text-[13px] leading-4 font-semibold shadow-[0_1px_4px_rgba(0,0,0,.35)] after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']" style="background-color:${fill};color:${ink}">` +
+      `<span class="whitespace-nowrap tabular-nums">${text(label)}</span>` +
+      (lines === 2 ? `<span class="whitespace-nowrap font-medium">${text(name)}</span>` : "") +
+      `<span aria-hidden="true" class="absolute left-2 top-full h-0 w-0 border-x-[6px] border-t-[8px] border-x-transparent" style="border-top-color:${fill}"></span></span>`,
   });
 });
 
@@ -63,7 +74,7 @@ const Way = memo(function Way({ way, shown, at: share, onPick }: { way: RouteWay
   return (
     <>
       <Polyline positions={way.path} pathOptions={shown ? SHOWN_STYLE : WAY_STYLE} eventHandlers={events} />
-      <Marker position={at} icon={wayIcon(way.label)} eventHandlers={events} keyboard={false} />
+      <Marker position={at} icon={wayIcon(way.label, way.name ?? "", shown)} eventHandlers={events} keyboard={false} zIndexOffset={shown ? 1000 : 0} />
     </>
   );
 });

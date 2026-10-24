@@ -1,9 +1,10 @@
+import { useEffect, useRef } from "react";
 import { Check } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
 import type { RouteOption, RouteOptions } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
-import { isRoute, wayTime, wayTitle } from "../../../lib/routeWays";
+import { isRoute, wayTitle } from "../../../lib/routeWays";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
 
@@ -30,7 +31,7 @@ function costOf(option: RouteOption, wants: Set<Want>): number {
   return cost;
 }
 
-/** "3 h 10 min", "45 min", as a way's own time (lib/routeWays' wayTime). */
+/** "3 h 10 min", "45 min". */
 function minutesWords(minutes: number): string {
   const h = Math.floor(Math.round(minutes) / 60), m = Math.round(minutes) % 60;
   return h ? `${h} h ${m} min` : `${m} min`;
@@ -41,89 +42,68 @@ function Strip({ bands }: { bands: { kind: string; min: number }[] }) {
   const total = bands.reduce((sum, b) => sum + b.min, 0) || 1;
   const said = bands.filter((b, i, all) => all.findIndex(x => x.kind === b.kind) === i).map(b => BAND_WORDS[b.kind]).join(", ");
   return (
-    <span role="img" aria-label={`Weather along the way: ${said}`} className="flex h-1 w-full overflow-hidden rounded-full">
+    <span role="img" aria-label={`Weather along the way: ${said}`} className="absolute inset-x-4 bottom-1.5 flex h-1 overflow-hidden rounded-full">
       {bands.map((b, i) => <span key={i} style={{ flex: `${b.min / total} 1 0`, background: BAND_FILL[b.kind] }} />)}
     </span>
   );
 }
 
-/** One card, two short lines in the half sheet's room under the route
- *  box (some 84 points on a phone, the owner's "make the cards smaller so
- *  they fit"): its name and its time, one line of what it meets, and the
- *  weather strip under it. The one shown says its clock
- *  from departure to arrival in that line's place, and Use in its time's. */
-function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, used, best, onShow, action, testId }: {
-  title: string;
-  figure: string;
-  line: string;
-  lineInk?: string;
+/** One card, as Maps lays out a route: its time in large figures, its
+ *  arrival and miles, and its name -- or what it crosses, in red -- with
+ *  Use at the right where it is not the route already; the weather met
+ *  along it a thin strip at its foot. */
+function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, testId }: {
+  minutes: number | null;
+  arrive: string | null;
+  nm: number | null;
+  name: string;
+  warning: string | null;
   bands?: { kind: string; min: number }[];
-  minutes: number;
-  depart: string | null;
-  shown: boolean;
   used?: boolean;
   best?: boolean;
-  onShow: () => void;
-  action?: { label: string; run: () => void; testId: string };
+  onUse?: () => void;
   testId: string;
 }) {
-  const leave = depart ? new Date(depart) : new Date();
-  const clock = shown && minutes > 0 ? `${clockTime(leave)} – ${clockTime(new Date(leave.getTime() + minutes * 60_000))}` : null;
   return (
-    <div
-      data-testid={testId} aria-current={shown || undefined}
-      className={cn("relative flex h-full w-full shrink-0 snap-center flex-col rounded-xl border bg-card",
-        shown ? "border-2 border-primary" : "border-border")}
-    >
-      {/* The card's face shows it; Use, its own button at the top right. */}
-      <button type="button" onClick={onShow} aria-pressed={shown} className="flex min-h-0 flex-1 flex-col justify-between gap-0.5 px-2.5 py-2 text-left outline-none">
-        <span className={cn("flex w-full items-baseline justify-between gap-2", TEXT.note)}>
-          <span className="flex min-w-0 items-center gap-1 font-semibold">
-            <span className="truncate">{title}</span>
-            {used ? <Check className="size-4 shrink-0 text-tint" aria-label="In use" />
-              : best && !(shown && action) ? <span className="shrink-0 rounded-full bg-primary/12 px-1.5 text-tint">Best</span> : null}
-          </span>
+    <div data-testid={testId} className="relative flex h-full w-full shrink-0 snap-center items-center gap-3 rounded-3xl bg-foreground/6 px-4">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[1.625rem] leading-8 font-bold tabular-nums">{minutes ? minutesWords(minutes) : "—"}</span>
+        <span className={cn("truncate text-muted-foreground tabular-nums", TEXT.note)}>
+          {[arrive && `${arrive} ETA`, nm && `${grouped(Math.round(nm))} nm`].filter(Boolean).join(" · ")}
         </span>
-        {/* The time in large figures on its own line, the name whole over
-            it (the owner's screenshot: "Your Ro…", "Fas…" beside it). */}
-        <span className="text-[1.375rem] leading-7 font-bold tabular-nums">{figure}</span>
-        <span className={cn("truncate", TEXT.note, clock ? "text-muted-foreground tabular-nums" : lineInk ?? "text-muted-foreground")}>
-          {clock ?? line}
+        <span className={cn("truncate", TEXT.note, warning ? "text-destructive-ink" : "text-muted-foreground")}>
+          {warning ? `${name} · ${warning}` : best ? `${name} · Best` : name}
         </span>
-        {bands && bands.length > 0 ? <Strip bands={bands} /> : null}
-      </button>
-      {shown && action && (
-        <Button size="sm" className="absolute top-1 right-1.5 h-6 rounded-full px-2.5" onClick={action.run} data-testid={action.testId}>
-          {action.label}
-        </Button>
-      )}
+      </div>
+      {used ? <Check className="size-6 shrink-0 text-tint" aria-label="In use" />
+        : onUse && (
+          <Button className="h-12 shrink-0 rounded-2xl px-5 text-[1.0625rem] font-bold" onClick={onUse} data-testid={`${testId}-use`}>Use</Button>
+        )}
+      {bands && bands.length > 0 && <Strip bands={bands} />}
     </div>
   );
 }
 
 /**
- * FPL's Routes (vfr.route_options), at the owner's picks of the routes
- * canvas ("Let's try your recommendation first but I also like B") and
- * of their size ("I want to see the options as well as the map. So let's
- * have the swipe able cards be the size of the space between route box and
- * calculations. Also avoid putting too much text", 2026-10-23): the ways
- * as cards side by side, as Maps lays out its routes, filling the half
- * sheet's body, each its name, its time, one short line and a strip of the
- * weather met along it. The pilot's own route first, what it crosses in
- * red; the straight line a card where the route has stops. A card tapped
- * is the one drawn strong on the map, with the clock at either end of its
- * strip and Use, which puts it in the route; the best, in good weather
- * first, named so. No heading or menu over them (the owner's "No need to
- * have the label and filter for routes"). Nothing
- * where the route is already the best of every kind and meets nothing.
+ * FPL's Routes (vfr.route_options), as Maps offers its routes, at the
+ * owner's screenshot of Maps' directions: one card a time the route box's
+ * width, swiped to the next with a dot for each under them, the card in
+ * sight the way drawn strong on the map; each its time in large figures,
+ * its arrival and miles and its name -- what it crosses in red -- and Use
+ * at its right, which puts it in the route. The pilot's own route first
+ * (the owner's "Keep yours, flag issues"), the best of the ways next, the
+ * straight line a card where the route has stops. In the half sheet's
+ * room between the route box and the figures at its foot. Nothing where
+ * the route is already the best of every kind and meets nothing.
  */
-export default function RouteChoices({ found, stops, depart, ownMinutes, picked, onPreview, onPick, onDirect }: {
+export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, picked, onPreview, onPick, onDirect }: {
   found: RouteOptions | undefined;
-  /** The route's own time en route as planned (the nav log's), its card's figure. */
+  /** The route's own time en route and miles as planned (the nav log's). */
   ownMinutes: number | null;
+  ownNm: number | null;
   /** The route's points between its ends, as the address has them. */
   stops: string[];
-  /** When the flight leaves (the address's), for the strip's clock; now without one. */
+  /** When the flight leaves (the address's), for each card's arrival; now without one. */
   depart: string | null;
   /** The way shown on the map, by its kind ("direct" the straight line); null, the route itself. */
   picked: string | null;
@@ -131,66 +111,82 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, picked,
   onPick: (option: RouteOption) => void;
   onDirect: () => void;
 }) {
+  const strip = useRef<HTMLDivElement>(null);
+  const frame = useRef(0);
+  const ranked = found ? [...found.options].sort((a, b) => costOf(a, WANTS) - costOf(b, WANTS)) : [];
+  const meets = found ? (stops.length ? found.current : found.direct) : [];
+  const straight = !!found && stops.length > 0 && !found.options.some(o => o.stops.length === 0);
+  // The cards in order, by the kind each shows: the route itself (null),
+  // the ways best first, the straight line.
+  const keys: (string | null)[] = [null, ...ranked.map(o => o.kind), ...(straight ? ["direct"] : [])];
+  const at = Math.max(0, keys.indexOf(picked));
+  const keysKey = keys.join(",");
+  // A way picked on the map brings its card into sight.
+  useEffect(() => {
+    const el = strip.current;
+    const card = el?.children[at] as HTMLElement | undefined;
+    if (!el || !card) return;
+    const left = card.offsetLeft - el.offsetLeft - 12;
+    if (Math.abs(el.scrollLeft - left) > 4) el.scrollTo({ left, behavior: "smooth" });
+  }, [at, keysKey]);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
   if (!found) return null;
-  const meets = stops.length ? found.current : found.direct;
   const others = found.options.filter(o => !isRoute(o, stops));
   if (!meets.length && !others.length) return null;
-  const ranked = [...found.options].sort((a, b) => costOf(a, WANTS) - costOf(b, WANTS));
-  const best = ranked[0];
-  const current = found.current_along;
-  const minutesOf = (bands?: { min: number }[]) => (bands ?? []).reduce((sum, b) => sum + b.min, 0);
-  // One short line a card: what it crosses, else what it goes round, else its wind.
-  const lineOf = (option: RouteOption): [string, string | undefined] => {
-    if (option.crosses.length) return [`Crosses ${found.hazards[option.crosses[0]!]?.kind === "storm" ? "storms" : "weather"}`, "text-destructive-ink"];
-    if (meets.some(h => !option.crosses.includes(h))) return ["Avoids the hazards", undefined];
-    const tail = option.tail_kt ?? 0;
-    if (tail >= 1) return [`Tailwind ${Math.round(tail)} kt`, undefined];
-    if (tail <= -1) return [`Headwind ${Math.round(-tail)} kt`, undefined];
-    return [`${option.landings ? `${option.landings} stop${option.landings > 1 ? "s" : ""}` : "No stops"} · ${grouped(Math.round(option.distance_nm))} nm`, undefined];
+  const leave = depart ? new Date(depart) : new Date();
+  const arrive = (minutes: number | null) => (minutes ? clockTime(new Date(leave.getTime() + minutes * 60_000)) : null);
+  const kindWords = (i: number) => (found.hazards[i]?.kind === "storm" ? "storms" : found.hazards[i]?.kind === "terrain" ? "high ground" : "weather");
+  // A swipe that comes to rest on a card shows its way on the map.
+  const settled = () => {
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      const el = strip.current;
+      const first = el?.children[0] as HTMLElement | undefined;
+      if (!el || !first) return;
+      const index = Math.round(el.scrollLeft / (first.offsetWidth + 12));
+      const kind = keys[Math.min(keys.length - 1, Math.max(0, index))] ?? null;
+      if (kind !== picked) onPreview(kind);
+    });
   };
-  const crossesLine = meets.length
-    ? `Crosses ${found.hazards[meets[0]!]?.kind === "storm" ? "storms" : found.hazards[meets[0]!]?.kind === "terrain" ? "high ground" : "weather"}`
-    : "Clear";
   return (
-    <section aria-label="Routes" className="flex flex-col pb-2" data-testid="route-choices">
-      {/* The cards in the half sheet's room between the route box and
-          the figures, so at half the map and the ways are both in sight. */}
-      {/* Each card the route box's width, one at a time, swiped to the
-          next (the owner's "make them same width as the route box and then
-          they can be swiped"). As tall as the half sheet's body leaves (MapPanel's --half-body),
-          less the room over and under them: up to the figures at the
-          foot, at the owner's "a bit bigger just up to the calculations". */}
+    <section aria-label="Routes" className="flex flex-col gap-1.5 pb-1" data-testid="route-choices">
+      {/* The route box's width, one at a time (the owner's "make them same
+          width as the route box and then they can be swiped"); as tall as
+          the half sheet's body leaves (MapPanel's --half-body), up to the
+          figures at the foot ("a bit bigger just up to the calculations"),
+          the dots under them. */}
       <div
-        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-0.75rem),9rem)] snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 [scrollbar-width:none]"
+        ref={strip} onScroll={settled}
+        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-1.75rem),8rem)] snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 [scrollbar-width:none]"
         data-slides=""
       >
         <Card
-          title="Your Route" figure={ownMinutes ? minutesWords(ownMinutes) : "—"} line={crossesLine}
-          lineInk={meets.length ? "text-destructive-ink" : undefined} bands={current?.bands}
-          minutes={minutesOf(current?.bands)} depart={depart} shown={picked === null} used
-          onShow={() => onPreview(null)} testId="route-choice-current"
+          minutes={ownMinutes} arrive={arrive(ownMinutes)} nm={ownNm} name="Your Route"
+          warning={meets.length ? `Crosses ${kindWords(meets[0]!)}` : null} bands={found.current_along?.bands} used
+          testId="route-choice-current"
         />
         {ranked.map(option => {
-          const [line, ink] = lineOf(option);
           const used = isRoute(option, stops);
+          const minutes = option.air_min + option.ground_min;
           return (
             <Card
-              key={option.kind} title={wayTitle(option)} figure={wayTime(option)} line={line} lineInk={ink}
-              bands={option.bands} minutes={minutesOf(option.bands)} depart={depart}
-              shown={picked === option.kind} used={used} best={option === best && !used}
-              onShow={() => onPreview(option.kind)} testId={`route-choice-${option.kind}`}
-              action={used ? undefined : { label: "Use", run: () => onPick(option), testId: "route-choice-use" }}
+              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} name={wayTitle(option)}
+              warning={option.crosses.length ? `Crosses ${kindWords(option.crosses[0]!)}` : null}
+              bands={option.bands} used={used} best={option === ranked[0] && !used}
+              onUse={used ? undefined : () => onPick(option)} testId={`route-choice-${option.kind}`}
             />
           );
         })}
-        {stops.length > 0 && !found.options.some(o => o.stops.length === 0) && (
+        {straight && (
           <Card
-            title="Straight Line" figure="Direct" line={found.direct.length ? "Crosses hazards" : "Clear"}
-            lineInk={found.direct.length ? "text-destructive-ink" : undefined} minutes={0} depart={depart}
-            shown={picked === "direct"} onShow={() => onPreview("direct")} testId="route-choice-direct"
-            action={{ label: "Use", run: onDirect, testId: "route-choice-direct-use" }}
+            minutes={null} arrive={null} nm={null} name="Straight Line"
+            warning={found.direct.length ? `Crosses ${kindWords(found.direct[0]!)}` : null}
+            onUse={onDirect} testId="route-choice-direct"
           />
         )}
+      </div>
+      <div className="flex justify-center gap-2" aria-hidden="true">
+        {keys.map((key, i) => <span key={key ?? "own"} className={cn("size-1.5 rounded-full", i === at ? "bg-foreground/70" : "bg-foreground/20")} />)}
       </div>
     </section>
   );

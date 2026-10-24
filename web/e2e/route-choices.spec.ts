@@ -47,34 +47,36 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await settle(page);
   await openPanel(page);
   const current = sideDrawer(page).getByTestId("route-choice-current");
-  await expect(current).toContainText("Crosses storms", { timeout: slow(30_000) });
+  await expect(current).toContainText("Your Route · Crosses storms", { timeout: slow(30_000) });
 
+  // Each card its time, its arrival and miles, and its name.
   const fastest = sideDrawer(page).getByTestId("route-choice-fastest");
-  await expect(fastest).toContainText("Fastest · Fewest Stops");
   await expect(fastest).toContainText("3 h 1 min");
-  await expect(fastest).toContainText("Avoids the hazards");
+  await expect(fastest).toContainText("352 nm");
+  await expect(fastest).toContainText("Fastest · Fewest Stops");
   const best = sideDrawer(page).getByTestId("route-choice-weather");
   await expect(best).toContainText("3 h 40 min");
+  await expect(best).toContainText("371 nm");
   // The route's own weather as a strip, its storm said to a screen reader.
   await expect(current.getByRole("img")).toHaveAttribute("aria-label", /thunderstorms/);
 
-  // Both on the chart beside the route, each its chip.
+  // Both on the chart beside the route, each its callout.
   const chips = page.locator("[data-route-way]");
   await expect(chips).toHaveCount(2);
   await expect(chips.filter({ hasText: "3 h 40 min" })).toHaveCount(1);
 
+  // A way's callout tapped shows it, its name on the callout too.
+  await chips.filter({ hasText: "3 h 40 min" }).click();
+  await expect(chips.filter({ hasText: "Best Weather" })).toHaveCount(1);
 
-  // A card tapped shows that way; Use puts it in the route.
-  await best.getByRole("button").first().click();
-  await expect(best).toHaveAttribute("aria-current", "true");
-  await sideDrawer(page).getByTestId("route-choice-use").click();
+  // Use puts it in the route.
+  await sideDrawer(page).getByTestId("route-choice-weather-use").click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
   // The one picked is the route now, the other still beside it.
   await expect(chips).toHaveCount(1);
 
   // The straight line a card away.
-  await sideDrawer(page).getByTestId("route-choice-direct").getByRole("button").first().click();
   await sideDrawer(page).getByTestId("route-choice-direct-use").click();
   await expect(page).not.toHaveURL(/[?&]stops=/);
 });
