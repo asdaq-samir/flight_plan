@@ -11,7 +11,9 @@ import PackageDescription
 
 let package = Package(
     name: "WingtipAPI",
-    platforms: [.iOS(.v18), .macOS(.v14)],
+    // By name: `.v18` needs the 6.0 tools, whose Swift 6 mode the
+    // generated code is not held to yet.
+    platforms: [.iOS("18.0"), .macOS("14.0")],
     products: [
         .library(name: "PlannerAPI", targets: ["PlannerAPI"]),
     ],
