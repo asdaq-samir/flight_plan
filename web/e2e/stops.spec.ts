@@ -490,8 +490,11 @@ test("the route's box is round, one line tall for a short route and the panel's 
   expect(panelAt.x + panelAt.width - (boxAt.x + boxAt.width)).toBeLessThanOrEqual(16);
   const procedures = (await sideDrawer(page).getByTestId("route-brief").boundingBox())!;
   const share = (await sideDrawer(page).getByTestId("share-route").boundingBox())!;
-  expect(procedures.y).toBeGreaterThan(lines.y + lines.height);
-  expect(procedures.y + procedures.height).toBeLessThanOrEqual(boxAt.y + boxAt.height);
+  // On the pills' first line at its end, where the clear was (the owner,
+  // 2026-10-24), not on a line of their own under it.
+  const first = (await sideDrawer(page).getByTestId("route-dep").boundingBox())!;
+  expect(Math.abs(procedures.y + procedures.height / 2 - (first.y + first.height / 2))).toBeLessThanOrEqual(3);
+  expect(procedures.x).toBeGreaterThan(lines.x + lines.width - 4);
   expect(share.x).toBeGreaterThan(procedures.x);
   // No "Add stop" after the destination, at the pilot's ask: a reader is
   // told what typing there does.
