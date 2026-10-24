@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Check } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
@@ -172,6 +172,25 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
     el.scrollTo({ left, behavior: "smooth" });
   }, [at, keysKey]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  // How far down the panel's body the cards start, under the route box:
+  // at half they are to end, their dots under them, above the flight's
+  // figures (the owner's "make sure I can see the three dots").
+  const showing = !!found && routesOffered(found, stops, !!withFuel);
+  const section = useRef<HTMLElement>(null);
+  const [above, setAbove] = useState<number | null>(null);
+  useEffect(() => {
+    const el = section.current;
+    let scroller = el?.parentElement ?? null;
+    while (scroller && !/(auto|scroll)/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+    if (!el || !scroller) return;
+    const body = scroller;
+    const read = () => setAbove(Math.round(el.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop));
+    read();
+    const sized = new ResizeObserver(read);
+    sized.observe(body);
+    if (body.firstElementChild) sized.observe(body.firstElementChild);
+    return () => sized.disconnect();
+  }, [showing, full]);
   if (!found) return null;
   if (!routesOffered(found, stops, !!withFuel)) return null;
   // The planner's ways are timed on its coarse grid, the route by its nav
@@ -233,20 +252,21 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   );
   // The cards' height: the sheet's room all the way up, less the gaps,
   // shared by them; a card's three lines at the least, 4.5 rem.
-  // At half the row's dots under the cards come out of that height, 1 rem
-  // with their gap and the padding, so they stay in sight above the
-  // figures (the owner's "make sure I can see the three dots").
-  const share = `(var(--full-body, 32rem) - ${keys.length - 1} * 0.75rem - 1rem) / ${keys.length}`;
-  const cardHeight = { "--route-card": full ? `max(4.5rem, calc(${share}))` : `max(4.5rem, calc(${share} - 1rem))` } as CSSProperties;
+  // No taller than the room at half under the route box, less the dots'
+  // 1 rem with their gap and padding (--half-body, MapPanel): the same
+  // height in both, as the owner asked, the dots in sight at half.
+  const share = `calc((var(--full-body, 32rem) - ${keys.length - 1} * 0.75rem - 1rem) / ${keys.length})`;
+  const room = above === null ? null : `calc(var(--half-body, 20rem) - ${above}px - 1rem)`;
+  const cardHeight = { "--route-card": room ? `max(4.5rem, min(${share}, ${room}))` : `max(4.5rem, ${share})` } as CSSProperties;
   if (full) {
     return (
-      <section aria-label="Routes" style={cardHeight} className="flex flex-col gap-3 pb-4" data-testid="route-choices">
+      <section ref={section} aria-label="Routes" style={cardHeight} className="flex flex-col gap-3 pb-4" data-testid="route-choices">
         {cards}
       </section>
     );
   }
   return (
-    <section aria-label="Routes" style={cardHeight} className="flex flex-col gap-1.5 pb-1" data-testid="route-choices">
+    <section ref={section} aria-label="Routes" style={cardHeight} className="flex flex-col gap-1.5 pb-1" data-testid="route-choices">
       {/* The route box's width, one at a time (the owner's "make them same
           width as the route box and then they can be swiped"), each the
           height it has in the list all the way up, the dots under them. */}
