@@ -38,8 +38,36 @@ struct FPLView: View {
                             Text(problem.brief ?? problem.detail).font(.subheadline.weight(.semibold))
                             ForEach(problem.reasons ?? [], id: \.self) { Text($0).font(.footnote) }
                             if let advice = problem.advice { Text(advice).font(.footnote).foregroundStyle(.secondary) }
+                            // The ways round the planner found: a Class B's
+                            // waypoint, or the way round high ground.
+                            ForEach(problem.detours ?? []) { detour in
+                                Button {
+                                    plan.goRound(detour)
+                                } label: {
+                                    Label(detour.via?.isEmpty == false ? "Go Round · +\(Int(detour.addedNm.rounded())) nm" : "Fly via \(detour.ident) · +\(Int(detour.addedNm.rounded())) nm",
+                                          systemImage: "arrow.triangle.turn.up.right.diamond")
+                                }
+                                .buttonStyle(.bordered)
+                            }
                         }
                         .foregroundStyle(Color.orange)
+                    }
+                    // Where the tanks do not hold a flight, the planner's
+                    // fuel stops, all of them at once.
+                    ForEach(plan.totals?.fuelStops ?? []) { suggestion in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("\(suggestion.departure) → \(suggestion.destination) needs fuel on the way").font(.subheadline.weight(.semibold))
+                            ForEach(suggestion.stops) { stop in
+                                Text("\(stop.ident) · \(stop.name), lands with \(String(format: "%.1f", stop.landsWithGal)) gal · +\(Int(stop.addedNm.rounded())) nm")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Button {
+                                plan.addFuelStops(suggestion)
+                            } label: {
+                                Label(suggestion.stops.count == 1 ? "Add Fuel Stop" : "Add \(suggestion.stops.count) Fuel Stops", systemImage: "fuelpump")
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
                     }
                 }
                 if plan.routed {

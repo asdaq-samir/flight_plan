@@ -124,6 +124,52 @@ struct Totals: Codable, Equatable, Sendable {
     var usableFuelGal: Double?
     var reserveMin: Double?
     var night: Bool?
+    /// Where each flight the tanks do not hold could land for fuel, the
+    /// whole chain at once (app.routers.plan.fuel_stops_of).
+    var fuelStops: [FuelStopSuggestion]? = []
+}
+
+/// A field with fuel on the way (FuelStop).
+struct FuelStop: Codable, Equatable, Sendable, Identifiable {
+    let ident: String
+    let name: String
+    let city: String
+    let lat: Double
+    let lon: Double
+    let fromNm: Double
+    let addedNm: Double
+    let landsWithGal: Double
+    let minutes: Double
+    let fuelTypes: String
+    let runwayFt: Int
+
+    var id: String { ident }
+}
+
+/// The stops that take a flight from one landing to the next with the
+/// reserve left (FuelStopSuggestion).
+struct FuelStopSuggestion: Codable, Equatable, Sendable, Identifiable {
+    let departure: String
+    let destination: String
+    let usableGal: Double
+    var reason: String? = "fuel"
+    var stops: [FuelStop] = []
+    var choices: [FuelStop]? = []
+
+    var id: String { "\(departure)-\(destination)" }
+}
+
+/// A way round what stops a route (Detour): a Class B's waypoint, or the
+/// points round high ground (`via`), each before the stop at `stopIndex`.
+struct Detour: Codable, Equatable, Sendable, Identifiable {
+    let ident: String
+    let kind: String
+    let addedNm: Double
+    let stopIndex: Int
+    var description: String?
+    var via: [String]? = []
+
+    var id: String { ident }
 }
 
 struct NavLogError: Codable, Equatable, Sendable {
@@ -131,6 +177,8 @@ struct NavLogError: Codable, Equatable, Sendable {
     var brief: String?
     var reasons: [String]?
     var advice: String?
+    var classB: Bool? = false
+    var detours: [Detour]? = []
 }
 
 enum NavLog {

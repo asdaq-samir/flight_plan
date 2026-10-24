@@ -52,6 +52,23 @@ final class Plan {
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil
     }
 
+    /// The planner's fuel stops put into the route, the whole chain before
+    /// the flight's destination, at the owner's ask ("suggest fuel stops
+    /// just like Tesla suggests").
+    func addFuelStops(_ suggestion: FuelStopSuggestion) {
+        let before = (stops.firstIndex(of: suggestion.destination) ?? stops.count)
+        stops.insert(contentsOf: suggestion.stops.map(\.ident), at: before)
+        plan()
+    }
+
+    /// A way round what stops the route put in: the points to fly by,
+    /// before the stop they are for.
+    func goRound(_ detour: Detour) {
+        let points = (detour.via?.isEmpty == false) ? detour.via! : [detour.ident]
+        stops.insert(contentsOf: points, at: min(detour.stopIndex, stops.count))
+        plan()
+    }
+
     /// The briefing, as the web app fetches it as soon as the route is known
     /// and again as the nav log gives the flight's time.
     func brief(dep: String, dest: String, stops: [String], eteMin: Double?) async {

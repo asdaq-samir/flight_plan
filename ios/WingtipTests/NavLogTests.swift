@@ -48,3 +48,16 @@ struct AltitudeTests {
         #expect(flightLevel(15500) == "FL155")
     }
 }
+
+/// The planner's fuel stops and ways round, put into the route.
+struct RouteEditTests {
+    @MainActor @Test func theWholeChainGoesInBeforeTheFlightsDestination() {
+        let plan = Plan()
+        plan.dep = "KELP"; plan.dest = "KBDL"; plan.stops = ["KUCP"]
+        let stop = { (ident: String) in FuelStop(ident: ident, name: ident, city: "", lat: 0, lon: 0, fromNm: 0, addedNm: 0, landsWithGal: 7, minutes: 0, fuelTypes: "100LL", runwayFt: 4000) }
+        plan.addFuelStops(FuelStopSuggestion(departure: "KELP", destination: "KUCP", usableGal: 36, stops: [stop("KPPA"), stop("KFSK")]))
+        #expect(plan.stops == ["KPPA", "KFSK", "KUCP"])
+        plan.goRound(Detour(ident: "KWHP", kind: "Around the high ground", addedNm: 157, stopIndex: 0, via: ["KWHP", "KGCN"]))
+        #expect(plan.stops == ["KWHP", "KGCN", "KPPA", "KFSK", "KUCP"])
+    }
+}
