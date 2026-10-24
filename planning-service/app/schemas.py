@@ -2199,8 +2199,8 @@ class RouteOption(BaseModel):
     hazards it still crosses and the marginal weather it passes, by their
     index in RouteOptions.hazards."""
 
-    kind: Literal["fastest", "weather", "stops"]
-    kinds: list[Literal["fastest", "weather", "stops"]]
+    kind: Literal["fastest", "weather", "stops", "own"]
+    kinds: list[Literal["fastest", "weather", "stops", "own"]]
     title: str
     stops: list[str]
     fuel: list[str]
@@ -2224,6 +2224,9 @@ class RouteOptions(BaseModel):
     in `hazards`; and the sources that could not be read now (`unchecked`)."""
 
     options: list[RouteOption]
+    #: The pilot's own route with the fuel stops it needs put in; None
+    #: where no chain of fields reaches.
+    own: RouteOption | None = None
     direct: list[int]
     ends: list[int]
     current: list[int] = []

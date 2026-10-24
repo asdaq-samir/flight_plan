@@ -177,3 +177,18 @@ def test_each_way_says_the_weather_it_meets_its_wind_and_its_floor(sky):
     # Flat ground at sea level: 91.119's 1,000 and the coarse read's 1,000.
     assert fastest["floor_ft"] == 2000
     assert [b["kind"] for b in out["current_along"]["bands"]] == ["vfr", "mvfr", "vfr"]
+
+
+def test_the_pilots_own_route_gets_its_fuel_stops_put_in_among_its_points(sky):
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    table = fields(*[(f"F{k}", 0.0, float(k)) for k in range(1, 10)])
+    # The pilot's route through their own point at 2 degrees east.
+    current = [(0.0, 0.0), (0.0, 2.0), (0.0, 10.0)]
+    out = route_options.options(DEP, dest, PROFILE, fields=table, current=current, current_idents=["MINE"])
+    own = out["own"]
+    assert own["kind"] == "own" and own["landings"] >= 1
+    assert own["stops"][0] == "MINE"
+    assert set(own["fuel"]) < set(own["stops"])
+    # In order along it: each fuel stop east of the one before.
+    east = [float(s[1:]) for s in own["stops"][1:]]
+    assert east == sorted(east)

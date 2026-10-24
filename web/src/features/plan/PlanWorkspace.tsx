@@ -189,6 +189,11 @@ function sameStops(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((stop, i) => sameField(stop, b[i]!));
 }
 
+/** The route with its fuel stops put in, for the Routes' card of it: its
+ *  points, the fuel stops among them, its miles, its air and ground
+ *  minutes on the planner's grid, and its landings. */
+interface FuelCard { stops: string[]; added: string[]; nm: number; air: number; ground: number; landings: number }
+
 function withStopsAfter(dep: string, stops: string[], after: string, idents: string[]): { stops: string[]; added: string[] } | null {
   const room = MAX_STOPS - stops.length;
   if (room <= 0 || idents.length === 0) return null;
@@ -443,6 +448,74 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return ident && end && /^\d/.test(end) ? [`${ident}:${end}`] : [];
     }).join(",");
   }, [drawnPickList, patternText, takeoffText, routeFields]);
+  // FPL's Routes: the ways round storms, weather under the minimums the
+  // settings name, prohibited areas, TFRs and high ground (lib/routeOptions
+  // in the planner), for a VFR route with both ends; one picked is the
+  // route, its fuel stops named as such, and the pilot's to change.
+  const minimums = usePreferences(p => p.minimums);
+  const routeWeather = usePreferences(p => p.routeWeather);
+  const ceilingFt = routeWeather === "personal" ? minimums.ceilingFt : null;
+  const visibilitySm = routeWeather === "personal" ? minimums.visibilitySm : null;
+  // Swiping the Routes' cards puts each in FPL as it comes into sight --
+  // the route box and the course line, nothing planned -- at the
+  // owner's "Can fpl also reflect the change of the card?", as Maps'
+  // directions follow the route picked; the route as it was before the
+  // first card is kept here (with its figures and its fuel stops' card),
+  // the cards asked for and drawn from it, and Your Route puts it back.
+  // Use keeps the one in sight; a change of the route by hand ends it.
+  const [browsingKept, setBrowsing] = useState<null | {
+    stops: string[]; fuel: string[];
+    withFuel: FuelCard | null;
+    ownMinutes: number | null; ownNm: number | null;
+    /** The ways' stops, as they were offered from it. */
+    ways?: string[][];
+  }>(null);
+  // Kept only while the route is one of the cards': a route changed by
+  // hand is the route, the cards asked for afresh from it. Checked against
+  // the kept route and its fuel stops' here, the ways' below.
+  const browsingNear = browsingKept && (sameStops(planned.stops, browsingKept.stops)
+    || (browsingKept.withFuel && sameStops(planned.stops, browsingKept.withFuel.stops))
+    || (browsingKept.ways ?? []).some(w => sameStops(w, planned.stops))) ? browsingKept : null;
+  const browsing = browsingNear;
+  const baseStops = browsing?.stops ?? planned.stops;
+  const local = !!planned.dep && planned.dep === planned.dest && planned.stops.length === 0;
+  const vfrRoute = routeOf(planned.dep, planned.dest, planned.stops) !== null && !local && flightRules === "vfr";
+  // Asked for as soon as the route is known: nothing is planned till one
+  // of them is picked (below), so they no longer wait on the nav log.
+  // The airplane handed on as a copy: handed to a plain function itself,
+  // the compiler takes it as changed there and skips every later memo
+  // that reads it (lib/queryClient's queries are pure).
+  const routeWaysQuery = useQuery({
+    ...routeOptionsQuery(planned.dep, `${planned.dest ?? ""}`, baseStops.join(","), { ...aircraft }, depart || undefined, { ceilingFt, visibilitySm }),
+    enabled: vfrRoute,
+  });
+  const routeWays = routeWaysQuery.data;
+  // The way shown on the map and under the cards, by its kind (RouteChoices):
+  // a card or the way's line tapped shows it, Use puts it in the route.
+  const [wayShown, setWayShown] = useState<string | null>(null);
+  // A card used: its way the route and the cards put away, the route's
+  // list under them in their place, until the route changes (the owner's
+  // "No need to have the route at the bottom yet. Only do that once
+  // selected and all the cards go away"). By the route's ends alone: a
+  // route picked and then changed by hand (a point added, a fuel stop
+  // taken out) is still the pilot's pick, and planned.
+  const [routesChosen, setRoutesChosen] = useState<string | null>(null);
+  const chosenKey = `${planned.dep}|${planned.dest ?? ""}`;
+  // The route with the fuel stops it needs put in, the planner's grid's
+  // (RouteOptions.own), for its card before anything is planned.
+  const own = routeWays?.own;
+  const ownWithFuel = useMemo((): FuelCard | null => (own && own.landings > 0
+    ? { stops: own.stops, added: own.fuel, nm: own.distance_nm, air: own.air_min, ground: own.ground_min, landings: own.landings }
+    : null), [own]);
+  const fuelCard = browsing ? browsing.withFuel : ownWithFuel;
+  // The cards while there is a choice to make, and nothing planned till
+  // one is used (the owner's "Don't plan anything unless a route is
+  // picked", 2026-10-24: the pilot browses the routes, picks one, and
+  // sees it planned in full, its approaches and all; Routes in the route
+  // box brings the cards back). Planned at once where none is offered,
+  // or the planner could not say.
+  const choosing = vfrRoute && routesChosen !== chosenKey
+    && (routeWaysQuery.isPending || routesOffered(routeWays, baseStops, !!fuelCard));
   const planParams = {
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeNearest, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, procedures, runways: runwaysText, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
@@ -451,8 +524,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
+    planNow: !choosing,
   };
   const s = usePlan(planParams);
+  // The route's own time and miles: its nav log's once it is planned,
+  // the grid's and the course's before (its weather strip's minutes).
+  const gridOwnMin = (routeWays?.current_along?.bands ?? []).reduce((sum, b) => sum + b.min, 0);
+  const ownMinutes = s.totals?.ete_min ?? (gridOwnMin || null);
+  const ownNm = s.totals?.distance_nm ?? s.course?.distance_nm ?? null;
   // The traffic patterns the pilot picked for the route's fields (the
   // route's Procedures), kept in the address as the rest of the plan is:
   // "KDLH:27,C81:24".
@@ -1065,7 +1144,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       if (panel !== "full") setPanel("half");
       setSearchParams(next, { replace: true, flushSync: true });
     });
-  }, [fromFor, depart, panel, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules]);
+  }, [fromFor, depart, panel, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules, setLoad]);
 
   const submit = useCallback(() => {
     const route = routeOf(dep, dest, planned.stops);
@@ -1086,7 +1165,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (panel === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeFt, altitudeNearest, altitudeChoice, altitudes, depart, classBClearance, classBVia, panel, setSearchParams]);
+  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeFt, altitudeNearest, altitudeChoice, altitudes, depart, classBClearance, classBVia, panel, setSearchParams, setLoad]);
 
   // The route, changed in its box (RouteBox): in the address at once,
   // which re-plans, as the airplane and the time do -- the departure,
@@ -1301,7 +1380,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // other end.
   // A route on screen: one the planner plans, or a local flight -- an
   // airport to itself with no stop (usePlan's `local`).
-  const local = !!planned.dep && planned.dep === planned.dest && planned.stops.length === 0;
   const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null || local;
   // The stops flown through rather than landed at: the course's own word
   // for each, and before it answers, any ident too long for an airport.
@@ -1973,106 +2051,34 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
   }, [altitudes, s.legs, s.nav, routeAirport]);
 
-  // FPL's Routes: the ways round storms, weather under the minimums the
-  // settings name, prohibited areas, TFRs and high ground (lib/routeOptions
-  // in the planner), for a VFR route with both ends; one picked is the
-  // route, its fuel stops named as such, and the pilot's to change.
-  const minimums = usePreferences(p => p.minimums);
-  const routeWeather = usePreferences(p => p.routeWeather);
-  const routeMinimums = routeWeather === "personal"
-    ? { ceilingFt: minimums.ceilingFt, visibilitySm: minimums.visibilitySm } : { ceilingFt: null, visibilitySm: null };
-  // Swiping the Routes' cards puts each in FPL as it comes into sight --
-  // the route box, the nav log, the figures and the course line -- at the
-  // owner's "Can fpl also reflect the change of the card?", as Maps'
-  // directions follow the route picked; the route as it was before the
-  // first card is kept here (with its figures and its fuel stops' card),
-  // the cards asked for and drawn from it, and Your Route puts it back.
-  // Use keeps the one in sight; a change of the route by hand ends it.
-  const [browsingKept, setBrowsing] = useState<null | {
-    stops: string[]; fuel: string[];
-    withFuel: { stops: string[]; added: string[]; nm: number; minutes: number; landings: number } | null;
-    ownMinutes: number | null; ownNm: number | null;
-    /** The ways' stops, as they were offered from it. */
-    ways?: string[][];
-  }>(null);
-  // Kept only while the route is one of the cards': a route changed by
-  // hand is the route, the cards asked for afresh from it. Checked against
-  // the kept route and its fuel stops' here, the ways' below.
-  const browsingNear = browsingKept && (sameStops(planned.stops, browsingKept.stops)
-    || (browsingKept.withFuel && sameStops(planned.stops, browsingKept.withFuel.stops))
-    || (browsingKept.ways ?? []).some(w => sameStops(w, planned.stops))) ? browsingKept : null;
-  const browsing = browsingNear;
-  const baseStops = browsing?.stops ?? planned.stops;
-  const { data: routeWays } = useQuery({
-    ...routeOptionsQuery(planned.dep, `${planned.dest ?? ""}`, baseStops.join(","), aircraft, depart || undefined, routeMinimums),
-    // Once the nav log is in, not beside it: the ways are worked out in
-    // the planner's own process, and asked for with the plan they held a
-    // long route's altitudes up (a 3,000 nm route of eleven stops took
-    // 86 s cold, 2026-10-23).
-    enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr"
-      && !!s.totals && !s.navStage && s.stage !== "navlog",
-  });
-  // The way shown on the map and under the cards, by its kind (RouteChoices):
-  // a card or the way's line tapped shows it, Use puts it in the route.
-  const [wayShown, setWayShown] = useState<string | null>(null);
-  // A card used: its way the route and the cards put away, the route's
-  // list under them in their place, until the route changes (the owner's
-  // "No need to have the route at the bottom yet. Only do that once
-  // selected and all the cards go away"). By the route's ends and stops.
-  const [routesChosen, setRoutesChosen] = useState<string | null>(null);
-  const chosenKey = (stops: string[]) => `${planned.dep}|${stops.join(",")}|${planned.dest ?? ""}`;
   const pickRoute = useCallback((option: RouteOption) => {
     setBrowsing(null);
     setWayShown(null);
-    setRoutesChosen(`${planned.dep}|${option.stops.join(",")}|${planned.dest ?? ""}`);
+    setRoutesChosen(chosenKey);
     if (!isRoute(option, planned.stops)) setStops(option.stops, option.fuel);
-  }, [setStops, planned.stops, planned.dep, planned.dest, setBrowsing]);
-  // The route with the planner's fuel stops put in, every flight's that
-  // needs them (the totals' fuel stops, keepFuelStops' way): its time and
-  // miles from the route's own, each stop's miles added at the route's
-  // own speed and the owner's 30 minutes on the ground at each.
-  const withFuel = useMemo(() => {
-    // From every suggestion, those taken out of the box too: the Routes'
-    // card is the way they are added back as well.
-    const suggested = allFuelStops.filter(f => f.reason !== "break" && f.stops.length);
-    const ete = s.totals?.ete_min, nm = s.totals?.distance_nm;
-    if (!suggested.length || !ete || !nm) return null;
-    let stops = planned.stops;
-    const added: string[] = [];
-    for (const f of suggested) {
-      const next = withStopsAfter(planned.dep, stops, f.departure, f.stops.map(x => x.ident));
-      if (!next) break;
-      stops = next.stops;
-      added.push(...next.added);
-    }
-    if (!added.length) return null;
-    const extra = suggested.flatMap(f => f.stops).reduce((sum, x) => sum + x.added_nm, 0);
-    return { stops, added, nm: nm + extra, minutes: ete + extra * (ete / nm) + 30 * added.length, landings: added.length };
-  }, [allFuelStops, s.totals?.ete_min, s.totals?.distance_nm, planned.stops, planned.dep]);
-  const fuelCard = browsing ? browsing.withFuel : withFuel;
+  }, [setStops, planned.stops, chosenKey, setBrowsing]);
   const keepWithFuel = useCallback(() => {
     if (!fuelCard) return;
     setBrowsing(null);
     setWayShown(null);
-    setRoutesChosen(`${planned.dep}|${fuelCard.stops.join(",")}|${planned.dest ?? ""}`);
+    setRoutesChosen(chosenKey);
     if (!sameStops(fuelCard.stops, planned.stops)) setStops(fuelCard.stops, fuelCard.added);
-  }, [fuelCard, setStops, planned.stops, planned.dep, planned.dest, setBrowsing]);
+  }, [fuelCard, setStops, planned.stops, chosenKey, setBrowsing]);
   // Your Route used: the route as it was kept, the cards put away.
   const keepOwn = useCallback(() => {
-    const own = browsing ? browsing.stops : planned.stops;
     setWayShown(null);
-    setRoutesChosen(`${planned.dep}|${own.join(",")}|${planned.dest ?? ""}`);
+    setRoutesChosen(chosenKey);
     if (browsing) {
       setBrowsing(null);
       setStops(browsing.stops, browsing.fuel);
     }
-  }, [browsing, planned.stops, planned.dep, planned.dest, setStops, setBrowsing]);
+  }, [browsing, chosenKey, setStops, setBrowsing]);
   // A card come into sight: its way put in FPL, the route as it was kept.
   const previewWay = useCallback((kind: string | null) => {
     setWayShown(kind);
     const from = browsing ?? {
       stops: planned.stops, fuel: (searchParams.get("fuel") ?? "").split(",").filter(Boolean),
-      withFuel, ownMinutes: s.totals?.ete_min ?? null, ownNm: s.totals?.distance_nm ?? null,
+      withFuel: ownWithFuel, ownMinutes, ownNm,
     };
     if (kind === null) {
       if (browsing) {
@@ -2088,25 +2094,37 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     }
     const option = routeWays?.options.find(o => o.kind === kind);
     if (option) setStops(option.stops, option.fuel);
-  }, [browsing, planned.stops, searchParams, withFuel, s.totals?.ete_min, s.totals?.distance_nm, routeWays, setStops, setBrowsing]);
+  }, [browsing, planned.stops, searchParams, ownWithFuel, ownMinutes, ownNm, routeWays, setStops, setBrowsing]);
 
   // The same ways on the chart beside the route, in the pale tint (RouteWaysLayer).
   const wayLines = useMemo((): RouteWay[] => (routeWays && routed && !s.local && flightRules === "vfr"
     ? routeWays.options.filter(o => offered(o) && !isRoute(o, planned.stops)).map(o => ({
       // Its time alone on the chart, the cards saying which is which (the
       // owner's "avoid putting too much text": the names ran over each other).
-      key: o.kind, path: o.path as [number, number][], label: wayTime(o, gridScale(routeWays, browsing?.ownMinutes ?? s.totals?.ete_min)), name: wayTitle(o),
+      key: o.kind, path: o.path as [number, number][], label: wayTime(o, gridScale(routeWays, browsing ? browsing.ownMinutes : ownMinutes)), name: wayTitle(o),
     }))
-    : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops, browsing?.ownMinutes, s.totals?.ete_min]);
+    : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops, browsing, ownMinutes]);
   // Routes in the route box: the cards again, from the route as it is.
   const showRoutes = useCallback(() => setRoutesChosen(null), []);
-  // The cards while there is a choice to make; once one is used, the route's list.
-  const choosing = routed && !s.local && flightRules === "vfr" && routesChosen !== chosenKey(baseStops) && routesOffered(routeWays, baseStops, !!fuelCard);
-  const routeChoices = useMemo(() => (choosing
-    ? <RouteChoices found={routeWays} stops={baseStops} depart={depart || null}
-        ownMinutes={browsing ? browsing.ownMinutes : s.totals?.ete_min ?? null} ownNm={browsing ? browsing.ownNm : s.totals?.distance_nm ?? null}
-        full={panel === "full"} picked={wayShown} withFuel={fuelCard} onUseFuel={keepWithFuel} onUseOwn={keepOwn} onPreview={previewWay} onPick={pickRoute} /> : null),
-  [choosing, routeWays, baseStops, depart, browsing, s.totals?.ete_min, s.totals?.distance_nm, panel, wayShown, fuelCard, keepWithFuel, keepOwn, previewWay, pickRoute]);
+  const routeChoices = useMemo(() => {
+    if (!choosing) return null;
+    const minutes = browsing ? browsing.ownMinutes : ownMinutes;
+    // Its air time on the route's clock, as the ways' are (gridScale).
+    const scale = gridScale(routeWays, minutes);
+    const withFuel = fuelCard && { ...fuelCard, minutes: fuelCard.air * scale + fuelCard.ground };
+    return (
+      <RouteChoices found={routeWays} stops={baseStops} depart={depart || null}
+        ownMinutes={minutes} ownNm={browsing ? browsing.ownNm : ownNm}
+        full={panel === "full"} picked={wayShown} withFuel={withFuel} onUseFuel={keepWithFuel} onUseOwn={keepOwn} onPreview={previewWay} onPick={pickRoute} />
+    );
+  }, [choosing, routeWays, baseStops, depart, browsing, ownMinutes, ownNm, panel, wayShown, fuelCard, keepWithFuel, keepOwn, previewWay, pickRoute]);
+  // The routes the cards browse, end to end, for the route box to keep
+  // its height through them (RouteBox's holdFor).
+  const browsedRoutes = useMemo(() => {
+    if (!choosing) return undefined;
+    const ends = (stops: string[]) => [planned.dep, ...stops, `${planned.dest ?? ""}`];
+    return [baseStops, ...(fuelCard ? [fuelCard.stops] : []), ...(routeWays?.options ?? []).filter(offered).map(o => o.stops)].map(ends);
+  }, [choosing, planned.dep, planned.dest, baseStops, fuelCard, routeWays]);
   const routeList = useMemo(() => (
     <>
     {/* The ways to fly it (RouteChoices) while one is to be picked; the
@@ -2718,7 +2736,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onChange={setRoute} onTypedProcedures={typeProcedures}
           adding={!!addingStop} onAddingChange={addingChange}
           via={addingStop === "via" ? s.unflyable?.detours : undefined}
-          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop}
+          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop} holdFor={browsedRoutes}
           // An airport's pill tapped: its card over the route, as a tap on
           // it on the chart opens it, at the pilot's ask; closed, the route.
           onOpenAirport={selectPlace}
