@@ -174,8 +174,9 @@ def test_each_way_says_the_weather_it_meets_its_wind_and_its_floor(sky):
     assert kinds == ["vfr", "mvfr", "vfr"]
     assert sum(b["min"] for b in fastest["bands"]) == pytest.approx(fastest["air_min"], rel=0.05)
     assert fastest["tail_kt"] == 0.0                       # no wind in this sky
-    # Flat ground at sea level: 91.119's 1,000 and the coarse read's 1,000.
-    assert fastest["floor_ft"] == 2000
+    # Flat ground at sea level: 91.119's 1,000 ft alone, the coarse read's
+    # own margin kept by the planner, not told.
+    assert fastest["floor_ft"] == 1000
     assert [b["kind"] for b in out["current_along"]["bands"]] == ["vfr", "mvfr", "vfr"]
 
 
@@ -192,3 +193,57 @@ def test_the_pilots_own_route_gets_its_fuel_stops_put_in_among_its_points(sky):
     # In order along it: each fuel stop east of the one before.
     east = [float(s[1:]) for s in own["stops"][1:]]
     assert east == sorted(east)
+
+
+def test_a_landing_the_pilot_makes_is_a_refuel_not_a_stop_to_add(sky):
+    # Two hops of 300 nm in tanks for 400: each is flown on its own, so no
+    # fuel stop is needed -- and the field landed at was offered as the
+    # stop to add, twice over in the route (the audit of 2026-10-24).
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    table = fields(("MID", 0.0, 5.0), *[(f"F{k}", 0.0, float(k)) for k in (2, 3, 7, 8)])
+    current = [(0.0, 0.0), (0.0, 5.0), (0.0, 10.0)]
+    out = route_options.options(DEP, dest, PROFILE, fields=table, current=current, current_idents=["MID"], current_landed=[True])
+    own = out["own"]
+    assert own["stops"] == ["MID"]
+    assert own["fuel"] == []
+    # Its landing counted, with the owner's 30 minutes on the ground.
+    assert own["landings"] == 1 and own["ground_min"] == route_options.TURNAROUND_MIN
+    # Flown over instead (a fix), the whole 600 nm is one flight that needs a stop.
+    over = route_options.options(DEP, dest, PROFILE, fields=table, current=current, current_idents=["MINE"], current_landed=[False])
+    assert over["own"]["fuel"], "a stop is needed when nothing is landed at"
+    assert "MINE" not in over["own"]["fuel"]
+
+
+def test_a_way_no_fuel_field_reaches_is_offered_with_that_said(sky):
+    # 600 nm in tanks for 400 and no field at all: the way is offered, the
+    # want of fuel one of the things it meets, never dropped.
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    out = route_options.options(DEP, dest, PROFILE, fields=NO_FIELDS)
+    assert out["options"], "offered all the same"
+    kinds = {out["hazards"][i]["kind"] for i in out["options"][0]["crosses"]}
+    assert "fuel" in kinds
+    assert out["own"] is not None and "fuel" in {out["hazards"][i]["kind"] for i in out["own"]["crosses"]}
+
+
+def test_a_turn_with_no_fix_near_is_a_position_of_the_pilots_own(monkeypatch, sky):
+    sky["tafs"].append(taf("STRM", 0.0, 2.0, wx="TSRA"))
+    monkeypatch.setattr(route_options.fixes, "frd_near", lambda lat, lon: None)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    way = out["options"][0]
+    assert way["stops"], "the way round the storm turns somewhere"
+    assert all(s.startswith("@") for s in way["stops"])
+
+
+def test_terrain_that_cannot_be_read_is_said_not_fatal(monkeypatch, sky):
+    def down(lats, lons):
+        raise OSError("tiles unreachable")
+    monkeypatch.setattr(terrain_detour, "_heights_ft", down)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert "terrain" in out["unchecked"]
+    assert out["options"]
+
+
+def test_the_floor_told_is_the_ground_with_its_thousand_feet_alone(sky):
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    # Sea level everywhere: 91.119's 1,000 ft, not the coarse read's margin too.
+    assert out["options"][0]["floor_ft"] == terrain_detour.TERRAIN_MARGIN_FT

@@ -319,7 +319,9 @@ export function usePlan(
   // every tab of the panel again with it.
   const hasCourse = !!course.data;
   const briefingState = useMemo((): BriefingState => {
-    if (!briefable || !hasCourse) return { state: "waiting" };
+    // And while nothing is planned (planNow): it said "loading" for ever,
+    // the progress line "Fetching METARs…" with it, under the Routes' cards.
+    if (!briefable || !hasCourse || !planNow) return { state: "waiting" };
     if (briefing.data) {
       return {
         state: "ready", data: briefing.data, fetchedAt: briefing.dataUpdatedAt,
@@ -328,7 +330,7 @@ export function usePlan(
     }
     if (briefing.error) return { state: "failed", detail: describeError(briefing.error, "could not load the briefing") };
     return { state: "loading" };
-  }, [briefable, hasCourse, briefing.data, briefing.dataUpdatedAt, briefing.error]);
+  }, [briefable, hasCourse, planNow, briefing.data, briefing.dataUpdatedAt, briefing.error]);
 
   const notes = useCheckpointNotes(dep, dest, stops);
   // Written from the checkpoints' nav log, not the route as entered.

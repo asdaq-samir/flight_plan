@@ -289,9 +289,16 @@ export default function RouteBox({
     const el = slide.current;
     if (!el) return;
     const routes = holdKey ? holdKey.split("|").map(r => r.split(",")) : [];
+    // Once a frame, however many pills a change rewrites: each read lays
+    // the box out again, and a swipe through the Routes' cards rewrote
+    // the pills several times a frame.
+    let frame = 0;
     const read = () => {
+      frame = 0;
       setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
-      const pill = el.firstElementChild as HTMLElement | null;
+      // Off a pill, not whatever comes first: with no departure yet that is
+      // the arrow, 12 points, and the box was held to one line.
+      const pill = el.querySelector<HTMLElement>(PILL_PICK);
       if (!pill?.offsetHeight) return;
       const style = getComputedStyle(el);
       const gap = parseFloat(style.rowGap) || 0;
@@ -299,11 +306,13 @@ export default function RouteBox({
       setTwoLines(Math.ceil(pill.offsetHeight * 2 + gap + pad));
       setHoldTwo(routes.some(route => takesTwoLines(el, route.map(pointName))));
     };
-    const sized = new ResizeObserver(read);
+    const soon = () => { if (!frame) frame = requestAnimationFrame(read); };
+    const sized = new ResizeObserver(soon);
     sized.observe(el);
-    const changed = new MutationObserver(read);
+    const changed = new MutationObserver(soon);
     changed.observe(el, { childList: true, subtree: true });
-    return () => { sized.disconnect(); changed.disconnect(); };
+    soon();
+    return () => { cancelAnimationFrame(frame); sized.disconnect(); changed.disconnect(); };
   }, [holdKey]);
   const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
   const toEnd = (e: MouseEvent<HTMLDivElement>) => {
@@ -827,12 +836,18 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
  *  line: its pills as wide as the box's own are for their words (the
  *  widest pill's room round its words, so it errs to two), an arrow
  *  between each, as the box wraps them. */
+/** The route's own pills in the box: its departure, stops and destination. */
+const PILL_PICK = "[data-testid=route-dep],[data-testid=stop],[data-testid=route-dest]";
+
 function takesTwoLines(el: HTMLElement, names: string[]): boolean {
-  const pills = [...el.querySelectorAll<HTMLElement>("[data-testid=route-dep],[data-testid=stop],[data-testid=route-dest]")];
+  const pills = [...el.querySelectorAll<HTMLElement>(PILL_PICK)];
   const arrow = el.querySelector<HTMLElement>("[data-testid=route-arrow]");
   const context = document.createElement("canvas").getContext("2d");
   if (!pills.length || !context) return false;
-  context.font = getComputedStyle(pills[0]!).font;
+  // The words' own face: the button in the pill, not its group (whose
+  // `font` shorthand Firefox leaves empty where its parts disagree).
+  const face = getComputedStyle(pills[0]!.querySelector("button") ?? pills[0]!);
+  context.font = `${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
   const words = (text: string) => context.measureText(text).width;
   const room = Math.max(...pills.map(p => p.offsetWidth - words((p.textContent ?? "").trim())));
   const style = getComputedStyle(el);

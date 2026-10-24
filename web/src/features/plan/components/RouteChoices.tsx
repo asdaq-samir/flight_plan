@@ -3,7 +3,7 @@ import { Check } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
 import type { RouteOption, RouteOptions } from "../../../lib/api/types";
-import { clockTime } from "../../../lib/clock";
+import { clockTime, minutesWords } from "../../../lib/clock";
 import { gridScale, isRoute, offered, routesOffered, wayTitle } from "../../../lib/routeWays";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
@@ -29,12 +29,6 @@ function costOf(option: RouteOption, wants: Set<Want>): number {
   if (wants.has("wind")) cost -= (option.tail_kt ?? 0) * 2;
   if (wants.has("low") && (option.floor_ft ?? 0) > 6000) cost += 600;
   return cost;
-}
-
-/** "3 h 10 min", "45 min". */
-function minutesWords(minutes: number): string {
-  const h = Math.floor(Math.round(minutes) / 60), m = Math.round(minutes) % 60;
-  return h ? `${h} h ${m} min` : `${m} min`;
 }
 
 /** The weather a way meets, as a strip laid out by the time it is met. */
@@ -120,7 +114,7 @@ function Card({ minutes, arrive, nm, landings = 0, name, warning, bands, used, b
  * the route is already the best of every kind, needs no fuel and meets
  * nothing.
  */
-export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, withFuel, onUseFuel, onUseOwn, full = false, picked, onPreview, onPick }: {
+export default function RouteChoices({ found, stops, depart, ownMinutes, ownGround = 0, ownNm, withFuel, onUseFuel, onUseOwn, full = false, picked, onPreview, onPick }: {
   found: RouteOptions | undefined;
   /** The route with the planner's fuel stops put in (the totals' fuel
    *  stops), its time and miles as they come to; null where it needs none. */
@@ -133,6 +127,9 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   full?: boolean;
   /** The route's own time en route and miles as planned (the nav log's). */
   ownMinutes: number | null;
+  /** Its minutes on the ground at its own stops, told with its air time
+   *  as the ways' are (their ground_min). */
+  ownGround?: number;
   ownNm: number | null;
   /** The route's points between its ends, as the address has them. */
   stops: string[];
@@ -146,6 +143,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   const strip = useRef<HTMLDivElement>(null);
   const frame = useRef(0);
   const aiming = useRef<{ left: number; until: number } | null>(null);
+  const later = useRef(0);
   // The owner's four (2026-10-23): the route, the route with its fuel
   // stops, the best weather's and the fastest, each with its fuel stops.
   const ways = found ? found.options.filter(offered) : [];
@@ -171,7 +169,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
     aiming.current = { left, until: performance.now() + 1000 };
     el.scrollTo({ left, behavior: "smooth" });
   }, [at, keysKey]);
-  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  useEffect(() => () => { cancelAnimationFrame(frame.current); window.clearTimeout(later.current); }, []);
   // How far down the panel's body the cards start, under the route box:
   // at half they are to end, their dots under them, above the flight's
   // figures (the owner's "make sure I can see the three dots").
@@ -202,6 +200,14 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   const leave = depart ? new Date(depart) : new Date();
   const arrive = (minutes: number | null) => (minutes ? clockTime(new Date(leave.getTime() + minutes * 60_000)) : null);
   const kindWords = (i: number) => (found.hazards[i]?.kind === "storm" ? "storms" : found.hazards[i]?.kind === "terrain" ? "high ground" : "weather");
+  // What a way meets, the first thing: a hazard crossed, or no field with
+  // fuel in reach of it (the planner's "fuel" hazard).
+  const warningOf = (crosses: number[]) => {
+    const i = crosses[0];
+    if (i === undefined) return null;
+    return found.hazards[i]?.kind === "fuel" ? "No fuel stop in reach" : `Crosses ${kindWords(i)}`;
+  };
+  const own = ownMinutes === null ? null : ownMinutes + ownGround;
   // A swipe that comes to rest on a card shows its way on the map.
   const settled = () => {
     cancelAnimationFrame(frame.current);
@@ -211,7 +217,13 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
       if (!el || !first) return;
       const aim = aiming.current;
       if (aim) {
-        if (Math.abs(el.scrollLeft - aim.left) > 4 && performance.now() < aim.until) return;
+        if (Math.abs(el.scrollLeft - aim.left) > 4 && performance.now() < aim.until) {
+          // Looked at again once the aim has run out: a finger that stops
+          // the row short of it fires no scroll after this one.
+          window.clearTimeout(later.current);
+          later.current = window.setTimeout(settled, aim.until - performance.now() + 16);
+          return;
+        }
         aiming.current = null;
         if (Math.abs(el.scrollLeft - aim.left) <= 4) return;
       }
@@ -223,8 +235,8 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   const cards = (
     <>
         <Card
-          minutes={ownMinutes} arrive={arrive(ownMinutes)} nm={ownNm} name="Your Route"
-          warning={meets.length ? `Crosses ${kindWords(meets[0]!)}` : null} bands={found.current_along?.bands}
+          minutes={own} arrive={arrive(own)} nm={ownNm} name="Your Route"
+          warning={warningOf(meets)} bands={found.current_along?.bands}
           onUse={onUseOwn} testId="route-choice-current" listed={full} shown={picked === null} onShow={() => onPreview(null)}
         />
         {withFuel && (
@@ -240,7 +252,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
           return (
             <Card
               key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} landings={option.landings} name={wayTitle(option)}
-              warning={option.crosses.length ? `Crosses ${kindWords(option.crosses[0]!)}` : null}
+              warning={warningOf(option.crosses)}
               bands={option.bands} used={used} best={option === best && !used}
               onUse={used ? undefined : () => onPick(option)} testId={`route-choice-${option.kind}`}
               listed={full} shown={picked === option.kind} onShow={() => onPreview(option.kind)}
