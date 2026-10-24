@@ -164,3 +164,16 @@ def test_where_nothing_keeps_clear_the_way_crossing_least_is_offered_with_what_i
     crossing = out["options"][0]
     assert [out["hazards"][i]["kind"] for i in crossing["crosses"]] == ["terrain"]
     assert len(crossing["stops"]) <= route_options.MAX_TURNS
+
+
+def test_each_way_says_the_weather_it_meets_its_wind_and_its_floor(sky):
+    sky["tafs"].append(taf("LOWW", 0.0, 2.0, ceiling=2500))
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    fastest = next(o for o in out["options"] if "fastest" in o["kinds"])
+    kinds = [b["kind"] for b in fastest["bands"]]
+    assert kinds == ["vfr", "mvfr", "vfr"]
+    assert sum(b["min"] for b in fastest["bands"]) == pytest.approx(fastest["air_min"], rel=0.05)
+    assert fastest["tail_kt"] == 0.0                       # no wind in this sky
+    # Flat ground at sea level: 91.119's 1,000 and the coarse read's 1,000.
+    assert fastest["floor_ft"] == 2000
+    assert [b["kind"] for b in out["current_along"]["bands"]] == ["vfr", "mvfr", "vfr"]

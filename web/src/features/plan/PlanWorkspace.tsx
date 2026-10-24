@@ -1969,21 +1969,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     enabled: routed && !!planned.dep && !!planned.dest && !s.local && flightRules === "vfr"
       && !!s.totals && !s.navStage && s.stage !== "navlog",
   });
-  const pickRoute = useCallback((option: RouteOption) => setStops(option.stops, option.fuel), [setStops]);
-  const flyDirect = useCallback(() => setStops([]), [setStops]);
+  // The way shown on the map and under the cards, by its kind (RouteChoices):
+  // a card or the way's line tapped shows it, Use puts it in the route.
+  const [wayShown, setWayShown] = useState<string | null>(null);
+  const pickRoute = useCallback((option: RouteOption) => { setWayShown(null); setStops(option.stops, option.fuel); }, [setStops]);
+  const flyDirect = useCallback(() => { setWayShown(null); setStops([]); }, [setStops]);
   // The same ways on the chart beside the route, in the pale tint (RouteWaysLayer).
   const wayLines = useMemo((): RouteWay[] => (routeWays && routed && !s.local && flightRules === "vfr"
     ? routeWays.options.filter(o => !isRoute(o, planned.stops)).map(o => ({
       key: o.kind, path: o.path as [number, number][], label: `${wayTitle(o)} · ${wayTime(o)}`,
     }))
     : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops]);
-  const pickWay = useCallback((key: string) => {
-    const option = routeWays?.options.find(o => o.kind === key);
-    if (option) pickRoute(option);
-  }, [routeWays, pickRoute]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
-    ? <RouteChoices found={routeWays} stops={planned.stops} onPick={pickRoute} onDirect={flyDirect} /> : null),
-  [routed, s.local, flightRules, routeWays, planned.stops, pickRoute, flyDirect]);
+    ? <RouteChoices found={routeWays} stops={planned.stops} depart={depart || null} picked={wayShown}
+        onPreview={setWayShown} onPick={pickRoute} onDirect={flyDirect} /> : null),
+  [routed, s.local, flightRules, routeWays, planned.stops, depart, wayShown, pickRoute, flyDirect]);
   const routeList = useMemo(() => (
     <>
     {/* The ways to fly it, over its points (RouteChoices). */}
@@ -2363,7 +2363,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directs={mapDirects}
           onProcedureFix={showFix}
           fuelStops={alongPins ?? fuelStopPins}
-          ways={wayLines} onPickWay={pickWay}
+          ways={wayLines} wayShown={wayShown} onPickWay={setWayShown}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />

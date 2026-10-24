@@ -135,6 +135,8 @@ class _Grid:
         #: What costs more to cross, for every way: special-use airspace.
         self.dear = np.zeros((self.rows, self.cols))
         self.hazards: list[dict] = []
+        #: Each cell's floor, ft (_ground), once read.
+        self.floor: np.ndarray | None = None
         self.ends: set = {self.cell(start), self.cell(end)}
 
     def bbox(self) -> tuple:
@@ -641,6 +643,7 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     grid = _Grid(start, end)
     unchecked: list[str] = []
     floor = _ground(grid, top)
+    grid.floor = floor
     try:
         _weather(grid, window, ceiling, visibility)
     except weather.WeatherServiceError:
@@ -695,9 +698,53 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         # the briefing says it, for the pilot to judge.
         "ends": [int(h) for h in dict.fromkeys(grid.closed[c] for c in (grid.cell(start), grid.cell(end))) if h >= 0],
         "current": _crossed(grid, current) if current else [],
+        # What the pilot's own route meets, as each way's (`_along`): its
+        # weather strip, wind and floor.
+        "current_along": _along(grid, gs, current or [start, end], tas),
         "current_marginal": _crossed(grid, current, marginal=True) if current else [],
         "hazards": grid.hazards,
         "unchecked": unchecked,
+    }
+
+
+#: The weather a cell is, for a way's strip of the weather met along it:
+#: its closing hazard's kind, else marginal, else VFR.
+_WEATHER_OF = {"storm": "storm", "weather": "ifr", "sigmet": "ifr", "marginal": "mvfr"}
+
+
+def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dict:
+    """What a way through `path` meets, cell by cell in the order it flies
+    them: the weather as a strip of runs ({"kind": vfr|mvfr|ifr|storm,
+    "min"}), for the page to lay out by the time it is met; the mean wind
+    along it, kt (positive a tailwind); and its floor, the highest cell's
+    ground with 91.119's 1,000 ft and the coarse read's margin, ft."""
+    runs: list[dict] = []
+    wind_min = 0.0
+    total = 0.0
+    floor = 0.0
+    for a, b in zip(path, path[1:]):
+        cells = grid.line_cells(a, b)
+        minutes = _line_minutes(grid, gs, a, b)
+        if not cells or minutes <= 0:
+            continue
+        each = minutes / len(cells)
+        bearing = math.atan2((b[1] - a[1]) * math.cos(math.radians((a[0] + b[0]) / 2)), b[0] - a[0])
+        k = _step_index(round(math.cos(bearing)), round(math.sin(bearing)))
+        for c in cells:
+            h = grid.closed[c]
+            kind = _WEATHER_OF.get(grid.hazards[h]["kind"], "vfr") if h >= 0 else ("mvfr" if grid.marginal[c] >= 0 else "vfr")
+            if runs and runs[-1]["kind"] == kind:
+                runs[-1]["min"] += each
+            else:
+                runs.append({"kind": kind, "min": each})
+            wind_min += (float(gs[c[0], c[1], k]) - tas_kt) * each
+            total += each
+            if grid.floor is not None:
+                floor = max(floor, float(grid.floor[c]))
+    return {
+        "bands": [{"kind": r["kind"], "min": round(r["min"], 1)} for r in runs],
+        "tail_kt": round(wind_min / total, 1) if total else 0.0,
+        "floor_ft": int(math.ceil(floor / 100.0) * 100),
     }
 
 
@@ -736,4 +783,5 @@ def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: l
         "landings": len(stops),
         "crosses": _crossed(grid, path),
         "marginal": _crossed(grid, path, marginal=True),
+        **_along(grid, gs, path, float(profile["cruise_tas_kt"])),
     }

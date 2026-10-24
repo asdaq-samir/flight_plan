@@ -17,6 +17,8 @@ export interface RouteWay {
 // One style for good: react-leaflet restyles a path whose pathOptions is a
 // new object, and a literal is one at every render.
 const WAY_STYLE: L.PathOptions = { color: MAP_BLUE, weight: 6, opacity: 0.35, lineCap: "round", lineJoin: "round" };
+/** The one shown (FPL's Routes' card picked): the tint at full strength. */
+const SHOWN_STYLE: L.PathOptions = { color: MAP_BLUE, weight: 7, opacity: 0.9, lineCap: "round", lineJoin: "round" };
 const NO_WAYS: RouteWay[] = [];
 /** The chip's fill: the map's blue a step darker, white words at 12
  *  points on it 4.5:1 and more (WCAG 1.4.3; the map's own #007aff is 4.0). */
@@ -36,7 +38,7 @@ const wayIcon = made(function wayIcon(label: string) {
   });
 });
 
-const Way = memo(function Way({ way, onPick }: { way: RouteWay; onPick: (key: string) => void }) {
+const Way = memo(function Way({ way, shown, onPick }: { way: RouteWay; shown: boolean; onPick: (key: string) => void }) {
   const events = useMemo(() => ({ click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onPick(way.key); } }), [onPick, way.key]);
   // The chip at the middle of the way's middle leg, not on a turn.
   const at = useMemo((): [number, number] => {
@@ -46,7 +48,7 @@ const Way = memo(function Way({ way, onPick }: { way: RouteWay; onPick: (key: st
   }, [way.path]);
   return (
     <>
-      <Polyline positions={way.path} pathOptions={WAY_STYLE} eventHandlers={events} />
+      <Polyline positions={way.path} pathOptions={shown ? SHOWN_STYLE : WAY_STYLE} eventHandlers={events} />
       <Marker position={at} icon={wayIcon(way.label)} eventHandlers={events} keyboard={false} />
     </>
   );
@@ -55,12 +57,14 @@ const Way = memo(function Way({ way, onPick }: { way: RouteWay; onPick: (key: st
 /**
  * The ways FPL's Routes offer beside the route, drawn under it in a pale
  * tint as Maps draws the routes it did not pick, each with a chip of its
- * names and time; a tap on either puts that way in the route, as a tap on
- * its row does (RouteChoices).
+ * names and time, the one shown (FPL's Routes' card picked) at full
+ * strength; a tap on either shows that way, as a tap on its card does
+ * (RouteChoices), whose Use puts it in the route.
  */
-export const RouteWaysLayer = memo(function RouteWaysLayer({ ways = NO_WAYS, onPick }: {
+export const RouteWaysLayer = memo(function RouteWaysLayer({ ways = NO_WAYS, shown = null, onPick }: {
   ways?: RouteWay[];
+  shown?: string | null;
   onPick: (key: string) => void;
 }) {
-  return <>{ways.map(way => <Way key={way.key} way={way} onPick={onPick} />)}</>;
+  return <>{ways.map(way => <Way key={way.key} way={way} shown={way.key === shown} onPick={onPick} />)}</>;
 });
