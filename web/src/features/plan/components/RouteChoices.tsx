@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
 import type { RouteOption, RouteOptions } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
-import { isRoute, offered, wayTitle } from "../../../lib/routeWays";
+import { gridScale, isRoute, offered, wayTitle } from "../../../lib/routeWays";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
 
@@ -52,10 +52,12 @@ function Strip({ bands }: { bands: { kind: string; min: number }[] }) {
  *  arrival and miles, and its name -- or what it crosses, in red -- with
  *  Use at the right where it is not the route already; the weather met
  *  along it a thin strip at its foot. */
-function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, testId, listed = false, shown = false, onShow }: {
+function Card({ minutes, arrive, nm, landings = 0, name, warning, bands, used, best, onUse, testId, listed = false, shown = false, onShow }: {
   minutes: number | null;
   arrive: string | null;
   nm: number | null;
+  /** Its fuel stops, said with its miles. */
+  landings?: number;
   name: string;
   warning: string | null;
   bands?: { kind: string; min: number }[];
@@ -82,7 +84,7 @@ function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, te
       <div className="pointer-events-none flex min-w-0 flex-1 flex-col">
         <span className="text-[1.625rem] leading-8 font-bold tabular-nums">{minutes ? minutesWords(minutes) : "—"}</span>
         <span className={cn("truncate text-muted-foreground tabular-nums", TEXT.note)}>
-          {[arrive && `${arrive} ETA`, nm && `${grouped(Math.round(nm))} nm`].filter(Boolean).join(" · ")}
+          {[arrive && `${arrive} ETA`, nm && `${grouped(Math.round(nm))} nm`, landings ? `${landings} fuel stop${landings > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ")}
         </span>
         <span className={cn("truncate", TEXT.note, warning ? "text-destructive-ink" : "text-muted-foreground")}>
           {warning ? `${name} · ${warning}` : best ? `${name} · Best` : name}
@@ -159,7 +161,12 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   if (!found) return null;
   const others = ways.filter(o => !isRoute(o, stops));
   if (!meets.length && !others.length && !withFuel) return null;
-  const fuelWords = (n: number) => (n ? ` · ${n} fuel stop${n > 1 ? "s" : ""}` : "");
+  // The planner's ways are timed on its coarse grid, the route by its nav
+  // log: each way's air time scaled by how the two differ on the route
+  // itself, so the four are told alike -- the "Fastest" came out slower
+  // than the route with its fuel stops, on two clocks (the owner's
+  // screenshot, 2026-10-24).
+  const scale = gridScale(found, ownMinutes);
   const leave = depart ? new Date(depart) : new Date();
   const arrive = (minutes: number | null) => (minutes ? clockTime(new Date(leave.getTime() + minutes * 60_000)) : null);
   const kindWords = (i: number) => (found.hazards[i]?.kind === "storm" ? "storms" : found.hazards[i]?.kind === "terrain" ? "high ground" : "weather");
@@ -184,17 +191,17 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
         />
         {withFuel && (
           <Card
-            minutes={withFuel.minutes} arrive={arrive(withFuel.minutes)} nm={withFuel.nm} name={`Your Route${fuelWords(withFuel.landings)}`}
+            minutes={withFuel.minutes} arrive={arrive(withFuel.minutes)} nm={withFuel.nm} landings={withFuel.landings} name="Your Route with Fuel"
             warning={null} onUse={onUseFuel} testId="route-choice-fuel"
             listed={full} shown={picked === "fuel"} onShow={() => onPreview("fuel")}
           />
         )}
         {ranked.map(option => {
           const used = isRoute(option, stops);
-          const minutes = option.air_min + option.ground_min;
+          const minutes = option.air_min * scale + option.ground_min;
           return (
             <Card
-              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} name={`${wayTitle(option)}${fuelWords(option.landings)}`}
+              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} landings={option.landings} name={wayTitle(option)}
               warning={option.crosses.length ? `Crosses ${kindWords(option.crosses[0]!)}` : null}
               bands={option.bands} used={used} best={option === best && !used}
               onUse={used ? undefined : () => onPick(option)} testId={`route-choice-${option.kind}`}

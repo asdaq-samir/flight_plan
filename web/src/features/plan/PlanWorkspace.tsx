@@ -57,7 +57,7 @@ import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import RouteChoices from "./components/RouteChoices";
 import type { RouteWay } from "../../lib/map/RouteWaysLayer";
-import { isRoute, offered, wayTime, wayTitle } from "../../lib/routeWays";
+import { gridScale, isRoute, offered, wayTime, wayTitle } from "../../lib/routeWays";
 
 /** No ways on the chart: one array for good, so the map's memo holds. */
 const NO_WAYS: RouteWay[] = [];
@@ -2003,9 +2003,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     ? routeWays.options.filter(o => offered(o) && !isRoute(o, planned.stops)).map(o => ({
       // Its time alone on the chart, the cards saying which is which (the
       // owner's "avoid putting too much text": the names ran over each other).
-      key: o.kind, path: o.path as [number, number][], label: wayTime(o), name: wayTitle(o),
+      key: o.kind, path: o.path as [number, number][], label: wayTime(o, gridScale(routeWays, s.totals?.ete_min)), name: wayTitle(o),
     }))
-    : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops]);
+    : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops, s.totals?.ete_min]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
     ? <RouteChoices found={routeWays} stops={planned.stops} depart={depart || null} ownMinutes={s.totals?.ete_min ?? null} ownNm={s.totals?.distance_nm ?? null} full={panel === "full"} picked={wayShown}
         withFuel={withFuel} onUseFuel={keepWithFuel} onPreview={setWayShown} onPick={pickRoute} /> : null),
