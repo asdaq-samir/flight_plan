@@ -2262,7 +2262,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           narrower in their padding for it, so the row keeps its one line. */}
       {/* One capsule of the glass round the three (CAPSULE), at the owner's
           ask, the buttons in it plain (IN_CAPSULE), 12 apart as before. */}
-      <div className={cn("ml-auto flex shrink-0 items-center gap-3", CAPSULE)} data-testid="route-actions">
+      {/* The eight before the capsule sit outside its glass, as the padding
+          they were before the capsule (7c8292bc): the Profile button's 44
+          points and the Brief's meet on a narrow panel, where the row has
+          no room left over (the nightly audit's P1 on iPhone SE and the
+          iPad slide-over, 24 Oct). */}
+      <div className="ml-auto shrink-0 pl-2">
+      <div className={cn("flex items-center gap-3", CAPSULE)} data-testid="route-actions">
         {/* The Brief, a card over FPL (BriefCard), in the folder's place,
             at the owner's ask ("we don't need the folder button because we
             have a saved section with tiles instead. So then we can have a
@@ -2301,6 +2307,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             button should not appear before a route is entered"): the box
             clears itself (its own clear). */}
         {routed && shareMenu("end")}
+      </div>
       </div>
     </div>
   );
