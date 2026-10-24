@@ -66,7 +66,11 @@ jobs:
             -skipPackagePluginValidation -skipMacroValidation \
             -resultBundlePath "$RUNNER_TEMP/Wingtip.xcresult" \
             CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" \
-            test 2>&1 | tee "$RUNNER_TEMP/xcodebuild.log" | grep -E "error:|warning: unre|Test (Case|Suite)|\*\* (BUILD|TEST)|passed|failed" || true
+            test > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || true
+          # The lines that say what happened: each error with what follows
+          # it (a resolution failure names its cause on the next line), the
+          # tests, and the verdict.
+          grep -nE "error:|error\b|Could not|Test (Case|Suite)|Executed|\*\* (BUILD|TEST)" -A6 "$RUNNER_TEMP/xcodebuild.log" | tail -200 || true
           grep -qE "\*\* TEST SUCCEEDED \*\*" "$RUNNER_TEMP/xcodebuild.log"
       # What the generator made of the planner's document, for the next
       # screen's author: the operations' names, so a call is written right
