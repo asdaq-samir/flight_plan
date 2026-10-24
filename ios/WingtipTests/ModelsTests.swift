@@ -66,3 +66,29 @@ struct RoutesTests {
         #expect(routes.own?.crosses == [0] && routes.hazards[0].name == "Thunderstorms near KMSP" && routes.unchecked == ["TFRs"])
     }
 }
+
+/// An airplane by its N-number, as the web app's aircraftChoice.test.ts
+/// pins it: the N-number's shape, and the type's profile by the
+/// registry's make, model and year.
+struct RegisteredTests {
+    @Test func anNNumberIsToldFromOtherWordsByItsShape() {
+        #expect(["N3429J", "N1", "N12345", "N172SP"].allSatisfy { Registered.isNNumber($0) })
+        #expect(!["N0123", "N123456", "C172", "KDLH"].contains { Registered.isNNumber($0) })
+    }
+
+    @Test func aRegisteredTypeFliesOnItsProfile() {
+        #expect(Registered.profile(manufacturer: "Cessna", model: "172S", year: nil) == "c172")
+        #expect(Registered.profile(manufacturer: "Piper", model: "PA-28-181", year: nil) == "pa28")
+        #expect(Registered.profile(manufacturer: "Piper", model: "PA-28-140", year: 1971) == "pa28140")
+        #expect(Registered.profile(manufacturer: "Piper", model: "PA-28-140", year: 1975) == "pa28140cruiser")
+        #expect(Registered.profile(manufacturer: "Piper", model: "PA-28-140", year: nil) == "pa28140cruiser")
+        #expect(Registered.profile(manufacturer: "Cirrus Design Corp", model: "SR22", year: nil) == "sr22")
+        #expect(Registered.profile(manufacturer: "Beech", model: "A36", year: nil) == nil)
+        #expect(Registered.profile(manufacturer: "Cessna", model: "T182T", year: nil) == nil)
+    }
+
+    @Test func theFiguresQueryCarriesOnlyWhatIsSet() {
+        let q = Figures(cruiseTasKt: 115, usableFuelGal: 36).query.compactMapValues { $0 }
+        #expect(q == ["cruise_tas_kt": "115.0", "usable_fuel_gal": "36.0"])
+    }
+}

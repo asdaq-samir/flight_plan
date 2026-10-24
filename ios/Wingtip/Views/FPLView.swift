@@ -81,7 +81,7 @@ struct FPLView: View {
                     // hundreds of feet ("065" for 6,500 ft, the owner's
                     // FL-style figure); cleared, the planner's again.
                     HStack {
-                        Text(plan.aircraft.uppercased()).font(.body.monospaced())
+                        Text(plan.tail ?? plan.aircraft.uppercased()).font(.body.monospaced())
                         Spacer()
                         Text("Altitude").foregroundStyle(.secondary)
                         TextField(plan.altitudeFt.map { String(format: "%03d", Int($0) / 100) } ?? "—", text: $altitude)

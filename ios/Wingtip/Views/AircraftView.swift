@@ -1,44 +1,71 @@
 import SwiftUI
 
-/// Aircraft: the planner's airplane types, one picked for the flight, with
-/// the handbook figures it flies on. The pilot's own airplane by its
-/// N-number and its own figures come in phase 3; until then the type's.
+/// Aircraft: the airplane by its N-number, the owner's rule ("airplane
+/// should only be picked by n-number"): one of the pilot's own, with the
+/// figures they set, or any N-number typed, looked up in the FAA's
+/// registry for its type and flown on the planner's figures for it. The
+/// types the planner has figures for are listed under them.
 struct AircraftView: View {
     @Environment(Plan.self) private var plan
+    @Environment(Session.self) private var session
     @State private var profiles: [AircraftProfile] = []
+    @State private var own: [OwnAircraft] = []
+    @State private var typed = ""
     @State private var problem: String?
 
     var body: some View {
         NavigationStack {
             List {
-                if profiles.isEmpty {
-                    if let problem {
-                        ContentUnavailableView("No airplanes", systemImage: "airplane", description: Text(problem))
-                    } else {
-                        ProgressView("Fetching the airplanes…")
+                Section("Airplane") {
+                    HStack {
+                        TextField("N-number", text: $typed)
+                            .textInputAutocapitalization(.characters).autocorrectionDisabled()
+                            .font(.body.monospaced())
+                            .onSubmit(fly)
+                        Button("Fly") { fly() }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(!Registered.isNNumber(typed.uppercased()))
                     }
-                } else {
-                    Section("Type") {
-                        ForEach(profiles, id: \.name) { profile in
+                    if let tail = plan.tail {
+                        LabeledContent("Flying", value: "\(tail) on \(plan.aircraft.uppercased())\(plan.figures.cruiseTasKt == nil ? "" : ", your figures")")
+                    }
+                }
+                if !own.isEmpty {
+                    Section("Yours") {
+                        ForEach(own) { airplane in
                             Button {
-                                plan.aircraft = profile.name
-                                if plan.routed { plan.plan() }
+                                typed = airplane.tailNumber
+                                fly()
                             } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(profile.type ?? profile.designator ?? profile.name.uppercased()).font(.headline)
-                                        Text(String(format: "%.0f kt · %.1f gal/h · ceiling %@ ft%@", profile.cruiseTasKt, profile.fuelBurnGph,
-                                                    Int(profile.serviceCeilingFt).formatted(),
-                                                    profile.usableFuelGal.map { String(format: " · %.0f gal usable", $0) } ?? ""))
+                                        Text(airplane.tailNumber).font(.headline.monospaced())
+                                        Text(String(format: "%@ · %.0f kt · %.1f gal/h", airplane.typeDesignator, airplane.cruiseTasKt, airplane.fuelBurnGph))
                                             .font(.footnote).foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    if profile.name == plan.aircraft {
-                                        Image(systemName: "checkmark").foregroundStyle(.tint)
-                                    }
+                                    if plan.tail == airplane.tailNumber { Image(systemName: "checkmark").foregroundStyle(.tint) }
                                 }
                             }
                             .foregroundStyle(.primary)
+                        }
+                    }
+                }
+                Section("Types the planner has figures for") {
+                    if profiles.isEmpty {
+                        if let problem { Text(problem).foregroundStyle(.red).font(.footnote) } else { ProgressView() }
+                    }
+                    ForEach(profiles, id: \.name) { profile in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(profile.type ?? profile.designator ?? profile.name.uppercased()).font(.headline)
+                                Text(String(format: "%.0f kt · %.1f gal/h · ceiling %@ ft%@", profile.cruiseTasKt, profile.fuelBurnGph,
+                                            Int(profile.serviceCeilingFt).formatted(),
+                                            profile.usableFuelGal.map { String(format: " · %.0f gal usable", $0) } ?? ""))
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if profile.name == plan.aircraft { Image(systemName: "checkmark").foregroundStyle(.tint) }
                         }
                     }
                 }
@@ -48,6 +75,15 @@ struct AircraftView: View {
             .task {
                 do { profiles = try await Planner.aircraftProfiles() } catch { problem = error.localizedDescription }
             }
+            .task(id: session.signedIn) {
+                own = (try? await Gateway.aircraft()) ?? []
+            }
         }
+    }
+
+    private func fly() {
+        let tail = typed.uppercased().trimmingCharacters(in: .whitespaces)
+        guard Registered.isNNumber(tail) else { return }
+        Task { await plan.fly(tail: tail, own: own, profiles: profiles) }
     }
 }

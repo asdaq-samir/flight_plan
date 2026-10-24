@@ -140,6 +140,12 @@ enum Planner {
         try await fetch(ProcedureList.self, "/api/airport/\(ident)/procedures")
     }
 
+    /// An airplane by its N-number in the FAA's registry (/api/traffic/find).
+    static func registered(_ tail: String) async throws -> AircraftRegistration? {
+        struct Answer: Decodable { let registered: AircraftRegistration? }
+        return try await fetch(Answer.self, "/api/traffic/find", ["q": tail]).registered
+    }
+
     /// The planner's airplane types (/api/aircraft-profiles).
     static func aircraftProfiles() async throws -> [AircraftProfile] {
         struct Answer: Decodable { let profiles: [AircraftProfile] }

@@ -15,6 +15,11 @@ final class Plan {
     /// The planner's aircraft profile; the airplane by N-number comes in
     /// phase 3.
     var aircraft = "c172"
+    /// The airplane by its N-number, where one is picked: its type's
+    /// profile is `aircraft`, and the pilot's own figures for it, where
+    /// set on the gateway, are flown over the type's.
+    var tail: String?
+    var figures = Figures()
     /// An altitude of the pilot's own, feet MSL; nil for the planner's
     /// pick, with its warnings said where one is over a limit.
     var ownAltitudeFt: Double?
@@ -120,6 +125,26 @@ final class Plan {
         plan()
     }
 
+    /// An airplane by its N-number: one of the pilot's own with its
+    /// figures, else the FAA's registry's type on the planner's profile
+    /// for it, where it has one; the profile in use stands otherwise.
+    func fly(tail: String, own: [OwnAircraft], profiles: [AircraftProfile]) async {
+        let tail = tail.uppercased()
+        self.tail = tail
+        if let mine = own.first(where: { $0.tailNumber.uppercased() == tail }) {
+            let wanted = mine.typeDesignator.lowercased().filter { $0.isLetter || $0.isNumber }
+            if profiles.contains(where: { $0.name == wanted }) { aircraft = wanted }
+            figures = Figures(mine)
+        } else {
+            figures = Figures()
+            if let registered = try? await Planner.registered(tail),
+               let profile = Registered.profile(manufacturer: registered.manufacturer, model: registered.model, year: registered.year) {
+                aircraft = profile
+            }
+        }
+        if routed { plan() }
+    }
+
     /// A procedure picked for a field, in place of any of its kind there;
     /// nil takes that kind off the field. Planned again.
     func pick(_ procedure: ProcedurePick?, kind: String, at ident: String) {
@@ -164,7 +189,7 @@ final class Plan {
         guard routed else { return }
         running?.cancel()
         let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft
-        let own = ownAltitudeFt, legal = ownAltitudeLegal, choice = altitudeChoice
+        let own = ownAltitudeFt, legal = ownAltitudeLegal, choice = altitudeChoice, figures = figures
         let picks = procedures.filter { idents.contains($0.ident) }
         self.dep = dep; self.dest = dest; self.stops = stops
         planning = true
@@ -194,7 +219,7 @@ final class Plan {
                     }
                 }
                 var fresh: [Leg] = []
-                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own, nearest: legal, choice: choice, procedures: picks) {
+                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, figures: figures, altitudeFt: own, nearest: legal, choice: choice, procedures: picks) {
                     guard !Task.isCancelled else { return }
                     switch message {
                     case .stage(let detail): self.stage = detail

@@ -79,6 +79,18 @@ enum Gateway {
         guard (200...399).contains(status) else { throw Failure(status: status) }
     }
 
+    /// The pilot's own airplanes (/api/aircraft), with the figures they
+    /// set; empty when no one is signed in.
+    static func aircraft() async throws -> [OwnAircraft] {
+        let (data, response) = try await session.data(for: request("GET", "/api/aircraft"))
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        switch status {
+        case 200: return try JSONDecoder().decode([OwnAircraft].self, from: data)
+        case 401, 403: return []
+        default: throw Failure(status: status)
+        }
+    }
+
     /// Spring Security's own logout, which answers 204.
     static func signOut() async throws {
         _ = try await session.data(for: request("POST", "/logout"))
