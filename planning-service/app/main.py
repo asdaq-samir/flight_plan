@@ -35,7 +35,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, weather
+from vfr import airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, weather
 from vfr import traffic as traffic_data
 from vfr import airports as airport_table
 
@@ -124,6 +124,13 @@ def _warm_reference_data() -> None:
         # And the lookup of a route's airports by ident (get_airport).
         ("airport lookup", airport_table.preload_lookup),
         ("fixes", fixes.preload),
+        # Every special-use area in the country (vfr.sua): asked for round
+        # each route, a new route's were a request of 0.3 to 2.5 s.
+        ("special-use airspace", sua.preload),
+        # The traffic pattern altitudes from the airport file (vfr.faa_data):
+        # its parse was 11.8 s of a cold KBOS to KSAN's plan (Session1's
+        # profile, 2026-10-23).
+        ("patterns", lambda: faa_data.pattern_agl_ft("KJFK", altitude.DEFAULT_FAA_CACHE_DIR)),
         ("charts", _prepare_corridor_charts),
     ):
         try:

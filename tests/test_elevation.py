@@ -7,11 +7,26 @@ import pytest
 from vfr import elevation
 
 
+REAL_FROM_TERRAIN_TILES = elevation._from_terrain_tiles
+
+
 @pytest.fixture(autouse=True)
 def no_elevation_tiles(monkeypatch):
     """EPQS alone, unless a test gives the tiles' heights itself: a real
     tile is read from the network."""
     monkeypatch.setattr(elevation, "_dem_heights", lambda name, points: {})
+    monkeypatch.setattr(elevation, "_from_terrain_tiles", lambda keys: {})
+
+
+def test_water_the_usgs_tiles_leave_out_is_read_from_the_terrain_tiles_at_sea_level(tmp_path, monkeypatch):
+    """Over the Gulf the USGS's tiles hold no height and EPQS answered
+    nothing readable (Seattle to Miami, 2026-10-23): the terrain tiles
+    answer, the sea at 0 m rather than its bed."""
+    cache = tmp_path / "elevation_cache.csv"
+    monkeypatch.setattr(elevation, "_from_terrain_tiles", REAL_FROM_TERRAIN_TILES)
+    monkeypatch.setattr(elevation, "ground_m", lambda lat, lon: -40.0 if lat < 29 else 12.0)
+    monkeypatch.setattr(elevation, "_fetch_elevation_m", lambda lat, lon: (_ for _ in ()).throw(AssertionError("EPQS asked")))
+    assert elevation.get_elevations_m([(28.2, -83.1), (30.0, -84.0)], cache_path=cache) == {(28.2, -83.1): 0.0, (30.0, -84.0): 12.0}
 
 
 def test_lookups_at_once_keep_every_point_they_fetched(tmp_path, monkeypatch):

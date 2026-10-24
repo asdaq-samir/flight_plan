@@ -5,7 +5,7 @@ lookup is replaced with flat ground, and the obstacles are a real DOF
 file of a few lines."""
 import pytest
 
-from vfr import elevation, faa_data, geo, terrain
+from vfr import elevation, faa_data, geo, ground_grid, terrain
 
 START, END = (45.0, -90.0), (45.0, -89.0)   # due east, about 42.4 nm
 GROUND_M = 300.0                             # 984.25 ft: terrain floor 2,000 ft
@@ -38,6 +38,8 @@ def _dof_line(lat: float, lon: float, amsl_ft: int, agl_ft: int = 400) -> str:
 def ground(tmp_path, monkeypatch):
     """Flat ground everywhere, and whatever obstacles a test writes."""
     monkeypatch.setattr(elevation, "get_elevations_m", lambda points: {p: GROUND_M for p in points})
+    # The tiles' read, not the built grid's (test_ground_grid has its own).
+    monkeypatch.setattr(ground_grid, "ground_ft", lambda lats, lons: None)
     monkeypatch.setattr(faa_data, "_OBSTACLES_CACHE", {})
     dof = tmp_path / "DOF.DAT"
 

@@ -213,6 +213,23 @@ def _from_tiles(keys: list) -> dict:
     return found
 
 
+def _from_terrain_tiles(keys: list) -> dict:
+    """The points the USGS's tiles leave out -- open water, where they hold
+    no height, and past the country's edges -- from the terrain tiles
+    (ground_m), the sea at its surface, 0 m, not the sea bed. EPQS answered
+    these one request a point, and over the Gulf it answered nothing a
+    JSON reader could read, three tries each, so a route from Seattle to
+    Miami failed after minutes (2026-10-23). A point whose tile cannot be
+    fetched is left out, for EPQS."""
+    found: dict = {}
+    for key in keys:
+        try:
+            found[key] = max(0.0, ground_m(*key))
+        except Exception:  # noqa: BLE001 -- a tile's fetch or decode failing: EPQS answers instead
+            continue
+    return found
+
+
 def get_elevations_m(points: list, cache_path: Path = DEFAULT_CACHE_PATH, max_workers: int = 20) -> dict:
     """Look up elevation (meters) for a list of (lat, lon) points, using an
     on-disk cache so repeat notebook runs don't re-hit the network for
@@ -227,6 +244,9 @@ def get_elevations_m(points: list, cache_path: Path = DEFAULT_CACHE_PATH, max_wo
     if to_fetch:
         fetched = _from_tiles(to_fetch)
         rest = [k for k in to_fetch if k not in fetched]
+        if rest:
+            fetched.update(_from_terrain_tiles(rest))
+            rest = [k for k in rest if k not in fetched]
         if rest:
             fetched.update(_fetch_many(rest, max_workers))
         _save_cache(fetched, cache_path)

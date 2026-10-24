@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import heapq
 import math
+import threading
 
 import numpy as np
 
@@ -112,13 +113,19 @@ class _Grid:
 
     def line_clear(self, a: tuple, b: tuple, ends: set) -> bool:
         """Whether the straight line from a to b keeps to clear cells, the
-        route's own ends excepted (a field in a high valley)."""
+        route's own ends excepted (a field in a high valley): its points a
+        third of a cell apart, all at once -- one at a time, a cell each,
+        it was 20 of a cross-country plan's 40 s (KBOS-KSAN, 2026-10-23)."""
         steps = max(2, int(max(abs(b[0] - a[0]), abs(b[1] - a[1])) / (CELL_DEG / 3)) + 1)
-        for t in np.linspace(0.0, 1.0, steps):
-            cell = self.cell((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
-            if not self.clear[cell] and cell not in ends:
-                return False
-        return True
+        t = np.arange(steps) / (steps - 1)
+        rows = np.minimum(np.maximum(((a[0] + (b[0] - a[0]) * t - self.lat0) / CELL_DEG).astype(int), 0), self.rows - 1)
+        cols = np.minimum(np.maximum(((a[1] + (b[1] - a[1]) * t - self.lon0) / CELL_DEG).astype(int), 0), self.cols - 1)
+        blocked = ~self.clear[rows, cols]
+        if not blocked.any():
+            return True
+        for r, c in ends:
+            blocked &= ~((rows == r) & (cols == c))
+        return not blocked.any()
 
 
 def _shortest(grid: _Grid, start: tuple, end: tuple) -> list[tuple[int, int]] | None:
@@ -126,9 +133,16 @@ def _shortest(grid: _Grid, start: tuple, end: tuple) -> list[tuple[int, int]] | 
     s, e = grid.cell(start), grid.cell(end)
     ends = {s, e}
 
+    # Miles between cells' centres on the flat, a cell's width east and
+    # west shrinking with the cosine of its latitude: within a few tenths
+    # of a percent of the geodesic over a few cells, where the geodesic
+    # solved for each of the search's hundred thousand steps was 1.8 s.
+    shrink = np.cos(np.radians(grid.lat0 + (np.arange(grid.rows) + 0.5) * CELL_DEG))
+
     def cost(a, b):
-        la, lb = grid.centre(a), grid.centre(b)
-        return geo.distance_nm(la[0], la[1], lb[0], lb[1])
+        dy = (a[0] - b[0]) * CELL_DEG * 60.0
+        dx = (a[1] - b[1]) * CELL_DEG * 60.0 * shrink[(a[0] + b[0]) // 2]
+        return math.hypot(dx, dy)
 
     frontier = [(0.0, s)]
     came: dict = {s: None}
@@ -157,6 +171,32 @@ def _shortest(grid: _Grid, start: tuple, end: tuple) -> list[tuple[int, int]] | 
 
 
 def way_round(start: tuple, end: tuple, ceiling_ft: float, fields=None) -> list[dict] | None:
+    """The way round (_way_round), kept for each route and ceiling: every
+    re-plan of a route over high ground -- each altitude picked on the
+    wheel is one -- asks for it again, a few seconds each."""
+    if fields is not None:
+        return _way_round(start, end, ceiling_ft, fields)
+    # Keyed by the highest cruising altitude the ceiling allows, not the
+    # ceiling itself: a forecast's warmth moves the ceiling a few feet
+    # from one plan to the next without changing the way.
+    key = (round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), highest_cruise_ft(ceiling_ft))
+    with _KEPT_LOCK:
+        if key in _KEPT:
+            found = _KEPT[key]
+            return None if found is None else [dict(p) for p in found]
+    found = _way_round(start, end, ceiling_ft)
+    with _KEPT_LOCK:
+        _KEPT[key] = None if found is None else tuple(found)
+        while len(_KEPT) > 64:
+            _KEPT.pop(next(iter(_KEPT)))
+    return None if found is None else [dict(p) for p in found]
+
+
+_KEPT: dict = {}
+_KEPT_LOCK = threading.Lock()
+
+
+def _way_round(start: tuple, end: tuple, ceiling_ft: float, fields=None) -> list[dict] | None:
     """The fields with fuel to fly by, in order, from `start` to `end`
     ((lat, lon)), keeping every leg clear of the ground at an altitude an
     airplane with this service ceiling can reach: each a dict of ident,
@@ -196,6 +236,8 @@ def way_round(start: tuple, end: tuple, ceiling_ft: float, fields=None) -> list[
     nodes = [start] + [(float(lats[i]), float(lons[i])) for i in picked] + turns + [end]
     fields_end = 1 + len(picked)
     count = len(nodes)
+    node_lats = np.array([n[0] for n in nodes])
+    node_lons = np.array([n[1] for n in nodes])
     best = [math.inf] * count
     prev: list = [None] * count
     best[0] = 0.0
@@ -206,10 +248,11 @@ def way_round(start: tuple, end: tuple, ceiling_ft: float, fields=None) -> list[
             break
         if spent > best[here]:
             continue
+        legs = geo.distance_nm(nodes[here][0], nodes[here][1], node_lats, node_lons)
         for nxt in range(1, count):
             if nxt == here:
                 continue
-            leg = float(geo.distance_nm(nodes[here][0], nodes[here][1], nodes[nxt][0], nodes[nxt][1]))
+            leg = float(legs[nxt])
             if leg > LEG_NM:
                 continue
             g = spent + leg + (0.0 if nxt == count - 1 else TURN_NM if nxt < fields_end else TURN_NM + OWN_POINT_NM)
