@@ -1,5 +1,7 @@
 """vfr.fuelstops: where a flight too long for its tanks lands for fuel."""
 
+from collections import defaultdict
+
 import pandas as pd
 import pytest
 
@@ -23,7 +25,7 @@ def fields(*rows) -> pd.DataFrame:
 @pytest.fixture(autouse=True)
 def paved(monkeypatch):
     # Every field a 5,000 ft paved runway, but SHORT's 1,800 ft.
-    monkeypatch.setattr(fuelstops, "paved_runway_ft", lambda ident: 1800 if ident == "SHORT" else 5000)
+    monkeypatch.setattr(fuelstops, "paved_runways", lambda: defaultdict(lambda: 5000, {"SHORT": 1800}))
 
 
 def test_no_stop_where_the_tanks_hold_the_flight():

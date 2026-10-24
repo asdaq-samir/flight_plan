@@ -82,15 +82,24 @@ def _lat_of(y):
     return np.degrees(np.arctan(np.sinh(np.pi * (1.0 - 2.0 * np.asarray(y) / 2 ** ZOOM))))
 
 
+#: How long "not built" is believed before the files are looked for again,
+#: s: a server builds its grid in the background after a deploy, and the
+#: planner beside it takes it up once it is there, with no restart.
+LOOK_AGAIN_S = 600
+
+
 def _grids() -> tuple[np.ndarray, np.ndarray] | None:
     """The built grids, memory-mapped once; None where none is built."""
+    import time
+
     with _HELD_LOCK:
-        if "grids" in _HELD:
-            return _HELD["grids"]
+        held = _HELD.get("grids")
+        if held is not None and (held[1] is not None or time.monotonic() - held[0] < LOOK_AGAIN_S):
+            return held[1]
         grids = None
         if HIGH_PATH.exists() and LOW_PATH.exists() and not DONE_PATH.exists():
             grids = (np.load(HIGH_PATH, mmap_mode="r"), np.load(LOW_PATH, mmap_mode="r"))
-        _HELD["grids"] = grids
+        _HELD["grids"] = (time.monotonic(), grids)
         return grids
 
 

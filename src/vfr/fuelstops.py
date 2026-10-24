@@ -122,9 +122,14 @@ def _paved_runways_of(path: str, _mtime: float) -> dict[str, int]:
     return df.groupby(df["airport_ident"].str.upper())["length_ft"].max().astype(int).to_dict()
 
 
-def paved_runway_ft(ident: str) -> int:
+def paved_runways() -> dict[str, int]:
+    """Every field's longest open paved runway, feet, by ident."""
     path = airports._ensure_cached(airports.RUNWAYS_URL, airports.RUNWAYS_CACHE_PATH)
-    return _paved_runways_of(str(path), Path(path).stat().st_mtime).get(ident.strip().upper(), 0)
+    return _paved_runways_of(str(path), Path(path).stat().st_mtime)
+
+
+def paved_runway_ft(ident: str) -> int:
+    return paved_runways().get(ident.strip().upper(), 0)
 
 
 def _corridor(start: tuple, end: tuple, fields: pd.DataFrame, skip: set) -> list[dict]:
@@ -134,15 +139,21 @@ def _corridor(start: tuple, end: tuple, fields: pd.DataFrame, skip: set) -> list
     direct = float(distance_nm(start[0], start[1], end[0], end[1]))
     lat, lon = fields["lat"].to_numpy(), fields["lon"].to_numpy()
     added = distance_nm(start[0], start[1], lat, lon) + distance_nm(lat, lon, end[0], end[1]) - direct
-    out = []
-    for i in np.flatnonzero(added <= MAX_ADDED_NM):
-        row = fields.iloc[i]
-        if row["ident"] in skip or row["faa_ident"] in skip:
-            continue
-        runway = max(paved_runway_ft(row["ident"]), paved_runway_ft(row["faa_ident"]))
-        if runway >= MIN_RUNWAY_FT:
-            out.append({**row.to_dict(), "runway_ft": runway})
-    return out
+    # The fields near the line all at once, their runways looked up as a
+    # column: a row at a time, it was most of a repeated Seattle to Miami
+    # plan's second (2026-10-23).
+    near = fields.iloc[np.flatnonzero(added <= MAX_ADDED_NM)]
+    near = near[~near["ident"].isin(skip) & ~near["faa_ident"].isin(skip)]
+    if near.empty:
+        return []
+    longest = paved_runways()
+
+    def runway_of(idents: pd.Series) -> np.ndarray:
+        return idents.fillna("").astype(str).str.strip().str.upper().map(longest).fillna(0).astype(int).to_numpy()
+
+    runway = np.maximum(runway_of(near["ident"]), runway_of(near["faa_ident"]))
+    kept = runway >= MIN_RUNWAY_FT
+    return [{**row, "runway_ft": int(r)} for row, r in zip(near[kept].to_dict("records"), runway[kept])]
 
 
 def _fits(start: tuple, end: tuple, fuel_per_nm: float, usable_gal: float, taxi_gal: float, reserve_gal: float) -> bool:
