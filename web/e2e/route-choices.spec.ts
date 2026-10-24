@@ -63,11 +63,6 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await expect(chips).toHaveCount(2);
   await expect(chips.filter({ hasText: "3 h 40 min" })).toHaveCount(1);
 
-  // What matters, behind the filter glyph: Fewest Stops ticked.
-  await sideDrawer(page).getByTestId("route-wants").click();
-  await page.getByTestId("route-want-stops").click();
-  await expect(page.getByTestId("route-want-stops")).toHaveAttribute("aria-checked", "true");
-  await page.keyboard.press("Escape");
 
   // A card tapped shows that way; Use puts it in the route.
   await best.getByRole("button").first().click();

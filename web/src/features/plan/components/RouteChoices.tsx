@@ -1,15 +1,10 @@
-import { useState } from "react";
-import { Check, ListFilter } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "cn";
-import IconButton from "../../../components/IconButton";
 import { Button } from "../../../components/ui/button";
-import {
-  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
 import type { RouteOption, RouteOptions } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
 import { isRoute, wayTime, wayTitle } from "../../../lib/routeWays";
-import { GROUP_HEADING, TEXT } from "../../../lib/text";
+import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
 
 /** The weather strip's colours: the flight categories' (lib/map/
@@ -17,16 +12,11 @@ import { grouped } from "../../../lib/units";
 const BAND_FILL: Record<string, string> = { vfr: "#1a7f37", mvfr: "#0a4fb3", ifr: "#b3261e", storm: "#7a0010" };
 const BAND_WORDS: Record<string, string> = { vfr: "VFR", mvfr: "marginal", ifr: "IFR", storm: "thunderstorms" };
 
-/** What the pilot can ask of the ways, each on or off (the owner's pick B,
- *  "What matters on this flight", 2026-10-23), in a menu behind the filter
- *  glyph at the heading's right, as every strip's is: toggles, not a slider. */
-const WANTS = [
-  { key: "minimums", label: "Good Weather" },
-  { key: "wind", label: "Tailwinds" },
-  { key: "stops", label: "Fewest Stops" },
-  { key: "low", label: "Below 6,000 ft" },
-] as const;
-type Want = (typeof WANTS)[number]["key"];
+/** What the ranking weighs: good weather, the pilot's minimums kept to
+ *  (the owner kept the cards and took away the label and the menu of
+ *  what matters, "No need to have the label and filter for routes"). */
+type Want = "minimums" | "wind" | "stops" | "low";
+const WANTS = new Set<Want>(["minimums"]);
 
 /** A way's cost for the ranking: its minutes, and what each want asked
  *  for weighed in minutes -- an hour a fuel stop, three-quarters of one a
@@ -51,14 +41,17 @@ function Strip({ bands }: { bands: { kind: string; min: number }[] }) {
   const total = bands.reduce((sum, b) => sum + b.min, 0) || 1;
   const said = bands.filter((b, i, all) => all.findIndex(x => x.kind === b.kind) === i).map(b => BAND_WORDS[b.kind]).join(", ");
   return (
-    <span role="img" aria-label={`Weather along the way: ${said}`} className="flex h-2 w-full overflow-hidden rounded-full">
+    <span role="img" aria-label={`Weather along the way: ${said}`} className="flex h-1 w-full overflow-hidden rounded-full">
       {bands.map((b, i) => <span key={i} style={{ flex: `${b.min / total} 1 0`, background: BAND_FILL[b.kind] }} />)}
     </span>
   );
 }
 
-/** One card: its name, a figure, a line, the weather strip, and under the
- *  one shown the clock at either end and what to do with it. */
+/** One card, two short lines in the half sheet's room under the route
+ *  box (some 84 points on a phone, the owner's "make the cards smaller so
+ *  they fit"): its name and its time, one line of what it meets, and the
+ *  weather strip under it. The one shown says its clock
+ *  from departure to arrival in that line's place, and Use in its time's. */
 function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, used, best, onShow, action, testId }: {
   title: string;
   figure: string;
@@ -75,34 +68,32 @@ function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, use
   testId: string;
 }) {
   const leave = depart ? new Date(depart) : new Date();
+  const clock = shown && minutes > 0 ? `${clockTime(leave)} – ${clockTime(new Date(leave.getTime() + minutes * 60_000))}` : null;
   return (
     <div
       data-testid={testId} aria-current={shown || undefined}
-      className={cn("relative flex h-full w-[66%] max-w-64 min-w-52 shrink-0 snap-start flex-col rounded-2xl border bg-card",
+      className={cn("relative flex w-[54%] max-w-56 min-w-44 shrink-0 snap-start flex-col rounded-xl border bg-card",
         shown ? "border-2 border-primary" : "border-border")}
     >
-      {/* The card's whole face shows it; Use, its own button over it. */}
-      <button type="button" onClick={onShow} aria-pressed={shown} className="flex min-h-0 flex-1 flex-col items-start gap-1 p-3 pb-2 text-left outline-none">
-        <span className={cn("flex w-full items-center justify-between gap-1 font-semibold", TEXT.note)}>
-          <span className="truncate">{title}</span>
-          {used ? <Check className="size-4 shrink-0 text-tint" aria-label="In use" />
-            : best ? <span className="shrink-0 rounded-full bg-primary/12 px-1.5 text-tint">Best</span> : null}
-        </span>
-        <span className="text-[1.75rem] leading-8 font-bold tabular-nums">{figure}</span>
-        <span className={cn("truncate", TEXT.note, lineInk ?? "text-muted-foreground")}>{line}</span>
-        <span className="flex-1" />
-        {bands && bands.length > 0 && <Strip bands={bands} />}
-        {shown && minutes > 0 && (
-          <span className={cn("flex w-full justify-between text-muted-foreground tabular-nums", TEXT.note)}>
-            <span>{clockTime(leave)}</span>
-            <span>{clockTime(new Date(leave.getTime() + minutes * 60_000))}</span>
+      {/* The card's face shows it; Use, its own button at the top right. */}
+      <button type="button" onClick={onShow} aria-pressed={shown} className="flex flex-col gap-0.5 px-2.5 py-1.5 text-left outline-none">
+        <span className={cn("flex w-full items-baseline justify-between gap-2", TEXT.note)}>
+          <span className="flex min-w-0 items-center gap-1 font-semibold">
+            <span className="truncate">{title}</span>
+            {used ? <Check className="size-4 shrink-0 text-tint" aria-label="In use" />
+              : best ? <span className="shrink-0 rounded-full bg-primary/12 px-1.5 text-tint">Best</span> : null}
           </span>
-        )}
+          {!(shown && action) && <span className="shrink-0 font-bold tabular-nums">{figure}</span>}
+        </span>
+        <span className={cn("truncate", TEXT.note, clock ? "text-muted-foreground tabular-nums" : lineInk ?? "text-muted-foreground")}>
+          {clock ?? line}
+        </span>
+        {bands && bands.length > 0 ? <Strip bands={bands} /> : null}
       </button>
       {shown && action && (
-        <div className="px-3 pb-3">
-          <Button size="sm" className="w-full" onClick={action.run} data-testid={action.testId}>{action.label}</Button>
-        </div>
+        <Button size="sm" className="absolute top-1 right-1.5 h-6 rounded-full px-2.5" onClick={action.run} data-testid={action.testId}>
+          {action.label} · {figure}
+        </Button>
       )}
     </div>
   );
@@ -119,8 +110,9 @@ function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, use
  * weather met along it. The pilot's own route first, what it crosses in
  * red; the straight line a card where the route has stops. A card tapped
  * is the one drawn strong on the map, with the clock at either end of its
- * strip and Use, which puts it in the route. What matters on this flight
- * behind the filter glyph, ordering them and naming the best. Nothing
+ * strip and Use, which puts it in the route; the best, in good weather
+ * first, named so. No heading or menu over them (the owner's "No need to
+ * have the label and filter for routes"). Nothing
  * where the route is already the best of every kind and meets nothing.
  */
 export default function RouteChoices({ found, stops, depart, ownMinutes, picked, onPreview, onPick, onDirect }: {
@@ -137,20 +129,13 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, picked,
   onPick: (option: RouteOption) => void;
   onDirect: () => void;
 }) {
-  const [wants, setWants] = useState<Set<Want>>(() => new Set<Want>(["minimums"]));
   if (!found) return null;
   const meets = stops.length ? found.current : found.direct;
   const others = found.options.filter(o => !isRoute(o, stops));
   if (!meets.length && !others.length) return null;
-  const ranked = [...found.options].sort((a, b) => costOf(a, wants) - costOf(b, wants));
+  const ranked = [...found.options].sort((a, b) => costOf(a, WANTS) - costOf(b, WANTS));
   const best = ranked[0];
   const current = found.current_along;
-  const flip = (want: Want) => setWants(was => {
-    const next = new Set(was);
-    if (next.has(want)) next.delete(want);
-    else next.add(want);
-    return next;
-  });
   const minutesOf = (bands?: { min: number }[]) => (bands ?? []).reduce((sum, b) => sum + b.min, 0);
   // One short line a card: what it crosses, else what it goes round, else its wind.
   const lineOf = (option: RouteOption): [string, string | undefined] => {
@@ -165,36 +150,10 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, picked,
     ? `Crosses ${found.hazards[meets[0]!]?.kind === "storm" ? "storms" : found.hazards[meets[0]!]?.kind === "terrain" ? "high ground" : "weather"}`
     : "Clear";
   return (
-    <section aria-labelledby="route-choices-title" className="flex flex-col gap-2 pb-3" data-testid="route-choices">
-      <div className="flex items-center justify-between px-1">
-        <h3 id="route-choices-title" className={GROUP_HEADING}>Routes</h3>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <IconButton label="What matters on this flight" className="-my-2 text-tint" data-testid="route-wants">
-              <ListFilter className="size-5" />
-            </IconButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-48">
-            <DropdownMenuLabel>What matters</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {WANTS.map(w => (
-              <DropdownMenuCheckboxItem
-                key={w.key} checked={wants.has(w.key)} onCheckedChange={() => flip(w.key)}
-                onSelect={e => e.preventDefault()} data-testid={`route-want-${w.key}`}
-              >
-                {w.label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      {/* The cards as tall as the half sheet's body leaves under the
-          heading (MapPanel's --half-body), so at half the map and the
-          ways are both in sight. */}
-      <div
-        className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none] h-[clamp(9rem,calc(var(--half-body,15rem)-3.5rem),13rem)]"
-        data-slides=""
-      >
+    <section aria-label="Routes" className="flex flex-col pb-2" data-testid="route-choices">
+      {/* The cards in the half sheet's room between the route box and
+          the figures, so at half the map and the ways are both in sight. */}
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none]" data-slides="">
         <Card
           title="Your Route" figure={ownMinutes ? minutesWords(ownMinutes) : "—"} line={crossesLine}
           lineInk={meets.length ? "text-destructive-ink" : undefined} bands={current?.bands}
