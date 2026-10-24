@@ -377,6 +377,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
   const halfBody = Math.max(0, detents.half - headHeight - halfChrome - footHeight);
+  // And all the way up (--full-body): what a list sized to the sheet fits
+  // in it there, FPL's Routes' four cards.
+  const fullBody = Math.max(0, detents.full - headHeight - halfChrome - footHeight);
   // Where the panel's top-right button sits -- the search's gear, the
   // route's close, an airport's or the airspace's card's close -- one
   // place in every panel, at the pilot's ask, so a finger or a pointer
@@ -902,7 +905,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         )}
         // The foot as it is at half, whatever the height now: a card laid
         // out to it keeps one layout all the way up.
-        style={{ "--half-body": `${halfBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
+        style={{ "--half-body": `${halfBody}px`, "--full-body": `${fullBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
         data-panel-body=""
       >
         {children}

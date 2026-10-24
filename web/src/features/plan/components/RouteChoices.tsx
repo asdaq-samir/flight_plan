@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import { Check } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
@@ -75,9 +75,14 @@ function Card({ minutes, arrive, nm, landings = 0, name, warning, bands, used, b
   return (
     <div
       data-testid={testId} aria-current={listed && shown ? true : undefined}
+      // One height in the list all the way up and in the row at half: the
+      // sheet's room all the way up shared by the cards in it (--full-body,
+      // MapPanel), at the owner's "Adjust height to fit them in full card,
+      // keep that height in half card as well".
+      style={{ height: "var(--route-card)" }}
       className={cn("relative flex w-full shrink-0 items-center gap-3 rounded-3xl px-4",
-        listed ? cn("bg-card py-4", shown ? "border-2 border-primary shadow-[0_2px_12px_rgba(0,122,255,0.15)]" : "border-2 border-transparent")
-          : "h-full snap-center bg-foreground/6")}
+        listed ? cn("bg-card", shown ? "border-2 border-primary shadow-[0_2px_12px_rgba(0,122,255,0.15)]" : "border-2 border-transparent")
+          : "snap-center bg-foreground/6")}
     >
       {/* All the way up the card's face shows its way, Use its own button over it. */}
       {listed && onShow && <button type="button" aria-label={`Show ${name}`} aria-pressed={shown} onClick={onShow} className="absolute inset-0 rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-ring" />}
@@ -212,23 +217,24 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
 
     </>
   );
+  // The cards' height: the sheet's room all the way up, less the gaps,
+  // shared by them; a card's three lines at the least, 4.5 rem.
+  const cardHeight = { "--route-card": `max(4.5rem, calc((var(--full-body, 32rem) - ${keys.length - 1} * 0.75rem - 1rem) / ${keys.length}))` } as CSSProperties;
   if (full) {
     return (
-      <section aria-label="Routes" className="flex flex-col gap-3 pb-4" data-testid="route-choices">
+      <section aria-label="Routes" style={cardHeight} className="flex flex-col gap-3 pb-4" data-testid="route-choices">
         {cards}
       </section>
     );
   }
   return (
-    <section aria-label="Routes" className="flex flex-col gap-1.5 pb-1" data-testid="route-choices">
+    <section aria-label="Routes" style={cardHeight} className="flex flex-col gap-1.5 pb-1" data-testid="route-choices">
       {/* The route box's width, one at a time (the owner's "make them same
-          width as the route box and then they can be swiped"); as tall as
-          the half sheet's body leaves (MapPanel's --half-body), up to the
-          figures at the foot ("a bit bigger just up to the calculations"),
-          the dots under them. */}
+          width as the route box and then they can be swiped"), each the
+          height it has in the list all the way up, the dots under them. */}
       <div
         ref={strip} onScroll={settled}
-        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-1.75rem),8rem)] snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 [scrollbar-width:none]"
+        className="-mx-4 flex snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 [scrollbar-width:none]"
         data-slides=""
       >
         {cards}
