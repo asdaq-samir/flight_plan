@@ -157,12 +157,15 @@ final class Plan {
     func fly(tail: String, own: [OwnAircraft], profiles: [AircraftProfile]) async {
         let tail = tail.uppercased()
         self.tail = tail
+        // The figures kept on this device for the N-number first, then the
+        // pilot's own airplane's on the gateway, then the type's.
+        let kept = TailFigures.load(tail)
         if let mine = own.first(where: { $0.tailNumber.uppercased() == tail }) {
             let wanted = mine.typeDesignator.lowercased().filter { $0.isLetter || $0.isNumber }
             if profiles.contains(where: { $0.name == wanted }) { aircraft = wanted }
-            figures = Figures(mine)
+            figures = kept.cruiseTasKt == nil && kept.serviceCeilingFt == nil ? Figures(mine) : kept
         } else {
-            figures = Figures()
+            figures = kept
             if let registered = try? await Planner.registered(tail),
                let profile = Registered.profile(manufacturer: registered.manufacturer, model: registered.model, year: registered.year) {
                 aircraft = profile

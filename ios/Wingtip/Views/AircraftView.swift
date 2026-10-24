@@ -28,6 +28,9 @@ struct AircraftView: View {
                     }
                     if let tail = plan.tail {
                         LabeledContent("Flying", value: "\(tail) on \(plan.aircraft.uppercased())\(plan.figures.cruiseTasKt == nil ? "" : ", your figures")")
+                        // The figures the planner flies it on, the pilot's to
+                        // set from the handbook, or read off a photo of it.
+                        NavigationLink("Planning figures") { AirplaneFiguresView() }
                     }
                 }
                 if !own.isEmpty {

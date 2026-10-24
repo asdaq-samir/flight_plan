@@ -109,3 +109,44 @@ struct PilotTests {
         #expect(plan.saved() == nil)
     }
 }
+
+/// The handbook page's figures, as the web app's handbookText.test.ts
+/// pins them, the parser kept the same.
+struct HandbookTests {
+    @Test func aPipersFiguresInKnotsWhereItPrintsMph() {
+        let page = """
+        CHEROKEE 140 "D" SECTION I
+        SPECIFICATIONS
+        PERFORMANCE
+        GROSS WEIGHT 2150
+        Take-off Run (ft) (flaps up) 800
+        Best Rate of Climb Speed (mph) 85
+        Rate of Climb (ft per min) 660
+        Service Ceiling (ft) 14,300
+        Absolute Ceiling 16,800
+        Top Speed (mph) 139 (142*)
+        Cruising Speed (75% power, sea
+        level) (mph) 121 (124*)
+        Optimum Cruising Speed (75%
+        power, 7000 ft, mph) 132 (135*)
+        Fuel Consumption (gal per hr 75%) 8.4
+        Fuel Consumption (gal per hr 50%) 5.6
+        """
+        let f = Handbook.figures(of: page)
+        #expect(f.serviceCeilingFt?.value == 14300 && f.climbTasKt?.value == 74 && f.cruiseTasKt?.value == 115 && f.cruisePowerPct?.value == 75 && f.fuelBurnGph?.value == 8.4)
+        #expect(f.serviceCeilingFt?.words == "Service Ceiling (ft) 14,300")
+    }
+
+    @Test func aCessnasWithTheUsableFuelAndNoVno() {
+        let page = """
+        Maximum Structural Cruising Speed (Vno) 129 KTS
+        Cruise, 75% Power at 8000 Ft ........ 122 KTS (140 MPH)
+        SERVICE CEILING ........ 13.500 FT
+        FUEL CAPACITY: Total 56 GAL. Usable 53 GAL.
+        Fuel flow 75% 8.4 gph 65% 7.0 gph
+        """
+        let f = Handbook.figures(of: page)
+        #expect(f.cruiseTasKt?.value == 122 && f.cruisePowerPct?.value == 75 && f.serviceCeilingFt?.value == 13500 && f.usableFuelGal?.value == 53 && f.fuelBurnGph?.value == 8.4)
+        #expect(Handbook.figures(of: "NORMAL PROCEDURES\nBefore starting engine, check fuel selector.").isEmpty)
+    }
+}
