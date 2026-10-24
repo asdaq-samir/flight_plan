@@ -373,11 +373,12 @@ async function airportToTap(page: Page) {
     const marks = (await airportMarks(page)).filter(m => m.x > 20 && m.y > 20);
     return page.evaluate(points => {
       for (const { x, y } of points) {
-        // The chart under it, or a layer's own ground (the course line's
-        // SVG, the canvas): no marker, path, control or panel.
+        // The chart under it, or a line a tap passes through to the map
+        // (the course line's): no marker, control, popup or panel, which
+        // would take the tap.
         const hit = document.elementFromPoint(x, y);
-        if (hit?.closest(".leaflet-container") && hit.tagName !== "path"
-          && !hit.closest(".leaflet-marker-icon, .leaflet-control, .leaflet-popup, .leaflet-tooltip, [data-slot='map-panel']")) return { x, y };
+        if (hit?.closest(".leaflet-map-pane")
+          && !hit.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip")) return { x, y };
       }
       return null;
     }, marks.map(m => ({ x: m.x, y: m.y })));
