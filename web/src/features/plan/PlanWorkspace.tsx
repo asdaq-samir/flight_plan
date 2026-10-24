@@ -2440,13 +2440,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = (
-    {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
-        wraps, the buttons on a line of their own under the airplane and the
-        altitude: sixteen between the lines, as the Profile button's 44-point
-        area reaches 11 under its 22 and the first button's 6 over its 32,
-        and the button sits 3 up in its group (the iOS audit's P1, 24 Oct:
-        twelve left the two 2 points over each other). */}
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
+      {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
+          wraps, the buttons on a line of their own under the airplane and
+          the altitude: sixteen between the lines (gap-y-4), as the Profile
+          button's 44-point area reaches 11 under its 22 and the first
+          button's 6 over its 32, and the button sits 3 up in its group
+          (the iOS audit's P1, 24 Oct: twelve left them 2 points over each
+          other). */}
       {/* The chips' room while their code comes (routePanel). */}
       <Suspense fallback={<span className="h-9 w-48" aria-hidden="true" />}>
       {flightInputs}
