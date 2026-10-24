@@ -145,6 +145,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const frame = useRef(0);
+  const aiming = useRef<{ left: number; until: number } | null>(null);
   // The owner's four (2026-10-23): the route, the route with its fuel
   // stops, the best weather's and the fastest, each with its fuel stops.
   const ways = found ? found.options.filter(offered) : [];
@@ -162,7 +163,13 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
     const card = el?.children[at] as HTMLElement | undefined;
     if (!el || !card) return;
     const left = card.offsetLeft - el.offsetLeft - 12;
-    if (Math.abs(el.scrollLeft - left) > 4) el.scrollTo({ left, behavior: "smooth" });
+    if (Math.abs(el.scrollLeft - left) <= 4) return;
+    // The cards it passes on the way are not swiped to: the row's own
+    // scrolls are let be till it is there (or a second has gone, a finger
+    // having taken it), where they each showed their way and the last
+    // put back the one before the way picked (route-choices.spec).
+    aiming.current = { left, until: performance.now() + 1000 };
+    el.scrollTo({ left, behavior: "smooth" });
   }, [at, keysKey]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   if (!found) return null;
@@ -183,6 +190,12 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
       const el = strip.current;
       const first = el?.children[0] as HTMLElement | undefined;
       if (!el || !first) return;
+      const aim = aiming.current;
+      if (aim) {
+        if (Math.abs(el.scrollLeft - aim.left) > 4 && performance.now() < aim.until) return;
+        aiming.current = null;
+        if (Math.abs(el.scrollLeft - aim.left) <= 4) return;
+      }
       const index = Math.round(el.scrollLeft / (first.offsetWidth + 12));
       const kind = keys[Math.min(keys.length - 1, Math.max(0, index))] ?? null;
       if (kind !== picked) onPreview(kind);
