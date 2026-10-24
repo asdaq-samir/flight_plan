@@ -72,7 +72,7 @@ function Card({ title, figure, line, lineInk, bands, minutes, depart, shown, use
   return (
     <div
       data-testid={testId} aria-current={shown || undefined}
-      className={cn("relative flex h-full w-[54%] max-w-56 min-w-44 shrink-0 snap-start flex-col rounded-xl border bg-card",
+      className={cn("relative flex h-full w-full shrink-0 snap-center flex-col rounded-xl border bg-card",
         shown ? "border-2 border-primary" : "border-border")}
     >
       {/* The card's face shows it; Use, its own button at the top right. */}
@@ -155,11 +155,13 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, picked,
     <section aria-label="Routes" className="flex flex-col pb-2" data-testid="route-choices">
       {/* The cards in the half sheet's room between the route box and
           the figures, so at half the map and the ways are both in sight. */}
-      {/* As tall as the half sheet's body leaves (MapPanel's --half-body),
+      {/* Each card the route box's width, one at a time, swiped to the
+          next (the owner's "make them same width as the route box and then
+          they can be swiped"). As tall as the half sheet's body leaves (MapPanel's --half-body),
           less the room over and under them: up to the figures at the
           foot, at the owner's "a bit bigger just up to the calculations". */}
       <div
-        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-0.75rem),9rem)] snap-x snap-mandatory gap-3 overflow-x-auto px-4 [scrollbar-width:none]"
+        className="-mx-4 flex h-[clamp(3.5rem,calc(var(--half-body,5rem)-0.75rem),9rem)] snap-x snap-mandatory scroll-px-3 gap-3 overflow-x-auto px-3 [scrollbar-width:none]"
         data-slides=""
       >
         <Card
