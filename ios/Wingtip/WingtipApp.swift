@@ -8,12 +8,14 @@ import SwiftUI
 struct WingtipApp: App {
     @State private var session = Session()
     @State private var charts = Charts()
+    @State private var plan = Plan()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environment(session)
                 .environment(charts)
+                .environment(plan)
                 .task { await session.refresh() }
                 .task { await charts.load() }
                 // The sign-in link from Mail opens the app (Associated
