@@ -147,12 +147,14 @@ export class AirportMarksLayer extends L.Layer {
     const written: { ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string }[] = [];
     for (const mark of this.marks) {
       const at = map.latLngToContainerPoint([mark.lat, mark.lon]);
-      if (at.x < -pad.x - half || at.y < -pad.y - half || at.x > size.x + pad.x + half || at.y > size.y + pad.y + half) continue;
+      // Every field written, in sight or not, as every marker was in the
+      // page; drawn only where the canvas reaches.
       written.push({
         ident: mark.ident, x: Math.round(at.x * 10) / 10, y: Math.round(at.y * 10) / 10, chip: mark.chip,
         space: mark.space ?? "", use: mark.use ?? "", weather: mark.weather,
       });
       if (!mark.chip) continue;
+      if (at.x < -pad.x - half || at.y < -pad.y - half || at.x > size.x + pad.x + half || at.y > size.y + pad.y + half) continue;
       const picture = pictureOf(mark, () => this.schedule());
       if (picture.complete && picture.naturalWidth) {
         // airportMarkIcon's drop-shadow(0 1px 1px rgba(0,0,0,.35)).
