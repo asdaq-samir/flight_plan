@@ -258,14 +258,19 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   // ("Yours"): the wheel showed the lowest legal one in its place, and the
   // heading and the graph's line with it, for an altitude not flown.
   const listed = figures.map(f => f.altitude_ft);
-  const own = cruise !== null && listed.length > 0 && !listed.includes(cruise) ? cruise : null;
+  // The altitude flown off the planner's list -- typed, picked off it, or
+  // the planner's own where no altitude is legal (altitude_anyway, its
+  // list then empty) -- as its own row.
+  const own = cruise !== null && !listed.includes(cruise) ? cruise : null;
   // And every 500 ft besides, at the owner's "I don't want to put hard
   // limits on anything. A warning tick or a label is enough": an altitude
   // the planner would not pick -- over the ceiling, into Class B, under the
   // terrain's floor -- is on the wheel too, flown as the pilot's own with
   // its cautions said, not moved to the nearest legal one.
   const legal = new Set(listed);
-  const altitudes = [...new Set([...listed, ...(own === null ? [] : [own]), ...(listed.length ? LADDER_FT : [])])].sort((a, b) => b - a);
+  // Whenever there is a plan, so the wheel is there on a route with no
+  // legal altitude too, the one it is most wanted on.
+  const altitudes = [...new Set([...listed, ...(own === null ? [] : [own]), ...(nav ? LADDER_FT : [])])].sort((a, b) => b - a);
   // The altitude on the wheel, the one flown when it was put there and the
   // route it was on: once another is flown (it, re-planned; a figure
   // typed) or the route changes, the wheel is at the one flown.

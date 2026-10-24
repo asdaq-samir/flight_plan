@@ -64,6 +64,13 @@ FUEL CAPACITY: Total 56 GAL. Usable 53 GAL.`;
     expect(values(page)).toEqual({ cruiseTasKt: 122, cruisePowerPct: 75, serviceCeilingFt: 13500, usableFuelGal: 53 });
   });
 
+  it("takes a line's own knots over the miles an hour beside them, and not Vno", () => {
+    const page = `Maximum Structural Cruising Speed (Vno) 129 KTS
+Cruise, 75% Power at 8000 Ft 122 KTS (140 MPH)
+Fuel flow 75% 8.4 gph 65% 7.0 gph`;
+    expect(values(page)).toEqual({ cruiseTasKt: 122, cruisePowerPct: 75, fuelBurnGph: 8.4 });
+  });
+
   it("gives nothing off a page with no figures", () => {
     expect(figuresOfPage("NORMAL PROCEDURES\nBefore starting engine, check fuel selector.")).toEqual({});
   });
