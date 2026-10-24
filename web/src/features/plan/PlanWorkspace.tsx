@@ -2440,7 +2440,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = (
-    <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-3">
+    {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
+        wraps, the buttons on a line of their own under the airplane and the
+        altitude: sixteen between the lines, as the Profile button's 44-point
+        area reaches 11 under its 22 and the first button's 6 over its 32,
+        and the button sits 3 up in its group (the iOS audit's P1, 24 Oct:
+        twelve left the two 2 points over each other). */}
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
       {/* The chips' room while their code comes (routePanel). */}
       <Suspense fallback={<span className="h-9 w-48" aria-hidden="true" />}>
       {flightInputs}
@@ -2469,11 +2475,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           like the capsule", 2026-10-24), twelve apart so their 44-point
           areas meet (index.css): Routes, the Brief, the route's menu. The
           sixteen before them (pl-4) keep the Profile button's 44 points
-          and the first one's from overlapping on a narrow panel, where
-          the row's ml-auto has no slack and the distance between the two
-          is the row's 4-point gap and this padding alone: 22 and 32 wide,
-          they need 17 (the nightly audit's P1 on iPhone SE and the iPad
-          slide-over, 24 Oct; eight and twelve each left a point short). */}
+          and the first one's from overlapping where the row is one line
+          with no slack: the distance between the two is then the row's
+          4-point gap and this padding alone, and 22 and 32 wide they need
+          17. Where the row wraps, the lines' gap keeps them apart (above). */}
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-4" data-testid="route-actions">
         {/* The Routes' cards again, once one was used (RouteChoices), in the
             Brief's place, at the owner's ask ("brief button with routes"). */}
