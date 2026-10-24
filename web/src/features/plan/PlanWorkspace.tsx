@@ -192,6 +192,9 @@ function sameStops(a: string[], b: string[]): boolean {
 /** The route with its fuel stops put in, for the Routes' card of it: its
  *  points, the fuel stops among them, its miles, its air and ground
  *  minutes on the planner's grid, and its landings. */
+/** How long a route entered waits on its Routes before it is planned anyway. */
+const WAYS_WAIT_MS = 8_000;
+
 interface FuelCard { stops: string[]; added: string[]; nm: number; air: number; ground: number; landings: number }
 
 function withStopsAfter(dep: string, stops: string[], after: string, idents: string[]): { stops: string[]; added: string[] } | null {
@@ -518,8 +521,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // sees it planned in full, its approaches and all; Routes in the route
   // box brings the cards back). Planned at once where none is offered,
   // or the planner could not say.
+  // Waited on for 8 s at the most: a planner slow to answer (cold, its
+  // grids still loading) does not hold the plan up with it.
+  const waysKey = `${chosenKey}|${baseStops.join(",")}`;
+  const waysPending = vfrRoute && routeWaysQuery.isPending;
+  const [waysLate, setWaysLate] = useState<string | null>(null);
+  useEffect(() => {
+    if (!waysPending) return;
+    const timer = window.setTimeout(() => setWaysLate(waysKey), WAYS_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [waysPending, waysKey]);
   const choosing = vfrRoute && routesChosen !== chosenKey
-    && (routeWaysQuery.isPending || routesOffered(routeWays, baseStops, !!fuelCard));
+    && ((waysPending && waysLate !== waysKey) || routesOffered(routeWays, baseStops, !!fuelCard));
   const planParams = {
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeNearest, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, procedures, runways: runwaysText, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
