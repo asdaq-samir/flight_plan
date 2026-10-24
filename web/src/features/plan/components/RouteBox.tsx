@@ -586,10 +586,11 @@ export default function RouteBox({
                 buttons 32, so 2 up of the line's top to share its middle. */}
             {actions && <div className="mt-[0.125rem] flex shrink-0 items-center" data-testid="route-box-actions">{actions}</div>}
             {/* Its own taps, not the box's room (isRoom), which types at the
-                route's end; ten under the lines, the clear's 44-point area
-                and the last button's apart (the iOS audit's P1: at eight,
-                the refresh's 32-point button took a point of the clear's). */}
-            {footer && <div className="flex w-full basis-full items-center pt-2.5 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
+                route's end; fourteen under the lines, so the 44-point areas
+                of the route's buttons on the first line (32 tall) and the
+                altitude's Profile button under them (22) meet, not overlap
+                (the iOS audit's P1, 24 Oct: at ten, 3 points over). */}
+            {footer && <div className="flex w-full basis-full items-center pt-3.5 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
           </InputGroup>
         </PopoverAnchor>
         <PopoverContent
