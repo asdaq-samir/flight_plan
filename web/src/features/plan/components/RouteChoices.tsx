@@ -253,10 +253,11 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   // The cards' height: the sheet's room all the way up, less the gaps,
   // shared by them; a card's three lines at the least, 4.5 rem.
   // No taller than the room at half under the route box, less the dots'
-  // 1 rem with their gap and padding (--half-body, MapPanel): the same
+  // 1 rem with their gap and padding (--half-body, MapPanel; the body
+  // runs up under the head, --panel-head, where it is see-through): the same
   // height in both, as the owner asked, the dots in sight at half.
   const share = `calc((var(--full-body, 32rem) - ${keys.length - 1} * 0.75rem - 1rem) / ${keys.length})`;
-  const room = above === null ? null : `calc(var(--half-body, 20rem) - ${above}px - 1rem)`;
+  const room = above === null ? null : `calc(var(--half-body, 20rem) + var(--panel-head, 0px) - ${above}px - 1rem)`;
   const cardHeight = { "--route-card": room ? `max(4.5rem, min(${share}, ${room}))` : `max(4.5rem, ${share})` } as CSSProperties;
   if (full) {
     return (
