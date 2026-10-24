@@ -24,7 +24,7 @@ struct RootView: View {
     var body: some View {
         ChartMap(
             template: charts.template, minZoom: charts.base?.minZoom ?? 5, maxZoom: charts.base?.maxZoom ?? 12,
-            course: plan.course,
+            course: plan.course, checkpoints: plan.checkpoints,
             // A field tapped on the chart opens its card, half way up, as
             // the web app does.
             onAirport: { ident in

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UIKit
 @testable import Wingtip
 
 /// The planner's answers as the document spells them, read into the
@@ -29,5 +30,15 @@ struct ModelsTests {
         #expect(place.runways[0].wind?.end == "27" && place.runways[0].lengthFt == 10162)
         #expect(place.metar?.ceilingFt == 2500 && place.metar?.raw?.hasPrefix("KDLH") == true)
         #expect(place.frequencies[0].frequencyMhz == 118.3 && place.pattern?.altitudeFt == 2400)
+    }
+}
+
+/// The checkpoint's colour steps, as the web app's scoreColor bands them.
+struct CheckpointColourTests {
+    @Test func theScoreBandsAreTheWebAppsFiveSteps() {
+        let steps = [2.9, 3.0, 3.5, 4.0, 4.5].map { CheckpointAnnotation.colour(for: $0) }
+        #expect(Set(steps.map { $0.description }).count == 5)
+        #expect(CheckpointAnnotation.colour(for: 4.49) == CheckpointAnnotation.colour(for: 4.0))
+        #expect(CheckpointAnnotation.ink(for: 3.4) != CheckpointAnnotation.ink(for: 3.5))
     }
 }

@@ -20,6 +20,7 @@ final class Plan {
     var ownAltitudeFt: Double?
 
     private(set) var course: Course?
+    private(set) var checkpoints: [Checkpoint] = []
     private(set) var legs: [Leg] = []
     private(set) var altitudeFt: Double?
     private(set) var totals: Totals?
@@ -37,7 +38,7 @@ final class Plan {
     func clear() {
         running?.cancel()
         dep = ""; dest = ""; stops = []
-        course = nil; legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false
+        course = nil; checkpoints = []; legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false
     }
 
     /// Plans the route as entered: the course first, for the map, then
@@ -56,6 +57,14 @@ final class Plan {
                 let course = try await Planner.course(dep: dep, dest: dest, stops: stops)
                 guard !Task.isCancelled else { return }
                 self.course = course
+                // The checkpoints beside the nav log, not before it: the
+                // first read of a new route's chart takes a while, and the
+                // log's legs name the same points as they come.
+                Task { [weak self] in
+                    if let points = try? await Planner.checkpoints(dep: dep, dest: dest, stops: stops), !Task.isCancelled {
+                        self?.checkpoints = points
+                    }
+                }
                 var fresh: [Leg] = []
                 for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own) {
                     guard !Task.isCancelled else { return }

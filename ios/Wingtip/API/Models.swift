@@ -128,6 +128,21 @@ struct AircraftProfile: Codable, Equatable, Sendable {
     var climbTasKt: Double?
 }
 
+/// A checkpoint off the chart along the route, ranked by the chart model
+/// (Candidate): the selected ones are the nav log's fixes.
+struct Checkpoint: Codable, Equatable, Sendable, Identifiable {
+    let id: String
+    let category: String
+    let lat: Double
+    let lon: Double
+    let predictedScore: Double
+    let alongTrackNm: Double
+    var selected: Bool = false
+    var name: String?
+    var waypoint: String?
+    var hop: Int? = 0
+}
+
 /// A field's card (AirportPlace).
 struct AirportPlace: Codable, Equatable, Sendable {
     let ident: String

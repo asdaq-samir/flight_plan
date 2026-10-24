@@ -93,6 +93,14 @@ enum Planner {
         try await fetch(AirportPlace.self, "/api/airport/\(ident)")
     }
 
+    /// The route's checkpoints, the ones picked for the nav log
+    /// (/api/checkpoints): read off the chart, so the first ask for a new
+    /// route takes a while.
+    static func checkpoints(dep: String, dest: String, stops: [String]) async throws -> [Checkpoint] {
+        struct Answer: Decodable { let selected: [Checkpoint] }
+        return try await fetch(Answer.self, "/api/checkpoints", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")]).selected
+    }
+
     /// The planner's airplane types (/api/aircraft-profiles).
     static func aircraftProfiles() async throws -> [AircraftProfile] {
         struct Answer: Decodable { let profiles: [AircraftProfile] }

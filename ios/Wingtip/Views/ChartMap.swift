@@ -11,6 +11,8 @@ struct ChartMap: UIViewRepresentable {
     let maxZoom: Int
     /// The course line, fitted into view when it changes.
     let course: Course?
+    /// The route's checkpoints, numbered along it.
+    let checkpoints: [Checkpoint]
     /// A field's mark tapped.
     var onAirport: ((String) -> Void)?
     /// Own ship kept in the middle; a pan by the pilot ends it.
@@ -29,6 +31,7 @@ struct ChartMap: UIViewRepresentable {
         map.pointOfInterestFilter = .excludingAll
         map.isPitchEnabled = false
         map.register(AirportMarkView.self, forAnnotationViewWithReuseIdentifier: AirportMarkView.reuse)
+        map.register(CheckpointMarkView.self, forAnnotationViewWithReuseIdentifier: CheckpointMarkView.reuse)
         // The chart hides Apple's map; its labels would draw through
         // where a tile is missing, so none are shown at all.
         let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
@@ -62,6 +65,12 @@ struct ChartMap: UIViewRepresentable {
             map.addOverlay(overlay, level: .aboveLabels)
             context.coordinator.overlay = overlay
         }
+        if context.coordinator.checkpointsShown != checkpoints {
+            context.coordinator.checkpointsShown = checkpoints
+            map.removeAnnotations(context.coordinator.checkpointMarks)
+            context.coordinator.checkpointMarks = checkpoints.enumerated().map { CheckpointAnnotation(number: $0.offset + 1, checkpoint: $0.element) }
+            map.addAnnotations(context.coordinator.checkpointMarks)
+        }
         if context.coordinator.courseShown != course {
             context.coordinator.courseShown = course
             if let line = context.coordinator.courseLine { map.removeOverlay(line) }
@@ -87,6 +96,8 @@ struct ChartMap: UIViewRepresentable {
         var overlay: ChartTileOverlay?
         var courseLine: MKPolyline?
         var courseShown: Course?
+        var checkpointsShown: [Checkpoint] = []
+        var checkpointMarks: [CheckpointAnnotation] = []
         var onAirport: ((String) -> Void)?
         var setFollowing: ((Bool) -> Void)?
         var setRouteAway: ((Bool) -> Void)?
@@ -111,6 +122,9 @@ struct ChartMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
+            if annotation is CheckpointAnnotation {
+                return mapView.dequeueReusableAnnotationView(withIdentifier: CheckpointMarkView.reuse, for: annotation)
+            }
             guard annotation is AirportAnnotation else { return nil }
             return mapView.dequeueReusableAnnotationView(withIdentifier: AirportMarkView.reuse, for: annotation)
         }
