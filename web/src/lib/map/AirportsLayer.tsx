@@ -207,6 +207,32 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     },
   }), [map, onSelect]);
   useMapEvents(handlers);
+  // A tap on a field's mark is the field's whatever lies under it -- an
+  // airspace's shading, a line -- as it was when each mark was a marker
+  // over them: the marks are drawn on a canvas the pointer goes through
+  // (AirportCanvas), so the tap is caught on its way down, before the
+  // layer under it takes it. Not one on a marker, a popup or a control,
+  // which are over the marks and keep their own taps.
+  const selectRef = useRef(onSelect);
+  useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
+  useEffect(() => {
+    const container = map.getContainer();
+    const caught = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest(".leaflet-map-pane") || target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip")) return;
+      const at = map.mouseEventToContainerPoint(e);
+      let best: { ident: string; px: number } | null = null;
+      for (const a of drawn.current) {
+        const px = map.latLngToContainerPoint([a.lat, a.lon]).distanceTo(at);
+        if (px <= NEAR_MISS_PX && (!best || px < best.px)) best = { ident: a.ident, px };
+      }
+      if (!best) return;
+      e.stopPropagation();
+      selectRef.current(best.ident);
+    };
+    container.addEventListener("click", caught, true);
+    return () => container.removeEventListener("click", caught, true);
+  }, [map]);
   const near = zoom >= FROM_ZOOM;
   const reports = zoom >= FARTHEST_ZOOM;
   // At zoom 7 the view asks for the fields that report alone -- at the
