@@ -68,7 +68,11 @@ export class AirportMarksLayer extends L.Layer {
   private font = "";
 
   constructor(pane: string) {
-    super({ pane });
+    super();
+    // Leaflet's classes take their options in initialize, which an ES
+    // subclass's constructor does not reach: set here, or it is the
+    // overlay pane's, under the selected field's ring.
+    L.setOptions(this, { pane });
   }
 
   onAdd(map: L.Map): this {
