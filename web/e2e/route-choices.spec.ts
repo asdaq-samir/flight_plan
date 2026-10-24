@@ -47,38 +47,39 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await settle(page);
   await openPanel(page);
   const current = sideDrawer(page).getByTestId("route-choice-current");
-  await expect(current).toContainText("Crosses thunderstorms forecast at KCWA", { timeout: slow(30_000) });
+  await expect(current).toContainText("Crosses storms", { timeout: slow(30_000) });
 
   const fastest = sideDrawer(page).getByTestId("route-choice-fastest");
   await expect(fastest).toContainText("Fastest · Fewest Stops");
   await expect(fastest).toContainText("3 h 1 min");
-  await expect(fastest).toContainText("No stops · 352 nm");
-  await expect(fastest).toContainText("Round thunderstorms forecast at KCWA");
+  await expect(fastest).toContainText("Avoids the hazards");
   const best = sideDrawer(page).getByTestId("route-choice-weather");
   await expect(best).toContainText("3 h 40 min");
-  await expect(best).toContainText("1 fuel stop · 371 nm");
-  // The route's own weather by the clock under the cards, its storm said.
-  await expect(sideDrawer(page).getByTestId("route-weather-strip")).toContainText("thunderstorms");
+  // The route's own weather as a strip, its storm said to a screen reader.
+  await expect(current.getByRole("img")).toHaveAttribute("aria-label", /thunderstorms/);
 
   // Both on the chart beside the route, each its chip.
   const chips = page.locator("[data-route-way]");
   await expect(chips).toHaveCount(2);
-  await expect(chips.filter({ hasText: "Best Weather · 3 h 40 min" })).toHaveCount(1);
+  await expect(chips.filter({ hasText: "3 h 40 min" })).toHaveCount(1);
 
-  // What matters reorders them: Fewest Stops puts the one with none first.
-  await sideDrawer(page).getByTestId("route-want-stops").click();
-  await expect(sideDrawer(page).getByTestId("route-want-stops")).toHaveAttribute("aria-pressed", "true");
+  // What matters, behind the filter glyph: Fewest Stops ticked.
+  await sideDrawer(page).getByTestId("route-wants").click();
+  await page.getByTestId("route-want-stops").click();
+  await expect(page.getByTestId("route-want-stops")).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("Escape");
 
   // A card tapped shows that way; Use puts it in the route.
-  await best.click();
-  await expect(best).toHaveAttribute("aria-pressed", "true");
+  await best.getByRole("button").first().click();
+  await expect(best).toHaveAttribute("aria-current", "true");
   await sideDrawer(page).getByTestId("route-choice-use").click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
   // The one picked is the route now, the other still beside it.
   await expect(chips).toHaveCount(1);
 
-  // The straight line one tap back.
-  await sideDrawer(page).getByTestId("route-choice-direct").click();
+  // The straight line a card away.
+  await sideDrawer(page).getByTestId("route-choice-direct").getByRole("button").first().click();
+  await sideDrawer(page).getByTestId("route-choice-direct-use").click();
   await expect(page).not.toHaveURL(/[?&]stops=/);
 });

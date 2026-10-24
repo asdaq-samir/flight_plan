@@ -57,7 +57,7 @@ import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import RouteChoices from "./components/RouteChoices";
 import type { RouteWay } from "../../lib/map/RouteWaysLayer";
-import { isRoute, wayTime, wayTitle } from "../../lib/routeWays";
+import { isRoute, wayTime } from "../../lib/routeWays";
 
 /** No ways on the chart: one array for good, so the map's memo holds. */
 const NO_WAYS: RouteWay[] = [];
@@ -1977,13 +1977,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The same ways on the chart beside the route, in the pale tint (RouteWaysLayer).
   const wayLines = useMemo((): RouteWay[] => (routeWays && routed && !s.local && flightRules === "vfr"
     ? routeWays.options.filter(o => !isRoute(o, planned.stops)).map(o => ({
-      key: o.kind, path: o.path as [number, number][], label: `${wayTitle(o)} · ${wayTime(o)}`,
+      // Its time alone on the chart, the cards saying which is which (the
+      // owner's "avoid putting too much text": the names ran over each other).
+      key: o.kind, path: o.path as [number, number][], label: wayTime(o),
     }))
     : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
-    ? <RouteChoices found={routeWays} stops={planned.stops} depart={depart || null} picked={wayShown}
+    ? <RouteChoices found={routeWays} stops={planned.stops} depart={depart || null} ownMinutes={s.totals?.ete_min ?? null} picked={wayShown}
         onPreview={setWayShown} onPick={pickRoute} onDirect={flyDirect} /> : null),
-  [routed, s.local, flightRules, routeWays, planned.stops, depart, wayShown, pickRoute, flyDirect]);
+  [routed, s.local, flightRules, routeWays, planned.stops, depart, s.totals?.ete_min, wayShown, pickRoute, flyDirect]);
   const routeList = useMemo(() => (
     <>
     {/* The ways to fly it, over its points (RouteChoices). */}
