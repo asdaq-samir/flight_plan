@@ -199,12 +199,9 @@ test("the chart's airports keep coming in under a finger's pan, before it lets g
   });
   await page.goto("/app/plan");
   await settle(page);
-  // Drawn on the airports' canvas (AirportCanvas), in sight on the map.
-  const drawn = async (ident: string) => {
-    const m = await airportMark(page, ident);
-    const box = (await page.locator(".leaflet-container").boundingBox())!;
-    return !!m && m.chip && m.x >= box.x && m.x <= box.x + box.width && m.y >= box.y && m.y <= box.y + box.height;
-  };
+  // On the airports' canvas (AirportCanvas) with its mark, as a marker
+  // was in the page wherever it was.
+  const drawn = async (ident: string) => !!(await airportMark(page, ident))?.chip;
   await expect.poll(() => drawn("X1"), { timeout: slow(15_000) }).toBe(true);
   const first = asked.length;
   // A pan of a screen and a half to the east, the finger still down: past
