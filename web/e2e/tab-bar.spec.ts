@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, closeConsole, closeProfile, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
+import { clearTheRoute, closeCard, closeConsole, closeProfile, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -222,29 +222,27 @@ test("a card opens half way; on a phone, lowered to the pill it is its name and 
   await expect(panel).toHaveAttribute("data-panel", "peek");
 });
 
-test("the route's box has a clear at its end while it holds a route", async ({ page }) => {
+test("the route's box has its buttons at the end of its first line, the route cleared from its menu", async ({ page }) => {
+  // The owner's ask (2026-10-24): Routes, the Brief and the menu up beside
+  // the route's pills, where the clear was, not on a line of their own.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  const clear = sideDrawer(page).getByTestId("route-box-clear");
-  await expect(clear).toBeVisible();
-  // The sheet come to rest: measured while it rose from the pill, the box
-  // was narrower than the clear's place a moment later.
+  const actions = sideDrawer(page).getByTestId("route-box-actions");
+  await expect(actions).toBeVisible();
   await settled(sideDrawer(page));
-  // Inside the box, at its end.
+  // Inside the box, at its end, on the pills' line.
   const box = (await sideDrawer(page).getByTestId("route-box").boundingBox())!;
-  const at = (await clear.boundingBox())!;
+  const at = (await actions.boundingBox())!;
+  const dep = (await sideDrawer(page).getByTestId("route-dep").boundingBox())!;
   expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width);
   expect(at.x).toBeGreaterThan(box.x + box.width / 2);
-  // While something is typed, its own clear alone, not the route's too.
-  await sideDrawer(page).getByTestId("route-type").fill("LA");
-  await expect(clear).toHaveCount(0);
-  await expect(sideDrawer(page).getByTestId("field-clear")).toHaveCount(1);
-  await sideDrawer(page).getByTestId("field-clear").click();
-  await expect(clear).toBeVisible();
-  await clear.click();
+  expect(Math.abs((at.y + at.height / 2) - (dep.y + dep.height / 2))).toBeLessThanOrEqual(3);
+  // No clear of its own beside them: the menu's.
+  await expect(sideDrawer(page).getByTestId("route-box-clear")).toHaveCount(0);
+  await clearTheRoute(page);
   await expect(page).not.toHaveURL(/[?&]dep=/);
-  await expect(clear).toHaveCount(0);
+  await expect(actions).toHaveCount(0);
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
 });
 
