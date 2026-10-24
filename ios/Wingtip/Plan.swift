@@ -23,6 +23,10 @@ final class Plan {
     var ownAltitudeLegal = false
     /// One of the four plans picked by name; nil for the planner's own.
     var altitudeChoice: String?
+    /// The procedures picked for the route's fields, one per field and
+    /// kind: a departure out of the departure, an arrival or an approach
+    /// into a stop or the destination.
+    var procedures: [ProcedurePick] = []
 
     private(set) var course: Course?
     private(set) var checkpoints: [Checkpoint] = []
@@ -82,7 +86,7 @@ final class Plan {
         course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil
         legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
         Kept.forget()
-        ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil
+        ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
@@ -113,6 +117,14 @@ final class Plan {
     func goRound(_ detour: Detour) {
         let points = (detour.via?.isEmpty == false) ? detour.via! : [detour.ident]
         stops.insert(contentsOf: points, at: min(detour.stopIndex, stops.count))
+        plan()
+    }
+
+    /// A procedure picked for a field, in place of any of its kind there;
+    /// nil takes that kind off the field. Planned again.
+    func pick(_ procedure: ProcedurePick?, kind: String, at ident: String) {
+        procedures.removeAll { $0.ident == ident && $0.kind == kind }
+        if let procedure { procedures.append(procedure) }
         plan()
     }
 
@@ -153,6 +165,7 @@ final class Plan {
         running?.cancel()
         let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft
         let own = ownAltitudeFt, legal = ownAltitudeLegal, choice = altitudeChoice
+        let picks = procedures.filter { idents.contains($0.ident) }
         self.dep = dep; self.dest = dest; self.stops = stops
         planning = true
         problem = nil
@@ -181,7 +194,7 @@ final class Plan {
                     }
                 }
                 var fresh: [Leg] = []
-                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own, nearest: legal, choice: choice) {
+                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own, nearest: legal, choice: choice, procedures: picks) {
                     guard !Task.isCancelled else { return }
                     switch message {
                     case .stage(let detail): self.stage = detail

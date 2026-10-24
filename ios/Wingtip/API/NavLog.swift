@@ -101,8 +101,19 @@ struct Leg: Codable, Hashable, Sendable, Identifiable {
     var wind: Wind?
     var toc: TopOfClimb?
     var tod: TopOfDescent?
+    /// The procedure's path this leg flies, where one was picked.
+    var procedure: LegProcedure?
 
     var id: String { "\(from)-\(to)" }
+
+    struct LegProcedure: Codable, Hashable, Sendable {
+        var path: [[Double]] = []
+        var nm: Double = 0
+        var landing: Bool = false
+        var moreNm: Double = 0
+        var moreMin: Double = 0
+        var moreGal: Double = 0
+    }
 
     struct Wind: Codable, Hashable, Sendable {
         var directionDeg: Double?
@@ -206,11 +217,14 @@ enum NavLog {
     }
 
     /// The log for a route, line by line as the planner sends them.
-    static func stream(dep: String, dest: String, stops: [String], aircraft: String?, altitudeFt: Double?, nearest: Bool, choice: String?) -> AsyncThrowingStream<NavLogMessage, any Error> {
+    static func stream(dep: String, dest: String, stops: [String], aircraft: String?, altitudeFt: Double?, nearest: Bool, choice: String?, procedures: [ProcedurePick] = []) -> AsyncThrowingStream<NavLogMessage, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 let request = Planner.get("/api/navlog", [
                     "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","), "aircraft": aircraft,
+                    // The procedures picked, which the legs are flown by and
+                    // the descents planned to.
+                    "procedures": procedures.isEmpty ? nil : procedures.map(\.param).joined(separator: ","),
                     "altitude_ft": altitudeFt.map { String(Int($0)) },
                     // Picked on the wheel: each leg at its nearest legal
                     // altitude where the pick is one of the planner's.

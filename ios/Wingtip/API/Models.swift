@@ -317,6 +317,37 @@ struct RouteOptions: Codable, Equatable, Sendable {
     var ends: [Int] = []
 }
 
+/// A field's instrument procedures from the FAA's CIFP (ProcedureList,
+/// vfr.procedures): departures, arrivals and approaches, each with its
+/// transitions, for the pull-downs the route's fields get.
+struct ProcedureSummary: Codable, Equatable, Sendable, Identifiable {
+    let id: String
+    let kind: String
+    let name: String
+    var runway: String?
+    var transitions: [String] = []
+    var runwayTransitions: [String] = []
+}
+
+struct ProcedureList: Codable, Equatable, Sendable {
+    let airport: String
+    let cycle: String
+    var procedures: [ProcedureSummary] = []
+    var stale: Bool? = false
+}
+
+/// A procedure picked for a field of the route, as the planner takes it
+/// (web lib/procedures proceduresParam): `ident:id[:transition]`.
+struct ProcedurePick: Codable, Equatable, Sendable, Identifiable {
+    let ident: String
+    let id: String
+    var kind: String
+    var name: String
+    var transition: String?
+
+    var param: String { [ident, id].joined(separator: ":") + (transition.map { ":" + $0 } ?? "") }
+}
+
 /// A field's card (AirportPlace).
 struct AirportPlace: Codable, Equatable, Sendable {
     let ident: String

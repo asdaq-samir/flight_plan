@@ -141,6 +141,17 @@ struct FPLView: View {
                         }
                     }
                 }
+                if plan.course != nil {
+                    // Each field's procedures, pull-downs as the web app's
+                    // route list has them: the departure's departures, every
+                    // landing's arrivals and approaches.
+                    Section("Procedures") {
+                        ProceduresRow(ident: plan.dep, kinds: ["departure"])
+                        ForEach(plan.stops + [plan.dest], id: \.self) { field in
+                            ProceduresRow(ident: field, kinds: ["arrival", "approach"])
+                        }
+                    }
+                }
                 if plan.course != nil, let template = charts.template {
                     // The chart along the route for the air, as the web app's
                     // KeepRoute keeps it: tapped once, the count as it goes.

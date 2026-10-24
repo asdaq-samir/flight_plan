@@ -95,3 +95,20 @@ struct FlightTests {
         #expect(abs(Flight.burnt(legs: legs, alongNm: 60) - 6.0) < 0.001)
     }
 }
+
+/// A procedure picked, as the planner's query takes it.
+struct ProcedureTests {
+    @Test func aPickIsIdentIdAndItsTransition() {
+        #expect(ProcedurePick(ident: "KDLH", id: "I09", kind: "approach", name: "ILS 09").param == "KDLH:I09")
+        #expect(ProcedurePick(ident: "KORD", id: "WYNDE3", kind: "arrival", name: "WYNDE THREE", transition: "ZZIPR").param == "KORD:WYNDE3:ZZIPR")
+    }
+
+    @MainActor @Test func onePickPerFieldAndKind() {
+        let plan = Plan()
+        plan.dep = "C81"; plan.dest = "KDLH"
+        plan.procedures = [ProcedurePick(ident: "KDLH", id: "I09", kind: "approach", name: "ILS 09")]
+        plan.procedures.removeAll { $0.ident == "KDLH" && $0.kind == "approach" }
+        plan.procedures.append(ProcedurePick(ident: "KDLH", id: "R27", kind: "approach", name: "RNAV 27"))
+        #expect(plan.procedures.map(\.id) == ["R27"])
+    }
+}

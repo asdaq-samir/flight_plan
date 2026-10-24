@@ -135,6 +135,11 @@ enum Planner {
         ])
     }
 
+    /// A field's procedures (/api/airport/{ident}/procedures).
+    static func procedures(_ ident: String) async throws -> ProcedureList {
+        try await fetch(ProcedureList.self, "/api/airport/\(ident)/procedures")
+    }
+
     /// The planner's airplane types (/api/aircraft-profiles).
     static func aircraftProfiles() async throws -> [AircraftProfile] {
         struct Answer: Decodable { let profiles: [AircraftProfile] }
