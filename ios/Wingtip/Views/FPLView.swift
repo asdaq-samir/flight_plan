@@ -178,12 +178,19 @@ struct FPLView: View {
             }
             .navigationTitle("Flight plan")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    // The pilot's saved flights, and the plan saved among them.
+                    NavigationLink(value: "flights") { Label("Flights", systemImage: "tray.full") }
+                }
+            }
             .navigationDestination(for: Leg.self) { leg in LegDetailView(leg: leg) }
             .navigationDestination(for: String.self) { page in
                 switch page {
                 case "profile": ProfileCard()
                 case "brief": BriefView()
                 case "routes": RoutesView()
+                case "flights": FlightsView()
                 default: EmptyView()
                 }
             }

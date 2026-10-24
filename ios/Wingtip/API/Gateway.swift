@@ -20,14 +20,14 @@ enum Gateway {
         var errorDescription: String? { "The server answered \(status)." }
     }
 
-    private static let session: URLSession = {
+    static let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
         return URLSession(configuration: config)
     }()
 
-    private static func request(_ method: String, _ path: String, json: (any Encodable)? = nil, form: [String: String]? = nil) -> URLRequest {
+    static func request(_ method: String, _ path: String, json: (any Encodable)? = nil, form: [String: String]? = nil) -> URLRequest {
         var request = URLRequest(url: Config.gateway.appending(path: path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")

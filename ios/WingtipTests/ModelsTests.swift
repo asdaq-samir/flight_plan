@@ -92,3 +92,20 @@ struct RegisteredTests {
         #expect(q == ["cruise_tas_kt": "115.0", "usable_fuel_gal": "36.0"])
     }
 }
+
+/// The pilot's things on the gateway, as it sends them: camel case,
+/// dates as strings.
+struct PilotTests {
+    @Test func aSavedFlightAndTheCurrencyRead() throws {
+        let flights = try JSONDecoder().decode([SavedFlight].self, from: Data(#"[{"id":7,"departureIdent":"C81","destinationIdent":"KDLH","stops":["KEAU"],"aircraftTailNumber":"N654FL","cruiseAltitudeFt":6500,"totalDistanceNm":330.0,"totalEteMin":170.0,"totalFuelGal":29.5,"plannedFor":null,"createdAt":"2026-10-24T10:00:00Z","altitudes":null,"picks":null,"risk":null}]"#.utf8))
+        #expect(flights[0].stops == ["KEAU"] && flights[0].cruiseAltitudeFt == 6500)
+        let currency = try JSONDecoder().decode(Currency.self, from: Data(#"{"totalHours":152.3,"nightHours":12.0,"crossCountryHours":40.5,"flights":30,"landings":120,"dayPassengersUntil":"2026-12-01","nightPassengersUntil":null,"instrumentCurrentUntil":null,"ipcNeededAfter":null,"flightReviewOn":"2025-06-01","flightReviewUntil":"2027-06-30","medicalExpiresOn":"2027-01-31","approachesInWindow":0,"holdingInWindow":false,"trackingInWindow":false}"#.utf8))
+        #expect(currency.dayPassengersUntil == "2026-12-01" && currency.nightPassengersUntil == nil && currency.flightReviewUntil == "2027-06-30")
+    }
+
+    @MainActor @Test func thePlanSavesItsRouteAndLegs() {
+        let plan = Plan()
+        plan.dep = "C81"; plan.dest = "KDLH"
+        #expect(plan.saved() == nil)
+    }
+}

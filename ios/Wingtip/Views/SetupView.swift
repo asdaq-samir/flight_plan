@@ -24,6 +24,11 @@ struct SetupView: View {
                         Text(problem).foregroundStyle(.red).font(.footnote)
                     }
                 }
+                if session.signedIn {
+                    Section("Pilot") {
+                        NavigationLink("Logbook and currency") { LogbookView() }
+                    }
+                }
                 Section("Chart") {
                     if let info = charts.info {
                         LabeledContent("Edition", value: info.chartCycle)

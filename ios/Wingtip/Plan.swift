@@ -125,6 +125,32 @@ final class Plan {
         plan()
     }
 
+    /// The plan as the gateway saves a flight: the route, its altitude,
+    /// totals and the legs' points as checkpoints (SaveFlightRequest).
+    func saved() -> SaveFlightRequest? {
+        guard routed, let course else { return nil }
+        var along = 0.0
+        let points = legs.enumerated().map { i, leg -> SaveFlightCheckpoint in
+            along += leg.distanceNm
+            let point = checkpoints.first { ($0.name ?? $0.waypoint ?? "").uppercased() == leg.to.uppercased() }
+            return SaveFlightCheckpoint(
+                sequenceNo: i + 1, name: leg.to, category: point?.category ?? "point",
+                lat: point?.lat ?? course.destination.lat, lon: point?.lon ?? course.destination.lon, alongTrackNm: along,
+                altitudeFt: leg.altitudeFt, legDistanceNm: leg.distanceNm, trueCourseDeg: leg.trueCourseDeg,
+                magneticHeadingDeg: leg.magneticHeadingDeg, groundspeedKt: leg.groundspeedKt, eteMin: leg.eteMin, fuelGal: leg.fuelGal)
+        }
+        return SaveFlightRequest(
+            departureIdent: dep, destinationIdent: dest, stops: stops, cruiseAltitudeFt: altitudeFt.map { Int($0) },
+            totalDistanceNm: totals?.distanceNm, totalEteMin: totals?.eteMin, totalFuelGal: totals?.fuelGal, checkpoints: points)
+    }
+
+    /// A saved flight back on the page: its route, planned again.
+    func open(_ flight: SavedFlight) {
+        dep = flight.departureIdent; dest = flight.destinationIdent; stops = flight.stops
+        ownAltitudeFt = nil; altitudeChoice = nil
+        plan()
+    }
+
     /// An airplane by its N-number: one of the pilot's own with its
     /// figures, else the FAA's registry's type on the planner's profile
     /// for it, where it has one; the profile in use stands otherwise.
