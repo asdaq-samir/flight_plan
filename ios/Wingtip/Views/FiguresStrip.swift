@@ -6,13 +6,32 @@ import SwiftUI
 /// reserve the planner holds it to (14 CFR 91.151, in the planner).
 struct FiguresStrip: View {
     @Environment(Plan.self) private var plan
+    @Environment(OwnShip.self) private var ownShip
+
+    /// In the air on the route -- moving, within 3 nm of the line -- the
+    /// figures count down from where the airplane is, as the web app's do
+    /// in a dry run (Flight): what is left to the destination at the
+    /// groundspeed now, and the fuel still required.
+    private var flying: (leftNm: Double, minutes: Double?, fuelGal: Double?)? {
+        guard let fix = ownShip.fix, let gs = fix.groundspeedKt, gs > 30, let course = plan.course,
+              let along = Flight.along(fix.coordinate, line: course.coordinates),
+              Flight.off(fix.coordinate, line: course.coordinates) <= 3 else { return nil }
+        let required = plan.totals?.fuelRequiredGal.map { max(0, $0 - Flight.burnt(legs: plan.legs, alongNm: along.alongNm)) }
+        return (along.leftNm, along.leftNm / gs * 60, required)
+    }
 
     var body: some View {
         HStack {
             figure("TO", plan.routed ? plan.dest : "—")
-            figure("DIST", plan.totals?.distanceNm.map { String(format: "%.1f nm", $0) } ?? plan.course.map { String(format: "%.1f nm", $0.distanceNm) } ?? "—")
-            figure("ETE", plan.totals?.eteMin.map(hoursMinutes) ?? "—")
-            figure("FUEL", plan.totals?.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
+            if let flying {
+                figure("DIST", String(format: "%.1f nm", flying.leftNm))
+                figure("ETE", flying.minutes.map(hoursMinutes) ?? "—")
+                figure("FUEL", flying.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
+            } else {
+                figure("DIST", plan.totals?.distanceNm.map { String(format: "%.1f nm", $0) } ?? plan.course.map { String(format: "%.1f nm", $0.distanceNm) } ?? "—")
+                figure("ETE", plan.totals?.eteMin.map(hoursMinutes) ?? "—")
+                figure("FUEL", plan.totals?.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
+            }
         }
         .padding(.horizontal)
         .frame(maxWidth: .infinity)
