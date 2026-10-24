@@ -99,7 +99,12 @@ def file_name(idents: list[str]) -> str:
 
 def short(ident: str) -> str:
     """An identifier in a waypoint name: a US airport's K dropped, as a
-    pilot says it (KDLH, DLH), and anything but letters and digits."""
+    pilot says it (KDLH, DLH), and anything but letters and digits; a
+    present position (@lat,lon) POS, as the app names it -- its digits
+    made a name of twelve figures, 422333879883C2903 (the owner's
+    screenshot, 2026-10-24)."""
+    if ident.startswith("@"):
+        return "POS"
     upper = re.sub(r"[^A-Z0-9]", "", ident.upper())
     return upper[1:] if len(upper) == 4 and upper.startswith("K") else upper
 

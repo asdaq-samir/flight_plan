@@ -117,6 +117,16 @@ enum Planner {
         ])
     }
 
+    /// What the airplane's track runs into in the next minutes
+    /// (/api/airspace/ahead): the planner's alerts, in its words.
+    static func ahead(lat: Double, lon: Double, trackDeg: Double, groundspeedKt: Double, altitudeFt: Double?) async throws -> [AheadAlert] {
+        struct Answer: Decodable { let alerts: [AheadAlert] }
+        return try await fetch(Answer.self, "/api/airspace/ahead", [
+            "lat": String(lat), "lon": String(lon), "track": String(Int(trackDeg.rounded())), "gs": String(Int(groundspeedKt.rounded())),
+            "alt": altitudeFt.map { String(Int($0.rounded())) },
+        ]).alerts
+    }
+
     /// The planner's airplane types (/api/aircraft-profiles).
     static func aircraftProfiles() async throws -> [AircraftProfile] {
         struct Answer: Decodable { let profiles: [AircraftProfile] }

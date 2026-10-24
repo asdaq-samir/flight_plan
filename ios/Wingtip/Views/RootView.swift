@@ -7,6 +7,7 @@ import SwiftUI
 struct RootView: View {
     @Environment(Charts.self) private var charts
     @Environment(Plan.self) private var plan
+    @Environment(OwnShip.self) private var ownShip
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
     @State private var tab: Tabs = .fpl
@@ -37,6 +38,9 @@ struct RootView: View {
         .ignoresSafeArea()
         .overlay(alignment: .topTrailing) {
             MapButtons(following: $following, routeAway: routeAway && plan.course != nil, fitRoute: { fitRequest += 1 })
+        }
+        .overlay(alignment: .top) {
+            AlertsBanner(alerts: ownShip.ahead).padding(.trailing, 64)
         }
         .sheet(isPresented: $sheetUp) {
             SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)

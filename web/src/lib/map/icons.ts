@@ -232,11 +232,14 @@ export const waypointIcon = made(function waypointIcon(ident: string) {
 
 /** A top of climb or descent on the course line: "TOC" or "TOD" in a
  *  small white tag edged in the line's magenta, under the checkpoints'
- *  dots (it is a point the plan works out, not one to look for). */
-export const legPointIcon = made(function legPointIcon(label: "TOC" | "TOD") {
+ *  dots (it is a point the plan works out, not one to look for); `up`
+ *  points over or (negative) under its point, where an airport's name
+ *  is in the way (RouteMap's LegPoints). */
+export const LEG_POINT_SIZE = [38, 20] as const;
+export const legPointIcon = made(function legPointIcon(label: "TOC" | "TOD", up: number) {
   return L.divIcon({
     className: "",
-    iconSize: [38, 20], iconAnchor: [19, 10],
+    iconSize: [LEG_POINT_SIZE[0], LEG_POINT_SIZE[1]], iconAnchor: [LEG_POINT_SIZE[0] / 2, LEG_POINT_SIZE[1] / 2 + up],
     html:
       `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
       ` style="border-color:${COURSE_MAGENTA}">${text(label)}</span>`,

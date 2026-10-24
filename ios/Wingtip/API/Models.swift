@@ -245,6 +245,33 @@ struct Briefing: Codable, Equatable, Sendable {
     var weatherUnavailable: [String] = []
 }
 
+/// One thing ahead of the airplane (AheadAlert, vfr.alerts): airspace, a
+/// special-use area or a TFR its track goes into in the next five
+/// minutes, or the ground or an obstacle it comes within 500 ft of in the
+/// next minute. The planner's judgment; the app says it.
+struct AheadAlert: Codable, Equatable, Sendable, Identifiable {
+    let id: String
+    let kind: String
+    let level: String
+    let name: String
+    let need: String
+    let seconds: Double
+    let distanceNm: Double
+    let lat: Double
+    let lon: Double
+    var inside: Bool? = false
+    var airspaceClass: String?
+    var floorFt: Double?
+    var ceilingFt: Double?
+    var clearanceFt: Double?
+    var notamId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, level, name, need, seconds, distanceNm, lat, lon, inside, floorFt, ceilingFt, clearanceFt, notamId
+        case airspaceClass = "class"
+    }
+}
+
 /// A field's card (AirportPlace).
 struct AirportPlace: Codable, Equatable, Sendable {
     let ident: String

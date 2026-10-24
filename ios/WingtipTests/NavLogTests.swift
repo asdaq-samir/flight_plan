@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Testing
 @testable import Wingtip
@@ -72,5 +73,25 @@ struct KeptTests {
         #expect(Kept.load(from: file) == kept)
         Kept.forget(at: file)
         #expect(Kept.load(from: file) == nil)
+    }
+}
+
+/// Flying the route from where the airplane is: along the line, what is
+/// left, and the fuel burnt.
+struct FlightTests {
+    @Test func aPositionHalfWayAlongALegIsHalfWayAlong() {
+        let line = [CLLocationCoordinate2D(latitude: 42.0, longitude: -88.0), CLLocationCoordinate2D(latitude: 43.0, longitude: -88.0)]
+        let left = Flight.along(CLLocationCoordinate2D(latitude: 42.5, longitude: -88.05), line: line)!
+        #expect(abs(left.alongNm - 30) < 0.5 && abs(left.totalNm - 60) < 0.5 && abs(left.leftNm - 30) < 0.5)
+        #expect(Flight.off(CLLocationCoordinate2D(latitude: 42.5, longitude: -88.05), line: line) < 2.5)
+        #expect(Flight.along(CLLocationCoordinate2D(latitude: 42.5, longitude: -88.0), line: [line[0]]) == nil)
+    }
+
+    @Test func fuelBurntIsEachLegsShareOfItsMiles() {
+        let leg = { (to: String, nm: Double, gal: Double) in Leg(from: "A", to: to, distanceNm: nm, altitudeFt: 4500, trueCourseDeg: 0, magneticHeadingDeg: 0, groundspeedKt: 100, eteMin: nm / 100 * 60, fuelGal: gal, tasKt: 100) }
+        let legs = [leg("B", 10, 2.0), leg("C", 20, 4.0)]
+        #expect(abs(Flight.burnt(legs: legs, alongNm: 5) - 1.0) < 0.001)
+        #expect(abs(Flight.burnt(legs: legs, alongNm: 20) - 4.0) < 0.001)
+        #expect(abs(Flight.burnt(legs: legs, alongNm: 60) - 6.0) < 0.001)
     }
 }
