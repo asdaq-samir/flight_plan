@@ -36,10 +36,38 @@ final class Plan {
     private(set) var stage: String?
     private(set) var problem: NavLogError?
     private(set) var planning = false
+    /// The chart along the route being kept for the air: tiles kept of
+    /// tiles wanted; nil when not keeping.
+    private(set) var keeping: (kept: Int, wanted: Int)?
+    private var keepTask: Task<Void, Never>?
 
     private var running: Task<Void, Never>?
 
+    /// When the plan shown was made; nil while it is being made now.
+    private(set) var plannedAt: Date?
+
     var routed: Bool { !dep.isEmpty && !dest.isEmpty }
+
+    /// What is on the page, kept for the air (Kept): after the nav log
+    /// is whole, and as the briefing, checkpoints and side view come.
+    func keep() {
+        guard routed, course != nil, totals != nil else { return }
+        Kept(dep: dep, dest: dest, stops: stops, aircraft: aircraft, ownAltitudeFt: ownAltitudeFt, altitudeChoice: altitudeChoice,
+             course: course, checkpoints: checkpoints, profile: profile, altitude: altitude, legs: legs, totals: totals,
+             briefing: briefing, plannedAt: plannedAt ?? Date()).save()
+    }
+
+    /// The last plan kept, back on the page at launch: planned again when
+    /// the planner answers, kept as it was when it does not.
+    func restore() {
+        guard let kept = Kept.load() else { return }
+        dep = kept.dep; dest = kept.dest; stops = kept.stops; aircraft = kept.aircraft
+        ownAltitudeFt = kept.ownAltitudeFt; altitudeChoice = kept.altitudeChoice
+        course = kept.course; checkpoints = kept.checkpoints; profile = kept.profile; altitude = kept.altitude
+        legs = kept.legs; totals = kept.totals; altitudeFt = kept.altitude?.altitudeFt; briefing = kept.briefing
+        plannedAt = kept.plannedAt
+        plan()
+    }
 
     /// The route's idents in order, as the route box shows them.
     var idents: [String] { [dep] + stops + [dest] }
@@ -48,8 +76,23 @@ final class Plan {
         running?.cancel()
         dep = ""; dest = ""; stops = []
         course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil
-        legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false
+        legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
+        Kept.forget()
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil
+    }
+
+    /// The chart along the route kept for the air (KeepRoute), the
+    /// zooms a pilot flies at: the chart's lowest to 10.
+    func keepForTheAir(template: TileTemplate, minZoom: Int) {
+        guard let course else { return }
+        keepTask?.cancel()
+        let tiles = KeepRoute.tiles(along: course.coordinates, minZoom: max(minZoom, 6), maxZoom: 10)
+        keeping = (0, tiles.count)
+        keepTask = Task { [weak self] in
+            await KeepRoute.keep(tiles, template: template) { kept, wanted in
+                Task { @MainActor in self?.keeping = (kept, wanted) }
+            }
+        }
     }
 
     /// The planner's fuel stops put into the route, the whole chain before
@@ -75,6 +118,7 @@ final class Plan {
         do {
             briefing = try await Planner.briefing(dep: dep, dest: dest, stops: stops, eteMin: eteMin)
             briefingProblem = nil
+            keep()
         } catch {
             briefingProblem = error.localizedDescription
         }
@@ -103,12 +147,14 @@ final class Plan {
                 Task { [weak self] in
                     if let points = try? await Planner.checkpoints(dep: dep, dest: dest, stops: stops), !Task.isCancelled {
                         self?.checkpoints = points
+                        self?.keep()
                     }
                 }
                 if self.profile == nil || self.profile?.lengthNm != course.distanceNm {
                     Task { [weak self] in
                         if let ground = try? await Planner.routeProfile(dep: dep, dest: dest, stops: stops), !Task.isCancelled {
                             self?.profile = ground
+                            self?.keep()
                         }
                     }
                 }
@@ -129,6 +175,8 @@ final class Plan {
                         self.legs = fresh
                         self.totals = totals
                         self.stage = nil
+                        self.plannedAt = Date()
+                        self.keep()
                         // The briefing for the flight's own hours, once
                         // the nav log says how long it takes.
                         Task { [weak self] in await self?.brief(dep: dep, dest: dest, stops: stops, eteMin: totals.eteMin) }
@@ -139,7 +187,12 @@ final class Plan {
                 }
             } catch {
                 if !Task.isCancelled {
-                    self.problem = NavLogError(detail: error.localizedDescription, brief: nil, reasons: nil, advice: nil)
+                    // With no connection the plan kept stands, the planner's
+                    // words said with its time; a planner's own refusal is
+                    // said as it is.
+                    if self.legs.isEmpty || !(error is URLError) {
+                        self.problem = NavLogError(detail: error.localizedDescription, brief: nil, reasons: nil, advice: nil)
+                    }
                     self.stage = nil
                 }
             }

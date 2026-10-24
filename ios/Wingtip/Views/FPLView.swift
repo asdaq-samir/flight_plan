@@ -4,6 +4,7 @@ import SwiftUI
 /// as the planner streams it.
 struct FPLView: View {
     @Environment(Plan.self) private var plan
+    @Environment(Charts.self) private var charts
     @FocusState private var focused: Field?
 
     enum Field { case dep, dest, altitude }
@@ -32,6 +33,10 @@ struct FPLView: View {
                     }
                     if let stage = plan.stage {
                         Label(stage, systemImage: "ellipsis").font(.footnote).foregroundStyle(.secondary)
+                    } else if let at = plan.plannedAt, !plan.planning, Date().timeIntervalSince(at) > 3600 {
+                        // A plan an hour old or more, as the web app says it:
+                        // the winds and the weather were read then.
+                        Label("Planned \(at.formatted(.relative(presentation: .named)))", systemImage: "clock").font(.footnote).foregroundStyle(.secondary)
                     }
                     if let problem = plan.problem {
                         VStack(alignment: .leading, spacing: 4) {
@@ -128,6 +133,22 @@ struct FPLView: View {
                             figure("FUEL", totals.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—",
                                    warn: (totals.fuelMarginGal ?? 0) < 0)
                         }
+                    }
+                }
+                if plan.course != nil, let template = charts.template {
+                    // The chart along the route for the air, as the web app's
+                    // KeepRoute keeps it: tapped once, the count as it goes.
+                    Section {
+                        Button {
+                            plan.keepForTheAir(template: template, minZoom: charts.base?.minZoom ?? 6)
+                        } label: {
+                            if let keeping = plan.keeping {
+                                Label(keeping.kept >= keeping.wanted ? "Kept for the air: \(keeping.wanted) tiles" : "Keeping for the air: \(keeping.kept) of \(keeping.wanted)", systemImage: keeping.kept >= keeping.wanted ? "checkmark.icloud" : "icloud.and.arrow.down")
+                            } else {
+                                Label("Keep for the air", systemImage: "icloud.and.arrow.down")
+                            }
+                        }
+                        .disabled(plan.keeping.map { $0.kept < $0.wanted } ?? false)
                     }
                 }
                 if !plan.legs.isEmpty {

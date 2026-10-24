@@ -61,3 +61,16 @@ struct RouteEditTests {
         #expect(plan.stops == ["KWHP", "KGCN", "KPPA", "KFSK", "KUCP"])
     }
 }
+
+/// The last plan kept on the device and read back whole.
+struct KeptTests {
+    @Test func aPlanKeptComesBackAsItWas() throws {
+        let file = FileManager.default.temporaryDirectory.appending(path: "kept-\(UUID().uuidString).json")
+        let course = try Planner.snakeCase.decode(Course.self, from: Data(#"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth","lat":46.84,"lon":-92.19},"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[46.84,-92.19]]}"#.utf8))
+        let kept = Kept(dep: "C81", dest: "KDLH", stops: [], aircraft: "c172", course: course, totals: Totals(distanceNm: 323.5, eteMin: 165), plannedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        kept.save(to: file)
+        #expect(Kept.load(from: file) == kept)
+        Kept.forget(at: file)
+        #expect(Kept.load(from: file) == nil)
+    }
+}
