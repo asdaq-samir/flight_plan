@@ -57,7 +57,7 @@ import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import RouteChoices from "./components/RouteChoices";
 import type { RouteWay } from "../../lib/map/RouteWaysLayer";
-import { isRoute, wayTime, wayTitle } from "../../lib/routeWays";
+import { isRoute, offered, wayTime, wayTitle } from "../../lib/routeWays";
 
 /** No ways on the chart: one array for good, so the map's memo holds. */
 const NO_WAYS: RouteWay[] = [];
@@ -1973,10 +1973,34 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // a card or the way's line tapped shows it, Use puts it in the route.
   const [wayShown, setWayShown] = useState<string | null>(null);
   const pickRoute = useCallback((option: RouteOption) => { setWayShown(null); setStops(option.stops, option.fuel); }, [setStops]);
-  const flyDirect = useCallback(() => { setWayShown(null); setStops([]); }, [setStops]);
+  // The route with the planner's fuel stops put in, every flight's that
+  // needs them (the totals' fuel stops, keepFuelStops' way): its time and
+  // miles from the route's own, each stop's miles added at the route's
+  // own speed and the owner's 30 minutes on the ground at each.
+  const withFuel = useMemo(() => {
+    const suggested = fuelStops.filter(f => f.reason !== "break" && f.stops.length);
+    const ete = s.totals?.ete_min, nm = s.totals?.distance_nm;
+    if (!suggested.length || !ete || !nm) return null;
+    let stops = planned.stops;
+    const added: string[] = [];
+    for (const f of suggested) {
+      const next = withStopsAfter(planned.dep, stops, f.departure, f.stops.map(x => x.ident));
+      if (!next) break;
+      stops = next.stops;
+      added.push(...next.added);
+    }
+    if (!added.length) return null;
+    const extra = suggested.flatMap(f => f.stops).reduce((sum, x) => sum + x.added_nm, 0);
+    return { stops, added, nm: nm + extra, minutes: ete + extra * (ete / nm) + 30 * added.length, landings: added.length };
+  }, [fuelStops, s.totals?.ete_min, s.totals?.distance_nm, planned.stops, planned.dep]);
+  const keepWithFuel = useCallback(() => {
+    if (!withFuel) return;
+    setWayShown(null);
+    setStops(withFuel.stops, withFuel.added);
+  }, [withFuel, setStops]);
   // The same ways on the chart beside the route, in the pale tint (RouteWaysLayer).
   const wayLines = useMemo((): RouteWay[] => (routeWays && routed && !s.local && flightRules === "vfr"
-    ? routeWays.options.filter(o => !isRoute(o, planned.stops)).map(o => ({
+    ? routeWays.options.filter(o => offered(o) && !isRoute(o, planned.stops)).map(o => ({
       // Its time alone on the chart, the cards saying which is which (the
       // owner's "avoid putting too much text": the names ran over each other).
       key: o.kind, path: o.path as [number, number][], label: wayTime(o), name: wayTitle(o),
@@ -1984,8 +2008,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     : NO_WAYS), [routeWays, routed, s.local, flightRules, planned.stops]);
   const routeChoices = useMemo(() => (routed && !s.local && flightRules === "vfr"
     ? <RouteChoices found={routeWays} stops={planned.stops} depart={depart || null} ownMinutes={s.totals?.ete_min ?? null} ownNm={s.totals?.distance_nm ?? null} full={panel === "full"} picked={wayShown}
-        onPreview={setWayShown} onPick={pickRoute} onDirect={flyDirect} /> : null),
-  [routed, s.local, flightRules, routeWays, planned.stops, depart, s.totals?.ete_min, s.totals?.distance_nm, panel, wayShown, pickRoute, flyDirect]);
+        withFuel={withFuel} onUseFuel={keepWithFuel} onPreview={setWayShown} onPick={pickRoute} /> : null),
+  [routed, s.local, flightRules, routeWays, planned.stops, depart, s.totals?.ete_min, s.totals?.distance_nm, panel, wayShown, withFuel, keepWithFuel, pickRoute]);
   const routeList = useMemo(() => (
     <>
     {/* The ways to fly it, over its points (RouteChoices). */}

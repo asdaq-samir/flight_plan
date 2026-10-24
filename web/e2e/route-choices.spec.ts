@@ -53,10 +53,13 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   const fastest = sideDrawer(page).getByTestId("route-choice-fastest");
   await expect(fastest).toContainText("3 h 1 min");
   await expect(fastest).toContainText("352 nm");
-  await expect(fastest).toContainText("Fastest · Fewest Stops");
+  // Its name alone: the planner's fewest-stops way is not one of the four.
+  await expect(fastest).toContainText("Fastest");
+  await expect(fastest).not.toContainText("Fewest");
   const best = sideDrawer(page).getByTestId("route-choice-weather");
   await expect(best).toContainText("3 h 40 min");
   await expect(best).toContainText("371 nm");
+  await expect(best).toContainText("Best Weather · 1 fuel stop");
   // The route's own weather as a strip, its storm said to a screen reader.
   await expect(current.getByRole("img")).toHaveAttribute("aria-label", /thunderstorms/);
 
@@ -76,7 +79,4 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   // The one picked is the route now, the other still beside it.
   await expect(chips).toHaveCount(1);
 
-  // The straight line a card away.
-  await sideDrawer(page).getByTestId("route-choice-direct-use").click();
-  await expect(page).not.toHaveURL(/[?&]stops=/);
 });

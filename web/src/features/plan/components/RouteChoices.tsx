@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
 import type { RouteOption, RouteOptions } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
-import { isRoute, wayTitle } from "../../../lib/routeWays";
+import { isRoute, offered, wayTitle } from "../../../lib/routeWays";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
 
@@ -103,14 +103,22 @@ function Card({ minutes, arrive, nm, name, warning, bands, used, best, onUse, te
  * width, swiped to the next with a dot for each under them, the card in
  * sight the way drawn strong on the map; each its time in large figures,
  * its arrival and miles and its name -- what it crosses in red -- and Use
- * at its right, which puts it in the route. The pilot's own route first
- * (the owner's "Keep yours, flag issues"), the best of the ways next, the
- * straight line a card where the route has stops. In the half sheet's
+ * at its right, which puts it in the route. Four routes, at the owner's
+ * "We should have 4 routes: your route, your route with fuel stops, best
+ * weather with fuel stops, fastest with fuel stops": the pilot's own first
+ * (the owner's "Keep yours, flag issues"), it with the planner's fuel
+ * stops put in where it needs any, then the best weather's and the
+ * fastest, one card where they are the same way. In the half sheet's
  * room between the route box and the figures at its foot. Nothing where
- * the route is already the best of every kind and meets nothing.
+ * the route is already the best of every kind, needs no fuel and meets
+ * nothing.
  */
-export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, full = false, picked, onPreview, onPick, onDirect }: {
+export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, withFuel, onUseFuel, full = false, picked, onPreview, onPick }: {
   found: RouteOptions | undefined;
+  /** The route with the planner's fuel stops put in (the totals' fuel
+   *  stops), its time and miles as they come to; null where it needs none. */
+  withFuel: { minutes: number; nm: number; landings: number } | null;
+  onUseFuel: () => void;
   /** The sheet all the way up: the cards a list, one under another (the
    *  owner's screenshot of Maps with its sheet up, "When card is full"). */
   full?: boolean;
@@ -121,20 +129,22 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   stops: string[];
   /** When the flight leaves (the address's), for each card's arrival; now without one. */
   depart: string | null;
-  /** The way shown on the map, by its kind ("direct" the straight line); null, the route itself. */
+  /** The way shown on the map, by its kind ("fuel" the route with its fuel stops); null, the route itself. */
   picked: string | null;
   onPreview: (kind: string | null) => void;
   onPick: (option: RouteOption) => void;
-  onDirect: () => void;
 }) {
   const strip = useRef<HTMLDivElement>(null);
   const frame = useRef(0);
-  const ranked = found ? [...found.options].sort((a, b) => costOf(a, WANTS) - costOf(b, WANTS)) : [];
+  // The owner's four (2026-10-23): the route, the route with its fuel
+  // stops, the best weather's and the fastest, each with its fuel stops.
+  const ways = found ? found.options.filter(offered) : [];
+  const ranked = [...ways].sort((a, b) => (a.kinds.includes("weather") ? 0 : 1) - (b.kinds.includes("weather") ? 0 : 1));
+  const best = [...ways].sort((a, b) => costOf(a, WANTS) - costOf(b, WANTS))[0];
   const meets = found ? (stops.length ? found.current : found.direct) : [];
-  const straight = !!found && stops.length > 0 && !found.options.some(o => o.stops.length === 0);
   // The cards in order, by the kind each shows: the route itself (null),
-  // the ways best first, the straight line.
-  const keys: (string | null)[] = [null, ...ranked.map(o => o.kind), ...(straight ? ["direct"] : [])];
+  // it with its fuel stops ("fuel"), the ways.
+  const keys: (string | null)[] = [null, ...(withFuel ? ["fuel"] : []), ...ranked.map(o => o.kind)];
   const at = Math.max(0, keys.indexOf(picked));
   const keysKey = keys.join(",");
   // A way picked on the map brings its card into sight.
@@ -147,8 +157,9 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
   }, [at, keysKey]);
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
   if (!found) return null;
-  const others = found.options.filter(o => !isRoute(o, stops));
-  if (!meets.length && !others.length) return null;
+  const others = ways.filter(o => !isRoute(o, stops));
+  if (!meets.length && !others.length && !withFuel) return null;
+  const fuelWords = (n: number) => (n ? ` · ${n} fuel stop${n > 1 ? "s" : ""}` : "");
   const leave = depart ? new Date(depart) : new Date();
   const arrive = (minutes: number | null) => (minutes ? clockTime(new Date(leave.getTime() + minutes * 60_000)) : null);
   const kindWords = (i: number) => (found.hazards[i]?.kind === "storm" ? "storms" : found.hazards[i]?.kind === "terrain" ? "high ground" : "weather");
@@ -171,27 +182,27 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownNm, 
           warning={meets.length ? `Crosses ${kindWords(meets[0]!)}` : null} bands={found.current_along?.bands} used
           testId="route-choice-current" listed={full} shown={picked === null} onShow={() => onPreview(null)}
         />
+        {withFuel && (
+          <Card
+            minutes={withFuel.minutes} arrive={arrive(withFuel.minutes)} nm={withFuel.nm} name={`Your Route${fuelWords(withFuel.landings)}`}
+            warning={null} onUse={onUseFuel} testId="route-choice-fuel"
+            listed={full} shown={picked === "fuel"} onShow={() => onPreview("fuel")}
+          />
+        )}
         {ranked.map(option => {
           const used = isRoute(option, stops);
           const minutes = option.air_min + option.ground_min;
           return (
             <Card
-              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} name={wayTitle(option)}
+              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} name={`${wayTitle(option)}${fuelWords(option.landings)}`}
               warning={option.crosses.length ? `Crosses ${kindWords(option.crosses[0]!)}` : null}
-              bands={option.bands} used={used} best={option === ranked[0] && !used}
+              bands={option.bands} used={used} best={option === best && !used}
               onUse={used ? undefined : () => onPick(option)} testId={`route-choice-${option.kind}`}
               listed={full} shown={picked === option.kind} onShow={() => onPreview(option.kind)}
             />
           );
         })}
-        {straight && (
-          <Card
-            minutes={null} arrive={null} nm={null} name="Straight Line"
-            warning={found.direct.length ? `Crosses ${kindWords(found.direct[0]!)}` : null}
-            onUse={onDirect} testId="route-choice-direct"
-            listed={full} shown={picked === "direct"} onShow={() => onPreview("direct")}
-          />
-        )}
+
     </>
   );
   if (full) {
