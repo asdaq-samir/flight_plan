@@ -83,7 +83,9 @@ describe("a cockpit receiver", () => {
     // The card's field by its FAA identifier finds the station's latest,
     // read; one never heard, nothing.
     const { result } = renderHook(() => useHeardMetar("DLH"));
-    await waitFor(() => expect(result.current).toMatchObject({ observed_at: "2026-10-11T16:12:00Z", visibility_sm: 3, ceiling_ft: 800, flight_category: "IFR" }));
+    // Read by the METAR parser, loaded on first use: past waitFor's own
+    // second when the whole suite runs at once (failed so on 2026-10-24).
+    await waitFor(() => expect(result.current).toMatchObject({ observed_at: "2026-10-11T16:12:00Z", visibility_sm: 3, ceiling_ft: 800, flight_category: "IFR" }), { timeout: 10_000 });
     expect(renderHook(() => useHeardMetar("KOSH")).result.current).toBeNull();
   });
 });
