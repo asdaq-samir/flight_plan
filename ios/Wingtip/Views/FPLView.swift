@@ -99,6 +99,12 @@ struct FPLView: View {
                         .buttonStyle(.plain)
                         // The Brief, marked where the planner says VFR is
                         // not recommended.
+                        // Routes: the ways to fly it, as Maps offers routes.
+                        NavigationLink(value: "routes") {
+                            Image(systemName: "arrow.triangle.branch").foregroundStyle(Color.accentColor)
+                        }
+                        .accessibilityLabel("Routes")
+                        .buttonStyle(.plain)
                         NavigationLink(value: "brief") {
                             Image(systemName: "doc.text")
                                 .foregroundStyle((plan.briefing?.vfrNotRecommended?.isEmpty ?? true) ? Color.accentColor : Color.red)
@@ -166,6 +172,7 @@ struct FPLView: View {
                 switch page {
                 case "profile": ProfileCard()
                 case "brief": BriefView()
+                case "routes": RoutesView()
                 default: EmptyView()
                 }
             }

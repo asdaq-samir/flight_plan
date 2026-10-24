@@ -29,6 +29,10 @@ final class Plan {
     private(set) var profile: RouteProfile?
     private(set) var altitude: NavLogAltitude?
     private(set) var briefing: Briefing?
+    private(set) var routes: RouteOptions?
+    private(set) var routesProblem: String?
+    /// The way whose path is drawn on the map while the cards are up.
+    var shownWay: RouteOption?
     private(set) var briefingProblem: String?
     private(set) var legs: [Leg] = []
     private(set) var altitudeFt: Double?
@@ -109,6 +113,24 @@ final class Plan {
     func goRound(_ detour: Detour) {
         let points = (detour.via?.isEmpty == false) ? detour.via! : [detour.ident]
         stops.insert(contentsOf: points, at: min(detour.stopIndex, stops.count))
+        plan()
+    }
+
+    /// The ways to fly the route, asked for from the Routes page.
+    func findRoutes() async {
+        guard routed else { return }
+        routesProblem = nil
+        do {
+            routes = try await Planner.routeOptions(dep: dep, dest: dest, stops: stops, aircraft: aircraft)
+        } catch {
+            routesProblem = error.localizedDescription
+        }
+    }
+
+    /// A way taken: its stops the route's, planned again.
+    func use(_ way: RouteOption) {
+        stops = way.stops
+        shownWay = nil
         plan()
     }
 

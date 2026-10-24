@@ -127,6 +127,14 @@ enum Planner {
         ]).alerts
     }
 
+    /// The ways to fly a route (/api/route-options): the planner's grid
+    /// search round what the direct line meets.
+    static func routeOptions(dep: String, dest: String, stops: [String], aircraft: String) async throws -> RouteOptions {
+        try await fetch(RouteOptions.self, "/api/route-options", [
+            "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","), "aircraft": aircraft,
+        ])
+    }
+
     /// The planner's airplane types (/api/aircraft-profiles).
     static func aircraftProfiles() async throws -> [AircraftProfile] {
         struct Answer: Decodable { let profiles: [AircraftProfile] }
