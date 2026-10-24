@@ -10,6 +10,7 @@ struct RootView: View {
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
     @State private var tab: Tabs = .fpl
+    @State private var airports: [String] = []
 
     enum Tabs: Hashable { case fpl, airport, aircraft, setup }
 
@@ -17,17 +18,17 @@ struct RootView: View {
         ChartMap(
             template: charts.template, minZoom: charts.base?.minZoom ?? 5, maxZoom: charts.base?.maxZoom ?? 12,
             course: plan.course,
-            // A field tapped on the chart: the destination where the route
-            // has none, else the Airport tab's search, filled in.
+            // A field tapped on the chart opens its card, half way up, as
+            // the web app does.
             onAirport: { ident in
-                if plan.dep.isEmpty { plan.dep = ident } else if plan.dest.isEmpty { plan.dest = ident; plan.plan() }
-                tab = plan.routed ? .fpl : .airport
-                if detent == .large { detent = .medium }
+                tab = .airport
+                airports = [ident]
+                if detent != .medium { detent = .medium }
             }
         )
         .ignoresSafeArea()
         .sheet(isPresented: $sheetUp) {
-            SheetView(tab: $tab)
+            SheetView(tab: $tab, airports: $airports)
                 .presentationDetents([.height(132), .medium, .large], selection: $detent)
                 .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                 .presentationBackground(.regularMaterial)
@@ -41,6 +42,7 @@ struct RootView: View {
 /// and Setup.
 struct SheetView: View {
     @Binding var tab: RootView.Tabs
+    @Binding var airports: [String]
 
     var body: some View {
         TabView(selection: $tab) {
@@ -48,7 +50,7 @@ struct SheetView: View {
                 FPLView()
             }
             Tab("Airport", systemImage: "airplane.departure", value: RootView.Tabs.airport) {
-                AirportSearchView()
+                AirportSearchView(path: $airports)
             }
             Tab("Aircraft", systemImage: "airplane", value: RootView.Tabs.aircraft) {
                 ComingView(title: "Aircraft", detail: "The airplane by its N-number and its planning figures come in phase 3.")

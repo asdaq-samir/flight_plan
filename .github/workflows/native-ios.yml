@@ -2,9 +2,8 @@ name: Native iOS
 
 # The native app (ios/, docs/NATIVE.md). Every change to it is built and
 # tested on GitHub's macOS runner, free for a public repository: the
-# Xcode project is made there by XcodeGen from ios/project.yml, the
-# planner's client is generated from planning-service/openapi.json as
-# the package builds, and the tests run on a simulator. On main, once the
+# Xcode project is made there by XcodeGen from ios/project.yml and the
+# tests run on a simulator. On main, once the
 # owner has set the App Store Connect key, the app is archived, signed by
 # Xcode's cloud-managed signing and uploaded to TestFlight, as ios.yml
 # does for the shell.
@@ -14,7 +13,6 @@ on:
   pull_request:
     paths:
       - ios/**
-      - planning-service/openapi.json
       - .github/workflows/native-ios.yml
   push:
     # And a native-app branch of Claude's: its builds run from the branch
@@ -22,7 +20,6 @@ on:
     branches: [main, "claude/native-*"]
     paths:
       - ios/**
-      - planning-service/openapi.json
       - .github/workflows/native-ios.yml
   workflow_dispatch:
 
@@ -63,7 +60,6 @@ jobs:
           set -o pipefail
           xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Debug \
             -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
-            -skipPackagePluginValidation -skipMacroValidation \
             -resultBundlePath "$RUNNER_TEMP/Wingtip.xcresult" \
             CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" \
             test > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || true
@@ -74,19 +70,6 @@ jobs:
           # Each test's own line, and the verdict.
           grep -E "✔ Test|✘ Test|Test run with" "$RUNNER_TEMP/xcodebuild.log" || true
           grep -qE "\*\* TEST SUCCEEDED \*\*" "$RUNNER_TEMP/xcodebuild.log"
-      # What the generator made of the planner's document, for the next
-      # screen's author: the operations' names, so a call is written right
-      # the first time without an Xcode of one's own.
-      - name: The generated planner client's operations
-        if: always()
-        run: |
-          client=$(find ~/Library/Developer/Xcode/DerivedData -path '*PlannerAPI*' -name 'Client.swift' 2>/dev/null | head -1)
-          [ -n "$client" ] && grep -oE 'public func [A-Za-z0-9_]+' "$client" | sort -u || echo "no generated client found"
-          # And the schemas' members, for a property the generator may have
-          # left out or named otherwise; with its own warnings on the way.
-          types=$(find ~/Library/Developer/Xcode/DerivedData -path '*PlannerAPI*' -name 'Types.swift' 2>/dev/null | head -1)
-          [ -n "$types" ] && grep -nE 'public struct [A-Za-z]+:|public var [A-Za-z_]+:' "$types" | head -400 || echo "no generated types found"
-          grep -iE "openapi.*(warning|skip|unsupported)" "$RUNNER_TEMP/xcodebuild.log" | head -40 || true
       - name: The log, on failure
         if: failure()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4
@@ -120,7 +103,6 @@ jobs:
           auth=(-allowProvisioningUpdates -authenticationKeyPath "$key" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
           xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Wingtip.xcarchive" "${auth[@]}" \
-            -skipPackagePluginValidation -skipMacroValidation \
             DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" WINGTIP_HOST="$host" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive | tail -40
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST

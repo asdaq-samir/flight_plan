@@ -1,5 +1,4 @@
 import MapKit
-import PlannerAPI
 import UIKit
 
 /// A field on the chart: its mark, in the colour of its flight category
@@ -11,7 +10,7 @@ final class AirportAnnotation: NSObject, MKAnnotation {
     let category: String?
     let coordinate: CLLocationCoordinate2D
 
-    init(_ pin: Components.Schemas.AirportPin) {
+    init(_ pin: AirportPin) {
         ident = pin.ident
         kind = pin.kind
         category = pin.flightCategory

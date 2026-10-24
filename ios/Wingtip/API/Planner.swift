@@ -1,35 +1,15 @@
 import CoreLocation
 import Foundation
-import HTTPTypes
-import OpenAPIRuntime
-import OpenAPIURLSession
-import PlannerAPI
-
-/// Rewrites each planner operation's `/api/…` path to the gateway's
-/// `/api/planner/…`, so the generated client speaks the planner's own
-/// document while every request goes through the gateway, with the
-/// pilot's session cookie, as the website's do.
-struct PlannerPath: ClientMiddleware {
-    func intercept(
-        _ request: HTTPRequest, body: HTTPBody?, baseURL: URL, operationID: String,
-        next: (HTTPRequest, HTTPBody?, URL) async throws -> (HTTPResponse, HTTPBody?)
-    ) async throws -> (HTTPResponse, HTTPBody?) {
-        var request = request
-        if let path = request.path { request.path = Config.plannerPath(path) }
-        return try await next(request, body, baseURL)
-    }
-}
 
 /// A route's two ends and its stops, as /api/course gives them
-/// (AirportEnd), and the line between them. Decoded by hand: the course
-/// line's pairs of numbers are a shape the generator does not type.
+/// (AirportEnd), and the line between them.
 struct CourseEnd: Codable, Equatable, Sendable {
     let ident: String
     let name: String
     let lat: Double
     let lon: Double
-    let kind: String?
-    let elevationFt: Double?
+    var kind: String?
+    var elevationFt: Double?
 }
 
 struct Course: Codable, Equatable, Sendable {
@@ -47,14 +27,11 @@ struct Course: Codable, Equatable, Sendable {
     }
 }
 
-/// The planner, through the gateway.
+/// The planner, through the gateway's proxy (`/api/planner/…`,
+/// PlannerProxyController), with the pilot's session cookie as the
+/// website's calls carry it. Each answer decoded from the document's
+/// snake case into Models.swift.
 enum Planner {
-    static let client = Client(
-        serverURL: Config.gateway,
-        transport: URLSessionTransport(),
-        middlewares: [PlannerPath()]
-    )
-
     static let snakeCase: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -67,42 +44,55 @@ enum Planner {
         var errorDescription: String? { detail ?? "The planner answered \(status)." }
     }
 
-    /// Which chart the map draws and where its tiles are (/api/chart).
-    static func chart() async throws -> Components.Schemas.ChartInfo {
-        try await client.chartInfoApiChartGet().ok.body.json
-    }
-
-    /// The fields in the map's view, fewer and bigger as it zooms out,
-    /// with the flight category of each that reports (/api/airports/in-view).
-    static func airports(south: Double, west: Double, north: Double, east: Double) async throws -> [Components.Schemas.AirportPin] {
-        try await client.airportsInViewApiAirportsInViewGet(query: .init(south: south, west: west, north: north, east: east)).ok.body.json.airports
-    }
-
-    /// Fields by ident or name as they are typed (/api/airports/search).
-    static func search(_ q: String) async throws -> [Components.Schemas.AirportSuggestion] {
-        try await client.airportSearchApiAirportsSearchGet(query: .init(q: q)).ok.body.json.airports
-    }
-
-    /// A planner call outside the generated client, by its path and query.
-    static func get(_ path: String, _ query: [String: String?]) -> URLRequest {
+    /// A planner call by its path and query.
+    static func get(_ path: String, _ query: [String: String?] = [:]) -> URLRequest {
         var parts = URLComponents(url: Config.gateway.appending(path: Config.plannerPath(path)), resolvingAgainstBaseURL: false)!
-        parts.queryItems = query.compactMap { key, value in value.map { URLQueryItem(name: key, value: $0) } }.sorted { $0.name < $1.name }
+        let items = query.compactMap { key, value in value.map { URLQueryItem(name: key, value: $0) } }.sorted { $0.name < $1.name }
+        parts.queryItems = items.isEmpty ? nil : items
         var request = URLRequest(url: parts.url!)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
     }
 
-    /// The route as entered, its ends found and its line (/api/course).
-    static func course(dep: String, dest: String, stops: [String]) async throws -> Course {
-        let request = get("/api/course", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")])
-        let (data, response) = try await URLSession.shared.data(for: request)
+    static func fetch<T: Decodable>(_ type: T.Type, _ path: String, _ query: [String: String?] = [:]) async throws -> T {
+        let (data, response) = try await URLSession.shared.data(for: get(path, query))
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status, detail: Self.detail(of: data)) }
-        return try snakeCase.decode(Course.self, from: data)
+        guard status == 200 else { throw Failure(status: status, detail: detail(of: data)) }
+        return try snakeCase.decode(T.self, from: data)
     }
 
     /// FastAPI's `{"detail": "…"}`, where an answer carries one.
     static func detail(of data: Data) -> String? {
         (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["detail"] as? String
+    }
+
+    /// Which chart the map draws and where its tiles are (/api/chart).
+    static func chart() async throws -> ChartInfo {
+        try await fetch(ChartInfo.self, "/api/chart")
+    }
+
+    /// The fields in the map's view, fewer and bigger as it zooms out,
+    /// with the flight category of each that reports (/api/airports/in-view).
+    static func airports(south: Double, west: Double, north: Double, east: Double) async throws -> [AirportPin] {
+        struct Answer: Decodable { let airports: [AirportPin] }
+        let box = ["south": String(south), "west": String(west), "north": String(north), "east": String(east)]
+        return try await fetch(Answer.self, "/api/airports/in-view", box).airports
+    }
+
+    /// Fields by ident or name as they are typed (/api/airports/search).
+    static func search(_ q: String) async throws -> [AirportSuggestion] {
+        struct Answer: Decodable { let airports: [AirportSuggestion] }
+        return try await fetch(Answer.self, "/api/airports/search", ["q": q]).airports
+    }
+
+    /// A field's card: its weather, runways, frequencies and pattern
+    /// (/api/airport/{ident}).
+    static func place(_ ident: String) async throws -> AirportPlace {
+        try await fetch(AirportPlace.self, "/api/airport/\(ident)")
+    }
+
+    /// The route as entered, its ends found and its line (/api/course).
+    static func course(dep: String, dest: String, stops: [String]) async throws -> Course {
+        try await fetch(Course.self, "/api/course", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")])
     }
 }

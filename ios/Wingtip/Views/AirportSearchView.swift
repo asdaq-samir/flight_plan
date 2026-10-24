@@ -1,16 +1,18 @@
-import PlannerAPI
 import SwiftUI
 
 /// Airport: fields by ident or name as they are typed, each a tap from
 /// the route (the departure where there is none, else the destination).
 struct AirportSearchView: View {
     @Environment(Plan.self) private var plan
+    /// The cards open over the search, newest last: a field tapped on the
+    /// chart opens its card here.
+    @Binding var path: [String]
     @State private var query = ""
-    @State private var found: [Components.Schemas.AirportSuggestion] = []
+    @State private var found: [AirportSuggestion] = []
     @State private var searching: Task<Void, Never>?
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 if query.isEmpty {
                     ContentUnavailableView("Find a field", systemImage: "magnifyingglass",
@@ -18,10 +20,8 @@ struct AirportSearchView: View {
                 } else if found.isEmpty {
                     ContentUnavailableView.search(text: query)
                 } else {
-                    ForEach(found, id: \.ident) { field in
-                        Button {
-                            if plan.dep.isEmpty { plan.dep = field.ident } else { plan.dest = field.ident; plan.plan() }
-                        } label: {
+                    ForEach(found) { field in
+                        NavigationLink(value: field.ident) {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(field.ident).font(.headline)
                                 Text([field.name, field.municipality, field.region].compactMap { $0 }.joined(separator: " · "))
@@ -33,6 +33,7 @@ struct AirportSearchView: View {
             }
             .navigationTitle("Airport")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: String.self) { ident in AirportCard(ident: ident) }
             .searchable(text: $query, prompt: "Identifier or name")
             .textInputAutocapitalization(.characters)
             .autocorrectionDisabled()

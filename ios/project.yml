@@ -21,15 +21,6 @@ settings:
     # passes the repo's WINGTIP_URL host over this.
     WINGTIP_HOST: wingtipmaps.app
     SWIFT_STRICT_CONCURRENCY: minimal
-packages:
-  OpenAPIRuntime:
-    url: https://github.com/apple/swift-openapi-runtime
-    from: "1.7.0"
-  OpenAPIURLSession:
-    url: https://github.com/apple/swift-openapi-urlsession
-    from: "1.0.0"
-  WingtipAPI:
-    path: Packages/WingtipAPI
 targets:
   Wingtip:
     type: application
@@ -37,13 +28,6 @@ targets:
     sources:
       - path: Wingtip
         excludes: ["Info.plist", "Wingtip.entitlements"]
-    dependencies:
-      - package: WingtipAPI
-        product: PlannerAPI
-      - package: OpenAPIRuntime
-        product: OpenAPIRuntime
-      - package: OpenAPIURLSession
-        product: OpenAPIURLSession
     info:
       path: Wingtip/Info.plist
       properties:
