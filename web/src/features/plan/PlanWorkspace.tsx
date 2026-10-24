@@ -1274,7 +1274,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setAlt(String(ft));
     setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_nearest: nearest ? "1" : null, altitude_choice: null }), { replace: true });
   }, [setAlt, setSearchParams]);
-  const flyWheelAltitude = useCallback((ft: number) => flyAltitude(ft, true), [flyAltitude]);
+  const flyWheelAltitude = useCallback((ft: number, legal: boolean) => flyAltitude(ft, legal), [flyAltitude]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,

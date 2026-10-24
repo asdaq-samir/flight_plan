@@ -47,6 +47,11 @@ function cruiseOf(nav: NavLogAltitude | null, legs: Leg[]): number | null {
 /** Each plan's name at the altitude it cruises at, its highest step:
  *  "Fastest · Economical" where two fly the same, in PREFERRED's order, so
  *  the first is the one the altitude is flown as. */
+/** The wheel's altitudes past the planner's legal ones: every 500 ft from
+ *  1,000 ft to 17,500 ft, under Class A, which begins at 18,000 ft MSL and
+ *  takes no VFR flight (14 CFR 71.33, 91.135). */
+const LADDER_FT = Array.from({ length: 34 }, (_, i) => 1000 + i * 500);
+
 function planNames(nav: NavLogAltitude | null): Record<number, string> {
   const names: Record<number, string[]> = {};
   const options = [...(nav?.options ?? [])].sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind));
@@ -225,8 +230,10 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   onGoRound?: (via: string[], stopIndex: number) => void;
   /** Picks one of the four plans, which re-plans. */
   onAltitudeChoiceChange: (choice: AltitudeChoice) => void;
-  /** Flies the whole route at an altitude of the pilot's own, feet. */
-  onFlyAltitude: (feet: number) => void;
+  /** Flies the whole route at an altitude of the pilot's own, feet: at
+   *  each leg's nearest legal one where it is one of the planner's
+   *  (`legal`), else as it is, with its cautions. */
+  onFlyAltitude: (feet: number, legal: boolean) => void;
   rules?: FlightRules;
   onRulesChange?: (rules: FlightRules) => void;
 }) {
@@ -252,7 +259,13 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
   // heading and the graph's line with it, for an altitude not flown.
   const listed = figures.map(f => f.altitude_ft);
   const own = cruise !== null && listed.length > 0 && !listed.includes(cruise) ? cruise : null;
-  const altitudes = (own === null ? listed : [...listed, own]).sort((a, b) => b - a);
+  // And every 500 ft besides, at the owner's "I don't want to put hard
+  // limits on anything. A warning tick or a label is enough": an altitude
+  // the planner would not pick -- over the ceiling, into Class B, under the
+  // terrain's floor -- is on the wheel too, flown as the pilot's own with
+  // its cautions said, not moved to the nearest legal one.
+  const legal = new Set(listed);
+  const altitudes = [...new Set([...listed, ...(own === null ? [] : [own]), ...(listed.length ? LADDER_FT : [])])].sort((a, b) => b - a);
   // The altitude on the wheel, the one flown when it was put there and the
   // route it was on: once another is flown (it, re-planned; a figure
   // typed) or the route changes, the wheel is at the one flown.
@@ -279,14 +292,17 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
       const plan = planAt(nav, altitude);
       if (plan ? plan === nav?.flown : altitude === cruise) return;
       if (plan) onAltitudeChoiceChange(plan);
-      else onFlyAltitude(altitude);
+      else onFlyAltitude(altitude, legal.has(altitude));
     }, 250);
   };
   const { data: profile } = useQuery({
     ...routeProfileQuery(ends?.departure.ident ?? "", ends?.destination.ident ?? "", (ends?.stops ?? []).map(s => s.ident)),
     enabled: !!ends,
   });
-  const names = own === null ? planNames(nav) : { ...planNames(nav), [own]: "Yours" };
+  const names: Record<number, string> = {
+    ...Object.fromEntries(altitudes.filter(a => !legal.has(a)).map(a => [a, "Outside the limits"])),
+    ...planNames(nav), ...(own === null ? {} : { [own]: "Yours" }),
+  };
   // The ground against an altitude: its highest point along the route, the
   // room over it, and how far along the route first meets it.
   const check = (altitude: number) => {
