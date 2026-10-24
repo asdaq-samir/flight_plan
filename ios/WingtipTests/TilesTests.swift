@@ -1,3 +1,4 @@
+import CoreLocation
 import Foundation
 import Testing
 @testable import Wingtip
@@ -36,5 +37,23 @@ struct TilesTests {
         #expect(store.read(cycle: "07-10-2026", kind: "sec", z: 8, x: 62, y: 93) == nil)
         #expect(store.bytes() == 3)
         try? FileManager.default.removeItem(at: root)
+    }
+}
+
+/// The tiles a route's corridor needs, the web map's own arithmetic.
+struct KeepRouteTests {
+    @Test func aPointFallsInTheTileTheWebMapAsksFor() {
+        // Campbell (C81) at zoom 8: x 65, y 94, as the web map addresses it.
+        let t = KeepRoute.tile(lat: 42.3246, lon: -88.0741, zoom: 8)
+        #expect(t.x == 65 && t.y == 94)
+    }
+
+    @Test func aShortRouteWantsAFewTilesAtEachZoomAndMoreAtTheFiner() {
+        let line = [CLLocationCoordinate2D(latitude: 42.32, longitude: -88.07), CLLocationCoordinate2D(latitude: 42.42, longitude: -87.87)]
+        let coarse = KeepRoute.tiles(along: line, minZoom: 7, maxZoom: 7)
+        let fine = KeepRoute.tiles(along: line, minZoom: 10, maxZoom: 10)
+        #expect(coarse.count >= 9 && coarse.count <= 16)
+        #expect(fine.count > coarse.count)
+        #expect(KeepRoute.tiles(along: [line[0]], minZoom: 7, maxZoom: 10).isEmpty)
     }
 }

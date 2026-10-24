@@ -64,6 +64,5 @@ tv/out/
 # The native iOS app: XcodeGen makes the project on the runner.
 ios/Wingtip.xcodeproj
 ios/.build
-ios/Packages/*/.build
 ios/Wingtip/Info.plist
 ios/Wingtip/Wingtip.entitlements

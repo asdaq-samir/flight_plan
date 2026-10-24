@@ -12,13 +12,13 @@ last gate.
 - `ios/project.yml`: the Xcode project, made by XcodeGen on the runner.
   Nothing under `ios/` is a generated file; the project is never
   committed.
-- `ios/Packages/WingtipAPI`: the planner's Swift client, generated as the
-  package builds by Apple's swift-openapi-generator from
-  `planning-service/openapi.json` (a symlink into the repo, so the
-  document and the client cannot drift). `openapi-generator-config.yaml`
-  lists the paths generated; add one when a screen needs it. The
-  gateway's few account calls are written by hand (`API/Gateway.swift`):
-  its document answers `*/*`, which the generator would hand over raw.
+- `ios/Wingtip/API`: the planner's and the gateway's calls, with the
+  answers' shapes as Codable by hand (`Models.swift`), in the document's
+  own names. Apple's swift-openapi-generator was tried first (24 October)
+  and left out every property FastAPI gives as `anyOf` string and null,
+  which is most of them, so the generated client was taken out again. A
+  model lists only the properties a screen shows; add one when a screen
+  needs it, from `planning-service/openapi.json`.
 - `ios/Wingtip`: the app. `Config` (the host), `Session` (who is signed
   in), `Charts` (which chart, from `/api/chart`, kept for offline),
   `Tiles` (the tile address, the store on disk, the MapKit overlay) and
@@ -41,13 +41,9 @@ The owner's Mac cannot run a current Xcode, so everything happens in
 `.github/workflows/native-ios.yml` on GitHub's macOS runner (free for a
 public repository):
 
-- a pull request or a push to `main` that touches `ios/`, the planner's
-  OpenAPI document or the workflow: XcodeGen, then `xcodebuild test` on
+- a pull request, a push to `main` or to a `claude/native-*` branch that
+  touches `ios/` or the workflow: XcodeGen, then `xcodebuild test` on
   the newest iPhone simulator the runner has;
-- the step "The generated planner client's operations" prints the
-  generated client's method names, so a call can be written right
-  without an Xcode of one's own (the planner's operation ids, in
-  lower camel case: `chart_info_api_chart_get` is `chartInfoApiChartGet`);
 - on `main`, with the App Store Connect key the owner sets as docs/IOS.md
   lists (the same variables and secret as the shell's), the app is
   archived and uploaded to TestFlight.
