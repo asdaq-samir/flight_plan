@@ -178,3 +178,10 @@ def test_a_pack_made_later_has_a_higher_version_and_a_near_name_is_short():
     assert foreflight._waypoint_word("Road or railway near Watertown") == "ROAD_WATERTOWN"
     assert foreflight._waypoint_word("River near Scott") == "RIVER_SCOTT"
     assert foreflight._waypoint_word("Round Lake Beach") == "ROUND_LAKE_BEACH"
+
+
+def test_a_present_position_is_pos_in_a_waypoint_name():
+    assert foreflight.short("@42.2333,-87.9883") == "POS"
+    names = foreflight.waypoint_names("@42.2333,-87.9883", "C29", [
+        foreflight.PackCheckpoint(lat=42.5, lon=-88.5, category="airport", score=4.6, along_nm=33.0)])
+    assert names == ["POSC2901"]
