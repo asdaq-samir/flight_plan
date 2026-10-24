@@ -39,3 +39,28 @@ def test_the_ways_with_the_airplanes_figures_and_the_pilots_minimums(monkeypatch
     assert given["min_ceiling_ft"] == 3000 and given["min_visibility_sm"] == 5
     # Asked again within ten minutes, the answer kept.
     assert client.get(url).json() == ANSWER and len(asked) == 1
+
+
+def test_a_route_the_plan_refuses_still_gets_its_ways(monkeypatch):
+    # A saved trip of too many stops (load_route's 422): the ways are
+    # offered from the straight line, nothing of the route's own.
+    from fastapi import HTTPException
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    asked = []
+
+    def options(dep, dest, profile, **given):
+        asked.append(given)
+        return ANSWER
+
+    monkeypatch.setattr(route_options, "resolve", lambda *idents: tuple({"lat": 1.0 + i, "lon": 2.0} for i, _ in enumerate(idents)))
+    monkeypatch.setattr(route_options.vfr_route_options, "options", options)
+
+    def refuse(dep, dest, stops=""):
+        raise HTTPException(status_code=422, detail="too many stops")
+    monkeypatch.setattr(route_options, "load_route", refuse)
+    client = TestClient(app)
+    answer = client.get("/api/route-options?dep=c81&dest=kdlh&stops=" + ",".join(f"K{i:03d}" for i in range(20)))
+    assert answer.status_code == 200
+    assert asked[0]["current"] is None and asked[0]["current_idents"] == [] and asked[0]["current_landed"] == []

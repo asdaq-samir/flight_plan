@@ -47,6 +47,13 @@ export function hoursMinutes(minutes: number): { hours: number; minutes: number 
   return { hours: Math.floor(whole / 60), minutes: whole % 60 };
 }
 
+/** A duration in words, "3 h 10 min", "45 min": FPL's Routes' cards and
+ *  the ways' chips on the map, which each wrote their own. */
+export function minutesWords(minutes: number): string {
+  const t = hoursMinutes(minutes);
+  return t.hours ? `${t.hours} h ${t.minutes} min` : `${t.minutes} min`;
+}
+
 /** A time en route as a paper nav log writes it, "0:18", "1:35": the
  *  kneeboard, a saved flight's page and its debrief, and the instructor's
  *  review, which each had a copy of it. */

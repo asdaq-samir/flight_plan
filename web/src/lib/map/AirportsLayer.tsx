@@ -219,7 +219,9 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     const container = map.getContainer();
     const caught = (e: MouseEvent) => {
       const target = e.target as Element | null;
-      if (!target?.closest(".leaflet-map-pane") || target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip")) return;
+      // Nor one on a line drawn over the chart -- the course, a way the
+      // Routes offer -- which keeps its own tap where it passes a field.
+      if (!target?.closest(".leaflet-map-pane") || target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive")) return;
       const at = map.mouseEventToContainerPoint(e);
       let best: { ident: string; px: number } | null = null;
       for (const a of drawn.current) {

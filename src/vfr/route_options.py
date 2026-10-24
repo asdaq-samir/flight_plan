@@ -16,7 +16,7 @@ A grid of cells round the route is read once:
   in MVFR marks them marginal;
 - the G-AIRMETs between the fields: IFR and mountains obscured closed,
   low-level turbulence, icing and wind shear marginal;
-- thunderstorms, by AIM 7-1-29's "avoid by at least 20 miles": a TAF or a
+- thunderstorms, by AIM 7-1-27's "avoid by at least 20 miles": a TAF or a
   METAR with TS or VCTS, and a convective SIGMET's area, close the cells
   within 20 nm; any other SIGMET under 18,000 ft (severe turbulence or
   icing, IFR, obscuration, ash) closes its own area;
@@ -47,9 +47,13 @@ import math
 import time
 from datetime import datetime, timezone
 
+import logging
+
 import numpy as np
 
 from . import fixes, fuelstops, geo, navlog, sun, terrain_detour, weather
+
+logger = logging.getLogger(__name__)
 
 #: The grid's cells, degrees: about 15 nm, as the terrain way round's.
 CELL_DEG = 0.25
@@ -57,7 +61,7 @@ CELL_DEG = 0.25
 #: degrees at least and at most: room to go round a line of storms.
 REACH_SHARE = 0.3
 REACH_MIN_DEG, REACH_MAX_DEG = 1.0, 3.0
-#: AIM 7-1-29, Thunderstorm Flying: "avoid by at least 20 miles any
+#: AIM 7-1-27, Thunderstorm Flying: "avoid by at least 20 miles any
 #: thunderstorm identified as severe or giving an intense radar echo" --
 #: kept for every one forecast or reported, as a light airplane has no
 #: radar to tell which.
@@ -65,7 +69,9 @@ STORM_NM = 20.0
 #: How far round a field its report or forecast is taken to hold: a TAF
 #: is for 5 sm round the field (AC 00-45H), twice that here.
 FIELD_WX_NM = 10.0
-#: And how far round a field in MVFR the cells are marginal.
+#: And how far round a field in MVFR the cells are marginal: the planner's
+#: own figure, not a rule's -- a reporting field is some 30 nm from the
+#: next in most of the country, so a marginal report colours the way to it.
 MARGINAL_NM = 30.0
 #: 14 CFR 91.155(a) and (c): 3 sm in Class E under 10,000 ft, and no VFR
 #: under a ceiling below 1,000 ft in a surface area -- the least any
@@ -103,7 +109,9 @@ STOP_FIELD_NM = 15.0
 #: Minutes on the ground at each stop: the owner's 30-minute turnaround
 #: (2026-10-20), the planner's own (app.routers.plan.TURNAROUND_MIN).
 TURNAROUND_MIN = 30.0
-#: The airplane is taken to climb to cruise from no lower than this, ft.
+#: The airplane is taken to climb to cruise from no lower than this, ft:
+#: the planner's own figure, the lowest a cross-country is flown over
+#: level ground (91.119(c)'s 500 ft and the altitudes the plan picks).
 LOWEST_CRUISE_FT = 2500.0
 #: The kinds of way, in the order they are offered.
 KINDS = ("fastest", "weather", "stops")
@@ -117,14 +125,19 @@ class _Grid:
     """The cells round a route: where each is, its ground, what closes it
     and what makes it marginal, and its best groundspeed each way."""
 
-    def __init__(self, start: tuple, end: tuple):
+    def __init__(self, start: tuple, end: tuple, via: list[tuple] | tuple = ()):
         span = float(geo.distance_nm(start[0], start[1], end[0], end[1])) / 60.0
         reach = min(REACH_MAX_DEG, max(REACH_MIN_DEG, span * REACH_SHARE))
-        self.lat0 = min(start[0], end[0]) - reach
-        self.lon0 = min(start[1], end[1]) - reach / max(0.2, math.cos(math.radians((start[0] + end[0]) / 2)))
-        self.rows = int(math.ceil((max(start[0], end[0]) + reach - self.lat0) / CELL_DEG))
-        lon_reach = (min(start[1], end[1]) - self.lon0)
-        self.cols = int(math.ceil((max(start[1], end[1]) + lon_reach - self.lon0) / CELL_DEG))
+        # Round the pilot's own points too (`via`): a point outside the grid
+        # was clamped to its edge, and the route read against cells it never
+        # flew (the audit of 2026-10-24).
+        points = [start, end, *via]
+        lats, lons = [p[0] for p in points], [p[1] for p in points]
+        self.lat0 = min(lats) - reach
+        self.lon0 = min(lons) - reach / max(0.2, math.cos(math.radians((start[0] + end[0]) / 2)))
+        self.rows = int(math.ceil((max(lats) + reach - self.lat0) / CELL_DEG))
+        lon_reach = (min(lons) - self.lon0)
+        self.cols = int(math.ceil((max(lons) + lon_reach - self.lon0) / CELL_DEG))
         self.lats = self.lat0 + (np.arange(self.rows) + 0.5) * CELL_DEG
         self.lons = self.lon0 + (np.arange(self.cols) + 0.5) * CELL_DEG
         self.lat_grid, self.lon_grid = np.meshgrid(self.lats, self.lons, indexing="ij")
@@ -252,7 +265,9 @@ def _field_weather(grid: _Grid, ident: str, lat: float, lon: float, ceiling, vis
     ) if w)
     if low:
         grid.close(grid.near(lat, lon, FIELD_WX_NM), "weather", f"{ident} {how} under minimums ({words})")
-    elif (ceiling is not None and ceiling < MVFR_CEILING_FT) or (visibility is not None and visibility < MVFR_VISIBILITY_SM):
+    # Inclusive: AIM 7-1-7's MVFR is a ceiling of 1,000 to 3,000 ft and/or
+    # visibility 3 to 5 miles, so exactly 3,000 ft or 5 miles is marginal.
+    elif (ceiling is not None and ceiling <= MVFR_CEILING_FT) or (visibility is not None and visibility <= MVFR_VISIBILITY_SM):
         grid.mark(grid.near(lat, lon, MARGINAL_NM), "marginal", f"{ident} {how} marginal ({words})")
 
 
@@ -505,8 +520,10 @@ def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cos
         return sum(1 for c in grid.line_cells(a, b) if not grid.open(c))
 
     def clear_enough(i: int, j: int) -> bool:
-        return grid.line_open(points[i], points[j]) or \
-            closed_cells(points[i], points[j]) <= sum(closed_cells(points[k], points[k + 1]) for k in range(i, j))
+        # The way's closed cells as a set: the cell at a turn is on both
+        # its legs, and counted twice let a shortcut through one more.
+        crossed = {c for k in range(i, j) for c in grid.line_cells(points[k], points[k + 1]) if not grid.open(c)}
+        return grid.line_open(points[i], points[j]) or closed_cells(points[i], points[j]) <= len(crossed)
 
     while i < len(points) - 1:
         j = len(points) - 1
@@ -545,8 +562,9 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     paved runway (vfr.fuelstops) within STOP_FIELD_NM of it, in open
     cells, each flight landing with `reserve_gal` (91.151) -- the fewest
     minutes, TURNAROUND_MIN at each, or the fewest landings (`fewest`).
-    [] where the tanks reach; None where no chain of fields does."""
-    tas = float(profile["cruise_tas_kt"])
+    [] where the tanks reach; None where no chain of fields does (or no
+    table of fields could be had)."""
+    tas = max(float(profile["cruise_tas_kt"]), 1.0)
     gph = float(profile["fuel_burn_gph"])
     usable = float(profile.get("usable_fuel_gal") or 0.0)
     taxi = float(profile.get("taxi_fuel_gal") or 0.0)
@@ -561,6 +579,8 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     total_min = along_min[-1]
     if total_min / 60.0 * gph <= reach_gal:
         return []
+    if fields is None or len(fields) == 0:
+        return None
     # Each field's nearest point on the way: how far along, how far off.
     lat_f, lon_f = fields["lat"].to_numpy(float), fields["lon"].to_numpy(float)
     best_off = np.full(len(lat_f), np.inf)
@@ -613,7 +633,8 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
 
 def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = None, fcst_hr: str = "06",
             min_ceiling_ft: float | None = None, min_visibility_sm: float | None = None,
-            current: list[tuple] | None = None, current_idents: list[str] | None = None, fields=None) -> dict:
+            current: list[tuple] | None = None, current_idents: list[str] | None = None,
+            current_landed: list[bool] | None = None, fields=None) -> dict:
     """The ways to fly from `dep` to `dest` ({"ident", "lat", "lon"}) in
     an airplane of `profile` (vfr.aircraft's: cruise_tas_kt, fuel_burn_gph,
     usable_fuel_gal, service_ceiling_ft): {"options": [{"kind", "title",
@@ -640,9 +661,17 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     ceiling = max(LEGAL_CEILING_FT, float(min_ceiling_ft or 0.0))
     visibility = max(LEGAL_VISIBILITY_SM, float(min_visibility_sm or 0.0))
 
-    grid = _Grid(start, end)
+    grid = _Grid(start, end, current or ())
     unchecked: list[str] = []
-    floor = _ground(grid, top)
+    try:
+        floor = _ground(grid, top)
+    except (OSError, ValueError) as error:
+        # The terrain tiles not to be had (requests' errors are OSErrors):
+        # the ways offered over level ground, and the pilot told, as the
+        # weather is -- it was the one source that failed the whole answer.
+        logger.warning("route options: terrain not read (%s)", error)
+        floor = np.zeros((grid.rows, grid.cols))
+        unchecked.append("terrain")
     grid.floor = floor
     try:
         _weather(grid, window, ceiling, visibility)
@@ -664,8 +693,15 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         sun.is_night(end[0], end[1], datetime.fromtimestamp(window[1], timezone.utc))
     reserve_min = navlog.NIGHT_RESERVE_MIN if night else navlog.DAY_RESERVE_MIN
     reserve_gal = reserve_min / 60.0 * float(profile["fuel_burn_gph"])
-    table = fields if fields is not None else fuelstops.fields_with_fuel()
-    table = table[~table["ident"].isin({dep.get("ident"), dest.get("ident")})]
+    try:
+        table = fields if fields is not None else fuelstops.fields_with_fuel()
+    except (OSError, ValueError) as error:
+        logger.warning("route options: fuel fields not read (%s)", error)
+        table = None
+        unchecked.append("fuel fields")
+    # Not the route's own fields: a landing the pilot makes is not a stop to add.
+    if table is not None:
+        table = table[~table["ident"].isin({dep.get("ident"), dest.get("ident"), *(current_idents or [])})]
 
     found: list[dict] = []
     for kind in KINDS:
@@ -680,18 +716,16 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             if len(turns) - 2 <= MAX_TURNS:
                 break
         stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops")
-        if stops is None:
-            continue
-        option = _option(kind, grid, gs, turns, stops, profile)
-        if option is None:
-            continue
+        # No chain of fields reaches: the way offered all the same, with
+        # that said (the owner's rule: no hard limits, only warnings).
+        option = _option(kind, grid, gs, turns, stops or [], profile, no_fuel=stops is None)
         # A way that is also another's best is one option with both names.
         same = next((o for o in found if o["stops"] == option["stops"]), None)
         if same is not None:
             same["kinds"].append(kind)
             continue
         found.append(option)
-    own = _own(grid, gs, current or [start, end], current_idents or [], profile, table, reserve_gal)
+    own = _own(grid, gs, current or [start, end], current_idents or [], current_landed or [], profile, table, reserve_gal)
     return {
         "options": found,
         "own": own,
@@ -709,26 +743,47 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     }
 
 
-def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], profile: dict, table, reserve_gal: float) -> dict | None:
+def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], landed: list[bool], profile: dict, table,
+         reserve_gal: float) -> dict:
     """The pilot's own route with the fuel stops it needs put in where they
     fall along it -- its own points kept, in order -- for FPL's card of it
     before anything is planned (the owner's "Don't plan anything unless a
     route is picked", 2026-10-24): its points, the fuel stops among them,
-    its miles, minutes and fuel, and what it meets. None where no chain of
-    fields with fuel reaches."""
-    stops = _stops(grid, gs, path, profile, table, reserve_gal, fewest=False)
-    if stops is None:
-        return None
+    its miles, minutes and fuel, and what it meets. Each hop between the
+    fields the pilot lands at (`landed`, one per point between the ends)
+    is a flight of its own, refuelled there: a landing already made was
+    taken as flown over, and its own field offered as the stop to add
+    (the audit of 2026-10-24). Where no chain of fields reaches a hop,
+    the route is offered as it is with that said (crosses)."""
+    inner = list(zip(idents, path[1:-1], landed if len(landed) == len(idents) else [False] * len(idents)))
+    # The hops: the path split at each field landed at.
+    hops: list[list[tuple]] = [[path[0]]]
+    for _, p, lands in inner:
+        hops[-1].append(p)
+        if lands:
+            hops.append([p])
+    hops[-1].append(path[-1])
+    stops: list[dict] = []
+    no_fuel = False
+    at = 0.0
+    for hop in hops:
+        found = _stops(grid, gs, hop, profile, table, reserve_gal, fewest=False)
+        if found is None:
+            no_fuel = True
+        else:
+            stops += [{**stop, "at": at + stop["at"]} for stop in found]
+        at += sum(_line_minutes(grid, gs, a, b) for a, b in zip(hop, hop[1:]))
     along = [0.0]
     for a, b in zip(path, path[1:]):
         along.append(along[-1] + _line_minutes(grid, gs, a, b))
     points = [(at, {"ident": ident, "lat": p[0], "lon": p[1], "fuel": False})
-              for at, ident, p in zip(along[1:-1], idents, path[1:-1])]
+              for at, (ident, p, _) in zip(along[1:-1], inner)]
     points += [(stop["at"], {"ident": stop["ident"], "lat": stop["lat"], "lon": stop["lon"], "fuel": True}) for stop in stops]
     points.sort(key=lambda p: p[0])
     way = [path[0]] + [(p["lat"], p["lon"]) for _, p in points] + [path[-1]]
     distance = sum(float(geo.distance_nm(a[0], a[1], b[0], b[1])) for a, b in zip(way, way[1:]))
     air = sum(_line_minutes(grid, gs, a, b) for a, b in zip(way, way[1:]))
+    landings = len(stops) + sum(1 for _, _, lands in inner if lands)
     return {
         "kind": "own", "kinds": ["own"], "title": "Your Route",
         "stops": [p["ident"] for _, p in points],
@@ -736,10 +791,10 @@ def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], prof
         "path": [[round(lat, 5), round(lon, 5)] for lat, lon in way],
         "distance_nm": round(distance, 1),
         "air_min": round(air, 1),
-        "ground_min": TURNAROUND_MIN * len(stops),
+        "ground_min": TURNAROUND_MIN * landings,
         "fuel_gal": round(air / 60.0 * float(profile["fuel_burn_gph"]), 1),
-        "landings": len(stops),
-        "crosses": _crossed(grid, way),
+        "landings": landings,
+        "crosses": _crossed(grid, way) + ([_no_fuel(grid)] if no_fuel else []),
         "marginal": _crossed(grid, way, marginal=True),
         **_along(grid, gs, way, float(profile["cruise_tas_kt"])),
     }
@@ -782,14 +837,23 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
     return {
         "bands": [{"kind": r["kind"], "min": round(r["min"], 1)} for r in runs],
         "tail_kt": round(wind_min / total, 1) if total else 0.0,
-        "floor_ft": int(math.ceil(floor / 100.0) * 100),
+        # The highest ground with 91.119's 1,000 ft alone: the coarse read's
+        # own margin is the planner's to keep, not a figure for the pilot.
+        "floor_ft": int(math.ceil(max(0.0, floor - terrain_detour.COARSE_MARGIN_FT) / 100.0) * 100),
     }
 
 
-def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: list[dict], profile: dict) -> dict | None:
+def _no_fuel(grid: _Grid) -> int:
+    """The hazard said on a way no chain of fields with fuel reaches."""
+    return grid.hazard("fuel", f"No field with fuel within {STOP_FIELD_NM:.0f} nm reaches")
+
+
+def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: list[dict], profile: dict, *,
+            no_fuel: bool = False) -> dict:
     """One way as the page offers it: its turns named off the nearest fix
-    and its fuel stops in order along it, with its distance, minutes and
-    fuel. None where a turn has no fix near enough to be named."""
+    -- or, with none near enough, as a position (@lat,lon), which the
+    route takes as a point of its own -- and its fuel stops in order
+    along it, with its distance, minutes and fuel."""
     # The turns, and the stops between them, in order along the way.
     along = [0.0]
     for a, b in zip(turns, turns[1:]):
@@ -797,9 +861,8 @@ def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: l
     points: list[tuple[float, dict]] = []
     for at, turn in zip(along[1:-1], turns[1:-1]):
         named = fixes.frd_near(turn[0], turn[1])
-        if named is None:
-            return None
-        points.append((at, {"ident": named["ident"], "lat": turn[0], "lon": turn[1], "fuel": False}))
+        ident = named["ident"] if named is not None else f"@{turn[0]:.4f},{turn[1]:.4f}"
+        points.append((at, {"ident": ident, "lat": turn[0], "lon": turn[1], "fuel": False}))
     for stop in stops:
         points.append((stop["at"], {"ident": stop["ident"], "lat": stop["lat"], "lon": stop["lon"], "fuel": True}))
     points.sort(key=lambda p: p[0])
@@ -819,7 +882,7 @@ def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: l
         "ground_min": TURNAROUND_MIN * len(stops),
         "fuel_gal": round(air / 60.0 * float(profile["fuel_burn_gph"]), 1),
         "landings": len(stops),
-        "crosses": _crossed(grid, path),
+        "crosses": _crossed(grid, path) + ([_no_fuel(grid)] if no_fuel else []),
         "marginal": _crossed(grid, path, marginal=True),
         **_along(grid, gs, path, float(profile["cruise_tas_kt"])),
     }

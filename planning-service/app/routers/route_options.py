@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Annotated
 
 from cachetools import TTLCache
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from vfr import route_options as vfr_route_options
 
 from ..common import DEFAULT_AIRCRAFT, load_route, resolve
@@ -56,15 +56,22 @@ def route_options(
                                usable_fuel_gal=usable_fuel_gal, service_ceiling_ft=service_ceiling_ft)
     # The pilot's own route, its points by ident: what it meets, and it with
     # the fuel stops it needs put in (`own`).
-    route = load_route(dep, dest, stops)
-    current = [(a["lat"], a["lon"]) for a in route.airports]
-    current_idents = list(route.idents[1:-1])
+    # A route the plan refuses (too many stops, a stop twice over) still
+    # gets its ways: the straight line's, nothing of its own.
+    try:
+        route = load_route(dep, dest, stops)
+    except HTTPException:
+        route = None
+    current = [(a["lat"], a["lon"]) for a in route.airports] if route else None
+    current_idents = list(route.idents[1:-1]) if route else []
+    # Which of its points are fields landed at, not fixes flown over.
+    current_landed = [not a.get("fix") for a in route.airports[1:-1]] if route else []
     found = vfr_route_options.options(
         {"ident": dep.upper(), "lat": start["lat"], "lon": start["lon"]},
         {"ident": dest.upper(), "lat": end["lat"], "lon": end["lon"]},
         profile, depart=depart, fcst_hr=forecast_hour_for(depart),
         min_ceiling_ft=min_ceiling_ft, min_visibility_sm=min_visibility_sm, current=current if stops.strip() else None,
-        current_idents=current_idents,
+        current_idents=current_idents, current_landed=current_landed,
     )
     answer = RouteOptions(**found)
     with _LOCK:

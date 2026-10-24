@@ -14,6 +14,9 @@ export interface RouteWay {
   label: string;
   /** Its name, said on its callout while it is the one shown, "Best Weather". */
   name?: string;
+  /** Where along it its chip sits, a share of its length: given by the
+   *  caller so it holds as the other ways come and go (else by place). */
+  share?: number;
 }
 
 // One style for good: react-leaflet restyles a path whose pathOptions is a
@@ -93,5 +96,5 @@ export const RouteWaysLayer = memo(function RouteWaysLayer({ ways = NO_WAYS, sho
   shown?: string | null;
   onPick: (key: string) => void;
 }) {
-  return <>{ways.map((way, i) => <Way key={way.key} way={way} shown={way.key === shown} at={WAY_SHARES[i % WAY_SHARES.length]!} onPick={onPick} />)}</>;
+  return <>{ways.map((way, i) => <Way key={way.key} way={way} shown={way.key === shown} at={way.share ?? WAY_SHARES[i % WAY_SHARES.length]!} onPick={onPick} />)}</>;
 });
