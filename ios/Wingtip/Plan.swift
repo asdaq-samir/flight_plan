@@ -15,6 +15,9 @@ final class Plan {
     /// The planner's aircraft profile; the airplane by N-number comes in
     /// phase 3.
     var aircraft = "c172"
+    /// An altitude of the pilot's own, feet MSL; nil for the planner's
+    /// pick, with its warnings said where one is over a limit.
+    var ownAltitudeFt: Double?
 
     private(set) var course: Course?
     private(set) var legs: [Leg] = []
@@ -42,7 +45,7 @@ final class Plan {
     func plan() {
         guard routed else { return }
         running?.cancel()
-        let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft
+        let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft, own = ownAltitudeFt
         self.dep = dep; self.dest = dest; self.stops = stops
         planning = true
         problem = nil
@@ -54,7 +57,7 @@ final class Plan {
                 guard !Task.isCancelled else { return }
                 self.course = course
                 var fresh: [Leg] = []
-                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft) {
+                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own) {
                     guard !Task.isCancelled else { return }
                     switch message {
                     case .stage(let detail): self.stage = detail

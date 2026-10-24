@@ -11,6 +11,9 @@ struct RootView: View {
     @State private var sheetUp = true
     @State private var tab: Tabs = .fpl
     @State private var airports: [String] = []
+    @State private var following = false
+    @State private var routeAway = false
+    @State private var fitRequest = 0
 
     enum Tabs: Hashable { case fpl, airport, aircraft, setup }
 
@@ -28,9 +31,13 @@ struct RootView: View {
                 tab = .airport
                 airports = [ident]
                 if detent != .medium { detent = .medium }
-            }
+            },
+            following: $following, routeAway: $routeAway, fitRequest: fitRequest
         )
         .ignoresSafeArea()
+        .overlay(alignment: .topTrailing) {
+            MapButtons(following: $following, routeAway: routeAway && plan.course != nil, fitRoute: { fitRequest += 1 })
+        }
         .sheet(isPresented: $sheetUp) {
             SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
                 .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
@@ -59,7 +66,7 @@ struct SheetView: View {
                 AirportSearchView(path: $airports)
             }
             Tab("Aircraft", systemImage: "airplane", value: RootView.Tabs.aircraft) {
-                ComingView(title: "Aircraft", detail: "The airplane by its N-number and its planning figures come in phase 3.")
+                AircraftView()
             }
             Tab("Setup", systemImage: "gearshape", value: RootView.Tabs.setup) {
                 SetupView()

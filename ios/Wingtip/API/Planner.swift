@@ -93,6 +93,12 @@ enum Planner {
         try await fetch(AirportPlace.self, "/api/airport/\(ident)")
     }
 
+    /// The planner's airplane types (/api/aircraft-profiles).
+    static func aircraftProfiles() async throws -> [AircraftProfile] {
+        struct Answer: Decodable { let profiles: [AircraftProfile] }
+        return try await fetch(Answer.self, "/api/aircraft-profiles").profiles
+    }
+
     /// The route as entered, its ends found and its line (/api/course).
     static func course(dep: String, dest: String, stops: [String]) async throws -> Course {
         try await fetch(Course.self, "/api/course", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")])

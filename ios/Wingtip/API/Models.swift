@@ -114,6 +114,20 @@ struct TrafficPattern: Codable, Equatable, Sendable {
     var published: Bool = false
 }
 
+/// One of the planner's airplane types and the handbook figures it flies
+/// on (AircraftProfile, data/aircraft/*.json).
+struct AircraftProfile: Codable, Equatable, Sendable {
+    let name: String
+    var type: String?
+    var designator: String?
+    let cruiseTasKt: Double
+    let fuelBurnGph: Double
+    let serviceCeilingFt: Double
+    var usableFuelGal: Double?
+    var cruisePowerPct: Double?
+    var climbTasKt: Double?
+}
+
 /// A field's card (AirportPlace).
 struct AirportPlace: Codable, Equatable, Sendable {
     let ident: String

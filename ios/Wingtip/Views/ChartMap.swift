@@ -13,6 +13,12 @@ struct ChartMap: UIViewRepresentable {
     let course: Course?
     /// A field's mark tapped.
     var onAirport: ((String) -> Void)?
+    /// Own ship kept in the middle; a pan by the pilot ends it.
+    @Binding var following: Bool
+    /// Whether the route is out of the view, for the arrow's other face.
+    @Binding var routeAway: Bool
+    /// Counted up to fit the whole route again.
+    var fitRequest: Int = 0
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -39,6 +45,17 @@ struct ChartMap: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onAirport = onAirport
+        context.coordinator.setFollowing = { [self] on in following = on }
+        context.coordinator.setRouteAway = { [self] away in if routeAway != away { routeAway = away } }
+        if following, map.userTrackingMode != .follow {
+            map.setUserTrackingMode(.follow, animated: true)
+        } else if !following, map.userTrackingMode != .none {
+            map.setUserTrackingMode(.none, animated: false)
+        }
+        if context.coordinator.fitted != fitRequest, let line = context.coordinator.courseLine {
+            context.coordinator.fitted = fitRequest
+            map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
+        }
         if let template, context.coordinator.overlay?.template != template {
             if let current = context.coordinator.overlay { map.removeOverlay(current) }
             let overlay = ChartTileOverlay(template: template, minZoom: minZoom, maxZoom: maxZoom)
@@ -55,10 +72,13 @@ struct ChartMap: UIViewRepresentable {
                 context.coordinator.courseLine = line
                 // The whole route in sight above the sheet, which covers
                 // the lower half: as the web app fits a route clear of it.
-                let padding = UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
-                map.setVisibleMapRect(line.boundingMapRect, edgePadding: padding, animated: true)
+                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
             }
         }
+    }
+
+    static func routePadding(in map: MKMapView) -> UIEdgeInsets {
+        UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -68,6 +88,9 @@ struct ChartMap: UIViewRepresentable {
         var courseLine: MKPolyline?
         var courseShown: Course?
         var onAirport: ((String) -> Void)?
+        var setFollowing: ((Bool) -> Void)?
+        var setRouteAway: ((Bool) -> Void)?
+        var fitted = 0
         let locations = CLLocationManager()
         private var followed = false
         private var fetching: Task<Void, Never>?
@@ -109,7 +132,21 @@ struct ChartMap: UIViewRepresentable {
         /// The fields in view, asked for once the map has rested a third
         /// of a second, as the web app asks (/api/airports/in-view): the
         /// planner picks fewer and bigger ones as the view widens.
+        /// The pilot's own pan ends the following, as Maps' does.
+        func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {
+            setFollowing?(mode == .follow)
+        }
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
+            if let line = courseLine {
+                // Off the route once less than a third of its box is in
+                // the view above the sheet.
+                let seen = mapView.visibleMapRect.intersection(line.boundingMapRect)
+                let share = line.boundingMapRect.size.width * line.boundingMapRect.size.height
+                setRouteAway?(share > 0 && (seen.size.width * seen.size.height) / share < 0.34)
+            } else {
+                setRouteAway?(false)
+            }
             fetching?.cancel()
             let region = mapView.region
             fetching = Task { [weak self, weak mapView] in

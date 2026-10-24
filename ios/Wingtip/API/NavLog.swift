@@ -91,11 +91,12 @@ enum NavLog {
     }
 
     /// The log for a route, line by line as the planner sends them.
-    static func stream(dep: String, dest: String, stops: [String], aircraft: String?) -> AsyncThrowingStream<NavLogMessage, any Error> {
+    static func stream(dep: String, dest: String, stops: [String], aircraft: String?, altitudeFt: Double?) -> AsyncThrowingStream<NavLogMessage, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 let request = Planner.get("/api/navlog", [
                     "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","), "aircraft": aircraft,
+                    "altitude_ft": altitudeFt.map { String(Int($0)) },
                 ])
                 do {
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)

@@ -6,7 +6,16 @@ struct FPLView: View {
     @Environment(Plan.self) private var plan
     @FocusState private var focused: Field?
 
-    enum Field { case dep, dest }
+    enum Field { case dep, dest, altitude }
+    @State private var altitude = ""
+
+    /// The hundreds typed, flown; nothing typed, the planner's own pick.
+    private func flyAltitude() {
+        focused = nil
+        let digits = altitude.filter(\.isNumber)
+        plan.ownAltitudeFt = digits.isEmpty ? nil : Double(digits).map { $0 * 100 }
+        plan.plan()
+    }
 
     var body: some View {
         @Bindable var plan = plan
@@ -31,6 +40,27 @@ struct FPLView: View {
                             if let advice = problem.advice { Text(advice).font(.footnote).foregroundStyle(.secondary) }
                         }
                         .foregroundStyle(Color.orange)
+                    }
+                }
+                if plan.routed {
+                    // The altitude beside the airplane, as the web app has
+                    // them: the planner's pick until one is typed, in
+                    // hundreds of feet ("065" for 6,500 ft, the owner's
+                    // FL-style figure); cleared, the planner's again.
+                    HStack {
+                        Text(plan.aircraft.uppercased()).font(.body.monospaced())
+                        Spacer()
+                        Text("Altitude").foregroundStyle(.secondary)
+                        TextField(plan.altitudeFt.map { String(format: "%03d", Int($0) / 100) } ?? "—", text: $altitude)
+                            .textFieldStyle(.roundedBorder).keyboardType(.numberPad).font(.body.monospaced())
+                            .frame(width: 64).multilineTextAlignment(.trailing)
+                            .focused($focused, equals: .altitude)
+                            .onSubmit(flyAltitude)
+                    }
+                    .toolbar {
+                        if focused == .altitude {
+                            ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Fly") { flyAltitude() } }
+                        }
                     }
                 }
                 if !plan.stops.isEmpty {
