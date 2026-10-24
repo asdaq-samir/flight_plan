@@ -77,14 +77,16 @@ export class AirportMarksLayer extends L.Layer {
     canvas.dataset.airportMarks = "[]";
     this.canvas = canvas;
     this.font = `700 ${LABEL_PX}px ${getComputedStyle(map.getContainer()).fontFamily || "system-ui, sans-serif"}`;
-    map.on("moveend zoom resize viewreset", this.schedule, this);
+    // Drawn again through a pan too, a frame at a time: past the canvas's
+    // edge a long pan's fields came in only as it ended.
+    map.on("move moveend zoom resize viewreset", this.schedule, this);
     map.on("zoomanim", this.animate, this);
     this.draw();
     return this;
   }
 
   onRemove(map: L.Map): this {
-    map.off("moveend zoom resize viewreset", this.schedule, this);
+    map.off("move moveend zoom resize viewreset", this.schedule, this);
     map.off("zoomanim", this.animate, this);
     cancelAnimationFrame(this.frame);
     this.frame = 0;
