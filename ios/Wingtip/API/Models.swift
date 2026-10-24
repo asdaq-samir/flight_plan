@@ -143,6 +143,36 @@ struct Checkpoint: Codable, Equatable, Sendable, Identifiable {
     var hop: Int? = 0
 }
 
+/// The ground and the airspace under the route's line (RouteProfile).
+struct ProfileGround: Codable, Equatable, Sendable {
+    let alongNm: Double
+    let groundFt: Double
+}
+
+struct ProfileAirspace: Codable, Equatable, Sendable, Identifiable {
+    let name: String
+    /// B, C, D: the document's `class`, which Swift keeps for itself.
+    let airspaceClass: String
+    let fromNm: Double
+    let toNm: Double
+    let floorFt: Double
+    var ceilingFt: Double?
+    var ident: String?
+
+    var id: String { "\(name)-\(fromNm)" }
+
+    enum CodingKeys: String, CodingKey {
+        case name, fromNm, toNm, floorFt, ceilingFt, ident
+        case airspaceClass = "class"
+    }
+}
+
+struct RouteProfile: Codable, Equatable, Sendable {
+    let lengthNm: Double
+    let terrain: [ProfileGround]
+    let airspace: [ProfileAirspace]
+}
+
 /// A field's card (AirportPlace).
 struct AirportPlace: Codable, Equatable, Sendable {
     let ident: String

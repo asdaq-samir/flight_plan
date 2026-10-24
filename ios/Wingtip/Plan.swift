@@ -18,9 +18,16 @@ final class Plan {
     /// An altitude of the pilot's own, feet MSL; nil for the planner's
     /// pick, with its warnings said where one is over a limit.
     var ownAltitudeFt: Double?
+    /// An own altitude picked off the wheel, one of the planner's legal
+    /// ones: flown at each leg's nearest legal altitude.
+    var ownAltitudeLegal = false
+    /// One of the four plans picked by name; nil for the planner's own.
+    var altitudeChoice: String?
 
     private(set) var course: Course?
     private(set) var checkpoints: [Checkpoint] = []
+    private(set) var profile: RouteProfile?
+    private(set) var altitude: NavLogAltitude?
     private(set) var legs: [Leg] = []
     private(set) var altitudeFt: Double?
     private(set) var totals: Totals?
@@ -38,7 +45,8 @@ final class Plan {
     func clear() {
         running?.cancel()
         dep = ""; dest = ""; stops = []
-        course = nil; checkpoints = []; legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false
+        course = nil; checkpoints = []; profile = nil; altitude = nil; legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false
+        ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil
     }
 
     /// Plans the route as entered: the course first, for the map, then
@@ -46,7 +54,8 @@ final class Plan {
     func plan() {
         guard routed else { return }
         running?.cancel()
-        let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft, own = ownAltitudeFt
+        let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft
+        let own = ownAltitudeFt, legal = ownAltitudeLegal, choice = altitudeChoice
         self.dep = dep; self.dest = dest; self.stops = stops
         planning = true
         problem = nil
@@ -65,12 +74,21 @@ final class Plan {
                         self?.checkpoints = points
                     }
                 }
+                if self.profile == nil || self.profile?.lengthNm != course.distanceNm {
+                    Task { [weak self] in
+                        if let ground = try? await Planner.routeProfile(dep: dep, dest: dest, stops: stops), !Task.isCancelled {
+                            self?.profile = ground
+                        }
+                    }
+                }
                 var fresh: [Leg] = []
-                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own) {
+                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own, nearest: legal, choice: choice) {
                     guard !Task.isCancelled else { return }
                     switch message {
                     case .stage(let detail): self.stage = detail
-                    case .altitude(let altitude): self.altitudeFt = altitude.altitudeFt
+                    case .altitude(let altitude):
+                        self.altitude = altitude
+                        self.altitudeFt = altitude.altitudeFt
                     case .leg(let leg):
                         fresh.append(leg)
                         // Each leg as it comes, once the first is in: the

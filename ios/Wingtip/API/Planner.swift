@@ -101,6 +101,12 @@ enum Planner {
         return try await fetch(Answer.self, "/api/checkpoints", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")]).selected
     }
 
+    /// The ground and airspace under the route, for the profile
+    /// (/api/route-profile).
+    static func routeProfile(dep: String, dest: String, stops: [String]) async throws -> RouteProfile {
+        try await fetch(RouteProfile.self, "/api/route-profile", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")])
+    }
+
     /// The planner's airplane types (/api/aircraft-profiles).
     static func aircraftProfiles() async throws -> [AircraftProfile] {
         struct Answer: Decodable { let profiles: [AircraftProfile] }

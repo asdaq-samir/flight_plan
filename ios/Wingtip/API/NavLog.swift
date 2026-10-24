@@ -14,9 +14,72 @@ enum NavLogMessage: Equatable, Sendable {
     case error(NavLogError)
 }
 
+/// The altitude line: which plan is flown, at what, the four plans, the
+/// figures for every legal altitude (the wheel's rows), the pilot's own
+/// altitude's cautions, and the planner's reasoning (the selection).
 struct NavLogAltitude: Codable, Equatable, Sendable {
     var flown: String?
     var altitudeFt: Double?
+    var options: [AltitudeOption] = []
+    var altitudeFigures: [AltitudeFigure] = []
+    var cautions: [AltitudeCaution] = []
+    var altitudeSelection: AltitudeSelection?
+}
+
+/// One of the planner's four plans (AltitudeOption).
+struct AltitudeOption: Codable, Equatable, Sendable, Identifiable {
+    let kind: String
+    var steps: [AltitudeStep] = []
+    var eteMin: Double?
+    var fuelGal: Double?
+    var tailwindKt: Double?
+    var needsOxygen: Bool = false
+
+    var id: String { kind }
+    /// The plan's highest altitude, the figure its row shows.
+    var altitudeFt: Double? { steps.map(\.altitudeFt).max() }
+}
+
+struct AltitudeStep: Codable, Equatable, Sendable {
+    let from: String
+    let to: String
+    let altitudeFt: Double
+    let distanceNm: Double
+}
+
+/// The flight's figures at one legal altitude (AltitudeFigure).
+struct AltitudeFigure: Codable, Equatable, Sendable, Identifiable {
+    let altitudeFt: Double
+    var eteMin: Double?
+    var fuelGal: Double?
+    var tailwindKt: Double?
+    var everywhere: Bool = true
+
+    var id: Double { altitudeFt }
+}
+
+/// What is wrong with an altitude the pilot set (AltitudeCaution): a
+/// warning, never a refusal.
+struct AltitudeCaution: Codable, Equatable, Sendable, Identifiable {
+    let fromIdent: String
+    let toIdent: String
+    let altitudeFt: Double
+    let reasons: [String]
+
+    var id: String { "\(fromIdent)-\(toIdent)" }
+}
+
+/// The planner's reasoning for the altitude (AltitudeBreakdown), the
+/// parts the profile shows.
+struct AltitudeSelection: Codable, Equatable, Sendable {
+    var recommendedFt: Double?
+    var candidatesFt: [Double] = []
+    var floorFt: Double?
+    var bandCeilingFt: Double?
+    var serviceCeilingFt: Double?
+    var cloudBaseFt: Double?
+    var airspaceCeilingFt: Double?
+    var rules: String?
 }
 
 /// One leg of the log, with the figures its row shows.
@@ -91,12 +154,17 @@ enum NavLog {
     }
 
     /// The log for a route, line by line as the planner sends them.
-    static func stream(dep: String, dest: String, stops: [String], aircraft: String?, altitudeFt: Double?) -> AsyncThrowingStream<NavLogMessage, any Error> {
+    static func stream(dep: String, dest: String, stops: [String], aircraft: String?, altitudeFt: Double?, nearest: Bool, choice: String?) -> AsyncThrowingStream<NavLogMessage, any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 let request = Planner.get("/api/navlog", [
                     "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","), "aircraft": aircraft,
                     "altitude_ft": altitudeFt.map { String(Int($0)) },
+                    // Picked on the wheel: each leg at its nearest legal
+                    // altitude where the pick is one of the planner's.
+                    "altitude_nearest": altitudeFt != nil && nearest ? "true" : nil,
+                    // One of the four plans; fastest is the planner's own.
+                    "altitude_choice": choice.flatMap { $0 == "fastest" ? nil : $0 },
                 ])
                 do {
                     let (bytes, response) = try await URLSession.shared.bytes(for: request)

@@ -56,6 +56,14 @@ struct FPLView: View {
                             .frame(width: 64).multilineTextAlignment(.trailing)
                             .focused($focused, equals: .altitude)
                             .onSubmit(flyAltitude)
+                        // The profile, with the altitude's warning tick where
+                        // the pilot's own breaks a limit.
+                        NavigationLink(value: "profile") {
+                            Image(systemName: (plan.altitude?.cautions.isEmpty ?? true) ? "chart.xyaxis.line" : "exclamationmark.triangle.fill")
+                                .foregroundStyle((plan.altitude?.cautions.isEmpty ?? true) ? Color.accentColor : Color.orange)
+                        }
+                        .accessibilityLabel("Profile")
+                        .buttonStyle(.plain)
                     }
                     .toolbar {
                         if focused == .altitude {
@@ -96,6 +104,9 @@ struct FPLView: View {
             }
             .navigationTitle("Flight plan")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: String.self) { page in
+                if page == "profile" { ProfileCard() }
+            }
             .toolbar {
                 if !plan.stops.isEmpty {
                     ToolbarItem(placement: .topBarLeading) { EditButton() }

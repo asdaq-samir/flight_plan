@@ -33,3 +33,18 @@ struct NavLogTests {
         #expect(hoursMinutes(5.4) == "0h 05m")
     }
 }
+
+/// The altitude line whole, and the owner's FL-style figure.
+struct AltitudeTests {
+    @Test func theAltitudeLineCarriesThePlansFiguresAndCautions() throws {
+        let json = #"{"type":"altitude","flown":"custom","altitude_ft":15500.0,"options":[{"kind":"fastest","steps":[{"from":"KLAX","to":"KBDL","altitude_ft":9500.0,"distance_nm":2100.0}],"ete_min":1100.0,"fuel_gal":150.0,"climb_penalty_min":2.0,"tailwind_kt":5.0,"unflyable_legs":0,"legs_without_wind":0,"needs_oxygen":false}],"altitude_figures":[{"altitude_ft":9500.0,"ete_min":1100.0,"fuel_gal":150.0,"tailwind_kt":5.0,"everywhere":true}],"cautions":[{"from_ident":"KLAX","to_ident":"KBDL","altitude_ft":15500.0,"reasons":["Over the aircraft's 10,950 ft service ceiling"]}],"altitude_selection":{"recommended_ft":null,"candidates_ft":[],"floor_ft":13600.0,"service_ceiling_ft":10950.0,"rules":"vfr"},"aircraft":{"name":"pa28140"}}"#
+        guard case .altitude(let a)? = try NavLog.decode(line: Data(json.utf8)) else { Issue.record("not an altitude"); return }
+        #expect(a.altitudeFt == 15500 && a.options[0].altitudeFt == 9500 && a.cautions[0].reasons.count == 1)
+        #expect(a.altitudeSelection?.serviceCeilingFt == 10950 && a.altitudeFigures.count == 1)
+    }
+
+    @Test func altitudesReadAsTheOwnersFlightLevels() {
+        #expect(flightLevel(6500) == "FL065")
+        #expect(flightLevel(15500) == "FL155")
+    }
+}
