@@ -1,0 +1,135 @@
+name: Native iOS
+
+# The native app (ios/, docs/NATIVE.md). Every change to it is built and
+# tested on GitHub's macOS runner, free for a public repository: the
+# Xcode project is made there by XcodeGen from ios/project.yml, the
+# planner's client is generated from planning-service/openapi.json as
+# the package builds, and the tests run on a simulator. On main, once the
+# owner has set the App Store Connect key, the app is archived, signed by
+# Xcode's cloud-managed signing and uploaded to TestFlight, as ios.yml
+# does for the shell.
+#
+# Actions are pinned as in ci.yml (its opening comment says why).
+on:
+  pull_request:
+    paths:
+      - ios/**
+      - planning-service/openapi.json
+      - .github/workflows/native-ios.yml
+  push:
+    # And a native-app branch of Claude's: its builds run from the branch
+    # itself (a dispatch by name needs the file on main first).
+    branches: [main, "claude/native-*"]
+    paths:
+      - ios/**
+      - planning-service/openapi.json
+      - .github/workflows/native-ios.yml
+  workflow_dispatch:
+
+concurrency:
+  group: native-ios-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  WINGTIP_URL: ${{ vars.WINGTIP_URL || 'https://wingtipmaps.app/app/plan' }}
+  WINGTIP_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'app.wingtipmaps.ios' }}
+
+jobs:
+  test:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: The Xcode project, from project.yml
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec ios/project.yml --project ios
+      - name: A simulator to test on
+        id: sim
+        run: |
+          # The newest iPhone the runner's Xcode has, whatever it is named.
+          name=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")]
+          print(sorted(devices, key=lambda d: d["name"])[-1]["name"])')
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "testing on $name"
+      - name: Built and tested on the simulator
+        run: |
+          host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")
+          set -o pipefail
+          xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Debug \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            -resultBundlePath "$RUNNER_TEMP/Wingtip.xcresult" \
+            CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" \
+            test > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || true
+          # The lines that say what happened: each error with what follows
+          # it (a resolution failure names its cause on the next line), the
+          # tests, and the verdict.
+          grep -nE "error:|error\b|Could not|Test (Case|Suite)|Executed|\*\* (BUILD|TEST)" -A6 "$RUNNER_TEMP/xcodebuild.log" | tail -200 || true
+          grep -qE "\*\* TEST SUCCEEDED \*\*" "$RUNNER_TEMP/xcodebuild.log"
+      # What the generator made of the planner's document, for the next
+      # screen's author: the operations' names, so a call is written right
+      # the first time without an Xcode of one's own.
+      - name: The generated planner client's operations
+        if: always()
+        run: |
+          client=$(find ~/Library/Developer/Xcode/DerivedData -path '*PlannerAPI*' -name 'Client.swift' 2>/dev/null | head -1)
+          [ -n "$client" ] && grep -oE 'public func [A-Za-z0-9_]+' "$client" | sort -u || echo "no generated client found"
+          # And the schemas' members, for a property the generator may have
+          # left out or named otherwise; with its own warnings on the way.
+          types=$(find ~/Library/Developer/Xcode/DerivedData -path '*PlannerAPI*' -name 'Types.swift' 2>/dev/null | head -1)
+          [ -n "$types" ] && grep -nE 'public struct [A-Za-z]+:|public var [A-Za-z_]+:' "$types" | head -400 || echo "no generated types found"
+          grep -iE "openapi.*(warning|skip|unsupported)" "$RUNNER_TEMP/xcodebuild.log" | head -40 || true
+      - name: The log, on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4
+        with:
+          name: native-ios-log
+          path: ${{ runner.temp }}/xcodebuild.log
+          retention-days: 7
+
+  testflight:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.APP_STORE_KEY_ID != ''
+    runs-on: macos-26
+    timeout-minutes: 45
+    env:
+      TEAM: ${{ vars.APPLE_TEAM_ID }}
+      KEY_ID: ${{ vars.APP_STORE_KEY_ID }}
+      ISSUER: ${{ vars.APP_STORE_ISSUER_ID }}
+      KEY_P8: ${{ secrets.APP_STORE_KEY_P8 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: The Xcode project, from project.yml
+        run: |
+          brew install xcodegen
+          xcodegen generate --spec ios/project.yml --project ios
+      - name: Archived, signed and uploaded to TestFlight
+        run: |
+          key="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
+          trap 'rm -f "$key"' EXIT
+          printf '%s' "$KEY_P8" > "$key"
+          host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")
+          auth=(-allowProvisioningUpdates -authenticationKeyPath "$key" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
+          xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Wingtip.xcarchive" "${auth[@]}" \
+            -skipPackagePluginValidation -skipMacroValidation \
+            DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" WINGTIP_HOST="$host" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive | tail -40
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>$TEAM</string>
+            <key>signingStyle</key><string>automatic</string>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Wingtip.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" "${auth[@]}"

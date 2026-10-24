@@ -51,6 +51,7 @@ It is headed for an iOS app. README.md has the services and the layout.
 | `src/vfr`, `tests/` | `ruff check src/vfr tests && pytest tests/` (repo root) |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
+| `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
 

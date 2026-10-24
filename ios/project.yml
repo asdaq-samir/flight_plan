@@ -1,0 +1,102 @@
+# The native iOS app (docs/NATIVE.md): SwiftUI, no web view, a client of
+# the same planner and gateway the website uses. XcodeGen makes the
+# Xcode project from this file on GitHub's macOS runner (native-ios.yml);
+# the project is never committed, and the owner's Mac, which cannot run a
+# current Xcode, never needs it.
+name: Wingtip
+options:
+  bundleIdPrefix: app.wingtipmaps
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+settings:
+  base:
+    # Swift 5 language mode under the Swift 6 compiler: the strict
+    # concurrency checks come on module by module as the app grows.
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # The site's host: the gateway, and the app's associated domain. CI
+    # passes the repo's WINGTIP_URL host over this.
+    WINGTIP_HOST: wingtipmaps.app
+    SWIFT_STRICT_CONCURRENCY: minimal
+packages:
+  OpenAPIRuntime:
+    url: https://github.com/apple/swift-openapi-runtime
+    from: "1.7.0"
+  OpenAPIURLSession:
+    url: https://github.com/apple/swift-openapi-urlsession
+    from: "1.0.0"
+  WingtipAPI:
+    path: Packages/WingtipAPI
+targets:
+  Wingtip:
+    type: application
+    platform: iOS
+    sources:
+      - path: Wingtip
+        excludes: ["Info.plist", "Wingtip.entitlements"]
+    dependencies:
+      - package: WingtipAPI
+        product: PlannerAPI
+      - package: OpenAPIRuntime
+        product: OpenAPIRuntime
+      - package: OpenAPIURLSession
+        product: OpenAPIURLSession
+    info:
+      path: Wingtip/Info.plist
+      properties:
+        CFBundleDisplayName: Wingtip Maps
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Read by Config at run time: the host the build was made for.
+        WingtipHost: $(WINGTIP_HOST)
+        NSLocationWhenInUseUsageDescription: Wingtip Maps shows your airplane on the chart and plans from where you are.
+        NSLocalNetworkUsageDescription: With Traffic on, Wingtip Maps listens on the cockpit's Wi-Fi for an ADS-B receiver (Stratux, SkyEcho, Sentry).
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Wingtip/Wingtip.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
+        com.apple.developer.associated-domains:
+          - applinks:$(WINGTIP_HOST)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+  WingtipTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [WingtipTests]
+    dependencies:
+      - target: Wingtip
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  Wingtip:
+    build:
+      targets:
+        Wingtip: all
+        WingtipTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [WingtipTests]
+    archive:
+      config: Release

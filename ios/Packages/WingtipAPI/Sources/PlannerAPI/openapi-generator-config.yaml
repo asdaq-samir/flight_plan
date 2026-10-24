@@ -1,0 +1,14 @@
+# The planner calls the native app makes so far (phase 0 and the start
+# of phase 1 in docs/NATIVE.md). Add a path here when a screen needs it.
+generate:
+  - types
+  - client
+accessModifier: public
+namingStrategy: idiomatic
+filter:
+  paths:
+    - /api/chart
+    - /api/airports/search
+    - /api/airports/in-view
+    - /api/airports/nearest
+    - /api/airport/{ident}
