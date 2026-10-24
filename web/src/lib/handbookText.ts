@@ -54,9 +54,17 @@ function figure(line: string): number | null {
   return all.length ? number(all[all.length - 1]!) : null;
 }
 
-/** Knots, from a line that says miles an hour where it does. */
+/** Knots, from a line that says miles an hour where it does: its own
+ *  units, outside brackets, first -- "122 KTS (140 MPH)" is knots, its
+ *  bracketed miles an hour a second reading of the same speed -- and a
+ *  unit in brackets only where none is outside them, as Piper's "Best
+ *  Rate of Climb Speed (mph) 85" puts it. */
 function knots(line: string, value: number): number {
-  return /\bmph\b|miles per hour|\bm\.?p\.?h\b/i.test(line) ? Math.round(value * MPH_TO_KT) : value;
+  const bare = line.replace(/\([^)]*\)/g, " ");
+  const KNOTS = /\bkts?\b|\bknots?\b|\bktas\b/i;
+  const MPH = /\bmph\b|miles per hour|\bm\.?p\.?h\b/i;
+  if (KNOTS.test(bare)) return value;
+  return MPH.test(bare) || MPH.test(line) ? Math.round(value * MPH_TO_KT) : value;
 }
 
 const power = (line: string) => Number(line.match(/(\d{2,3})\s*%/)?.[1] ?? NaN);
@@ -87,7 +95,8 @@ export function figuresOfPage(text: string): PageFigures {
   // (the handbook's "optimum"), at 75% power where it says, over one at
   // sea level or at a lower, training power.
   const cruises = lines
-    .filter(l => /cruis/i.test(l) && /speed|knots|\bkts?\b|mph/i.test(l) && within(figure(l), 30, 400))
+    // Not the structural cruising speed (Vno), a limit, not a cruise.
+    .filter(l => /cruis/i.test(l) && !/structural|\bv\s*no\b/i.test(l) && /speed|knots|\bkts?\b|mph/i.test(l) && within(figure(l), 30, 400))
     .map(l => ({ l, score: (/\d{3,5}\s*(ft|feet)/i.test(l) && !/sea\s*level/i.test(l) ? 2 : 0) + (power(l) === 75 ? 1 : 0) }));
   const cruise = cruises.sort((a, b) => b.score - a.score)[0];
   if (cruise) {
@@ -100,7 +109,14 @@ export function figuresOfPage(text: string): PageFigures {
   // cruise's power where the page gives several.
   const burns = lines.filter(l => /fuel\s+(consumption|flow|burn)|gal(lons)?\.?\s*(per|\/)\s*h(ou)?r|\bgph\b/i.test(l) && within(figure(l), 1, 100));
   const burn = burns.find(l => found.cruisePowerPct && power(l) === found.cruisePowerPct.value) ?? burns[0];
-  if (burn) found.fuelBurnGph = { value: figure(burn)!, words: burn };
+  if (burn) {
+    // Two powers' burns read onto one line ("75% 8.4 gph 65% 7.0 gph"):
+    // the figure after the cruise's own power, not the line's last.
+    const pct = found.cruisePowerPct?.value;
+    const after = pct ? burn.replace(/\([^)]*\)/g, " ").match(new RegExp(`\\b${pct}\\s*%[^\\d]{0,20}(\\d+(?:\\.\\d+)?)`)) : null;
+    const v = after ? number(after[1]!) : figure(burn)!;
+    if (within(v, 1, 100)) found.fuelBurnGph = { value: v, words: burn };
+  }
 
   return found;
 }

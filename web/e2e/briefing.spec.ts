@@ -91,11 +91,11 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
   expect(await page.locator("header").getByLabel("Departure", { exact: true }).count()).toBe(1);
   expect(await page.locator("header").getByTestId("setup-button").count()).toBe(0);
 
-  // The route's buttons, the Nav log (where Approaches was) and Share, at
+  // The route's buttons, the Brief (where the Nav log was) and Share, at
   // the end of the airplane's, the altitude's and the time's line, at the
   // pilot's ask; Save, filing the flight plan and the route's close in
   // Share -- printing in the Brief's and the nav log's own (below).
-  const [approachesBox, shareBox] = await Promise.all(["route-navlog", "share-route"]
+  const [approachesBox, shareBox] = await Promise.all(["route-brief", "share-route"]
     .map(async id => (await drawer.getByTestId(id).boundingBox())!));
   expect(approachesBox.x).toBeLessThan(shareBox.x);
   expect(Math.abs(approachesBox.y - shareBox.y)).toBeLessThan(2);

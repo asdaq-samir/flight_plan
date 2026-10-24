@@ -488,7 +488,7 @@ test("the route's box is round, one line tall for a short route and the panel's 
   expect(lines.height).toBeLessThanOrEqual(48);
   const boxAt = (await box.boundingBox())!, panelAt = (await sideDrawer(page).boundingBox())!;
   expect(panelAt.x + panelAt.width - (boxAt.x + boxAt.width)).toBeLessThanOrEqual(16);
-  const procedures = (await sideDrawer(page).getByTestId("route-navlog").boundingBox())!;
+  const procedures = (await sideDrawer(page).getByTestId("route-brief").boundingBox())!;
   const share = (await sideDrawer(page).getByTestId("share-route").boundingBox())!;
   expect(procedures.y).toBeGreaterThan(lines.y + lines.height);
   expect(procedures.y + procedures.height).toBeLessThanOrEqual(boxAt.y + boxAt.height);

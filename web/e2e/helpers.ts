@@ -439,7 +439,11 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
 export async function openNavLog(page: Page) {
   await openTab(page, "Nav Log");
   const sheet = navLogSheet(page);
-  if (!(await sheet.isVisible())) await sideDrawer(page).getByTestId("route-navlog").click();
+  // From the route's menu: its button's place is the Brief's (2026-10-24).
+  if (!(await sheet.isVisible())) {
+    await sideDrawer(page).getByTestId("share-route").click();
+    await page.getByTestId("route-navlog").click();
+  }
   await expect(sheet).toBeVisible();
   return sheet;
 }
@@ -550,7 +554,14 @@ export async function tapTheChart(page: Page) {
     const r = map.getBoundingClientRect();
     // Clear of every mark by more than a near miss (AirportsLayer's 22),
     // which a tap there would select.
-    const marks = [...map.querySelectorAll(".leaflet-marker-icon, .leaflet-airport-target")].map(m => m.getBoundingClientRect());
+    const marks = [...map.querySelectorAll(".leaflet-marker-icon")].map(m => m.getBoundingClientRect());
+    // And the chart's airports, drawn on a canvas (AirportCanvas): each a
+    // mark's 26 across round where it is.
+    for (const c of map.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")) {
+      for (const m of JSON.parse(c.dataset.airportMarks ?? "[]") as { x: number; y: number }[]) {
+        marks.push(new DOMRect(r.left + m.x - 13, r.top + m.y - 13, 26, 26));
+      }
+    }
     const clear = (x: number, y: number) => marks.every(m => x < m.left - 30 || x > m.right + 30 || y < m.top - 30 || y > m.bottom + 30);
     for (let fy = 0.85; fy > 0.1; fy -= 0.1) {
       for (let fx = 0.15; fx < 0.9; fx += 0.1) {
@@ -572,17 +583,26 @@ export async function tapTheChart(page: Page) {
  *  `opens`: a card opening flies the map to its field and moves it again
  *  as the panel settles, and on CI's runners the mark moved from under a
  *  tap measured between the two (PR #238, three tries of three). */
-export async function tapNear(page: Page, mark: Locator, opens: RegExp) {
+export async function tapNear(page: Page, mark: Locator | (() => Promise<{ x: number; y: number } | null>), opens: RegExp) {
   await expect(async () => {
     await mapStill(page);
-    const box = (await mark.boundingBox())!;
+    // A drawn airport's point (airportMark), or a marker's middle.
+    let middle: { x: number; y: number };
+    if (typeof mark === "function") {
+      const point = await mark();
+      expect(point, "the mark drawn").not.toBeNull();
+      middle = point!;
+    } else {
+      const box = (await mark.boundingBox())!;
+      middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    }
     const at = await page.evaluate(([x, y]) => {
       for (const [dx, dy] of [[0, 16], [-16, 0], [0, -16], [-11, 11], [-11, -11], [11, 11], [11, -11]]) {
         const hit = document.elementFromPoint(x! + dx!, y! + dy!);
         if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x: x! + dx!, y: y! + dy! };
       }
       return null;
-    }, [box.x + box.width / 2, box.y + box.height / 2]);
+    }, [middle.x, middle.y]);
     expect(at, "the chart beside the mark, nothing else there").not.toBeNull();
     await page.mouse.click(at!.x, at!.y);
     await expect(page).toHaveURL(opens, { timeout: 2000 });
@@ -647,4 +667,28 @@ export async function airportSearch(page: Page) {
   await page.getByTestId("tab-airport").click();
   await expect(search).toBeVisible();
   return search;
+}
+
+
+/** A chart airport as its canvas drew it (AirportCanvas's
+ *  `data-airport-marks`): its ident, where it is on the page, whether it
+ *  wears its mark (`chip`) and the mark's airspace, use and weather colour. */
+export interface DrawnAirport {
+  ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string;
+}
+
+/** Every chart airport drawn now, on the page's own pixels. */
+export async function airportMarks(page: Page): Promise<DrawnAirport[]> {
+  const canvas = page.locator("canvas[data-airport-marks]");
+  if (!(await canvas.count())) return [];
+  return canvas.first().evaluate(c => {
+    const r = c.closest(".leaflet-container")!.getBoundingClientRect();
+    const drawn = JSON.parse((c as HTMLCanvasElement).dataset.airportMarks ?? "[]") as { x: number; y: number }[];
+    return drawn.map(m => ({ ...m, x: m.x + r.left, y: m.y + r.top })) as DrawnAirport[];
+  });
+}
+
+/** One chart airport drawn, by its ident; null while it is not. */
+export async function airportMark(page: Page, ident: string): Promise<DrawnAirport | null> {
+  return (await airportMarks(page)).find(m => m.ident === ident) ?? null;
 }

@@ -135,6 +135,8 @@ class _Grid:
         #: What costs more to cross, for every way: special-use airspace.
         self.dear = np.zeros((self.rows, self.cols))
         self.hazards: list[dict] = []
+        #: Each cell's floor, ft (_ground), once read.
+        self.floor: np.ndarray | None = None
         self.ends: set = {self.cell(start), self.cell(end)}
 
     def bbox(self) -> tuple:
@@ -611,7 +613,7 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
 
 def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = None, fcst_hr: str = "06",
             min_ceiling_ft: float | None = None, min_visibility_sm: float | None = None,
-            current: list[tuple] | None = None, fields=None) -> dict:
+            current: list[tuple] | None = None, current_idents: list[str] | None = None, fields=None) -> dict:
     """The ways to fly from `dep` to `dest` ({"ident", "lat", "lon"}) in
     an airplane of `profile` (vfr.aircraft's: cruise_tas_kt, fuel_burn_gph,
     usable_fuel_gal, service_ceiling_ft): {"options": [{"kind", "title",
@@ -641,6 +643,7 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     grid = _Grid(start, end)
     unchecked: list[str] = []
     floor = _ground(grid, top)
+    grid.floor = floor
     try:
         _weather(grid, window, ceiling, visibility)
     except weather.WeatherServiceError:
@@ -688,16 +691,98 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             same["kinds"].append(kind)
             continue
         found.append(option)
+    own = _own(grid, gs, current or [start, end], current_idents or [], profile, table, reserve_gal)
     return {
         "options": found,
+        "own": own,
         "direct": _crossed(grid, [start, end]),
         # The ends' own weather, which no way round can change: said, as
         # the briefing says it, for the pilot to judge.
         "ends": [int(h) for h in dict.fromkeys(grid.closed[c] for c in (grid.cell(start), grid.cell(end))) if h >= 0],
         "current": _crossed(grid, current) if current else [],
+        # What the pilot's own route meets, as each way's (`_along`): its
+        # weather strip, wind and floor.
+        "current_along": _along(grid, gs, current or [start, end], tas),
         "current_marginal": _crossed(grid, current, marginal=True) if current else [],
         "hazards": grid.hazards,
         "unchecked": unchecked,
+    }
+
+
+def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], profile: dict, table, reserve_gal: float) -> dict | None:
+    """The pilot's own route with the fuel stops it needs put in where they
+    fall along it -- its own points kept, in order -- for FPL's card of it
+    before anything is planned (the owner's "Don't plan anything unless a
+    route is picked", 2026-10-24): its points, the fuel stops among them,
+    its miles, minutes and fuel, and what it meets. None where no chain of
+    fields with fuel reaches."""
+    stops = _stops(grid, gs, path, profile, table, reserve_gal, fewest=False)
+    if stops is None:
+        return None
+    along = [0.0]
+    for a, b in zip(path, path[1:]):
+        along.append(along[-1] + _line_minutes(grid, gs, a, b))
+    points = [(at, {"ident": ident, "lat": p[0], "lon": p[1], "fuel": False})
+              for at, ident, p in zip(along[1:-1], idents, path[1:-1])]
+    points += [(stop["at"], {"ident": stop["ident"], "lat": stop["lat"], "lon": stop["lon"], "fuel": True}) for stop in stops]
+    points.sort(key=lambda p: p[0])
+    way = [path[0]] + [(p["lat"], p["lon"]) for _, p in points] + [path[-1]]
+    distance = sum(float(geo.distance_nm(a[0], a[1], b[0], b[1])) for a, b in zip(way, way[1:]))
+    air = sum(_line_minutes(grid, gs, a, b) for a, b in zip(way, way[1:]))
+    return {
+        "kind": "own", "kinds": ["own"], "title": "Your Route",
+        "stops": [p["ident"] for _, p in points],
+        "fuel": [p["ident"] for _, p in points if p["fuel"]],
+        "path": [[round(lat, 5), round(lon, 5)] for lat, lon in way],
+        "distance_nm": round(distance, 1),
+        "air_min": round(air, 1),
+        "ground_min": TURNAROUND_MIN * len(stops),
+        "fuel_gal": round(air / 60.0 * float(profile["fuel_burn_gph"]), 1),
+        "landings": len(stops),
+        "crosses": _crossed(grid, way),
+        "marginal": _crossed(grid, way, marginal=True),
+        **_along(grid, gs, way, float(profile["cruise_tas_kt"])),
+    }
+
+
+#: The weather a cell is, for a way's strip of the weather met along it:
+#: its closing hazard's kind, else marginal, else VFR.
+_WEATHER_OF = {"storm": "storm", "weather": "ifr", "sigmet": "ifr", "marginal": "mvfr"}
+
+
+def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dict:
+    """What a way through `path` meets, cell by cell in the order it flies
+    them: the weather as a strip of runs ({"kind": vfr|mvfr|ifr|storm,
+    "min"}), for the page to lay out by the time it is met; the mean wind
+    along it, kt (positive a tailwind); and its floor, the highest cell's
+    ground with 91.119's 1,000 ft and the coarse read's margin, ft."""
+    runs: list[dict] = []
+    wind_min = 0.0
+    total = 0.0
+    floor = 0.0
+    for a, b in zip(path, path[1:]):
+        cells = grid.line_cells(a, b)
+        minutes = _line_minutes(grid, gs, a, b)
+        if not cells or minutes <= 0:
+            continue
+        each = minutes / len(cells)
+        bearing = math.atan2((b[1] - a[1]) * math.cos(math.radians((a[0] + b[0]) / 2)), b[0] - a[0])
+        k = _step_index(round(math.cos(bearing)), round(math.sin(bearing)))
+        for c in cells:
+            h = grid.closed[c]
+            kind = _WEATHER_OF.get(grid.hazards[h]["kind"], "vfr") if h >= 0 else ("mvfr" if grid.marginal[c] >= 0 else "vfr")
+            if runs and runs[-1]["kind"] == kind:
+                runs[-1]["min"] += each
+            else:
+                runs.append({"kind": kind, "min": each})
+            wind_min += (float(gs[c[0], c[1], k]) - tas_kt) * each
+            total += each
+            if grid.floor is not None:
+                floor = max(floor, float(grid.floor[c]))
+    return {
+        "bands": [{"kind": r["kind"], "min": round(r["min"], 1)} for r in runs],
+        "tail_kt": round(wind_min / total, 1) if total else 0.0,
+        "floor_ft": int(math.ceil(floor / 100.0) * 100),
     }
 
 
@@ -736,4 +821,5 @@ def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: l
         "landings": len(stops),
         "crosses": _crossed(grid, path),
         "marginal": _crossed(grid, path, marginal=True),
+        **_along(grid, gs, path, float(profile["cruise_tas_kt"])),
     }

@@ -54,12 +54,17 @@ def route_options(
     start, end = resolve(dep, dest)
     profile = aircraft_profile(aircraft, cruise_tas_kt=cruise_tas_kt, fuel_burn_gph=fuel_burn_gph,
                                usable_fuel_gal=usable_fuel_gal, service_ceiling_ft=service_ceiling_ft)
-    current = [(a["lat"], a["lon"]) for a in load_route(dep, dest, stops).airports] if stops.strip() else None
+    # The pilot's own route, its points by ident: what it meets, and it with
+    # the fuel stops it needs put in (`own`).
+    route = load_route(dep, dest, stops)
+    current = [(a["lat"], a["lon"]) for a in route.airports]
+    current_idents = list(route.idents[1:-1])
     found = vfr_route_options.options(
         {"ident": dep.upper(), "lat": start["lat"], "lon": start["lon"]},
         {"ident": dest.upper(), "lat": end["lat"], "lon": end["lon"]},
         profile, depart=depart, fcst_hr=forecast_hour_for(depart),
-        min_ceiling_ft=min_ceiling_ft, min_visibility_sm=min_visibility_sm, current=current,
+        min_ceiling_ft=min_ceiling_ft, min_visibility_sm=min_visibility_sm, current=current if stops.strip() else None,
+        current_idents=current_idents,
     )
     answer = RouteOptions(**found)
     with _LOCK:

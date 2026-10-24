@@ -1,5 +1,5 @@
 import { test, expect, devices, type Page } from "@playwright/test";
-import { mapStill, openMapSettings, settle, slow } from "../helpers";
+import { airportMarks, mapStill, openMapSettings, settle, slow } from "../helpers";
 
 /**
  * The map under a finger, as on an iPhone: what is drawn on the chart
@@ -91,9 +91,11 @@ test("a pinch brings in the airports and the VFR waypoints of each level it pass
   await page.goto("/app/plan");
   await settle(page);
   await mapStill(page);
-  const targets = page.locator(".leaflet-airports-pane .leaflet-airport-target");
+  // The fields' places on the airports' canvas (AirportCanvas), drawn or
+  // a target for a tap without a mark of their own.
+  const targets = { count: async () => (await airportMarks(page)).length };
   const diamonds = page.locator(".leaflet-waypoints-pane .leaflet-marker-icon");
-  await expect(targets).toHaveCount(0);
+  expect(await targets.count()).toBe(0);
   await expect(diamonds).toHaveCount(0);
   // Two fingers spreading from 60 to 180 points apart: three times as
   // close, a level and a half in.

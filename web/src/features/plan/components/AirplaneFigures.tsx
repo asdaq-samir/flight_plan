@@ -133,7 +133,9 @@ export function AirplaneFigures({ tail }: { tail: string }) {
               {reading.words.map(w => <p key={w} className="text-muted-foreground">{w}</p>)}
             </div>
           )}
-          <div className="flex items-center gap-2">
+          {/* Small buttons (32 px) a gap-3 apart, so their 44 pt hit
+              areas meet and do not overlap. */}
+          <div className="flex items-center gap-3">
             <input
               ref={photo} type="file" accept="image/*" capture="environment" className="hidden" data-testid="figures-photo-input"
               onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void readPhoto(file); }}

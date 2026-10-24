@@ -1,8 +1,6 @@
-import { cn } from "cn";
-import { CAPSULE_SEPARATOR, IN_CAPSULE } from "../../../components/mapChrome";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Ellipsis, FileArchive, FileDown, FileText, Link2, MapPinned, Printer, RotateCw, Send, Share, Trash2 } from "lucide-react";
+import { Ellipsis, FileArchive, FileDown, FileText, Fuel, Link2, ListOrdered, MapPinned, Printer, RotateCw, Send, Share, Trash2 } from "lucide-react";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
@@ -51,8 +49,14 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet, planAgain,
+  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet, planAgain, onNavLog, onShowFuel,
 }: {
+  /** The suggested fuel stops taken out of the route box, put back. */
+  onShowFuel?: () => void;
+  /** The nav log's card, from the route's menu: its button's place in the
+   *  route box is the Brief's now, at the owner's ask ("replace navlog
+   *  button with brief", 2026-10-24). */
+  onNavLog?: () => void;
   align: "start" | "end";
   /** Its button's: the route box's, or the tab bar's over the Brief and
    *  the nav log (TabBar's `routeShare`). */
@@ -148,7 +152,7 @@ export default function ShareMenu({
             {/* The route box's a size down, as the box's other buttons are. */}
             <RoundButton
               label={planAgain?.stale.length ? `${SHARE_LABEL[card]}: ${planAgain.stale.join(", ")}` : SHARE_LABEL[card]}
-              className={card === "route" ? cn("size-8", IN_CAPSULE, CAPSULE_SEPARATOR) : undefined} data-testid={testId}
+              className={card === "route" ? "size-8" : undefined} data-testid={testId}
             >
               <span className="relative">
                 {card === "route" ? <Ellipsis className="size-[1.125rem]" strokeWidth={2.4} /> : <Share className="size-5" strokeWidth={2} />}
@@ -160,6 +164,8 @@ export default function ShareMenu({
           </DropdownMenuTrigger>
         </ResponsivePopoverAnchor>
         <DropdownMenuContent align={align} className="min-w-56 print:hidden">
+          {routed && onNavLog && <DropdownMenuItem onSelect={onNavLog} data-testid="route-navlog"><ListOrdered />Nav Log</DropdownMenuItem>}
+          {routed && onShowFuel && <DropdownMenuItem onSelect={onShowFuel} data-testid="route-show-fuel"><Fuel />Show Fuel Stops</DropdownMenuItem>}
           {routed && <DropdownMenuItem onSelect={() => void share()} data-testid="share-link"><Link2 />Share link</DropdownMenuItem>}
           {card === "route" && (
             <>

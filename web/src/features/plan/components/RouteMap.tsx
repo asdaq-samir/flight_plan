@@ -104,6 +104,8 @@ interface Props {
   fuelStops?: StopPin[];
   /** The ways FPL's Routes offer beside the route (RouteWaysLayer), a tap one's pick. */
   ways?: RouteWay[];
+  /** The one of them shown (FPL's Routes' card picked), drawn the stronger. */
+  wayShown?: string | null;
   onPickWay?: (key: string) => void;
 }
 
@@ -510,7 +512,7 @@ export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, start = null, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
-  ways, onPickWay,
+  ways, wayShown = null, onPickWay,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
@@ -580,7 +582,7 @@ export default memo(function RouteMap({
       {course && (
         <>
           {/* Under the course line, as Maps draws the routes not picked. */}
-          {onPickWay && <RouteWaysLayer ways={ways} onPick={onPickWay} />}
+          {onPickWay && <RouteWaysLayer ways={ways} shown={wayShown} onPick={onPickWay} />}
           <CourseLine
             line={course.course_line as [number, number][]}
             tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${nm(course.distance_nm)}`}

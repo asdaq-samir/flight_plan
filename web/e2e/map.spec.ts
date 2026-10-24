@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { beforeTheRoute, openPanel, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight, openNavLog, navLogSheet } from "./helpers";
+import { airportMark, beforeTheRoute, openPanel, settle, sideDrawer, slow, tapTheChart, grabberTo, controlsInSight, openNavLog, navLogSheet } from "./helpers";
 
 /**
  * The map: its popups, its zoom toggle and the dev page's zoom button,
@@ -199,8 +199,10 @@ test("the chart's airports keep coming in under a finger's pan, before it lets g
   });
   await page.goto("/app/plan");
   await settle(page);
-  const mark = (ident: string) => page.locator(".leaflet-airports-pane .leaflet-marker-icon", { hasText: ident });
-  await expect(mark("X1")).toBeVisible({ timeout: slow(15_000) });
+  // On the airports' canvas (AirportCanvas) with its mark, as a marker
+  // was in the page wherever it was.
+  const drawn = async (ident: string) => !!(await airportMark(page, ident))?.chip;
+  await expect.poll(() => drawn("X1"), { timeout: slow(15_000) }).toBe(true);
   const first = asked.length;
   // A pan of a screen and a half to the east, the finger still down: past
   // the box asked for (the view and a screen round it).
@@ -215,6 +217,6 @@ test("the chart's airports keep coming in under a finger's pan, before it lets g
   }
   // Still held: asked again, and the new field's mark drawn.
   await expect.poll(() => asked.length, { timeout: slow(10_000) }).toBeGreaterThan(first);
-  await expect(mark(`X${asked.length}`)).toBeVisible();
+  await expect.poll(() => drawn(`X${asked.length}`)).toBe(true);
   await page.mouse.up();
 });

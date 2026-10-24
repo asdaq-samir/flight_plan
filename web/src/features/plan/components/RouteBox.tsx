@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ArrowRight, Coffee, Fuel, PlaneLanding, PlaneTakeoff, Route, TriangleAlert } from "lucide-react";
+import { ArrowRight, Coffee, Fuel, PlaneLanding, PlaneTakeoff, Plus, Route, Trash2, TriangleAlert } from "lucide-react";
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
@@ -12,6 +12,7 @@ import ClearButton from "../../../components/ClearButton";
 import { PANEL_FIELD } from "../../../components/panelField";
 import { CommandList } from "../../../components/ui/command";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "../../../components/ui/context-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import { PointMenuItems } from "./PointControls";
 import { CONTEXT_MENU, useAfterMenu } from "./pointMenu";
 import { InputGroup } from "../../../components/ui/input-group";
@@ -80,7 +81,7 @@ const LINE_OVER_PX = 8;
 
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop, holdFor,
   footer,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
@@ -126,6 +127,14 @@ export default function RouteBox({
    *  until added; a tap adds them, as FPL's Add fuel stop does. */
   fuelStops?: FuelStopSuggestion[];
   onKeepFuelStops?: (after: string, idents: string[]) => void;
+  /** A suggested fuel stop taken out of the box, the pilot not wanting it
+   *  (its menu's Remove); the route's menu or FPL's Routes put it back. */
+  onHideFuelStop?: (ident: string) => void;
+  /** The routes FPL's Routes' cards are browsing, each its points end to
+   *  end: where any of them takes two lines the box keeps two lines'
+   *  height while they are browsed, so it does not grow and shrink from
+   *  card to card (the owner, 2026-10-24). */
+  holdFor?: string[][];
   /** The route's buttons -- the airplane, the altitude, the Brief, the nav
    *  log and Share -- in the box under its lines, as a message box has its
    *  own under what is typed, at the owner's ask ("I want the route box
@@ -266,16 +275,36 @@ export default function RouteBox({
   // be dragged ("it's still scrolling even when in one line", 2026-10-21).
   // Read as the box or its pills change.
   const [lineOver, setLineOver] = useState(false);
+  // Two lines of pills at the most, the rest a scroll down, at the owner's
+  // ask ("FPL should not be bigger than two lines, the rest can scrolled to
+  // see", 2026-10-24): measured off a pill, so it holds at any text size --
+  // the 6 rem it was showed a third line's top at the owner's larger text.
+  const [twoLines, setTwoLines] = useState<number | null>(null);
+  // Whether a route browsed (holdFor) takes two lines: each laid out as
+  // the box lays its pills, a line filled before the next is begun, by
+  // the widths of the pills and arrows in it now and the idents' own.
+  const [holdTwo, setHoldTwo] = useState(false);
+  const holdKey = (holdFor ?? []).map(r => r.join(",")).join("|");
   useEffect(() => {
     const el = slide.current;
     if (!el) return;
-    const read = () => setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
+    const routes = holdKey ? holdKey.split("|").map(r => r.split(",")) : [];
+    const read = () => {
+      setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
+      const pill = el.firstElementChild as HTMLElement | null;
+      if (!pill?.offsetHeight) return;
+      const style = getComputedStyle(el);
+      const gap = parseFloat(style.rowGap) || 0;
+      const pad = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+      setTwoLines(Math.ceil(pill.offsetHeight * 2 + gap + pad));
+      setHoldTwo(routes.some(route => takesTwoLines(el, route.map(pointName))));
+    };
     const sized = new ResizeObserver(read);
     sized.observe(el);
     const changed = new MutationObserver(read);
     changed.observe(el, { childList: true, subtree: true });
     return () => { sized.disconnect(); changed.disconnect(); };
-  }, []);
+  }, [holdKey]);
   const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
   const toEnd = (e: MouseEvent<HTMLDivElement>) => {
     if (!isRoom(e)) return;
@@ -456,7 +485,7 @@ export default function RouteBox({
                 96 px, a phone at a larger text size (pills 2rem tall, the
                 lines' gap and padding with them) needed 98 for two lines,
                 and two lines scrolled with no third (the owner's notice). */}
-            <div ref={slide} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
+            <div ref={slide} style={twoLines ? { maxHeight: twoLines, minHeight: holdTwo ? twoLines : undefined } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
               // Its own lines scrolled first under a finger, then the sheet
               // dragged (use-detent-drag's data-scroll-first).
               data-scroll-first="">
@@ -507,7 +536,11 @@ export default function RouteBox({
                         .flatMap(f => f.stops.map(stop => (
                           <Fragment key={`fuel-${stop.ident}`}>
                             <ArrowRight className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
-                            <FuelStopChip ident={stop.ident} reason={f.reason} onAdd={onKeepFuelStops ? () => onKeepFuelStops(point, f.stops.map(s => s.ident)) : undefined} />
+                            <FuelStopChip
+                              ident={stop.ident} reason={f.reason}
+                              onAdd={onKeepFuelStops ? () => onKeepFuelStops(point, f.stops.map(s => s.ident)) : undefined}
+                              onHide={onHideFuelStop ? () => onHideFuelStop(stop.ident) : undefined}
+                            />
                           </Fragment>
                         )))}
                     </Fragment>
@@ -590,22 +623,46 @@ function frdWords(ident: string): string {
 }
 
 /** A fuel stop suggested and not yet in the route (FuelStopRow's), in the
- *  box: dashed in the caution's colour with the pump, a tap adding it. */
-function FuelStopChip({ ident, reason = "fuel", onAdd }: { ident: string; reason?: "fuel" | "break"; onAdd?: () => void }) {
+ *  box: dashed in the caution's colour with the pump; a tap its menu, to
+ *  add it to the route or take it out of the box, at the owner's ask
+ *  ("Fuel stops should also have a way to delete them and add them back as
+ *  pleased", 2026-10-24). A stop added is the route's own, taken out by its
+ *  pill's menu as any stop is, and suggested again if the tanks need it. */
+function FuelStopChip({ ident, reason = "fuel", onAdd, onHide }: { ident: string; reason?: "fuel" | "break"; onAdd?: () => void; onHide?: () => void }) {
   // A break on a long flight the tanks hold wears a cup, not the pump.
   const Glyph = reason === "break" ? Coffee : Fuel;
-  return (
-    <button
-      type="button" onClick={onAdd} disabled={!onAdd} data-testid="route-fuel-stop"
-      aria-label={`Suggested ${reason === "break" ? "stop" : "fuel stop"} ${ident}: add it to the route`}
-      className={cn(
-        "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-caution bg-background/70 px-2 font-semibold whitespace-nowrap text-caution-ink outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
-        TEXT.detail,
-      )}
-    >
+  const chip = cn(
+    "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-caution bg-background/70 px-2 font-semibold whitespace-nowrap text-caution-ink outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+    TEXT.detail,
+  );
+  const face = (
+    <>
       <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
       {ident}
-    </button>
+    </>
+  );
+  if (!onHide) {
+    return (
+      <button
+        type="button" onClick={onAdd} disabled={!onAdd} data-testid="route-fuel-stop"
+        aria-label={`Suggested ${reason === "break" ? "stop" : "fuel stop"} ${ident}: add it to the route`} className={chip}
+      >
+        {face}
+      </button>
+    );
+  }
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button type="button" data-testid="route-fuel-stop" aria-label={`Suggested ${reason === "break" ? "stop" : "fuel stop"} ${ident}`} className={chip}>
+          {face}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        {onAdd && <DropdownMenuItem onSelect={onAdd} data-testid="route-fuel-stop-add"><Plus />Add to Route</DropdownMenuItem>}
+        <DropdownMenuItem variant="destructive" onSelect={onHide} data-testid="route-fuel-stop-remove"><Trash2 />Remove</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -764,4 +821,28 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       </ContextMenuContent>
     </ContextMenu>
   );
+}
+
+/** Whether a route of these names would wrap in the box `el` to a second
+ *  line: its pills as wide as the box's own are for their words (the
+ *  widest pill's room round its words, so it errs to two), an arrow
+ *  between each, as the box wraps them. */
+function takesTwoLines(el: HTMLElement, names: string[]): boolean {
+  const pills = [...el.querySelectorAll<HTMLElement>("[data-testid=route-dep],[data-testid=stop],[data-testid=route-dest]")];
+  const arrow = el.querySelector<HTMLElement>("[data-testid=route-arrow]");
+  const context = document.createElement("canvas").getContext("2d");
+  if (!pills.length || !context) return false;
+  context.font = getComputedStyle(pills[0]!).font;
+  const words = (text: string) => context.measureText(text).width;
+  const room = Math.max(...pills.map(p => p.offsetWidth - words((p.textContent ?? "").trim())));
+  const style = getComputedStyle(el);
+  const line = el.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
+  const columnGap = parseFloat(style.columnGap) || 0;
+  const widths = names.flatMap((name, i) => [...(i ? [arrow?.offsetWidth ?? 12] : []), room + words(name)]);
+  let used = 0;
+  for (const w of widths) {
+    if (used && used + columnGap + w > line) return true;
+    used += (used ? columnGap : 0) + w;
+  }
+  return false;
 }

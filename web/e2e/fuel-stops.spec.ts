@@ -92,6 +92,29 @@ test("a stop suggested on a flight from a present position is a row of the route
   await expect(sideDrawer(page).getByTestId("fuel-stop-keep")).toBeVisible();
 });
 
+test("a suggested fuel stop can be taken out of the route box and put back, or added from its menu", async ({ page }) => {
+  // The owner's ask (2026-10-24): "Fuel stops should also have a way to
+  // delete them and add them back as pleased".
+  await suggested(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openPanel(page);
+  const chip = sideDrawer(page).getByTestId("route-fuel-stop");
+  await expect(chip).toHaveText("KRPD", { timeout: slow(60_000) });
+  // Its menu's Remove takes it out of the box.
+  await chip.click();
+  await page.getByTestId("route-fuel-stop-remove").click();
+  await expect(chip).toHaveCount(0);
+  // The route's menu puts it back.
+  await sideDrawer(page).getByTestId("share-route").click();
+  await page.getByTestId("route-show-fuel").click();
+  await expect(chip).toHaveText("KRPD");
+  // And its menu's Add to Route makes it a stop of the route.
+  await chip.click();
+  await page.getByTestId("route-fuel-stop-add").click();
+  await expect(page).toHaveURL(/[?&]stops=KRPD(&|$)/);
+});
+
 /** What KRPD offers on the ground, as the planner answers it (vfr.nearby,
  *  vfr.faa_data.airport_services): a diner a walk away, a courtesy car. */
 const SERVICES = {
@@ -154,7 +177,7 @@ test("a long flight the tanks hold is offered a break about half way, kept as th
   const row = sideDrawer(page).getByTestId("fuel-stop");
   await expect(row).toBeVisible({ timeout: slow(60_000) });
   await expect(row.getByRole("region", { name: /Suggested stop for a break, KRPD/ })).toBeVisible();
-  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveAccessibleName("Suggested stop KRPD: add it to the route");
+  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveAccessibleName("Suggested stop KRPD");
   const keep = sideDrawer(page).getByTestId("fuel-stop-keep");
   await expect(keep).toHaveText("Add Stop");
   await keep.click();

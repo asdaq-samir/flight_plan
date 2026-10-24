@@ -67,9 +67,9 @@ const SLIDE_SLOP = 10;
 
 /** The lens's two edges, in seconds: the one it moves toward is quicker
  *  than the one it leaves, so it stretches as it goes and gathers up as
- *  it lands, as iOS 26's drop of glass does; quicker under a finger,
- *  which it follows. */
-const EDGE = { lead: 0.2, trail: 0.36, leadSliding: 0.1, trailSliding: 0.18 };
+ *  it lands, as iOS 26's drop of glass does. Under a sliding finger,
+ *  none: it is where the finger is. */
+const EDGE = { lead: 0.2, trail: 0.36 };
 const EASE = "cubic-bezier(0.2, 0.9, 0.3, 1)";
 
 /** The pill under a finger on its tabs, grown as iOS 26's tab bar grows:
@@ -521,10 +521,14 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // ask), and clearer, a drop of glass over the bar.
   const count = all.length;
   const dir = lens ? lens.dir : rest.dir;
-  const [lead, trail] = lens?.sliding ? [EDGE.leadSliding, EDGE.trailSliding] : [EDGE.lead, EDGE.trail];
+  const { lead, trail } = EDGE;
   const lensStyle: CSSProperties = {
+    // Slid under a finger, its sides keep up with the finger, as the
+    // sheet's lens does (TabGlass): eased behind it, the pill's lagged and
+    // was laid out again every frame of the easing, at the owner's
+    // "sliding the tab selection is slower when in pill" (2026-10-24).
     transition: [
-      `left ${dir > 0 ? trail : lead}s ${EASE}`, `right ${dir < 0 ? trail : lead}s ${EASE}`,
+      ...(lens?.sliding ? [] : [`left ${dir > 0 ? trail : lead}s ${EASE}`, `right ${dir < 0 ? trail : lead}s ${EASE}`]),
       `top 0.16s ${EASE}`, `bottom 0.16s ${EASE}`, "background-color 0.16s", "box-shadow 0.16s",
     ].join(", "),
     ...(lens

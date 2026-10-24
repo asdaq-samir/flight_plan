@@ -1,13 +1,13 @@
 import L from "leaflet";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CircleMarker, Marker, Pane, useMap, useMapEvents } from "react-leaflet";
+import { Marker, Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import { usePreferences } from "../preferences";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
-import { airportMarkIcon, selectionIcon } from "./icons";
-import { MapTooltip } from "./MapTooltip";
+import { AirportMarksLayer, type CanvasMark } from "./AirportCanvas";
+import { selectionIcon } from "./icons";
 import { boxOf, hovers } from "./view";
 import { PANNING_MS, useAhead, useLiveZoom } from "./useView";
 
@@ -47,60 +47,55 @@ const NO_REPORT_FROM_ZOOM = 10;
 /** The most fields the planner answers with at once. */
 const AIRPORTS_LIMIT = 1000;
 
-/** A finger's width round each airport symbol, 44 points across. */
-const TARGET_RADIUS = 22;
+/** How near the mouse names a field: its mark's half-width. */
+const HOVER_PX = 13;
 /** How far off a field's mark a tap on the chart is still the field's:
  *  half a finger's 44 points. */
 const NEAR_MISS_PX = 22;
 
-// Each style one object for good: react-leaflet restyles a path whenever
-// its pathOptions is a new object, and a literal is one at every render.
-const TARGET_STYLE: L.PathOptions = { stroke: false, fill: true, fillOpacity: 0 };
+/** The canvas the marks are drawn on (AirportCanvas), in the airports'
+ *  pane: made once, given the marks as they change. */
+function AirportCanvasMarks({ marks }: { marks: CanvasMark[] }) {
+  const map = useMap();
+  const layer = useMemo(() => new AirportMarksLayer("airports"), []);
+  useEffect(() => {
+    layer.addTo(map);
+    return () => { layer.remove(); };
+  }, [layer, map]);
+  useEffect(() => { layer.setMarks(marks); }, [layer, marks]);
+  return null;
+}
 
-/** One field on the chart, its mark or its invisible target, drawn again
- *  only when it changes (memo): react-leaflet moves a mark whose position
- *  is a new array, as a literal is at every render, and restyles one whose
- *  style is -- every field on the map was moved and restyled each time the
- *  page drew, 0.4 s of a phone's as the Brief first opened (measured at a
- *  quarter of a laptop's speed, 2026-10-07). */
-const AirportMark = memo(function AirportMark({ airport: a, chip, onSelect }: {
-  airport: AirportPin;
-  chip: boolean;
-  onSelect: (ident: string) => void;
-}) {
-  const events = useMemo(() => ({
-    click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onSelect(a.ident); },
-  }), [onSelect, a.ident]);
-  const at = useMemo((): L.LatLngTuple => [a.lat, a.lon], [a.lat, a.lon]);
-  return chip ? (
-    <Marker
-      position={at} eventHandlers={events}
-      icon={airportMarkIcon(a.ident, a.airspace_class ?? null, colourOf(a.flight_category), a.military === "military" ? "military" : a.private ? "private" : null)}
-    >
-      {hovers && <MapTooltip>{a.ident} · {a.name} · {a.flight_category ?? "no report"}</MapTooltip>}
-    </Marker>
-  ) : (
-    <CircleMarker
-      center={at} radius={TARGET_RADIUS}
-      // The class at creation (Leaflet takes it only then), the rest as style.
-      className="leaflet-airport-target"
-      pathOptions={TARGET_STYLE}
-      eventHandlers={events}
-    >
-      {hovers && <MapTooltip>{a.ident} · {a.name}</MapTooltip>}
-    </CircleMarker>
-  );
-// The same field as it was drawn, whatever its object: each answer for a
-// new view is new objects for the fields already on the map, and drawn
-// again each one was moved, its handlers bound again -- every mark on
-// every zoom and pan.
-}, (was, now) => was.chip === now.chip && was.onSelect === now.onSelect && samePin(was.airport, now.airport));
-
-/** What a field's mark is drawn from (AirportMark): its place, its
- *  report's category, its airspace and its use, and its name (the hover's). */
-function samePin(a: AirportPin, b: AirportPin): boolean {
-  return a === b || (a.ident === b.ident && a.lat === b.lat && a.lon === b.lon && a.flight_category === b.flight_category
-    && a.airspace_class === b.airspace_class && a.military === b.military && a.private === b.private && a.name === b.name);
+/** With a mouse, a field under the pointer named as the marks were
+ *  (their tooltips), and the pointer a hand over it: the marks are drawn
+ *  on a canvas the pointer goes through (AirportCanvas). */
+function AirportHover({ fields }: { fields: AirportPin[] }) {
+  const map = useMap();
+  const tip = useMemo(() => L.tooltip({ direction: "top", offset: [0, -14], opacity: 1 }), []);
+  const latest = useRef(fields);
+  useEffect(() => { latest.current = fields; }, [fields]);
+  const frame = useRef(0);
+  useEffect(() => () => { cancelAnimationFrame(frame.current); map.closeTooltip(tip); }, [map, tip]);
+  const handlers = useMemo(() => ({
+    mousemove: (e: L.LeafletMouseEvent) => {
+      cancelAnimationFrame(frame.current);
+      frame.current = requestAnimationFrame(() => {
+        let best: { field: AirportPin; px: number } | null = null;
+        for (const field of latest.current) {
+          const px = map.latLngToContainerPoint([field.lat, field.lon]).distanceTo(e.containerPoint);
+          if (px <= HOVER_PX && (!best || px < best.px)) best = { field, px };
+        }
+        map.getContainer().style.cursor = best ? "pointer" : "";
+        if (!best) { map.closeTooltip(tip); return; }
+        const { field } = best;
+        tip.setLatLng([field.lat, field.lon]).setContent(`${field.ident} · ${field.name} · ${field.flight_category ?? "no report"}`);
+        if (!map.hasLayer(tip)) map.openTooltip(tip);
+      });
+    },
+    mouseout: () => { map.getContainer().style.cursor = ""; map.closeTooltip(tip); },
+  }), [map, tip]);
+  useMapEvents(handlers);
+  return null;
 }
 
 /**
@@ -212,6 +207,32 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     },
   }), [map, onSelect]);
   useMapEvents(handlers);
+  // A tap on a field's mark is the field's whatever lies under it -- an
+  // airspace's shading, a line -- as it was when each mark was a marker
+  // over them: the marks are drawn on a canvas the pointer goes through
+  // (AirportCanvas), so the tap is caught on its way down, before the
+  // layer under it takes it. Not one on a marker, a popup or a control,
+  // which are over the marks and keep their own taps.
+  const selectRef = useRef(onSelect);
+  useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
+  useEffect(() => {
+    const container = map.getContainer();
+    const caught = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest(".leaflet-map-pane") || target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip")) return;
+      const at = map.mouseEventToContainerPoint(e);
+      let best: { ident: string; px: number } | null = null;
+      for (const a of drawn.current) {
+        const px = map.latLngToContainerPoint([a.lat, a.lon]).distanceTo(at);
+        if (px <= NEAR_MISS_PX && (!best || px < best.px)) best = { ident: a.ident, px };
+      }
+      if (!best) return;
+      e.stopPropagation();
+      selectRef.current(best.ident);
+    };
+    container.addEventListener("click", caught, true);
+    return () => container.removeEventListener("click", caught, true);
+  }, [map]);
   const near = zoom >= FROM_ZOOM;
   const reports = zoom >= FARTHEST_ZOOM;
   // At zoom 7 the view asks for the fields that report alone -- at the
@@ -291,19 +312,20 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   }, [reports, data, exclude, near, showMilitary, zoom, map]);
   useEffect(() => { drawn.current = shown; }, [shown]);
   useEffect(() => { elsewhere.current = others; }, [others]);
-  // One callback for every mark, so a new onSelect -- the page's, made
-  // again as its state changes -- draws none of them again.
-  const latest = useRef(onSelect);
-  useEffect(() => { latest.current = onSelect; }, [onSelect]);
-  const pick = useCallback((ident: string) => latest.current(ident), []);
-  const chip = (a: AirportPin) => !!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM;
+  // What the canvas draws (AirportCanvas): each field's mark where it
+  // wears one, its look from its airspace, its use and its METAR's colour.
+  const marks = useMemo((): CanvasMark[] => shown.map(a => ({
+    ident: a.ident, lat: a.lat, lon: a.lon,
+    chip: !!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM,
+    space: a.airspace_class ?? null, weather: colourOf(a.flight_category),
+    use: a.military === "military" ? "military" : a.private ? "private" : null,
+  })), [shown, zoom]);
   return (
     <>
       <Pane name="airports" style={{ zIndex: 450 }}>
-        {shown.map((a: AirportPin) => (
-          <AirportMark key={a.ident} airport={a} chip={chip(a)} onSelect={pick} />
-        ))}
+        <AirportCanvasMarks marks={marks} />
       </Pane>
+      {hovers && <AirportHover fields={shown} />}
       {/* Under the marks (the airports' pane, 450), round the field's
           own: over them, it hid the first letters of its ident beside its
           mark. Over the course line and the chart (the overlay pane, 400);

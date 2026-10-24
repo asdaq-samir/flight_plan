@@ -9038,6 +9038,58 @@
         "title": "RouteAirport",
         "type": "object"
       },
+      "RouteAlong": {
+        "description": "What a way meets along it: its weather strip, its mean wind (kt,\na tailwind positive) and its floor (ft, the highest ground with\n14 CFR 91.119's 1,000 ft).",
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/RouteBand"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
+          "floor_ft": {
+            "title": "Floor Ft",
+            "type": "integer"
+          },
+          "tail_kt": {
+            "title": "Tail Kt",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bands",
+          "tail_kt",
+          "floor_ft"
+        ],
+        "title": "RouteAlong",
+        "type": "object"
+      },
+      "RouteBand": {
+        "description": "A run of the weather a way meets (vfr.route_options._along): VFR,\nmarginal (MVFR), IFR or a thunderstorm, and how many minutes of the\nflight it lasts, in the order flown.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "vfr",
+              "mvfr",
+              "ifr",
+              "storm"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          }
+        },
+        "required": [
+          "kind",
+          "min"
+        ],
+        "title": "RouteBand",
+        "type": "object"
+      },
       "RouteHazard": {
         "description": "What a way keeps clear of (vfr.route_options): its kind -- storm,\nweather, marginal, sigmet, tfr, prohibited, terrain -- and its words.",
         "properties": {
@@ -9064,6 +9116,14 @@
             "title": "Air Min",
             "type": "number"
           },
+          "bands": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RouteBand"
+            },
+            "title": "Bands",
+            "type": "array"
+          },
           "crosses": {
             "items": {
               "type": "integer"
@@ -9074,6 +9134,11 @@
           "distance_nm": {
             "title": "Distance Nm",
             "type": "number"
+          },
+          "floor_ft": {
+            "default": 0,
+            "title": "Floor Ft",
+            "type": "integer"
           },
           "fuel": {
             "items": {
@@ -9094,7 +9159,8 @@
             "enum": [
               "fastest",
               "weather",
-              "stops"
+              "stops",
+              "own"
             ],
             "title": "Kind",
             "type": "string"
@@ -9104,7 +9170,8 @@
               "enum": [
                 "fastest",
                 "weather",
-                "stops"
+                "stops",
+                "own"
               ],
               "type": "string"
             },
@@ -9139,6 +9206,11 @@
             "title": "Stops",
             "type": "array"
           },
+          "tail_kt": {
+            "default": 0.0,
+            "title": "Tail Kt",
+            "type": "number"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -9172,6 +9244,16 @@
             },
             "title": "Current",
             "type": "array"
+          },
+          "current_along": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteAlong"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "current_marginal": {
             "default": [],
@@ -9208,6 +9290,16 @@
             },
             "title": "Options",
             "type": "array"
+          },
+          "own": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteOption"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "unchecked": {
             "items": {

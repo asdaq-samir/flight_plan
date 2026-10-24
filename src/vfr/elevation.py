@@ -222,11 +222,18 @@ def _from_terrain_tiles(keys: list) -> dict:
     Miami failed after minutes (2026-10-23). A point whose tile cannot be
     fetched is left out, for EPQS."""
     found: dict = {}
+    # A tile that failed is not asked again for its other points: each
+    # would wait out its own fetch's timeout first.
+    failed: set = set()
     for key in keys:
+        fx, fy = tile_xy(key[0], key[1], TERRAIN_TILE_ZOOM)
+        tile = (int(fx), int(fy))
+        if tile in failed:
+            continue
         try:
             found[key] = max(0.0, ground_m(*key))
         except Exception:  # noqa: BLE001 -- a tile's fetch or decode failing: EPQS answers instead
-            continue
+            failed.add(tile)
     return found
 
 

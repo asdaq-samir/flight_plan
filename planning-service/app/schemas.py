@@ -2172,6 +2172,25 @@ class RouteHazard(BaseModel):
     name: str
 
 
+class RouteBand(BaseModel):
+    """A run of the weather a way meets (vfr.route_options._along): VFR,
+    marginal (MVFR), IFR or a thunderstorm, and how many minutes of the
+    flight it lasts, in the order flown."""
+
+    kind: Literal["vfr", "mvfr", "ifr", "storm"]
+    min: float
+
+
+class RouteAlong(BaseModel):
+    """What a way meets along it: its weather strip, its mean wind (kt,
+    a tailwind positive) and its floor (ft, the highest ground with
+    14 CFR 91.119's 1,000 ft)."""
+
+    bands: list[RouteBand]
+    tail_kt: float
+    floor_ft: int
+
+
 class RouteOption(BaseModel):
     """One way to fly the route (vfr.route_options): the points between
     its ends in order, as the address's `stops` takes them -- turns as the
@@ -2180,8 +2199,8 @@ class RouteOption(BaseModel):
     hazards it still crosses and the marginal weather it passes, by their
     index in RouteOptions.hazards."""
 
-    kind: Literal["fastest", "weather", "stops"]
-    kinds: list[Literal["fastest", "weather", "stops"]]
+    kind: Literal["fastest", "weather", "stops", "own"]
+    kinds: list[Literal["fastest", "weather", "stops", "own"]]
     title: str
     stops: list[str]
     fuel: list[str]
@@ -2193,6 +2212,9 @@ class RouteOption(BaseModel):
     landings: int
     crosses: list[int]
     marginal: list[int]
+    bands: list[RouteBand] = []
+    tail_kt: float = 0.0
+    floor_ft: int = 0
 
 
 class RouteOptions(BaseModel):
@@ -2202,10 +2224,14 @@ class RouteOptions(BaseModel):
     in `hazards`; and the sources that could not be read now (`unchecked`)."""
 
     options: list[RouteOption]
+    #: The pilot's own route with the fuel stops it needs put in; None
+    #: where no chain of fields reaches.
+    own: RouteOption | None = None
     direct: list[int]
     ends: list[int]
     current: list[int] = []
     current_marginal: list[int] = []
+    current_along: RouteAlong | None = None
     hazards: list[RouteHazard]
     unchecked: list[str]
 

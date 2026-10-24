@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeCard, grabberTo, openMapSettings, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { airportMark, closeCard, grabberTo, openMapSettings, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * Nearest as a card of the panel's (NearestCard), at the pilot's ask: half
@@ -85,16 +85,18 @@ test("a field the armed services keep to themselves is off the map until Militar
   // fields' chips are drawn (AirportsLayer).
   await page.goto("/app/plan?place=C81");
   await settle(page);
-  const chip = (ident: string) => page.locator(".leaflet-marker-icon", { hasText: ident });
+  // The chart's fields are drawn on a canvas (AirportCanvas), each one
+  // drawn said on its data-airport-marks.
+  const drawn = (ident: string) => async () => !!(await airportMark(page, ident));
   await openMapSettings(page);
   await expect(page.getByTestId("military-toggle")).toHaveAttribute("aria-pressed", "false");
   await page.keyboard.press("Escape");
-  await expect(chip("KCIV")).toBeVisible({ timeout: slow(15000) });
-  await expect(chip("KMIL")).toHaveCount(0);
+  await expect.poll(drawn("KCIV"), { timeout: slow(15000) }).toBe(true);
+  expect(await drawn("KMIL")()).toBe(false);
   await openMapSettings(page);
   await page.getByTestId("military-toggle").click();
   await page.keyboard.press("Escape");
-  await expect(chip("KMIL")).toBeVisible();
+  await expect.poll(drawn("KMIL")).toBe(true);
 });
 
 
