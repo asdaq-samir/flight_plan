@@ -699,6 +699,124 @@
         "title": "AircraftRegistration",
         "type": "object"
       },
+      "AirplaneInspections": {
+        "description": "The pilot's own airplane's inspections and tests as its owner\nrecorded them on the gateway: each its last good day, \"yyyy-mm-dd\".",
+        "properties": {
+          "annual_good_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Annual Good Through"
+          },
+          "elt_battery_due_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elt Battery Due On"
+          },
+          "elt_inspection_good_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elt Inspection Good Through"
+          },
+          "hours_now": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Now"
+          },
+          "hundred_hour_due_at_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hundred Hour Due At Hours"
+          },
+          "static_check_good_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Static Check Good Through"
+          },
+          "transponder_check_good_through": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transponder Check Good Through"
+          }
+        },
+        "title": "AirplaneInspections",
+        "type": "object"
+      },
+      "AirplaneLoad": {
+        "description": "What the pilot loads (lib/weightBalance Load): the airplane's own\nempty weight and arm, each station's pounds in the loading's order,\nand the fuel at the start, gallons.",
+        "properties": {
+          "empty_arm_in": {
+            "title": "Empty Arm In",
+            "type": "number"
+          },
+          "empty_weight_lb": {
+            "exclusiveMinimum": 0.0,
+            "title": "Empty Weight Lb",
+            "type": "number"
+          },
+          "fuel_gal": {
+            "minimum": 0.0,
+            "title": "Fuel Gal",
+            "type": "number"
+          },
+          "stations_lb": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Stations Lb",
+            "type": "array"
+          }
+        },
+        "required": [
+          "empty_weight_lb",
+          "empty_arm_in",
+          "stations_lb",
+          "fuel_gal"
+        ],
+        "title": "AirplaneLoad",
+        "type": "object"
+      },
       "AirportEnd": {
         "description": "A point of the route: an airport, or -- a stop only -- a named fix\nflown through (`kind` \"fix\": a VFR or GPS waypoint, its `name` the\nkind of fix it is, no elevation).",
         "properties": {
@@ -5010,6 +5128,336 @@
         "title": "GenerateNotesRequest",
         "type": "object"
       },
+      "GoNoGo": {
+        "description": "POST /api/go-no-go: the line over the findings and each finding,\nwith what the Brief's Risk and Loading pages show beside them.",
+        "properties": {
+          "balance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoadBalance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "line": {
+            "$ref": "#/components/schemas/VerdictLine"
+          },
+          "loading": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Loading"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskAssessment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "self_checks": {
+            "items": {
+              "$ref": "#/components/schemas/RiskCheck"
+            },
+            "title": "Self Checks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "line",
+          "items",
+          "self_checks"
+        ],
+        "title": "GoNoGo",
+        "type": "object"
+      },
+      "GoNoGoAsk": {
+        "description": "The route, as /api/navlog is asked it (PlanQuery's fields), and what\nonly the pilot knows.",
+        "properties": {
+          "aircraft": {
+            "default": "c172",
+            "title": "Aircraft",
+            "type": "string"
+          },
+          "alternate": {
+            "default": "",
+            "title": "Alternate",
+            "type": "string"
+          },
+          "altitude_choice": {
+            "default": "fastest",
+            "enum": [
+              "lowest",
+              "highest",
+              "fastest",
+              "economical"
+            ],
+            "title": "Altitude Choice",
+            "type": "string"
+          },
+          "altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Ft"
+          },
+          "altitude_nearest": {
+            "default": false,
+            "title": "Altitude Nearest",
+            "type": "boolean"
+          },
+          "altitudes": {
+            "default": "",
+            "title": "Altitudes",
+            "type": "string"
+          },
+          "checkpoints": {
+            "default": true,
+            "title": "Checkpoints",
+            "type": "boolean"
+          },
+          "class_b_clearance": {
+            "default": false,
+            "title": "Class B Clearance",
+            "type": "boolean"
+          },
+          "climb_fuel_burn_gph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Climb Fuel Burn Gph"
+          },
+          "climb_tas_kt": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Climb Tas Kt"
+          },
+          "crossings": {
+            "default": "",
+            "title": "Crossings",
+            "type": "string"
+          },
+          "cruise_power_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 40.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cruise Power Pct"
+          },
+          "cruise_tas_kt": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cruise Tas Kt"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PilotCurrency"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day": {
+            "anyOf": [
+              {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "dep": {
+            "title": "Dep",
+            "type": "string"
+          },
+          "depart": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depart"
+          },
+          "dest": {
+            "title": "Dest",
+            "type": "string"
+          },
+          "fuel_burn_gph": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fuel Burn Gph"
+          },
+          "ground": {
+            "default": "",
+            "title": "Ground",
+            "type": "string"
+          },
+          "holds": {
+            "default": "",
+            "title": "Holds",
+            "type": "string"
+          },
+          "load": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirplaneLoad"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minimums": {
+            "$ref": "#/components/schemas/PersonalMinimums",
+            "default": {}
+          },
+          "own_airplane": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OwnAirplane"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "procedures": {
+            "default": "",
+            "title": "Procedures",
+            "type": "string"
+          },
+          "rules": {
+            "default": "vfr",
+            "enum": [
+              "vfr",
+              "ifr"
+            ],
+            "title": "Rules",
+            "type": "string"
+          },
+          "runway_picks": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunwayPicks"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runways": {
+            "default": "",
+            "title": "Runways",
+            "type": "string"
+          },
+          "service_ceiling_ft": {
+            "anyOf": [
+              {
+                "maximum": 30000.0,
+                "minimum": 1000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Ceiling Ft"
+          },
+          "stops": {
+            "default": "",
+            "title": "Stops",
+            "type": "string"
+          },
+          "ticked": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Ticked",
+            "type": "array"
+          },
+          "usable_fuel_gal": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usable Fuel Gal"
+          }
+        },
+        "required": [
+          "dep",
+          "dest"
+        ],
+        "title": "GoNoGoAsk",
+        "type": "object"
+      },
       "GoogleMaps": {
         "description": "The browser key for Google's Map Tiles API (routers/basemaps).",
         "properties": {
@@ -5611,6 +6059,53 @@
           "more_gal"
         ],
         "title": "LegProcedure",
+        "type": "object"
+      },
+      "LoadBalance": {
+        "description": "The weight and balance for the load used: the pilot's, or the\nPOH's sample airplane where none was sent.",
+        "properties": {
+          "landing": {
+            "$ref": "#/components/schemas/LoadCondition"
+          },
+          "load": {
+            "$ref": "#/components/schemas/AirplaneLoad"
+          },
+          "problems": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "takeoff": {
+            "$ref": "#/components/schemas/LoadCondition"
+          }
+        },
+        "required": [
+          "load",
+          "takeoff",
+          "landing",
+          "problems"
+        ],
+        "title": "LoadBalance",
+        "type": "object"
+      },
+      "LoadCondition": {
+        "properties": {
+          "arm_in": {
+            "title": "Arm In",
+            "type": "number"
+          },
+          "weight_lb": {
+            "title": "Weight Lb",
+            "type": "number"
+          }
+        },
+        "required": [
+          "weight_lb",
+          "arm_in"
+        ],
+        "title": "LoadCondition",
         "type": "object"
       },
       "Loading": {
@@ -7061,6 +7556,41 @@
         "title": "NoteStart",
         "type": "object"
       },
+      "OpenSquawk": {
+        "description": "A squawk not yet fixed, and how far its 14 CFR 91.213(d)\ndetermination reaches, where one was made.",
+        "properties": {
+          "deferred_for": {
+            "anyOf": [
+              {
+                "enum": [
+                  "VFR_DAY",
+                  "VFR",
+                  "ALL"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deferred For"
+          },
+          "inoperative": {
+            "default": false,
+            "title": "Inoperative",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "OpenSquawk",
+        "type": "object"
+      },
       "OralCitation": {
         "description": "A passage an answer rests on, quoted word for word (checked), with\nits source's title and where to read it.",
         "properties": {
@@ -7319,6 +7849,41 @@
         "title": "OralQuestionRequest",
         "type": "object"
       },
+      "OwnAirplane": {
+        "description": "The pilot's own airplane being flown, its records from the gateway;\nleft out for a stock profile, which has none.",
+        "properties": {
+          "inspections": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AirplaneInspections"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "squawks": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/OpenSquawk"
+            },
+            "title": "Squawks",
+            "type": "array"
+          },
+          "vor_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VorCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "OwnAirplane",
+        "type": "object"
+      },
       "PastFlight": {
         "description": "One past flight's reports, for its track log and its replay.",
         "properties": {
@@ -7573,6 +8138,57 @@
           "flights"
         ],
         "title": "PastFlights",
+        "type": "object"
+      },
+      "PersonalMinimums": {
+        "description": "The weather the pilot will not take off or land in, each off (None)\nuntil set (lib/minimums): the lowest ceiling, feet above the field;\nthe least visibility, statute miles; the most crosswind on the best\nrunway and the most surface wind, gusts included, knots.",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "crosswind_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crosswind Kt"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          },
+          "wind_kt": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Kt"
+          }
+        },
+        "title": "PersonalMinimums",
         "type": "object"
       },
       "Pick": {
@@ -7879,6 +8495,89 @@
           "by_role"
         ],
         "title": "PickSummary",
+        "type": "object"
+      },
+      "PilotCurrency": {
+        "description": "The pilot's currency from their logbook, as the gateway's\n/api/logbook/currency gives it (in snake case): the dates are the\nlast days each holds, \"yyyy-mm-dd\".",
+        "properties": {
+          "day_passengers_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day Passengers Until"
+          },
+          "flight_review_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flight Review Until"
+          },
+          "flights": {
+            "default": 0,
+            "title": "Flights",
+            "type": "integer"
+          },
+          "instrument_current_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument Current Until"
+          },
+          "ipc_needed_after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ipc Needed After"
+          },
+          "medical_expires_on": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Medical Expires On"
+          },
+          "night_passengers_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Night Passengers Until"
+          },
+          "total_hours": {
+            "default": 0,
+            "title": "Total Hours",
+            "type": "number"
+          }
+        },
+        "title": "PilotCurrency",
         "type": "object"
       },
       "PilotNotesForgotten": {
@@ -9003,6 +9702,151 @@
         "title": "RetrainStarted",
         "type": "object"
       },
+      "RiskAssessment": {
+        "description": "The risk assessment: its points, its level and its line (\"Raised \u00b7\n8 points\"), what to do at that level, and every factor counted.",
+        "properties": {
+          "factors": {
+            "items": {
+              "$ref": "#/components/schemas/RiskFactor"
+            },
+            "title": "Factors",
+            "type": "array"
+          },
+          "level": {
+            "enum": [
+              "low",
+              "caution",
+              "high"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "line": {
+            "title": "Line",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          },
+          "words": {
+            "title": "Words",
+            "type": "string"
+          }
+        },
+        "required": [
+          "score",
+          "level",
+          "line",
+          "words",
+          "factors"
+        ],
+        "title": "RiskAssessment",
+        "type": "object"
+      },
+      "RiskCheck": {
+        "description": "One of the checks only the pilot can answer, in its group.",
+        "properties": {
+          "finding": {
+            "default": "caution",
+            "enum": [
+              "caution",
+              "stop"
+            ],
+            "title": "Finding",
+            "type": "string"
+          },
+          "group": {
+            "title": "Group",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "points": {
+            "title": "Points",
+            "type": "integer"
+          },
+          "stop": {
+            "default": false,
+            "title": "Stop",
+            "type": "boolean"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "points",
+          "group"
+        ],
+        "title": "RiskCheck",
+        "type": "object"
+      },
+      "RiskFactor": {
+        "description": "What raises the risk (lib/frat): why it counts, its points, and\nwhether it makes the flight unlawful as planned (`stop`).",
+        "properties": {
+          "finding": {
+            "default": "caution",
+            "enum": [
+              "caution",
+              "stop"
+            ],
+            "title": "Finding",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "points": {
+            "title": "Points",
+            "type": "integer"
+          },
+          "stop": {
+            "default": false,
+            "title": "Stop",
+            "type": "boolean"
+          },
+          "why": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Why"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "points"
+        ],
+        "title": "RiskFactor",
+        "type": "object"
+      },
       "RouteAirport": {
         "properties": {
           "ident": {
@@ -9793,6 +10637,29 @@
           "ident"
         ],
         "title": "RunwayEnd",
+        "type": "object"
+      },
+      "RunwayPicks": {
+        "description": "The runway ends the pilot picked, by field: `pattern` the\ndeparture's runway out and every other field's runway in, `takeoff` a\nstop's runway out (\"24\", as painted).",
+        "properties": {
+          "pattern": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Pattern",
+            "type": "object"
+          },
+          "takeoff": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "default": {},
+            "title": "Takeoff",
+            "type": "object"
+          }
+        },
+        "title": "RunwayPicks",
         "type": "object"
       },
       "RunwayTurf": {
@@ -11327,6 +12194,98 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "VerdictItem": {
+        "description": "One tab's finding: what it is, what was found in a line, and where\nit is shown in full (a tab of the Brief and a section by its title).",
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "finding": {
+            "enum": [
+              "ok",
+              "caution",
+              "stop",
+              "unknown",
+              "pending"
+            ],
+            "title": "Finding",
+            "type": "string"
+          },
+          "key": {
+            "enum": [
+              "weather",
+              "airspace",
+              "altitude",
+              "fuel",
+              "runways",
+              "balance",
+              "risk"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "tab": {
+            "enum": [
+              "preflight",
+              "depart",
+              "enroute",
+              "arrive"
+            ],
+            "title": "Tab",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "finding",
+          "detail",
+          "tab"
+        ],
+        "title": "VerdictItem",
+        "type": "object"
+      },
+      "VerdictLine": {
+        "properties": {
+          "finding": {
+            "enum": [
+              "ok",
+              "caution",
+              "stop",
+              "unknown",
+              "pending"
+            ],
+            "title": "Finding",
+            "type": "string"
+          },
+          "words": {
+            "title": "Words",
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding",
+          "words"
+        ],
+        "title": "VerdictLine",
+        "type": "object"
+      },
       "VfrMinimums": {
         "description": "14 CFR 91.155(a)'s basic VFR weather minimums: the flight\nvisibility, and the distance from clouds -- clear of them, or so far\nbelow, above and to the side (5,280 ft is a statute mile).",
         "properties": {
@@ -11377,6 +12336,25 @@
           "clear_of_clouds"
         ],
         "title": "VfrMinimums",
+        "type": "object"
+      },
+      "VorCheck": {
+        "description": "The airplane's last VOR check (14 CFR 91.171): its last good day and\nwhether its error was within limits.",
+        "properties": {
+          "good_through": {
+            "title": "Good Through",
+            "type": "string"
+          },
+          "within_limit": {
+            "title": "Within Limit",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "good_through",
+          "within_limit"
+        ],
+        "title": "VorCheck",
         "type": "object"
       },
       "WaypointPin": {
@@ -13455,6 +14433,45 @@
           }
         },
         "summary": "Foreflight Pack"
+      }
+    },
+    "/api/go-no-go": {
+      "post": {
+        "description": "The Go / No-Go for a route: each finding -- the weather, the TFRs and\nspecial-use airspace, the altitude, the fuel, the runways, the weight\nand balance and the risk -- with where it is said in full, and the\nline over them; the risk assessment and the weight and balance it\ncounted, for the Brief's own pages. The rules are web/src/lib/verdict's\nand the modules it is fed from, ported to app.gonogo; the pilot's\nminimums, loading, ticks, currency and own airplane's records come in\nthe ask.",
+        "operationId": "go_no_go_api_go_no_go_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoNoGoAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoNoGo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Go No Go"
       }
     },
     "/api/local-flight": {

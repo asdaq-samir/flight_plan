@@ -123,6 +123,9 @@ public class PlannerProxyController {
             route("GET", "/api/navlog"),
             route("GET", "/api/local-flight"),
             route("GET", "/api/briefing"),
+            // The Brief's Go / No-Go for the native app: a POST for the
+            // pilot's own inputs it is worked out with, which change nothing.
+            route("POST", "/api/go-no-go"),
             route("GET", "/api/tfrs"),
             route("GET", "/api/alternate"),
             route("GET", "/api/route-profile"),
