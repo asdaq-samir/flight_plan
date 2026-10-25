@@ -9,6 +9,11 @@ import {
   sheetSettle, type MapInsets, type PanelState,
 } from "./mapChrome";
 
+/** How far the half sheet is in from the screen's sides and its edge: on
+ *  them since the owner's ask (2026-10-25), as all the way up; the pill
+ *  keeps SHEET_INSET. */
+const HALF_INSET = 0;
+
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
    *  grabber and a screen reader. */
@@ -344,7 +349,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // from the bottom the way on to the screen's edge, less the gap it
   // floats above that edge by (with it, the nav log's first heading
   // showed a line under the tabs); from the top, the grabber at its foot.
-  const halfChrome = fromBottom ? Math.max(0, edgeInset - SHEET_INSET) : GRABBER;
+  const halfChrome = fromBottom ? Math.max(0, edgeInset - HALF_INSET) : GRABBER;
   // The heights it is measured at: the pill, all the way up, and the half
   // sheet it took the place of -- not a height it rests at any more, but
   // what its glass and corners still change by between the two.
@@ -364,7 +369,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // way down (the safe area emulated as the iOS audit does, 2026-10-15).
     const pillPx = Math.round(PILL_REM * rootPx());
     const lowest = bar && capsule ? pillPx
-      : bar && settling ? pillPx + (fromBottom ? Math.max(0, capsuleGap - SHEET_INSET) : 0)
+      : bar && settling ? pillPx + (fromBottom ? Math.max(0, capsuleGap - HALF_INSET) : 0)
       : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
@@ -424,15 +429,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // what grows with the sheet past half (FlightLine's figures).
   const progress = Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half)));
   const shape: "capsule" | "inset" | "edge" = capsule ? "capsule" : nearFull ? "edge" : "inset";
+  const edgeRadius = fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`;
   const geometry = {
     // As wide as the sheet in from the edges, at the owner's ask ("let's
     // make the width of minimal to half card layout").
     capsule: { side: SHEET_INSET, gap: capsuleGap, radius: `${Math.min(PILL_RADIUS, (headHeight + footHeight) / 2)}px` },
-    inset: { side: SHEET_INSET, gap: SHEET_INSET, radius: `${SHEET_INSET_RADIUS}px` },
-    edge: {
-      side: 0, gap: 0,
-      radius: fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`,
-    },
+    // Half way as all the way up: on the screen's sides and its edge, the
+    // far corners round, at the owner's ask (2026-10-25, "the extra space
+    // on the sides": the route box's buttons fit on the airplane's line).
+    // It floated in from them by SHEET_INSET, as iOS 26's Maps does.
+    inset: { side: HALF_INSET, gap: HALF_INSET, radius: edgeRadius },
+    edge: { side: 0, gap: 0, radius: edgeRadius },
   }[shape];
   // A drag from the capsule turns it into the sheet as the finger goes
   // (MORPH), as Maps' does: it jumped to the sheet's shape and head at a
@@ -472,9 +479,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // box -- grows it down, not up out of sight.
   const fromFoot = onPhone && fromBottom && !!bar && footShown && !pillShape && (turning || settling || dragged !== null);
   if (morphing && morph < 1 && shape === "inset") {
-    geometry.side = SHEET_INSET;
-    geometry.gap = between(capsuleGap, SHEET_INSET, morph);
-    geometry.radius = `${between(Math.min(PILL_RADIUS, capsuleHeight / 2), SHEET_INSET_RADIUS, morph)}px`;
+    // From the pill's shape, in from the sides and every corner round, to
+    // the sheet's on the sides and edge, its near corners square.
+    const pillRadius = Math.min(PILL_RADIUS, capsuleHeight / 2);
+    const far = between(pillRadius, SHEET_INSET_RADIUS, morph), near = between(pillRadius, 0, morph);
+    geometry.side = between(SHEET_INSET, HALF_INSET, morph);
+    geometry.gap = between(capsuleGap, HALF_INSET, morph);
+    geometry.radius = fromBottom ? `${far}px ${far}px ${near}px ${near}px` : `${near}px ${near}px ${far}px ${far}px`;
   }
   // The way on from the body to the screen's edge, under the home
   // indicator: kept clear below the body, or the body's own (toEdge).
@@ -562,7 +573,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // the map refits once the panel settles (MapShell).
   const expanded = state !== "peek";
   // Half way and all the way up, what counts is the half sheet.
-  const coveredOnPhone = expanded ? detents.half + SHEET_INSET : peek + (capsule ? capsuleGap : 0);
+  const coveredOnPhone = expanded ? detents.half + HALF_INSET : peek + (capsule ? capsuleGap : 0);
   const out = expanded;
   useEffect(() => {
     const up = state === "full";

@@ -10,7 +10,7 @@ import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery, routeStopsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteOption, RouteOptions } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
-import { clockTime, useMinuteClock } from "../../lib/clock";
+import { clockTime, useMinuteClock, minutesWords } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
@@ -191,7 +191,7 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
 const WAYS_WAIT_MS = 8_000;
 /** Where along each way its chip sits, a share of its length, by the
  *  way's place among all those offered (RouteWaysLayer's `share`). */
-const WAY_CHIP_SHARES = [0.35, 0.6, 0.8];
+const WAY_CHIP_SHARES = [0.2, 0.4, 0.6, 0.8];
 
 interface FuelCard { stops: string[]; added: string[]; nm: number; air: number; ground: number; landings: number }
 
@@ -2154,16 +2154,40 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The same ways on the chart beside the route, in faded magenta (RouteWaysLayer).
   // Only while the cards are up: a route picked is the route alone on the
   // chart, the other ways put away with their cards.
-  const wayLines = useMemo((): RouteWay[] => (choosing && routeWays
-    ? routeWays.options.map((o, i) => ({ o, i })).filter(({ o }) => offered(o) && !isRoute(o, planned.stops)).map(({ o, i }) => ({
+  // Every card's, the pilot's own route and it with its fuel stops too, at
+  // the owner's ask ("I want all routes drawn including mine", 2026-10-25):
+  // each its chip, the one in sight solid.
+  const wayLines = useMemo((): RouteWay[] => {
+    if (!choosing || !routeWays) return NO_WAYS;
+    const minutes = browsing ? browsing.ownMinutes : ownMinutes;
+    const ground = browsing ? browsing.ownGround : ownGround;
+    const scale = gridScale(routeWays, minutes);
+    const lines: RouteWay[] = [];
+    if (routeWays.current_path?.length) {
+      lines.push({
+        key: "own", path: routeWays.current_path as [number, number][], name: "Your Route",
+        label: minutes === null ? "" : minutesWords(minutes + ground),
+      });
+    }
+    if (fuelCard && routeWays.own) {
+      lines.push({
+        key: "fuel", path: routeWays.own.path as [number, number][], name: "Your Route with Fuel",
+        label: minutesWords(fuelCard.air * scale + fuelCard.ground),
+      });
+    }
+    for (const o of routeWays.options) {
+      if (!offered(o)) continue;
       // Its time alone on the chart, the cards saying which is which (the
       // owner's "avoid putting too much text": the names ran over each other).
-      key: o.kind, path: o.path as [number, number][], label: wayTime(o, gridScale(routeWays, browsing ? browsing.ownMinutes : ownMinutes)), name: wayTitle(o),
-      // Its chip where it is whichever other ways are drawn: by its place
-      // among all of them, not among those left (it jumped as one went).
-      share: WAY_CHIP_SHARES[i % WAY_CHIP_SHARES.length],
-    }))
-    : NO_WAYS), [choosing, routeWays, planned.stops, browsing, ownMinutes]);
+      lines.push({ key: o.kind, path: o.path as [number, number][], label: wayTime(o, scale), name: wayTitle(o) });
+    }
+    // Each chip where it is whichever others are drawn, by its place among
+    // all of them (it jumped along its line as another went).
+    return lines.map((line, i) => ({ ...line, share: WAY_CHIP_SHARES[i % WAY_CHIP_SHARES.length] }));
+  }, [choosing, routeWays, browsing, ownMinutes, ownGround, fuelCard]);
+  // A way's line or chip tapped: its card in sight, as a swipe to it does;
+  // the pilot's own route is the cards' first (null).
+  const pickWay = useCallback((key: string) => previewWay(key === "own" ? null : key), [previewWay]);
   // Routes in the route box: the cards again, from the route as it is.
   const showRoutes = useCallback(() => { setEntered(chosenKey); setRoutesChosen(null); }, [chosenKey]);
   const routeChoices = useMemo(() => {
@@ -2439,52 +2463,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   );
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
-  // The route's own buttons on the route box's first line, at its end,
-  // at the owner's ask (2026-10-24, "Ok to all": the third one wrapped
-  // them under the airplane and the altitude on their phone's text size,
-  // a band of nothing beside them, the lines ~23 points apart where iOS
-  // puts controls 8): Routes, the Brief, the route's menu, twelve apart
-  // so their 44-point areas meet (index.css); the box's clear the menu's.
-  const routeActions = routed ? (
-    <div className="flex shrink-0 items-center gap-3 pl-1" data-testid="route-actions">
-      {/* The Routes' cards again, once one was used (RouteChoices), in the
-          Brief's place, at the owner's ask ("brief button with routes"). */}
-      {routed && !s.local && flightRules === "vfr" && (
-        <RoundButton label="Routes" onClick={showRoutes} aria-pressed={choosing} className="size-8" data-testid="route-routes">
-          <Route className="size-[1.125rem]" strokeWidth={2} />
-        </RoundButton>
-      )}
-      {/* The Brief, a card over FPL (BriefCard), in the nav log's place
-          at the owner's ask ("replace navlog button with brief"), marked
-          as the worst of its pages is; the nav log in the route's menu. */}
-      {routed && (
-        <RoundButton
-          label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
-          // Nothing to brief till a route is picked (planNow): it opened on
-          // "Fetching METARs…" for good.
-          disabled={choosing}
-          data-testid="route-brief" data-finding={briefMark ?? undefined}
-        >
-          <span className="relative">
-            <ClipboardList className="size-[1.125rem]" strokeWidth={2} />
-            {briefMark && (
-              <span
-                aria-hidden="true" data-testid="route-brief-mark"
-                className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", briefMark === "stop" ? "bg-destructive" : "bg-caution")}
-              />
-            )}
-          </span>
-        </RoundButton>
-      )}
-      {/* Not before there is a route, at the owner's ask ("the share
-          button should not appear before a route is entered"); the route
-          is cleared from it (Clear the route), the box's own clear while
-          the route is half entered. */}
-      {routed && shareMenu("end")}
-    </div>
-  ) : null;
   const routeControls = (
-    <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-3">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
+      {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
+          wraps, the buttons on a line of their own under the airplane and
+          the altitude: sixteen between the lines (gap-y-4), as the Profile
+          button's 44-point area reaches 11 under its 22 and the first
+          button's 6 over its 32, and the button sits 3 up in its group
+          (the iOS audit's P1, 24 Oct: twelve left them 2 points over each
+          other). */}
       {/* The chips' room while their code comes (routePanel). */}
       <Suspense fallback={<span className="h-9 w-48" aria-hidden="true" />}>
       {flightInputs}
@@ -2494,6 +2481,66 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <LocalDuration minutes={localMin} options={LOCAL_MINUTES} onChange={changeLocalMin} />
         </Suspense>
       )}
+      {/* At the row's end, as Maps puts a card's actions, the two the
+          pilot kept there: the route's Approaches -- each field's
+          traffic pattern and instrument procedures to draw, and the
+          destination's approach charts (PlaceCard) -- and Share, which
+          holds the rest. Round buttons at a fixed 36 with a 20-point
+          glyph, as iOS's bar buttons stay their size at any text size,
+          eight apart, so their 44-point hit areas (index.css) meet. */}
+      {/* Inside the route's box, a size down from the panel's 36: 32, at
+          the owner's ask ("make these buttons a bit smaller inside route
+          box"), twelve apart so their 44-point areas meet (index.css). */}
+      {/* Eight more before them than the row's four: the Profile button's
+          44 points, at the altitude's end, and the Brief's meet, not overlap
+          (the iOS audit's P1, 93c88a64); the airplane and the altitude two
+          narrower in their padding for it, so the row keeps its one line. */}
+      {/* Round buttons of their own again, the capsule round them taken
+          off at the owner's ask ("let's go back to round buttons, I don't
+          like the capsule", 2026-10-24), twelve apart so their 44-point
+          areas meet (index.css): Routes, the Brief, the route's menu. The
+          fourteen before them (pl-3.5) keep the Profile button's 44 points
+          and the first one's from overlapping where the row is one line
+          with no slack: the distance between the two is then the row's
+          4-point gap and this padding alone, and 22 and 32 wide they need
+          17. Where the row wraps, the lines' gap keeps them apart (above).
+          Back on this line at the owner's ask (2026-10-25), the sheet edge
+          to edge for the room (MapPanel's HALF_INSET). */}
+      <div className="ml-auto flex shrink-0 items-center gap-3 pl-3.5" data-testid="route-actions">
+        {/* The Routes' cards again, once one was used (RouteChoices), in the
+            Brief's place, at the owner's ask ("brief button with routes"). */}
+        {routed && !s.local && flightRules === "vfr" && (
+          <RoundButton label="Routes" onClick={showRoutes} aria-pressed={choosing} className="size-8" data-testid="route-routes">
+            <Route className="size-[1.125rem]" strokeWidth={2} />
+          </RoundButton>
+        )}
+        {/* The Brief, a card over FPL (BriefCard), in the nav log's place
+            at the owner's ask ("replace navlog button with brief"), marked
+            as the worst of its pages is; the nav log in the route's menu. */}
+        {routed && (
+          <RoundButton
+            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
+            // Nothing to brief till a route is picked (planNow): it opened on
+            // "Fetching METARs…" for good.
+            disabled={choosing}
+            data-testid="route-brief" data-finding={briefMark ?? undefined}
+          >
+            <span className="relative">
+              <ClipboardList className="size-[1.125rem]" strokeWidth={2} />
+              {briefMark && (
+                <span
+                  aria-hidden="true" data-testid="route-brief-mark"
+                  className={cn("absolute -top-0.5 -right-1 size-2 rounded-full", briefMark === "stop" ? "bg-destructive" : "bg-caution")}
+                />
+              )}
+            </span>
+          </RoundButton>
+        )}
+        {/* Not before there is a route, at the owner's ask ("the share
+            button should not appear before a route is entered"): the box
+            clears itself (its own clear). */}
+        {routed && shareMenu("end")}
+      </div>
     </div>
   );
   // Each tab's one strip, what it shows picked from its filter, the
@@ -2555,7 +2602,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directs={mapDirects}
           onProcedureFix={showFix}
           fuelStops={alongPins ?? fuelStopPins}
-          ways={wayLines} wayShown={wayShown} onPickWay={previewWay}
+          ways={wayLines} wayShown={wayShown ?? "own"} onPickWay={pickWay}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
@@ -2796,7 +2843,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           onOpenAirport={selectPlace}
           directTo={directParam} onDirectTo={directToPoint}
           onClear={clearRoute}
-          footer={routeControls} actions={routeActions}
+          footer={routeControls}
         />
         </SearchNear.Provider>
         </Suspense>

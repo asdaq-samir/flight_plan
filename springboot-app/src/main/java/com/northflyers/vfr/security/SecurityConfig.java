@@ -165,6 +165,10 @@ public class SecurityConfig {
                     // Reading from the planner: planning a route needs no
                     // account.
                     auth.requestMatchers(HttpMethod.GET, "/api/planner/**").permitAll();
+                    // The Go / No-Go is a read too, though a POST: the
+                    // pilot's minimums, loading and logbook ride in its body,
+                    // and it changes nothing on the planner.
+                    auth.requestMatchers(HttpMethod.POST, "/api/planner/go-no-go").permitAll();
                     // A download manager asks for a file's size first:
                     // ForeFlight's, for the checkpoints' pack.
                     auth.requestMatchers(HttpMethod.HEAD, "/api/planner/foreflight-pack/**").permitAll();
@@ -252,7 +256,10 @@ public class SecurityConfig {
                         // can only add a line to the log (ClientErrorController)
                         // or a sample to the speed trend; the lab run has no
                         // session to forge, only its token (SpeedController).
-                        .ignoringRequestMatchers("/api/client-errors", "/api/speed/field", "/api/speed/lab"))
+                        // The Go / No-Go changes nothing, so a forged one
+                        // gains nothing; the native app holds no cookie to
+                        // echo (PlannerProxyController's go-no-go).
+                        .ignoringRequestMatchers("/api/client-errors", "/api/speed/field", "/api/speed/lab", "/api/planner/go-no-go"))
                 // The handler above resolves the token lazily and nothing
                 // server-rendered ever forces it, so without this filter
                 // the XSRF-TOKEN cookie is never written and every POST

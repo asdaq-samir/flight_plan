@@ -40,7 +40,8 @@ final class TrafficMarkView: MKAnnotationView {
         label.shadowOffset = .zero
         addSubview(chevron)
         addSubview(label)
-        canShowCallout = true
+        // A tap opens its card (FlightMapLayer), not a callout.
+        canShowCallout = false
         displayPriority = .defaultHigh
     }
 

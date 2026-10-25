@@ -62,6 +62,14 @@ struct LogbookEntry: Codable, Equatable, Sendable, Identifiable {
     var nightLandings: Int = 0
     var approaches: Int = 0
     var distanceNm: Double = 0
+    // The columns a student's 61.109 experience and instrument currency
+    // (61.57(c)) are counted from; optional, read where the gateway sends them.
+    var dualHours: Double?
+    var soloHours: Double?
+    var toweredLandings: Int?
+    var longestLegNm: Double?
+    var holding: Bool?
+    var tracking: Bool?
 }
 
 /// What the gateway says of the pilot's currency (CurrencyDto): the
@@ -77,6 +85,7 @@ struct Currency: Codable, Equatable, Sendable {
     var nightPassengersUntil: String?
     var instrumentCurrentUntil: String?
     var ipcNeededAfter: String?
+    var ipcOn: String?
     var flightReviewOn: String?
     var flightReviewUntil: String?
     var medicalExpiresOn: String?
@@ -92,6 +101,11 @@ struct Training: Codable, Equatable, Sendable {
     var signed: [SignedEndorsement] = []
     var reviews: [CrossCountryReview] = []
     var experience: [ExperienceItem] = []
+    /// AC 61-65K's endorsements the gateway offers, those recorded from
+    /// paper, and the knowledge test report's ACS codes.
+    var kinds: [EndorsementKind]?
+    var endorsements: [RecordedEndorsement]?
+    var knowledgeTestCodes: [String]?
 }
 
 struct InstructorLink: Codable, Equatable, Sendable, Identifiable {
@@ -100,6 +114,7 @@ struct InstructorLink: Codable, Equatable, Sendable, Identifiable {
     var name: String?
     var accepted: Bool = false
     var askedAt: String?
+    var certificate: String?
 }
 
 struct SignedEndorsement: Codable, Equatable, Sendable, Identifiable {
@@ -109,6 +124,10 @@ struct SignedEndorsement: Codable, Equatable, Sendable, Identifiable {
     let signedOn: String
     var until: String?
     var voided: Bool = false
+    /// The signature line as signed, and whom for (on an instructor's record).
+    var signature: String?
+    var studentName: String?
+    var fields: [String: String]?
 }
 
 struct ReviewCheck: Codable, Equatable, Sendable {
@@ -126,6 +145,14 @@ struct CrossCountryReview: Codable, Equatable, Sendable, Identifiable {
     var answeredAt: String?
     var declinedNote: String?
     var instructorName: String?
+    var askedAt: String?
+    var note: String?
+    var studentId: Int64?
+    var studentName: String?
+    /// The flight as saved (FlightSummaryDto), and the endorsement signed
+    /// for it, once one is.
+    var flight: SavedFlight?
+    var endorsement: SignedEndorsement?
 }
 
 /// One line of the experience logged against a requirement

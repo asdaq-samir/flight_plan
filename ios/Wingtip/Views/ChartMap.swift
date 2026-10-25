@@ -72,6 +72,12 @@ struct ChartMap: UIViewRepresentable {
     @Binding var routeAway: Bool
     /// Counted up to fit the whole route again.
     var fitRequest: Int = 0
+    /// The airplane tracked, the flights flown, and the long press for a
+    /// point of the route (FlightMapLayer).
+    var flight = FlightLayer()
+    /// A held finger's pin, the waypoints, the Class B fields and the
+    /// plates (MapExtras.swift).
+    var extras = MapExtrasInput()
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -84,6 +90,7 @@ struct ChartMap: UIViewRepresentable {
         map.register(AirportMarkView.self, forAnnotationViewWithReuseIdentifier: AirportMarkView.reuse)
         map.register(CheckpointMarkView.self, forAnnotationViewWithReuseIdentifier: CheckpointMarkView.reuse)
         map.register(TrafficMarkView.self, forAnnotationViewWithReuseIdentifier: TrafficMarkView.reuse)
+        context.coordinator.extras.attach(to: map)
         // The chart hides Apple's map; its labels would draw through
         // where a tile is missing, so none are shown at all.
         let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
@@ -95,6 +102,9 @@ struct ChartMap: UIViewRepresentable {
         map.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 42.3, longitude: -88.0),
                                          latitudinalMeters: 600_000, longitudinalMeters: 600_000), animated: false)
         context.coordinator.locations.requestWhenInUseAuthorization()
+        let flight = FlightMapLayer()
+        flight.attach(map)
+        context.coordinator.flight = flight
         return map
     }
 
@@ -102,6 +112,8 @@ struct ChartMap: UIViewRepresentable {
         context.coordinator.onAirport = onAirport
         context.coordinator.onRegion = onRegion
         context.coordinator.show(traffic, ownFt: ownFt, on: map)
+        context.coordinator.flight?.update(map, flight)
+        context.coordinator.extras.update(map, extras, tiles: context.coordinator.overlay)
         context.coordinator.setFollowing = { [self] on in following = on }
         context.coordinator.setRouteAway = { [self] away in if routeAway != away { routeAway = away } }
         if following, map.userTrackingMode != .follow {
@@ -191,13 +203,21 @@ struct ChartMap: UIViewRepresentable {
         var setFollowing: ((Bool) -> Void)?
         var setRouteAway: ((Bool) -> Void)?
         var fitted = 0
+        var flight: FlightMapLayer?
         let locations = CLLocationManager()
         private var followed = false
         private var fetching: Task<Void, Never>?
         private var shown: [String: AirportAnnotation] = [:]
+        let extras = MapExtrasState()
+
+        func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
+            MainActor.assumeIsolated { extras.calloutTapped(view) }
+        }
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
+            if let renderer = flight?.renderer(for: overlay) { return renderer }
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
+            if let plate = overlay as? PlateMapOverlay { return PlateRenderer(overlay: plate) }
             if let procedure = overlay as? ProcedurePolyline {
                 // A procedure's path in the chart's procedure violet, as
                 // the web app draws a picked one.
@@ -234,11 +254,13 @@ struct ChartMap: UIViewRepresentable {
                 view.turn(to: plane.heading)
                 return view
             }
+            if let view = flight?.view(for: annotation, on: mapView) { return view }
             if let mark = annotation as? TrafficAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: TrafficMarkView.reuse, for: mark) as! TrafficMarkView
                 view.show(mark)
                 return view
             }
+            if let extra = MainActor.assumeIsolated({ extras.view(for: annotation, on: mapView) }) { return extra }
             if annotation is CheckpointAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: CheckpointMarkView.reuse, for: annotation)
             }
@@ -247,6 +269,7 @@ struct ChartMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if flight?.selected(view, on: mapView) == true { return }
             guard let field = view.annotation as? AirportAnnotation else { return }
             mapView.deselectAnnotation(field, animated: false)
             onAirport?(field.ident)
@@ -268,6 +291,10 @@ struct ChartMap: UIViewRepresentable {
             setFollowing?(mode == .follow)
         }
 
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            flight?.regionWillChange(mapView)
+        }
+
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {
             if let line = courseLine {
                 // Off the route once less than a third of its box is in
@@ -278,6 +305,7 @@ struct ChartMap: UIViewRepresentable {
             } else {
                 setRouteAway?(false)
             }
+            MainActor.assumeIsolated { extras.regionChanged(mapView) }
             fetching?.cancel()
             let region = mapView.region
             let corner = CLLocation(latitude: region.center.latitude + region.span.latitudeDelta / 2, longitude: region.center.longitude + region.span.longitudeDelta / 2)
