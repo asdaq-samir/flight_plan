@@ -9,6 +9,9 @@ struct SetupView: View {
     @Environment(Plan.self) private var plan
     @State private var signingIn = false
     @State private var keptBytes: Int64 = 0
+    @AppStorage(MapExtrasInput.Keys.waypoints) private var waypointsOn = false
+    @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
+    @AppStorage(MapExtrasInput.Keys.plates) private var platesOn = true
 
     var body: some View {
         NavigationStack {
@@ -40,6 +43,9 @@ struct SetupView: View {
                 }
                 Section("Map") {
                     Toggle("Traffic", isOn: Binding(get: { traffic.on }, set: { traffic.on = $0 }))
+                    Toggle("VFR waypoints", isOn: $waypointsOn)
+                    Toggle("Class B weather", isOn: $classBOn)
+                    Toggle("Approach plates", isOn: $platesOn)
                 }
                 Section("Chart") {
                     if let info = charts.info {
