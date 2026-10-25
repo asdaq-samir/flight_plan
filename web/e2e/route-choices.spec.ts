@@ -86,7 +86,10 @@ test("FPL's Routes say what the route meets and put a way round it in the route,
   await page.locator('[data-route-way="weather"]').click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
   await expect(page).toHaveURL(/[?&]fuel=KEAU(&|$)/);
-  await expect(chips).toHaveCount(1);
+  // Every way still drawn, the one in sight with its name on its chip (the
+  // owner's "I want all routes drawn including mine", 2026-10-25).
+  await expect(chips).toHaveCount(2);
+  await expect(page.locator('[data-route-way="weather"]')).toContainText("Best Weather");
   await page.waitForTimeout(1_000);
   expect(planned.filter(stops => stops.includes("KEAU"))).toEqual([]);
   // Use keeps a way: it is the route, the cards put away and it planned.
