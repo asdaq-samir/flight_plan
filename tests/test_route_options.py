@@ -247,3 +247,11 @@ def test_the_floor_told_is_the_ground_with_its_thousand_feet_alone(sky):
     out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
     # Sea level everywhere: 91.119's 1,000 ft, not the coarse read's margin too.
     assert out["options"][0]["floor_ft"] == terrain_detour.TERRAIN_MARGIN_FT
+
+
+def test_the_pilots_own_route_is_given_as_a_path_for_the_map(sky):
+    current = [(0.0, 0.0), (1.0, 2.0), (0.0, 4.0)]
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS, current=current)
+    assert out["current_path"] == [[0.0, 0.0], [1.0, 2.0], [0.0, 4.0]]
+    straight = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert straight["current_path"] == [[0.0, 0.0], [0.0, 4.0]]

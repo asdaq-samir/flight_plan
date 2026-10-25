@@ -2232,6 +2232,8 @@ class RouteOptions(BaseModel):
     current: list[int] = []
     current_marginal: list[int] = []
     current_along: RouteAlong | None = None
+    #: The pilot's own route, [[lat, lon]] end to end, for the map.
+    current_path: list[list[float]] = []
     hazards: list[RouteHazard]
     unchecked: list[str]
 

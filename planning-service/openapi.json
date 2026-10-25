@@ -9263,6 +9263,17 @@
             "title": "Current Marginal",
             "type": "array"
           },
+          "current_path": {
+            "default": [],
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Current Path",
+            "type": "array"
+          },
           "direct": {
             "items": {
               "type": "integer"

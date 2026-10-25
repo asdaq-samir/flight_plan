@@ -729,6 +729,10 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     return {
         "options": found,
         "own": own,
+        # The pilot's own route as it is flown, end to end, for the map to
+        # draw beside the ways (the owner's "all routes drawn including
+        # mine", 2026-10-25).
+        "current_path": [[round(lat, 5), round(lon, 5)] for lat, lon in (current or [start, end])],
         "direct": _crossed(grid, [start, end]),
         # The ends' own weather, which no way round can change: said, as
         # the briefing says it, for the pilot to judge.
