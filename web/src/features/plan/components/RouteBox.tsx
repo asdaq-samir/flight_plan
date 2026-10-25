@@ -283,6 +283,9 @@ export default function RouteBox({
   // Whether a route browsed (holdFor) takes two lines: each laid out as
   // the box lays its pills, a line filled before the next is begun, by
   // the widths of the pills and arrows in it now and the idents' own.
+  // Held at two lines, the one line of a shorter route stays at the top,
+  // level with the clear (content-start): centred in the two, it sat a
+  // half line down (the owner's screenshot, 2026-10-25).
   const [holdTwo, setHoldTwo] = useState(false);
   const holdKey = (holdFor ?? []).map(r => r.join(",")).join("|");
   useEffect(() => {
@@ -494,7 +497,7 @@ export default function RouteBox({
                 96 px, a phone at a larger text size (pills 2rem tall, the
                 lines' gap and padding with them) needed 98 for two lines,
                 and two lines scrolled with no third (the owner's notice). */}
-            <div ref={slide} style={twoLines ? { maxHeight: twoLines, minHeight: holdTwo ? twoLines : undefined } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
+            <div ref={slide} style={twoLines ? { maxHeight: twoLines, minHeight: holdTwo ? twoLines : undefined } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap content-start items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
               // Its own lines scrolled first under a finger, then the sheet
               // dragged (use-detent-drag's data-scroll-first).
               data-scroll-first="">

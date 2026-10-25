@@ -186,13 +186,15 @@ class _Grid:
         return self.closed[cell] < 0 or cell in self.ends
 
     def line_cells(self, a: tuple, b: tuple) -> list[tuple[int, int]]:
+        # Sampled a third of a cell apart, all at once: a point at a time,
+        # with a call per point, was a long route's second and a half.
         steps = max(2, int(max(abs(b[0] - a[0]), abs(b[1] - a[1])) / (CELL_DEG / 3)) + 1)
-        out: list = []
-        for t in np.linspace(0.0, 1.0, steps):
-            cell = self.cell((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t))
-            if not out or out[-1] != cell:
-                out.append(cell)
-        return out
+        t = np.linspace(0.0, 1.0, steps)
+        rows = np.clip(((a[0] + (b[0] - a[0]) * t - self.lat0) / CELL_DEG).astype(int), 0, self.rows - 1)
+        cols = np.clip(((a[1] + (b[1] - a[1]) * t - self.lon0) / CELL_DEG).astype(int), 0, self.cols - 1)
+        keep = np.ones(steps, dtype=bool)
+        keep[1:] = (rows[1:] != rows[:-1]) | (cols[1:] != cols[:-1])
+        return list(zip(rows[keep].tolist(), cols[keep].tolist()))
 
     def line_open(self, a: tuple, b: tuple) -> bool:
         return all(self.open(c) for c in self.line_cells(a, b))
@@ -445,6 +447,12 @@ def _step_index(dr: int, dc: int) -> int:
     return _STEPS.index((dr, dc))
 
 
+#: The earth's radius for the search's guess, nm: the mean radius
+#: (3,440.07 nm) less 1 %, under the WGS 84 geodesic everywhere (the
+#: sphere's error is under 0.6 %), so the guess never overestimates.
+HAVERSINE_NM = 3440.07 * 0.99
+
+
 def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: float,
          closed_cost: float | None = None) -> list[tuple[int, int]] | None:
     """The quickest way over open cells from start's cell to end's (A*,
@@ -453,19 +461,29 @@ def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: f
     too, each that much the dearer."""
     s, e = grid.cell(start), grid.cell(end)
     fastest = float(gs.max())
+    # A step's miles hang on its row and its way alone: worked out once,
+    # eight calls in all, where each step asked the geodesic again -- 50,000
+    # of them for a 900 nm route, most of its seconds (measured 2026-10-25).
+    lats = grid.lat0 + (np.arange(grid.rows) + 0.5) * CELL_DEG
+    step_nm = np.stack([np.asarray(geo.distance_nm(lats, 0.0, lats + dr * CELL_DEG, dc * CELL_DEG), dtype=float)
+                        for dr, dc in _STEPS], axis=1)
+    end_lat, end_lon = grid.centre(e)
+    cos_end = math.cos(math.radians(end_lat))
     weight = 1.0 + grid.dear + np.where(grid.marginal >= 0, marginal_cost, 0.0)
     if closed_cost is not None:
         weight = weight + np.where(grid.closed >= 0, closed_cost, 0.0)
 
     def minutes(a, b) -> float:
-        la, lb = grid.centre(a), grid.centre(b)
-        nm = float(geo.distance_nm(la[0], la[1], lb[0], lb[1]))
         k = _step_index(b[0] - a[0], b[1] - a[1])
-        return nm / gs[a[0], a[1], k] * 60.0 * weight[b]
+        return float(step_nm[a[0], k]) / gs[a[0], a[1], k] * 60.0 * weight[b]
 
     def guess(a) -> float:
-        la, le = grid.centre(a), grid.centre(e)
-        return float(geo.distance_nm(la[0], la[1], le[0], le[1])) / fastest * 60.0
+        # The great circle on a sphere a little small (HAVERSINE_NM): never
+        # more than the way's geodesic miles, so the search stays exact.
+        la, lo = grid.centre(a)
+        dlat, dlon = math.radians(end_lat - la), math.radians(end_lon - lo)
+        h = math.sin(dlat / 2) ** 2 + math.cos(math.radians(la)) * cos_end * math.sin(dlon / 2) ** 2
+        return 2.0 * HAVERSINE_NM * math.asin(min(1.0, math.sqrt(h))) / fastest * 60.0
 
     frontier = [(0.0, s)]
     came: dict = {s: None}
@@ -519,10 +537,13 @@ def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cos
     def closed_cells(a, b) -> int:
         return sum(1 for c in grid.line_cells(a, b) if not grid.open(c))
 
+    # Each leg's closed cells, once: asked again for every pair of points.
+    leg_closed = [{c for c in grid.line_cells(points[k], points[k + 1]) if not grid.open(c)} for k in range(len(points) - 1)]
+
     def clear_enough(i: int, j: int) -> bool:
         # The way's closed cells as a set: the cell at a turn is on both
         # its legs, and counted twice let a shortcut through one more.
-        crossed = {c for k in range(i, j) for c in grid.line_cells(points[k], points[k + 1]) if not grid.open(c)}
+        crossed = set().union(*leg_closed[i:j])
         return grid.line_open(points[i], points[j]) or closed_cells(points[i], points[j]) <= len(crossed)
 
     while i < len(points) - 1:
@@ -581,6 +602,16 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
         return []
     if fields is None or len(fields) == 0:
         return None
+    # Only the fields round the way: the whole country's, asked their
+    # distance at every sample, were a 900 nm route's two seconds.
+    lats_w, lons_w = [p[0] for p in way], [p[1] for p in way]
+    pad_lat = STOP_FIELD_NM / 60.0 + 0.1
+    pad_lon = pad_lat / max(0.2, math.cos(math.radians(max(abs(min(lats_w)), abs(max(lats_w))) + pad_lat)))
+    near = fields[(fields["lat"] >= min(lats_w) - pad_lat) & (fields["lat"] <= max(lats_w) + pad_lat)
+                  & (fields["lon"] >= min(lons_w) - pad_lon) & (fields["lon"] <= max(lons_w) + pad_lon)]
+    if len(near) == 0:
+        return None
+    fields = near
     # Each field's nearest point on the way: how far along, how far off.
     lat_f, lon_f = fields["lat"].to_numpy(float), fields["lon"].to_numpy(float)
     best_off = np.full(len(lat_f), np.inf)
@@ -729,6 +760,10 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     return {
         "options": found,
         "own": own,
+        # The pilot's own route as it is flown, end to end, for the map to
+        # draw beside the ways (the owner's "all routes drawn including
+        # mine", 2026-10-25).
+        "current_path": [[round(lat, 5), round(lon, 5)] for lat, lon in (current or [start, end])],
         "direct": _crossed(grid, [start, end]),
         # The ends' own weather, which no way round can change: said, as
         # the briefing says it, for the pilot to judge.

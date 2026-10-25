@@ -10,7 +10,7 @@ import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery, routeStopsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteOption, RouteOptions } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
-import { clockTime, useMinuteClock } from "../../lib/clock";
+import { clockTime, useMinuteClock, minutesWords } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
@@ -191,7 +191,7 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
 const WAYS_WAIT_MS = 8_000;
 /** Where along each way its chip sits, a share of its length, by the
  *  way's place among all those offered (RouteWaysLayer's `share`). */
-const WAY_CHIP_SHARES = [0.35, 0.6, 0.8];
+const WAY_CHIP_SHARES = [0.2, 0.4, 0.6, 0.8];
 
 interface FuelCard { stops: string[]; added: string[]; nm: number; air: number; ground: number; landings: number }
 
@@ -2154,16 +2154,40 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The same ways on the chart beside the route, in faded magenta (RouteWaysLayer).
   // Only while the cards are up: a route picked is the route alone on the
   // chart, the other ways put away with their cards.
-  const wayLines = useMemo((): RouteWay[] => (choosing && routeWays
-    ? routeWays.options.map((o, i) => ({ o, i })).filter(({ o }) => offered(o) && !isRoute(o, planned.stops)).map(({ o, i }) => ({
+  // Every card's, the pilot's own route and it with its fuel stops too, at
+  // the owner's ask ("I want all routes drawn including mine", 2026-10-25):
+  // each its chip, the one in sight solid.
+  const wayLines = useMemo((): RouteWay[] => {
+    if (!choosing || !routeWays) return NO_WAYS;
+    const minutes = browsing ? browsing.ownMinutes : ownMinutes;
+    const ground = browsing ? browsing.ownGround : ownGround;
+    const scale = gridScale(routeWays, minutes);
+    const lines: RouteWay[] = [];
+    if (routeWays.current_path?.length) {
+      lines.push({
+        key: "own", path: routeWays.current_path as [number, number][], name: "Your Route",
+        label: minutes === null ? "" : minutesWords(minutes + ground),
+      });
+    }
+    if (fuelCard && routeWays.own) {
+      lines.push({
+        key: "fuel", path: routeWays.own.path as [number, number][], name: "Your Route with Fuel",
+        label: minutesWords(fuelCard.air * scale + fuelCard.ground),
+      });
+    }
+    for (const o of routeWays.options) {
+      if (!offered(o)) continue;
       // Its time alone on the chart, the cards saying which is which (the
       // owner's "avoid putting too much text": the names ran over each other).
-      key: o.kind, path: o.path as [number, number][], label: wayTime(o, gridScale(routeWays, browsing ? browsing.ownMinutes : ownMinutes)), name: wayTitle(o),
-      // Its chip where it is whichever other ways are drawn: by its place
-      // among all of them, not among those left (it jumped as one went).
-      share: WAY_CHIP_SHARES[i % WAY_CHIP_SHARES.length],
-    }))
-    : NO_WAYS), [choosing, routeWays, planned.stops, browsing, ownMinutes]);
+      lines.push({ key: o.kind, path: o.path as [number, number][], label: wayTime(o, scale), name: wayTitle(o) });
+    }
+    // Each chip where it is whichever others are drawn, by its place among
+    // all of them (it jumped along its line as another went).
+    return lines.map((line, i) => ({ ...line, share: WAY_CHIP_SHARES[i % WAY_CHIP_SHARES.length] }));
+  }, [choosing, routeWays, browsing, ownMinutes, ownGround, fuelCard]);
+  // A way's line or chip tapped: its card in sight, as a swipe to it does;
+  // the pilot's own route is the cards' first (null).
+  const pickWay = useCallback((key: string) => previewWay(key === "own" ? null : key), [previewWay]);
   // Routes in the route box: the cards again, from the route as it is.
   const showRoutes = useCallback(() => { setEntered(chosenKey); setRoutesChosen(null); }, [chosenKey]);
   const routeChoices = useMemo(() => {
@@ -2578,7 +2602,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directs={mapDirects}
           onProcedureFix={showFix}
           fuelStops={alongPins ?? fuelStopPins}
-          ways={wayLines} wayShown={wayShown} onPickWay={previewWay}
+          ways={wayLines} wayShown={wayShown ?? "own"} onPickWay={pickWay}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
