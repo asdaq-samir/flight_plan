@@ -2189,6 +2189,8 @@ class RouteAlong(BaseModel):
     bands: list[RouteBand]
     tail_kt: float
     floor_ft: int
+    #: Its miles out of a glide's reach of dry land (vfr.water).
+    water_nm: int = 0
 
 
 class RouteOption(BaseModel):
@@ -2199,8 +2201,8 @@ class RouteOption(BaseModel):
     hazards it still crosses and the marginal weather it passes, by their
     index in RouteOptions.hazards."""
 
-    kind: Literal["fastest", "weather", "stops", "own"]
-    kinds: list[Literal["fastest", "weather", "stops", "own"]]
+    kind: Literal["fastest", "weather", "stops", "land", "own"]
+    kinds: list[Literal["fastest", "weather", "stops", "land", "own"]]
     title: str
     stops: list[str]
     fuel: list[str]
@@ -2215,6 +2217,7 @@ class RouteOption(BaseModel):
     bands: list[RouteBand] = []
     tail_kt: float = 0.0
     floor_ft: int = 0
+    water_nm: int = 0
 
 
 class RouteOptions(BaseModel):
