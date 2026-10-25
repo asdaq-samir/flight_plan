@@ -48,6 +48,45 @@ struct AirportPin: Codable, Equatable, Sendable {
 }
 
 /// A field found by ident or name (AirportSuggestion).
+/// A field near a point, nearest first (NearestAirport): its distance
+/// and bearing from there, worked out by the planner.
+struct NearestAirport: Codable, Equatable, Sendable, Identifiable {
+    let ident: String
+    let name: String
+    let lat: Double
+    let lon: Double
+    let kind: String
+    let distanceNm: Double
+    let bearingDeg: Double
+    var municipality: String?
+    var flightCategory: String?
+    var longestRunwayFt: Int?
+    var elevationFt: Double?
+
+    var id: String { ident }
+}
+
+/// One airplane the receivers hear (TrafficAircraft), as sent.
+struct TrafficAircraft: Codable, Equatable, Sendable {
+    let hex: String
+    let lat: Double
+    let lon: Double
+    var callsign: String?
+    var registration: String?
+    var type: String?
+    var altitudeFt: Double?
+    var trackDeg: Double?
+    var speedKt: Double?
+    var verticalFpm: Double?
+    var seenS: Double?
+}
+
+struct TrafficAnswer: Codable, Equatable, Sendable {
+    var aircraft: [TrafficAircraft]
+    var source: String?
+    var ageS: Double?
+}
+
 struct AirportSuggestion: Codable, Equatable, Sendable, Identifiable {
     let ident: String
     let name: String

@@ -58,6 +58,12 @@ struct ChartMap: UIViewRepresentable {
     let procedurePaths: [[CLLocationCoordinate2D]]
     /// A dry run's airplane, where it is and which way it points.
     let simulated: OwnShip.Fix?
+    /// The airplanes heard about, and own ship's height to set theirs
+    /// against.
+    var traffic: [TrafficAircraft] = []
+    var ownFt: Double?
+    /// Where the map rested: its middle and the miles to its corner.
+    var onRegion: ((CLLocationCoordinate2D, Double) -> Void)?
     /// A field's mark tapped.
     var onAirport: ((String) -> Void)?
     /// Own ship kept in the middle; a pan by the pilot ends it.
@@ -77,6 +83,7 @@ struct ChartMap: UIViewRepresentable {
         map.isPitchEnabled = false
         map.register(AirportMarkView.self, forAnnotationViewWithReuseIdentifier: AirportMarkView.reuse)
         map.register(CheckpointMarkView.self, forAnnotationViewWithReuseIdentifier: CheckpointMarkView.reuse)
+        map.register(TrafficMarkView.self, forAnnotationViewWithReuseIdentifier: TrafficMarkView.reuse)
         // The chart hides Apple's map; its labels would draw through
         // where a tile is missing, so none are shown at all.
         let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
@@ -93,6 +100,8 @@ struct ChartMap: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onAirport = onAirport
+        context.coordinator.onRegion = onRegion
+        context.coordinator.show(traffic, ownFt: ownFt, on: map)
         context.coordinator.setFollowing = { [self] on in following = on }
         context.coordinator.setRouteAway = { [self] away in if routeAway != away { routeAway = away } }
         if following, map.userTrackingMode != .follow {
@@ -177,6 +186,8 @@ struct ChartMap: UIViewRepresentable {
         var procedureLines: [ProcedurePolyline] = []
         var checkpointMarks: [CheckpointAnnotation] = []
         var onAirport: ((String) -> Void)?
+        var onRegion: ((CLLocationCoordinate2D, Double) -> Void)?
+        private var trafficShown: [String: TrafficAnnotation] = [:]
         var setFollowing: ((Bool) -> Void)?
         var setRouteAway: ((Bool) -> Void)?
         var fitted = 0
@@ -223,6 +234,11 @@ struct ChartMap: UIViewRepresentable {
                 view.turn(to: plane.heading)
                 return view
             }
+            if let mark = annotation as? TrafficAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: TrafficMarkView.reuse, for: mark) as! TrafficMarkView
+                view.show(mark)
+                return view
+            }
             if annotation is CheckpointAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: CheckpointMarkView.reuse, for: annotation)
             }
@@ -264,6 +280,8 @@ struct ChartMap: UIViewRepresentable {
             }
             fetching?.cancel()
             let region = mapView.region
+            let corner = CLLocation(latitude: region.center.latitude + region.span.latitudeDelta / 2, longitude: region.center.longitude + region.span.longitudeDelta / 2)
+            onRegion?(region.center, corner.distance(from: CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)) / 1852)
             fetching = Task { [weak self, weak mapView] in
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled, let self, let mapView else { return }
@@ -273,6 +291,29 @@ struct ChartMap: UIViewRepresentable {
                 let east = region.center.longitude + region.span.longitudeDelta / 2
                 guard let pins = try? await Planner.airports(south: south, west: west, north: north, east: east), !Task.isCancelled else { return }
                 await MainActor.run { self.show(pins.map(AirportAnnotation.init), on: mapView) }
+            }
+        }
+
+        /// The airplanes moved to their new reports, the ones no longer
+        /// heard taken off, the new ones added.
+        @MainActor
+        func show(_ planes: [TrafficAircraft], ownFt: Double?, on map: MKMapView) {
+            let fresh = Dictionary(planes.map { ($0.hex, $0) }, uniquingKeysWith: { a, _ in a })
+            let gone = trafficShown.filter { fresh[$0.key] == nil }
+            map.removeAnnotations(Array(gone.values))
+            for hex in gone.keys { trafficShown[hex] = nil }
+            for (hex, plane) in fresh {
+                if let mark = trafficShown[hex] {
+                    guard mark.plane != plane || mark.ownFt != ownFt else { continue }
+                    mark.plane = plane
+                    mark.ownFt = ownFt
+                    mark.coordinate = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
+                    (map.view(for: mark) as? TrafficMarkView)?.show(mark)
+                } else {
+                    let mark = TrafficAnnotation(plane, ownFt: ownFt)
+                    trafficShown[hex] = mark
+                    map.addAnnotation(mark)
+                }
             }
         }
 

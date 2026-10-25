@@ -5,6 +5,7 @@ import SwiftUI
 struct SetupView: View {
     @Environment(Session.self) private var session
     @Environment(Charts.self) private var charts
+    @Environment(Traffic.self) private var traffic
     @State private var signingIn = false
     @State private var keptBytes: Int64 = 0
 
@@ -29,6 +30,9 @@ struct SetupView: View {
                         NavigationLink("Logbook and currency") { LogbookView() }
                         NavigationLink("Training") { TrainingView() }
                     }
+                }
+                Section("Map") {
+                    Toggle("Traffic", isOn: Binding(get: { traffic.on }, set: { traffic.on = $0 }))
                 }
                 Section("Chart") {
                     if let info = charts.info {

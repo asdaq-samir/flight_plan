@@ -169,3 +169,39 @@ struct TrainingTests {
         #expect(training.experience.first?.words == "2.5 of 5 h")
     }
 }
+
+@MainActor
+struct TrafficTests {
+    private func plane(_ ft: Double?, fpm: Double? = nil) -> TrafficAircraft {
+        TrafficAircraft(hex: "a1b2c3", lat: 41.9, lon: -87.9, altitudeFt: ft, verticalFpm: fpm)
+    }
+
+    /// TCAS's way of writing a height against own ship's, in hundreds of
+    /// feet, the web app's trafficLabel cases.
+    @Test func theHeightAsTcasWritesIt() {
+        #expect(Traffic.label(plane(5000), ownFt: 4500) == "+05")
+        #expect(Traffic.label(plane(3300, fpm: -700), ownFt: 4500) == "-12↓")
+        #expect(Traffic.label(plane(4500, fpm: 500), ownFt: nil) == "4,500↑")
+        #expect(Traffic.label(plane(nil), ownFt: 4500) == "")
+    }
+
+    /// Amber within 1,000 ft of own ship's height, both sides of the line.
+    @Test func nearWithinAThousandFeet() {
+        #expect(Traffic.near(plane(5500), ownFt: 4500))
+        #expect(!Traffic.near(plane(5600), ownFt: 4500))
+        #expect(!Traffic.near(plane(4500), ownFt: nil))
+    }
+
+    @Test func theLicencesCredit() {
+        #expect(Traffic.credit(nil) == "Traffic adsb.lol, ODbL")
+        #expect(Traffic.credit("adsb.lol and adsb.fi") == "Traffic adsb.lol, ODbL · adsb.fi")
+        #expect(Traffic.credit("ADS-B Exchange") == "Traffic ADS-B Exchange")
+    }
+
+    @Test func theNearestFieldsRead() throws {
+        let json = #"{"airports":[{"ident":"KLOT","name":"Lewis University","lat":41.6,"lon":-88.1,"kind":"small_airport","distance_nm":3.4,"bearing_deg":182.0,"private":false,"longest_runway_ft":6500,"flight_category":"VFR","radio":null}]}"#
+        struct Answer: Decodable { let airports: [NearestAirport] }
+        let field = try Planner.snakeCase.decode(Answer.self, from: Data(json.utf8)).airports[0]
+        #expect(field.distanceNm == 3.4 && field.longestRunwayFt == 6500 && field.flightCategory == "VFR")
+    }
+}

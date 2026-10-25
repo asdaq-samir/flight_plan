@@ -82,6 +82,17 @@ enum Planner {
     }
 
     /// Fields by ident or name as they are typed (/api/airports/search).
+    /// The fields nearest a point (/api/airports/nearest), nearest first.
+    static func nearest(lat: Double, lon: Double, limit: Int = 10) async throws -> [NearestAirport] {
+        struct Answer: Decodable { let airports: [NearestAirport] }
+        return try await fetch(Answer.self, "/api/airports/nearest", ["lat": String(lat), "lon": String(lon), "limit": String(limit)]).airports
+    }
+
+    /// The airplanes heard about a point (/api/traffic), out to a radius.
+    static func traffic(lat: Double, lon: Double, radiusNm: Double) async throws -> TrafficAnswer {
+        try await fetch(TrafficAnswer.self, "/api/traffic", ["lat": String(lat), "lon": String(lon), "radius": String(Int(radiusNm.rounded()))])
+    }
+
     static func search(_ q: String) async throws -> [AirportSuggestion] {
         struct Answer: Decodable { let airports: [AirportSuggestion] }
         return try await fetch(Answer.self, "/api/airports/search", ["q": q]).airports

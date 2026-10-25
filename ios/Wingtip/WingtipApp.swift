@@ -11,6 +11,7 @@ struct WingtipApp: App {
     @State private var plan = Plan()
     @State private var ownShip = OwnShip()
     @State private var dryRun = DryRun()
+    @State private var traffic = Traffic()
 
     var body: some Scene {
         WindowGroup {
@@ -20,6 +21,7 @@ struct WingtipApp: App {
                 .environment(plan)
                 .environment(ownShip)
                 .environment(dryRun)
+                .environment(traffic)
                 .task { ownShip.start() }
                 .task { await session.refresh() }
                 .task { await charts.load() }
