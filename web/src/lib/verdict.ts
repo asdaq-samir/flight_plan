@@ -7,6 +7,10 @@
  * briefer starts with whether VFR is recommended (AIM 7-1-5(b)(2)).
  * The findings are the planner's; the decision is the pilot in command's
  * (14 CFR 91.3), and the line says so.
+ *
+ * The planner holds the same rules for the native app (planning-service's
+ * app/gonogo/verdict.py and the modules beside it, POST /api/go-no-go),
+ * ported line for line with this file's tests: change the two together.
  */
 import { create } from "zustand";
 import { worstOf, type Finding } from "./status";

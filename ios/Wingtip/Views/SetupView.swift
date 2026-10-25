@@ -38,7 +38,10 @@ struct SetupView: View {
                         NavigationLink("Instructing") { InstructorView() }
                     }
                 }
+                // The weather the pilot will not take off or land in, kept
+                // on this phone: the Brief's Go / No-Go holds it to them.
                 Section {
+                    NavigationLink("Personal minimums") { MinimumsView() }
                     NavigationLink("Guide") { PilotGuideView() }
                 }
                 Section("Map") {
