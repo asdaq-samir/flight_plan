@@ -112,3 +112,16 @@ struct ProcedureTests {
         #expect(plan.procedures.map(\.id) == ["R27"])
     }
 }
+
+/// The dry run's airplane along the plan.
+struct DryRunTests {
+    @MainActor @Test func theAirplaneIsPlacedByTheLegsMinutes() {
+        let run = DryRun()
+        let line = [CLLocationCoordinate2D(latitude: 42.0, longitude: -88.0), CLLocationCoordinate2D(latitude: 43.0, longitude: -88.0)]
+        let leg = Leg(from: "A", to: "B", distanceNm: 60, altitudeFt: 4500, trueCourseDeg: 0, magneticHeadingDeg: 0, groundspeedKt: 120, eteMin: 30, fuelGal: 4, tasKt: 110)
+        run.start(line: line, legs: [leg])
+        #expect(run.running && run.fix?.groundspeedKt == 120 && abs((run.fix?.coordinate.latitude ?? 0) - 42.0) < 0.01)
+        run.stop()
+        #expect(!run.running && run.fix == nil)
+    }
+}

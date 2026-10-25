@@ -85,7 +85,78 @@ struct Currency: Codable, Equatable, Sendable {
     var trackingInWindow: Bool = false
 }
 
+/// The student's training (TrainingDto) and its parts, the fields shown.
+struct Training: Codable, Equatable, Sendable {
+    var fullName: String?
+    var instructors: [InstructorLink] = []
+    var signed: [SignedEndorsement] = []
+    var reviews: [CrossCountryReview] = []
+    var experience: [ExperienceItem] = []
+}
+
+struct InstructorLink: Codable, Equatable, Sendable, Identifiable {
+    let id: Int64
+    let email: String
+    var name: String?
+    var accepted: Bool = false
+    var askedAt: String?
+}
+
+struct SignedEndorsement: Codable, Equatable, Sendable, Identifiable {
+    let id: Int64
+    let code: String
+    let text: String
+    let signedOn: String
+    var until: String?
+    var voided: Bool = false
+}
+
+struct ReviewCheck: Codable, Equatable, Sendable {
+    let label: String
+    let detail: String
+    let rule: String
+    var met: Bool = false
+}
+
+struct CrossCountryReview: Codable, Equatable, Sendable, Identifiable {
+    let id: Int64
+    let flightOn: String
+    let makeModel: String
+    var checks: [ReviewCheck] = []
+    var answeredAt: String?
+    var declinedNote: String?
+    var instructorName: String?
+}
+
+/// One line of the experience logged against a requirement
+/// (ExperienceItemDto): what is had and needed, in its unit, and the
+/// rule it comes from, judged by the gateway.
+struct ExperienceItem: Codable, Equatable, Sendable {
+    let key: String
+    let label: String
+    let rule: String
+    let unit: String
+    let have: Double
+    let need: Double
+    var met: Bool = false
+
+    var words: String {
+        func n(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) }
+        return "\(n(have)) of \(n(need)) \(unit)"
+    }
+}
+
 extension Gateway {
+    static func training() async throws -> Training? { try await fetch(Training.self, "/api/training") }
+
+    /// An instructor asked in by their address (/api/training/instructors).
+    static func askInstructor(email: String) async throws {
+        struct Ask: Encodable { let email: String }
+        let (_, response) = try await session.data(for: request("POST", "/api/training/instructors", json: Ask(email: email)))
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(status) else { throw Failure(status: status) }
+    }
+
     /// JSON from the gateway: its dates as the strings they come as.
     private static func fetch<T: Decodable>(_ type: T.Type, _ path: String) async throws -> T? {
         let (data, response) = try await session.data(for: request("GET", path))

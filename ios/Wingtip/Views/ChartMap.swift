@@ -11,6 +11,39 @@ final class WayPolyline: MKPolyline {}
 /// A procedure's path, told from the course line by its class.
 final class ProcedurePolyline: MKPolyline {}
 
+/// The dry run's airplane: a blue arrow in a white casing, as the web app
+/// draws own ship, turned to its track.
+final class PlaneAnnotation: MKPointAnnotation {
+    var heading: Double = 0
+}
+
+final class PlaneMarkView: MKAnnotationView {
+    static let reuse = "plane"
+    private let arrow = UIImageView(image: UIImage(systemName: "location.north.fill"))
+
+    override init(annotation: (any MKAnnotation)?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 28, height: 28)
+        arrow.frame = bounds.insetBy(dx: 3, dy: 3)
+        arrow.contentMode = .scaleAspectFit
+        arrow.tintColor = UIColor.systemBlue
+        backgroundColor = UIColor.white.withAlphaComponent(0.9)
+        layer.cornerRadius = 14
+        layer.borderWidth = 1
+        layer.borderColor = UIColor(white: 0.1, alpha: 0.4).cgColor
+        addSubview(arrow)
+        displayPriority = .required
+        isEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    func turn(to degrees: Double) {
+        arrow.transform = CGAffineTransform(rotationAngle: degrees * .pi / 180)
+    }
+}
+
 struct ChartMap: UIViewRepresentable {
     let template: TileTemplate?
     let minZoom: Int
@@ -23,6 +56,8 @@ struct ChartMap: UIViewRepresentable {
     let shownWay: [CLLocationCoordinate2D]
     /// The procedures' paths the legs fly, drawn with the course.
     let procedurePaths: [[CLLocationCoordinate2D]]
+    /// A dry run's airplane, where it is and which way it points.
+    let simulated: OwnShip.Fix?
     /// A field's mark tapped.
     var onAirport: ((String) -> Void)?
     /// Own ship kept in the middle; a pan by the pilot ends it.
@@ -98,6 +133,17 @@ struct ChartMap: UIViewRepresentable {
             context.coordinator.procedureLines = procedurePaths.filter { $0.count >= 2 }.map { ProcedurePolyline(coordinates: $0, count: $0.count) }
             map.addOverlays(context.coordinator.procedureLines, level: .aboveLabels)
         }
+        if let simulated {
+            let plane = context.coordinator.plane ?? {
+                let mark = PlaneAnnotation(); context.coordinator.plane = mark; map.addAnnotation(mark); return mark
+            }()
+            plane.coordinate = simulated.coordinate
+            plane.heading = simulated.trackDeg ?? 0
+            (map.view(for: plane) as? PlaneMarkView)?.turn(to: plane.heading)
+        } else if let plane = context.coordinator.plane {
+            map.removeAnnotation(plane)
+            context.coordinator.plane = nil
+        }
         if context.coordinator.courseShown != course {
             context.coordinator.courseShown = course
             if let line = context.coordinator.courseLine { map.removeOverlay(line) }
@@ -127,6 +173,7 @@ struct ChartMap: UIViewRepresentable {
         var wayShown: [CLLocationCoordinate2D] = []
         var wayLine: WayPolyline?
         var proceduresShown: [[CLLocationCoordinate2D]] = []
+        var plane: PlaneAnnotation?
         var procedureLines: [ProcedurePolyline] = []
         var checkpointMarks: [CheckpointAnnotation] = []
         var onAirport: ((String) -> Void)?
@@ -170,6 +217,12 @@ struct ChartMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
+            if let plane = annotation as? PlaneAnnotation {
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: PlaneMarkView.reuse) as? PlaneMarkView) ?? PlaneMarkView(annotation: plane, reuseIdentifier: PlaneMarkView.reuse)
+                view.annotation = plane
+                view.turn(to: plane.heading)
+                return view
+            }
             if annotation is CheckpointAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: CheckpointMarkView.reuse, for: annotation)
             }

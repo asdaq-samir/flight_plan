@@ -150,3 +150,22 @@ struct HandbookTests {
         #expect(Handbook.figures(of: "NORMAL PROCEDURES\nBefore starting engine, check fuel selector.").isEmpty)
     }
 }
+
+struct TrainingTests {
+    /// The gateway's TrainingDto, with the fields the page does not show.
+    @Test func theTrainingReadsAsTheGatewaySendsIt() throws {
+        let json = """
+        {"fullName":"Sam Pilot","kinds":[],"knowledgeTestCodes":[],"endorsements":[],
+         "instructors":[{"id":3,"email":"cfi@example.com","name":"Ann CFI","certificate":"1234567CFI","accepted":true,"askedAt":"2026-10-13T10:00:00Z"}],
+         "signed":[{"id":9,"code":"A.6","text":"I certify that…","signedOn":"2026-10-14","until":"2026-11-13","voided":false,"digest":"x","signature":"y","studentName":"Sam Pilot","fields":{}}],
+         "reviews":[{"id":1,"flightOn":"2026-10-20","makeModel":"PA-28-140","checks":[{"label":"Route","detail":"KRZL to KLAF","rule":"61.93(c)(3)","met":true}],
+                     "answeredAt":null,"askedAt":"2026-10-19T10:00:00Z","declinedNote":null,"instructorName":"Ann CFI","note":null,"studentId":null,"studentName":"Sam Pilot","endorsement":null,"flight":null}],
+         "experience":[{"key":"xc","label":"Cross-country solo","rule":"61.109(a)(5)","unit":"h","have":2.5,"need":5,"met":false}]}
+        """
+        let training = try JSONDecoder().decode(Training.self, from: Data(json.utf8))
+        #expect(training.instructors.first?.accepted == true)
+        #expect(training.signed.first?.until == "2026-11-13")
+        #expect(training.reviews.first?.checks.first?.met == true)
+        #expect(training.experience.first?.words == "2.5 of 5 h")
+    }
+}

@@ -27,6 +27,7 @@ struct SetupView: View {
                 if session.signedIn {
                     Section("Pilot") {
                         NavigationLink("Logbook and currency") { LogbookView() }
+                        NavigationLink("Training") { TrainingView() }
                     }
                 }
                 Section("Chart") {

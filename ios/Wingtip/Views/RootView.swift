@@ -9,6 +9,7 @@ struct RootView: View {
     @Environment(Charts.self) private var charts
     @Environment(Plan.self) private var plan
     @Environment(OwnShip.self) private var ownShip
+    @Environment(DryRun.self) private var dryRun
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
     @State private var tab: Tabs = .fpl
@@ -29,6 +30,7 @@ struct RootView: View {
             course: plan.course, checkpoints: plan.checkpoints,
             shownWay: plan.shownWay?.path.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil } ?? [],
             procedurePaths: plan.legs.compactMap { $0.procedure?.path.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil } },
+            simulated: dryRun.fix,
             // A field tapped on the chart opens its card, half way up, as
             // the web app does.
             onAirport: { ident in
@@ -44,6 +46,9 @@ struct RootView: View {
         }
         .overlay(alignment: .top) {
             AlertsBanner(alerts: ownShip.ahead).padding(.trailing, 64)
+        }
+        .overlay(alignment: .topLeading) {
+            if dryRun.fix != nil { DryRunControls().padding(.leading, 12).padding(.top, 12) }
         }
         .sheet(isPresented: $sheetUp) {
             SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)

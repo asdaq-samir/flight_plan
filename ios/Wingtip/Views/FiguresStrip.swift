@@ -7,13 +7,15 @@ import SwiftUI
 struct FiguresStrip: View {
     @Environment(Plan.self) private var plan
     @Environment(OwnShip.self) private var ownShip
+    @Environment(DryRun.self) private var dryRun
 
     /// In the air on the route -- moving, within 3 nm of the line -- the
     /// figures count down from where the airplane is, as the web app's do
     /// in a dry run (Flight): what is left to the destination at the
     /// groundspeed now, and the fuel still required.
     private var flying: (leftNm: Double, minutes: Double?, fuelGal: Double?)? {
-        guard let fix = ownShip.fix, let gs = fix.groundspeedKt, gs > 30, let course = plan.course,
+        // A dry run's airplane counts as flying; else own ship, moving.
+        guard let fix = dryRun.fix ?? ownShip.fix, let gs = fix.groundspeedKt, gs > 30, let course = plan.course,
               let along = Flight.along(fix.coordinate, line: course.coordinates),
               Flight.off(fix.coordinate, line: course.coordinates) <= 3 else { return nil }
         let required = plan.totals?.fuelRequiredGal.map { max(0, $0 - Flight.burnt(legs: plan.legs, alongNm: along.alongNm)) }
