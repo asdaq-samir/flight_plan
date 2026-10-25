@@ -31,6 +31,11 @@ struct SetupView: View {
                         NavigationLink("Training") { TrainingView() }
                     }
                 }
+                // The weather the pilot will not take off or land in, kept
+                // on this phone: the Brief's Go / No-Go holds it to them.
+                Section {
+                    NavigationLink("Personal minimums") { MinimumsView() }
+                }
                 Section("Map") {
                     Toggle("Traffic", isOn: Binding(get: { traffic.on }, set: { traffic.on = $0 }))
                 }
