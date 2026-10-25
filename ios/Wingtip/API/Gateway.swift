@@ -20,14 +20,14 @@ enum Gateway {
         var errorDescription: String? { "The server answered \(status)." }
     }
 
-    private static let session: URLSession = {
+    static let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
         return URLSession(configuration: config)
     }()
 
-    private static func request(_ method: String, _ path: String, json: (any Encodable)? = nil, form: [String: String]? = nil) -> URLRequest {
+    static func request(_ method: String, _ path: String, json: (any Encodable)? = nil, form: [String: String]? = nil) -> URLRequest {
         var request = URLRequest(url: Config.gateway.appending(path: path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -77,6 +77,18 @@ enum Gateway {
         let (_, response) = try await session.data(for: request("POST", "/api/auth/magic-link/verify", form: ["token": token]))
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200...399).contains(status) else { throw Failure(status: status) }
+    }
+
+    /// The pilot's own airplanes (/api/aircraft), with the figures they
+    /// set; empty when no one is signed in.
+    static func aircraft() async throws -> [OwnAircraft] {
+        let (data, response) = try await session.data(for: request("GET", "/api/aircraft"))
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        switch status {
+        case 200: return try JSONDecoder().decode([OwnAircraft].self, from: data)
+        case 401, 403: return []
+        default: throw Failure(status: status)
+        }
     }
 
     /// Spring Security's own logout, which answers 204.

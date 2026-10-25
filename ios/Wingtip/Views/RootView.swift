@@ -9,6 +9,8 @@ struct RootView: View {
     @Environment(Charts.self) private var charts
     @Environment(Plan.self) private var plan
     @Environment(OwnShip.self) private var ownShip
+    @Environment(DryRun.self) private var dryRun
+    @Environment(Traffic.self) private var traffic
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
     @State private var tab: Tabs = .fpl
@@ -28,6 +30,11 @@ struct RootView: View {
             template: charts.template, minZoom: charts.base?.minZoom ?? 5, maxZoom: charts.base?.maxZoom ?? 12,
             course: plan.course, checkpoints: plan.checkpoints,
             shownWay: plan.shownWay?.path.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil } ?? [],
+            procedurePaths: plan.legs.compactMap { $0.procedure?.path.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil } },
+            simulated: dryRun.fix,
+            traffic: traffic.on ? traffic.planes : [],
+            ownFt: (dryRun.fix ?? ownShip.fix)?.altitudeFt,
+            onRegion: { centre, radius in traffic.mapCentre = centre; traffic.mapRadiusNm = radius },
             // A field tapped on the chart opens its card, half way up, as
             // the web app does.
             onAirport: { ident in
@@ -44,6 +51,18 @@ struct RootView: View {
         .overlay(alignment: .top) {
             AlertsBanner(alerts: ownShip.ahead).padding(.trailing, 64)
         }
+        .overlay(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 8) {
+                if dryRun.fix != nil { DryRunControls() }
+                // The licence's credit, beside the traffic it covers.
+                if traffic.on, !traffic.planes.isEmpty {
+                    Text(Traffic.credit(traffic.source)).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(.thinMaterial, in: Capsule())
+                }
+            }
+            .padding(.leading, 12).padding(.top, 12)
+        }
+        .task { await traffic.run { [ownShip] in ownShip.fix?.coordinate } }
         .sheet(isPresented: $sheetUp) {
             SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
                 .presentationDetents([RootView.pill, .medium, .large], selection: $detent)

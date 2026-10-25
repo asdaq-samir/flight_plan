@@ -397,8 +397,11 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
 }
 
 /** A checkpoint's name as its label shows it: its ForeFlight waypoint's,
- *  with spaces for the underscores ForeFlight needs, else its place's. */
-const labelOf = (c: Pick<Candidate, "waypoint" | "name">) => (c.waypoint ?? c.name ?? "").replaceAll("_", " ").trim();
+ *  with spaces for the underscores ForeFlight needs, else its place's; a
+ *  field's own name and ident, where the pack's name for it is the
+ *  route's ends and its number (C81DLH01), at the owner's yes (2026-10-24). */
+const labelOf = (c: Pick<Candidate, "waypoint" | "name" | "category">) =>
+  (c.category === "airport" && c.name ? c.name : c.waypoint ?? c.name ?? "").replaceAll("_", " ").trim();
 
 /**
  * Which checkpoints' names fit beside their dots in the map as it is, and

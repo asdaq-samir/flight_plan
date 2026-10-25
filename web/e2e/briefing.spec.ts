@@ -99,11 +99,12 @@ test("plan page: the flight planning drawer opens the way the Model Training dra
     .map(async id => (await drawer.getByTestId(id).boundingBox())!));
   expect(approachesBox.x).toBeLessThan(shareBox.x);
   expect(Math.abs(approachesBox.y - shareBox.y)).toBeLessThan(2);
-  // The departure's time on its step in the route's list, not in this
-  // line, at the owner's ask: the airplane's chip leads the line instead.
+  // On the route's own line, beside its pills, at the owner's ask
+  // (2026-10-24); the airplane's chip leads the line under it.
   const airplane = (await drawer.getByTestId("aircraft-select").boundingBox())!;
-  expect(approachesBox.x).toBeGreaterThan(airplane.x);
-  expect(Math.abs(shareBox.y + shareBox.height / 2 - (airplane.y + airplane.height / 2))).toBeLessThan(12);
+  const dep = (await drawer.getByTestId("route-dep").boundingBox())!;
+  expect(Math.abs(shareBox.y + shareBox.height / 2 - (dep.y + dep.height / 2))).toBeLessThan(4);
+  expect(airplane.y).toBeGreaterThan(shareBox.y + shareBox.height / 2);
   await expect(drawer.getByTestId("procedures").getByTestId("depart-date")).toBeVisible();
   await drawer.getByTestId("share-route").click();
   // And, signed in, Save this flight among them.

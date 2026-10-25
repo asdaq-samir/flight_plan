@@ -15,6 +15,11 @@ final class Plan {
     /// The planner's aircraft profile; the airplane by N-number comes in
     /// phase 3.
     var aircraft = "c172"
+    /// The airplane by its N-number, where one is picked: its type's
+    /// profile is `aircraft`, and the pilot's own figures for it, where
+    /// set on the gateway, are flown over the type's.
+    var tail: String?
+    var figures = Figures()
     /// An altitude of the pilot's own, feet MSL; nil for the planner's
     /// pick, with its warnings said where one is over a limit.
     var ownAltitudeFt: Double?
@@ -23,6 +28,10 @@ final class Plan {
     var ownAltitudeLegal = false
     /// One of the four plans picked by name; nil for the planner's own.
     var altitudeChoice: String?
+    /// The procedures picked for the route's fields, one per field and
+    /// kind: a departure out of the departure, an arrival or an approach
+    /// into a stop or the destination.
+    var procedures: [ProcedurePick] = []
 
     private(set) var course: Course?
     private(set) var checkpoints: [Checkpoint] = []
@@ -82,7 +91,7 @@ final class Plan {
         course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil
         legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
         Kept.forget()
-        ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil
+        ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
@@ -113,6 +122,63 @@ final class Plan {
     func goRound(_ detour: Detour) {
         let points = (detour.via?.isEmpty == false) ? detour.via! : [detour.ident]
         stops.insert(contentsOf: points, at: min(detour.stopIndex, stops.count))
+        plan()
+    }
+
+    /// The plan as the gateway saves a flight: the route, its altitude,
+    /// totals and the legs' points as checkpoints (SaveFlightRequest).
+    func saved() -> SaveFlightRequest? {
+        guard routed, let course else { return nil }
+        var along = 0.0
+        let points = legs.enumerated().map { i, leg -> SaveFlightCheckpoint in
+            along += leg.distanceNm
+            let point = checkpoints.first { ($0.name ?? $0.waypoint ?? "").uppercased() == leg.to.uppercased() }
+            return SaveFlightCheckpoint(
+                sequenceNo: i + 1, name: leg.to, category: point?.category ?? "point",
+                lat: point?.lat ?? course.destination.lat, lon: point?.lon ?? course.destination.lon, alongTrackNm: along,
+                altitudeFt: leg.altitudeFt, legDistanceNm: leg.distanceNm, trueCourseDeg: leg.trueCourseDeg,
+                magneticHeadingDeg: leg.magneticHeadingDeg, groundspeedKt: leg.groundspeedKt, eteMin: leg.eteMin, fuelGal: leg.fuelGal)
+        }
+        return SaveFlightRequest(
+            departureIdent: dep, destinationIdent: dest, stops: stops, cruiseAltitudeFt: altitudeFt.map { Int($0) },
+            totalDistanceNm: totals?.distanceNm, totalEteMin: totals?.eteMin, totalFuelGal: totals?.fuelGal, checkpoints: points)
+    }
+
+    /// A saved flight back on the page: its route, planned again.
+    func open(_ flight: SavedFlight) {
+        dep = flight.departureIdent; dest = flight.destinationIdent; stops = flight.stops
+        ownAltitudeFt = nil; altitudeChoice = nil
+        plan()
+    }
+
+    /// An airplane by its N-number: one of the pilot's own with its
+    /// figures, else the FAA's registry's type on the planner's profile
+    /// for it, where it has one; the profile in use stands otherwise.
+    func fly(tail: String, own: [OwnAircraft], profiles: [AircraftProfile]) async {
+        let tail = tail.uppercased()
+        self.tail = tail
+        // The figures kept on this device for the N-number first, then the
+        // pilot's own airplane's on the gateway, then the type's.
+        let kept = TailFigures.load(tail)
+        if let mine = own.first(where: { $0.tailNumber.uppercased() == tail }) {
+            let wanted = mine.typeDesignator.lowercased().filter { $0.isLetter || $0.isNumber }
+            if profiles.contains(where: { $0.name == wanted }) { aircraft = wanted }
+            figures = kept.cruiseTasKt == nil && kept.serviceCeilingFt == nil ? Figures(mine) : kept
+        } else {
+            figures = kept
+            if let registered = try? await Planner.registered(tail),
+               let profile = Registered.profile(manufacturer: registered.manufacturer, model: registered.model, year: registered.year) {
+                aircraft = profile
+            }
+        }
+        if routed { plan() }
+    }
+
+    /// A procedure picked for a field, in place of any of its kind there;
+    /// nil takes that kind off the field. Planned again.
+    func pick(_ procedure: ProcedurePick?, kind: String, at ident: String) {
+        procedures.removeAll { $0.ident == ident && $0.kind == kind }
+        if let procedure { procedures.append(procedure) }
         plan()
     }
 
@@ -152,7 +218,8 @@ final class Plan {
         guard routed else { return }
         running?.cancel()
         let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft
-        let own = ownAltitudeFt, legal = ownAltitudeLegal, choice = altitudeChoice
+        let own = ownAltitudeFt, legal = ownAltitudeLegal, choice = altitudeChoice, figures = figures
+        let picks = procedures.filter { idents.contains($0.ident) }
         self.dep = dep; self.dest = dest; self.stops = stops
         planning = true
         problem = nil
@@ -181,7 +248,7 @@ final class Plan {
                     }
                 }
                 var fresh: [Leg] = []
-                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, altitudeFt: own, nearest: legal, choice: choice) {
+                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, figures: figures, altitudeFt: own, nearest: legal, choice: choice, procedures: picks) {
                     guard !Task.isCancelled else { return }
                     switch message {
                     case .stage(let detail): self.stage = detail

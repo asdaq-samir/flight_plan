@@ -95,3 +95,33 @@ struct FlightTests {
         #expect(abs(Flight.burnt(legs: legs, alongNm: 60) - 6.0) < 0.001)
     }
 }
+
+/// A procedure picked, as the planner's query takes it.
+struct ProcedureTests {
+    @Test func aPickIsIdentIdAndItsTransition() {
+        #expect(ProcedurePick(ident: "KDLH", id: "I09", kind: "approach", name: "ILS 09").param == "KDLH:I09")
+        #expect(ProcedurePick(ident: "KORD", id: "WYNDE3", kind: "arrival", name: "WYNDE THREE", transition: "ZZIPR").param == "KORD:WYNDE3:ZZIPR")
+    }
+
+    @MainActor @Test func onePickPerFieldAndKind() {
+        let plan = Plan()
+        plan.dep = "C81"; plan.dest = "KDLH"
+        plan.procedures = [ProcedurePick(ident: "KDLH", id: "I09", kind: "approach", name: "ILS 09")]
+        plan.procedures.removeAll { $0.ident == "KDLH" && $0.kind == "approach" }
+        plan.procedures.append(ProcedurePick(ident: "KDLH", id: "R27", kind: "approach", name: "RNAV 27"))
+        #expect(plan.procedures.map(\.id) == ["R27"])
+    }
+}
+
+/// The dry run's airplane along the plan.
+struct DryRunTests {
+    @MainActor @Test func theAirplaneIsPlacedByTheLegsMinutes() {
+        let run = DryRun()
+        let line = [CLLocationCoordinate2D(latitude: 42.0, longitude: -88.0), CLLocationCoordinate2D(latitude: 43.0, longitude: -88.0)]
+        let leg = Leg(from: "A", to: "B", distanceNm: 60, altitudeFt: 4500, trueCourseDeg: 0, magneticHeadingDeg: 0, groundspeedKt: 120, eteMin: 30, fuelGal: 4, tasKt: 110)
+        run.start(line: line, legs: [leg])
+        #expect(run.running && run.fix?.groundspeedKt == 120 && abs((run.fix?.coordinate.latitude ?? 0) - 42.0) < 0.01)
+        run.stop()
+        #expect(!run.running && run.fix == nil)
+    }
+}

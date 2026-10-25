@@ -8,6 +8,42 @@ import SwiftUI
 /// A way from Routes, told from the course line by its class.
 final class WayPolyline: MKPolyline {}
 
+/// A procedure's path, told from the course line by its class.
+final class ProcedurePolyline: MKPolyline {}
+
+/// The dry run's airplane: a blue arrow in a white casing, as the web app
+/// draws own ship, turned to its track.
+final class PlaneAnnotation: MKPointAnnotation {
+    var heading: Double = 0
+}
+
+final class PlaneMarkView: MKAnnotationView {
+    static let reuse = "plane"
+    private let arrow = UIImageView(image: UIImage(systemName: "location.north.fill"))
+
+    override init(annotation: (any MKAnnotation)?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 28, height: 28)
+        arrow.frame = bounds.insetBy(dx: 3, dy: 3)
+        arrow.contentMode = .scaleAspectFit
+        arrow.tintColor = UIColor.systemBlue
+        backgroundColor = UIColor.white.withAlphaComponent(0.9)
+        layer.cornerRadius = 14
+        layer.borderWidth = 1
+        layer.borderColor = UIColor(white: 0.1, alpha: 0.4).cgColor
+        addSubview(arrow)
+        displayPriority = .required
+        isEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    func turn(to degrees: Double) {
+        arrow.transform = CGAffineTransform(rotationAngle: degrees * .pi / 180)
+    }
+}
+
 struct ChartMap: UIViewRepresentable {
     let template: TileTemplate?
     let minZoom: Int
@@ -18,6 +54,16 @@ struct ChartMap: UIViewRepresentable {
     let checkpoints: [Checkpoint]
     /// A way from Routes shown beside the course, dashed.
     let shownWay: [CLLocationCoordinate2D]
+    /// The procedures' paths the legs fly, drawn with the course.
+    let procedurePaths: [[CLLocationCoordinate2D]]
+    /// A dry run's airplane, where it is and which way it points.
+    let simulated: OwnShip.Fix?
+    /// The airplanes heard about, and own ship's height to set theirs
+    /// against.
+    var traffic: [TrafficAircraft] = []
+    var ownFt: Double?
+    /// Where the map rested: its middle and the miles to its corner.
+    var onRegion: ((CLLocationCoordinate2D, Double) -> Void)?
     /// A field's mark tapped.
     var onAirport: ((String) -> Void)?
     /// Own ship kept in the middle; a pan by the pilot ends it.
@@ -37,6 +83,7 @@ struct ChartMap: UIViewRepresentable {
         map.isPitchEnabled = false
         map.register(AirportMarkView.self, forAnnotationViewWithReuseIdentifier: AirportMarkView.reuse)
         map.register(CheckpointMarkView.self, forAnnotationViewWithReuseIdentifier: CheckpointMarkView.reuse)
+        map.register(TrafficMarkView.self, forAnnotationViewWithReuseIdentifier: TrafficMarkView.reuse)
         // The chart hides Apple's map; its labels would draw through
         // where a tile is missing, so none are shown at all.
         let config = MKStandardMapConfiguration(elevationStyle: .flat, emphasisStyle: .muted)
@@ -53,6 +100,8 @@ struct ChartMap: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onAirport = onAirport
+        context.coordinator.onRegion = onRegion
+        context.coordinator.show(traffic, ownFt: ownFt, on: map)
         context.coordinator.setFollowing = { [self] on in following = on }
         context.coordinator.setRouteAway = { [self] away in if routeAway != away { routeAway = away } }
         if following, map.userTrackingMode != .follow {
@@ -87,6 +136,23 @@ struct ChartMap: UIViewRepresentable {
                 map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
             }
         }
+        if context.coordinator.proceduresShown.count != procedurePaths.count || zip(context.coordinator.proceduresShown, procedurePaths).contains(where: { $0.count != $1.count }) {
+            context.coordinator.proceduresShown = procedurePaths
+            map.removeOverlays(context.coordinator.procedureLines)
+            context.coordinator.procedureLines = procedurePaths.filter { $0.count >= 2 }.map { ProcedurePolyline(coordinates: $0, count: $0.count) }
+            map.addOverlays(context.coordinator.procedureLines, level: .aboveLabels)
+        }
+        if let simulated {
+            let plane = context.coordinator.plane ?? {
+                let mark = PlaneAnnotation(); context.coordinator.plane = mark; map.addAnnotation(mark); return mark
+            }()
+            plane.coordinate = simulated.coordinate
+            plane.heading = simulated.trackDeg ?? 0
+            (map.view(for: plane) as? PlaneMarkView)?.turn(to: plane.heading)
+        } else if let plane = context.coordinator.plane {
+            map.removeAnnotation(plane)
+            context.coordinator.plane = nil
+        }
         if context.coordinator.courseShown != course {
             context.coordinator.courseShown = course
             if let line = context.coordinator.courseLine { map.removeOverlay(line) }
@@ -115,8 +181,13 @@ struct ChartMap: UIViewRepresentable {
         var checkpointsShown: [Checkpoint] = []
         var wayShown: [CLLocationCoordinate2D] = []
         var wayLine: WayPolyline?
+        var proceduresShown: [[CLLocationCoordinate2D]] = []
+        var plane: PlaneAnnotation?
+        var procedureLines: [ProcedurePolyline] = []
         var checkpointMarks: [CheckpointAnnotation] = []
         var onAirport: ((String) -> Void)?
+        var onRegion: ((CLLocationCoordinate2D, Double) -> Void)?
+        private var trafficShown: [String: TrafficAnnotation] = [:]
         var setFollowing: ((Bool) -> Void)?
         var setRouteAway: ((Bool) -> Void)?
         var fitted = 0
@@ -127,6 +198,15 @@ struct ChartMap: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
+            if let procedure = overlay as? ProcedurePolyline {
+                // A procedure's path in the chart's procedure violet, as
+                // the web app draws a picked one.
+                let renderer = MKPolylineRenderer(polyline: procedure)
+                renderer.strokeColor = UIColor(red: 0.36, green: 0.36, blue: 0.84, alpha: 1)
+                renderer.lineWidth = 3
+                renderer.lineJoin = .round
+                return renderer
+            }
             if let way = overlay as? WayPolyline {
                 // A way from Routes, dashed in the tint, beside the course.
                 let renderer = MKPolylineRenderer(polyline: way)
@@ -148,6 +228,17 @@ struct ChartMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
+            if let plane = annotation as? PlaneAnnotation {
+                let view = (mapView.dequeueReusableAnnotationView(withIdentifier: PlaneMarkView.reuse) as? PlaneMarkView) ?? PlaneMarkView(annotation: plane, reuseIdentifier: PlaneMarkView.reuse)
+                view.annotation = plane
+                view.turn(to: plane.heading)
+                return view
+            }
+            if let mark = annotation as? TrafficAnnotation {
+                let view = mapView.dequeueReusableAnnotationView(withIdentifier: TrafficMarkView.reuse, for: mark) as! TrafficMarkView
+                view.show(mark)
+                return view
+            }
             if annotation is CheckpointAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: CheckpointMarkView.reuse, for: annotation)
             }
@@ -189,6 +280,8 @@ struct ChartMap: UIViewRepresentable {
             }
             fetching?.cancel()
             let region = mapView.region
+            let corner = CLLocation(latitude: region.center.latitude + region.span.latitudeDelta / 2, longitude: region.center.longitude + region.span.longitudeDelta / 2)
+            onRegion?(region.center, corner.distance(from: CLLocation(latitude: region.center.latitude, longitude: region.center.longitude)) / 1852)
             fetching = Task { [weak self, weak mapView] in
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled, let self, let mapView else { return }
@@ -198,6 +291,29 @@ struct ChartMap: UIViewRepresentable {
                 let east = region.center.longitude + region.span.longitudeDelta / 2
                 guard let pins = try? await Planner.airports(south: south, west: west, north: north, east: east), !Task.isCancelled else { return }
                 await MainActor.run { self.show(pins.map(AirportAnnotation.init), on: mapView) }
+            }
+        }
+
+        /// The airplanes moved to their new reports, the ones no longer
+        /// heard taken off, the new ones added.
+        @MainActor
+        func show(_ planes: [TrafficAircraft], ownFt: Double?, on map: MKMapView) {
+            let fresh = Dictionary(planes.map { ($0.hex, $0) }, uniquingKeysWith: { a, _ in a })
+            let gone = trafficShown.filter { fresh[$0.key] == nil }
+            map.removeAnnotations(Array(gone.values))
+            for hex in gone.keys { trafficShown[hex] = nil }
+            for (hex, plane) in fresh {
+                if let mark = trafficShown[hex] {
+                    guard mark.plane != plane || mark.ownFt != ownFt else { continue }
+                    mark.plane = plane
+                    mark.ownFt = ownFt
+                    mark.coordinate = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
+                    (map.view(for: mark) as? TrafficMarkView)?.show(mark)
+                } else {
+                    let mark = TrafficAnnotation(plane, ownFt: ownFt)
+                    trafficShown[hex] = mark
+                    map.addAnnotation(mark)
+                }
             }
         }
 

@@ -48,6 +48,45 @@ struct AirportPin: Codable, Equatable, Sendable {
 }
 
 /// A field found by ident or name (AirportSuggestion).
+/// A field near a point, nearest first (NearestAirport): its distance
+/// and bearing from there, worked out by the planner.
+struct NearestAirport: Codable, Equatable, Sendable, Identifiable {
+    let ident: String
+    let name: String
+    let lat: Double
+    let lon: Double
+    let kind: String
+    let distanceNm: Double
+    let bearingDeg: Double
+    var municipality: String?
+    var flightCategory: String?
+    var longestRunwayFt: Int?
+    var elevationFt: Double?
+
+    var id: String { ident }
+}
+
+/// One airplane the receivers hear (TrafficAircraft), as sent.
+struct TrafficAircraft: Codable, Equatable, Sendable {
+    let hex: String
+    let lat: Double
+    let lon: Double
+    var callsign: String?
+    var registration: String?
+    var type: String?
+    var altitudeFt: Double?
+    var trackDeg: Double?
+    var speedKt: Double?
+    var verticalFpm: Double?
+    var seenS: Double?
+}
+
+struct TrafficAnswer: Codable, Equatable, Sendable {
+    var aircraft: [TrafficAircraft]
+    var source: String?
+    var ageS: Double?
+}
+
 struct AirportSuggestion: Codable, Equatable, Sendable, Identifiable {
     let ident: String
     let name: String
@@ -315,6 +354,37 @@ struct RouteOptions: Codable, Equatable, Sendable {
     /// What the direct line crosses, and the ends.
     var direct: [Int] = []
     var ends: [Int] = []
+}
+
+/// A field's instrument procedures from the FAA's CIFP (ProcedureList,
+/// vfr.procedures): departures, arrivals and approaches, each with its
+/// transitions, for the pull-downs the route's fields get.
+struct ProcedureSummary: Codable, Equatable, Sendable, Identifiable {
+    let id: String
+    let kind: String
+    let name: String
+    var runway: String?
+    var transitions: [String] = []
+    var runwayTransitions: [String] = []
+}
+
+struct ProcedureList: Codable, Equatable, Sendable {
+    let airport: String
+    let cycle: String
+    var procedures: [ProcedureSummary] = []
+    var stale: Bool? = false
+}
+
+/// A procedure picked for a field of the route, as the planner takes it
+/// (web lib/procedures proceduresParam): `ident:id[:transition]`.
+struct ProcedurePick: Codable, Equatable, Sendable, Identifiable {
+    let ident: String
+    let id: String
+    var kind: String
+    var name: String
+    var transition: String?
+
+    var param: String { [ident, id].joined(separator: ":") + (transition.map { ":" + $0 } ?? "") }
 }
 
 /// A field's card (AirportPlace).

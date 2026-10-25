@@ -8,6 +8,7 @@ import SwiftUI
 /// plans by name, and the altitude's cautions.
 struct ProfileCard: View {
     @Environment(Plan.self) private var plan
+    @Environment(DryRun.self) private var dryRun
     @State private var picked: Double?
 
     private static let ladder: [Double] = stride(from: 1000.0, through: 17_500.0, by: 500.0).map { $0 }
@@ -92,6 +93,15 @@ struct ProfileCard: View {
         }
         .navigationTitle(plan.altitudeFt.map(flightLevel) ?? "Profile")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // The dry run from the profile's corner, as the web app has it.
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    if let course = plan.course { dryRun.start(line: course.coordinates, legs: plan.legs) }
+                } label: { Label("Dry run", systemImage: "play.fill") }
+                .disabled(plan.legs.isEmpty || plan.course == nil)
+            }
+        }
         .onChange(of: plan.altitudeFt) { _, _ in picked = nil }
     }
 

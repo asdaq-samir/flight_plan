@@ -206,8 +206,10 @@ test("plan page: the checkpoints are named on the map beside their dots, as Fore
   await settle(page);
   const labels = page.locator("[data-checkpoint-label]");
   await expect.poll(() => labels.count(), { timeout: slow(30000) }).toBeGreaterThan(3);
-  // The names the route's ForeFlight pack gives them, spaced.
-  for (const text of await labels.allInnerTexts()) expect(text).toMatch(/^[A-Z0-9 ]+$/);
+  // The names the route's ForeFlight pack gives them, spaced; a field its
+  // own name, as the FAA writes it, and its ident: "WAG-AERO (WI92)" (the
+  // owner, 2026-10-24).
+  for (const text of await labels.allInnerTexts()) expect(text).toMatch(/^([A-Z0-9 ]+|.+ \([A-Z0-9]+\))$/);
   const viewport = page.viewportSize()!;
   const boxes = (await labels.evaluateAll(els => els.map(el => {
     const r = el.getBoundingClientRect();

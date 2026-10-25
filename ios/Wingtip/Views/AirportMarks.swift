@@ -21,7 +21,9 @@ final class AirportAnnotation: NSObject, MKAnnotation {
 
     /// The web app's flight category colours (lib/map/flightCategory.ts):
     /// VFR green, MVFR blue, IFR red, LIFR magenta; grey with no report.
-    var colour: UIColor {
+    var colour: UIColor { Self.colour(category) }
+
+    static func colour(_ category: String?) -> UIColor {
         switch category {
         case "VFR": return UIColor(red: 0.13, green: 0.62, blue: 0.27, alpha: 1)
         case "MVFR": return UIColor(red: 0.16, green: 0.45, blue: 0.85, alpha: 1)

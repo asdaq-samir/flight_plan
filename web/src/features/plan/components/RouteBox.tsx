@@ -82,7 +82,7 @@ const LINE_OVER_PX = 8;
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
   procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop, holdFor,
-  footer,
+  footer, actions,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -140,6 +140,12 @@ export default function RouteBox({
    *  own under what is typed, at the owner's ask ("I want the route box
    *  with the buttons below it like this", 2026-10-21). */
   footer?: ReactNode;
+  /** The route's own buttons -- Routes, the Brief, its menu -- on the
+   *  pills' first line at its end, where the clear was, at the owner's ask
+   *  (2026-10-24: on their phone's text size they wrapped under the
+   *  airplane and the altitude, an empty band beside them); the clear is
+   *  then the menu's. */
+  actions?: ReactNode;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -573,14 +579,18 @@ export default function RouteBox({
                 field's clear is (ClearButton) -- not while something is
                 typed, whose own clear is the one to see: two of them read
                 as one too many. */}
-            {points.length > 0 && onClear && !typed && (
+            {points.length > 0 && onClear && !typed && !actions && (
               <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-2" />
             )}
+            {/* On the first line's middle: the pills 28 tall at py-1, the
+                buttons 32, so 2 up of the line's top to share its middle. */}
+            {actions && <div className="mt-[0.125rem] flex shrink-0 items-center" data-testid="route-box-actions">{actions}</div>}
             {/* Its own taps, not the box's room (isRoom), which types at the
-                route's end; ten under the lines, the clear's 44-point area
-                and the last button's apart (the iOS audit's P1: at eight,
-                the refresh's 32-point button took a point of the clear's). */}
-            {footer && <div className="flex w-full basis-full items-center pt-2.5 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
+                route's end; fourteen under the lines, so the 44-point areas
+                of the route's buttons on the first line (32 tall) and the
+                altitude's Profile button under them (22) meet, not overlap
+                (the iOS audit's P1, 24 Oct: at ten, 3 points over). */}
+            {footer && <div className="flex w-full basis-full items-center pt-3.5 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
           </InputGroup>
         </PopoverAnchor>
         <PopoverContent

@@ -81,7 +81,7 @@ struct FPLView: View {
                     // hundreds of feet ("065" for 6,500 ft, the owner's
                     // FL-style figure); cleared, the planner's again.
                     HStack {
-                        Text(plan.aircraft.uppercased()).font(.body.monospaced())
+                        Text(plan.tail ?? plan.aircraft.uppercased()).font(.body.monospaced())
                         Spacer()
                         Text("Altitude").foregroundStyle(.secondary)
                         TextField(plan.altitudeFt.map { String(format: "%03d", Int($0) / 100) } ?? "—", text: $altitude)
@@ -141,6 +141,17 @@ struct FPLView: View {
                         }
                     }
                 }
+                if plan.course != nil {
+                    // Each field's procedures, pull-downs as the web app's
+                    // route list has them: the departure's departures, every
+                    // landing's arrivals and approaches.
+                    Section("Procedures") {
+                        ProceduresRow(ident: plan.dep, kinds: ["departure"])
+                        ForEach(plan.stops + [plan.dest], id: \.self) { field in
+                            ProceduresRow(ident: field, kinds: ["arrival", "approach"])
+                        }
+                    }
+                }
                 if plan.course != nil, let template = charts.template {
                     // The chart along the route for the air, as the web app's
                     // KeepRoute keeps it: tapped once, the count as it goes.
@@ -167,12 +178,19 @@ struct FPLView: View {
             }
             .navigationTitle("Flight plan")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    // The pilot's saved flights, and the plan saved among them.
+                    NavigationLink(value: "flights") { Label("Flights", systemImage: "tray.full") }
+                }
+            }
             .navigationDestination(for: Leg.self) { leg in LegDetailView(leg: leg) }
             .navigationDestination(for: String.self) { page in
                 switch page {
                 case "profile": ProfileCard()
                 case "brief": BriefView()
                 case "routes": RoutesView()
+                case "flights": FlightsView()
                 default: EmptyView()
                 }
             }

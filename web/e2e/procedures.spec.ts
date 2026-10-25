@@ -151,9 +151,12 @@ test("a field's approach is picked on its own page with its transition, drawn on
   // opens the Procedures.
   const chip = sideDrawer(page).getByTestId("route-procedure");
   await expect(chip).toHaveText("ILS 09 · DLH");
-  // Before the destination's pill, as it is flown into the field.
+  // Before the destination's pill, as it is flown into the field: on its
+  // line to its left, or at the end of the line before it (the route's
+  // buttons share the first line since 2026-10-24, and it wraps sooner).
   const dest = sideDrawer(page).getByTestId("route-dest");
-  expect((await chip.boundingBox())!.x).toBeLessThan((await dest.boundingBox())!.x);
+  const [chipAt, destAt] = [(await chip.boundingBox())!, (await dest.boundingBox())!];
+  expect(chipAt.y < destAt.y - 4 || chipAt.x < destAt.x, `chip ${JSON.stringify(chipAt)} before ${JSON.stringify(destAt)}`).toBe(true);
   await expect(chip).toHaveAccessibleName(/ILS RWY 09, from DLH/);
   await chip.click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
@@ -415,7 +418,7 @@ test.describe("on the owner's phone's width, to a finger", () => {
     await expect(page.getByTestId("procedure-menu")).toBeVisible();
   });
 
-  test("a route with a procedure's chip and three fields stays one line in the route's box, the field past its end taking no line of its own", async ({ page }) => {
+  test("a route with a procedure's chip and three fields takes no line more than its pills in the route's box, the field past its end taking no line of its own", async ({ page }) => {
   test.skip(test.info().project.name !== "mobile", "a phone's box");
   // The owner's recording: C81 → its ILS 09 via DLH → KDLH → KRFD, where
   // the empty field after KRFD wrapped onto a second line.
@@ -426,8 +429,12 @@ test.describe("on the owner's phone's width, to a finger", () => {
   await grabberTo(page, "half");
   const box = sideDrawer(page).getByTestId("route-box");
   await expect(box.getByTestId("route-procedure")).toBeVisible({ timeout: slow(10000) });
-  // Its lines', the buttons under them in the box since the owner's ask.
-  expect((await box.getByTestId("route-slide").boundingBox())!.height).toBeLessThanOrEqual(48);
+  // The field past the end on the destination's line, not one of its own.
+  // Two lines of pills at most: the route's buttons share the first line
+  // since the owner's ask (2026-10-24), so this route wraps once there.
+  const [field, dest] = [(await box.getByTestId("route-type").boundingBox())!, (await box.getByTestId("route-dest").boundingBox())!];
+  expect(Math.abs((field.y + field.height / 2) - (dest.y + dest.height / 2))).toBeLessThanOrEqual(4);
+  expect((await box.getByTestId("route-slide").boundingBox())!.height).toBeLessThanOrEqual(84);
 });
 });
 
