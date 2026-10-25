@@ -61,8 +61,39 @@ final class Session {
         }
     }
 
+    /// Signing out ends the session on the gateway and forgets what this
+    /// device kept of the pilot's (the owner's pick: sign-out clears,
+    /// as the web app's useLogout and forgetPilot do).
     func signOut() async {
         try? await Gateway.signOut()
         pilot = nil
+        Session.forgetPilot()
+    }
+
+    /// The figures kept per N-number on this device and the airplanes
+    /// kept as Favorites, the pilot's own.
+    static func forgetPilot(_ defaults: UserDefaults = .standard) {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("figures:") || key == "aircraftFavorites" {
+            defaults.removeObject(forKey: key)
+        }
+    }
+
+    /// The account deleted on the gateway (App Review 5.1.1(v)): it takes
+    /// everything that was the pilot's and every session; this device its
+    /// own copies -- its settings, drills and the last plan -- and the
+    /// cookies, as the web app's useDeleteAccount does. A failure deleted
+    /// nothing, and is thrown for the page to say so.
+    func deleteAccount() async throws {
+        try await Gateway.deleteAccount()
+        if let id = Bundle.main.bundleIdentifier { UserDefaults.standard.removePersistentDomain(forName: id) }
+        Kept.forget()
+        let jar = Gateway.session.configuration.httpCookieStorage
+        for cookie in jar?.cookies(for: Config.gateway) ?? [] { jar?.deleteCookie(cookie) }
+        pilot = nil
+    }
+
+    /// The contact the gateway keeps (PUT /api/me/contact), its answer the pilot.
+    func setContact(phone: String?, homeBase: String?) async throws {
+        pilot = try await Gateway.setContact(phone: phone, homeBase: homeBase)
     }
 }

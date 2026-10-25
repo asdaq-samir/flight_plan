@@ -33,7 +33,7 @@ struct AircraftView: View {
                         NavigationLink("Planning figures") { AirplaneFiguresView() }
                     }
                 }
-                if !own.isEmpty {
+                if session.signedIn || !own.isEmpty {
                     Section("Yours") {
                         ForEach(own) { airplane in
                             Button {
@@ -52,7 +52,13 @@ struct AircraftView: View {
                             }
                             .foregroundStyle(.primary)
                         }
+                        // Added, edited and deleted on their own page, with
+                        // each one's checklist, squawks and inspections.
+                        NavigationLink("Your Airplanes") { OwnAircraftListView() }
                     }
+                }
+                Section {
+                    NavigationLink("Find an Airplane in the Air") { AirplaneFindView() }
                 }
                 Section("Types the planner has figures for") {
                     if profiles.isEmpty {
@@ -81,6 +87,8 @@ struct AircraftView: View {
             .task(id: session.signedIn) {
                 own = (try? await Gateway.aircraft()) ?? []
             }
+            // Back from Your Airplanes with one added or changed.
+            .onAppear { Task { own = (try? await Gateway.aircraft()) ?? [] } }
         }
     }
 
