@@ -18,6 +18,10 @@ struct RootView: View {
     @State private var following = false
     @State private var routeAway = false
     @State private var fitRequest = 0
+    // Setup's map switches (MapExtrasInput.Keys).
+    @AppStorage(MapExtrasInput.Keys.waypoints) private var waypointsOn = false
+    @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
+    @AppStorage(MapExtrasInput.Keys.plates) private var platesOn = true
 
     enum Tabs: Hashable { case fpl, airport, aircraft, setup }
 
@@ -32,7 +36,6 @@ struct RootView: View {
                 Tracking.shared.track(plane.hex, plane: plane)
                 FlightUI.shared.card = .airplane(plane.hex.lowercased())
             },
-            onPoint: { at in FlightUI.shared.card = .point(at.latitude, at.longitude) },
             onDragged: { Tracking.shared.follow = false }
         )
     }
@@ -59,7 +62,19 @@ struct RootView: View {
                 if detent != .medium { detent = .medium }
             },
             following: $following, routeAway: $routeAway, fitRequest: fitRequest,
-            flight: flightLayer
+            flight: flightLayer,
+            extras: MapExtrasInput(
+                held: airports.last.flatMap { AirportRoute($0).heldPoint },
+                waypoints: waypointsOn, classB: classBOn, plates: platesOn, approaches: plan.procedures,
+                // A finger held on the chart: the airspace there, half way
+                // up, as a field's card opens.
+                onHold: { at in
+                    tab = .airport
+                    airports = [AirportRoute.airspace(lat: at.latitude, lon: at.longitude).text]
+                    if detent != .medium { detent = .medium }
+                },
+                onWaypointStop: plan.routed ? { (ident: String) in plan.stops.append(ident); plan.plan() } : nil
+            )
         )
         .ignoresSafeArea()
         .overlay(alignment: .topTrailing) {

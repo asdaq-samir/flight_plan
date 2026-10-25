@@ -2,8 +2,8 @@ import MapKit
 import UIKit
 
 /// What the map draws of the airplanes tracked and the flights flown, and
-/// the taps it answers for them: an airplane's mark, opening its card; a
-/// long press, a point for the route.
+/// the tap it answers for them: an airplane's mark, opening its card. (A
+/// long press is the airspace card's, MapExtras.)
 struct FlightLayer {
     var trackedHex: String?
     var tracked: TrafficAircraft?
@@ -12,7 +12,6 @@ struct FlightLayer {
     var past: [PathPoint] = []
     var flown: [PathPoint] = []
     var onTraffic: ((TrafficAircraft) -> Void)?
-    var onPoint: ((CLLocationCoordinate2D) -> Void)?
     /// The pilot dragged the map off the airplane followed.
     var onDragged: (() -> Void)?
 }
@@ -61,14 +60,6 @@ final class FlightMapLayer: NSObject {
     func attach(_ map: MKMapView) {
         self.map = map
         map.register(TrackedRingView.self, forAnnotationViewWithReuseIdentifier: TrackedRingView.reuse)
-        let press = UILongPressGestureRecognizer(target: self, action: #selector(pressed(_:)))
-        press.minimumPressDuration = 0.5
-        map.addGestureRecognizer(press)
-    }
-
-    @objc private func pressed(_ press: UILongPressGestureRecognizer) {
-        guard press.state == .began, let map else { return }
-        layer.onPoint?(map.convert(press.location(in: map), toCoordinateFrom: map))
     }
 
     func update(_ map: MKMapView, _ next: FlightLayer) {

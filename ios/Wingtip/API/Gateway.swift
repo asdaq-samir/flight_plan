@@ -7,6 +7,7 @@ struct Pilot: Codable, Equatable, Sendable {
     var displayName: String?
     var fullName: String?
     var homeBase: String?
+    var phone: String?
     var developer: Bool?
 }
 
@@ -31,6 +32,10 @@ enum Gateway {
         var request = URLRequest(url: Config.gateway.appending(path: path))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        // Spring Security's CSRF check (SecurityConfig): every POST, PUT and
+        // DELETE echoes the XSRF-TOKEN cookie the gateway set in a header,
+        // as the web app's client does.
+        if method != "GET", let token = csrfToken { request.setValue(token, forHTTPHeaderField: "X-XSRF-TOKEN") }
         if let json {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try? JSONEncoder().encode(AnyEncodable(json))
@@ -41,6 +46,11 @@ enum Gateway {
             request.httpBody = parts.percentEncodedQuery?.data(using: .utf8)
         }
         return request
+    }
+
+    /// The gateway's CSRF token, from the cookie it sets on every answer.
+    static var csrfToken: String? {
+        session.configuration.httpCookieStorage?.cookies(for: Config.gateway)?.first { $0.name == "XSRF-TOKEN" }?.value
     }
 
     /// The pilot signed in, or nil (the gateway's 204) when no one is.

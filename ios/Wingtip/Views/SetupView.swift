@@ -6,8 +6,12 @@ struct SetupView: View {
     @Environment(Session.self) private var session
     @Environment(Charts.self) private var charts
     @Environment(Traffic.self) private var traffic
+    @Environment(Plan.self) private var plan
     @State private var signingIn = false
     @State private var keptBytes: Int64 = 0
+    @AppStorage(MapExtrasInput.Keys.waypoints) private var waypointsOn = false
+    @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
+    @AppStorage(MapExtrasInput.Keys.plates) private var platesOn = true
 
     var body: some View {
         NavigationStack {
@@ -16,7 +20,9 @@ struct SetupView: View {
                     if let pilot = session.pilot {
                         LabeledContent("Signed in as", value: pilot.displayName ?? pilot.email ?? "you")
                         if let email = pilot.email, pilot.displayName != nil { LabeledContent("Email", value: email) }
-                        Button("Sign Out", role: .destructive) { Task { await session.signOut() } }
+                        NavigationLink("Contact") { ContactView() }
+                        Button("Sign Out", role: .destructive) { Task { await session.signOut(); plan.forgetPilot() } }
+                        DeleteAccountButton()
                     } else {
                         Button("Sign In") { signingIn = true }
                             .disabled(!session.loaded)
@@ -29,12 +35,19 @@ struct SetupView: View {
                     Section("Pilot") {
                         NavigationLink("Logbook and currency") { LogbookView() }
                         NavigationLink("Training") { TrainingView() }
+                        NavigationLink("Instructing") { InstructorView() }
                     }
+                }
+                Section {
+                    NavigationLink("Guide") { PilotGuideView() }
                 }
                 Section("Map") {
                     Toggle("Traffic", isOn: Binding(get: { traffic.on }, set: { traffic.on = $0 }))
                     SpokenAlertsToggle()
                     ForgetNotesButton()
+                    Toggle("VFR waypoints", isOn: $waypointsOn)
+                    Toggle("Class B weather", isOn: $classBOn)
+                    Toggle("Approach plates", isOn: $platesOn)
                 }
                 Section("Chart") {
                     if let info = charts.info {

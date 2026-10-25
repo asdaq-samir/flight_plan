@@ -92,10 +92,10 @@ struct AirplaneCard: View {
         if let tail = detail?.faa?.nNumber { return tail }
         return tracking.recents.first(where: { $0.hex == hex })?.name ?? hex.uppercased()
     }
-    private var kept: KeptAircraft? {
+    private var kept: KeptAirplane? {
         let registration = detail?.registration ?? plane?.registration
         guard let name = registration ?? detail?.faa?.nNumber ?? plane?.callsign else { return nil }
-        return KeptAircraft(hex: hex.lowercased(), name: name, type: detail?.type ?? plane?.type)
+        return KeptAirplane(hex: hex.lowercased(), name: name, type: detail?.type ?? plane?.type)
     }
     private var link: URL { Config.gateway.appending(path: "/app/plan").appending(queryItems: [URLQueryItem(name: "flight", value: hex)]) }
 

@@ -140,6 +140,8 @@ struct Runway: Codable, Equatable, Sendable {
     var lighted: Bool = false
     var closed: Bool = false
     var wind: RunwayWind?
+    /// Its ends' headings and pattern sides (the airport card's rows).
+    var runwayEnds: [RunwayEnd]?
 }
 
 struct Frequency: Codable, Equatable, Sendable {
@@ -410,4 +412,16 @@ struct AirportPlace: Codable, Equatable, Sendable {
     var metar: Metar?
     var modelledWeather: ModelledWeather?
     var pattern: TrafficPattern?
+    // The rest of the card (AirportExtras.swift): where it is on the
+    // ground, its FAA pages, its radio's notes, a nearby report.
+    var address: String?
+    var `private`: Bool?
+    var airportDiagramUrl: String?
+    var airportDiagramCycle: String?
+    var chartSupplementUrl: String?
+    var procedures: [TerminalChart]?
+    var radioNotes: [String]?
+    var standardKeying: Bool?
+    var weatherUnavailable: Bool?
+    var nearbyMetar: NearbyMetar?
 }

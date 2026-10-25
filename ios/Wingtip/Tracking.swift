@@ -3,17 +3,6 @@ import Foundation
 import Observation
 import UIKit
 
-/// An airplane kept by this device: by its ICAO address, the name it is
-/// known by (its registration first) and its type, as the web app's
-/// Favorites and Recents keep one (lib/preferences KeptAircraft).
-struct KeptAircraft: Codable, Hashable, Sendable, Identifiable {
-    let hex: String
-    let name: String
-    var type: String?
-
-    var id: String { hex }
-}
-
 /// A point of a flown path: when (s since 1970), where, how high (feet;
 /// nil on the ground or where it was not sent).
 struct PathPoint: Codable, Equatable, Sendable {
@@ -58,8 +47,9 @@ final class Tracking {
     var past: [PathPoint] = []
     /// The pilot's own flown track, shown from a saved flight.
     var flown: [PathPoint] = []
-    private(set) var favorites: [KeptAircraft] = Tracking.load("favoriteAircraft")
-    private(set) var recents: [KeptAircraft] = Tracking.load("recentAircraft")
+    /// The Favorites, kept where the Aircraft tab has always kept them.
+    private(set) var favorites: [KeptAirplane] = Tracking.load(KeptAirplane.key)
+    private(set) var recents: [KeptAirplane] = Tracking.load("recentAircraft")
     private(set) var watches: [AirplaneWatch] = Tracking.load("aircraftWatches")
     /// The last watch that went off, for the banner over the map.
     var fired: String?
@@ -113,12 +103,12 @@ final class Tracking {
 
     func isFavorite(_ hex: String) -> Bool { favorites.contains { $0.hex == hex.lowercased() } }
 
-    func toggleFavorite(_ kept: KeptAircraft) {
+    func toggleFavorite(_ kept: KeptAirplane) {
         if isFavorite(kept.hex) { favorites.removeAll { $0.hex == kept.hex } } else { favorites.append(kept) }
-        Self.save(favorites, "favoriteAircraft")
+        Self.save(favorites, KeptAirplane.key)
     }
 
-    func remember(_ kept: KeptAircraft) {
+    func remember(_ kept: KeptAirplane) {
         recents = Array(([kept] + recents.filter { $0.hex != kept.hex }).prefix(Self.recentCount))
         Self.save(recents, "recentAircraft")
     }

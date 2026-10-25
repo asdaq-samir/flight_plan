@@ -165,58 +165,6 @@ struct FlightRoute: Codable, Equatable, Sendable {
     var plausible: Bool?
 }
 
-/// A point named off the nearest fix a pilot knows (PointOffFix,
-/// vfr.fixes.frd_near): "VPBNG/095/14.2", for the route.
-struct PointOffFix: Codable, Equatable, Sendable {
-    let base: String
-    let courseDeg: Int
-    let distanceNm: Double
-    let ident: String
-    let name: String
-    let radial: Bool
-}
-
-/// One class of airspace over a point, floor and ceiling in feet MSL and
-/// what it takes to enter (AirspaceBand), the planner's words.
-struct AirspaceBand: Codable, Equatable, Sendable {
-    let airspaceClass: String
-    let floorFt: Double
-    let ceilingFt: Double
-    let entry: String
-    var name: String?
-    var equipment: String?
-
-    enum CodingKeys: String, CodingKey {
-        case floorFt, ceilingFt, entry, name, equipment
-        case airspaceClass = "class"
-    }
-}
-
-struct SpecialUseHere: Codable, Equatable, Sendable {
-    let name: String
-    let kind: String
-    var floorFt: Double?
-    var ceilingFt: Double?
-    var timesOfUse: String?
-}
-
-struct TfrHere: Codable, Equatable, Sendable {
-    let notamId: String
-    let activeNow: Bool
-    var title: String?
-}
-
-/// The airspace over a point, and the point named off a fix (AirspaceAt).
-struct AirspaceAt: Codable, Equatable, Sendable {
-    let lat: Double
-    let lon: Double
-    var groundFt: Double?
-    var bands: [AirspaceBand]
-    var point: PointOffFix?
-    var specialUse: [SpecialUseHere]?
-    var tfrs: [TfrHere]?
-}
-
 /// A procedure's fix as the chart sets it (ProcedureFix): its altitudes,
 /// the least and the most, and its roles (IAF, FAF…).
 struct ProcedureFix: Codable, Equatable, Sendable, Identifiable {
@@ -344,10 +292,6 @@ extension Planner {
         try await fetch(FlightRoute?.self, "/api/traffic/route", ["callsign": callsign, "lat": lat.map { String($0) }, "lon": lon.map { String($0) }])
     }
 
-    static func airspaceAt(lat: Double, lon: Double) async throws -> AirspaceAt {
-        try await fetch(AirspaceAt.self, "/api/airspace/at", ["lat": String(lat), "lon": String(lon)])
-    }
-
     static func procedure(_ ident: String, id: String, transition: String?) async throws -> ProcedureDrawing {
         try await fetch(ProcedureDrawing.self, "/api/airport/\(ident)/procedures/\(id)", ["transition": transition])
     }
@@ -355,7 +299,9 @@ extension Planner {
     /// A POST to the planner through the gateway, with the session's CSRF
     /// token as the website's calls carry it, its body in snake case.
     static func post(_ path: String, json: some Encodable, method: String = "POST") async throws -> URLRequest {
-        await Xsrf.ensure()
+        // The CSRF cookie is written on any of the gateway's answers once
+        // asked for: one GET first where there is none yet.
+        if Gateway.csrfToken == nil { _ = try? await Gateway.me() }
         var request = URLRequest(url: Config.gateway.appending(path: Config.plannerPath(path)))
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -363,7 +309,8 @@ extension Planner {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         request.httpBody = try encoder.encode(json)
-        return Xsrf.signed(request)
+        if let token = Gateway.csrfToken { request.setValue(token, forHTTPHeaderField: "X-XSRF-TOKEN") }
+        return request
     }
 
     struct NoteRoute: Encodable {
@@ -424,72 +371,38 @@ extension Planner {
     }
 }
 
-/// Spring Security's CSRF token (SecurityConfig: a cookie the page reads
-/// and echoes in a header), for the gateway's POSTs, PUTs and DELETEs.
-enum Xsrf {
-    static func token() -> String? {
-        HTTPCookieStorage.shared.cookies(for: Config.gateway)?.first { $0.name == "XSRF-TOKEN" }?.value.removingPercentEncoding
-    }
-
-    /// The cookie is written on any answer once asked for; a GET first
-    /// where there is none yet.
-    static func ensure() async {
-        if token() == nil { _ = try? await Gateway.me() }
-    }
-
-    static func signed(_ request: URLRequest) -> URLRequest {
-        var request = request
-        if let token = token() { request.setValue(token, forHTTPHeaderField: "X-XSRF-TOKEN") }
-        return request
-    }
-}
-
 extension Gateway {
-    /// A write to the gateway, signed with the CSRF token.
-    static func send(_ method: String, _ path: String, json: (any Encodable)? = nil) async throws -> (Data, Int) {
-        await Xsrf.ensure()
-        let (data, response) = try await session.data(for: Xsrf.signed(request(method, path, json: json)))
-        return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
-    }
-
+    /// Flight Service's state; nil where it cannot be asked (signed out).
     static func flightService() async throws -> FlightServiceStatus? {
-        let (data, status) = try await send("GET", "/api/flight-service")
-        guard status == 200 else { return nil }
-        return try JSONDecoder().decode(FlightServiceStatus.self, from: data)
+        try await read(FlightServiceStatus.self, "/api/flight-service")
     }
 
     /// Filed, Flight Service's reference for it.
     static func file(_ plan: FlightPlanFilingRequest) async throws -> String {
         struct Filed: Decodable { let reference: String }
-        let (data, status) = try await send("POST", "/api/flight-service/flight-plans", json: plan)
-        guard (200...299).contains(status) else { throw Failure(status: status) }
-        return try JSONDecoder().decode(Filed.self, from: data).reference
+        return try await send(Filed.self, "POST", "/api/flight-service/flight-plans", json: plan).reference
     }
 
     /// Flight Service's standard briefing for the flight, as its text.
     static func standardBriefing(_ plan: FlightPlanFilingRequest) async throws -> String {
-        let (data, status) = try await send("POST", "/api/flight-service/briefings", json: plan)
-        guard (200...299).contains(status) else { throw Failure(status: status) }
-        return String(decoding: data, as: UTF8.self)
+        String(decoding: try await send("POST", "/api/flight-service/briefings", json: plan), as: UTF8.self)
     }
 
     /// A saved flight's flown track; nil where none is kept.
     static func track(_ flight: Int64) async throws -> SavedTrack? {
-        let (data, status) = try await send("GET", "/api/flights/\(flight)/track")
-        switch status {
+        let (data, response) = try await session.data(for: request("GET", "/api/flights/\(flight)/track"))
+        switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
         case 200: return try JSONDecoder().decode(SavedTrack.self, from: data)
         case 204, 404: return nil
-        default: throw Failure(status: status)
+        case let status: throw GatewayRefusal(status: status, words: GatewayRefusal.words(in: data))
         }
     }
 
     static func saveTrack(_ flight: Int64, _ track: SavedTrack) async throws {
-        let (_, status) = try await send("PUT", "/api/flights/\(flight)/track", json: track)
-        guard (200...299).contains(status) else { throw Failure(status: status) }
+        try await send("PUT", "/api/flights/\(flight)/track", json: track)
     }
 
     static func deleteTrack(_ flight: Int64) async throws {
-        let (_, status) = try await send("DELETE", "/api/flights/\(flight)/track")
-        guard (200...299).contains(status) else { throw Failure(status: status) }
+        try await send("DELETE", "/api/flights/\(flight)/track")
     }
 }

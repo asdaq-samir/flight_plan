@@ -2,7 +2,7 @@ import CoreLocation
 import SwiftUI
 
 /// The sheets and alerts of the flight's extras, over the tabs: an
-/// airplane's card, a point pressed on the map, a hold, a pilot's flown
+/// airplane's card, a hold, a pilot's flown
 /// track; and the alerts that ask for a point's altitude or a fix off it.
 @MainActor
 @Observable
@@ -11,14 +11,12 @@ final class FlightUI {
 
     enum Card: Identifiable, Equatable {
         case airplane(String)
-        case point(Double, Double)
         case hold(String)
         case flown(Int64, String)
 
         var id: String {
             switch self {
             case .airplane(let hex): return "airplane:\(hex)"
-            case .point(let lat, let lon): return "point:\(lat),\(lon)"
             case .hold(let fix): return "hold:\(fix)"
             case .flown(let id, _): return "flown:\(id)"
             }
@@ -47,7 +45,6 @@ struct FlightSheets: ViewModifier {
                 Group {
                     switch card {
                     case .airplane(let hex): AirplaneCard(hex: hex)
-                    case .point(let lat, let lon): PointCard(at: CLLocationCoordinate2D(latitude: lat, longitude: lon))
                     case .hold(let fix): HoldSheet(fix: fix)
                     case .flown(let id, let title): FlownTrackView(flight: id, title: title)
                     }
@@ -403,80 +400,6 @@ struct HoldSheet: View {
                         turns: length.hasSuffix("T") ? n : nil, minutes: length.hasSuffix("M") ? n : nil)
         plan.setHold(at: fix, hold)
         dismiss()
-    }
-}
-
-/// A point pressed on the map, as the web app's AirspaceCard: its name off
-/// the nearest fix, the ground under it and the airspace over it, in the
-/// planner's words; and into the route -- added where it bends it least,
-/// flown to direct, or held at.
-struct PointCard: View {
-    let at: CLLocationCoordinate2D
-    @Environment(Plan.self) private var plan
-    @Environment(OwnShip.self) private var ownShip
-    @Environment(DryRun.self) private var dryRun
-    @Environment(\.dismiss) private var dismiss
-    @State private var here: AirspaceAt?
-    @State private var problem: String?
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if let here {
-                    if let point = here.point {
-                        Section {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(point.ident).font(.title3.monospaced().weight(.semibold))
-                                Text(point.name).foregroundStyle(.secondary)
-                            }
-                            if plan.course != nil {
-                                HStack {
-                                    Button("Add to Route") { plan.drop(point.ident, at: at, then: .add, from: nil); dismiss() }
-                                        .buttonStyle(.borderedProminent)
-                                    Button("Direct To") { plan.drop(point.ident, at: at, then: .direct, from: dryRun.fix ?? ownShip.fix); dismiss() }
-                                        .buttonStyle(.bordered)
-                                    Button("Hold") {
-                                        plan.drop(point.ident, at: at, then: .hold, from: nil)
-                                        FlightUI.shared.card = .hold(point.ident)
-                                    }
-                                    .buttonStyle(.bordered)
-                                }
-                            }
-                        }
-                    }
-                    Section("Airspace") {
-                        if let ground = here.groundFt { LabeledContent("Ground", value: "\(Int(ground.rounded()).formatted()) ft") }
-                        ForEach(Array(here.bands.enumerated()), id: \.offset) { _, band in
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack {
-                                    Text("Class \(band.airspaceClass)").font(.headline)
-                                    if let name = band.name { Text(name).foregroundStyle(.secondary).lineLimit(1) }
-                                    Spacer()
-                                    Text("\(Int(band.floorFt).formatted())–\(Int(band.ceilingFt).formatted()) ft").font(.subheadline.monospacedDigit())
-                                }
-                                Text(band.entry).font(.footnote).foregroundStyle(.secondary)
-                            }
-                        }
-                        ForEach(Array((here.specialUse ?? []).enumerated()), id: \.offset) { _, area in
-                            LabeledContent(area.name, value: area.kind)
-                        }
-                        ForEach(Array((here.tfrs ?? []).enumerated()), id: \.offset) { _, tfr in
-                            LabeledContent("TFR \(tfr.notamId)", value: tfr.activeNow ? "Active" : "Not active now")
-                        }
-                    }
-                } else {
-                    Text(problem ?? "Fetching the airspace here…").foregroundStyle(problem == nil ? Color.secondary : Color.red)
-                }
-            }
-            .navigationTitle(here?.point?.ident ?? String(format: "%.3f, %.3f", at.latitude, at.longitude))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close") }
-            }
-            .task {
-                do { here = try await Planner.airspaceAt(lat: at.latitude, lon: at.longitude) } catch { problem = error.localizedDescription }
-            }
-        }
     }
 }
 

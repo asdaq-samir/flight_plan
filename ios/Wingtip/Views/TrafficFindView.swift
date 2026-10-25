@@ -43,9 +43,9 @@ struct TrafficFindView: View {
     var body: some View {
         List {
             if wanted.count >= 3 {
-                Section(found?.source == "ADS-B Exchange" && asked == wanted ? "Found by ADS-B Exchange" : "Found") {
+                Section {
                     ForEach(listed, id: \.hex) { plane in
-                        Button { open(plane.hex, plane: plane) } label: { TrafficRow(plane: plane) }
+                        Button { open(plane.hex, plane: plane) } label: { AirplaneRow(plane: plane) }
                             .foregroundStyle(.primary)
                     }
                     if listed.isEmpty, asked == wanted, let record = found?.registered {
@@ -74,6 +74,11 @@ struct TrafficFindView: View {
                     } else if asked != wanted || found == nil, listed.isEmpty {
                         Text("Fetching \(wanted)…").font(.footnote).foregroundStyle(.secondary)
                     }
+                } header: {
+                    Text("Found")
+                } footer: {
+                    // Whose data answered, as the map credits what it draws.
+                    if asked == wanted, found?.aircraft.isEmpty == false, let source = found?.source { Text(Traffic.credit(source)) }
                 }
             } else {
                 if !tracking.favorites.isEmpty {
@@ -140,26 +145,8 @@ struct TrafficFindView: View {
     }
 }
 
-/// An airplane heard: its name, type, height and speed.
-struct TrafficRow: View {
-    let plane: TrafficAircraft
-
-    var body: some View {
-        HStack {
-            Image(systemName: "airplane").foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plane.callsign ?? plane.registration ?? plane.hex.uppercased()).font(.headline)
-                Text([plane.registration != plane.callsign ? plane.registration : nil, plane.type,
-                      plane.altitudeFt.map { "\((Int(($0 / 100).rounded()) * 100).formatted()) ft" },
-                      plane.speedKt.map { "\(Int($0.rounded())) kt" }].compactMap { $0 }.joined(separator: " · "))
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-        }
-    }
-}
-
 struct KeptRow: View {
-    let kept: KeptAircraft
+    let kept: KeptAirplane
 
     var body: some View {
         HStack {
