@@ -119,12 +119,13 @@ LOWEST_CRUISE_FT = 2500.0
 KINDS = ("fastest", "weather", "stops", "land")
 TITLES = {"fastest": "Fastest", "weather": "Best weather", "stops": "Fewest stops", "land": "Over land"}
 #: How much dearer a cell out of glide of dry land is for the way that
-#: keeps over land, a share of its own minutes: four times as dear, so it
-#: goes round a lake the size of Michigan for an hour more and less, and
-#: crosses a strait where going round is the longer by far (the owner's
+#: keeps over land, a share of its own minutes: eleven times as dear, so
+#: it goes round Lake Michigan from Milwaukee to Muskegon (an hour and a
+#: quarter more; at four times as dear it crossed the 51 nm of water), and
+#: only crosses where going round is the longer by hours (the owner's
 #: ask, 2026-10-25: "for engine failure emergency, landing is feasible on
 #: a dry land"; vfr.water).
-WATER_COST = 3.0
+WATER_COST = 10.0
 
 #: The eight ways out of a cell: (rows, columns).
 _STEPS = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
