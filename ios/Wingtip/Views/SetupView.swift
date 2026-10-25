@@ -33,6 +33,8 @@ struct SetupView: View {
                 }
                 Section("Map") {
                     Toggle("Traffic", isOn: Binding(get: { traffic.on }, set: { traffic.on = $0 }))
+                    SpokenAlertsToggle()
+                    ForgetNotesButton()
                 }
                 Section("Chart") {
                     if let info = charts.info {

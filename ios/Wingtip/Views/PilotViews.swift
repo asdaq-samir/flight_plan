@@ -34,6 +34,12 @@ struct FlightsView: View {
                     }
                 }
                 .foregroundStyle(.primary)
+                // Its flown track: the profile, on the map, from a GPX file.
+                .contextMenu {
+                    Button {
+                        FlightUI.shared.card = .flown(flight.id, ([flight.departureIdent] + flight.stops + [flight.destinationIdent]).joined(separator: " → "))
+                    } label: { Label("Flown Track", systemImage: "point.topleft.down.to.point.bottomright.curvepath") }
+                }
             }
             .onDelete { at in
                 let gone = at.map { flights[$0] }

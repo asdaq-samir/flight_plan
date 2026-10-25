@@ -124,12 +124,14 @@ struct FPLView: View {
                     // app's route list has them.
                     Section("Stops") {
                         ForEach(Array(plan.stops.enumerated()), id: \.offset) { _, stop in
-                            Text(stop).font(.body.monospaced())
+                            RoutePointMenu(ident: stop)
                         }
                         .onDelete { at in plan.stops.remove(atOffsets: at); plan.plan() }
                         .onMove { from, to in plan.stops.move(fromOffsets: from, toOffset: to); plan.plan() }
                     }
                 }
+                // The route's own edits and the flight in the air.
+                RouteExtrasSection()
                 if let totals = plan.totals {
                     Section {
                         HStack {
@@ -191,7 +193,7 @@ struct FPLView: View {
                 case "brief": BriefView()
                 case "routes": RoutesView()
                 case "flights": FlightsView()
-                default: EmptyView()
+                default: FlightPage(name: page)
                 }
             }
             .toolbar {
@@ -199,6 +201,7 @@ struct FPLView: View {
                     ToolbarItem(placement: .topBarLeading) { EditButton() }
                 }
                 if plan.routed {
+                    ToolbarItem(placement: .topBarTrailing) { ShareMenu() }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Clear", role: .destructive) { plan.clear() }
                     }

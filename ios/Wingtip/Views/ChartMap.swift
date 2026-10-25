@@ -72,6 +72,9 @@ struct ChartMap: UIViewRepresentable {
     @Binding var routeAway: Bool
     /// Counted up to fit the whole route again.
     var fitRequest: Int = 0
+    /// The airplane tracked, the flights flown, and the long press for a
+    /// point of the route (FlightMapLayer).
+    var flight = FlightLayer()
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -95,6 +98,9 @@ struct ChartMap: UIViewRepresentable {
         map.setRegion(MKCoordinateRegion(center: CLLocationCoordinate2D(latitude: 42.3, longitude: -88.0),
                                          latitudinalMeters: 600_000, longitudinalMeters: 600_000), animated: false)
         context.coordinator.locations.requestWhenInUseAuthorization()
+        let flight = FlightMapLayer()
+        flight.attach(map)
+        context.coordinator.flight = flight
         return map
     }
 
@@ -102,6 +108,7 @@ struct ChartMap: UIViewRepresentable {
         context.coordinator.onAirport = onAirport
         context.coordinator.onRegion = onRegion
         context.coordinator.show(traffic, ownFt: ownFt, on: map)
+        context.coordinator.flight?.update(map, flight)
         context.coordinator.setFollowing = { [self] on in following = on }
         context.coordinator.setRouteAway = { [self] away in if routeAway != away { routeAway = away } }
         if following, map.userTrackingMode != .follow {
@@ -191,12 +198,14 @@ struct ChartMap: UIViewRepresentable {
         var setFollowing: ((Bool) -> Void)?
         var setRouteAway: ((Bool) -> Void)?
         var fitted = 0
+        var flight: FlightMapLayer?
         let locations = CLLocationManager()
         private var followed = false
         private var fetching: Task<Void, Never>?
         private var shown: [String: AirportAnnotation] = [:]
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
+            if let renderer = flight?.renderer(for: overlay) { return renderer }
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
             if let procedure = overlay as? ProcedurePolyline {
                 // A procedure's path in the chart's procedure violet, as
@@ -234,6 +243,7 @@ struct ChartMap: UIViewRepresentable {
                 view.turn(to: plane.heading)
                 return view
             }
+            if let view = flight?.view(for: annotation, on: mapView) { return view }
             if let mark = annotation as? TrafficAnnotation {
                 let view = mapView.dequeueReusableAnnotationView(withIdentifier: TrafficMarkView.reuse, for: mark) as! TrafficMarkView
                 view.show(mark)
@@ -247,6 +257,7 @@ struct ChartMap: UIViewRepresentable {
         }
 
         func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if flight?.selected(view, on: mapView) == true { return }
             guard let field = view.annotation as? AirportAnnotation else { return }
             mapView.deselectAnnotation(field, animated: false)
             onAirport?(field.ident)
@@ -266,6 +277,10 @@ struct ChartMap: UIViewRepresentable {
         /// The pilot's own pan ends the following, as Maps' does.
         func mapView(_ mapView: MKMapView, didChange mode: MKUserTrackingMode, animated: Bool) {
             setFollowing?(mode == .follow)
+        }
+
+        func mapView(_ mapView: MKMapView, regionWillChangeAnimated animated: Bool) {
+            flight?.regionWillChange(mapView)
         }
 
         func mapView(_ mapView: MKMapView, regionDidChangeAnimated animated: Bool) {

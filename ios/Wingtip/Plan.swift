@@ -32,6 +32,9 @@ final class Plan {
     /// kind: a departure out of the departure, an arrival or an approach
     /// into a stop or the destination.
     var procedures: [ProcedurePick] = []
+    /// The pilot's own edits of the route beyond its points: altitudes
+    /// at points, holds, crossings and a Direct to (RouteEdits).
+    var extras = RouteExtras()
 
     private(set) var course: Course?
     private(set) var checkpoints: [Checkpoint] = []
@@ -92,6 +95,7 @@ final class Plan {
         legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
         Kept.forget()
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
+        extras = RouteExtras()
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
@@ -148,6 +152,7 @@ final class Plan {
     func open(_ flight: SavedFlight) {
         dep = flight.departureIdent; dest = flight.destinationIdent; stops = flight.stops
         ownAltitudeFt = nil; altitudeChoice = nil
+        extras = RouteExtras()
         plan()
     }
 
@@ -220,6 +225,7 @@ final class Plan {
         let dep = dep.uppercased(), dest = dest.uppercased(), stops = stops.map { $0.uppercased() }, aircraft = aircraft
         let own = ownAltitudeFt, legal = ownAltitudeLegal, choice = altitudeChoice, figures = figures
         let picks = procedures.filter { idents.contains($0.ident) }
+        let extra = extras.query(procedures: picks)
         self.dep = dep; self.dest = dest; self.stops = stops
         planning = true
         problem = nil
@@ -248,7 +254,7 @@ final class Plan {
                     }
                 }
                 var fresh: [Leg] = []
-                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, figures: figures, altitudeFt: own, nearest: legal, choice: choice, procedures: picks) {
+                for try await message in NavLog.stream(dep: dep, dest: dest, stops: stops, aircraft: aircraft, figures: figures, altitudeFt: own, nearest: legal, choice: choice, procedures: picks, extra: extra) {
                     guard !Task.isCancelled else { return }
                     switch message {
                     case .stage(let detail): self.stage = detail

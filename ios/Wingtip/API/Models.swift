@@ -79,6 +79,9 @@ struct TrafficAircraft: Codable, Equatable, Sendable {
     var speedKt: Double?
     var verticalFpm: Double?
     var seenS: Double?
+    /// Its transponder's code, where it sends one: 7500, 7600 and 7700
+    /// said in words on its card (AIM 6-2-2, 6-3-4, 6-4-2).
+    var squawk: String?
 }
 
 struct TrafficAnswer: Codable, Equatable, Sendable {

@@ -16,6 +16,11 @@ struct AircraftView: View {
     var body: some View {
         NavigationStack {
             List {
+                // Any airplane in the air, by its callsign, N-number or
+                // address: its card, tracked on the map.
+                Section {
+                    NavigationLink { TrafficFindView() } label: { Label("Find an Airplane", systemImage: "magnifyingglass") }
+                }
                 Section("Airplane") {
                     HStack {
                         TextField("N-number", text: $typed)

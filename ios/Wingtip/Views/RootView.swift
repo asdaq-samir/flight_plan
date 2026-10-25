@@ -21,6 +21,22 @@ struct RootView: View {
 
     enum Tabs: Hashable { case fpl, airport, aircraft, setup }
 
+    /// What the map draws of the airplane tracked and the flights flown,
+    /// and its taps for them: an airplane's card, a point pressed.
+    private var flightLayer: FlightLayer {
+        let tracking = Tracking.shared
+        return FlightLayer(
+            trackedHex: tracking.hex, tracked: tracking.latest, follow: tracking.follow,
+            path: tracking.path, past: tracking.past, flown: tracking.flown,
+            onTraffic: { plane in
+                Tracking.shared.track(plane.hex, plane: plane)
+                FlightUI.shared.card = .airplane(plane.hex.lowercased())
+            },
+            onPoint: { at in FlightUI.shared.card = .point(at.latitude, at.longitude) },
+            onDragged: { Tracking.shared.follow = false }
+        )
+    }
+
     /// The sheet's lowest size, the pill: the figures' line and the tabs'
     /// names, as the web app's pill is.
     static let pill = PresentationDetent.height(132)
@@ -42,7 +58,8 @@ struct RootView: View {
                 airports = [ident]
                 if detent != .medium { detent = .medium }
             },
-            following: $following, routeAway: $routeAway, fitRequest: fitRequest
+            following: $following, routeAway: $routeAway, fitRequest: fitRequest,
+            flight: flightLayer
         )
         .ignoresSafeArea()
         .overlay(alignment: .topTrailing) {
@@ -54,6 +71,7 @@ struct RootView: View {
         .overlay(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 8) {
                 if dryRun.fix != nil { DryRunControls() }
+                WatchBanner()
                 // The licence's credit, beside the traffic it covers.
                 if traffic.on, !traffic.planes.isEmpty {
                     Text(Traffic.credit(traffic.source)).font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
@@ -63,6 +81,11 @@ struct RootView: View {
             .padding(.leading, 12).padding(.top, 12)
         }
         .task { await traffic.run { [ownShip] in ownShip.fix?.coordinate } }
+        // The airplane tracked, its reports from the map's answers and its
+        // own; the watches set; the alerts ahead said aloud where asked.
+        .task { await Tracking.shared.run() }
+        .onChange(of: traffic.planes) { _, planes in Tracking.shared.heard(planes) }
+        .onChange(of: ownShip.ahead) { _, alerts in SpokenAlerts.shared.hear(alerts) }
         .sheet(isPresented: $sheetUp) {
             SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
                 .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
@@ -109,6 +132,9 @@ struct SheetView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: pill)
+        // An airplane's card, a point pressed on the map, a hold, a flown
+        // track, over the tabs.
+        .modifier(FlightSheets())
     }
 }
 
