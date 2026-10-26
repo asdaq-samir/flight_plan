@@ -1,3 +1,4 @@
+import { normalizeDeg } from "./geo";
 /** How an altitude, a ceiling or a visibility is written everywhere on
  *  the page: one formatter each, so a nav log, a briefing and a map card
  *  never write the same figure two ways. A missing figure is an em dash
@@ -91,6 +92,6 @@ export function miles(sm: number | null | undefined): string {
  * the nav log wrote 000 and its own workings 360.
  */
 export function bearing(deg: number): string {
-  const whole = ((Math.round(deg) % 360) + 360) % 360;
+  const whole = normalizeDeg(Math.round(deg));
   return `${String(whole === 0 ? 360 : whole).padStart(3, "0")}°`;
 }

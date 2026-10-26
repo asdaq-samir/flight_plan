@@ -8,7 +8,7 @@
  * field 500 ft above it and back to the 45 from the other.
  */
 import type { Runway } from "./api/types";
-import { angleBetween } from "./geo";
+import { angleBetween, normalizeDeg } from "./geo";
 import { calmOnRunway, crosswindKt, headwindKt, isCalm } from "./wind";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
@@ -17,7 +17,7 @@ const POINTS = ["north", "northeast", "east", "southeast", "south", "southwest",
 
 /** A true bearing as a pilot says a direction: "southwest". */
 export function compassWord(bearingDeg: number): string {
-  return POINTS[Math.round((((bearingDeg % 360) + 360) % 360) / 45) % 8]!;
+  return POINTS[Math.round(normalizeDeg(bearingDeg) / 45) % 8]!;
 }
 
 export interface InUse {
@@ -187,7 +187,7 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
 /** The true bearing from the runway to its downwind: off the left of
  *  the landing direction for left traffic, the right for right. */
 export function patternSideDeg(end: RunwayEnd): number {
-  return (((end.heading_true_deg ?? 0) + (end.traffic === "right" ? 90 : -90)) % 360 + 360) % 360;
+  return normalizeDeg((end.heading_true_deg ?? 0) + (end.traffic === "right" ? 90 : -90));
 }
 
 /** A runway end as written: "9" for "09", as a US runway is painted. */

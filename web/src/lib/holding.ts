@@ -10,13 +10,11 @@
  * heading and time worked to make it so in the wind.
  */
 import { windTriangle } from "./diversion";
-import { angleBetween } from "./geo";
+import { angleBetween, normalizeDeg } from "./geo";
 import { headwindKt } from "./wind";
 
 export type Entry = "direct" | "teardrop" | "parallel";
 export type Turns = "right" | "left";
-
-const norm = (deg: number) => ((deg % 360) + 360) % 360;
 
 /** The inbound leg's time at an altitude, minutes: "At or below 14,000
  *  feet MSL: 1 minute. Above 14,000 feet MSL: 1 1/2 minutes" (AIM 5-3-8
@@ -36,7 +34,7 @@ export function legMinutes(altitudeFt: number): number {
  * use either entry.
  */
 export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turns): { entry: Entry; either: Entry | null } {
-  const off = norm(turns === "right" ? headingDeg - inboundDeg : inboundDeg - headingDeg);
+  const off = normalizeDeg(turns === "right" ? headingDeg - inboundDeg : inboundDeg - headingDeg);
   const entry: Entry = off <= 110 || off >= 290 ? "direct" : off <= 180 ? "teardrop" : "parallel";
   const edges: [number, Entry, Entry][] = [[110, "direct", "teardrop"], [180, "teardrop", "parallel"], [290, "parallel", "direct"]];
   const near = edges.find(([at]) => angleBetween(off, at) <= 5);
@@ -46,7 +44,7 @@ export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turn
 /** The bearing from the fix the airplane comes from, against the inbound
  *  course, for drawing: where it is on the page round the fix. */
 export function approachRelative(inboundDeg: number, headingDeg: number): number {
-  return norm(headingDeg + 180 - inboundDeg);
+  return normalizeDeg(headingDeg + 180 - inboundDeg);
 }
 
 export interface HoldingWind {
@@ -68,7 +66,7 @@ export interface HoldingWind {
  *  gives the course). Null where the wind is stronger than the airplane. */
 export function holdingWind(inboundDeg: number, tasKt: number, windFromDeg: number, windKt: number, altitudeFt: number): HoldingWind | null {
   const legMin = legMinutes(altitudeFt);
-  const outboundDeg = norm(inboundDeg + 180);
+  const outboundDeg = normalizeDeg(inboundDeg + 180);
   const inbound = windTriangle(inboundDeg, tasKt, windFromDeg, windKt);
   const outLeg = windTriangle(outboundDeg, tasKt, windFromDeg, windKt);
   if (!inbound || !outLeg) return null;
@@ -76,8 +74,8 @@ export function holdingWind(inboundDeg: number, tasKt: number, windFromDeg: numb
   const headwindIn = headwindKt(windFromDeg, windKt, inboundDeg);
   return {
     legMin,
-    inbound: { heading: norm(inboundDeg + inbound.wca), wca: inbound.wca, gs: inbound.gs },
-    outbound: { heading: norm(outboundDeg + outWca), wca: outWca, gs: outLeg.gs },
+    inbound: { heading: normalizeDeg(inboundDeg + inbound.wca), wca: inbound.wca, gs: inbound.gs },
+    outbound: { heading: normalizeDeg(outboundDeg + outWca), wca: outWca, gs: outLeg.gs },
     outboundSec: (legMin * 60 * inbound.gs) / outLeg.gs,
     // A headwind inbound is a tailwind outbound: shorten the outbound leg.
     ruleSec: legMin * 60 - headwindIn,
