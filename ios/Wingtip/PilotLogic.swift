@@ -251,6 +251,23 @@ enum Endorsing {
         return "/s/ \(Day.acDay(signedOn)) \(instructor.fullName ?? "") \(instructor.certificate ?? "") \(kind) \(Day.acDay(instructor.until ?? ""))"
     }
 
+    /// The warning above "Sign as" once the instructor's date has passed
+    /// on the day of signing, or nil; the web's lib/endorsements
+    /// lapseWarning, word for word. Never a block: the owner's rule is to
+    /// make the pilot aware, not restrict them (2026-10-26), and the
+    /// gateway signs either way. A certificate issued on or after 1 Dec
+    /// 2024 has no expiration date (14 CFR 61.19(d)(1)) and its date is
+    /// the end of the recent experience 61.197(a) asks for in the
+    /// preceding 24 calendar months; an older one expires 24 calendar
+    /// months from issue, renewal or reinstatement (61.19(d)(2)), and its
+    /// privileges then wait for reinstatement under 61.199 (61.197(e)).
+    static func lapseWarning(_ instructor: Instructor, signedOn: String) -> String? {
+        guard let until = instructor.until, !Day.current(until, today: signedOn) else { return nil }
+        return instructor.untilKind == "EXP"
+            ? "Your certificate expired on \(Day.said(until)): 14 CFR 61.197(e) asks for it to be reinstated (61.199) before you sign as an instructor."
+            : "Your recent experience ran out on \(Day.said(until)): 14 CFR 61.197(a) asks for recent experience in the preceding 24 calendar months before you sign as an instructor."
+    }
+
     /// The latest of each kind signed in the app and not voided; the
     /// record comes newest first.
     static func inForce(_ signed: [SignedEndorsement]) -> [String: SignedEndorsement] {

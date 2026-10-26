@@ -20,6 +20,23 @@ export function signatureLine(instructor: Instructor, signedOn: string): string 
   return `/s/ ${acDay(signedOn)} ${instructor.fullName} ${instructor.certificate} ${instructor.untilKind === "EXP" ? "Exp." : "RE"} ${acDay(instructor.until!)}`;
 }
 
+/** The warning an instructor sees above "Sign as" once their date has
+ *  passed on the day of signing, or null. Never a block: the owner's rule
+ *  is to make the pilot aware, not restrict them (2026-10-26), so the
+ *  gateway signs either way and the signature line shows the date.
+ *  A certificate issued on or after 1 Dec 2024 has no expiration date
+ *  (14 CFR 61.19(d)(1)) and its date is the end of the recent experience
+ *  61.197(a) asks for in the preceding 24 calendar months; an older one
+ *  expires 24 calendar months from issue, renewal or reinstatement
+ *  (61.19(d)(2)), and once expired its privileges wait for reinstatement
+ *  under 61.199 (61.197(e)). */
+export function lapseWarning(instructor: Instructor, signedOn: string): string | null {
+  if (!instructor.until || instructor.until >= signedOn) return null;
+  return instructor.untilKind === "EXP"
+    ? `Your certificate expired on ${said(instructor.until)}: 14 CFR 61.197(e) asks for it to be reinstated (61.199) before you sign as an instructor.`
+    : `Your recent experience ran out on ${said(instructor.until)}: 14 CFR 61.197(a) asks for recent experience in the preceding 24 calendar months before you sign as an instructor.`;
+}
+
 /** A solo cross-country's airports in order: "KUGN KRFD KUGN". */
 export const reviewRoute = (r: CrossCountryReview) =>
   [r.flight.departureIdent, ...r.flight.stops, r.flight.destinationIdent].join(" ");

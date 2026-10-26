@@ -2155,6 +2155,30 @@ class RouteStopField(BaseModel):
     car: NearbyPlace | None = None
 
 
+class FieldFood(BaseModel):
+    """A field with somewhere to eat on it or a short walk from it, for the
+    map's fly-in food (the "$100 hamburger"): where it is from the pilot,
+    and its places to eat nearest first (vfr.nearby)."""
+
+    ident: str
+    name: str
+    city: str | None = None
+    lat: float
+    lon: float
+    distance_nm: float
+    bearing_deg: int
+    food: list[NearbyPlace]
+
+
+class FieldsWithFood(BaseModel):
+    """The fields round a position with food a walk from the ramp, nearest
+    first, and how many fields round it still have their places to be
+    read (`pending`): asked again until none."""
+
+    fields: list[FieldFood]
+    pending: int = 0
+
+
 class RouteStops(BaseModel):
     """The fields along a route to stop at, in route order, and how many
     of them still have their places to be read (`pending`): asked again

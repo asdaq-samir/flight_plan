@@ -92,8 +92,9 @@ public class InstructorController {
 
     /** An endorsement signed for one of their students: 400 a field
      *  missing or a day not today, 409 the words not what the fields make,
-     *  their certificate not given or lapsed, or the student's name not
-     *  given. */
+     *  their certificate not given, or the student's name not given. A
+     *  certificate past its date (14 CFR 61.197(a), (e)) is signed with,
+     *  the screens having warned: the app never refuses on it. */
     @PostMapping("/students/{studentId}/endorsements")
     public ResponseEntity<TrainingDto> sign(Authentication authentication, @PathVariable Long studentId,
                                             @Valid @RequestBody SignRequest request) {

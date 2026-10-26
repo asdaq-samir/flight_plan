@@ -25,6 +25,7 @@ import com.northflyers.vfr.service.TrainingService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -146,16 +147,19 @@ class InstructorFlowTest {
                 .isInstanceOfSatisfying(InstructorService.Refused.class, r -> assertThat(r.status).isEqualTo(HttpStatus.CONFLICT));
     }
 
-    /** 61.197(a): no privileges with the recent experience lapsed. */
+    /** 61.197(a) and (e): the privileges end with the date, but the app
+     *  warns and never refuses (the owner's rule, 2026-10-26), so the
+     *  endorsement is signed and its signature line carries the passed
+     *  date for the record. */
     @Test
-    void anInstructorWhoseRecentExperienceRanOutSignsNothing() {
+    void anInstructorPastTheirDateIsWarnedButStillSigns() {
         Pilot[] p = pair();
-        instructors.setInstructor(p[1], new InstructorRequest("J. J. Jones", "987654321CFI", TODAY.minusDays(1), InstructorUntil.RE));
-        assertThatThrownBy(() -> instructors.sign(p[1], p[0], soloXc(p[0], null), NOW))
-                .isInstanceOfSatisfying(InstructorService.Refused.class, r -> {
-                    assertThat(r.status).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(r.getMessage()).contains("61.197(a)");
-                });
+        LocalDate yesterday = TODAY.minusDays(1);
+        instructors.setInstructor(p[1], new InstructorRequest("J. J. Jones", "987654321CFI", yesterday, InstructorUntil.RE));
+        assertThat(instructors.sign(p[1], p[0], soloXc(p[0], null), NOW).getSignature())
+                .endsWith("987654321CFI RE " + yesterday.format(DateTimeFormatter.ofPattern("MM-dd-yyyy")));
+        instructors.setInstructor(p[1], new InstructorRequest("J. J. Jones", "987654321CFI", LocalDate.of(2025, 11, 30), InstructorUntil.EXP));
+        assertThat(instructors.sign(p[1], p[0], soloXc(p[0], null), NOW).getSignature()).endsWith("987654321CFI Exp. 11-30-2025");
     }
 
     @Test

@@ -106,8 +106,9 @@ struct InstructorView: View {
 
 /// The certificate as every endorsement signed carries it (AC 61-65K):
 /// the name, the certificate number with its ratings' letters, and the
-/// end of the recent experience (14 CFR 61.197) or an older certificate's
-/// expiration date.
+/// end of the recent experience (14 CFR 61.197(a)) for a certificate
+/// issued on or after 1 Dec 2024, which has no expiration date
+/// (61.19(d)(1)), or an older certificate's expiration date (61.19(d)(2)).
 struct CertificateSection: View {
     let instructor: Instructor
     var onCancel: (() -> Void)?
@@ -136,7 +137,7 @@ struct CertificateSection: View {
                 Text("Expires").tag("EXP")
             }
             .pickerStyle(.segmented)
-            DatePicker(untilKind == "RE" ? "Recent experience ends" : "Expires", selection: $until, displayedComponents: .date)
+            DatePicker(untilKind == "RE" ? "Recent experience through" : "Certificate expires", selection: $until, displayedComponents: .date)
             Button(saving ? "Saving…" : "Save") {
                 saving = true
                 let request = InstructorRequest(fullName: fullName.trimmingCharacters(in: .whitespaces), certificate: certificate.trimmingCharacters(in: .whitespaces),
@@ -318,11 +319,11 @@ struct SignView: View {
         let signedOn = Day.today()
         let text = Endorsing.render(kind.template, student: studentName, fields: fields)
         let missing = kind.fields.filter { $0.required && (fields[$0.key] ?? "").trimmingCharacters(in: .whitespaces).isEmpty }
-        // An instructor's certificate past its date may not be used to
-        // endorse (14 CFR 61.197(a)); the gateway refuses it too.
-        let lapsed = instructor.until.map { !Day.current($0) } ?? false
+        // A date passed warns and never stops the signature
+        // (Endorsing.lapseWarning); the gateway signs either way.
+        let lapsed = Endorsing.lapseWarning(instructor, signedOn: signedOn)
         let crossCountry = kind.code == "solo-xc-flight"
-        let ready = missing.isEmpty && !lapsed && (!crossCountry || determined.count == Endorsing.determinations.count)
+        let ready = missing.isEmpty && (!crossCountry || determined.count == Endorsing.determinations.count)
         Form {
             Section {
                 ForEach(kind.fields, id: \.key) { f in
@@ -356,10 +357,11 @@ struct SignView: View {
                     }
                 }
                 .disabled(!ready || signing)
-                if lapsed, let until = instructor.until {
-                    Text("Your \(instructor.untilKind == "EXP" ? "certificate expired" : "recent experience ran out") on \(Day.said(until)) (14 CFR 61.197(a))")
-                        .font(.footnote).foregroundStyle(.red)
-                } else if !missing.isEmpty {
+                if let lapsed {
+                    Label(lapsed, systemImage: "exclamationmark.triangle.fill")
+                        .font(.footnote).foregroundStyle(.orange)
+                }
+                if !missing.isEmpty {
                     Text("Fill in \(missing.map { $0.label.lowercased() }.joined(separator: ", "))").font(.footnote).foregroundStyle(.secondary)
                 }
             }

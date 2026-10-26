@@ -76,7 +76,9 @@ test("a student asks an instructor in, and the instructor endorses their solo cr
   await desk.getByRole("button", { name: /^Instructing/ }).click();
   await desk.getByTestId("cfi-name").fill("J. J. Jones");
   await desk.getByTestId("cfi-number").fill("987654321CFI");
-  await desk.getByTestId("cfi-until").fill("2027-12-31");
+  // Recent experience run out (14 CFR 61.197(a)): the instructor is
+  // warned, never stopped (the owner's rule, 2026-10-26).
+  await desk.getByTestId("cfi-until").fill("2025-12-31");
   await desk.getByTestId("cfi-save").click();
   await expect(desk.getByTestId("cfi-certificate")).toContainText("987654321CFI");
   await expect(desk.getByTestId("student-ask")).toContainText("Avery B. Student");
@@ -112,7 +114,8 @@ test("a student asks an instructor in, and the instructor endorses their solo cr
     "I have reviewed the cross-country planning of Avery B. Student. I find the planning and preparation to be correct to make the"
     + " solo flight from KUGN to KUGN via KRFD with landings at KRFD, KUGN in a Cessna 172 aircraft on",
   );
-  await expect(form.getByTestId("signed-words")).toContainText("J. J. Jones 987654321CFI RE 12-31-2027");
+  await expect(form.getByTestId("signed-words")).toContainText("J. J. Jones 987654321CFI RE 12-31-2025");
+  await expect(form.getByTestId("sign-lapsed")).toContainText("Your recent experience ran out on 31 Dec 2025: 14 CFR 61.197(a)");
   // Not until what 61.93(d) asks of the instructor is ticked.
   await expect(form.getByTestId("sign-endorsement")).toBeDisabled();
   for (const tick of await form.getByTestId("sign-determination").all()) await tick.click();
@@ -125,7 +128,7 @@ test("a student asks an instructor in, and the instructor endorses their solo cr
   };
   expect(record.signed).toHaveLength(1);
   expect(record.signed[0]!.code).toBe("solo-xc-flight");
-  expect(record.signed[0]!.signature).toMatch(/^\/s\/ \d\d-\d\d-\d{4} J\. J\. Jones 987654321CFI RE 12-31-2027$/);
+  expect(record.signed[0]!.signature).toMatch(/^\/s\/ \d\d-\d\d-\d{4} J\. J\. Jones 987654321CFI RE 12-31-2025$/);
   expect(record.reviews[0]!.endorsement).not.toBeNull();
   await theirs.close();
 
