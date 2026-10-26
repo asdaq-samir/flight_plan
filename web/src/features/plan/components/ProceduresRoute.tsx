@@ -126,7 +126,7 @@ const NO_AUTO: ReadonlySet<string> = new Set();
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked = NO_AUTO, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
+  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop,
   fuel = null,
 }: {
   airports: ProcedureAirport[];
@@ -220,6 +220,9 @@ export default function ProceduresRoute({
    *  put in the route after the flight's departure, in order. */
   fuelStops?: FuelStopSuggestion[];
   onKeepFuelStops?: (after: string, idents: string[]) => void;
+  /** A suggested stop taken out of the route (its minus beside Add), the
+   *  route's menu putting it back (PlanWorkspace's hideFuelStop). */
+  onHideFuelStop?: (ident: string) => void;
   /** The tanks, for the fuel in them at each point: their usable fuel, the
    *  start, taxi and takeoff allowance and the reserve the flight is held
    *  to (the totals' fuel check); none known, no fuel shown. */
@@ -826,6 +829,7 @@ export default function ProceduresRoute({
         <FuelStopsAdd
           key={`fuel-${ident}-add`} count={flight.stops.length} last={false} reason={flight.reason}
           onAdd={() => onKeepFuelStops(ident, flight.stops.map(s => s.ident))}
+          onRemove={onHideFuelStop ? () => flight.stops.forEach(s => onHideFuelStop(s.ident)) : undefined}
         />
       ),
     ];
