@@ -8,7 +8,7 @@ import { Input } from "../../components/ui/input";
 import { api } from "../../lib/api/client";
 import type { EndorsementKind, Instructor, SignedEndorsement } from "../../lib/api/types";
 import { renderEndorsement } from "../../lib/checkride";
-import { said, signatureLine } from "../../lib/endorsements";
+import { lapseWarning, said, signatureLine } from "../../lib/endorsements";
 import { localDay } from "../../lib/clock";
 import { FINDING_TONE } from "../../lib/status";
 import { TEXT } from "../../lib/text";
@@ -107,7 +107,8 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
   const signedOn = localDay();
   const text = renderEndorsement(kind.template, studentName, fields);
   const missing = kind.fields.filter(f => f.required && !fields[f.key]?.trim());
-  const lapsed = !!instructor.until && instructor.until < signedOn;
+  // A passed date warns and never stops the signature (lapseWarning).
+  const lapsed = lapseWarning(instructor, signedOn);
   const sign = useMutation({
     mutationFn: () => api.instructor.sign(studentId, { code: kind.code, fields, text, signedOn, reviewId: reviewId ?? null }),
     onSuccess: record => {
@@ -116,7 +117,7 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
       onDone();
     },
   });
-  const ready = missing.length === 0 && !lapsed && (!crossCountry || determined.every(Boolean));
+  const ready = missing.length === 0 && (!crossCountry || determined.every(Boolean));
   return (
     <div className="space-y-4" data-testid="sign-form">
       {/* The endorsement's AC 61-65K paragraph and 14 CFR section are its
@@ -150,8 +151,10 @@ export function SignForm({ kind, studentId, studentName, instructor, initial, re
         <SignedWords text={text} signature={signatureLine(instructor, signedOn)} />
         <ListRow
           title={<span className="font-medium text-tint">Sign as {instructor.fullName}</span>}
-          description={lapsed ? <span className={FINDING_TONE.stop}>Your {instructor.untilKind === "EXP" ? "certificate expired" : "recent experience ran out"} on {said(instructor.until!)} (14 CFR 61.197(a))</span>
-            : missing.length ? `Fill in ${missing.map(f => f.label.toLowerCase()).join(", ")}` : undefined}
+          description={lapsed || missing.length ? <>
+            {lapsed && <span className={cn("block", FINDING_TONE.caution)} data-testid="sign-lapsed">{lapsed}</span>}
+            {missing.length > 0 && <span className="block">Fill in {missing.map(f => f.label.toLowerCase()).join(", ")}</span>}
+          </> : undefined}
           disabled={!ready || sign.isPending} onClick={() => sign.mutate()} data-testid="sign-endorsement"
         />
         <ListRow title="Cancel" onClick={onCancel} />

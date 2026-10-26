@@ -5,7 +5,6 @@ import com.northflyers.vfr.domain.Endorsement;
 import com.northflyers.vfr.domain.EndorsementKind;
 import com.northflyers.vfr.domain.Flight;
 import com.northflyers.vfr.domain.InstructorLink;
-import com.northflyers.vfr.domain.InstructorUntil;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.domain.SignedEndorsement;
 import com.northflyers.vfr.dto.AskReviewRequest;
@@ -60,8 +59,11 @@ import org.springframework.transaction.annotation.Transactional;
  * number and recent experience or expiration date; nothing changed once
  * signed, a correction voiding it for a new one (2.2.7, 2.2.8); and both
  * told by email that it was signed (2.2.3). An instructor whose recent
- * experience has lapsed may not exercise the certificate's privileges
- * (61.197(a)), so signs nothing.
+ * experience has run out (61.197(a)) or whose pre-December 2024
+ * certificate has expired (61.19(d)(2), 61.197(e)) may not exercise its
+ * privileges, but the app warns and never refuses (the owner's rule,
+ * 2026-10-26): the screens say so before signing, and the signature line
+ * carries the date, so the record shows it was past.
  */
 @Service
 public class InstructorService {
@@ -251,12 +253,6 @@ public class InstructorService {
         // UTC's in the evening.
         if (request.signedOn().isBefore(today.minusDays(1)) || request.signedOn().isAfter(today.plusDays(1))) {
             throw new Refused(HttpStatus.BAD_REQUEST, "An endorsement is signed with today's date.");
-        }
-        if (instructor.getInstructorUntil().isBefore(request.signedOn())) {
-            throw new Refused(HttpStatus.CONFLICT, "Your " + (instructor.getInstructorUntilKind() == InstructorUntil.RE
-                    ? "recent experience ran out" : "certificate expired") + " on "
-                    + EndorsementRecords.DAY.format(instructor.getInstructorUntil())
-                    + ": an instructor signs nothing until it is renewed (14 CFR 61.197(a)).");
         }
         if (student.getFullName() == null || student.getFullName().isBlank()) {
             throw new Refused(HttpStatus.CONFLICT, "The student has not given their name as on their certificate yet.");

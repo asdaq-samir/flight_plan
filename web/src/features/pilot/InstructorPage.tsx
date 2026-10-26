@@ -41,8 +41,9 @@ function CertificateForm({ instructor, onDone }: { instructor: Instructor; onDon
     <>
       {/* As every endorsement signed carries it (AC 61-65K): the name, the
           certificate number with its ratings' letters, and the end of the
-          recent experience (14 CFR 61.197) or an older certificate's
-          expiration date. */}
+          recent experience (14 CFR 61.197(a)) for a certificate issued on or
+          after 1 Dec 2024, which has no expiration date (61.19(d)(1)), or an
+          older certificate's expiration date (61.19(d)(2)). */}
       <ListGroup title="Your flight instructor certificate">
         <ListRow id={ids.name} title="Name">
           <FieldHit htmlFor={ids.name}><Input id={ids.name} value={draft.fullName} placeholder="J. J. Jones" maxLength={120} className="h-8 w-44 sm:w-56"
@@ -58,7 +59,7 @@ function CertificateForm({ instructor, onDone }: { instructor: Instructor; onDon
             options={[{ value: "RE", label: "Recent experience" }, { value: "EXP", label: "Expires" }]} testId="cfi-until-kind"
           />
         </ListRow>
-        <ListRow id={ids.until} title={draft.untilKind === "RE" ? "Recent experience ends" : "Expires"}>
+        <ListRow id={ids.until} title={draft.untilKind === "RE" ? "Recent experience through" : "Certificate expires"}>
           <FieldHit htmlFor={ids.until}><Input id={ids.until} type="date" value={draft.until} className="h-8 w-40"
             onChange={e => setDraft({ ...draft, until: e.target.value })} data-testid="cfi-until" /></FieldHit>
         </ListRow>
