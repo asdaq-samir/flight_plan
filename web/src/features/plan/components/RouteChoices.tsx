@@ -43,7 +43,7 @@ function Strip({ bands }: { bands: { kind: string; min: number }[] }) {
 }
 
 /** One card, as Maps lays out a route: its time in large figures, its
- *  arrival and miles, and its name -- or what it crosses, in red -- with
+ *  arrival and miles, and its name -- or what it crosses, in amber -- with
  *  Use at the right where it is not the route already; the weather met
  *  along it a thin strip at its foot. */
 function Card({ minutes, arrive, nm, landings = 0, waterNm = 0, name, warning, bands, used, best, onUse, testId, listed = false, shown = false, onShow }: {
@@ -88,7 +88,10 @@ function Card({ minutes, arrive, nm, landings = 0, waterNm = 0, name, warning, b
           {[arrive && `${arrive} ETA`, nm && `${grouped(Math.round(nm))} nm`, landings ? `${landings} fuel stop${landings > 1 ? "s" : ""}` : null,
             waterNm ? `${grouped(waterNm)} nm over water` : null].filter(Boolean).join(" · ")}
         </span>
-        <span className={cn("truncate", TEXT.note, warning ? "text-destructive-ink" : "text-muted-foreground")}>
+        {/* What it meets in amber, a caution for the pilot to weigh, not
+            red: the planner warns and never refuses (the owner's "change
+            from red to amber", 2026-10-25). */}
+        <span className={cn("truncate", TEXT.note, warning ? "text-caution-ink" : "text-muted-foreground")}>
           {warning ? `${name} · ${warning}` : best ? `${name} · Best` : name}
         </span>
       </div>
