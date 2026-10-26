@@ -50,6 +50,8 @@ def sky(monkeypatch):
     monkeypatch.setattr(sun, "is_night", lambda lat, lon, at: False)
     monkeypatch.setattr(fuelstops, "paved_runway_ft", lambda ident: 5000)
     monkeypatch.setattr(fixes, "frd_near", lambda lat, lon, max_nm=0: {"ident": f"P{lat:.2f}/{lon:.2f}", "name": "point"})
+    # No fix to turn at unless a test puts one there.
+    monkeypatch.setattr(fixes, "within", lambda south, west, north, east: [])
     # Dry land everywhere unless a test floods it.
     monkeypatch.setattr(water, "is_water", lambda lats, lons: np.zeros(np.shape(lats), dtype=bool))
     return data
@@ -294,3 +296,38 @@ def test_out_of_glide_is_the_water_beyond_a_glide_of_land():
     assert share[:, 0].max() == 0.0                      # dry land
     assert share[:, 4].min() > 0.5 and share[:, 5].min() > 0.5    # the strait's middle
     assert share.max() <= 1.0
+
+
+def test_a_turn_is_made_at_a_fix_nearby_where_one_keeps_the_way(monkeypatch, sky):
+    # A storm on the straight line, so the way turns; a GPS waypoint 3 nm
+    # off where it turns, away from the storm, is loaded instead of a point of the pilot's own
+    # (the owner's "Isn't there a gps fix nearby ... that we can use?").
+    sky["tafs"].append(taf("STRM", 0.0, 2.0, wx="TSRA"))
+    first = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    way = first["options"][0]
+    turn = way["path"][1]
+    # On the storm's far side of the turn: one nearer it would close the way.
+    away = -0.05 if turn[0] < 0 else 0.05
+    fix = {"ident": "BUCKY", "lat": turn[0] + away, "lon": turn[1], "kind": "fix"}
+    def within(south, west, north, east):
+        return [fix] if south <= fix["lat"] <= north and west <= fix["lon"] <= east else []
+    monkeypatch.setattr(fixes, "within", within)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    snapped = out["options"][0]
+    assert "BUCKY" in snapped["stops"]
+    assert [fix["lat"], fix["lon"]] in snapped["path"]
+    assert snapped["crosses"] == way["crosses"]
+
+
+def test_a_fix_that_would_take_the_way_into_the_storm_is_not_turned_at(monkeypatch, sky):
+    sky["tafs"].append(taf("STRM", 0.0, 2.0, wx="TSRA"))
+    turn = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)["options"][0]["path"][1]
+    # Toward the storm's middle, 7 nm: inside its 20 nm.
+    toward = 0.12 if turn[0] < 0 else -0.12
+    fix = {"ident": "STORM", "lat": turn[0] + toward, "lon": turn[1], "kind": "fix"}
+
+    def within(south, west, north, east):
+        return [fix] if south <= fix["lat"] <= north and west <= fix["lon"] <= east else []
+    monkeypatch.setattr(fixes, "within", within)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert "STORM" not in out["options"][0]["stops"]
