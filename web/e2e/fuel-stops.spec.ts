@@ -185,7 +185,7 @@ test("a long flight the tanks hold is offered a break about half way, kept as th
   await expect(page).not.toHaveURL(/[?&]fuel=/);
 });
 
-test("a suggested fuel stop is taken out from FPL's list with the minus beside Add, and the route's menu puts it back", async ({ page }) => {
+test("a suggested fuel stop is taken out from FPL's list with the minus beside Add, and put back from the list or the route's menu", async ({ page }) => {
   // The owner's ask (2026-10-25): "Add minus delete button next to add fuel stops".
   await suggested(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -198,6 +198,12 @@ test("a suggested fuel stop is taken out from FPL's list with the minus beside A
   await remove.click();
   await expect(row).toHaveCount(0);
   await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveCount(0);
+  // Put back where it was, from the list (the owner's "we still want to be
+  // able to add them back"), as from the route's menu.
+  await sideDrawer(page).getByTestId("fuel-stop-show").click();
+  await expect(row).toHaveAttribute("data-ident", "KRPD");
+  await expect(sideDrawer(page).getByTestId("fuel-stop-show")).toHaveCount(0);
+  await remove.click();
   await sideDrawer(page).getByTestId("share-route").click();
   await page.getByTestId("route-show-fuel").click();
   await expect(row).toHaveAttribute("data-ident", "KRPD");
