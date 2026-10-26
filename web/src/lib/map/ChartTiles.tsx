@@ -11,6 +11,9 @@ const UNDERLAY_ZOOM = 5;
 /** The ring tiles remembered as asked for: about a flight's worth of
  *  views, the browser's cache holding the tiles themselves. */
 const PREFETCH_KEPT = 2000;
+/** The chart's own layers, told from the imagery and weather tiles that
+ *  may lie over them: the ones index.css dims at night. */
+const CHART_CLASS = "chart-tiles";
 
 interface Props {
   /** The chart: a route's course, or the chart alone with no route. */
@@ -45,6 +48,13 @@ export function ChartTiles({ chart, previewing }: Props) {
   const map = useMap();
   const base = usePreferences(s => s.base);
   const pinned = usePreferences(s => s.tac);
+  const chartNight = usePreferences(s => s.chartNight);
+  // On <html>, beside the theme's class, for index.css to dim the chart's
+  // tiles and recolour the course at night: one attribute, changed only
+  // when the setting is, rather than a class on every layer and path.
+  useEffect(() => {
+    document.documentElement.dataset.chartNight = chartNight;
+  }, [chartNight]);
   const { base: baseLayer, overlay } = useMemo(() => chartPair(chart.chart_layers, base), [chart.chart_layers, base]);
   const baseRef = useRef<L.TileLayer>(null);
 
@@ -105,21 +115,21 @@ export function ChartTiles({ chart, previewing }: Props) {
           key={`${baseLayer.kind}-under`}
           url={tileTemplate(chart, baseLayer.kind)}
           minZoom={underlay} maxNativeZoom={underlay} maxZoom={baseLayer.max_zoom + 3}
-          keepBuffer={1} zIndex={0} updateWhenZooming={false}
+          keepBuffer={1} zIndex={0} updateWhenZooming={false} className={CHART_CLASS}
         />
       )}
       <TileLayer
         key={baseLayer.kind} ref={baseRef}
         url={tileTemplate(chart, baseLayer.kind)}
         minZoom={baseLayer.min_zoom} maxNativeZoom={baseLayer.max_zoom} maxZoom={baseLayer.max_zoom + 3}
-        keepBuffer={4} {...LIVE_TILES}
+        keepBuffer={4} className={CHART_CLASS} {...LIVE_TILES}
       />
       {overlay && (pinned || previewing) && (
         <TileLayer
           key={overlay.kind}
           url={tileTemplate(chart, overlay.kind)}
           minZoom={overlay.min_zoom} maxNativeZoom={overlay.max_zoom} maxZoom={overlay.max_zoom + 3}
-          keepBuffer={2} zIndex={5} {...LIVE_TILES}
+          keepBuffer={2} zIndex={5} className={CHART_CLASS} {...LIVE_TILES}
         />
       )}
     </>

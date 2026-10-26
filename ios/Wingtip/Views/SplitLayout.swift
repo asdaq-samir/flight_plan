@@ -36,6 +36,8 @@ enum SideCard: Hashable {
     case profile
     case brief
     case flight
+    /// The pilot's saved flights (FPL's Flights button).
+    case flights
 }
 
 extension EnvironmentValues {
@@ -44,6 +46,8 @@ extension EnvironmentValues {
     /// Opens a card in the inspector; nil on the iPhone, where it is
     /// pushed in the tab.
     @Entry var openCard: ((SideCard) -> Void)? = nil
+    /// Closes the inspector's card; nil on the iPhone.
+    @Entry var closeCard: (() -> Void)? = nil
 }
 
 /// A link to a second-level card: pushed in its tab on the iPhone, opened
@@ -73,6 +77,7 @@ struct CardLink<Label: View>: View {
         case .profile: "profile"
         case .brief: "brief"
         case .flight: "flight"
+        case .flights: "flights"
         }
     }
 }
@@ -89,13 +94,18 @@ struct SplitLayout<Map: View>: View {
     /// the inspector instead (RootLayout.inspects).
     @Binding var airports: [String]
     @Binding var card: SideCard?
+    @Environment(Plan.self) private var plan
     @State private var columns: NavigationSplitViewVisibility = .all
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
-            // Each tab keeps its own navigation bar, its title and its
-            // buttons (hiding the column's hid theirs too).
+            // A tab's own navigation bar is folded into the column's in
+            // the sidebar, which showed none of its title or buttons: the
+            // column's bar carries them instead.
             SheetView(tab: $tab, airports: sidebarAirports, pill: false)
+                .navigationTitle(Self.title(tab))
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { if tab == .fpl { fplItems } }
                 .navigationSplitViewColumnWidth(min: 320, ideal: 375, max: 420)
         } detail: {
             map
@@ -116,6 +126,7 @@ struct SplitLayout<Map: View>: View {
         .navigationSplitViewStyle(.balanced)
         .environment(\.splitLayout, true)
         .environment(\.openCard, { card = $0 })
+        .environment(\.closeCard, { close() })
         // A flight's card (an airplane tapped, a hold, a flown track) opens
         // here; put away from inside, the inspector closes with it.
         .onChange(of: FlightUI.shared.card) { _, next in
@@ -166,6 +177,8 @@ struct SplitLayout<Map: View>: View {
             NavigationStack { ProfileCard().toolbar { closeItem } }
         case .brief:
             NavigationStack { BriefView().toolbar { closeItem } }
+        case .flights:
+            NavigationStack { FlightsView().toolbar { closeItem } }
         case .flight:
             // Each has its own stack and close (FlightSheets' cards).
             switch FlightUI.shared.card {
@@ -176,6 +189,33 @@ struct SplitLayout<Map: View>: View {
             }
         case nil:
             EmptyView()
+        }
+    }
+
+    /// Each tab's title, as its own stack has it.
+    static func title(_ tab: RootView.Tabs) -> String {
+        switch tab {
+        case .fpl: "Flight plan"
+        case .airport: "Airport"
+        case .aircraft: "Aircraft"
+        case .setup: "Setup"
+        }
+    }
+
+    /// FPL's own bar, in the column's: the saved flights (in the
+    /// inspector), and with a route, the stops' Edit, Share and Clear.
+    @ToolbarContentBuilder private var fplItems: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { card = .flights } label: { Label("Flights", systemImage: "tray.full") }
+        }
+        if !plan.stops.isEmpty {
+            ToolbarItem(placement: .topBarLeading) { EditButton() }
+        }
+        if plan.routed {
+            ToolbarItem(placement: .topBarTrailing) { ShareMenu() }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Clear", role: .destructive) { plan.clear() }
+            }
         }
     }
 

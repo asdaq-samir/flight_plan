@@ -128,5 +128,12 @@ struct RootLayoutTests {
     @Test func aCardsLinkIsFPLsOwnPageOnTheIPhone() {
         #expect(CardLink<EmptyView>.page(.profile) == "profile")
         #expect(CardLink<EmptyView>.page(.brief) == "brief")
+        #expect(CardLink<EmptyView>.page(.flights) == "flights")
+    }
+
+    @Test func theSidebarsBarIsTitledForItsTab() {
+        #expect(SplitLayout<EmptyView>.title(.fpl) == "Flight plan")
+        #expect(SplitLayout<EmptyView>.title(.airport) == "Airport")
+        #expect(RootView.Tabs(rawValue: "airport") == .airport)
     }
 }

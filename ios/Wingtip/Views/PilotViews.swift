@@ -6,6 +6,8 @@ struct FlightsView: View {
     @Environment(Plan.self) private var plan
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
+    /// The iPad's inspector's close, where it holds the list (SplitLayout).
+    @Environment(\.closeCard) private var closeCard
     @State private var flights: [SavedFlight] = []
     @State private var problem: String?
     @State private var saving = false
@@ -20,7 +22,7 @@ struct FlightsView: View {
             ForEach(flights) { flight in
                 Button {
                     plan.open(flight)
-                    dismiss()
+                    if let closeCard { closeCard() } else { dismiss() }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(([flight.departureIdent] + flight.stops + [flight.destinationIdent]).joined(separator: " → ")).font(.headline.monospaced())

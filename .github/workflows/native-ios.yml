@@ -99,6 +99,12 @@ jobs:
             sleep 25
             xcrun simctl io "$id" screenshot "$RUNNER_TEMP/screens/$name.png"
           done
+          # And the iPad's Airport tab, its sidebar's search and title.
+          ipad=${{ steps.sim.outputs.ipad }}
+          xcrun simctl terminate "$ipad" "$WINGTIP_BUNDLE_ID" || true
+          xcrun simctl launch "$ipad" "$WINGTIP_BUNDLE_ID" -tab airport
+          sleep 15
+          xcrun simctl io "$ipad" screenshot "$RUNNER_TEMP/screens/ipad-airport.png"
       - name: The screens
         if: always()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4

@@ -15,7 +15,9 @@ struct RootView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
-    @State private var tab: Tabs = .fpl
+    // The tab opened first; a launch argument (-tab airport) picks
+    // another, for CI's pictures of each.
+    @State private var tab: Tabs = Tabs(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .fpl
     @State private var airports: [String] = []
     @State private var following = false
     @State private var routeAway = false
@@ -27,7 +29,7 @@ struct RootView: View {
     @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
     @AppStorage(MapExtrasInput.Keys.plates) private var platesOn = true
 
-    enum Tabs: Hashable { case fpl, airport, aircraft, setup }
+    enum Tabs: String, Hashable { case fpl, airport, aircraft, setup }
 
     /// What the map draws of the airplane tracked and the flights flown,
     /// and its taps for them: an airplane's card, a point pressed.
@@ -94,7 +96,6 @@ struct RootView: View {
         ChartMap(
             template: charts.template, minZoom: charts.base?.minZoom ?? 5, maxZoom: charts.base?.maxZoom ?? 12,
             course: plan.course, checkpoints: plan.checkpoints,
-            shownWay: plan.shownWay?.path.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil } ?? [],
             procedurePaths: plan.legs.compactMap { $0.procedure?.path.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil } },
             // A flown track's replay, else the dry run: the same airplane.
             simulated: Replay.shared.fix ?? dryRun.fix,

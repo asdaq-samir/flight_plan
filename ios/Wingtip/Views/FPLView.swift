@@ -31,6 +31,11 @@ struct FPLView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(!plan.routed || plan.planning)
                     }
+                    if plan.routed && plan.course != nil {
+                        // The ways to fly it, right under the route's
+                        // ends, folding as a runway line does.
+                        RouteLineRow()
+                    }
                     if let stage = plan.stage {
                         Label(stage, systemImage: "ellipsis").font(.footnote).foregroundStyle(.secondary)
                     } else if let at = plan.plannedAt, !plan.planning, Date().timeIntervalSince(at) > 3600 {
@@ -57,22 +62,12 @@ struct FPLView: View {
                         }
                         .foregroundStyle(Color.orange)
                     }
-                    // Where the tanks do not hold a flight, the planner's
-                    // fuel stops, all of them at once.
+                    // Where the tanks do not hold a flight, said; the
+                    // fuel stops themselves are the route line's "Your
+                    // Route" chip.
                     ForEach(plan.totals?.fuelStops ?? []) { suggestion in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("\(suggestion.departure) → \(suggestion.destination) needs fuel on the way").font(.subheadline.weight(.semibold))
-                            ForEach(suggestion.stops) { stop in
-                                Text("\(stop.ident) · \(stop.name), lands with \(String(format: "%.1f", stop.landsWithGal)) gal · +\(Int(stop.addedNm.rounded())) nm")
-                                    .font(.footnote).foregroundStyle(.secondary)
-                            }
-                            Button {
-                                plan.addFuelStops(suggestion)
-                            } label: {
-                                Label(suggestion.stops.count == 1 ? "Add Fuel Stop" : "Add \(suggestion.stops.count) Fuel Stops", systemImage: "fuelpump")
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
+                        Label("\(suggestion.departure) → \(suggestion.destination) needs fuel on the way", systemImage: "fuelpump")
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(.orange)
                     }
                 }
                 if plan.routed {
@@ -100,12 +95,6 @@ struct FPLView: View {
                         .buttonStyle(.plain)
                         // The Brief, marked where the planner says VFR is
                         // not recommended.
-                        // Routes: the ways to fly it, as Maps offers routes.
-                        NavigationLink(value: "routes") {
-                            Image(systemName: "arrow.triangle.branch").foregroundStyle(Color.accentColor)
-                        }
-                        .accessibilityLabel("Routes")
-                        .buttonStyle(.plain)
                         CardLink(.brief) {
                             Image(systemName: "doc.text")
                                 .foregroundStyle((plan.briefing?.vfrNotRecommended?.isEmpty ?? true) ? Color.accentColor : Color.red)
@@ -192,7 +181,6 @@ struct FPLView: View {
                 switch page {
                 case "profile": ProfileCard()
                 case "brief": BriefView()
-                case "routes": RoutesView()
                 case "flights": FlightsView()
                 default: FlightPage(name: page)
                 }

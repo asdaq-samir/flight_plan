@@ -11,6 +11,7 @@ import {
 } from "../../../components/ui/dropdown-menu";
 import { placeWords } from "../../../lib/advisories";
 import type { FieldFood } from "../../../lib/api/types";
+import { compassPoint } from "../../../lib/compass";
 import { usePreferences } from "../../../lib/preferences";
 import { airportsFoodQuery, foodDetailsQuery, routeFoodQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
@@ -25,11 +26,6 @@ const RADII = [25, 50, 100, 150, 200];
 function offWords(offNm: number | null | undefined): string {
   const nm = Math.round(offNm ?? 0);
   return nm < 1 ? "On course" : `${nm} nm off course`;
-}
-
-/** The compass point a field is toward, from its true bearing: "NE". */
-function towards(deg: number): string {
-  return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(((deg % 360) + 360) % 360 / 45) % 8]!;
 }
 
 /** A filter pill as iOS sets one: filled in the tint when on. */
@@ -87,7 +83,7 @@ function FoodRow({ field, place, along, onOpenField, onAddStop, onDirect }: {
             {field.ident} · {placeWords(field.city || field.name)}
           </button>
           <span className="tabular-nums">
-            {place.kind} · {along ? offWords(field.off_nm) : `${Math.round(field.distance_nm)} nm ${towards(field.bearing_deg)}`}
+            {place.kind} · {along ? offWords(field.off_nm) : `${Math.round(field.distance_nm)} nm ${compassPoint(field.bearing_deg)}`}
           </span>
           {details?.rating != null && (
             <span className="inline-flex items-center gap-1 tabular-nums" data-testid="food-rating">
