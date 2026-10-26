@@ -5,9 +5,6 @@ import SwiftUI
 /// view with their flight categories, and the route's course line.
 /// MKMapView rather than SwiftUI's Map, for the tile overlay and the
 /// renderers the route and the marks need.
-/// A way from Routes, told from the course line by its class.
-final class WayPolyline: MKPolyline {}
-
 /// A procedure's path, told from the course line by its class.
 final class ProcedurePolyline: MKPolyline {}
 
@@ -52,8 +49,6 @@ struct ChartMap: UIViewRepresentable {
     let course: Course?
     /// The route's checkpoints, numbered along it.
     let checkpoints: [Checkpoint]
-    /// A way from Routes shown beside the course, dashed.
-    let shownWay: [CLLocationCoordinate2D]
     /// The procedures' paths the legs fly, drawn with the course.
     let procedurePaths: [[CLLocationCoordinate2D]]
     /// A dry run's airplane, where it is and which way it points.
@@ -142,17 +137,6 @@ struct ChartMap: UIViewRepresentable {
             context.coordinator.checkpointMarks = checkpoints.enumerated().map { CheckpointAnnotation(number: $0.offset + 1, checkpoint: $0.element) }
             map.addAnnotations(context.coordinator.checkpointMarks)
         }
-        if context.coordinator.wayShown.map({ $0.latitude }) != shownWay.map({ $0.latitude }) {
-            context.coordinator.wayShown = shownWay
-            if let line = context.coordinator.wayLine { map.removeOverlay(line) }
-            context.coordinator.wayLine = nil
-            if shownWay.count >= 2 {
-                let line = WayPolyline(coordinates: shownWay, count: shownWay.count)
-                map.addOverlay(line, level: .aboveLabels)
-                context.coordinator.wayLine = line
-                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
-            }
-        }
         if context.coordinator.proceduresShown.count != procedurePaths.count || zip(context.coordinator.proceduresShown, procedurePaths).contains(where: { $0.count != $1.count }) {
             context.coordinator.proceduresShown = procedurePaths
             map.removeOverlays(context.coordinator.procedureLines)
@@ -196,8 +180,6 @@ struct ChartMap: UIViewRepresentable {
         var courseLine: MKPolyline?
         var courseShown: Course?
         var checkpointsShown: [Checkpoint] = []
-        var wayShown: [CLLocationCoordinate2D] = []
-        var wayLine: WayPolyline?
         var proceduresShown: [[CLLocationCoordinate2D]] = []
         var plane: PlaneAnnotation?
         var procedureLines: [ProcedurePolyline] = []
@@ -250,14 +232,6 @@ struct ChartMap: UIViewRepresentable {
                 renderer.strokeColor = UIColor(red: 0.36, green: 0.36, blue: 0.84, alpha: 1)
                 renderer.lineWidth = 3
                 renderer.lineJoin = .round
-                return renderer
-            }
-            if let way = overlay as? WayPolyline {
-                // A way from Routes, dashed in the tint, beside the course.
-                let renderer = MKPolylineRenderer(polyline: way)
-                renderer.strokeColor = UIColor.systemBlue
-                renderer.lineWidth = 3
-                renderer.lineDashPattern = [6, 6]
                 return renderer
             }
             if let line = overlay as? MKPolyline {
