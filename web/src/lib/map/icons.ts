@@ -218,9 +218,9 @@ export const diamondIcon = made(function diamondIcon() {
 
 /** A point the route flies through or works out -- a VFR or GPS waypoint,
  *  a present position (POS0), a top of climb or descent -- as the chart
- *  marks a fix: the magenta diamond on the course itself, its name beside
- *  it, dark on a white halo as an airport's ident is (airportMarkIcon), on
- *  the `side` kept clear of the airports' names (the owner's "TOC and TOD
+ *  marks a fix: the magenta diamond on the course itself, its name on a
+ *  pill beside it, on the `side` kept clear of the airports' names (the
+ *  owner's "TOC and TOD
  *  should have the fix on the course for those labels. Just like that
  *  POS0 should have a fix symbol with a label POS0", 2026-10-26). A
  *  finger's 44 points of target round the diamond. */
@@ -232,11 +232,16 @@ export const fixMarkIcon = made(function fixMarkIcon(label: string, side: "right
     html:
       `<span class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border-2 border-white shadow-sm"` +
       ` style="background-color:${WAYPOINT_MAGENTA}"></span>` +
-      `<span class="absolute top-1/2 ${at} -translate-y-1/2 whitespace-nowrap text-[11px] leading-none font-bold text-[#1c1a17] [text-shadow:0_0_2px_#fff,0_0_2px_#fff,0_0_3px_#fff,0_0_4px_#fff]">${text(label)}</span>`,
+      // Its name on a pill, white edged in the magenta, as the route's
+      // labels were (the owner's "still make those route labels as pills",
+      // 2026-10-26).
+      `<span class="absolute top-1/2 ${at} -translate-y-1/2 whitespace-nowrap rounded-full border-2 bg-white px-1.5 py-0.5 text-[11px] leading-none font-bold text-[#1c1a17] shadow-sm"` +
+      ` style="border-color:${WAYPOINT_MAGENTA}">${text(label)}</span>`,
   });
 });
-/** How far a fix's name runs beside its diamond (fixMarkIcon), points. */
-export const fixMarkReach = (label: string) => 10 + Math.ceil(label.length * 7.5);
+/** How far a fix's pill runs beside its diamond (fixMarkIcon), points:
+ *  the name and the pill's padding and edge. */
+export const fixMarkReach = (label: string) => 10 + Math.ceil(label.length * 7.5) + 16;
 
 /**
  * A field nobody asked about -- a training corridor's endpoint: its ident
