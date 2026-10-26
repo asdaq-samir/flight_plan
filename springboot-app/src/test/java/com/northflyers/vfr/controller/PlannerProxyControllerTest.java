@@ -193,6 +193,12 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/route-options")).isTrue();
         assertThat(PlannerProxyController.isForwarded("POST", "/api/go-no-go")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/go-no-go")).isFalse();
+        // The native app's figures (app.figures): two POSTs, two GETs.
+        assertThat(PlannerProxyController.isForwarded("POST", "/api/debrief")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("POST", "/api/lost-comms")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/diversion")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/holding")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("POST", "/api/holding")).isFalse();
         assertThat(PlannerProxyController.isAirportExtra("/api/airport/KDLH/services")).isTrue();
         assertThat(PlannerProxyController.isAirportExtra("/api/airport/KDLH/photos")).isTrue();
         assertThat(PlannerProxyController.isAirportExtra("/api/airport/KDLH")).isFalse();

@@ -2,8 +2,8 @@ import SwiftUI
 
 /// The guide (the web app's PilotGuide), the parts that are words: what
 /// the checkpoints' colours mean, the drills, lost communications and how
-/// the nav log flies the airplane. The web app's holding-entry page works
-/// the entry out on the page, so it waits for the planner to answer it.
+/// the nav log flies the airplane; and the holding entries, which the
+/// planner works out (GET /api/holding).
 struct PilotGuideView: View {
     // The checkpoints' bands, as CheckpointAnnotation colours them.
     private static let buckets: [(score: Double, words: String)] = [
@@ -29,6 +29,7 @@ struct PilotGuideView: View {
                 NavigationLink { DrillView(deck: Drills.lightGun) } label: { row("Light gun signals", "14 CFR 91.125") }
                 NavigationLink { DrillView(deck: Drills.vfrMinimums) } label: { row("VFR weather minimums", "14 CFR 91.155") }
                 NavigationLink { LostCommsView() } label: { row("Lost communications", "14 CFR 91.185: route, altitude, and when to leave") }
+                NavigationLink { HoldingView() } label: { row("Holding entries", "AIM 5-3-8: the entry, and the legs in the wind") }
             }
             Section("More") {
                 NavigationLink("Your airplane in the day's air") { AirplaneInTheAirView() }
@@ -197,13 +198,14 @@ struct DrillView: View {
 
 /// Two-way radio failure under IFR (14 CFR 91.185): which route applies
 /// first, the altitude rule, and when to leave the clearance limit, in
-/// the rule's words. The altitude on each segment, which the web app
-/// works out on the page, is not worked out here.
+/// the rule's words; the altitude on each segment of the clearance and
+/// the line on leaving the limit are the planner's (POST /api/lost-comms).
 struct LostCommsView: View {
     @State private var route = "assigned"
     @State private var approachFix = false
     @State private var efc = ""
     @State private var eta = "1435Z"
+    @State private var leave: String?
 
     var body: some View {
         List {
@@ -220,6 +222,8 @@ struct LostCommsView: View {
             Section("Altitude") {
                 Text(LostComms.altitude).font(.subheadline)
             }
+            LostCommsSegmentsSections(leave: $leave, approachFix: approachFix,
+                                      efc: efc.trimmingCharacters(in: .whitespaces), eta: eta.trimmingCharacters(in: .whitespaces))
             Section("Leaving the clearance limit") {
                 Toggle("The limit is a fix an approach begins from", isOn: $approachFix)
                 LabeledContent {
@@ -234,7 +238,7 @@ struct LostCommsView: View {
                     Text("Your ETA")
                     Text("From the filed or amended time en route")
                 }
-                Text(LostComms.leaveLimit(approachFix: approachFix, efc: efc.trimmingCharacters(in: .whitespaces), eta: eta.trimmingCharacters(in: .whitespaces)))
+                Text(leave ?? LostComms.leaveLimit(approachFix: approachFix, efc: efc.trimmingCharacters(in: .whitespaces), eta: eta.trimmingCharacters(in: .whitespaces)))
             }
         }
         .navigationTitle("Lost Communications")

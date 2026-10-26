@@ -126,6 +126,14 @@ public class PlannerProxyController {
             // The Brief's Go / No-Go for the native app: a POST for the
             // pilot's own inputs it is worked out with, which change nothing.
             route("POST", "/api/go-no-go"),
+            // The native app's figures the web works out on the page: a
+            // flown track's debrief and lost comms' altitudes are POSTs
+            // for the track and the segments they are worked out from,
+            // and change nothing; the diversion and the hold are GETs.
+            route("POST", "/api/debrief"),
+            route("POST", "/api/lost-comms"),
+            route("GET", "/api/diversion"),
+            route("GET", "/api/holding"),
             route("GET", "/api/tfrs"),
             route("GET", "/api/alternate"),
             route("GET", "/api/route-profile"),

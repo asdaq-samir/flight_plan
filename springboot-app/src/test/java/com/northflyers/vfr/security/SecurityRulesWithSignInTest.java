@@ -78,6 +78,18 @@ class SecurityRulesWithSignInTest {
         mockMvc.perform(head("/api/planner/course")).andExpect(status().isUnauthorized());
     }
 
+    /** The Go / No-Go, the debrief and lost comms are POSTs that change
+     *  nothing: the native app asks them with no session and no CSRF
+     *  token, as it reads the rest of the planner. */
+    @Test
+    void thePlannersReadsByPostStayPublicWithoutAToken() throws Exception {
+        for (String path : new String[] {"/api/planner/go-no-go", "/api/planner/debrief", "/api/planner/lost-comms"}) {
+            mockMvc.perform(post(path)).andExpect(notRefused());
+        }
+        mockMvc.perform(get("/api/planner/diversion")).andExpect(notRefused());
+        mockMvc.perform(get("/api/planner/holding")).andExpect(notRefused());
+    }
+
     @Test
     void writingThroughThePlannerNeedsASession() throws Exception {
         mockMvc.perform(post("/api/planner/picks").with(csrf()))
