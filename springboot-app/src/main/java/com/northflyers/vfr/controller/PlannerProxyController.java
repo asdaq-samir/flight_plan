@@ -135,6 +135,7 @@ public class PlannerProxyController {
             route("GET", "/api/diversion"),
             route("GET", "/api/holding"),
             route("GET", "/api/tfrs"),
+            route("GET", "/api/map/ages"),
             route("GET", "/api/alternate"),
             route("GET", "/api/route-profile"),
             // The map's Stops: the fields along the route to stop at.

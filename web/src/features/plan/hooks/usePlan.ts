@@ -10,6 +10,7 @@ import type {
 import type { FlightRules } from "../../../lib/preferences";
 import { useCheckpointNotes } from "./useCheckpointNotes";
 import { useNarratives } from "./useNarratives";
+import { briefingLegs } from "./briefingLegs";
 
 /**
  * The plan as TanStack Query sees it: one query per stage, keyed on
@@ -300,10 +301,16 @@ export function usePlan(
   // ETE; the previous answer stays up meanwhile, so the map's chips do
   // not flash back to "checking".
   const eteMin = (local ? localMin : totals?.ete_min) ?? undefined;
+  // And with the nav log's legs once they are all in, for the planner to
+  // place each hazard on the legs the pilot sees and time it by their
+  // ETEs (briefingLegs): the route as entered's until then.
+  const logLegs = useMemo(
+    () => (totals && !local ? briefingLegs(course.data ?? null, withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE, legs) : null),
+    [totals, local, course.data, withCheckpoints, pointToPoint, checkpoints.data, legs]);
   const briefing = useQuery({
-    queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load],
+    queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load, logLegs?.fixes ?? null, logLegs?.legMin ?? null, logLegs?.groundMin ?? null],
     // Given up when the route changes, as the checkpoints are (checkpointsQuery).
-    queryFn: ({ signal }) => api.briefing(dep, dest, depart || undefined, eteMin, stops, signal),
+    queryFn: ({ signal }) => api.briefing(dep, dest, depart || undefined, eteMin, stops, signal, logLegs),
     // Not on the previous route's placeholder course once the route is
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".

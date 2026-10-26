@@ -70,3 +70,16 @@ def test_the_tfrs_over_a_point_are_those_that_hold_it(two_tfrs):
     assert [t["notam_id"] for t in here] == ["6/1"]
     assert here[0]["active_now"] is False
     assert tfr.at_point(44.0, -88.0) == []
+
+
+def test_the_time_the_shapes_were_fetched_is_kept_for_the_maps_age(monkeypatch):
+    """The map's settings say how old its TFRs are: when tfr.faa.gov was
+    last asked, not when the page was."""
+    from unittest.mock import Mock
+
+    monkeypatch.setattr(tfr, "_SHAPES", tfr.TTLCache(maxsize=1, ttl=tfr.SHAPES_TTL_S))
+    monkeypatch.setattr(tfr, "_FETCHED_AT", None)
+    monkeypatch.setattr(tfr.time, "time", lambda: 1791126000.0)
+    monkeypatch.setattr(tfr.requests, "get", lambda *a, **kw: Mock(json=lambda: {"features": []}, raise_for_status=lambda: None))
+    assert tfr.fetched_at() is None
+    assert tfr._shapes() == [] and tfr.fetched_at() == 1791126000.0

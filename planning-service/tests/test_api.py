@@ -240,9 +240,9 @@ def test_the_briefing_tells_the_tfrs_pilot_reports_and_g_airmets_on_the_route(mo
     monkeypatch.setattr(weather, "pireps_along_route", lambda path: [{
         "observed_at": "2026-10-04T04:07:00Z", "altitude_ft": 7000.0, "aircraft": "BE58", "urgent": False,
         "turbulence": "MOD", "icing": None, "raw": "UA /OV ...", "along_track_nm": 40.0}])
-    monkeypatch.setattr(weather, "gairmets_along_route", lambda path, window: [{
+    monkeypatch.setattr(weather, "gairmet_snapshots_along_route", lambda path, window: [{
         "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T03:00:00Z",
-        "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 22000.0}])
+        "valid": 1791085200.0, "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 22000.0}])
 
     body = client.get("/api/briefing", params={"dep": "C81", "dest": "KDLH", "stops": "KMSN"}).json()
 

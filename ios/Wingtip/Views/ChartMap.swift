@@ -77,6 +77,8 @@ struct ChartMap: UIViewRepresentable {
     /// and the course's night magenta (NightPalette).
     @Environment(\.colorScheme) var colorScheme
     @AppStorage(ChartNight.key) var chartNight = ChartNight.dimmed.rawValue
+    /// The legs a hazard tapped in the Brief is on (HazardLegsViews.swift).
+    var hazardLegs: HazardLegs?
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -154,6 +156,7 @@ struct ChartMap: UIViewRepresentable {
             map.removeAnnotation(plane)
             context.coordinator.plane = nil
         }
+        context.coordinator.showHazardLegs(hazardLegs, on: map)
         if context.coordinator.courseShown != course {
             context.coordinator.courseShown = course
             if let line = context.coordinator.courseLine { map.removeOverlay(line) }
@@ -179,6 +182,8 @@ struct ChartMap: UIViewRepresentable {
         var overlay: ChartTileOverlay?
         var courseLine: MKPolyline?
         var courseShown: Course?
+        var hazardLines: [HazardPolyline] = []
+        var hazardShown: HazardLegs?
         var checkpointsShown: [Checkpoint] = []
         var proceduresShown: [[CLLocationCoordinate2D]] = []
         var plane: PlaneAnnotation?
@@ -225,6 +230,16 @@ struct ChartMap: UIViewRepresentable {
             }
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
             if let plate = overlay as? PlateMapOverlay { return PlateRenderer(overlay: plate) }
+            if let hazard = overlay as? HazardPolyline {
+                // The legs a hazard tapped in the Brief is on, wide in
+                // amber under the course (HazardLegsViews.swift).
+                let renderer = MKPolylineRenderer(polyline: hazard)
+                renderer.strokeColor = UIColor.systemOrange.withAlphaComponent(0.6)
+                renderer.lineWidth = 10
+                renderer.lineCap = .round
+                renderer.lineJoin = .round
+                return renderer
+            }
             if let procedure = overlay as? ProcedurePolyline {
                 // A procedure's path in the chart's procedure violet, as
                 // the web app draws a picked one.

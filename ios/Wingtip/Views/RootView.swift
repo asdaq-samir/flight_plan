@@ -73,7 +73,8 @@ struct RootView: View {
                     if detent != .medium { detent = .medium }
                 },
                 onWaypointStop: plan.routed ? { (ident: String) in plan.stops.append(ident); plan.plan() } : nil
-            )
+            ),
+            hazardLegs: plan.hazardLegs
         )
         .ignoresSafeArea()
         .overlay(alignment: .topTrailing) {

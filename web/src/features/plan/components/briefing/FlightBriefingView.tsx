@@ -26,6 +26,7 @@ import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSc
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
 import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections";
+import OnRouteRow from "./OnRouteRow";
 import { underMinimums } from "../../../../lib/minimums";
 import { usePreferences } from "../../../../lib/preferences";
 import { faaWords, gairmetAltitudes, gairmetTitle, sigmetHazard, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
@@ -514,13 +515,15 @@ export default memo(function FlightBriefingView({
   const [opened] = useState(() => new Date().toISOString());
   const passAt = (alongNm: number) => passTime(legs, depart || opened, alongNm);
   // The TFRs the route goes through while they are in force: in force
-  // when the flight gets there (half an hour either way), or at some time
-  // during the flight where that time is not known yet.
-  const tfrsCrossed = briefing?.tfrs.filter(t => {
-    if (!t.crosses) return false;
+  // when the flight gets there (half an hour either way) -- the planner's
+  // word on it where it placed the TFR on the legs (on_route) -- or at
+  // some time during the flight where that time is not known yet.
+  const tfrInForce = (t: Briefing["tfrs"][number]) => {
+    if (t.on_route?.when) return t.on_route.when === "during";
     const pass = passAt(t.along_track_nm);
     return !pass || tfrWhen(t, pass) === "in-force";
-  }) ?? [];
+  };
+  const tfrsCrossed = briefing?.tfrs.filter(t => t.crosses && tfrInForce(t)) ?? [];
   // The special-use areas the legs cross (vfr.sua, with the altitudes),
   // and their times of use read for when the flight passes each, in the
   // area's own time zone.
@@ -800,10 +803,10 @@ export default memo(function FlightBriefingView({
                       />
                     ) : briefing.tfrs.length === 0 ? (
                       <ListRow media={<FindingIcon finding="ok" />} title="None within 5 nm of the route during the flight" />
-                    ) : briefing.tfrs.map(t => {
+                    ) : briefing.tfrs.flatMap(t => {
                       const pass = passAt(t.along_track_nm);
-                      const inForce = t.crosses && (!pass || tfrWhen(t, pass) === "in-force");
-                      return (
+                      const inForce = t.crosses && tfrInForce(t);
+                      return [
                         <ListRow
                           key={t.notam_id}
                           media={<FindingIcon finding={inForce ? "stop" : "caution"} />}
@@ -811,14 +814,17 @@ export default memo(function FlightBriefingView({
                           description={
                             <>
                               {[tfrAltitudes(t), tfrTimes(t)].filter(Boolean).map(line => <span key={line} className="block">{line}</span>)}
-                              <PassNote when={pass && { pass, state: tfrWhen(t, pass) }} />
+                              {/* When the flight gets there, in the planner's words
+                                  on the row under where it placed it. */}
+                              {!t.on_route?.legs.length && <PassNote when={pass && { pass, state: tfrWhen(t, pass) }} />}
                               {(t.purpose ?? t.rule) && <span className="block">{faaWords(t.purpose ?? t.rule)}</span>}
                             </>
                           }
                           value={t.crosses ? "On the route" : `${Math.round(t.along_track_nm)} nm along`}
                           href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
-                        />
-                      );
+                        />,
+                        t.on_route?.legs.length ? <OnRouteRow key={`${t.notam_id}-on`} on={t.on_route} briefing={briefing} hazardKey={`tfr-${t.notam_id}`} /> : null,
+                      ];
                     })}
                   </ListGroup>
                 </div>
@@ -996,16 +1002,18 @@ export default memo(function FlightBriefingView({
                   {briefing.hazards.length + briefing.gairmets.length === 0 && (
                     <ListRow media={<FindingIcon finding="ok" />} title="No SIGMETs or G-AIRMETs along the route during the flight" />
                   )}
-                  {briefing.hazards.map((h, i) => (
+                  {briefing.hazards.flatMap((h, i) => [
                     <ListRow
                       key={`s${i}`}
                       media={<FindingIcon finding="caution" />}
                       title={`${sigmetHazard(h.hazard, h.type)}${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)
                         ? ` — ${hazardAltitudeRange(h.altitude_low_ft, h.altitude_high_ft)}` : ""}`}
                       description={h.raw && <span className="font-mono whitespace-pre-wrap">{h.raw}</span>}
-                    />
-                  ))}
-                  {briefing.gairmets.map((g, i) => (
+                      data-testid="sigmet"
+                    />,
+                    h.on_route?.legs.length ? <OnRouteRow key={`s${i}-on`} on={h.on_route} briefing={briefing} hazardKey={`sigmet-${i}-${h.raw ?? ""}`} /> : null,
+                  ])}
+                  {briefing.gairmets.flatMap((g, i) => [
                     <ListRow
                       key={`g${i}`}
                       media={<FindingIcon finding="caution" />}
@@ -1013,8 +1021,22 @@ export default memo(function FlightBriefingView({
                       description={[gairmetAltitudes(g), faaWords(g.due_to), g.valid_at && `G-AIRMET for ${clockTime(new Date(g.valid_at))}`]
                         .filter(Boolean).join(" · ")}
                       data-testid="gairmet"
-                    />
-                  ))}
+                    />,
+                    g.on_route?.legs.length ? <OnRouteRow key={`g${i}-on`} on={g.on_route} briefing={briefing} hazardKey={`gairmet-${g.hazard}`} /> : null,
+                  ])}
+                  {/* The fields below VFR where the flight meets them: a
+                      field's report now, a TAF's for when the airplane is
+                      there (the planner's, app.exposure). */}
+                  {(briefing.fields_below_vfr ?? []).flatMap(f => [
+                    <ListRow
+                      key={`f${f.ident}${f.source}`}
+                      media={<FindingIcon finding="caution" />}
+                      title={`${f.ident} below VFR · ${f.source === "METAR" ? `${f.flight_category ?? "IFR"} now` : "forecast then"}`}
+                      description={ceilingAndVisibility(f.ceiling_ft, f.visibility_sm).replace(/^./, c => c.toUpperCase())}
+                      data-testid="field-below-vfr"
+                    />,
+                    <OnRouteRow key={`f${f.ident}${f.source}-on`} on={f.on_route} briefing={briefing} hazardKey={`field-${f.ident}-${f.source}`} />,
+                  ])}
                 </ListGroup>
               )}
             {briefing && unchecked("hazards") !== unchecked("gairmets") && (

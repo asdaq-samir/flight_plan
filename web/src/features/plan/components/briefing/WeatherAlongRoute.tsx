@@ -15,6 +15,7 @@ import Observed from "../../../../components/Observed";
 import { phasesOf, type Phase } from "./sections";
 import { categoryAt, NEAREST_TAF_NM, nearestStation, ownStation, placesOf, type Station } from "./fieldWeather";
 import { FINDING_TONE } from "../../../../lib/status";
+import OnRouteRow from "./OnRouteRow";
 
 type Pirep = Briefing["pireps"][number];
 
@@ -220,9 +221,14 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                 <ListGroup title={places.length > 2 ? `${place.ident} to ${next.ident}` : "En route"}>
                   {stretch.length === 0 ? (
                     <ListRow muted title="No TAFs or pilot reports near this stretch" />
-                  ) : runs(stretch).map(run => run.kind === "pirep" ? (
-                    <PirepRow key={`p${run.along}${run.pirep.raw}`} p={run.pirep} />
-                  ) : run.stations.length > 1 ? (
+                  ) : runs(stretch).flatMap(run => run.kind === "pirep" ? [
+                    <PirepRow key={`p${run.along}${run.pirep.raw}`} p={run.pirep} />,
+                    // Which leg it is on and when the airplane is abeam, a tap
+                    // showing that leg on the map.
+                    run.pirep.on_route?.legs.length
+                      ? <OnRouteRow key={`p${run.along}${run.pirep.raw}-on`} on={run.pirep.on_route} briefing={briefing} hazardKey={`pirep-${run.along}-${run.pirep.raw ?? ""}`} />
+                      : null,
+                  ] : run.stations.length > 1 ? (
                     // A run of TAFs all VFR when the flight passes is one row:
                     // twenty rows of "no ceiling · 6 sm" hid the one that was not.
                     <ListRow

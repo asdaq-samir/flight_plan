@@ -16,6 +16,7 @@ import { TEXT } from "../lib/text";
 import { inNativeApp } from "../lib/native";
 import { useReceiver } from "../lib/map/receiver";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
+import { useLayerAges } from "../lib/map/layerAges";
 
 /** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
  *  2026"; the cycle as it is where it reads otherwise. */
@@ -72,6 +73,8 @@ export default function MapSettings() {
   // traffic adsb.lol in settings like we do for FAA"), as its licence
   // (ODbL 1.0, 4.3) asks it be credited; what it is good for, once on.
   const { data: chart } = useQuery(chartQuery);
+  // How old each weather layer's data is, beside where it comes from.
+  const ages = useLayerAges();
   return (
     <ListGroup title="Map">
       <ListRow title="Chart">
@@ -196,7 +199,16 @@ export default function MapSettings() {
           edition is what a pilot checks, and adsb.lol's licence (ODbL 1.0,
           4.3) asks it be credited, as the owner asked it be here. */}
       <ListRow title="Charts" value={<span className="text-foreground">{chart ? `FAA, ${editionOf(chart.chart_cycle)}` : "FAA"}</span>} data-testid="chart-edition" />
-      <ListRow title="Traffic data" value={<span className="text-foreground">adsb.lol · ODbL</span>} />
+      {/* When the weather layers' data is from (lib/map/layerAges): the
+          METARs behind the airports' colours and the TFRs as the planner
+          fetched them, the traffic as the map last heard it. */}
+      <ListRow title="METARs" value={<span className="text-foreground">{ages.metars ? `aviationweather.gov · ${ages.metars}` : "aviationweather.gov"}</span>} data-testid="metars-age" />
+      <ListRow title="TFR data" value={<span className="text-foreground">{ages.tfrs ? `tfr.faa.gov · ${ages.tfrs}` : "tfr.faa.gov"}</span>} data-testid="tfrs-age" />
+      <ListRow
+        title="Traffic data"
+        value={<span className="text-foreground">{traffic && ages.traffic ? `adsb.lol · ODbL · ${ages.traffic}` : "adsb.lol · ODbL"}</span>}
+        data-testid="traffic-age"
+      />
     </ListGroup>
   );
 }
