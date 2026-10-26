@@ -799,6 +799,7 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             same["kinds"].append(kind)
             continue
         found.append(option)
+    found = _named_by_what_they_are(grid, found)
     own = _own(grid, gs, current or [start, end], current_idents or [], current_landed or [], profile, table, reserve_gal)
     return {
         "options": found,
@@ -964,6 +965,47 @@ def _fix_for_turn(grid: _Grid, gs: np.ndarray, before: tuple, turn: tuple, after
             continue
         return fix
     return None
+
+
+def _named_by_what_they_are(grid: _Grid, found: list[dict]) -> list[dict]:
+    """Each kind's name given to the way that is it, among those found:
+    the fastest the least time end to end, the best weather the fewest
+    hazards crossed (the want of fuel aside), then the fewest marginal
+    cells, then the time. Each kind's search finds its own way, but where
+    nothing keeps clear (CLOSED_COST) a search crossing least can come out
+    slower than another's -- KSEA to KSFO's "fastest" went 605 nm out over
+    the Pacific round the mountains obscured, 110 minutes slower than the
+    best weather's (2026-10-25). A way left with no name is dropped; each
+    keeps its first name as its key."""
+    if not found:
+        return found
+
+    def minutes(o: dict) -> float:
+        return o["air_min"] + o["ground_min"]
+
+    def weather(o: dict) -> tuple:
+        hazards = [i for i in o["crosses"] if grid.hazards[i]["kind"] != "fuel"]
+        return (len(hazards), len(o["marginal"]), minutes(o))
+
+    # A way no fuel field reaches lands nowhere and so looks quickest and
+    # clearest: not any kind's best while another way can be flown.
+    fuelled = [o for o in found if not any(grid.hazards[i]["kind"] == "fuel" for i in o["crosses"])] or found
+    best = {
+        "fastest": min(fuelled, key=minutes),
+        "weather": min(fuelled, key=weather),
+        "stops": min(fuelled, key=lambda o: (o["landings"], minutes(o))),
+    }
+    for option in found:
+        option["kinds"] = [k for k in option["kinds"] if k not in best or best[k] is option]
+    for kind, option in best.items():
+        if kind not in option["kinds"]:
+            option["kinds"].append(kind)
+    kept = [o for o in found if o["kinds"]]
+    for option in kept:
+        if option["kind"] not in option["kinds"]:
+            option["kind"] = option["kinds"][0]
+            option["title"] = TITLES[option["kind"]]
+    return kept
 
 
 def _no_fuel(grid: _Grid) -> int:
