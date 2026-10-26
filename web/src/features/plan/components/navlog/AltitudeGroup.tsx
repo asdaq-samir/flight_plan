@@ -126,7 +126,15 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
-    if (ft >= 500 && ft <= top && ft !== flying) onFlyAltitude(ft);
+    // Nothing to plan only where it is what was asked and every leg flies
+    // it. A pick on the wheel asks for one altitude and flies each leg at
+    // its nearest legal one, so a figure typed equal to the highest of those
+    // is still the pilot's own: the whole route at it, kept as they change
+    // it (CI's C81-KDLH: 3,000 ft picked, flown at 3,500, then 035 typed).
+    const asked = nav?.flown === "custom" ? nav.altitude_ft : ft;
+    const flownAlready = commanded !== null ? ft === commanded
+      : legs.length ? asked === ft && legs.every(leg => leg.altitude_ft === ft) : ft === flying;
+    if (ft >= 500 && ft <= top && !flownAlready) onFlyAltitude(ft);
   };
   const profiled = !disabled && (problem || (!!nav && (flying !== null || nav.flown === null)));
   // The button there as soon as a figure is, greyed till the plan it shows
