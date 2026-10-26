@@ -554,7 +554,7 @@ def test_a_fields_services_are_the_faas_and_the_places_near_it(monkeypatch):
         "fuel": ["24 hour self serve fuel."], "ground": ["Courtesy car available."], "courtesy_car": True}
         if faa_id == "DLH" else {"fuel": [], "ground": [], "courtesy_car": False})
     diner = {"name": "Sky Diner", "kind": "Diner", "distance_m": 300, "walk_min": 4, "phone": None, "website": None,
-             "lat": 46.84, "lon": -92.19}
+             "lat": 46.84, "lon": -92.19, "on_field": True}
     monkeypatch.setattr(nearby, "around", lambda ident, lat, lon: {"food": [diner], "lodging": [], "cars": []})
     body = client.get("/api/airport/KDLH/services").json()
     assert body["fuel_types"] == ["100LL", "A"] and body["tie_down"] is True

@@ -3,7 +3,7 @@ import type { AirportServices, NearbyPlace } from "./api/types";
 import { awayWords, fuelNames, glanceOf } from "./stopServices";
 
 const place = (over: Partial<NearbyPlace>): NearbyPlace =>
-  ({ name: "Sky Diner", kind: "Diner", distance_m: 300, walk_min: 4, phone: null, lat: 0, lon: 0, ...over });
+  ({ name: "Sky Diner", kind: "Diner", distance_m: 300, walk_min: 4, phone: null, lat: 0, lon: 0, on_field: false, ...over });
 const services = (over: Partial<AirportServices>): AirportServices =>
   ({ ident: "KHYS", fuel_types: [], fuel_notes: [], tie_down: false, hangar: false, oxygen: false, courtesy_car: false,
      ground_notes: [], food: [], lodging: [], cars: [], nearby_unavailable: false, ...over });

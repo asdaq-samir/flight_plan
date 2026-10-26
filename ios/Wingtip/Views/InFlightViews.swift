@@ -37,6 +37,10 @@ struct DiversionView: View {
                 }
             }
             if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+            // The checkride's diversion from here, worked by the planner.
+            Section {
+                NavigationLink { DiversionDrillView() } label: { Label("Diversion Drill", systemImage: "timer") }
+            }
         }
         .navigationTitle("Nearest")
         .navigationBarTitleDisplayMode(.inline)
@@ -296,6 +300,8 @@ struct FlownTrackView: View {
                         }
                         if let top = points.compactMap(\.altFt).max() { LabeledContent("Highest", value: "\(Int(top).formatted()) ft") }
                     }
+                    // Its debrief against the flight's nav log, the planner's (POST /api/debrief).
+                    DebriefSections(flight: flight, points: track.points)
                     Section {
                         Button(Tracking.shared.flown.isEmpty ? "Show on the Map" : "Hide from the Map") {
                             Tracking.shared.flown = Tracking.shared.flown.isEmpty ? points : []

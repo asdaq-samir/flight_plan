@@ -2603,6 +2603,18 @@
             "default": null,
             "title": "Cloud Station"
           },
+          "congested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Congested"
+          },
           "course_magnetic_deg": {
             "anyOf": [
               {
@@ -2694,6 +2706,18 @@
             ],
             "default": null,
             "title": "Obstacle Clearance Ft"
+          },
+          "obstacle_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Obstacle Type"
           },
           "service_ceiling_ft": {
             "anyOf": [
@@ -3468,6 +3492,90 @@
         "title": "CheckpointNoteSaved",
         "type": "object"
       },
+      "CheckpointPass": {
+        "description": "A checkpoint: minutes from the takeoff it was due and was passed (or\nlanded at), None where the plan had no time or the track never got\nthere; its closest, nm; how late (+) or early, and `ok`, within the\ntolerance (None where either time is not known).",
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "closest_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closest Nm"
+          },
+          "due_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due Min"
+          },
+          "landed": {
+            "title": "Landed",
+            "type": "boolean"
+          },
+          "late_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Late Min"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ok"
+          },
+          "passed_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed Min"
+          }
+        },
+        "required": [
+          "name",
+          "category",
+          "landed",
+          "due_min",
+          "passed_min",
+          "closest_nm",
+          "late_min",
+          "ok"
+        ],
+        "title": "CheckpointPass",
+        "type": "object"
+      },
       "Checkpoints": {
         "description": "Every hop's candidates and selected checkpoints in order along the\nwhole route (app.scoring.route_checkpoints), its along-track\ndistances running on through each stop.",
         "properties": {
@@ -3890,6 +3998,306 @@
           "night"
         ],
         "title": "DayNightMinimums",
+        "type": "object"
+      },
+      "Debrief": {
+        "description": "The flight debriefed: its takeoff and landing (ms since 1970), its\ntime in the air and the plan's, leg by leg, the checkpoints and the\npatterns, the profile flown and planned, the line for the map, and\nnotes on what does not fit.",
+        "properties": {
+          "flown_min": {
+            "title": "Flown Min",
+            "type": "number"
+          },
+          "has_altitude": {
+            "title": "Has Altitude",
+            "type": "boolean"
+          },
+          "landing": {
+            "title": "Landing",
+            "type": "number"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/LegGrade"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "line": {
+            "items": {
+              "$ref": "#/components/schemas/LinePoint"
+            },
+            "title": "Line",
+            "type": "array"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "passes": {
+            "items": {
+              "$ref": "#/components/schemas/CheckpointPass"
+            },
+            "title": "Passes",
+            "type": "array"
+          },
+          "patterns": {
+            "items": {
+              "$ref": "#/components/schemas/PatternEntry"
+            },
+            "title": "Patterns",
+            "type": "array"
+          },
+          "planned": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedStep"
+            },
+            "title": "Planned",
+            "type": "array"
+          },
+          "planned_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Min"
+          },
+          "profile": {
+            "items": {
+              "$ref": "#/components/schemas/ProfilePoint"
+            },
+            "title": "Profile",
+            "type": "array"
+          },
+          "takeoff": {
+            "title": "Takeoff",
+            "type": "number"
+          }
+        },
+        "required": [
+          "takeoff",
+          "landing",
+          "flown_min",
+          "planned_min",
+          "legs",
+          "passes",
+          "patterns",
+          "profile",
+          "planned",
+          "line",
+          "has_altitude",
+          "notes"
+        ],
+        "title": "Debrief",
+        "type": "object"
+      },
+      "DebriefAnswer": {
+        "description": "The debrief, or None where the track never flew faster than taxiing.",
+        "properties": {
+          "debrief": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Debrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tolerances": {
+            "$ref": "#/components/schemas/DebriefTolerances"
+          }
+        },
+        "required": [
+          "debrief",
+          "tolerances"
+        ],
+        "title": "DebriefAnswer",
+        "type": "object"
+      },
+      "DebriefAsk": {
+        "description": "The saved flight's checkpoints and its track's points in time order,\nas many as the gateway keeps (TrackDto: 2 to 5,000).",
+        "properties": {
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/DebriefCheckpoint"
+            },
+            "maxItems": 200,
+            "minItems": 2,
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/DebriefPoint"
+            },
+            "maxItems": 5000,
+            "minItems": 2,
+            "title": "Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checkpoints",
+          "points"
+        ],
+        "title": "DebriefAsk",
+        "type": "object"
+      },
+      "DebriefCheckpoint": {
+        "description": "A saved flight's checkpoint, as the gateway keeps it\n(FlightCheckpointDto): its place and the plan's figures into it.",
+        "properties": {
+          "along_track_nm": {
+            "title": "Along Track Nm",
+            "type": "number"
+          },
+          "altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Ft"
+          },
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "ete_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ete Min"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sequence_no": {
+            "title": "Sequence No",
+            "type": "integer"
+          },
+          "true_course_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "True Course Deg"
+          }
+        },
+        "required": [
+          "sequence_no",
+          "name",
+          "category",
+          "lat",
+          "lon",
+          "along_track_nm"
+        ],
+        "title": "DebriefCheckpoint",
+        "type": "object"
+      },
+      "DebriefPoint": {
+        "description": "A point of the flown track (TrackDto): when, ms since 1970; GPS\naltitude, feet above sea level, where the file has one.",
+        "properties": {
+          "alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Ft"
+          },
+          "lat": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lon",
+            "type": "number"
+          },
+          "t": {
+            "title": "T",
+            "type": "number"
+          }
+        },
+        "required": [
+          "t",
+          "lat",
+          "lon"
+        ],
+        "title": "DebriefPoint",
+        "type": "object"
+      },
+      "DebriefTolerances": {
+        "description": "ACS PA.VI.A's and PA.III.B's tolerances the debrief holds the flight\nto, for the page's headings.",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "course_deg": {
+            "title": "Course Deg",
+            "type": "number"
+          },
+          "eta_min": {
+            "title": "Eta Min",
+            "type": "number"
+          },
+          "off_route_nm": {
+            "title": "Off Route Nm",
+            "type": "number"
+          },
+          "pattern_ft": {
+            "title": "Pattern Ft",
+            "type": "number"
+          },
+          "pattern_nm": {
+            "title": "Pattern Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "altitude_ft",
+          "course_deg",
+          "off_route_nm",
+          "eta_min",
+          "pattern_nm",
+          "pattern_ft"
+        ],
+        "title": "DebriefTolerances",
         "type": "object"
       },
       "DemonstratedCrosswind": {
@@ -4385,9 +4793,241 @@
         "title": "DistanceTable",
         "type": "object"
       },
+      "Diversion": {
+        "description": "To a field from a point, in the planner's air there: the field, the\nair it is flown in (`wind` None where no forecast was near: worked\nwith none), the solution and its steps in words, or `problem` where no\nheading holds; and each estimate given, checked.",
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/EstimateCheck"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "fuel_burn_gph": {
+            "title": "Fuel Burn Gph",
+            "type": "number"
+          },
+          "magnetic_variation_deg": {
+            "title": "Magnetic Variation Deg",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Problem"
+          },
+          "solved": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiversionSolved"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "tas_kt": {
+            "title": "Tas Kt",
+            "type": "number"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "wind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Wind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "to",
+          "name",
+          "altitude_ft",
+          "tas_kt",
+          "fuel_burn_gph",
+          "magnetic_variation_deg",
+          "wind",
+          "solved",
+          "steps",
+          "problem",
+          "checks"
+        ],
+        "title": "Diversion",
+        "type": "object"
+      },
+      "DiversionSolved": {
+        "description": "The diversion worked out: true course and distance, the correction\n(+ right), true and magnetic heading, ground speed, minutes and gallons.",
+        "properties": {
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "ete": {
+            "title": "Ete",
+            "type": "number"
+          },
+          "fuel": {
+            "title": "Fuel",
+            "type": "number"
+          },
+          "gs": {
+            "title": "Gs",
+            "type": "number"
+          },
+          "mh": {
+            "title": "Mh",
+            "type": "number"
+          },
+          "tc": {
+            "title": "Tc",
+            "type": "number"
+          },
+          "th": {
+            "title": "Th",
+            "type": "number"
+          },
+          "wca": {
+            "title": "Wca",
+            "type": "number"
+          }
+        },
+        "required": [
+          "tc",
+          "distance_nm",
+          "wca",
+          "th",
+          "mh",
+          "gs",
+          "ete",
+          "fuel"
+        ],
+        "title": "DiversionSolved",
+        "type": "object"
+      },
+      "EstimateCheck": {
+        "description": "A student's estimate against the exact figure: reasonable within its\nallowance, and the figure written as the drill writes it.",
+        "properties": {
+          "allowance": {
+            "title": "Allowance",
+            "type": "number"
+          },
+          "exact": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exact"
+          },
+          "key": {
+            "enum": [
+              "mh",
+              "gs",
+              "ete",
+              "fuel"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "reasonable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasonable"
+          },
+          "typed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Typed"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
+          "written": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "unit",
+          "allowance",
+          "typed",
+          "exact",
+          "written",
+          "reasonable"
+        ],
+        "title": "EstimateCheck",
+        "type": "object"
+      },
       "FieldFood": {
         "description": "A field with somewhere to eat on it or a short walk from it, for the\nmap's fly-in food (the \"$100 hamburger\"): where it is from the pilot,\nand its places to eat nearest first (vfr.nearby).",
         "properties": {
+          "added_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added Nm"
+          },
           "bearing_deg": {
             "title": "Bearing Deg",
             "type": "integer"
@@ -4402,6 +5042,17 @@
               }
             ],
             "title": "City"
+          },
+          "departure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departure"
           },
           "distance_nm": {
             "title": "Distance Nm",
@@ -4730,6 +5381,53 @@
           "hex"
         ],
         "title": "FlightStatus",
+        "type": "object"
+      },
+      "FlownSegment": {
+        "properties": {
+          "because": {
+            "anyOf": [
+              {
+                "enum": [
+                  "assigned",
+                  "minimum",
+                  "expected"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Because"
+          },
+          "fly": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fly"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "words": {
+            "title": "Words",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "fly",
+          "because",
+          "words"
+        ],
+        "title": "FlownSegment",
         "type": "object"
       },
       "Forecast": {
@@ -5677,6 +6375,162 @@
         "title": "Hazard",
         "type": "object"
       },
+      "HoldLeg": {
+        "properties": {
+          "gs": {
+            "title": "Gs",
+            "type": "number"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "number"
+          },
+          "wca": {
+            "title": "Wca",
+            "type": "number"
+          }
+        },
+        "required": [
+          "heading",
+          "wca",
+          "gs"
+        ],
+        "title": "HoldLeg",
+        "type": "object"
+      },
+      "Holding": {
+        "description": "A hold's entry by AIM 5-3-8 and its steps in words, the other entry\nwithin 5 degrees of a sector's edge, where the airplane comes from\nround the fix (for drawing), and the legs in the wind where one was\ngiven -- or `wind_problem` where it is stronger than the airplane.",
+        "properties": {
+          "approach_relative": {
+            "title": "Approach Relative",
+            "type": "number"
+          },
+          "either": {
+            "anyOf": [
+              {
+                "enum": [
+                  "direct",
+                  "teardrop",
+                  "parallel"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Either"
+          },
+          "either_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Either Name"
+          },
+          "entry": {
+            "enum": [
+              "direct",
+              "teardrop",
+              "parallel"
+            ],
+            "title": "Entry",
+            "type": "string"
+          },
+          "entry_name": {
+            "title": "Entry Name",
+            "type": "string"
+          },
+          "steps": {
+            "title": "Steps",
+            "type": "string"
+          },
+          "wind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HoldingWind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "wind_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Problem"
+          }
+        },
+        "required": [
+          "entry",
+          "entry_name",
+          "steps",
+          "either",
+          "either_name",
+          "approach_relative",
+          "wind",
+          "wind_problem"
+        ],
+        "title": "Holding",
+        "type": "object"
+      },
+      "HoldingWind": {
+        "description": "The legs in the wind: the inbound leg's minutes, each leg's heading,\ncorrection and ground speed, the outbound time by the speeds and by the\nrule of a second a knot, seconds, and each row's line in words.",
+        "properties": {
+          "inbound": {
+            "$ref": "#/components/schemas/HoldLeg"
+          },
+          "inbound_words": {
+            "title": "Inbound Words",
+            "type": "string"
+          },
+          "leg_min": {
+            "title": "Leg Min",
+            "type": "number"
+          },
+          "outbound": {
+            "$ref": "#/components/schemas/HoldLeg"
+          },
+          "outbound_sec": {
+            "title": "Outbound Sec",
+            "type": "number"
+          },
+          "outbound_words": {
+            "title": "Outbound Words",
+            "type": "string"
+          },
+          "rule_sec": {
+            "title": "Rule Sec",
+            "type": "number"
+          },
+          "time_words": {
+            "title": "Time Words",
+            "type": "string"
+          }
+        },
+        "required": [
+          "leg_min",
+          "inbound",
+          "outbound",
+          "outbound_sec",
+          "rule_sec",
+          "inbound_words",
+          "outbound_words",
+          "time_words"
+        ],
+        "title": "HoldingWind",
+        "type": "object"
+      },
       "HopTotals": {
         "description": "One flight between two landings of a route with stops.",
         "properties": {
@@ -5945,6 +6799,102 @@
         "title": "Leg",
         "type": "object"
       },
+      "LegGrade": {
+        "description": "A leg graded: the share of its cruise within the altitude tolerance\nand of its way within the course tolerance (0 to 1, None where none was\ngraded), its furthest off each (altitude + high, distance + right), and\n`ok`, neither past its tolerance.",
+        "properties": {
+          "altitude_within": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Within"
+          },
+          "course_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Deg"
+          },
+          "course_within": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Within"
+          },
+          "from": {
+            "title": "From",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "planned_alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Alt Ft"
+          },
+          "to": {
+            "title": "To",
+            "type": "string"
+          },
+          "worst_alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst Alt Ft"
+          },
+          "worst_off_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Worst Off Nm"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "planned_alt_ft",
+          "altitude_within",
+          "worst_alt_ft",
+          "course_deg",
+          "course_within",
+          "worst_off_nm",
+          "ok"
+        ],
+        "title": "LegGrade",
+        "type": "object"
+      },
       "LegHold": {
         "description": "A hold the pilot put at a point of the route (vfr.holds), on the\nleg that leaves it -- `at_end`, the leg into the destination it is\nheld at: its inbound course (magnetic), its turns, its legs by time or\ndistance, how long (turns, or minutes), the minutes and fuel it takes,\nalready in the leg's `ete_min` and `fuel_gal` (plan.with_holds), one\nturn round its racetrack's minutes, the entry from the course flown to\nit (AIM 5-3-8), and that one turn as [lat, lon] pairs from the point.",
         "properties": {
@@ -6141,6 +7091,30 @@
         "title": "LegProcedure",
         "type": "object"
       },
+      "LinePoint": {
+        "description": "The flight as flown, for the map: `off` where it was outside a\ntolerance there.",
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "off": {
+            "title": "Off",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lat",
+          "lon",
+          "off"
+        ],
+        "title": "LinePoint",
+        "type": "object"
+      },
       "LoadBalance": {
         "description": "The weight and balance for the load used: the pilot's, or the\nPOH's sample airplane where none was sent.",
         "properties": {
@@ -6313,6 +7287,150 @@
           "arm_in"
         ],
         "title": "LoadingStation",
+        "type": "object"
+      },
+      "LostComms": {
+        "description": "91.185: VFR's words, the routes in the rule's order, each segment's\naltitude and why, and when to leave the clearance limit.",
+        "properties": {
+          "leave": {
+            "title": "Leave",
+            "type": "string"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/LostCommsRoute"
+            },
+            "title": "Routes",
+            "type": "array"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/FlownSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "vfr": {
+            "title": "Vfr",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vfr",
+          "routes",
+          "segments",
+          "leave"
+        ],
+        "title": "LostComms",
+        "type": "object"
+      },
+      "LostCommsAsk": {
+        "description": "The clearance and the route's segments: the altitude assigned, the\none to expect and from which segment on, each segment's minimum for\nIFR operations, and for leaving the limit whether it is a fix an\napproach begins from, the EFC and the ETA as the pilot writes them.",
+        "properties": {
+          "approach_fix": {
+            "default": false,
+            "title": "Approach Fix",
+            "type": "boolean"
+          },
+          "assigned_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned Ft"
+          },
+          "efc": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Efc",
+            "type": "string"
+          },
+          "eta": {
+            "default": "",
+            "maxLength": 40,
+            "title": "Eta",
+            "type": "string"
+          },
+          "expected_from": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Expected From",
+            "type": "integer"
+          },
+          "expected_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Ft"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/LostCommsSegment"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segments"
+        ],
+        "title": "LostCommsAsk",
+        "type": "object"
+      },
+      "LostCommsRoute": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "rule": {
+            "title": "Rule",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "rule"
+        ],
+        "title": "LostCommsRoute",
+        "type": "object"
+      },
+      "LostCommsSegment": {
+        "properties": {
+          "minimum_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Ft"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "title": "LostCommsSegment",
         "type": "object"
       },
       "Metar": {
@@ -7319,6 +8437,11 @@
             "title": "Name",
             "type": "string"
           },
+          "on_field": {
+            "default": false,
+            "title": "On Field",
+            "type": "boolean"
+          },
           "phone": {
             "anyOf": [
               {
@@ -8220,6 +9343,40 @@
         "title": "PastFlights",
         "type": "object"
       },
+      "PatternEntry": {
+        "description": "The altitude PATTERN_NM from a field landed at, against its pattern\naltitude, ft MSL.",
+        "properties": {
+          "alt_ft": {
+            "title": "Alt Ft",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "off_ft": {
+            "title": "Off Ft",
+            "type": "number"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "pattern_ft": {
+            "title": "Pattern Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ident",
+          "alt_ft",
+          "pattern_ft",
+          "off_ft",
+          "ok"
+        ],
+        "title": "PatternEntry",
+        "type": "object"
+      },
       "PersonalMinimums": {
         "description": "The weather the pilot will not take off or land in, each off (None)\nuntil set (lib/minimums): the lowest ceiling, feet above the field;\nthe least visibility, statute miles; the most crosswind on the best\nrunway and the most surface wind, gusts included, knots.",
         "properties": {
@@ -9088,6 +10245,36 @@
         "title": "Plan",
         "type": "object"
       },
+      "PlannedStep": {
+        "properties": {
+          "alt_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alt Ft"
+          },
+          "from_nm": {
+            "title": "From Nm",
+            "type": "number"
+          },
+          "to_nm": {
+            "title": "To Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "from_nm",
+          "to_nm",
+          "alt_ft"
+        ],
+        "title": "PlannedStep",
+        "type": "object"
+      },
       "PlateOverlay": {
         "description": "An approach's plate's plan view placed on the map (vfr.plates): the\nFAA's plate of `name` in d-TPP cycle `cycle`, its picture at\n/api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,\nnorth up between these latitudes and longitudes, as the plate's own\ngeoreference places it; `fixes` the approach's fixes inside it;\n`circling` whether the plate publishes circling minimums, so a pilot\nflying the approach may circle to land on another runway.",
         "properties": {
@@ -9608,6 +10795,24 @@
           "ground_ft"
         ],
         "title": "ProfileGround",
+        "type": "object"
+      },
+      "ProfilePoint": {
+        "properties": {
+          "along_nm": {
+            "title": "Along Nm",
+            "type": "number"
+          },
+          "alt_ft": {
+            "title": "Alt Ft",
+            "type": "number"
+          }
+        },
+        "required": [
+          "along_nm",
+          "alt_ft"
+        ],
+        "title": "ProfilePoint",
         "type": "object"
       },
       "PyramidPass": {
@@ -11252,6 +12457,24 @@
           "corridors"
         ],
         "title": "Status",
+        "type": "object"
+      },
+      "Step": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "title": "Step",
         "type": "object"
       },
       "TerminalChart": {
@@ -13155,7 +14378,7 @@
     },
     "/api/airports/food": {
       "get": {
-        "description": "The public fields round a position with somewhere to eat a short\nwalk from the ramp, nearest first, for the map's fly-in food button,\nat the owner's ask (\"that button on the map is for at airport\nrestaurant like for a $100 hamburger\", 2026-10-25). A field's places\nare Overture's (vfr.nearby), read on the planner's pool where they\nhave not been and counted in `pending`; the page asks again until\nnone is.",
+        "description": "The public fields round a position with somewhere to eat at the\nairport itself, nearest first, for the map's fly-in food button,\nat the owner's ask (\"that button on the map is for at airport\nrestaurant like for a $100 hamburger\", 2026-10-25). A field's places\nare Overture's (vfr.nearby), read on the planner's pool where they\nhave not been and counted in `pending`; the page asks again until\nnone is.",
         "operationId": "fields_with_food_api_airports_food_get",
         "parameters": [
           {
@@ -13177,6 +14400,18 @@
               "maximum": 180,
               "minimum": -180,
               "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nm",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "maximum": 250,
+              "minimum": 5,
+              "title": "Nm",
               "type": "number"
             }
           }
@@ -14305,6 +15540,45 @@
         "summary": "Course"
       }
     },
+    "/api/debrief": {
+      "post": {
+        "description": "A saved flight debriefed against its flown track (web/src/lib/debrief,\nACS PA.VI.A): leg by leg the altitude and the course held, each\ncheckpoint's time against its estimate, and the altitude entering\neach field's pattern -- each with its mark against the tolerance --\nthe profile, the line for the map and notes on what does not fit.\n`debrief` is null where the track never flew faster than taxiing.\nThe fields' pattern altitudes are the planner's own (the card's).",
+        "operationId": "debrief_api_debrief_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DebriefAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DebriefAnswer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Debrief"
+      }
+    },
     "/api/detect/stream": {
       "get": {
         "description": "Detections as newline-delimited JSON, one line per block; each\nline is one app.schemas.DetectMessage.\n\nBlocks advance along the course, so the map fills from the departure\nend and a pilot can start judging the first thirty miles while the\nrest of the corridor is still being read. Airports come first, in\ntheir own line, because they are a local file lookup and cost\nnothing to produce.\n\nThe landmarks come from the shared per-route job (app.detection);\nonly the pick-matching is per-request, because picks change between\nrequests and the chart does not.\n\nEach carries the chart model's score (app.chart_model) where the\ncorridor has been read whole already, which is every time but a\nroute's first: a detection's features count its neighbours, and a\nblock still being read does not have them all yet.",
@@ -14419,6 +15693,226 @@
           }
         },
         "summary": "Start Dev Service"
+      }
+    },
+    "/api/diversion": {
+      "get": {
+        "description": "The diversion drill (web/src/lib/diversion, ACS PA.VI.C): from a point\nto a field, in the planner's air on the way there at `altitude_ft` --\nthe winds and temperature aloft for the hour (vfr.weather, the FD\nperiod for `depart`, now by default), the airplane's true airspeed and\nburn in that air (vfr.performance) and the variation (vfr.magnetic,\nthe WMM) -- the true course and distance, the wind triangle, the\nmagnetic heading, ground speed, time and fuel, each step in words;\nand the student's estimates (`mh`, `gs`, `ete`, `fuel`) checked\nagainst it, each within the drill's allowance or not.",
+        "operationId": "diversion_api_diversion_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "maxLength": 8,
+              "minLength": 2,
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_ft",
+            "required": true,
+            "schema": {
+              "exclusiveMinimum": 0,
+              "maximum": 17999,
+              "title": "Altitude Ft",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aircraft",
+            "required": false,
+            "schema": {
+              "default": "c172",
+              "title": "Aircraft",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cruise_tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fuel_burn_gph",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 100,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fuel Burn Gph"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cruise_power_pct",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 100,
+                  "minimum": 40,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cruise Power Pct"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depart",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Depart"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mh",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mh"
+            }
+          },
+          {
+            "in": "query",
+            "name": "gs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Gs"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ete",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ete"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fuel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fuel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Diversion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Diversion"
       }
     },
     "/api/faa-chart": {
@@ -14628,6 +16122,145 @@
           }
         },
         "summary": "Go No Go"
+      }
+    },
+    "/api/holding": {
+      "get": {
+        "description": "A hold's entry (web/src/lib/holding, AIM 5-3-8): for an airplane\nheading `heading` to the fix of a hold on the inbound course `inbound`\nwith `turns`, the entry by the AIM's sectors and its steps in words,\nand the other entry where the heading is within 5 degrees of a\nsector's edge; given a true airspeed, a wind (both the course's\nreference, magnetic as a clearance gives it) and the altitude, the\ninbound and outbound headings and the outbound time that make the\ninbound leg a minute (a minute and a half above 14,000 ft MSL).",
+        "operationId": "holding_api_holding_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "inbound",
+            "required": true,
+            "schema": {
+              "maximum": 360,
+              "minimum": 0,
+              "title": "Inbound",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "heading",
+            "required": true,
+            "schema": {
+              "maximum": 360,
+              "minimum": 0,
+              "title": "Heading",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "turns",
+            "required": false,
+            "schema": {
+              "default": "right",
+              "enum": [
+                "right",
+                "left"
+              ],
+              "title": "Turns",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tas_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "exclusiveMinimum": 0,
+                  "maximum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tas Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wind_from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 360,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Wind From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wind_kt",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 300,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Wind Kt"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altitude_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 60000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Altitude Ft"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Holding"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Holding"
       }
     },
     "/api/local-flight": {
@@ -14992,6 +16625,45 @@
           }
         },
         "summary": "Local Flight"
+      }
+    },
+    "/api/lost-comms": {
+      "post": {
+        "description": "Two-way radio failure under IFR (web/src/lib/lostComms, 14 CFR\n91.185): the routes in the rule's order, the altitude on each segment\n-- the highest of assigned, the minimum for IFR operations and\nexpected, expected only from the segment it applies from -- and when\nto leave the clearance limit. A POST for the segments' list; it\nchanges nothing.",
+        "operationId": "lost_comms_api_lost_comms_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LostCommsAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LostComms"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lost Comms"
       }
     },
     "/api/map/google": {
@@ -15972,6 +17644,65 @@
           }
         },
         "summary": "Retrain"
+      }
+    },
+    "/api/route-food": {
+      "get": {
+        "description": "The public fields along a route with somewhere to eat at the\nairport itself, in route order, for the map's fly-in food while a\ncourse is drawn, at the owner's ask (\"when a course is drawn then look\nfor fly in food along the route\", 2026-10-26): those no more than\nvfr.fuelstops' MAX_ADDED_NM off each flight's line (along), each with\nits miles from its flight's departure and those it adds.",
+        "operationId": "route_food_api_route_food_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldsWithFood"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Route Food"
       }
     },
     "/api/route-options": {

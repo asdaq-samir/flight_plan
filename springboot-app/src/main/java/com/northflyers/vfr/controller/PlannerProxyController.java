@@ -126,6 +126,14 @@ public class PlannerProxyController {
             // The Brief's Go / No-Go for the native app: a POST for the
             // pilot's own inputs it is worked out with, which change nothing.
             route("POST", "/api/go-no-go"),
+            // The native app's figures the web works out on the page: a
+            // flown track's debrief and lost comms' altitudes are POSTs
+            // for the track and the segments they are worked out from,
+            // and change nothing; the diversion and the hold are GETs.
+            route("POST", "/api/debrief"),
+            route("POST", "/api/lost-comms"),
+            route("GET", "/api/diversion"),
+            route("GET", "/api/holding"),
             route("GET", "/api/tfrs"),
             route("GET", "/api/alternate"),
             route("GET", "/api/route-profile"),
@@ -150,8 +158,9 @@ public class PlannerProxyController {
             route("GET", "/api/airports/in-view"),
             route("GET", "/api/waypoints/in-view"),
             route("GET", "/api/airports/nearest"),
-            // The map's fly-in food: fields with somewhere to eat a walk from the ramp.
+            // The map's fly-in food: fields with a restaurant on the field, round the pilot or along the route.
             route("GET", "/api/airports/food"),
+            route("GET", "/api/route-food"),
             route("GET", "/api/places/search"),
             route("GET", "/api/airport/{ident}"),
             route("GET", "/api/airport/{ident}/forecast-wind"),

@@ -433,7 +433,7 @@ def own_altitude_caution(selection: dict, legs: list, between: tuple[str, str], 
     route's Custom one, or a waypoint's own -- against the band the planner
     worked out for each of its legs, which the pilot's altitude is flown
     over unchecked: under the terrain and obstacles' floor (14 CFR 91.119's
-    minimum safe altitudes, with the planner's margin), off the hemispheric
+    minimum safe altitudes, floor_caution), off the hemispheric
     rule more than 3,000 ft above the ground (14 CFR 91.159), into Class B
     without the clearance planned for (14 CFR 91.131), over the aircraft's
     service ceiling, or inside the cloud clearance under a forecast base
@@ -449,12 +449,13 @@ def own_altitude_caution(selection: dict, legs: list, between: tuple[str, str], 
         return _own_ifr_altitude_caution(selection, legs, between, profile)
     for leg, segment in zip(legs, selection.get("segments", [])):
         altitude = leg["altitude_ft"]
-        floor, rule_from = segment.get("floor_ft"), segment.get("hemispheric_rule_from_ft")
+        rule_from = segment.get("hemispheric_rule_from_ft")
         shelf, ceiling = segment.get("airspace_ceiling_ft"), segment.get("service_ceiling_ft")
         clouds = segment.get("cloud_ceiling_ft")
         found = []
-        if floor is not None and altitude < floor:
-            found.append(f"Under the {floor:,.0f} ft the terrain and obstacles need (14 CFR 91.119)")
+        under = floor_caution(segment, altitude)
+        if under:
+            found.append(under)
         if rule_from is not None and altitude > rule_from and segment.get("eastbound") is not None:
             east = segment["eastbound"]
             if (altitude - (1500 if east else 500)) % 2000:
@@ -474,6 +475,49 @@ def own_altitude_caution(selection: dict, legs: list, between: tuple[str, str], 
     if not reasons or altitude is None:
         return None
     return {"from_ident": between[0], "to_ident": between[1], "altitude_ft": altitude, "reasons": reasons}
+
+
+#: The DOF's own abbreviations of an obstacle's type (its TYPE column), in
+#: words; the rest are words already ("TOWER", "WINDMILL") and are said in
+#: lower case.
+_OBSTACLE_WORDS = {
+    "T-L TWR": "transmission line tower", "BLDG": "building", "BLDG-TWR": "building tower",
+    "CTRL TWR": "control tower", "GEN UTIL": "utility structure", "ELEC SYS": "electrical structure",
+    "MET": "meteorological tower",
+}
+
+
+def floor_caution(segment: dict, altitude: float) -> str | None:
+    """What a leg flown at `altitude` breaks of 14 CFR 91.119 under VFR, in
+    a pilot's words: the rule, what the floor rests on and how far under it
+    the leg is ("300 ft under the 2,500 ft 14 CFR 91.119(b) asks over a
+    congested area: 1,000 ft over the highest obstacle within 2,000 ft,
+    here a 1,500 ft tower"). Against the rule's own figure, the
+    obstacle's top and its clearance, not the floor rounded up to the
+    next 100 ft (vfr.terrain): 2,480 ft over a 1,480 ft tower keeps
+    91.119(b). A planner without those says the floor alone, as it did.
+    None where the leg keeps it."""
+    floor, highest, clearance = segment.get("floor_ft"), segment.get("highest_ft"), segment.get("obstacle_clearance_ft")
+    if highest is None or clearance is None:
+        if floor is not None and altitude < floor:
+            return f"Under the {floor:,.0f} ft the terrain and obstacles need (14 CFR 91.119)"
+        return None
+    need = highest + clearance
+    if altitude >= need:
+        return None
+    kind = segment.get("obstacle_type")
+    # "an 800 ft tower", "an 11,000 ft ...": the article as the figure is said.
+    figure = f"{highest:,.0f}"
+    article = "an" if figure.startswith("8") or figure[:3] in ("11,", "18,") else "a"
+    what = (f"{article} {figure} ft {_OBSTACLE_WORDS.get(kind, kind.lower()) if kind else 'obstacle'}"
+            if segment.get("highest_is_obstacle") else f"the ground at {highest:,.0f} ft")
+    # 91.119(b) over a congested area, and where the towns could not be
+    # read (congested None), since the planner then took its 1,000 ft.
+    if clearance >= 1000:
+        where = "over a congested area" if segment.get("congested") else "where a congested area could not be ruled out"
+        return (f"{need - altitude:,.0f} ft under the {need:,.0f} ft 14 CFR 91.119(b) asks {where}: "
+                f"{clearance:,.0f} ft over the highest obstacle within 2,000 ft, here {what}")
+    return f"{need - altitude:,.0f} ft under the {need:,.0f} ft 14 CFR 91.119(c) asks: {clearance:,.0f} ft over {what}"
 
 
 #: Class A's floor, feet MSL (14 CFR 71.33(a)): no VFR flight in it (91.135).
@@ -525,8 +569,7 @@ def altitude_anyway(selection: dict) -> float | None:
     """The altitude a route with no legal one is flown at anyway, at the
     owner's "I don't want to put hard limits on anything. A warning tick or
     a label is enough" (2026-10-23): the lowest that keeps the terrain and
-    obstacles' floor everywhere along it (14 CFR 91.119, with the planner's
-    margin) on the course's own altitudes (91.159's thousands plus 500
+    obstacles' floor everywhere along it (14 CFR 91.119, vfr.terrain) on the course's own altitudes (91.159's thousands plus 500
     under VFR, 91.179(b)(1)'s thousands under IFR, ATC's own in controlled airspace), whatever stops it there --
     the airplane's ceiling, the clouds, Class B -- for own_altitude_caution
     to say. None where no floor is known."""

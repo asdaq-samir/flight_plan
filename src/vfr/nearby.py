@@ -66,9 +66,20 @@ LODGING = {"hotel", "bed_and_breakfast", "resort", "inn", "motel"}
 #: A car to hire.
 CARS = {"car_rental_service"}
 
-#: Each field's answer's file name after its ident: ".2.json" since
-#: places carry their websites, so those kept before are read again.
-KEPT_SUFFIX = ".2.json"
+#: Each field's answer's file name after its ident: ".4.json" since
+#: places to eat say whether they are on the field, so those kept before
+#: are read again.
+KEPT_SUFFIX = ".4.json"
+#: A place to eat is on the field inside Overture's outline of the airport
+#: (its base theme's infrastructure, subtype airport: OpenStreetMap's
+#: aerodrome); where the field has no outline, this near its reference
+#: point, metres -- Pilot Pete's at Schaumburg is 199 m from it and
+#: inside, the Cubano Bros across the road 13 m outside (the owner's
+#: "food at the airport itself, like Pete's diner at Schaumburg",
+#: 2026-10-25; 10 m of slack let the Cubano Bros in).
+ON_FIELD_NO_OUTLINE_M = 250.0
+#: The parts of an airport's outline that are not the airport itself.
+_NOT_OUTLINE = {"taxiway", "taxilane", "runway", "stopway", "apron", "helipad", "windsock", "airport_gate", "tower", "beacon"}
 
 _COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "operating_status", "phones", "websites"]
 _LOCK = threading.Lock()
@@ -109,6 +120,36 @@ def latest_release(timeout_s: float = 10.0) -> str:
 
 
 @lru_cache(maxsize=2)
+def _infrastructure(release: str):
+    import pyarrow.dataset as ds
+    import pyarrow.fs as pfs
+
+    fs = pfs.S3FileSystem(anonymous=True, region=REGION)
+    return ds.dataset(f"{BUCKET}/release/{release}/theme=base/type=infrastructure/", filesystem=fs, format="parquet")
+
+
+def _outline(lat: float, lon: float, release: str):
+    """The field's outline (a shapely geometry) from Overture's airport
+    infrastructure round it, None where it has none."""
+    import pyarrow.dataset as ds
+    import shapely
+
+    half = 0.04
+    box = ((ds.field("bbox", "xmin") >= lon - half) & (ds.field("bbox", "xmin") <= lon + half)
+           & (ds.field("bbox", "ymin") >= lat - half) & (ds.field("bbox", "ymin") <= lat + half)
+           & (ds.field("subtype") == "airport"))
+    rows = _infrastructure(release).to_table(columns=["class", "geometry"], filter=box).to_pylist()
+    shapes = [shapely.from_wkb(r["geometry"]) for r in rows if r.get("class") not in _NOT_OUTLINE and r.get("geometry")]
+    shapes = [g for g in shapes if g.geom_type in ("Polygon", "MultiPolygon")]
+    if not shapes:
+        return None
+    # The outline round the field's own point, else the nearest: a box can
+    # hold a neighbour's too.
+    here = shapely.Point(lon, lat)
+    return min(shapes, key=lambda g: g.distance(here))
+
+
+@lru_cache(maxsize=2)
 def _dataset(release: str):
     # Imported here: only a card or a stop asks, and pyarrow's S3 is a
     # second of the planner's start otherwise.
@@ -142,6 +183,15 @@ def _words(category: str | None) -> str:
     return text[:1].upper() + text[1:]
 
 
+def _on_field(outline, lat: float, lon: float, metres: float) -> bool:
+    """Whether a place is at the airport itself: inside its outline."""
+    if outline is None:
+        return metres <= ON_FIELD_NO_OUTLINE_M
+    import shapely
+
+    return bool(outline.covers(shapely.Point(lon, lat)))
+
+
 def _read(lat: float, lon: float, release: str) -> dict:
     import pyarrow.dataset as ds
 
@@ -150,6 +200,11 @@ def _read(lat: float, lon: float, release: str) -> dict:
     box = ((ds.field("bbox", "xmin") >= lon - dlon) & (ds.field("bbox", "xmin") <= lon + dlon)
            & (ds.field("bbox", "ymin") >= lat - dlat) & (ds.field("bbox", "ymin") <= lat + dlat))
     rows = _dataset(release).to_table(columns=_COLUMNS, filter=box).to_pylist()
+    try:
+        outline = _outline(lat, lon, release)
+    except Exception:  # noqa: BLE001 -- pyarrow's own errors; the places stand without it
+        log.warning("Overture's airport outline could not be read at %.3f,%.3f", lat, lon, exc_info=True)
+        outline = None
     found: dict[str, list[dict]] = {kind: [] for kind in MOST}
     for row in rows:
         if (row.get("confidence") or 0.0) < MIN_CONFIDENCE or row.get("operating_status") in ("permanently_closed", "temporarily_closed"):
@@ -168,6 +223,7 @@ def _read(lat: float, lon: float, release: str) -> dict:
             "distance_m": round(metres), "walk_min": math.ceil(metres / WALK_M_PER_MIN) if metres <= WALK_M else None,
             "phone": (row.get("phones") or [None])[0], "website": (row.get("websites") or [None])[0],
             "lat": round(plat, 6), "lon": round(plon, 6),
+            "on_field": _on_field(outline, plat, plon, metres) if kind == "food" else False,
         })
     out = {}
     for kind, places in found.items():

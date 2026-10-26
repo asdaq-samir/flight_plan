@@ -1,3 +1,4 @@
+// The planner's app/figures/holding.py holds the same rules for the native app (GET /api/holding): the two change together.
 /**
  * Holding-pattern entries and wind (the roadmap's holding visualiser, ACS
  * IR.III.B), as AIM 5-3-8 gives them: the entry from the airplane's

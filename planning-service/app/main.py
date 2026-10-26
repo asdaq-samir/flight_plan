@@ -36,6 +36,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, water, weather
+from vfr import congested
 from vfr import traffic as traffic_data
 from vfr import airports as airport_table
 
@@ -43,7 +44,7 @@ from . import chart_model, chart_refresh, errors, swim, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
 from .routers import airports, airspace as airspace_router, basemaps, briefing, chart, classb, devml, devservices, notes, oral, plan
-from .routers import gonogo, route_options, system, traffic
+from .routers import figures, gonogo, route_options, system, traffic
 from .schemas import STREAM_MESSAGES, Index
 
 # Nothing else in the process configured logging, so every log.info() in
@@ -129,6 +130,10 @@ def _warm_reference_data() -> None:
         ("special-use airspace", sua.preload),
         # The land and large lakes for Routes' way over land (vfr.water).
         ("water", water.preload),
+        # The towns the terrain floor's clearances are set by (vfr.congested,
+        # 14 CFR 91.119(b)): the Census urban areas' outlines read, and the
+        # gazetteer's places, before the first route's floor asks.
+        ("congested areas", congested.preload),
         # The traffic pattern altitudes from the airport file (vfr.faa_data):
         # its parse was 11.8 s of a cold KBOS to KSAN's plan (Session1's
         # profile, 2026-10-23).
@@ -297,7 +302,7 @@ def index() -> Index:
 
 
 for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports, airspace_router, oral, traffic, basemaps,
-               route_options, gonogo):
+               route_options, gonogo, figures):
     app.include_router(module.router)
 
 

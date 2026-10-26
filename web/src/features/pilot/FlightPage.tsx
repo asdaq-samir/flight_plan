@@ -1,3 +1,4 @@
+// The debrief's marks are also the planner's (app/figures/debrief.py marked, for the native app): the two change together.
 import { useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
