@@ -998,8 +998,10 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
     const id = setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs());
     return () => clearTimeout(id);
   }, [open, touched]);
-  // Put away with the list: the map's ways go with it.
-  useEffect(() => () => useRouteLineOpen.setState({ open: false }), []);
+  // Put away with the list, it folds after the same wait, so the map's
+  // ways go with it: not at once, as the list is drawn anew as the sheet
+  // moves and as the route comes in, and the line closed under a finger.
+  useEffect(() => () => { setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs()); }, []);
   const picked = line.chips.find(c => c.key === line.picked) ?? line.chips[0]!;
   const ring = (c: RouteLineChoices["chips"][number]) => (c.warning ? "ring-2 ring-amber-500" : undefined);
   const words = (c: RouteLineChoices["chips"][number]) =>

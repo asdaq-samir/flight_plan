@@ -89,7 +89,7 @@ test("FPL's route line folds to the way picked, None at first, and a chip tapped
 test("the route line folds back to the chip picked when left alone", async ({ page }) => {
   await ways(page);
   // The runway line's own wait, short for the test.
-  await page.addInitScript(() => { try { localStorage.setItem("vfr.runwayFoldMs", "600"); } catch { /* no storage */ } });
+  await page.addInitScript(() => { try { localStorage.setItem("vfr.runwayFoldMs", "1500"); } catch { /* no storage */ } });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
