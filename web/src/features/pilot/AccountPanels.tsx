@@ -6,6 +6,7 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { Check, Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
+import FieldHit from "../../components/FieldHit";
 import IconButton from "../../components/IconButton";
 import { cn } from "cn";
 import { planHrefOf } from "../../lib/flightLink";
@@ -149,8 +150,8 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
         )}
       />
       <ListRow id={`${id}-on`} title="Checked on">
-        <Input id={`${id}-on`} type="date" className="h-8 w-40" value={check.checkedOn} max={today}
-          onChange={e => setCheck({ ...check, checkedOn: e.target.value })} aria-label="VOR check date" data-testid="vor-check-date" />
+        <FieldHit htmlFor={`${id}-on`}><Input id={`${id}-on`} type="date" className="h-8 w-40" value={check.checkedOn} max={today}
+          onChange={e => setCheck({ ...check, checkedOn: e.target.value })} aria-label="VOR check date" data-testid="vor-check-date" /></FieldHit>
       </ListRow>
       <ListRow title="How">
         <Select value={check.kind} onValueChange={kind => setCheck({ ...check, kind: kind as VorCheckRequest["kind"] })}>
@@ -161,12 +162,12 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
         </Select>
       </ListRow>
       <ListRow id={`${id}-place`} title="Where">
-        <Input id={`${id}-place`} className="h-8 w-40 text-right" placeholder="KDLH VOT" value={check.place ?? ""}
-          onChange={e => setCheck({ ...check, place: e.target.value })} aria-label="Where the VOR was checked" />
+        <FieldHit htmlFor={`${id}-place`}><Input id={`${id}-place`} className="h-8 w-40 text-right" placeholder="KDLH VOT" value={check.place ?? ""}
+          onChange={e => setCheck({ ...check, place: e.target.value })} aria-label="Where the VOR was checked" /></FieldHit>
       </ListRow>
       <ListRow id={`${id}-error`} title="Bearing error">
-        <Input id={`${id}-error`} type="number" inputMode="decimal" step="any" className="h-8 w-24 text-right" value={String(check.errorDeg)}
-          onChange={e => setCheck({ ...check, errorDeg: Number(e.target.value || 0) })} aria-label="Bearing error in degrees" data-testid="vor-check-error" />
+        <FieldHit htmlFor={`${id}-error`}><Input id={`${id}-error`} type="number" inputMode="decimal" step="any" className="h-8 w-24 text-right" value={String(check.errorDeg)}
+          onChange={e => setCheck({ ...check, errorDeg: Number(e.target.value || 0) })} aria-label="Bearing error in degrees" data-testid="vor-check-error" /></FieldHit>
       </ListRow>
       <ListRow
         title={<span className="font-medium text-tint">Record check</span>}
@@ -229,10 +230,10 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
           key={d.key} id={`${id}-${d.key}`} title={d.title}
           description={<>{d.rule}{recorded?.[d.through] && <> · <Standing through={recorded[d.through]} testId={`inspection-${d.key}`} /></>}</>}
         >
-          <Input
+          <FieldHit htmlFor={`${id}-${d.key}`}><Input
             id={`${id}-${d.key}`} type="date" className="h-8 w-40" value={form[d.key] ?? ""} max={today}
             onChange={e => setForm({ ...form, [d.key]: e.target.value || null })} data-testid={`inspection-${d.key}-date`}
-          />
+          /></FieldHit>
         </ListRow>
       ))}
       <ListRow
@@ -243,10 +244,10 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
           </span></>
         )}</>}
       >
-        <Input
+        <FieldHit htmlFor={`${id}-battery`}><Input
           id={`${id}-battery`} type="date" className="h-8 w-40" value={form.eltBatteryDueOn ?? ""}
           onChange={e => setForm({ ...form, eltBatteryDueOn: e.target.value || null })} data-testid="inspection-eltBattery-date"
-        />
+        /></FieldHit>
       </ListRow>
       <ListRow
         id={`${id}-at`} title="Hours at last 100-hour"
@@ -256,18 +257,18 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
           </span>
         )}</> : "Time in service, at the last annual or 100-hour"}
       >
-        <Input
+        <FieldHit htmlFor={`${id}-at`}><Input
           id={`${id}-at`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
           value={form.hundredHourAtHours ?? ""} onChange={e => setForm({ ...form, hundredHourAtHours: hours(e.target.value) })}
           data-testid="inspection-hundredHourAt"
-        />
+        /></FieldHit>
       </ListRow>
       <ListRow id={`${id}-now`} title="Hours now">
-        <Input
+        <FieldHit htmlFor={`${id}-now`}><Input
           id={`${id}-now`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
           value={form.hoursNow ?? ""} onChange={e => setForm({ ...form, hoursNow: hours(e.target.value) })}
           data-testid="inspection-hoursNow"
-        />
+        /></FieldHit>
       </ListRow>
       <ListRow
         title={<span className="font-medium text-tint">Save inspections</span>}
@@ -470,18 +471,18 @@ export function AircraftPanel() {
                   capitals and never autocorrected. */}
               <ListGroup>
                 <ListRow id={`${formId}-tail`} title="Tail number" description={problem(errors.tailNumber?.message)}>
-                  <Input
+                  <FieldHit htmlFor={`${formId}-tail`}><Input
                     id={`${formId}-tail`} {...register("tailNumber")} placeholder="N12345" className="h-8 w-32 text-right"
                     aria-label="Tail number" aria-invalid={!!errors.tailNumber}
                     autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-                  />
+                  /></FieldHit>
                 </ListRow>
                 <ListRow id={`${formId}-type`} title="Type" description={problem(errors.typeDesignator?.message)}>
-                  <Input
+                  <FieldHit htmlFor={`${formId}-type`}><Input
                     id={`${formId}-type`} {...register("typeDesignator")} placeholder="C172" className="h-8 w-32 text-right"
                     aria-label="Type designator" aria-invalid={!!errors.typeDesignator}
                     autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-                  />
+                  /></FieldHit>
                 </ListRow>
               </ListGroup>
               <ListGroup title="True airspeed">
@@ -532,27 +533,27 @@ export function AircraftPanel() {
                   capitals, never autocorrected. */}
               <ListGroup title="Flight plan">
                 <ListRow id={`${formId}-equipment`} title="Equipment" description={problem(errors.equipment?.message)}>
-                  <Input
+                  <FieldHit htmlFor={`${formId}-equipment`}><Input
                     id={`${formId}-equipment`} {...register("equipment")} placeholder="SDFGRY" maxLength={40}
                     className="h-8 w-32 text-right font-mono uppercase"
                     aria-label="Equipment, flight plan item 10a" aria-invalid={!!errors.equipment}
                     autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-                  />
+                  /></FieldHit>
                 </ListRow>
                 <ListRow id={`${formId}-surveillance`} title="Surveillance" description={problem(errors.surveillance?.message)}>
-                  <Input
+                  <FieldHit htmlFor={`${formId}-surveillance`}><Input
                     id={`${formId}-surveillance`} {...register("surveillance")} placeholder="B1" maxLength={20}
                     className="h-8 w-32 text-right font-mono uppercase"
                     aria-label="Surveillance, flight plan item 10b" aria-invalid={!!errors.surveillance}
                     autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false}
-                  />
+                  /></FieldHit>
                 </ListRow>
                 <ListRow id={`${formId}-colour`} title="Color" description={problem(errors.colour?.message)}>
-                  <Input
+                  <FieldHit htmlFor={`${formId}-colour`}><Input
                     id={`${formId}-colour`} {...register("colour")} placeholder="White, blue stripe" maxLength={40}
                     className="h-8 w-40 text-right"
                     aria-label="Color and markings, flight plan item 19" aria-invalid={!!errors.colour}
-                  />
+                  /></FieldHit>
                 </ListRow>
               </ListGroup>
               {editing && (
@@ -599,6 +600,7 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
 }) {
   return (
     <ListRow id={id} title={title} description={error ? <span className="text-destructive">{error}</span> : undefined}>
+      <FieldHit htmlFor={id}>
       <InputGroup className="h-8 w-32">
         <InputGroupInput
           id={id} {...field} placeholder={placeholder} className="text-right"
@@ -606,6 +608,7 @@ function NumberRow({ id, title, unit, placeholder, name, field, error }: {
         />
         <InputGroupAddon align="inline-end"><InputGroupText>{unit}</InputGroupText></InputGroupAddon>
       </InputGroup>
+      </FieldHit>
     </ListRow>
   );
 }

@@ -12,7 +12,7 @@ import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } 
 import { api } from "../../../lib/api/client";
 import { useMinuteClock, zuluTime } from "../../../lib/clock";
 import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
-import { distanceNm } from "../../../lib/geo";
+import { distanceNm, normalizeDeg } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, sameField, transitionWords, type BranchFix, type PickedProcedure } from "../../../lib/procedures";
@@ -269,7 +269,7 @@ export default function ProceduresRoute({
       setAnswered(askHold);
       setHoldAt({
         fix, hold: holdOn(fix), altitudeFt: leg.altitude_ft,
-        arrivalDeg: (((leg.true_course_deg - leg.magnetic_variation_deg) % 360) + 360) % 360,
+        arrivalDeg: normalizeDeg(leg.true_course_deg - leg.magnetic_variation_deg),
       });
     }
   }
@@ -509,7 +509,7 @@ export default function ProceduresRoute({
             setHoldAt({
               fix: ident, hold: holdOn(ident), altitudeFt: leg?.altitude_ft ?? null,
               // Magnetic = true - variation, east positive (the leg's own).
-              arrivalDeg: leg ? (((leg.true_course_deg - leg.magnetic_variation_deg) % 360) + 360) % 360 : null,
+              arrivalDeg: leg ? normalizeDeg(leg.true_course_deg - leg.magnetic_variation_deg) : null,
             });
           } : undefined}
           onRemove={at.stop && typed && onRemove ? () => onRemove(ident) : undefined}

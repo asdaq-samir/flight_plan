@@ -17862,7 +17862,7 @@
     },
     "/api/route-food": {
       "get": {
-        "description": "The public fields along a route with somewhere to eat at the\nairport itself, in route order, for the map's fly-in food while a\ncourse is drawn, at the owner's ask (\"when a course is drawn then look\nfor fly in food along the route\", 2026-10-26): those no more than\nvfr.fuelstops' MAX_ADDED_NM off each flight's line (along), each with\nits miles from its flight's departure and those it adds.",
+        "description": "The public fields along a route with somewhere to eat at the\nairport itself, in route order, for the map's fly-in food while a\ncourse is drawn, at the owner's ask (\"when a course is drawn then look\nfor fly in food along the route\", 2026-10-26): those no more than\nFOOD_OFF_COURSE_NM off each flight's line, each with its miles from its\nflight's departure, those it adds and how far off the course it is.",
         "operationId": "route_food_api_route_food_get",
         "parameters": [
           {

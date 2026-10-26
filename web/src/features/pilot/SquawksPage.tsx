@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import QueryState from "../../components/QueryState";
 import TogglePill from "../../components/TogglePill";
@@ -37,6 +38,7 @@ const asRequest = (s: Squawk): SquawkRequest => ({
  * no-go. Fixed, with the day and how.
  */
 export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
+  const foundId = useId();
   const queryClient = useQueryClient();
   // Quiet: the page says in place what it could not fetch (QueryState).
   const asked = useQuery({ queryKey: ["squawks", aircraft.id], queryFn: () => api.aircraft.squawks(aircraft.id), meta: { silent: true } });
@@ -102,9 +104,9 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
             placeholder="What was found" aria-label="What was found" data-testid="squawk-text"
           />
         </div>
-        <ListRow title="Found on">
-          <Input type="date" className="h-8 w-40" value={draft.reportedOn} max={today()} aria-label="Found on"
-            onChange={e => setDraft({ ...draft, reportedOn: e.target.value || today() })} />
+        <ListRow id={foundId} title="Found on">
+          <FieldHit htmlFor={foundId}><Input id={foundId} type="date" className="h-8 w-40" value={draft.reportedOn} max={today()} aria-label="Found on"
+            onChange={e => setDraft({ ...draft, reportedOn: e.target.value || today() })} /></FieldHit>
         </ListRow>
         <ListRow title="Inoperative equipment">
           <TogglePill
