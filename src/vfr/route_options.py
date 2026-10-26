@@ -128,6 +128,11 @@ TITLES = {"fastest": "Fastest", "weather": "Best weather", "stops": "Fewest stop
 #: a dry land"; vfr.water).
 WATER_COST = 10.0
 
+#: How many minutes more a fuel stop in marginal weather costs than one in
+#: the clear, three times that for the best weather's way: the planner's
+#: own figure, half an hour's flying past one to a field in VFR.
+MARGINAL_STOP_MIN = 30.0
+
 #: The eight ways out of a cell: (rows, columns).
 _STEPS = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
 
@@ -594,12 +599,16 @@ def _crossed(grid: _Grid, points: list[tuple], marginal: bool = False) -> list[i
 
 
 def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields, reserve_gal: float,
-           fewest: bool) -> list[dict] | None:
+           fewest: bool, marginal_stop_min: float = MARGINAL_STOP_MIN) -> list[dict] | None:
     """The fields to land at for fuel along the way: those with 100LL on a
     paved runway (vfr.fuelstops) within STOP_FIELD_NM of it, in open
     cells, each flight landing with `reserve_gal` (91.151) -- the fewest
     minutes, TURNAROUND_MIN at each, or the fewest landings (`fewest`).
-    [] where the tanks reach; None where no chain of fields does (or no
+    Not a field whose way in or out from the way crosses a closed cell, nor
+    one closed itself; one in marginal weather costing `marginal_stop_min`
+    more, so a field in the clear a little further on is landed at instead
+    (the owner's "Or even a different fuel stop to avoid weather?",
+    2026-10-25). [] where the tanks reach; None where no chain of fields does (or no
     table of fields could be had)."""
     tas = max(float(profile["cruise_tas_kt"]), 1.0)
     gph = float(profile["fuel_burn_gph"])
@@ -632,6 +641,9 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     lat_f, lon_f = fields["lat"].to_numpy(float), fields["lon"].to_numpy(float)
     best_off = np.full(len(lat_f), np.inf)
     best_at = np.zeros(len(lat_f))
+    # Where on the way each is nearest, for its way in and out.
+    best_lat = np.zeros(len(lat_f))
+    best_lon = np.zeros(len(lat_f))
     for k, (a, b) in enumerate(zip(way, way[1:])):
         seg = along_nm[k + 1] - along_nm[k]
         for t in np.linspace(0.0, 1.0, max(2, int(seg / 5) + 1)):
@@ -640,6 +652,7 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
             closer = off < best_off
             best_off[closer] = off[closer]
             best_at[closer] = along_min[k] + (along_min[k + 1] - along_min[k]) * t
+            best_lat[closer], best_lon[closer] = lat, lon
     nodes = [{"at": 0.0, "off": 0.0}]
     for i in np.argsort(best_at):
         if best_off[i] > STOP_FIELD_NM or not (0.0 < best_at[i] < total_min):
@@ -648,11 +661,16 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
         cell = grid.cell((lat_f[i], lon_f[i]))
         if grid.closed[cell] >= 0:
             continue
+        # Its way in and out from the way: not through a storm or weather
+        # under the minimums the way itself went round.
+        if not grid.line_open((float(best_lat[i]), float(best_lon[i])), (float(lat_f[i]), float(lon_f[i]))):
+            continue
         runway = max(fuelstops.paved_runway_ft(row["ident"]), fuelstops.paved_runway_ft(row["faa_ident"]))
         if runway < fuelstops.MIN_RUNWAY_FT:
             continue
         nodes.append({"at": float(best_at[i]), "off": float(best_off[i]), "ident": str(row["ident"]),
-                      "name": str(row["name"]), "lat": float(lat_f[i]), "lon": float(lon_f[i])})
+                      "name": str(row["name"]), "lat": float(lat_f[i]), "lon": float(lon_f[i]),
+                      "dear": marginal_stop_min if grid.marginal[cell] >= 0 else 0.0})
     nodes.append({"at": total_min, "off": 0.0})
     count = len(nodes)
     best = [math.inf] * count
@@ -665,7 +683,7 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
             minutes = nodes[j]["at"] - nodes[i]["at"] + (nodes[i]["off"] + nodes[j]["off"]) / tas * 60.0
             if minutes / 60.0 * gph > reach_gal:
                 continue
-            landing = 0.0 if j == count - 1 else (1e6 if fewest else 0.0) + TURNAROUND_MIN
+            landing = 0.0 if j == count - 1 else (1e6 if fewest else 0.0) + TURNAROUND_MIN + nodes[j]["dear"]
             cost = best[i] + minutes + landing
             if cost < best[j]:
                 best[j], prev[j] = cost, i
@@ -770,7 +788,8 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             turns = _straightened(grid, gs, points, marginal_cost, slower, water_cost)
             if len(turns) - 2 <= MAX_TURNS:
                 break
-        stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops")
+        stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops",
+                       marginal_stop_min=MARGINAL_STOP_MIN * (3 if kind == "weather" else 1))
         # No chain of fields reaches: the way offered all the same, with
         # that said (the owner's rule: no hard limits, only warnings).
         option = _option(kind, grid, gs, turns, stops or [], profile, no_fuel=stops is None)

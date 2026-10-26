@@ -331,3 +331,27 @@ def test_a_fix_that_would_take_the_way_into_the_storm_is_not_turned_at(monkeypat
     monkeypatch.setattr(fixes, "within", within)
     out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
     assert "STORM" not in out["options"][0]["stops"]
+
+
+def test_a_fuel_stop_in_marginal_weather_gives_way_to_one_in_the_clear(sky):
+    # Tanks for some 290 nm on a 600 nm flight: two stops. A field a third
+    # of the way is under MVFR; one a little further on is in the clear,
+    # and is landed at instead (the owner's "Or even a different fuel stop
+    # to avoid weather?", 2026-10-25).
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    sky["tafs"].append(taf("WETT", 0.0, 3.0, ceiling=2500))
+    table = fields(("WETT", 0.0, 3.0), ("DRYY", 0.0, 3.6), ("MIDD", 0.0, 6.5), ("LATE", 0.0, 7.0))
+    small = {**PROFILE, "usable_fuel_gal": 30.0}       # some 290 nm with the reserve
+    out = route_options.options(DEP, dest, small, fields=table)
+    fastest = next(o for o in out["options"] if "fastest" in o["kinds"])
+    assert "WETT" not in fastest["fuel"] and "DRYY" in fastest["fuel"]
+
+
+def test_a_fuel_stop_whose_way_in_crosses_a_storm_is_not_landed_at(sky):
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    # A storm between the way and a field 12 nm off it.
+    sky["tafs"].append(taf("STRM", 0.1, 4.0, wx="TSRA"))
+    table = fields(("BEHIND", 0.2, 4.0), ("CLEAR", 0.0, 3.0), ("MIDD", 0.0, 6.5))
+    out = route_options.options(DEP, dest, PROFILE, fields=table)
+    for option in out["options"]:
+        assert "BEHIND" not in option["fuel"]
