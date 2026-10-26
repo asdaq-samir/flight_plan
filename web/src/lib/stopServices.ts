@@ -30,7 +30,7 @@ const nearest = (n: Nearest) => (Array.isArray(n) ? n[0] : n) ?? undefined;
 
 /**
  * The few words a stop's row says of the field on the ground, one helper
- * for the Stops card's fields (StopsCard) and a suggested stop's row
+ * for a field's glance and a suggested stop's row
  * (StopGlance), where each said it its own way: the avgas every profile
  * here burns where it is sold (vfr.fuelstops.FUEL), the nearest food, the
  * nearest bed, and a courtesy car or a car to hire -- what the canvas's A
