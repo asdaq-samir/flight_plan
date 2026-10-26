@@ -38,7 +38,10 @@ export function CardAction({ icon, label, spoken, filled, busy, disabled, onClic
   // Its sides four points in, not the stock button's ten: the room a
   // word needs to stay on its one line (below) at the text sizes a reader
   // sets larger.
-  const look = cn("h-auto min-w-0 flex-col gap-[2px] rounded-xl px-1 py-[6px] [&_svg:not([class*='size-'])]:size-[20px]", !filled && GLASS_BUTTON);
+  // The others iOS's grey tiles with their glyph and word in the tint, as
+  // Apple's Maps on the web draws a place's Call and Website (the owner's
+  // screenshot, 2026-10-26).
+  const look = cn("h-auto min-w-0 flex-col gap-[2px] rounded-xl px-1 py-[6px] [&_svg:not([class*='size-'])]:size-[20px]", !filled && cn(GLASS_BUTTON, "text-tint hover:text-tint"));
   const face = (
     <>
       {busy ? <Loader2 className="size-[20px] animate-spin" aria-hidden="true" /> : icon}

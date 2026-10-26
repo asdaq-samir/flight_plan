@@ -9,12 +9,12 @@ import {
   sheetSettle, type MapInsets, type PanelState,
 } from "./mapChrome";
 
-/** How far the half sheet is in from the screen's sides and its edge:
- *  floating as Maps' does, every corner round, at the owner's yes to the
- *  polish pass (2026-10-26, "the sheet floats like Maps"); it was on them
- *  from 2026-10-25 for the route box's buttons' room, which the route's
- *  title now leaves. All the way up it is on them. */
-const HALF_INSET = SHEET_INSET;
+/** How far the half sheet is in from the screen's sides and its edge: on
+ *  them, as Apple's Maps on the web has its sheet (the owner's screenshots
+ *  of it, 2026-10-26); it floated for an hour that day, and from
+ *  2026-10-25 it was on them for the route box's buttons' room. The pill
+ *  keeps SHEET_INSET. */
+const HALF_INSET = 0;
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -167,7 +167,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  *  from 0.522): a nav log's "Show the work" on its selected row read
  *  4.33:1 (8465f5a8): --tint-shade, which each look sets (index.css). The
  *  dark's grey as it was, set again here as the light's is set. */
-const SHEET_BELOW = "bg-black/[0.04] [--muted-foreground:oklch(0.5_0_0)] [--tint:var(--tint-shade)] dark:bg-black/[0.18] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
+const SHEET_BELOW = "[--muted-foreground:oklch(0.5_0_0)] [--tint:var(--tint-shade)] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
 
 export default function MapPanel({ label, top, kept, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
@@ -769,7 +769,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // for a nav log read on it, and all the way out nearly whole.
         capsule ? GLASS
           : !onPhone ? MATERIAL
-            : dragged !== null ? GLASS : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
+            : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
         !onPhone && cn(
           "left-[max(1rem,env(safe-area-inset-left))] w-[24rem]",
           !capsule && "rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",

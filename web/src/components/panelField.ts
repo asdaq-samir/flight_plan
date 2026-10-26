@@ -7,6 +7,7 @@
  *  the sheet and the pill alike; 41 points tall at least, as Maps' field
  *  is. */
 export const PANEL_FIELD_FILL =
-  "bg-white/60 shadow-[inset_0_0_0_1px_rgb(255_255_255/0.9),0_1px_3px_rgb(0_0_0/0.08)] " +
-  "dark:bg-white/10 dark:shadow-[inset_0_0_0_1px_rgb(255_255_255/0.12),0_1px_3px_rgb(0_0_0/0.3)]";
+  // A white card on the sheet's grey, as Apple's Maps on the web sets its
+  // search field and its directions' stops (the style audit, 2026-10-26).
+  "bg-card shadow-none";
 export const PANEL_FIELD = `min-h-[2.5625rem] ${PANEL_FIELD_FILL}`;
