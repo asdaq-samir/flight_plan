@@ -137,6 +137,7 @@ export type Tfrs = Schemas["Tfrs"];
 export type NearestAirports = Schemas["NearestAirports"];
 export type FieldsWithFood = Schemas["FieldsWithFood"];
 export type FieldFood = Schemas["FieldFood"];
+export type FoodDetails = Schemas["FoodDetails"];
 export type NearestAirport = Schemas["NearestAirport"];
 export type PlaceFound = Schemas["PlaceFound"];
 export type PlacesFound = Schemas["PlacesFound"];

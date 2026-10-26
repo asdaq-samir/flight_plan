@@ -1,8 +1,8 @@
-import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Loader2, Utensils } from "lucide-react";
+import { useState } from "react";
+import { ChevronDown, Loader2, Star, Utensils } from "lucide-react";
 import { cn } from "cn";
-import { CardHead } from "../../../components/PanelCard";
+import { CardClose } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import QueryState from "../../../components/QueryState";
 import { ADD_CAPSULE } from "../../../components/mapChrome";
@@ -12,7 +12,7 @@ import {
 import { placeWords } from "../../../lib/advisories";
 import type { FieldFood } from "../../../lib/api/types";
 import { usePreferences } from "../../../lib/preferences";
-import { airportsFoodQuery, routeFoodQuery } from "../../../lib/queryClient";
+import { airportsFoodQuery, foodDetailsQuery, routeFoodQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
 
 /** The radii offered, nm: a menu of them, not a slider (the owner's
@@ -39,6 +39,109 @@ const pill = (on: boolean) => cn(
   on ? "bg-primary text-primary-foreground" : "bg-foreground/8 text-foreground",
 );
 
+type Place = FieldFood["food"][number];
+
+/** "4.4", a rating's stars to one place. */
+const stars = (rating: number) => rating.toFixed(1);
+
+/**
+ * A restaurant's row: its photo where Google has one (else the fork and
+ * knife), its name, its airport (a tap the field's card), what it is and
+ * where, its stars and how many rated it; a tap on its name opens its
+ * photos and a few reviews under it, Google's, credited as its terms ask
+ * (the owner's "Can we get images, and ratings, and reviews for these
+ * listings?", Google Places, 2026-10-26). Where the deployment has no
+ * Places key, the row as it was.
+ */
+function FoodRow({ field, place, along, onOpenField, onAddStop, onDirect }: {
+  field: FieldFood; place: Place; along: boolean;
+  onOpenField: (ident: string) => void; onAddStop: (field: FieldFood) => void; onDirect: (ident: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const { data: details } = useQuery(foodDetailsQuery(place.name, place.lat, place.lon));
+  const photo = details?.photos[0]?.url;
+  return (
+    <ListRow
+      data-testid="food-field"
+      media={photo ? (
+        <img src={photo} alt="" loading="lazy" className="size-11 shrink-0 rounded-xl object-cover" data-testid="food-photo" />
+      ) : (
+        <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#fde6d8] text-[#b93d0a]">
+          <Utensils className="size-5" strokeWidth={2.2} />
+        </span>
+      )}
+      title={(
+        <button
+          type="button" onClick={() => setOpen(was => !was)} aria-expanded={details ? open : undefined} disabled={!details}
+          className="text-left font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default" data-testid="food-name-open"
+        >
+          {place.name}
+        </button>
+      )}
+      description={(
+        <span className="flex flex-col gap-0.5">
+          <button
+            type="button" onClick={() => onOpenField(field.ident)} data-testid="food-field-open"
+            className="w-fit text-left font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {field.ident} · {placeWords(field.city || field.name)}
+          </button>
+          <span className="tabular-nums">
+            {place.kind} · {along ? offWords(field.off_nm) : `${Math.round(field.distance_nm)} nm ${towards(field.bearing_deg)}`}
+          </span>
+          {details?.rating != null && (
+            <span className="inline-flex items-center gap-1 tabular-nums" data-testid="food-rating">
+              <Star className="size-3.5 fill-[#f5a623] text-[#f5a623]" aria-hidden="true" />
+              <span className="sr-only">Rated </span>{stars(details.rating)}
+              {details.ratings != null && <span className="text-muted-foreground">({details.ratings.toLocaleString()})</span>}
+            </span>
+          )}
+          {open && details && (
+            <span className="mt-1.5 flex flex-col gap-2" data-testid="food-details">
+              {details.photos.length > 0 && (
+                <span className="flex gap-2 overflow-x-auto [scrollbar-width:none]">
+                  {details.photos.map(p => (
+                    <span key={p.url} className="flex shrink-0 flex-col gap-0.5">
+                      <img src={p.url} alt={place.name} loading="lazy" className="h-24 w-32 rounded-xl object-cover" />
+                      {p.credit && <span className={cn("max-w-32 truncate", TEXT.note)}>{p.credit}</span>}
+                    </span>
+                  ))}
+                </span>
+              )}
+              {details.reviews.map(r => (
+                <span key={`${r.author}-${r.when}`} className="flex flex-col gap-0.5" data-testid="food-review">
+                  <span className={cn("font-semibold text-foreground", TEXT.note)}>
+                    {r.author}{r.rating != null && ` · ${"★".repeat(Math.round(r.rating))}`}{r.when && ` · ${r.when}`}
+                  </span>
+                  <span className="line-clamp-3">{r.text}</span>
+                </span>
+              ))}
+              <span className={cn("flex items-center gap-2", TEXT.note)}>
+                {details.maps_url && (
+                  <a href={details.maps_url} target="_blank" rel="noreferrer" className="font-semibold text-tint">Open in Google Maps</a>
+                )}
+                <span className="ml-auto text-muted-foreground">Google</span>
+              </span>
+            </span>
+          )}
+        </span>
+      )}
+      // Along a route, Add Stop; round the pilot, Direct To (the owner's
+      // "On course, have a button to add stop and when showing them around
+      // current position then have the button for direct to", 2026-10-26).
+      value={along ? (
+        <button type="button" onClick={() => onAddStop(field)} data-testid="food-add-stop" aria-label={`Add ${field.ident} as a stop`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
+          Add Stop
+        </button>
+      ) : (
+        <button type="button" onClick={() => onDirect(field.ident)} data-testid="food-direct" aria-label={`Direct to ${field.ident}`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
+          Direct To
+        </button>
+      )}
+    />
+  );
+}
+
 /**
  * The map's fly-in food, its fork-and-knife button's card over FPL, at the
  * owner's pick of the redesign canvas (B, "restaurant first",
@@ -51,7 +154,8 @@ const pill = (on: boolean) => cn(
  * its button, Add Stop along the route, Direct To round the pilot.
  */
 export default function FoodCard({ name, at, route, scope, onScope, onClose, onOpenField, onAddStop, onDirect }: {
-  name: ReactNode;
+  /** Its title, the bar's ("Fly-in Food"), named to readers here. */
+  name: string;
   /** Own ship, for Within; null where it is not known. */
   at: { lat: number; lon: number } | null;
   /** The course drawn, for Along Route: its ends and stops. */
@@ -77,8 +181,13 @@ export default function FoodCard({ name, at, route, scope, onScope, onClose, onO
   const rows = (data?.fields ?? []).flatMap(field => field.food.map(place => ({ field, place })));
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="food-card">
-      <CardHead name={name} nameTestId="food-name" onClose={onClose} closeTestId="food-close" />
-      <div className="mt-2 flex gap-2" role="group" aria-label="Where to look">
+      {/* Its title the bar's alone, "Fly-in Food", at the owner's ask ("Just
+          keep the title on top", 2026-10-26); the close for the card's
+          own keys and readers (CardClose), the bar showing its own. */}
+      <CardClose onClose={onClose} testId="food-close" />
+      {/* Wider than a phone there is no bar over the card: the title here. */}
+      <h2 className={cn("sr-only font-bold tracking-tight md:not-sr-only md:mb-2", TEXT.card)} data-testid="food-name">{name}</h2>
+      <div className="flex gap-2" role="group" aria-label={`${name}: where to look`}>
         {route && (
           <button type="button" aria-pressed={along} onClick={() => onScope("route")} className={pill(along)} data-testid="food-scope-route">
             Along Route
@@ -114,40 +223,9 @@ export default function FoodCard({ name, at, route, scope, onScope, onClose, onO
         {data && (
           <ListGroup>
             {rows.map(({ field, place }) => (
-              <ListRow
-                key={`${field.ident}-${place.name}`} data-testid="food-field"
-                media={(
-                  <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#fde6d8] text-[#b93d0a]">
-                    <Utensils className="size-5" strokeWidth={2.2} />
-                  </span>
-                )}
-                title={<span className="font-semibold">{place.name}</span>}
-                description={(
-                  <span className="flex flex-col gap-0.5">
-                    <button
-                      type="button" onClick={() => onOpenField(field.ident)} data-testid="food-field-open"
-                      className="w-fit text-left font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {field.ident} · {placeWords(field.city || field.name)}
-                    </button>
-                    <span className="tabular-nums">
-                      {place.kind} · {along ? offWords(field.off_nm) : `${Math.round(field.distance_nm)} nm ${towards(field.bearing_deg)}`}
-                    </span>
-                  </span>
-                )}
-                // Along a route, Add Stop; round the pilot, Direct To (the
-                // owner's "On course, have a button to add stop and when
-                // showing them around current position then have the button
-                // for direct to", 2026-10-26).
-                value={along ? (
-                  <button type="button" onClick={() => onAddStop(field)} data-testid="food-add-stop" aria-label={`Add ${field.ident} as a stop`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
-                    Add Stop
-                  </button>
-                ) : (
-                  <button type="button" onClick={() => onDirect(field.ident)} data-testid="food-direct" aria-label={`Direct to ${field.ident}`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
-                    Direct To
-                  </button>
-                )}
+              <FoodRow
+                key={`${field.ident}-${place.name}`} field={field} place={place} along={along}
+                onOpenField={onOpenField} onAddStop={onAddStop} onDirect={onDirect}
               />
             ))}
             {rows.length === 0 && pending === 0 && (

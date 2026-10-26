@@ -5441,6 +5441,145 @@
         "title": "FlownSegment",
         "type": "object"
       },
+      "FoodDetails": {
+        "description": "A restaurant's stars, reviews and photos from Google Places, for the\nmap's fly-in food (app.routers.food_details).",
+        "properties": {
+          "maps_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maps Url"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "photos": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FoodPhoto"
+            },
+            "title": "Photos",
+            "type": "array"
+          },
+          "place_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Id"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "ratings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratings"
+          },
+          "reviews": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FoodReview"
+            },
+            "title": "Reviews",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "FoodDetails",
+        "type": "object"
+      },
+      "FoodPhoto": {
+        "description": "A restaurant's photo on Google's servers, and whom to credit.",
+        "properties": {
+          "credit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credit"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "title": "FoodPhoto",
+        "type": "object"
+      },
+      "FoodReview": {
+        "properties": {
+          "author": {
+            "title": "Author",
+            "type": "string"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "When"
+          }
+        },
+        "required": [
+          "author",
+          "text"
+        ],
+        "title": "FoodReview",
+        "type": "object"
+      },
       "Forecast": {
         "properties": {
           "min_ceiling_ft": {
@@ -16049,6 +16188,70 @@
           }
         },
         "summary": "Faa Chart Page"
+      }
+    },
+    "/api/food-details": {
+      "get": {
+        "description": "A restaurant's stars, reviews and photos from Google Places, by its\nname where Overture places it; a 404 where the deployment has no key,\nor Google finds no place there, and the card shows the row as it is.",
+        "operationId": "food_details_api_food_details_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FoodDetails"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Food Details"
       }
     },
     "/api/foreflight-pack/{route}/{file}": {

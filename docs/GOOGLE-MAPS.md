@@ -46,3 +46,27 @@ How the Google overlay works:
      `docker compose up -d planning-service`.
 
    The map's settings offer Google from the next page load.
+
+## Restaurant photos, stars and reviews (Fly-in Food)
+
+Fly-in Food shows each restaurant's photo, its stars and how many rated it,
+and, under its name, a few photos and reviews, from Google's Places API (New).
+The planner asks Google from the server, one Text Search per restaurant,
+asking only those fields; the browser then loads the photos from Google's
+own servers. Nothing is kept: Google's terms allow keeping a place's id alone.
+With no key, the rows show as before.
+
+What only the owner can do:
+
+1. In the same Google Cloud project, **enable the Places API (New)**. It is
+   billed per request after a free monthly allowance; Text Search with
+   photos and reviews is one of its dearer kinds, see Google Maps
+   Platform's pricing.
+2. **Create a second API key for the server** (the Map Tiles key above is a
+   browser key, restricted to the site's address, which Google refuses for a
+   server's call):
+   - **Application restrictions:** IP addresses, with the server's address
+     (none needed for the stack at home).
+   - **API restrictions:** the Places API (New) alone.
+3. **Give it to the stack** as `GOOGLE_PLACES_API_KEY` (the AppSecret on the
+   server, `.env` at home), then restart the planning-service.

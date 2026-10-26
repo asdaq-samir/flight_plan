@@ -71,7 +71,11 @@ public class SecurityConfig {
     // An airplane's photo on its card (web/src/lib/planePhoto.ts): asked of
     // Planespotters.net's API by the browser, as its terms have an app's
     // pages do, and its thumbnail shown from Planespotters' own server.
-    private static final String PHOTO_IMAGES = "https://t.plnspttrs.net";
+    // And a restaurant's photos in Fly-in Food, Google Places' own
+    // addresses for them (planning-service app.routers.food_details), which
+    // Google serves from these hosts.
+    private static final String PHOTO_IMAGES = "https://t.plnspttrs.net https://lh3.googleusercontent.com https://lh4.googleusercontent.com"
+            + " https://lh5.googleusercontent.com https://lh6.googleusercontent.com";
     private static final String PHOTO_CONNECT = "https://api.planespotters.net";
 
     private final boolean oauthConfigured;

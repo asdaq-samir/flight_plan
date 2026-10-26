@@ -1,7 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FieldsWithFood, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, RouteStops, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
+import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FieldsWithFood, FoodDetails, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, RouteStops, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -302,6 +302,10 @@ export const api = {
    *  map's fly-in food (FoodCard). */
   airportsFood: (lat: number, lon: number, nm: number) =>
     planner.GET("/api/airports/food", { params: { query: { lat, lon, nm } } }).then(data<FieldsWithFood>),
+  /** A restaurant's stars, reviews and photos from Google Places, by its
+   *  name where it is (FoodCard). */
+  foodDetails: (name: string, lat: number, lon: number) =>
+    planner.GET("/api/food-details", { params: { query: { name, lat, lon } } }).then(data<FoodDetails>),
   /** The fields along a route with a restaurant on the field, in route
    *  order, for the map's fly-in food while a course is drawn. */
   routeFood: (dep: string, dest: string, stops: string) =>
