@@ -36,6 +36,10 @@ export function bearingDeg(a: LatLon, b: LatLon): number {
   return (deg(Math.atan2(y, x)) + 360) % 360;
 }
 
+/** A direction brought into 0 up to 360, whatever sign or size it came
+ *  as: -10 is 350, 370 is 10. Eleven files wrote this sum out. */
+export const normalizeDeg = (d: number) => ((d % 360) + 360) % 360;
+
 /** How far apart two directions are, 0 to 180: a track off a course, a
  *  wind off a runway, an estimate off its answer round the compass (358
  *  is 4 from 002). It was written eight times, two ways. */
