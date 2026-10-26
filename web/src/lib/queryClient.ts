@@ -305,6 +305,19 @@ export const photosQuery = (ident: string) => queryOptions({
   queryKey: ["airport-photos", ident], queryFn: () => api.airportPhotos(ident), staleTime: Infinity, meta: { silent: true },
 });
 
+/** The fields round a position with food a walk from the ramp
+ *  (api.airportsFood), for the map's fly-in food: by the position to a
+ *  twentieth of a degree, asked again every two seconds while the
+ *  planner is still reading some fields' places (`pending`). */
+export const airportsFoodQuery = (lat: number, lon: number) => {
+  const at = (n: number) => Math.round(n * 20) / 20;
+  return queryOptions({
+    queryKey: ["airports-food", at(lat), at(lon)], queryFn: () => api.airportsFood(at(lat), at(lon)),
+    staleTime: 30 * 60_000, meta: { silent: true },
+    refetchInterval: query => (query.state.data?.pending ? 2000 : false),
+  });
+};
+
 /** The fields along the route to stop at (api.routeStops), for the map's
  *  Stops: asked again every two seconds while the planner is still reading
  *  some fields' places (`pending`), then kept for the route. */

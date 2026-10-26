@@ -1,10 +1,10 @@
 import { create } from "zustand";
 
 /**
- * The map's Stops, at the owner's pick of the stops canvas ("Try C",
- * 2026-10-23): a button among the map's own (StopsAlongButton) while the
- * planner has a route to look along (`available`), which opens the Stops
- * card over FPL (StopsCard), its fields pinned on the chart.
+ * The map's fly-in food: a button among the map's own (StopsAlongButton,
+ * `available`), which opens the card of the fields near the pilot with
+ * food a walk from the ramp over FPL (FoodCard), its fields pinned on the
+ * chart (the owner, 2026-10-25; it was the stops along the route).
  */
 export const useStopsAlong = create<{
   available: boolean;
@@ -23,28 +23,3 @@ export const useStopsAlong = create<{
   setAvailable: available => set(available ? { available } : { available, open: false }),
   setOpen: open => set({ open }),
 }));
-
-type FlightFigures = {
-  distance_nm: number; ete_min?: number | null; fuel_gal?: number | null; usable_fuel_gal?: number | null;
-  taxi_gal?: number | null; reserve_gal?: number | null;
-};
-type PlanTotals = FlightFigures & { hops?: { totals: FlightFigures }[] | null };
-
-/**
- * When a field along the route is reached and the fuel the airplane lands
- * there with, from its flight's own figures per mile (a route with stops,
- * each flight's: the tanks filled at each stop): `minutes` from that
- * flight's departure, `landsWithGal` the usable fuel less the start, taxi
- * and takeoff allowance and the miles flown, and `underReserve` where
- * that is less than the reserve the flight is held to (14 CFR 91.151(a)).
- * None of them where the plan has no figures yet.
- */
-export function stopFigures(field: { flight: number; from_nm: number }, totals: PlanTotals | null | undefined):
-  { minutes: number | null; landsWithGal: number | null; underReserve: boolean } {
-  const t = totals?.hops?.length ? totals.hops[field.flight]?.totals : totals;
-  if (!t || !t.distance_nm) return { minutes: null, landsWithGal: null, underReserve: false };
-  const minutes = t.ete_min != null ? field.from_nm * (t.ete_min / t.distance_nm) : null;
-  const landsWithGal = t.usable_fuel_gal != null && t.fuel_gal != null
-    ? t.usable_fuel_gal - (t.taxi_gal ?? 0) - field.from_nm * (t.fuel_gal / t.distance_nm) : null;
-  return { minutes, landsWithGal, underReserve: landsWithGal != null && t.reserve_gal != null && landsWithGal < t.reserve_gal };
-}
