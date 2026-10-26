@@ -231,9 +231,8 @@ export const CAPSULE_SEPARATOR = "before:pointer-events-none before:absolute bef
  *  the pilot's, a step up from iOS's default. */
 export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
 
-/** A tinted capsule that adds a field to the route -- the Stops card's Add
- *  (FoodCard), a suggested stop's Add Fuel Stop (FuelStopsAdd) -- one
- *  height, padding and hit area for both, where each had its own (the
+/** A tinted capsule that adds a field to the route -- Fly-in Food's Add
+ *  Stop and Direct To (FoodCard) -- one height, padding and hit area (the
  *  consistency audit, 2026-10-23): 32 points with a 44-point area round
  *  it as a pseudo-element, so the capsule is not grown to make it. */
 export const ADD_CAPSULE =

@@ -5,7 +5,7 @@ import { COURSE_MAGENTA } from "./chartColors";
 import { made } from "./icons";
 import { text } from "./airportMark";
 
-/** A way FPL's Routes offer beside the route (RouteChoices), as the map
+/** A way FPL's route line offers beside the route (its chips), as the map
  *  draws it: its line and the words on its chip. */
 export interface RouteWay {
   key: string;
@@ -86,10 +86,10 @@ const Way = memo(function Way({ way, shown, at: share, onPick }: { way: RouteWay
 });
 
 /**
- * The ways FPL's Routes offer beside the route, drawn under it in faded magenta as Maps draws the routes it did not pick, each with a chip of its
- * names and time, the one shown (FPL's Routes' card picked) at full
- * strength; a tap on either shows that way, as a tap on its card does
- * (RouteChoices), whose Use puts it in the route.
+ * The ways FPL's route line offers beside the route while it is open,
+ * drawn under it in faded magenta as Maps draws the routes it did not
+ * pick, each with a chip of its names and time, the one picked at full
+ * strength; a tap on either picks that way, as a tap on its chip does.
  */
 export const RouteWaysLayer = memo(function RouteWaysLayer({ ways = NO_WAYS, shown = null, onPick }: {
   ways?: RouteWay[];
