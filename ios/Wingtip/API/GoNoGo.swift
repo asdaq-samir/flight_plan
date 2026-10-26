@@ -107,6 +107,9 @@ struct GoNoGoAsk: Encodable, Equatable, Sendable {
     var load: AirplaneLoad?
     var ticked: [String] = []
     var currency: Currency?
+    /// The pilot's own airplane's records, for the risk assessment's
+    /// airworthiness checks; none for a stock profile.
+    var ownAirplane: OwnAirplaneAsk?
 
     /// Figures grouped as the FAA writes them, "1,500", whatever the
     /// phone's own region.
@@ -131,6 +134,46 @@ struct GoNoGoAsk: Encodable, Equatable, Sendable {
 }
 
 /// What the findings come to, in a line (VerdictLine).
+/// The planner's OwnAirplane: the gateway's records of the airplane
+/// flown, in the planner's names. The gateway works out each good-through
+/// day (14 CFR 91.409, 91.411, 91.413, 91.207, 91.171); this only carries
+/// them over.
+struct OwnAirplaneAsk: Encodable, Equatable, Sendable {
+    struct Due: Encodable, Equatable, Sendable {
+        var annualGoodThrough: String?
+        var staticCheckGoodThrough: String?
+        var transponderCheckGoodThrough: String?
+        var eltInspectionGoodThrough: String?
+        var eltBatteryDueOn: String?
+        var hoursNow: Double?
+        var hundredHourDueAtHours: Double?
+    }
+    struct Open: Encodable, Equatable, Sendable {
+        var text: String
+        var inoperative: Bool
+        var deferredFor: String?
+    }
+    struct Vor: Encodable, Equatable, Sendable {
+        var goodThrough: String
+        var withinLimit: Bool
+    }
+
+    var inspections: Due?
+    var squawks: [Open] = []
+    var vorCheck: Vor?
+
+    init(_ record: OwnAircraftRecord) {
+        inspections = record.inspections.map {
+            Due(annualGoodThrough: $0.annualGoodThrough, staticCheckGoodThrough: $0.staticCheckGoodThrough,
+                transponderCheckGoodThrough: $0.transponderCheckGoodThrough, eltInspectionGoodThrough: $0.eltInspectionGoodThrough,
+                eltBatteryDueOn: $0.eltBatteryDueOn, hoursNow: $0.hoursNow, hundredHourDueAtHours: $0.hundredHourDueAtHours)
+        }
+        // Only the squawks still open: a fixed one grounds nothing.
+        squawks = (record.openSquawks ?? []).filter { $0.fixedOn == nil }.map { Open(text: $0.text, inoperative: $0.inoperative, deferredFor: $0.deferredFor) }
+        vorCheck = record.vorCheck.map { Vor(goodThrough: $0.goodThrough, withinLimit: $0.withinLimit) }
+    }
+}
+
 struct VerdictLine: Codable, Equatable, Sendable {
     let finding: String
     let words: String

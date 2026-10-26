@@ -19,6 +19,8 @@ final class Verdict {
     private(set) var asking = false
     /// The pilot's currency from their logbook, fetched once signed in.
     private var currency: Currency?
+    /// The pilot's own airplanes, for the one flown's records.
+    private var records: [OwnAircraftRecord] = []
     private var currencyAsked = false
     private let store: UserDefaults
 
@@ -59,7 +61,8 @@ final class Verdict {
             cruiseTasKt: figures.cruiseTasKt, fuelBurnGph: figures.fuelBurnGph, usableFuelGal: figures.usableFuelGal,
             cruisePowerPct: figures.cruisePowerPct, climbTasKt: figures.climbTasKt, climbFuelBurnGph: figures.climbFuelBurnGph,
             serviceCeilingFt: figures.serviceCeilingFt,
-            day: GoNoGoAsk.day(today), minimums: minimums, load: loads[plan.aircraft], ticked: ticked.sorted(), currency: currency)
+            day: GoNoGoAsk.day(today), minimums: minimums, load: loads[plan.aircraft], ticked: ticked.sorted(), currency: currency,
+            ownAirplane: records.first { $0.tailNumber == plan.tail }.map(OwnAirplaneAsk.init))
     }
 
     /// Asks the planner again, once the nav log has come to an end, and
@@ -72,6 +75,7 @@ final class Verdict {
         if signedIn, !currencyAsked {
             currencyAsked = true
             currency = try? await Gateway.currency()
+            records = (try? await Gateway.aircraftRecords()) ?? []
         }
         asking = true
         defer { asking = false }

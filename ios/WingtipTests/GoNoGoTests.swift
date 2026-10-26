@@ -125,3 +125,25 @@ struct GoNoGoTests {
         #expect(FindingStyle.symbol("pending") != FindingStyle.symbol("unknown"))
     }
 }
+
+struct OwnAirplaneAskTests {
+    /// The gateway's record goes to the planner in the planner's names,
+    /// open squawks only.
+    @Test func theRecordsInThePlannersNames() throws {
+        let json = """
+        {"id":7,"tailNumber":"N3429J","typeDesignator":"P28A","cruiseTasKt":108,"fuelBurnGph":8.4,
+         "inspections":{"annualOn":"2026-03-02","annualGoodThrough":"2027-03-31","hoursNow":4210.5,"hundredHourDueAtHours":4280},
+         "openSquawks":[{"id":1,"reportedOn":"2026-10-01","text":"Nav light out","inoperative":true,"deferredFor":"91.213(d)"},
+                        {"id":2,"reportedOn":"2026-09-01","text":"Door seal","inoperative":false,"fixedOn":"2026-09-20"}],
+         "vorCheck":{"checkedOn":"2026-10-10","errorDeg":2,"goodThrough":"2026-11-09","kind":"vot","limitDeg":4,"withinLimit":true}}
+        """
+        let record = try JSONDecoder().decode(OwnAircraftRecord.self, from: Data(json.utf8))
+        let body = try JSONSerialization.jsonObject(with: GoNoGoAsk.encoder.encode(OwnAirplaneAsk(record))) as! [String: Any]
+        let inspections = body["inspections"] as! [String: Any]
+        #expect(inspections["annual_good_through"] as? String == "2027-03-31")
+        #expect(inspections["hundred_hour_due_at_hours"] as? Double == 4280)
+        let squawks = body["squawks"] as! [[String: Any]]
+        #expect(squawks.count == 1 && squawks[0]["deferred_for"] as? String == "91.213(d)")
+        #expect((body["vor_check"] as! [String: Any])["within_limit"] as? Bool == true)
+    }
+}
