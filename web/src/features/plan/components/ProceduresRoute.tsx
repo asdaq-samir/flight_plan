@@ -8,6 +8,7 @@ import CloseButton from "../../../components/CloseButton";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
+import { Skeleton } from "../../../components/ui/skeleton";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
 import { useMinuteClock, zuluTime } from "../../../lib/clock";
@@ -1356,7 +1357,12 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
     <div ref={line} className="flex items-center gap-2" data-testid="procedure-patterns">
       {a.runways === null ? (
         <>
-          <p role="status" className={cn("px-1 text-muted-foreground", TEXT.detail)}>Fetching the runways…</p>
+          {/* The runways' chips in outline while they come (the style
+              audit, 2026-10-26), their words for a screen reader. */}
+          <span role="status" className="flex items-center gap-2">
+            <span className="sr-only">Fetching the runways…</span>
+            {[0, 1, 2].map(k => <Skeleton key={k} aria-hidden="true" className="h-8 w-11 rounded-full" />)}
+          </span>
           {trailing}
         </>
       ) : (
