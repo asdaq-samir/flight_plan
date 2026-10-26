@@ -526,7 +526,10 @@ class AltitudeSegment(BaseModel):
     #: whether the leg is over a mountainous area (Part 95), and 2,000 ft
     #: there, 1,000 elsewhere. Under VFR (vfr.terrain, 14 CFR 91.119) the
     #: one whose top and clearance are highest: 1,000 ft over or within
-    #: 2,000 ft of a congested area (91.119(b)), 500 ft elsewhere (91.119(c)).
+    #: 2,000 ft of a congested area (91.119(b)), 500 ft elsewhere (91.119(c)):
+    #: 91.119's own minimum, which a caution measures a pilot's altitude
+    #: against. The VFR floor is at or above it, the ground taking the
+    #: planner's 1,000 ft everywhere.
     highest_ft: float | None = None
     highest_is_obstacle: bool | None = None
     mountainous: bool | None = None

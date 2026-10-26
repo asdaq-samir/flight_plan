@@ -607,11 +607,11 @@ def select_cruise_altitude(
 
 
 def _vfr_floor(floor: "terrain.SegmentFloor") -> dict:
-    """What a leg's VFR floor rests on, for a caution to name (app.planning.
-    own_altitude_caution): the ground or the DOF obstacle, its height, and
-    14 CFR 91.119's clearance over it -- 1,000 ft over a congested area
-    ((b)), 500 elsewhere ((c)); `congested` None where the towns could not
-    be read and it took the 1,000 ft."""
+    """14 CFR 91.119's own minimum over a leg, for a caution to measure a
+    pilot's altitude against (app.planning.floor_caution): the ground or
+    the DOF obstacle, its height, and 91.119's clearance over it -- 1,000
+    ft over a congested area ((b)), 500 elsewhere ((c)); `congested` None
+    where the towns could not be read and it took the 1,000 ft."""
     return {
         "highest_ft": floor.highest_ft,
         "highest_is_obstacle": floor.highest_is_obstacle,

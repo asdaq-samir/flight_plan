@@ -14,20 +14,31 @@ The clearances are 14 CFR 91.119's (eCFR, current to 2026-10-22):
   cases, the aircraft may not be operated closer than 500 feet to any
   person, vessel, vehicle, or structure.
 
-So the ground and each DOF obstacle get 1,000 ft where they are over or
-within 2,000 ft of a congested area (vfr.congested: the Census urban
-areas and gazetteer places), and 500 ft elsewhere -- above an obstacle
-too, since 500 ft from a structure is at least that over its top. Over
-sparsely populated land 91.119(c) asks only the 500 ft from structures,
-not over the surface; the floor keeps 500 ft over the surface there as
-well, the simpler and safer reading. Where the towns cannot be read,
-every point takes 1,000 ft. 91.119(a)'s altitude for a power-off landing
-"without undue hazard" has no figure, and is the pilot's.
+The floor is the higher of two figures:
 
-The floor used to be 1,000 ft over the ground everywhere, as nothing could
-tell a town from a field, and only 100 ft over a DOF obstacle, the
-sectional MEF's measurement buffer: a plan could cross a tower in a town
-at 100 ft over its top, where 91.119(b) asks 1,000.
+- The ground plus 1,000 ft everywhere (PLANNING_GROUND_MARGIN_FT): the
+  owner's planning margin for the altitude plans ("every 500 ft below
+  3,000 AGL over a floor 1,000 ft above the ground"), above 91.119(c)'s
+  500 ft over open country and equal to (b)'s over a town.
+- Each DOF obstacle's top plus 91.119's clearance for where it stands:
+  1,000 ft over or within 2,000 ft of a congested area (vfr.congested: the
+  Census urban areas and gazetteer places), and 500 ft elsewhere, since
+  500 ft from a structure is at least that over its top. Where the towns
+  cannot be read, every obstacle takes 1,000 ft, the safer answer.
+
+91.119's own minimum -- the ground or obstacle plus its clearance, with
+the ground's 500 ft over open country -- is kept beside the floor (the
+SegmentFloor's highest_ft and clearance_ft) for a caution to measure a
+pilot's own altitude against: between 500 and 1,000 ft over open fields is
+legal, under the planner's floor but not 91.119. Over sparsely populated
+land 91.119(c) asks only the 500 ft from structures, not over the surface;
+the minimum keeps 500 ft over the surface there as well, the simpler and
+safer reading. 91.119(a)'s altitude for a power-off landing "without undue
+hazard" has no figure, and is the pilot's.
+
+The floor used to take only 100 ft over a DOF obstacle, the sectional
+MEF's measurement buffer: a plan could cross a tower in a town at 100 ft
+over its top, where 91.119(b) asks 1,000.
 
 Like a sectional's Maximum Elevation Figure it is the highest of those,
 rounded up to the next 100 ft, but computed continuously along the actual
@@ -35,8 +46,8 @@ route line (every cell of vfr.ground_grid it crosses, else every
 SAMPLE_INTERVAL_NM), not gridded to a fixed 30-minute quadrangle, so it
 doesn't dilute a single tall feature across a whole quadrangle the way
 the printed chart figure does. It is what the planner suggests, never a
-limit: a pilot's own altitude under it is flown with a caution
-(app.planning.own_altitude_caution).
+limit: a pilot's own altitude under 91.119's minimum is flown with a
+caution (app.planning.floor_caution).
 """
 import threading
 from pathlib import Path
@@ -56,6 +67,9 @@ CONGESTED_CLEARANCE_FT = 1000
 #: 14 CFR 91.119(c): 500 ft above the surface, and no closer than 500 ft to
 #: any structure, elsewhere.
 OTHER_CLEARANCE_FT = 500
+#: The floor's own margin over the ground, everywhere: the owner's for the
+#: altitude plans (a floor 1,000 ft above the ground), over 91.119(c)'s 500.
+PLANNING_GROUND_MARGIN_FT = 1000
 
 DEFAULT_FAA_CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "raw" / "faa_nasr"
 
@@ -110,11 +124,13 @@ class SegmentFloor(NamedTuple):
     ground under it (MSL): 3,000 ft above that is where 14 CFR 91.159's
     hemispheric rule begins to apply over the whole segment.
 
-    And what the floor rests on, for a caution to name: the ground or the
-    DOF obstacle whose top plus its clearance is highest, its height MSL,
-    the obstacle's DOF type (TOWER, BLDG ...), the clearance it takes, and
-    whether that is for a congested area (91.119(b)) -- None where the
-    towns could not be read and it took 91.119(b)'s 1,000 ft anyway."""
+    And 14 CFR 91.119's own minimum there, for a caution to measure a
+    pilot's altitude against: the ground or the DOF obstacle whose top
+    plus 91.119's clearance is highest, its height MSL, the obstacle's DOF
+    type (TOWER, BLDG ...), that clearance, and whether it is for a
+    congested area (91.119(b)) -- None where the towns could not be read
+    and it took the 1,000 ft anyway. The floor is at or above it: the
+    ground takes the planner's 1,000 ft everywhere."""
 
     floor_ft: float
     lowest_ground_ft: float
@@ -214,9 +230,10 @@ def floor_profile(
         obstacle_types = np.empty(0, dtype=object)
 
     # The ground under the line and each obstacle near it, over a town or
-    # not (vfr.congested), one read for both: where the towns cannot be
-    # read, all of it is taken as congested -- 91.119(b)'s 1,000 ft, the
-    # safer answer -- and said to be unknown (None).
+    # not (vfr.congested), one read for both, for 91.119's clearances: where
+    # the towns cannot be read, all of it is taken as congested -- 91.119(b)'s
+    # 1,000 ft, the safer answer -- and said to be unknown (None). The
+    # floor's own 1,000 ft over the ground is added after, whatever this says.
     over_town = congested.congested(np.concatenate([lats, obstacle_lats]), np.concatenate([lons, obstacle_lons]))
     known = over_town is not None
     if over_town is None:
@@ -242,8 +259,9 @@ def floor_profile(
                 bound = (float(obstacle_ft[j]), True, kind.strip() or None if isinstance(kind, str) else None,
                          float(obstacle_clearance[j]))
         highest, is_obstacle, kind, need = bound
+        floor = max(float(terrain_ft[here].max()) + PLANNING_GROUND_MARGIN_FT, highest + need)
         floors.append(SegmentFloor(
-            _round_up_100(highest + need), float(terrain_low_ft[here].min()),
+            _round_up_100(floor), float(terrain_low_ft[here].min()),
             highest_ft=round(highest), highest_is_obstacle=is_obstacle, obstacle_type=kind, clearance_ft=need,
             congested=(need == CONGESTED_CLEARANCE_FT) if known else None,
         ))

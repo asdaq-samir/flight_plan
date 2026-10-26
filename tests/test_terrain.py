@@ -119,13 +119,26 @@ def towns(monkeypatch):
 # congested areas; (b): "1,000 feet above the highest obstacle within a
 # horizontal radius of 2,000 feet" over one.
 
-def test_flat_ground_away_from_towns_is_500_ft_over_it(ground, towns, tmp_path):
+def test_flat_ground_away_from_towns_keeps_the_planners_1000_over_91_119s_500(ground, towns, tmp_path):
     ground()
     towns(lambda lat, lon: False)
     (segment,) = terrain.floor_profile(START, END, [0.0, TOTAL_NM], faa_cache_dir=tmp_path)
-    # 984 ft of ground and 91.119(c)'s 500, rounded up to the hundred.
-    assert segment.floor_ft == 1500
+    # The floor: 984 ft of ground and the owner's 1,000 ft planning margin.
+    assert segment.floor_ft == 2000
+    # 91.119(c)'s own minimum beside it, 500 ft over the ground, for a
+    # caution: a pilot's 1,500 ft there is legal.
     assert (segment.highest_is_obstacle, segment.clearance_ft, segment.congested) == (False, 500, False)
+    assert segment.highest_ft + segment.clearance_ft == 1484
+
+
+def test_a_tower_in_the_fields_under_the_planners_margin_is_still_91_119s_minimum(ground, towns, tmp_path):
+    # A 1,400 ft top needs 1,900 by 91.119(c), the ground 1,484: the
+    # tower is the minimum, the floor the ground's 1,984 rounded up.
+    ground(_dof_line(*_at(20.0), amsl_ft=1400))
+    towns(lambda lat, lon: False)
+    (segment,) = terrain.floor_profile(START, END, [0.0, TOTAL_NM], faa_cache_dir=tmp_path)
+    assert segment.floor_ft == 2000
+    assert (segment.highest_ft, segment.highest_is_obstacle, segment.clearance_ft) == (1400, True, 500)
 
 
 def test_flat_ground_over_a_town_is_1000_ft_over_it(ground, towns, tmp_path):
