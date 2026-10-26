@@ -12,6 +12,7 @@ struct SetupView: View {
     @AppStorage(MapExtrasInput.Keys.waypoints) private var waypointsOn = false
     @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
     @AppStorage(MapExtrasInput.Keys.plates) private var platesOn = true
+    @AppStorage(ChartNight.key) private var chartNight = ChartNight.dimmed.rawValue
 
     var body: some View {
         NavigationStack {
@@ -53,6 +54,12 @@ struct SetupView: View {
                     Toggle("Approach plates", isOn: $platesOn)
                 }
                 Section("Chart") {
+                    // The white paper chart dimmed in dark appearance, so it
+                    // does not take the pilot's night vision: a menu of two,
+                    // as the web app's Settings has it.
+                    Picker("Chart at night", selection: $chartNight) {
+                        ForEach(ChartNight.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
                     if let info = charts.info {
                         LabeledContent("Edition", value: info.chartCycle)
                         if let base = charts.base { LabeledContent("Layer", value: base.label) }

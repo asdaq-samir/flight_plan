@@ -25,8 +25,9 @@ interface Props {
  */
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object.
-const CASING: L.PathOptions = { color: "#ffffff", weight: 5.5, opacity: 0.85, interactive: false };
-const CORE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, interactive: false };
+// Their classes for the night's colours over a dimmed chart (index.css).
+const CASING: L.PathOptions = { color: "#ffffff", weight: 5.5, opacity: 0.85, interactive: false, className: "course-casing" };
+const CORE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, interactive: false, className: "course-core" };
 const HIT: L.PathOptions = { color: "#000", weight: 18, opacity: 0, lineCap: "butt", bubblingMouseEvents: false };
 const HIT_PASSING: L.PathOptions = { ...HIT, bubblingMouseEvents: true };
 
