@@ -235,6 +235,10 @@ def route_food(dep: str, dest: str, stops: str = "") -> FieldsWithFood:
     found = fuelstops.along([(f.dep_ident, f.start, f.end) for f in r.flights], skip=set(r.idents))
     out, pending = [], 0
     for field in found:
+        # Not the airline airports, as round the pilot: Detroit's food is
+        # past security, not a fly-in lunch (its first answer along a route).
+        if (airports.find_place(field["ident"]) or {}).get("kind") == "large":
+            continue
         food = _food_of(field)
         if food is None:
             pending += 1

@@ -62,5 +62,18 @@ def test_fields_with_food_along_a_route_in_route_order(monkeypatch):
               "added_nm": 5.0, "flight": 0}]
     monkeypatch.setattr(router.fuelstops, "along", lambda flights, skip=None: along)
     monkeypatch.setattr(router.nearby, "kept", lambda ident: {"food": [DINER] if ident == "KBBB" else [ACROSS]})
+    monkeypatch.setattr(router.airports, "find_place", lambda ident: {"kind": "small"})
     answer = TestClient(app).get("/api/route-food?dep=C81&dest=KDLH").json()
     assert [(f["ident"], f["distance_nm"], f["added_nm"], f["departure"]) for f in answer["fields"]] == [("KBBB", 150.0, 5.0, "C81")]
+
+
+def test_no_airline_airport_along_a_route(monkeypatch):
+    from types import SimpleNamespace
+    flight = SimpleNamespace(dep_ident="C81", start=(42.3, -88.1), end=(42.2, -83.0))
+    monkeypatch.setattr(router, "load_route", lambda dep, dest, stops="": SimpleNamespace(flights=[flight], idents=("C81", "KDET")))
+    along = [{"ident": "KDTW", "name": "Detroit Metro", "city": "Detroit", "lat": 42.2, "lon": -83.35, "departure": "C81",
+              "from_nm": 206.0, "added_nm": 0.3, "flight": 0}]
+    monkeypatch.setattr(router.fuelstops, "along", lambda flights, skip=None: along)
+    monkeypatch.setattr(router.nearby, "kept", lambda ident: {"food": [DINER]})
+    monkeypatch.setattr(router.airports, "find_place", lambda ident: {"kind": "large"})
+    assert TestClient(app).get("/api/route-food?dep=C81&dest=KDET").json()["fields"] == []
