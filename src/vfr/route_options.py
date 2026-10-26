@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import heapq
 import math
+import re
 import time
 from datetime import datetime, timezone
 
@@ -906,6 +907,46 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
     }
 
 
+#: How far from a turn a fix is looked for to turn at instead, nm, and
+#: how many minutes it may add: the planner's own figures, a fix a pilot
+#: can load beating a point of their own off one for a few miles more.
+SNAP_NM = 8.0
+SNAP_MIN = 3.0
+
+
+def _fix_for_turn(grid: _Grid, gs: np.ndarray, before: tuple, turn: tuple, after: tuple) -> dict | None:
+    """The nearest fix within SNAP_NM of a turn -- a navaid, a VFR or GPS
+    waypoint -- that keeps the two legs either side of it over no more
+    closed, marginal or offshore cells than the turn's own, and no more
+    than SNAP_MIN slower; None where none does."""
+    dlat = SNAP_NM / 60.0
+    dlon = SNAP_NM / (60.0 * max(0.1, math.cos(math.radians(turn[0]))))
+    near = [f for f in fixes.within(turn[0] - dlat, turn[1] - dlon, turn[0] + dlat, turn[1] + dlon)
+            if re.fullmatch(r"[A-Z0-9]{2,5}", f["ident"])]
+    if not near:
+        return None
+
+    def cost(points: list[tuple]) -> tuple:
+        cells = [c for a, b in zip(points, points[1:]) for c in grid.line_cells(a, b)]
+        return (sum(1 for c in cells if not grid.open(c)), sum(1 for c in cells if grid.marginal[c] >= 0),
+                sum(float(grid.offshore[c]) for c in cells))
+
+    own = cost([before, turn, after])
+    minutes = _line_minutes(grid, gs, before, turn) + _line_minutes(grid, gs, turn, after)
+    ranked = sorted(near, key=lambda f: float(geo.distance_nm(turn[0], turn[1], f["lat"], f["lon"])))
+    for fix in ranked:
+        at = (fix["lat"], fix["lon"])
+        if float(geo.distance_nm(turn[0], turn[1], at[0], at[1])) > SNAP_NM:
+            break
+        closed, marginal, offshore = cost([before, at, after])
+        if closed > own[0] or marginal > own[1] or offshore > own[2] + 0.5:
+            continue
+        if _line_minutes(grid, gs, before, at) + _line_minutes(grid, gs, at, after) > minutes + SNAP_MIN:
+            continue
+        return fix
+    return None
+
+
 def _no_fuel(grid: _Grid) -> int:
     """The hazard said on a way no chain of fields with fuel reaches."""
     return grid.hazard("fuel", f"No field with fuel within {STOP_FIELD_NM:.0f} nm reaches")
@@ -922,7 +963,16 @@ def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: l
     for a, b in zip(turns, turns[1:]):
         along.append(along[-1] + _line_minutes(grid, gs, a, b))
     points: list[tuple[float, dict]] = []
-    for at, turn in zip(along[1:-1], turns[1:-1]):
+    for i, (at, turn) in enumerate(zip(along[1:-1], turns[1:-1]), start=1):
+        # A fix a pilot can load near the turn, where one keeps the way as
+        # clear and nearly as quick, the turn moved onto it; else a point
+        # of the pilot's own off the nearest fix (the owner's "Isn't there
+        # a gps fix nearby pos1, 2, 3 etc that we can use?", 2026-10-25).
+        fix = _fix_for_turn(grid, gs, turns[i - 1], turn, turns[i + 1])
+        if fix is not None:
+            turns[i] = (fix["lat"], fix["lon"])
+            points.append((at, {"ident": fix["ident"], "lat": fix["lat"], "lon": fix["lon"], "fuel": False}))
+            continue
         named = fixes.frd_near(turn[0], turn[1])
         ident = named["ident"] if named is not None else f"@{turn[0]:.4f},{turn[1]:.4f}"
         points.append((at, {"ident": ident, "lat": turn[0], "lon": turn[1], "fuel": False}))
