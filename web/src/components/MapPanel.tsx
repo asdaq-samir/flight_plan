@@ -585,12 +585,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     }
     const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
     onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up });
+    const body = document.body;
+    body.style.setProperty("--sheet-cover", `${fromBottom && onPhone ? strip : 0}px`);
     if (!onPhone || !fromBottom) return;
-    // And again once it has come to rest, from where the sheet's foot
-    // really is over the map's: on the owner's iPhone, Safari's toolbar
-    // made the gap under the pill other than the one asked for, and the
-    // map's buttons, which ride on this, stood 100 points over the pill
-    // (the owner's screenshot, 2026-10-26).
+    // For the map's buttons alone (--sheet-cover, MapControls), not the
+    // map's fit: once it has come to rest, what it covers taken again from
+    // where the sheet's foot really is over the map's. On the owner's
+    // iPhone, Safari's toolbar made the gap under the pill other than the
+    // one asked for, and the buttons stood 100 points over the pill (the
+    // owner's screenshot, 2026-10-26); refitting the map then moved the
+    // chart under them after every settle.
     const timer = window.setTimeout(() => {
       const sheet = document.querySelector<HTMLElement>("[data-slot=map-panel]");
       const map = document.getElementById("content");
@@ -599,7 +603,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       // viewport for the map than for the fixed sheet).
       const gap = Math.round(map.getBoundingClientRect().bottom - sheet.getBoundingClientRect().bottom);
       const measured = Math.max(0, (expanded ? detents.half : peek) + gap);
-      if (Math.abs(measured - strip) > 1) onInsetsChange({ top: 0, bottom: measured, left: 0, out, up });
+      body.style.setProperty("--sheet-cover", `${measured}px`);
     }, SHEET_SECONDS * 1000 + 100);
     return () => window.clearTimeout(timer);
   }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange, expanded, detents.half]);

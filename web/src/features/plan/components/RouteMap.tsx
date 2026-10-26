@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import L from "leaflet";
 import { CircleMarker, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
@@ -420,20 +420,31 @@ const DOT_ROOM = 30;
  */
 function useSpaced(selected: Candidate[], airports: { lat: number; lon: number }[]): Set<string> {
   const map = useMap();
-  const view = useScreenView();
+  const zoom = useRestZoom();
   return useMemo(() => {
-    void view;
-    const marks = airports.map(a => map.latLngToContainerPoint([a.lat, a.lon]));
+    const marks = airports.map(a => map.project([a.lat, a.lon], zoom));
     const kept: L.Point[] = [];
     const out = new Set<string>();
     for (const c of selected) {
-      const p = map.latLngToContainerPoint([c.lat, c.lon]);
+      const p = map.project([c.lat, c.lon], zoom);
       if (kept.some(k => k.distanceTo(p) < DOT_ROOM) || marks.some(m => m.distanceTo(p) < AIRPORT_MARK)) continue;
       kept.push(p);
       out.add(`${c.lat},${c.lon}`);
     }
     return out;
-  }, [selected, airports, view, map]);
+  }, [selected, airports, zoom, map]);
+}
+
+/** The zoom the map has come to rest at: what spaces the route's marks is
+ *  worked out once a zoom has ended, not at its start, where the marks
+ *  added and taken away in the middle of Leaflet's zoom shook on the
+ *  chart (the owner's notice, 2026-10-26). Distances at a zoom are the
+ *  same wherever the map is centred (project). */
+function useRestZoom(): number {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents(useMemo(() => ({ zoomend: () => setZoom(map.getZoom()) }), [map]));
+  return zoom;
 }
 
 /** A checkpoint's name as its label shows it: its ForeFlight waypoint's,
@@ -504,22 +515,21 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
   // climb's TOC and the next leg's lay on one another (the style audit,
   // 2026-10-26); closer in, every one.
   const map = useMap();
-  const view = useScreenView();
+  const zoom = useRestZoom();
   const roomy = useMemo(() => {
-    void view;
     const kept: L.Point[] = [];
     const out = new Set<string>();
     legs.forEach((leg, i) => {
       for (const [key, at] of [[`toc-${i}`, leg.toc], [`tod-${i}`, leg.tod]] as const) {
         if (!at) continue;
-        const p = map.latLngToContainerPoint([at.lat, at.lon]);
+        const p = map.project([at.lat, at.lon], zoom);
         if (kept.some(k => Math.abs(k.x - p.x) < PILL_ROOM.x && Math.abs(k.y - p.y) < PILL_ROOM.y)) continue;
         kept.push(p);
         out.add(key);
       }
     });
     return out;
-  }, [legs, map, view]);
+  }, [legs, map, zoom]);
   return (
     <>
       {legs.flatMap((leg, i) => [

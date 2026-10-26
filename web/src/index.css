@@ -711,6 +711,15 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
   border-color: transparent;
 }
 
+/* With the phone's sheet all the way up, the progress line gives way as
+   the map's buttons do: at the top of the screen it lay over the sheet's
+   tabs (the style audit, 2026-10-26), and the sheet shows the plan coming
+   in itself. */
+body[data-map-sheet][data-map-panel="full"] [data-sonner-toast][data-type="loading"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Reduce Motion, honoured: sheets and popovers arrive, sections open,
    the map zooms and the spinners hold still, all without the motion.
    The durations are near zero rather than none, so the events the

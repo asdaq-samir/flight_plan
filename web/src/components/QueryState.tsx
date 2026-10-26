@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { Skeleton } from "./ui/skeleton";
 import { ListRow } from "./GroupedList";
 import { FINDING_TONE } from "../lib/status";
 import { TEXT } from "../lib/text";
@@ -45,10 +46,18 @@ export default function QueryState({ query, fetching, failed, row = false }: {
       ? <ListRow title={<span role="alert" className={cn(FINDING_TONE.stop, TEXT.detail)}>{words}</span>} />
       : <p role="alert" className={cn("px-1", FINDING_TONE.stop, TEXT.note)}>{words}</p>;
   }
+  // While it comes: the shape of what is coming, its words for a screen
+  // reader, where a grey line of "Fetching…" read as unfinished (the style
+  // audit, 2026-10-26).
   if (query.isLoading || query.isError) {
-    return row
-      ? <ListRow title={<span role="status" className={cn("text-muted-foreground", TEXT.detail)}>{fetching}</span>} />
-      : <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>{fetching}</p>;
+    const bars = (
+      <span role="status" className="flex w-full flex-col gap-2 py-1">
+        <span className="sr-only">{fetching}</span>
+        <Skeleton aria-hidden="true" className="h-4 w-3/5" />
+        <Skeleton aria-hidden="true" className="h-3 w-2/5" />
+      </span>
+    );
+    return row ? <ListRow title={bars} /> : <div className="px-1">{bars}</div>;
   }
   return null;
 }
