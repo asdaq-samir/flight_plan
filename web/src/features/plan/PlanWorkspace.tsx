@@ -33,6 +33,7 @@ import type { PanelState } from "../../components/mapChrome";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePlanHistory } from "../../hooks/use-plan-history";
+import { rebasedRoute } from "../../lib/routeRebase";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import type { RouteCard } from "../../lib/openCards";
@@ -1174,7 +1175,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the other still to be typed -- and with neither, there is no route:
   // FPL's box empty to type another in, the panel left the height it was,
   // as the route's close leaves it (clearRoute).
-  const setRoute = useCallback(({ dep, stops, dest }: RouteParts, fuelAdded: string[] = [], keepLists = false) => {
+  // An edit is worked out from the route this render drew; made while the
+  // address is a change ahead of it, it is carried onto the address's
+  // route (lib/routeRebase), never written over it.
+  const drawnDep = planned.dep, drawnDest = planned.dest;
+  const setRoute = useCallback((parts: RouteParts, fuelAdded: string[] = [], keepLists = false) => {
+    const { dep, dest } = parts;
+    const drawn = { dep: drawnDep, stops, dest: drawnDest };
     if (!dep && !dest) {
       setSearchParams({}, { replace: true });
       return;
@@ -1183,10 +1190,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // has drawn it: the draw is half a second of a phone's before the
     // plan's own requests went (measured 2026-10-07), and the course's
     // answer starts the planner's chart read and ground (app.prefetch).
-    const via = stopsOf(stops.join(","));
+    const via = stopsOf(parts.stops.join(","));
     const whole = routeOf(dep, dest, via);
     if (whole) void queryClient.prefetchQuery(courseQuery(whole.dep, whole.dest, via));
     setSearchParams(prev => {
+      const { dep, stops, dest } = rebasedRoute(drawn, parts, { dep: departureOf(prev.get("dep")), stops: stopsOf(prev.get("stops")), dest: identOf(prev.get("dest")) });
       // What was picked at a field goes with it out of the route -- its
       // runways, procedures, altitude, time on the ground and hold -- in
       // the same change, so the planner is not asked once with them.
@@ -1203,7 +1211,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         .filter((id, i, all) => id && all.indexOf(id) === i && stops.some(stop => sameField(stop, id)));
       return patched(prev, { dep, dest, stops: stops.join(","), ...fieldListParams(kept), direct: null, was: null, fuel: fuel.length ? fuel.join(",") : null });
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [setSearchParams, drawnDep, stops, drawnDest]);
   // An airport's card's Add Stop, at the pilot's ask: the field the
   // route's next stop, after the ones it makes and before its destination
   // (it was Add to Route, the field the new destination); with half a
