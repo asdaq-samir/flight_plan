@@ -54,8 +54,7 @@ test("with a course drawn, the map's food button opens the airports along it wit
   // Along the route (the owner's "when a course is drawn then look for
   // fly in food along the route"): how far along and the miles it adds.
   await expect(card).toContainText("At the airports along the route");
-  await expect(rows.nth(0)).toContainText("12 nm from C81");
-  await expect(rows.nth(0)).toContainText("+2 nm");
+  await expect(rows.nth(0)).toContainText("12 nm from C81 · 2 nm detour");
   await expect(rows.nth(1)).toContainText("Kitty Hawk Cafe · Cafe");
   await expect(page.getByTitle("KBBB, a restaurant on the field")).toHaveCount(1);
 
