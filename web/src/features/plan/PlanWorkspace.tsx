@@ -2347,6 +2347,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // with no log yet: with no route the figure typed went blank, as
           // if it were not taken, where the route entered next flies it.
           commanded={(s.replanning || !s.nav) && altitudeFt ? Number(altitudeFt) : null}
+          asked={altitudeFt ? { ft: Number(altitudeFt), nearest: altitudeNearest } : null}
           problem={!!unflyable}
           // What the altitude was planned within, marked on the group, said
           // in the Profile card (AltitudeProfile).
@@ -2363,7 +2364,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, pickTail, openAirplaneCard, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
-    routed, depart, changeDepart, flightRules, s.replanning, altitudeFt]);
+    routed, depart, changeDepart, flightRules, s.replanning, altitudeFt, altitudeNearest]);
 
   // Saving the flight, the narrative and Print.
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
