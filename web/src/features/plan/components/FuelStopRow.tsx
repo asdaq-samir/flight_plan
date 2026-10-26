@@ -160,6 +160,26 @@ export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, us
 }
 
 /**
+ * Where suggested stops were taken out (FuelStopsAdd's minus, the chip's
+ * Remove): one tap puts them back in the list and the route's box, at the
+ * owner's ask ("when the fuel stops are deleted, we still want to be able
+ * to add them back", 2026-10-25), as the route's menu's Show Fuel Stops
+ * does.
+ */
+export function FuelStopsHidden({ count, onShow, reason = "fuel" }: { count: number; onShow: () => void; reason?: "fuel" | "break" }) {
+  return (
+    <li className="relative flex gap-2.5">
+      <div className="w-7 shrink-0" />
+      <div className="min-w-0 flex-1 pb-4">
+        <button type="button" onClick={onShow} data-testid="fuel-stop-show" className={ADD_CAPSULE}>
+          {reason === "break" ? "Show Suggested Stop" : count === 1 ? "Show Fuel Stop" : `Show ${count} Fuel Stops`}
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/**
  * The suggested stops put in the route, one tap after the last of them,
  * as Tesla's trip is sent to the car: "Add Fuel Stop", or "Add 2 Fuel
  * Stops", in the tint -- an action's words in Title Case, as iOS sets a
