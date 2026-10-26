@@ -126,11 +126,11 @@ export default function FoodCard({ name, at, route, onClose, onOpenField, onAddS
                 // showing them around current position then have the button
                 // for direct to", 2026-10-26).
                 value={route ? (
-                  <button type="button" onClick={() => onAddStop(field)} data-testid="food-add-stop" aria-label={`Add ${field.ident} as a stop`} className={ADD_CAPSULE}>
+                  <button type="button" onClick={() => onAddStop(field)} data-testid="food-add-stop" aria-label={`Add ${field.ident} as a stop`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
                     Add Stop
                   </button>
                 ) : (
-                  <button type="button" onClick={() => onDirect(field.ident)} data-testid="food-direct" aria-label={`Direct to ${field.ident}`} className={ADD_CAPSULE}>
+                  <button type="button" onClick={() => onDirect(field.ident)} data-testid="food-direct" aria-label={`Direct to ${field.ident}`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
                     Direct To
                   </button>
                 )}

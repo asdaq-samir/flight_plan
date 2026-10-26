@@ -47,6 +47,10 @@ REACH_M = 8000.0
 #: 80 m a minute, fifteen minutes.
 WALK_M = 1200.0
 WALK_M_PER_MIN = 80.0
+#: A company's registered name filed under restaurants -- "Team Advantage
+#: Inc", "Kobev International Inc" at Aurora, "Tailwind Eri Llc" at Erie
+#: (the owner's screenshot, 2026-10-26) -- not somewhere to eat.
+_COMPANY = re.compile(r"\b(inc|llc|l\.l\.c|corp|corporation|co|ltd|lp|llp|pllc|holdings|enterprises)\.?$", re.IGNORECASE)
 #: The least Overture's own confidence that a place exists as listed:
 #: under it, the listings near Hays were LLCs and stale entries.
 MIN_CONFIDENCE = 0.7
@@ -66,10 +70,10 @@ LODGING = {"hotel", "bed_and_breakfast", "resort", "inn", "motel"}
 #: A car to hire.
 CARS = {"car_rental_service"}
 
-#: Each field's answer's file name after its ident: ".4.json" since
+#: Each field's answer's file name after its ident: ".5.json" since
 #: places to eat say whether they are on the field, so those kept before
 #: are read again.
-KEPT_SUFFIX = ".4.json"
+KEPT_SUFFIX = ".5.json"
 #: A place to eat is on the field inside Overture's outline of the airport
 #: (its base theme's infrastructure, subtype airport: OpenStreetMap's
 #: aerodrome); where the field has no outline, this near its reference
@@ -214,7 +218,7 @@ def _read(lat: float, lon: float, release: str) -> dict:
             continue
         kind = _kind_of(row.get("taxonomy"), row.get("basic_category"))
         name = ((row.get("names") or {}).get("primary") or "").strip()
-        if not kind or not name:
+        if not kind or not name or (kind == "food" and _COMPANY.search(name.rstrip(" ,"))):
             continue
         bbox = row["bbox"]
         plat, plon = (bbox["ymin"] + bbox["ymax"]) / 2, (bbox["xmin"] + bbox["xmax"]) / 2
