@@ -234,14 +234,20 @@ def _off_course_nm(start: tuple, end: tuple, lat: float, lon: float) -> float:
     return float(np.min(geo.distance_nm(lats, lons, lat, lon)))
 
 
+#: How far off the course a field with food is offered along a route, nm:
+#: a short turn off the way for lunch, the owner's pick (2026-10-26,
+#: "10-15 nm off course"), where vfr.fuelstops' corridor reached 30.
+FOOD_OFF_COURSE_NM = 15.0
+
+
 @router.get("/api/route-food", response_model=FieldsWithFood)
 def route_food(dep: str, dest: str, stops: str = "") -> FieldsWithFood:
     """The public fields along a route with somewhere to eat at the
     airport itself, in route order, for the map's fly-in food while a
     course is drawn, at the owner's ask ("when a course is drawn then look
     for fly in food along the route", 2026-10-26): those no more than
-    vfr.fuelstops' MAX_ADDED_NM off each flight's line (along), each with
-    its miles from its flight's departure and those it adds."""
+    FOOD_OFF_COURSE_NM off each flight's line, each with its miles from its
+    flight's departure, those it adds and how far off the course it is."""
     r = load_route(dep, dest, stops)
     flights = [(f.dep_ident, f.start, f.end) for f in r.flights]
     found = fuelstops.along(flights, skip=set(r.idents))
@@ -251,17 +257,21 @@ def route_food(dep: str, dest: str, stops: str = "") -> FieldsWithFood:
         # past security, not a fly-in lunch (its first answer along a route).
         if (airports.find_place(field["ident"]) or {}).get("kind") == "large":
             continue
+        _, start, end = flights[field["flight"]]
+        # Off course first: a field too far off is not read for its places.
+        off = _off_course_nm(start, end, field["lat"], field["lon"])
+        if off > FOOD_OFF_COURSE_NM:
+            continue
         food = _food_of(field)
         if food is None:
             pending += 1
             continue
         if food:
-            _, start, end = flights[field["flight"]]
             out.append({
                 "ident": field["ident"], "name": field["name"], "city": field.get("city"), "lat": field["lat"], "lon": field["lon"],
                 "distance_nm": field["from_nm"], "bearing_deg": 0, "food": food,
                 "departure": field["departure"], "added_nm": field["added_nm"],
-                "off_nm": round(_off_course_nm(start, end, field["lat"], field["lon"]), 1),
+                "off_nm": round(off, 1),
             })
     return FieldsWithFood(fields=out, pending=pending)
 
