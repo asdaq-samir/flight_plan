@@ -6,9 +6,9 @@ ANSWER = {
     "options": [{"kind": "fastest", "kinds": ["fastest", "weather"], "title": "Fastest", "stops": ["KDSM"], "fuel": ["KDSM"],
                  "path": [[42.3, -88.1], [41.5, -93.7], [41.3, -95.9]], "distance_nm": 390.0, "air_min": 190.0,
                  "ground_min": 30.0, "fuel_gal": 31.7, "landings": 1, "crosses": [], "marginal": [],
-                 "bands": [{"kind": "vfr", "min": 190.0}], "tail_kt": 6.0, "floor_ft": 2200}],
+                 "bands": [{"kind": "vfr", "min": 190.0}], "tail_kt": 6.0, "floor_ft": 2200, "water_nm": 0}],
     "own": None, "current_path": [], "direct": [0], "ends": [], "current": [], "current_marginal": [],
-    "current_along": {"bands": [{"kind": "storm", "min": 20.0}], "tail_kt": 2.0, "floor_ft": 2000},
+    "current_along": {"bands": [{"kind": "storm", "min": 20.0}], "tail_kt": 2.0, "floor_ft": 2000, "water_nm": 0},
     "hazards": [{"kind": "storm", "name": "Thunderstorms forecast at KCID"}], "unchecked": [],
 }
 
