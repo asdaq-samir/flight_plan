@@ -60,7 +60,7 @@ export default function MapControls() {
         owner's "We can move the fly food button to the left side",
         2026-10-26); while there is a route or a position to look round. */}
     {stops && (
-      <div data-map-controls="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
+      <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
         <StopsAlongButton />
       </div>
     )}
