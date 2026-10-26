@@ -2191,6 +2191,35 @@ class FieldFood(BaseModel):
     off_nm: float | None = None
 
 
+class FoodPhoto(BaseModel):
+    """A restaurant's photo on Google's servers, and whom to credit."""
+
+    url: str
+    credit: str | None = None
+
+
+class FoodReview(BaseModel):
+    author: str
+    rating: float | None = None
+    text: str
+    #: Google's own words for when: "3 weeks ago".
+    when: str | None = None
+
+
+class FoodDetails(BaseModel):
+    """A restaurant's stars, reviews and photos from Google Places, for the
+    map's fly-in food (app.routers.food_details)."""
+
+    place_id: str | None = None
+    name: str
+    rating: float | None = None
+    #: How many ratings the stars are of.
+    ratings: int | None = None
+    photos: list[FoodPhoto] = []
+    reviews: list[FoodReview] = []
+    maps_url: str | None = None
+
+
 class FieldsWithFood(BaseModel):
     """The fields round a position with food a walk from the ramp, nearest
     first, and how many fields round it still have their places to be

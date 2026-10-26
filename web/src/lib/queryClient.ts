@@ -318,6 +318,14 @@ export const airportsFoodQuery = (lat: number, lon: number, nm: number) => {
   });
 };
 
+/** A restaurant's stars, reviews and photos (api.foodDetails): asked once
+ *  a session -- Google bills each, and its terms keep nothing longer --
+ *  and quiet where the deployment has no key (a 404: none shown). */
+export const foodDetailsQuery = (name: string, lat: number, lon: number) => queryOptions({
+  queryKey: ["food-details", name, Math.round(lat * 1e4) / 1e4, Math.round(lon * 1e4) / 1e4],
+  queryFn: () => api.foodDetails(name, lat, lon), staleTime: Infinity, gcTime: 60 * 60_000, retry: false, meta: { silent: true },
+});
+
 /** The fields along a route with a restaurant on the field (api.routeFood),
  *  asked again while some are still to be read, as the fields round the
  *  pilot are. */
