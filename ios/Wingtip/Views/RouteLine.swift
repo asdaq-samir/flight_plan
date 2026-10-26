@@ -1,51 +1,31 @@
 import SwiftUI
 
-/// One of the route line's chips: "None" for the route as the pilot typed
-/// it, or one of the planner's ways, named by its kind and the stops it
-/// flies by ("Fastest · KTBN").
-struct RouteChip: Identifiable, Equatable {
-    let id: String
-    let label: String
-    /// The way the chip flies; nil for "None".
-    let way: RouteOption?
-}
-
-/// The chips the route line offers, in the owner's order (the canvas
-/// "Redesign: route options", 2026-10-26): "None" first, then the
-/// planner's ways as /api/route-options sends them, named by the
-/// planner's own titles. "Your Route" is the pilot's route with the
-/// planner's fuel stops put in; where it adds nothing to the typed route
-/// it is the same as "None" and is left out.
+/// The route line's chips as the planner sends them (RouteOptions.chips,
+/// the canvas "Redesign: route options", 2026-10-26): its words and its
+/// order, "None" first, so the web app and the phone offer the same.
 enum RouteLine {
-    static let none = RouteChip(id: "none", label: "None", way: nil)
+    /// "None", for the route as typed before the planner answers or where
+    /// it sends no chips.
+    static let none = RouteChip(key: "none", label: "None")
 
-    /// The planner's own words for the chip where it sends them, else its
-    /// title and the stops the way adds.
-    static func label(_ way: RouteOption) -> String {
-        if let label = way.label, !label.isEmpty { return label }
-        return way.stops.isEmpty ? way.title : way.title + " · " + way.stops.joined(separator: " ")
-    }
-
-    static func chips(_ routes: RouteOptions?, typed: [String]) -> [RouteChip] {
-        guard let routes else { return [none] }
-        let typed = typed.map { $0.uppercased() }
-        var ways: [RouteOption] = []
-        if let own = routes.own, own.stops.map({ $0.uppercased() }) != typed { ways.append(own) }
-        ways += routes.options
-        // Each way once: the planner gives a way that is the best of
-        // several kinds once already, and a repeat would be a second chip
-        // flying the same thing.
-        var seen = Set<String>()
-        let chips = ways.filter { seen.insert($0.id).inserted }.map { RouteChip(id: $0.id, label: label($0), way: $0) }
-        return [none] + chips
+    static func chips(_ routes: RouteOptions?) -> [RouteChip] {
+        let sent = routes?.chips ?? []
+        return sent.isEmpty ? [none] : sent
     }
 
     /// The chip standing for the way flown: "None" for the typed route,
-    /// else the picked way's own chip, kept even when a later answer no
-    /// longer offers it.
-    static func picked(_ chips: [RouteChip], way: RouteOption?) -> RouteChip {
-        guard let way else { return none }
-        return chips.first { $0.way == way } ?? RouteChip(id: way.id, label: label(way), way: way)
+    /// else the picked chip, as the latest answer words it where it still
+    /// offers it.
+    static func picked(_ chips: [RouteChip], chip: RouteChip?) -> RouteChip {
+        guard let chip else { return chips.first { $0.key == "none" } ?? none }
+        return chips.first { $0.key == chip.key && $0.stops == chip.stops } ?? chip
+    }
+
+    /// Whether the line is drawn: not where the planner has answered that
+    /// there is no way but the route itself, unless a way is flown.
+    static func shows(_ routes: RouteOptions?, picked: RouteChip?, problem: String?) -> Bool {
+        guard let routes, problem == nil, picked == nil else { return true }
+        return !(routes.chips ?? []).isEmpty
     }
 }
 
@@ -67,8 +47,8 @@ struct RouteLineRow: View {
     static let foldAfter: Duration = .seconds(2)
 
     var body: some View {
-        let chips = RouteLine.chips(plan.routes, typed: plan.typedStops)
-        let picked = RouteLine.picked(chips, way: plan.pickedWay)
+        let chips = RouteLine.chips(plan.routes)
+        let picked = RouteLine.picked(chips, chip: plan.pickedChip)
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
@@ -108,9 +88,9 @@ struct RouteLineRow: View {
                     .font(.footnote).foregroundStyle(.secondary)
             }
             // What the way flown still crosses, as the planner names it:
-            // for "None", the pilot's own route's.
-            if let routes = plan.routes, let way = picked.way ?? routes.own {
-                ForEach(Array(way.crosses.enumerated()), id: \.offset) { _, index in
+            // for "None", the typed route's.
+            if let routes = plan.routes {
+                ForEach(Array((picked.crosses ?? []).enumerated()), id: \.offset) { _, index in
                     if routes.hazards.indices.contains(index), routes.hazards[index].kind != "fuel" {
                         let hazard = routes.hazards[index]
                         Label(hazard.title ?? hazard.name ?? hazard.kind ?? "Hazard", systemImage: "exclamationmark.triangle.fill")
@@ -124,10 +104,10 @@ struct RouteLineRow: View {
     }
 
     private func take(_ chip: RouteChip) {
-        if let way = chip.way {
-            if plan.pickedWay != way { plan.use(way) }
-        } else {
+        if chip.key == "none" {
             plan.useTyped()
+        } else if plan.pickedChip != chip {
+            plan.use(chip)
         }
         foldLater()
     }

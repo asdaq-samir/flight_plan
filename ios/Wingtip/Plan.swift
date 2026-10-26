@@ -49,7 +49,7 @@ final class Plan {
     private(set) var typedStops: [String] = []
     /// The planner's way flown in place of the typed route, picked on the
     /// route line; nil for the route as typed.
-    private(set) var pickedWay: RouteOption?
+    private(set) var pickedChip: RouteChip?
     /// The route the ways in `routes` were asked for, so a re-plan of the
     /// same route (a new altitude, a procedure) does not ask again.
     private var routesAskedFor: String?
@@ -120,7 +120,7 @@ final class Plan {
         dep = ""; dest = ""; stops = []
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
         extras = RouteExtras()
-        typedStops = []; pickedWay = nil; routes = nil; routesProblem = nil; routesAskedFor = nil
+        typedStops = []; pickedChip = nil; routes = nil; routesProblem = nil; routesAskedFor = nil
         forgetPlanned()
         remember()
     }
@@ -286,17 +286,20 @@ final class Plan {
 
     /// A way off the route line flown at once, no asking first: its stops
     /// the route's, the typed ones kept for "None".
-    func use(_ way: RouteOption) {
-        if pickedWay == nil { typedStops = stops }
-        pickedWay = way
-        stops = way.stops
+    /// "None" flies the typed stops whatever the chip carries: the typed
+    /// route is the pilot's, kept here.
+    func use(_ chip: RouteChip) {
+        guard chip.key != "none" else { return useTyped() }
+        if pickedChip == nil { typedStops = stops }
+        pickedChip = chip
+        stops = chip.stops
         plan()
     }
 
     /// "None" on the route line: the route as the pilot typed it again.
     func useTyped() {
-        guard pickedWay != nil else { return }
-        pickedWay = nil
+        guard pickedChip != nil else { return }
+        pickedChip = nil
         stops = typedStops
         plan()
     }
@@ -329,8 +332,8 @@ final class Plan {
         // A way picked stands while its stops are the route's; a stop
         // added, taken out or moved makes the route the pilot's own again,
         // and the ways are asked for afresh for it.
-        if let way = pickedWay, way.stops.map({ $0.uppercased() }) != stops { pickedWay = nil }
-        if pickedWay == nil { typedStops = stops }
+        if let chip = pickedChip, chip.stops.map({ $0.uppercased() }) != stops { pickedChip = nil }
+        if pickedChip == nil { typedStops = stops }
         let asked = ([dep, dest, aircraft] + typedStops).joined(separator: " ")
         if asked != routesAskedFor {
             routesAskedFor = asked

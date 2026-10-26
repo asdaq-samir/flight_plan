@@ -357,15 +357,30 @@ struct RouteOption: Codable, Equatable, Sendable, Identifiable {
     var marginal: [Int] = []
     var tailKt: Double?
     var floorFt: Int?
-    /// The chip's words as the planner gives them, the same on the web
-    /// and the phone; an older planner leaves it out.
-    var label: String?
 
     var id: String { kind + ":" + stops.joined(separator: ",") }
 }
 
+/// One chip of the route line, as the planner words and orders it for
+/// the web app and the phone alike (RouteChip): `key` "none" for the
+/// route as typed, "fuel" for it with its fuel stops, else the way's
+/// kinds; the stops it puts in the route, and the hazards it crosses by
+/// their index in RouteOptions.hazards.
+struct RouteChip: Codable, Equatable, Sendable, Identifiable {
+    let key: String
+    let label: String
+    var stops: [String] = []
+    var fuel: [String] = []
+    var crosses: [Int]?
+
+    var id: String { key + ":" + stops.joined(separator: ",") }
+}
+
 struct RouteOptions: Codable, Equatable, Sendable {
     var options: [RouteOption] = []
+    /// The route line's chips in the order shown, "None" first; empty
+    /// when there is no way but the route itself.
+    var chips: [RouteChip]?
     var own: RouteOption?
     var hazards: [RouteHazard] = []
     var unchecked: [String] = []

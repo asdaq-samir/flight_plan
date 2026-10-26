@@ -31,7 +31,7 @@ struct FPLView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(!plan.routed || plan.planning)
                     }
-                    if plan.routed && plan.course != nil {
+                    if plan.routed && plan.course != nil && RouteLine.shows(plan.routes, picked: plan.pickedChip, problem: plan.routesProblem) {
                         // The ways to fly it, right under the route's
                         // ends, folding as a runway line does.
                         RouteLineRow()
