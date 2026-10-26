@@ -1,8 +1,7 @@
-import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, Loader2, Utensils } from "lucide-react";
 import { cn } from "cn";
-import { CardHead } from "../../../components/PanelCard";
+import { CardClose } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import QueryState from "../../../components/QueryState";
 import { ADD_CAPSULE } from "../../../components/mapChrome";
@@ -51,7 +50,8 @@ const pill = (on: boolean) => cn(
  * its button, Add Stop along the route, Direct To round the pilot.
  */
 export default function FoodCard({ name, at, route, scope, onScope, onClose, onOpenField, onAddStop, onDirect }: {
-  name: ReactNode;
+  /** Its title, the bar's ("Fly-in Food"), named to readers here. */
+  name: string;
   /** Own ship, for Within; null where it is not known. */
   at: { lat: number; lon: number } | null;
   /** The course drawn, for Along Route: its ends and stops. */
@@ -77,8 +77,13 @@ export default function FoodCard({ name, at, route, scope, onScope, onClose, onO
   const rows = (data?.fields ?? []).flatMap(field => field.food.map(place => ({ field, place })));
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="food-card">
-      <CardHead name={name} nameTestId="food-name" onClose={onClose} closeTestId="food-close" />
-      <div className="mt-2 flex gap-2" role="group" aria-label="Where to look">
+      {/* Its title the bar's alone, "Fly-in Food", at the owner's ask ("Just
+          keep the title on top", 2026-10-26); the close for the card's
+          own keys and readers (CardClose), the bar showing its own. */}
+      <CardClose onClose={onClose} testId="food-close" />
+      {/* Wider than a phone there is no bar over the card: the title here. */}
+      <h2 className={cn("sr-only font-bold tracking-tight md:not-sr-only md:mb-2", TEXT.card)} data-testid="food-name">{name}</h2>
+      <div className="flex gap-2" role="group" aria-label={`${name}: where to look`}>
         {route && (
           <button type="button" aria-pressed={along} onClick={() => onScope("route")} className={pill(along)} data-testid="food-scope-route">
             Along Route
