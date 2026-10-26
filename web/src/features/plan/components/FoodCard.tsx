@@ -10,7 +10,6 @@ import {
 } from "../../../components/ui/dropdown-menu";
 import { placeWords } from "../../../lib/advisories";
 import type { FieldFood } from "../../../lib/api/types";
-import { pointName } from "../../../lib/identSchema";
 import { usePreferences } from "../../../lib/preferences";
 import { airportsFoodQuery, routeFoodQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
@@ -19,10 +18,12 @@ import { TEXT } from "../../../lib/text";
  *  discrete settings), a hundred the default (the owner, 2026-10-26). */
 const RADII = [25, 50, 100, 150, 200];
 
-/** What landing there adds to the flight: "on the route", "2 nm detour". */
-function detourWords(addedNm: number | null | undefined): string {
-  const nm = Math.round(addedNm ?? 0);
-  return nm < 1 ? "on the route" : `${nm} nm detour`;
+/** How far off the course a field is: "on course", "3 nm off course"
+ *  (the owner's "say how far off course instead of the departure",
+ *  2026-10-26). */
+function offWords(offNm: number | null | undefined): string {
+  const nm = Math.round(offNm ?? 0);
+  return nm < 1 ? "On course" : `${nm} nm off course`;
 }
 
 /** The compass point a field is toward, from its true bearing: "NE". */
@@ -106,14 +107,11 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
                     {field.food.slice(0, 2).map(place => (
                       <span key={place.name} className="truncate">{place.name} · {place.kind}</span>
                     ))}
-                    {/* The miles the stop adds to the flight said in words, where a
-                        bare "+2 nm" said nothing of what (the owner's "Why does it
-                        say +2 nm for JVL?", 2026-10-26). */}
-                    {route && field.departure && (
-                      <span className="tabular-nums">
-                        {Math.round(field.distance_nm)} nm from {pointName(field.departure)} · {detourWords(field.added_nm)}
-                      </span>
-                    )}
+                    {/* How far off the course, in words, where a bare "+2 nm" said
+                        nothing of what (the owner's "Why does it say +2 nm for
+                        JVL?" and "say how far off course instead of the
+                        departure", 2026-10-26). */}
+                    {route && <span className="tabular-nums">{offWords(field.off_nm)}</span>}
                   </span>
                 )}
                 value={route ? undefined : (

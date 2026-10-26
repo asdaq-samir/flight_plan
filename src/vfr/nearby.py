@@ -84,7 +84,10 @@ _NOT_OUTLINE = {"taxiway", "taxilane", "runway", "stopway", "apron", "helipad", 
 _COLUMNS = ["id", "names", "taxonomy", "basic_category", "confidence", "bbox", "operating_status", "phones", "websites"]
 _LOCK = threading.Lock()
 _releases: dict[str, tuple[float, str]] = {}
-_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="nearby")
+# Eight at a time: each field is two small reads of S3, a second apart
+# (its places and its outline), so the fly-in food along a route of forty
+# fields was the half minute the owner waited on (2026-10-26).
+_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="nearby")
 _READING: set[str] = set()
 
 

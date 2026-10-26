@@ -5080,6 +5080,17 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "off_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Nm"
           }
         },
         "required": [

@@ -14,10 +14,12 @@ table lookups and a point-in-polygon test.
 import logging
 from datetime import datetime, timezone
 
+import numpy as np
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from vfr import (
-    airport_photos, airports, airspace, altitude, faa_data, fixes, fuelstops, geocode, glmp, nearby, pattern, places, plates, procedures,
+    airport_photos, airports, airspace, altitude, faa_data, fixes, fuelstops, geo, geocode, glmp, nearby, pattern, places, plates,
+    procedures,
     publications, remarks, runway_wind, weather,
 )
 
@@ -223,6 +225,15 @@ def fields_with_food(
     return FieldsWithFood(fields=out, pending=pending)
 
 
+def _off_course_nm(start: tuple, end: tuple, lat: float, lon: float) -> float:
+    """How far a point is off the straight course from start to end, nm:
+    its least distance to the line, read every hundredth of the way."""
+    t = np.linspace(0.0, 1.0, 101)
+    lats = start[0] + (end[0] - start[0]) * t
+    lons = start[1] + (end[1] - start[1]) * t
+    return float(np.min(geo.distance_nm(lats, lons, lat, lon)))
+
+
 @router.get("/api/route-food", response_model=FieldsWithFood)
 def route_food(dep: str, dest: str, stops: str = "") -> FieldsWithFood:
     """The public fields along a route with somewhere to eat at the
@@ -232,7 +243,8 @@ def route_food(dep: str, dest: str, stops: str = "") -> FieldsWithFood:
     vfr.fuelstops' MAX_ADDED_NM off each flight's line (along), each with
     its miles from its flight's departure and those it adds."""
     r = load_route(dep, dest, stops)
-    found = fuelstops.along([(f.dep_ident, f.start, f.end) for f in r.flights], skip=set(r.idents))
+    flights = [(f.dep_ident, f.start, f.end) for f in r.flights]
+    found = fuelstops.along(flights, skip=set(r.idents))
     out, pending = [], 0
     for field in found:
         # Not the airline airports, as round the pilot: Detroit's food is
@@ -244,10 +256,12 @@ def route_food(dep: str, dest: str, stops: str = "") -> FieldsWithFood:
             pending += 1
             continue
         if food:
+            _, start, end = flights[field["flight"]]
             out.append({
                 "ident": field["ident"], "name": field["name"], "city": field.get("city"), "lat": field["lat"], "lon": field["lon"],
                 "distance_nm": field["from_nm"], "bearing_deg": 0, "food": food,
                 "departure": field["departure"], "added_nm": field["added_nm"],
+                "off_nm": round(_off_course_nm(start, end, field["lat"], field["lon"]), 1),
             })
     return FieldsWithFood(fields=out, pending=pending)
 

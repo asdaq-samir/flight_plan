@@ -2186,6 +2186,9 @@ class FieldFood(BaseModel):
     food: list[NearbyPlace]
     departure: str | None = None
     added_nm: float | None = None
+    #: Along a route: how far off the course it is, nm (the owner's "say
+    #: how far off course", 2026-10-26).
+    off_nm: float | None = None
 
 
 class FieldsWithFood(BaseModel):
