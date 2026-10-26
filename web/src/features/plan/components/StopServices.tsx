@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BedDouble, CarFront, Cylinder, Fuel, Receipt, SquareParking, Utensils, Warehouse, Wrench } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "cn";
+import { pointName } from "../../../lib/identSchema";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { PillSection } from "../../../components/Favorites";
 import QueryState from "../../../components/QueryState";
@@ -18,7 +19,7 @@ const GLANCE_ICONS: Record<GlanceItem["key"], ReactNode> = {
 };
 
 /** What a field has on the ground in a line of a few words (glanceOf), one
- *  look under a Stops card's field (StopsCard) and a suggested stop's row
+ *  look under a field and a suggested stop's row
  *  (StopGlance), where the two had their own sizes and colours: a note's
  *  size, in the muted grey, as the line under a row is. */
 export function Glance({ of, className, testId }: { of: Glanceable; className?: string; testId: string }) {
@@ -156,7 +157,7 @@ export function StopStrip({ ident, stop }: { ident: string; stop: SuggestedStop 
     <div className="pt-3" data-testid="place-stop">
       <PillSection title={stop.reason === "break" ? "Suggested break" : "Suggested fuel stop"}>
         <div className="grid grid-cols-3 gap-2">
-          {tile(`From ${stop.from}`, hhmm(stop.minutes), "place-stop-after")}
+          {tile(`From ${pointName(stop.from)}`, hhmm(stop.minutes), "place-stop-after")}
           {tile("Lands with", `${Math.floor(stop.landsWithGal)} gal`, "place-stop-fuel")}
           {tile("Off the line", `+${Math.round(stop.addedNm)} nm`, "place-stop-added")}
         </div>

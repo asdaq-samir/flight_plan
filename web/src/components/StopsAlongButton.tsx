@@ -1,7 +1,7 @@
 import IconButton from "./IconButton";
 import { useStopsAlong } from "../lib/stopsAlong";
 
-/** A fork beside a pump: food and fuel, the Stops' two most asked for. */
+/** A fork beside a knife: somewhere to eat. */
 function StopsGlyph() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" className="size-5" aria-hidden="true">
@@ -11,11 +11,11 @@ function StopsGlyph() {
 }
 
 /**
- * The map's Stops button, under its other buttons in a glass circle of its
- * own, at the owner's pick (option C of the stops canvas, "Try C",
- * 2026-10-23): while there is a route to look along, a tap opens the Stops
- * card -- the fields along the route with fuel, food or a place to rest,
- * to add as stops -- and a second tap puts it away.
+ * The map's fly-in food button, under its other buttons in a glass circle
+ * of its own: a tap opens the card of the fields near the pilot with
+ * somewhere to eat a short walk from the ramp, the "$100 hamburger" (the
+ * owner, 2026-10-25; it was the stops along the route), and a second tap
+ * puts it away.
  */
 export default function StopsAlongButton() {
   const available = useStopsAlong(s => s.available);
@@ -25,7 +25,7 @@ export default function StopsAlongButton() {
   if (!available) return null;
   return (
     <IconButton
-      label={open ? "Hide the stops along the route" : "Stops along the route"} onClick={() => (open ? setOpen(false) : (opener ?? (() => setOpen(true)))())}
+      label={open ? "Hide the food at the fields" : "Food at the fields near you"} onClick={() => (open ? setOpen(false) : (opener ?? (() => setOpen(true)))())}
       aria-pressed={open} data-testid="stops-along-button"
     >
       <StopsGlyph />

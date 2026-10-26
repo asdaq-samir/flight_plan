@@ -130,7 +130,7 @@ const BREAK_PIN = L.divIcon({
 });
 
 /** And a fork beside a pump in it, for a field of the map's Stops
- *  (StopsCard), as its button wears (StopsAlongButton). */
+ *  (FoodCard), as its button wears (StopsAlongButton). */
 const ALONG_PIN = L.divIcon({
   className: "",
   html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
