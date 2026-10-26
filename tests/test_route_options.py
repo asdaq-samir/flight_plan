@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import Polygon
 
-from vfr import fixes, fuelstops, geo, route_options, sua, sun, terrain_detour, tfr, weather
+from vfr import fixes, fuelstops, geo, route_options, sua, sun, terrain_detour, tfr, water, weather
 
 # On the equator a degree is about 60 nm either way.
 DEP = {"ident": "AAA", "lat": 0.0, "lon": 0.0}
@@ -50,6 +50,10 @@ def sky(monkeypatch):
     monkeypatch.setattr(sun, "is_night", lambda lat, lon, at: False)
     monkeypatch.setattr(fuelstops, "paved_runway_ft", lambda ident: 5000)
     monkeypatch.setattr(fixes, "frd_near", lambda lat, lon, max_nm=0: {"ident": f"P{lat:.2f}/{lon:.2f}", "name": "point"})
+    # No fix to turn at unless a test puts one there.
+    monkeypatch.setattr(fixes, "within", lambda south, west, north, east: [])
+    # Dry land everywhere unless a test floods it.
+    monkeypatch.setattr(water, "is_water", lambda lats, lons: np.zeros(np.shape(lats), dtype=bool))
     return data
 
 
@@ -68,7 +72,7 @@ def test_a_clear_day_is_the_straight_line_for_every_kind(sky):
     assert len(out["options"]) == 1
     only = out["options"][0]
     assert only["stops"] == [] and only["landings"] == 0
-    assert only["kinds"] == ["fastest", "weather", "stops"]
+    assert only["kinds"] == ["fastest", "weather", "stops", "land"]
     assert out["direct"] == []
     assert only["distance_nm"] == pytest.approx(240, abs=2)
 
@@ -255,3 +259,99 @@ def test_the_pilots_own_route_is_given_as_a_path_for_the_map(sky):
     assert out["current_path"] == [[0.0, 0.0], [1.0, 2.0], [0.0, 4.0]]
     straight = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
     assert straight["current_path"] == [[0.0, 0.0], [0.0, 4.0]]
+
+
+def test_the_way_over_land_goes_round_a_lake_out_of_glide_of_the_shore(monkeypatch, sky):
+    # A lake 1.6 degrees across (96 nm) across the straight line, a band of
+    # land to the north of it: the fastest crosses it, the way over land
+    # keeps within a glide of the shore (the owner's ask, 2026-10-25).
+    def lake(lats, lons):
+        return (np.abs(np.asarray(lons) - 2.0) < 0.8) & (np.asarray(lats) < 1.2)
+    monkeypatch.setattr(water, "is_water", lake)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    fastest = next(o for o in out["options"] if "fastest" in o["kinds"])
+    land = next(o for o in out["options"] if "land" in o["kinds"])
+    assert fastest["water_nm"] > 60
+    assert land["water_nm"] < fastest["water_nm"] / 4
+    assert land is not fastest and land["air_min"] > fastest["air_min"]
+
+
+def test_water_that_cannot_be_read_is_said_not_fatal(monkeypatch, sky):
+    def down(lats, lons):
+        raise water.WaterUnavailable("no shores")
+    monkeypatch.setattr(water, "is_water", down)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert "water" in out["unchecked"] and out["options"]
+
+
+def test_out_of_glide_is_the_water_beyond_a_glide_of_land():
+    # A strip of water 0.5 degrees wide (30 nm) between land: its middle,
+    # 15 nm from either shore, out of a 6 nm glide; its edges in reach.
+    flat = water.is_water
+    try:
+        water.is_water = lambda lats, lons: (np.asarray(lons) > 1.0) & (np.asarray(lons) < 1.5)
+        share = water.out_of_glide(0.0, 0.0, 4, 10, 0.25)
+    finally:
+        water.is_water = flat
+    assert share[:, 0].max() == 0.0                      # dry land
+    assert share[:, 4].min() > 0.5 and share[:, 5].min() > 0.5    # the strait's middle
+    assert share.max() <= 1.0
+
+
+def test_a_turn_is_made_at_a_fix_nearby_where_one_keeps_the_way(monkeypatch, sky):
+    # A storm on the straight line, so the way turns; a GPS waypoint 3 nm
+    # off where it turns, away from the storm, is loaded instead of a point of the pilot's own
+    # (the owner's "Isn't there a gps fix nearby ... that we can use?").
+    sky["tafs"].append(taf("STRM", 0.0, 2.0, wx="TSRA"))
+    first = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    way = first["options"][0]
+    turn = way["path"][1]
+    # On the storm's far side of the turn: one nearer it would close the way.
+    away = -0.05 if turn[0] < 0 else 0.05
+    fix = {"ident": "BUCKY", "lat": turn[0] + away, "lon": turn[1], "kind": "fix"}
+    def within(south, west, north, east):
+        return [fix] if south <= fix["lat"] <= north and west <= fix["lon"] <= east else []
+    monkeypatch.setattr(fixes, "within", within)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    snapped = out["options"][0]
+    assert "BUCKY" in snapped["stops"]
+    assert [fix["lat"], fix["lon"]] in snapped["path"]
+    assert snapped["crosses"] == way["crosses"]
+
+
+def test_a_fix_that_would_take_the_way_into_the_storm_is_not_turned_at(monkeypatch, sky):
+    sky["tafs"].append(taf("STRM", 0.0, 2.0, wx="TSRA"))
+    turn = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)["options"][0]["path"][1]
+    # Toward the storm's middle, 7 nm: inside its 20 nm.
+    toward = 0.12 if turn[0] < 0 else -0.12
+    fix = {"ident": "STORM", "lat": turn[0] + toward, "lon": turn[1], "kind": "fix"}
+
+    def within(south, west, north, east):
+        return [fix] if south <= fix["lat"] <= north and west <= fix["lon"] <= east else []
+    monkeypatch.setattr(fixes, "within", within)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert "STORM" not in out["options"][0]["stops"]
+
+
+def test_a_fuel_stop_in_marginal_weather_gives_way_to_one_in_the_clear(sky):
+    # Tanks for some 290 nm on a 600 nm flight: two stops. A field a third
+    # of the way is under MVFR; one a little further on is in the clear,
+    # and is landed at instead (the owner's "Or even a different fuel stop
+    # to avoid weather?", 2026-10-25).
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    sky["tafs"].append(taf("WETT", 0.0, 3.0, ceiling=2500))
+    table = fields(("WETT", 0.0, 3.0), ("DRYY", 0.0, 3.6), ("MIDD", 0.0, 6.5), ("LATE", 0.0, 7.0))
+    small = {**PROFILE, "usable_fuel_gal": 30.0}       # some 290 nm with the reserve
+    out = route_options.options(DEP, dest, small, fields=table)
+    fastest = next(o for o in out["options"] if "fastest" in o["kinds"])
+    assert "WETT" not in fastest["fuel"] and "DRYY" in fastest["fuel"]
+
+
+def test_a_fuel_stop_whose_way_in_crosses_a_storm_is_not_landed_at(sky):
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    # A storm between the way and a field 12 nm off it.
+    sky["tafs"].append(taf("STRM", 0.1, 4.0, wx="TSRA"))
+    table = fields(("BEHIND", 0.2, 4.0), ("CLEAR", 0.0, 3.0), ("MIDD", 0.0, 6.5))
+    out = route_options.options(DEP, dest, PROFILE, fields=table)
+    for option in out["options"]:
+        assert "BEHIND" not in option["fuel"]

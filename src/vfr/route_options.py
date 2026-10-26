@@ -23,6 +23,8 @@ A grid of cells round the route is read once:
 - prohibited areas (91.133) and the TFRs in force over the flight
   (91.137 to 91.145) close their cells; restricted areas, MOAs and warning
   areas, whose times of use are not read here, mark them marginal;
+- large water (vfr.water): the share of each cell out of a glide's
+  reach of dry land, dearer for the way that keeps over land;
 - the winds aloft (the FD product for the flight's hour), the best
   groundspeed in each direction at the legal cruising altitudes (91.159)
   over the cell's ground.
@@ -44,6 +46,7 @@ from __future__ import annotations
 
 import heapq
 import math
+import re
 import time
 from datetime import datetime, timezone
 
@@ -51,7 +54,7 @@ import logging
 
 import numpy as np
 
-from . import fixes, fuelstops, geo, navlog, sun, terrain_detour, weather
+from . import fixes, fuelstops, geo, navlog, sun, terrain_detour, water, weather
 
 logger = logging.getLogger(__name__)
 
@@ -114,8 +117,21 @@ TURNAROUND_MIN = 30.0
 #: level ground (91.119(c)'s 500 ft and the altitudes the plan picks).
 LOWEST_CRUISE_FT = 2500.0
 #: The kinds of way, in the order they are offered.
-KINDS = ("fastest", "weather", "stops")
-TITLES = {"fastest": "Fastest", "weather": "Best weather", "stops": "Fewest stops"}
+KINDS = ("fastest", "weather", "stops", "land")
+TITLES = {"fastest": "Fastest", "weather": "Best weather", "stops": "Fewest stops", "land": "Over land"}
+#: How much dearer a cell out of glide of dry land is for the way that
+#: keeps over land, a share of its own minutes: eleven times as dear, so
+#: it goes round Lake Michigan from Milwaukee to Muskegon (an hour and a
+#: quarter more; at four times as dear it crossed the 51 nm of water), and
+#: only crosses where going round is the longer by hours (the owner's
+#: ask, 2026-10-25: "for engine failure emergency, landing is feasible on
+#: a dry land"; vfr.water).
+WATER_COST = 10.0
+
+#: How many minutes more a fuel stop in marginal weather costs than one in
+#: the clear, three times that for the best weather's way: the planner's
+#: own figure, half an hour's flying past one to a field in VFR.
+MARGINAL_STOP_MIN = 30.0
 
 #: The eight ways out of a cell: (rows, columns).
 _STEPS = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
@@ -147,6 +163,8 @@ class _Grid:
         self.marginal = np.full((self.rows, self.cols), -1, dtype=int)
         #: What costs more to cross, for every way: special-use airspace.
         self.dear = np.zeros((self.rows, self.cols))
+        #: The share of each cell out of glide of dry land, 0 to 1 (vfr.water).
+        self.offshore = np.zeros((self.rows, self.cols))
         self.hazards: list[dict] = []
         #: Each cell's floor, ft (_ground), once read.
         self.floor: np.ndarray | None = None
@@ -454,7 +472,7 @@ HAVERSINE_NM = 3440.07 * 0.99
 
 
 def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: float,
-         closed_cost: float | None = None) -> list[tuple[int, int]] | None:
+         closed_cost: float | None = None, water_cost: float = 0.0) -> list[tuple[int, int]] | None:
     """The quickest way over open cells from start's cell to end's (A*,
     minutes), marginal cells costing `marginal_cost` more of theirs and
     special-use airspace its own; with `closed_cost`, over closed cells
@@ -469,7 +487,7 @@ def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: f
                         for dr, dc in _STEPS], axis=1)
     end_lat, end_lon = grid.centre(e)
     cos_end = math.cos(math.radians(end_lat))
-    weight = 1.0 + grid.dear + np.where(grid.marginal >= 0, marginal_cost, 0.0)
+    weight = 1.0 + grid.dear + np.where(grid.marginal >= 0, marginal_cost, 0.0) + water_cost * grid.offshore
     if closed_cost is not None:
         weight = weight + np.where(grid.closed >= 0, closed_cost, 0.0)
 
@@ -508,9 +526,11 @@ def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: f
     return None
 
 
-def _line_minutes(grid: _Grid, gs: np.ndarray, a: tuple, b: tuple, marginal_cost: float = 0.0) -> float:
+def _line_minutes(grid: _Grid, gs: np.ndarray, a: tuple, b: tuple, marginal_cost: float = 0.0,
+                  water_cost: float = 0.0) -> float:
     """The minutes from a to b in a straight line, at each cell's best
-    groundspeed the way nearest the line's, marginal cells the dearer."""
+    groundspeed the way nearest the line's, marginal cells and those out
+    of glide of land the dearer."""
     nm = float(geo.distance_nm(a[0], a[1], b[0], b[1]))
     if nm == 0:
         return 0.0
@@ -519,17 +539,18 @@ def _line_minutes(grid: _Grid, gs: np.ndarray, a: tuple, b: tuple, marginal_cost
     # one of the two rounds to a whole step.
     k = _step_index(round(math.cos(bearing)), round(math.sin(bearing)))
     cells = grid.line_cells(a, b)
-    rate = [(1.0 + grid.dear[c] + (marginal_cost if grid.marginal[c] >= 0 else 0.0)) / gs[c[0], c[1], k] for c in cells]
+    rate = [(1.0 + grid.dear[c] + (marginal_cost if grid.marginal[c] >= 0 else 0.0) + water_cost * grid.offshore[c]) / gs[c[0], c[1], k]
+            for c in cells]
     return nm * float(np.mean(rate)) * 60.0
 
 
 def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cost: float,
-                  slower_min: float = STRAIGHTEN_MIN) -> list[tuple]:
+                  slower_min: float = STRAIGHTEN_MIN, water_cost: float = 0.0) -> list[tuple]:
     """The way's turns: from each point the farthest on along it a straight
     line reaches over open cells -- over no more closed ones than the way
     itself crossed, where it had to -- no more than `slower_min` slower."""
     out, i = [points[0]], 0
-    legs = [_line_minutes(grid, gs, points[k], points[k + 1], marginal_cost) for k in range(len(points) - 1)]
+    legs = [_line_minutes(grid, gs, points[k], points[k + 1], marginal_cost, water_cost) for k in range(len(points) - 1)]
 
     def marginal_cells(a, b) -> int:
         return sum(1 for c in grid.line_cells(a, b) if grid.marginal[c] >= 0)
@@ -553,7 +574,7 @@ def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cos
             # kept off: a short cut across the corner of one is the
             # weather it was drawn round.
             if clear_enough(i, j) and \
-                    _line_minutes(grid, gs, points[i], points[j], marginal_cost) <= sum(legs[i:j]) + slower_min and \
+                    _line_minutes(grid, gs, points[i], points[j], marginal_cost, water_cost) <= sum(legs[i:j]) + slower_min and \
                     (not marginal_cost or marginal_cells(points[i], points[j])
                      <= sum(marginal_cells(points[k], points[k + 1]) for k in range(i, j))):
                 break
@@ -578,12 +599,16 @@ def _crossed(grid: _Grid, points: list[tuple], marginal: bool = False) -> list[i
 
 
 def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields, reserve_gal: float,
-           fewest: bool) -> list[dict] | None:
+           fewest: bool, marginal_stop_min: float = MARGINAL_STOP_MIN) -> list[dict] | None:
     """The fields to land at for fuel along the way: those with 100LL on a
     paved runway (vfr.fuelstops) within STOP_FIELD_NM of it, in open
     cells, each flight landing with `reserve_gal` (91.151) -- the fewest
     minutes, TURNAROUND_MIN at each, or the fewest landings (`fewest`).
-    [] where the tanks reach; None where no chain of fields does (or no
+    Not a field whose way in or out from the way crosses a closed cell, nor
+    one closed itself; one in marginal weather costing `marginal_stop_min`
+    more, so a field in the clear a little further on is landed at instead
+    (the owner's "Or even a different fuel stop to avoid weather?",
+    2026-10-25). [] where the tanks reach; None where no chain of fields does (or no
     table of fields could be had)."""
     tas = max(float(profile["cruise_tas_kt"]), 1.0)
     gph = float(profile["fuel_burn_gph"])
@@ -616,6 +641,9 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     lat_f, lon_f = fields["lat"].to_numpy(float), fields["lon"].to_numpy(float)
     best_off = np.full(len(lat_f), np.inf)
     best_at = np.zeros(len(lat_f))
+    # Where on the way each is nearest, for its way in and out.
+    best_lat = np.zeros(len(lat_f))
+    best_lon = np.zeros(len(lat_f))
     for k, (a, b) in enumerate(zip(way, way[1:])):
         seg = along_nm[k + 1] - along_nm[k]
         for t in np.linspace(0.0, 1.0, max(2, int(seg / 5) + 1)):
@@ -624,6 +652,7 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
             closer = off < best_off
             best_off[closer] = off[closer]
             best_at[closer] = along_min[k] + (along_min[k + 1] - along_min[k]) * t
+            best_lat[closer], best_lon[closer] = lat, lon
     nodes = [{"at": 0.0, "off": 0.0}]
     for i in np.argsort(best_at):
         if best_off[i] > STOP_FIELD_NM or not (0.0 < best_at[i] < total_min):
@@ -632,11 +661,16 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
         cell = grid.cell((lat_f[i], lon_f[i]))
         if grid.closed[cell] >= 0:
             continue
+        # Its way in and out from the way: not through a storm or weather
+        # under the minimums the way itself went round.
+        if not grid.line_open((float(best_lat[i]), float(best_lon[i])), (float(lat_f[i]), float(lon_f[i]))):
+            continue
         runway = max(fuelstops.paved_runway_ft(row["ident"]), fuelstops.paved_runway_ft(row["faa_ident"]))
         if runway < fuelstops.MIN_RUNWAY_FT:
             continue
         nodes.append({"at": float(best_at[i]), "off": float(best_off[i]), "ident": str(row["ident"]),
-                      "name": str(row["name"]), "lat": float(lat_f[i]), "lon": float(lon_f[i])})
+                      "name": str(row["name"]), "lat": float(lat_f[i]), "lon": float(lon_f[i]),
+                      "dear": marginal_stop_min if grid.marginal[cell] >= 0 else 0.0})
     nodes.append({"at": total_min, "off": 0.0})
     count = len(nodes)
     best = [math.inf] * count
@@ -649,7 +683,7 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
             minutes = nodes[j]["at"] - nodes[i]["at"] + (nodes[i]["off"] + nodes[j]["off"]) / tas * 60.0
             if minutes / 60.0 * gph > reach_gal:
                 continue
-            landing = 0.0 if j == count - 1 else (1e6 if fewest else 0.0) + TURNAROUND_MIN
+            landing = 0.0 if j == count - 1 else (1e6 if fewest else 0.0) + TURNAROUND_MIN + nodes[j]["dear"]
             cost = best[i] + minutes + landing
             if cost < best[j]:
                 best[j], prev[j] = cost, i
@@ -705,6 +739,12 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         unchecked.append("terrain")
     grid.floor = floor
     try:
+        grid.offshore = water.out_of_glide(grid.lat0, grid.lon0, grid.rows, grid.cols, CELL_DEG)
+    except (water.WaterUnavailable, OSError, ValueError) as error:
+        # The shores not to be had: no way kept over land, and the pilot told.
+        logger.warning("route options: water not read (%s)", error)
+        unchecked.append("water")
+    try:
         _weather(grid, window, ceiling, visibility)
     except weather.WeatherServiceError:
         unchecked.append("forecasts and reports")
@@ -737,16 +777,19 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     found: list[dict] = []
     for kind in KINDS:
         marginal_cost = MARGINAL_COST if kind == "weather" else 0.0
+        water_cost = WATER_COST if kind == "land" else 0.0
         # Clear of everything where there is a way, else crossing least.
-        cells = _way(grid, gs, start, end, marginal_cost) or _way(grid, gs, start, end, marginal_cost, CLOSED_COST)
+        cells = _way(grid, gs, start, end, marginal_cost, water_cost=water_cost) or \
+            _way(grid, gs, start, end, marginal_cost, CLOSED_COST, water_cost=water_cost)
         if cells is None:
             continue
         points = [start] + [grid.centre(c) for c in cells[1:-1]] + [end]
         for slower in STRAIGHTEN_STEPS_MIN:
-            turns = _straightened(grid, gs, points, marginal_cost, slower)
+            turns = _straightened(grid, gs, points, marginal_cost, slower, water_cost)
             if len(turns) - 2 <= MAX_TURNS:
                 break
-        stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops")
+        stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops",
+                       marginal_stop_min=MARGINAL_STOP_MIN * (3 if kind == "weather" else 1))
         # No chain of fields reaches: the way offered all the same, with
         # that said (the owner's rule: no hard limits, only warnings).
         option = _option(kind, grid, gs, turns, stops or [], profile, no_fuel=stops is None)
@@ -844,18 +887,21 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
     """What a way through `path` meets, cell by cell in the order it flies
     them: the weather as a strip of runs ({"kind": vfr|mvfr|ifr|storm,
     "min"}), for the page to lay out by the time it is met; the mean wind
-    along it, kt (positive a tailwind); and its floor, the highest cell's
-    ground with 91.119's 1,000 ft and the coarse read's margin, ft."""
+    along it, kt (positive a tailwind); its floor, the highest cell's
+    ground with 91.119's 1,000 ft, ft; and its miles out of glide of dry
+    land (vfr.water), nm."""
     runs: list[dict] = []
     wind_min = 0.0
     total = 0.0
     floor = 0.0
+    water_nm = 0.0
     for a, b in zip(path, path[1:]):
         cells = grid.line_cells(a, b)
         minutes = _line_minutes(grid, gs, a, b)
         if not cells or minutes <= 0:
             continue
         each = minutes / len(cells)
+        water_nm += float(geo.distance_nm(a[0], a[1], b[0], b[1])) / len(cells) * sum(float(grid.offshore[c]) for c in cells)
         bearing = math.atan2((b[1] - a[1]) * math.cos(math.radians((a[0] + b[0]) / 2)), b[0] - a[0])
         k = _step_index(round(math.cos(bearing)), round(math.sin(bearing)))
         for c in cells:
@@ -875,7 +921,49 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
         # The highest ground with 91.119's 1,000 ft alone: the coarse read's
         # own margin is the planner's to keep, not a figure for the pilot.
         "floor_ft": int(math.ceil(max(0.0, floor - terrain_detour.COARSE_MARGIN_FT) / 100.0) * 100),
+        # Its miles out of glide of dry land (vfr.water.GLIDE_NM).
+        "water_nm": round(water_nm),
     }
+
+
+#: How far from a turn a fix is looked for to turn at instead, nm, and
+#: how many minutes it may add: the planner's own figures, a fix a pilot
+#: can load beating a point of their own off one for a few miles more.
+SNAP_NM = 8.0
+SNAP_MIN = 3.0
+
+
+def _fix_for_turn(grid: _Grid, gs: np.ndarray, before: tuple, turn: tuple, after: tuple) -> dict | None:
+    """The nearest fix within SNAP_NM of a turn -- a navaid, a VFR or GPS
+    waypoint -- that keeps the two legs either side of it over no more
+    closed, marginal or offshore cells than the turn's own, and no more
+    than SNAP_MIN slower; None where none does."""
+    dlat = SNAP_NM / 60.0
+    dlon = SNAP_NM / (60.0 * max(0.1, math.cos(math.radians(turn[0]))))
+    near = [f for f in fixes.within(turn[0] - dlat, turn[1] - dlon, turn[0] + dlat, turn[1] + dlon)
+            if re.fullmatch(r"[A-Z0-9]{2,5}", f["ident"])]
+    if not near:
+        return None
+
+    def cost(points: list[tuple]) -> tuple:
+        cells = [c for a, b in zip(points, points[1:]) for c in grid.line_cells(a, b)]
+        return (sum(1 for c in cells if not grid.open(c)), sum(1 for c in cells if grid.marginal[c] >= 0),
+                sum(float(grid.offshore[c]) for c in cells))
+
+    own = cost([before, turn, after])
+    minutes = _line_minutes(grid, gs, before, turn) + _line_minutes(grid, gs, turn, after)
+    ranked = sorted(near, key=lambda f: float(geo.distance_nm(turn[0], turn[1], f["lat"], f["lon"])))
+    for fix in ranked:
+        at = (fix["lat"], fix["lon"])
+        if float(geo.distance_nm(turn[0], turn[1], at[0], at[1])) > SNAP_NM:
+            break
+        closed, marginal, offshore = cost([before, at, after])
+        if closed > own[0] or marginal > own[1] or offshore > own[2] + 0.5:
+            continue
+        if _line_minutes(grid, gs, before, at) + _line_minutes(grid, gs, at, after) > minutes + SNAP_MIN:
+            continue
+        return fix
+    return None
 
 
 def _no_fuel(grid: _Grid) -> int:
@@ -894,7 +982,16 @@ def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: l
     for a, b in zip(turns, turns[1:]):
         along.append(along[-1] + _line_minutes(grid, gs, a, b))
     points: list[tuple[float, dict]] = []
-    for at, turn in zip(along[1:-1], turns[1:-1]):
+    for i, (at, turn) in enumerate(zip(along[1:-1], turns[1:-1]), start=1):
+        # A fix a pilot can load near the turn, where one keeps the way as
+        # clear and nearly as quick, the turn moved onto it; else a point
+        # of the pilot's own off the nearest fix (the owner's "Isn't there
+        # a gps fix nearby pos1, 2, 3 etc that we can use?", 2026-10-25).
+        fix = _fix_for_turn(grid, gs, turns[i - 1], turn, turns[i + 1])
+        if fix is not None:
+            turns[i] = (fix["lat"], fix["lon"])
+            points.append((at, {"ident": fix["ident"], "lat": fix["lat"], "lon": fix["lon"], "fuel": False}))
+            continue
         named = fixes.frd_near(turn[0], turn[1])
         ident = named["ident"] if named is not None else f"@{turn[0]:.4f},{turn[1]:.4f}"
         points.append((at, {"ident": ident, "lat": turn[0], "lon": turn[1], "fuel": False}))

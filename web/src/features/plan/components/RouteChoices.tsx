@@ -43,15 +43,17 @@ function Strip({ bands }: { bands: { kind: string; min: number }[] }) {
 }
 
 /** One card, as Maps lays out a route: its time in large figures, its
- *  arrival and miles, and its name -- or what it crosses, in red -- with
+ *  arrival and miles, and its name -- or what it crosses, in amber -- with
  *  Use at the right where it is not the route already; the weather met
  *  along it a thin strip at its foot. */
-function Card({ minutes, arrive, nm, landings = 0, name, warning, bands, used, best, onUse, testId, listed = false, shown = false, onShow }: {
+function Card({ minutes, arrive, nm, landings = 0, waterNm = 0, name, warning, bands, used, best, onUse, testId, listed = false, shown = false, onShow }: {
   minutes: number | null;
   arrive: string | null;
   nm: number | null;
   /** Its fuel stops, said with its miles. */
   landings?: number;
+  /** Its miles out of a glide's reach of dry land (vfr.water). */
+  waterNm?: number;
   name: string;
   warning: string | null;
   bands?: { kind: string; min: number }[];
@@ -83,9 +85,13 @@ function Card({ minutes, arrive, nm, landings = 0, name, warning, bands, used, b
       <div className="pointer-events-none flex min-w-0 flex-1 flex-col">
         <span className="text-[1.625rem] leading-8 font-bold tabular-nums">{minutes ? minutesWords(minutes) : "—"}</span>
         <span className={cn("truncate text-muted-foreground tabular-nums", TEXT.note)}>
-          {[arrive && `${arrive} ETA`, nm && `${grouped(Math.round(nm))} nm`, landings ? `${landings} fuel stop${landings > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ")}
+          {[arrive && `${arrive} ETA`, nm && `${grouped(Math.round(nm))} nm`, landings ? `${landings} fuel stop${landings > 1 ? "s" : ""}` : null,
+            waterNm ? `${grouped(waterNm)} nm over water` : null].filter(Boolean).join(" · ")}
         </span>
-        <span className={cn("truncate", TEXT.note, warning ? "text-destructive-ink" : "text-muted-foreground")}>
+        {/* What it meets in amber, a caution for the pilot to weigh, not
+            red: the planner warns and never refuses (the owner's "change
+            from red to amber", 2026-10-25). */}
+        <span className={cn("truncate", TEXT.note, warning ? "text-caution-ink" : "text-muted-foreground")}>
           {warning ? `${name} · ${warning}` : best ? `${name} · Best` : name}
         </span>
       </div>
@@ -235,13 +241,13 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownGrou
   const cards = (
     <>
         <Card
-          minutes={own} arrive={arrive(own)} nm={ownNm} name="Your Route"
+          minutes={own} arrive={arrive(own)} nm={ownNm} waterNm={found.current_along?.water_nm} name="Your Route"
           warning={warningOf(meets)} bands={found.current_along?.bands}
           onUse={onUseOwn} testId="route-choice-current" listed={full} shown={picked === null} onShow={() => onPreview(null)}
         />
         {withFuel && (
           <Card
-            minutes={withFuel.minutes} arrive={arrive(withFuel.minutes)} nm={withFuel.nm} landings={withFuel.landings} name="Your Route with Fuel"
+            minutes={withFuel.minutes} arrive={arrive(withFuel.minutes)} nm={withFuel.nm} landings={withFuel.landings} waterNm={found.own?.water_nm} name="Your Route with Fuel"
             warning={null} onUse={onUseFuel} testId="route-choice-fuel"
             listed={full} shown={picked === "fuel"} onShow={() => onPreview("fuel")}
           />
@@ -251,7 +257,7 @@ export default function RouteChoices({ found, stops, depart, ownMinutes, ownGrou
           const minutes = option.air_min * scale + option.ground_min;
           return (
             <Card
-              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} landings={option.landings} name={wayTitle(option)}
+              key={option.kind} minutes={minutes} arrive={arrive(minutes)} nm={option.distance_nm} landings={option.landings} waterNm={option.water_nm} name={wayTitle(option)}
               warning={warningOf(option.crosses)}
               bands={option.bands} used={used} best={option === best && !used}
               onUse={used ? undefined : () => onPick(option)} testId={`route-choice-${option.kind}`}

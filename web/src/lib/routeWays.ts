@@ -3,13 +3,14 @@ import { minutesWords } from "./clock";
 import { sameField } from "./procedures";
 
 /** A way's names, the kinds it is the best of (FPL's Routes, the map's lines). */
-const KIND_TITLES: Record<RouteOption["kind"], string> = { fastest: "Fastest", weather: "Best Weather", stops: "", own: "" };
+const KIND_TITLES: Record<RouteOption["kind"], string> = { fastest: "Fastest", weather: "Best Weather", land: "Over Land", stops: "", own: "" };
 
 /** The ways FPL offers (the owner's four routes, 2026-10-23: the route,
  *  it with its fuel stops, the best weather's and the fastest, each with
- *  its fuel stops): the planner's fewest-stops way is not one of them. */
+ *  its fuel stops; and the one over land, 2026-10-25, within a glide of
+ *  dry land): the planner's fewest-stops way is not one of them. */
 export function offered(option: RouteOption): boolean {
-  return option.kinds.some(k => k === "fastest" || k === "weather");
+  return option.kinds.some(k => k === "fastest" || k === "weather" || k === "land");
 }
 
 export function wayTitle(option: RouteOption): string {

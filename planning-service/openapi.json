@@ -9899,6 +9899,11 @@
           "tail_kt": {
             "title": "Tail Kt",
             "type": "number"
+          },
+          "water_nm": {
+            "default": 0,
+            "title": "Water Nm",
+            "type": "integer"
           }
         },
         "required": [
@@ -10004,6 +10009,7 @@
               "fastest",
               "weather",
               "stops",
+              "land",
               "own"
             ],
             "title": "Kind",
@@ -10015,6 +10021,7 @@
                 "fastest",
                 "weather",
                 "stops",
+                "land",
                 "own"
               ],
               "type": "string"
@@ -10058,6 +10065,11 @@
           "title": {
             "title": "Title",
             "type": "string"
+          },
+          "water_nm": {
+            "default": 0,
+            "title": "Water Nm",
+            "type": "integer"
           }
         },
         "required": [
