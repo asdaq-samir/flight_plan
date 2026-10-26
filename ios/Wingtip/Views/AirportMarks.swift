@@ -48,13 +48,17 @@ final class AirportMarkView: MKAnnotationView {
         ring.frame = CGRect(x: 16, y: 0, width: 12, height: 12)
         ring.layer.cornerRadius = 6
         ring.layer.borderWidth = 2.5
-        ring.backgroundColor = UIColor.white.withAlphaComponent(0.85)
+        ring.backgroundColor = NightPalette.markFill
         label.frame = CGRect(x: 0, y: 13, width: 44, height: 14)
         label.font = UIFont.systemFont(ofSize: 11, weight: .semibold)
         label.textAlignment = .center
         label.textColor = .label
-        label.shadowColor = UIColor.white.withAlphaComponent(0.9)
-        label.shadowOffset = CGSize(width: 0, height: 0)
+        // A halo round the words, white by day and the night's ground in
+        // dark appearance, where .label turns light (NightPalette.halo).
+        label.halo(for: traitCollection)
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: AirportMarkView, _: UITraitCollection) in
+            view.label.halo(for: view.traitCollection)
+        }
         addSubview(ring)
         addSubview(label)
         canShowCallout = false

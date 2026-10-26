@@ -27,7 +27,7 @@ final class PlaneMarkView: MKAnnotationView {
         arrow.frame = bounds.insetBy(dx: 3, dy: 3)
         arrow.contentMode = .scaleAspectFit
         arrow.tintColor = UIColor.systemBlue
-        backgroundColor = UIColor.white.withAlphaComponent(0.9)
+        backgroundColor = NightPalette.markFill
         layer.cornerRadius = 14
         layer.borderWidth = 1
         layer.borderColor = UIColor(white: 0.1, alpha: 0.4).cgColor
@@ -78,6 +78,10 @@ struct ChartMap: UIViewRepresentable {
     /// A held finger's pin, the waypoints, the Class B fields and the
     /// plates (MapExtras.swift).
     var extras = MapExtrasInput()
+    /// Dark appearance and Setup's Chart at night, for the chart's dimming
+    /// and the course's night magenta (NightPalette).
+    @Environment(\.colorScheme) var colorScheme
+    @AppStorage(ChartNight.key) var chartNight = ChartNight.dimmed.rawValue
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -110,6 +114,7 @@ struct ChartMap: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onAirport = onAirport
+        context.coordinator.dim((ChartNight(rawValue: chartNight) ?? .dimmed).shade(dark: colorScheme == .dark))
         context.coordinator.onRegion = onRegion
         context.coordinator.show(traffic, ownFt: ownFt, on: map)
         context.coordinator.flight?.update(map, flight)
@@ -209,6 +214,20 @@ struct ChartMap: UIViewRepresentable {
         private var fetching: Task<Void, Never>?
         private var shown: [String: AirportAnnotation] = [:]
         let extras = MapExtrasState()
+        /// The chart's renderer and the course's, kept to restyle when
+        /// the appearance or the setting changes; MapKit asks for a
+        /// renderer once per overlay.
+        private var tiles: NightTileRenderer?
+        private var courseRenderer: MKPolylineRenderer?
+        private var shade: CGFloat = 0
+
+        func dim(_ shade: CGFloat) {
+            guard shade != self.shade else { return }
+            self.shade = shade
+            tiles?.shade = shade
+            courseRenderer?.strokeColor = NightPalette.course(night: shade > 0)
+            courseRenderer?.setNeedsDisplay()
+        }
 
         func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
             MainActor.assumeIsolated { extras.calloutTapped(view) }
@@ -216,6 +235,12 @@ struct ChartMap: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
             if let renderer = flight?.renderer(for: overlay) { return renderer }
+            if let chart = overlay as? ChartTileOverlay {
+                let renderer = NightTileRenderer(tileOverlay: chart)
+                renderer.shade = shade
+                tiles = renderer
+                return renderer
+            }
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
             if let plate = overlay as? PlateMapOverlay { return PlateRenderer(overlay: plate) }
             if let procedure = overlay as? ProcedurePolyline {
@@ -236,9 +261,11 @@ struct ChartMap: UIViewRepresentable {
                 return renderer
             }
             if let line = overlay as? MKPolyline {
-                // The web app's magenta course line, a halo under it.
+                // The web app's magenta course line, the night's lighter
+                // one over a dimmed chart.
                 let renderer = MKPolylineRenderer(polyline: line)
-                renderer.strokeColor = UIColor(red: 0.9, green: 0, blue: 0.9, alpha: 1)
+                renderer.strokeColor = NightPalette.course(night: shade > 0)
+                courseRenderer = renderer
                 renderer.lineWidth = 3
                 renderer.lineJoin = .round
                 renderer.lineCap = .round
