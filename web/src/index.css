@@ -125,7 +125,7 @@ body .leaflet-container {
    height and shape are on <body> (MapPanel): a :has() there restyled the
    whole page at every change of the attributes it named. */
 [data-map-controls] {
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, bottom 0.3s cubic-bezier(0, 0, 0.58, 1);
 }
 body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   opacity: 0;
@@ -217,7 +217,8 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
 
 @theme inline {
   --font-heading: var(--font-sans);
-  --font-sans: 'Inter Variable', sans-serif;
+  /* The look's own face (lib/brand, --brand-font below), Inter otherwise. */
+  --font-sans: var(--brand-font, 'Inter Variable'), sans-serif;
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -386,6 +387,61 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+}
+
+/* The app's looks (Settings' Look, lib/brand), the owner's four from
+   the brand canvas (2026-10-26): Sectional is the tokens above as they
+   are; the others change only what can be tapped (primary, tint), the
+   typeface and the corners, in each theme, so every word stays at 4.5:1
+   and more on its surface (WCAG 1.4.3): light tints 4.8:1 and more on
+   white and the muted grey, dark ones 6:1 and more on the night's card, and white on each
+   primary 4.6:1 and more. Caution, go, red and the chart's own inks stay
+   as they are: they are the FAA's and the cockpit's, not the brand's.
+   :not(.dark) and .dark each, so a look's light tokens never win over
+   the night's (an attribute is as specific as a class). */
+:root[data-brand="cockpit"] {
+  --brand-font: 'Barlow';
+  --radius: 0.5rem;
+}
+:root[data-brand="cockpit"]:not(.dark) {
+  /* The cockpit's cyan, deepened to read on white (#00707E, 5.6:1). */
+  --primary: #00707e;
+  --tint: #00707e;
+}
+:root.dark[data-brand="cockpit"] {
+  /* The panel's cyan for words (#46D3E6, 8.4:1 on the card), a deep teal
+     for fills under white words (#0B6E7A, 5.3:1). */
+  --primary: #0b6e7a;
+  --tint: #46d3e6;
+}
+:root[data-brand="windsock"] {
+  --brand-font: 'Archivo Variable';
+  --radius: 0.375rem;
+}
+:root[data-brand="windsock"]:not(.dark) {
+  /* The windsock's orange, deepened for words and fills (#C73A00,
+     5.2:1 on white, white on it 5:1). */
+  --primary: #c73a00;
+  --tint: #c73a00;
+}
+:root.dark[data-brand="windsock"] {
+  --primary: #c73a00;
+  /* A paler orange for words on the navy (#FF9466, 6.9:1 on the card). */
+  --tint: #ff9466;
+}
+:root[data-brand="clearsky"] {
+  --brand-font: 'Manrope Variable';
+  --radius: 0.875rem;
+}
+:root[data-brand="clearsky"]:not(.dark) {
+  /* Sky blue (#0A66E8, 5.2:1 on white, white on it 4.9:1). */
+  --primary: #0a66e8;
+  --tint: #0a66e8;
+}
+:root.dark[data-brand="clearsky"] {
+  --primary: #0a66e8;
+  /* A lighter sky for words on the navy (#7AB8FF, 7.2:1 on the card). */
+  --tint: #7ab8ff;
 }
 
 /* The chart at night (Settings' "Chart at night", lib/preferences

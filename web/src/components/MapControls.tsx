@@ -11,10 +11,9 @@ import { GLASS } from "./mapChrome";
  * The map's buttons, in one group floating over the chart, as Maps
  * stacks its own: the map's settings, the pilot's own position (the
  * location arrow), and full screen where it works. A zoom toggle, between the whole route and the
- * selected point, went: picking a waypoint brings the map to it. On the edge away from the panel
- * (useNavEdge): at the top right over a panel at the bottom, at the
- * bottom right under one at the top -- clear of it, and of the chart
- * credit in the corner.
+ * selected point, went: picking a waypoint brings the map to it. At the
+ * bottom right, over the sheet or the panel's edge -- clear of it, and of
+ * the chart credit in the corner.
  *
  * Ghost buttons on the group's glass, eight apart inside it, so
  * each one's 44-point hit area (index.css) meets the next one's rather
@@ -28,9 +27,12 @@ export default function MapControls() {
     // controls; still inside the map's own stacking context, under the
     // panel and every portal. The map's right edge is the screen's, so
     // clear of a landscape phone's notch there.
-    // At the bottom with the panel from the top, over the tab bar there on a
-    // phone (the map's bottom inset, MapPanel), or the home indicator.
-    <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] z-[1000] nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:bottom-auto">
+    // Just over the sheet at its small and medium heights, as Maps' ride
+    // on its sheet (the owner's screenshot, 2026-10-26): the map's bottom
+    // inset is what the sheet covers at rest (MapPanel), and they move
+    // with it in the sheet's time; all the way up they give way
+    // (index.css). Clear of the chart credit under them.
+    <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] z-[1000]">
       <div
         className={cn(
           // A capsule of Liquid Glass, as Maps' buttons are on iOS 26 and

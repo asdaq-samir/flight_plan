@@ -4,7 +4,8 @@ import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented from "./Segmented";
 import { useNavEdge } from "../hooks/use-nav-edge";
-import { usePreferences, type ChartNight, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
+import { usePreferences, type Brand, type ChartNight, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
+import { BRANDS } from "../lib/brand";
 import { useTips } from "../lib/tips";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { RowBadge } from "./RowBadge";
@@ -125,8 +126,24 @@ function AppearanceGroup() {
   const setChartNight = usePreferences(s => s.setChartNight);
   const look = usePreferences(s => s.ownShipLook);
   const setLook = usePreferences(s => s.setOwnShipLook);
+  const brand = usePreferences(s => s.brand);
+  const setBrand = usePreferences(s => s.setBrand);
   return (
     <ListGroup title="Appearance">
+      {/* The app's look, the owner's four (lib/brand): a menu, as a
+          discrete choice is, not a slider. */}
+      <ListRow media={badge("look", <Palette />)} title="Look">
+        <Select value={brand} onValueChange={v => setBrand(v as Brand)}>
+          <SelectTrigger size="sm" aria-label="Look" data-testid="brand-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {BRANDS.map(b => (
+              <SelectItem key={b.value} value={b.value} data-testid={`brand-${b.value}`}>{b.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ListRow>
       <ListRow media={badge("theme", <SunMoon />)} title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
       </ListRow>
