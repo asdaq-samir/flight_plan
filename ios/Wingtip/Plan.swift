@@ -73,6 +73,18 @@ final class Plan {
     /// When the plan shown was made; nil while it is being made now.
     private(set) var plannedAt: Date?
 
+    /// The route's undo and redo (PlanHistory): each change taken in as
+    /// it is planned or cleared, whichever button made it.
+    private(set) var history = PlanHistory()
+    /// What the last change took away, for the Undo bar; nil once it goes.
+    private(set) var undoNote: UndoNote?
+    /// The window's, from SwiftUI's environment (RootView): shake to undo
+    /// and the Edit menu's Undo and Redo, for free.
+    @ObservationIgnored weak var undoManager: UndoManager?
+    /// Off while a kept plan is put back at launch: that is not the
+    /// pilot's change to undo.
+    @ObservationIgnored private var remembering = true
+
     var routed: Bool { !dep.isEmpty && !dest.isEmpty }
 
     /// What is on the page, kept for the air (Kept): after the nav log
@@ -93,21 +105,81 @@ final class Plan {
         course = kept.course; checkpoints = kept.checkpoints; profile = kept.profile; altitude = kept.altitude
         legs = kept.legs; totals = kept.totals; altitudeFt = kept.altitude?.altitudeFt; briefing = kept.briefing
         plannedAt = kept.plannedAt
+        remembering = false
         plan()
+        remembering = true
+        history = PlanHistory(routeState)
     }
 
     /// The route's idents in order, as the route box shows them.
     var idents: [String] { [dep] + stops + [dest] }
 
+    /// The route cleared at once, no question asked: the Undo bar, shake
+    /// or the Edit menu brings it back (PlanHistory).
     func clear() {
-        running?.cancel()
         dep = ""; dest = ""; stops = []
-        course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil; hazardLegs = nil
-        legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
-        Kept.forget()
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
         extras = RouteExtras()
         typedStops = []; pickedWay = nil; routes = nil; routesProblem = nil; routesAskedFor = nil
+        forgetPlanned()
+        remember()
+    }
+
+    /// What the planner said of the route, gone with it.
+    private func forgetPlanned() {
+        running?.cancel()
+        course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil; hazardLegs = nil
+        legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
+        Kept.forget()
+    }
+
+    /// The route as it is now taken into the history: a change is a step
+    /// to undo, said in the Undo bar where it took something away.
+    private func remember() {
+        guard remembering else { return }
+        let (pushed, note) = history.observe(routeState)
+        guard pushed else { return }
+        undoNote = note.map { UndoNote(words: $0) }
+        guard let undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { plan in MainActor.assumeIsolated { plan.stepBack(registering: true) } }
+        undoManager.setActionName(note ?? "Route Change")
+    }
+
+    /// One step back, the route as it was planned again; the step to redo
+    /// handed to the UndoManager when it asked for this one.
+    func stepBack(registering: Bool) {
+        guard let state = history.undo() else { return }
+        put(state)
+        if registering, let undoManager {
+            undoManager.registerUndo(withTarget: self) { plan in MainActor.assumeIsolated { plan.stepForward(registering: true) } }
+        }
+    }
+
+    func stepForward(registering: Bool) {
+        guard let state = history.redo() else { return }
+        put(state)
+        if registering, let undoManager {
+            undoManager.registerUndo(withTarget: self) { plan in MainActor.assumeIsolated { plan.stepBack(registering: true) } }
+        }
+    }
+
+    private func put(_ state: RouteState) {
+        undoNote = nil
+        dep = state.dep; dest = state.dest; stops = state.stops; procedures = state.procedures; extras = state.extras
+        ownAltitudeFt = state.ownAltitudeFt; ownAltitudeLegal = state.ownAltitudeLegal; altitudeChoice = state.altitudeChoice
+        if routed { plan() } else { forgetPlanned() }
+    }
+
+    /// The Undo bar put away, its time up.
+    func dismissUndoNote(_ note: UndoNote) {
+        if undoNote == note { undoNote = nil }
+    }
+
+    /// No steps back: a signed-out pilot's routes are not the next one's.
+    func forgetHistory() {
+        history = PlanHistory(routeState)
+        undoNote = nil
+        undoManager?.removeAllActions(withTarget: self)
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
@@ -253,6 +325,7 @@ final class Plan {
         let picks = procedures.filter { idents.contains($0.ident) }
         let extra = extras.query(procedures: picks)
         self.dep = dep; self.dest = dest; self.stops = stops
+        remember()
         // A way picked stands while its stops are the route's; a stop
         // added, taken out or moved makes the route the pilot's own again,
         // and the ways are asked for afresh for it.
