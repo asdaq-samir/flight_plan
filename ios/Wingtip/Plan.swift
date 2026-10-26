@@ -43,8 +43,16 @@ final class Plan {
     private(set) var briefing: Briefing?
     private(set) var routes: RouteOptions?
     private(set) var routesProblem: String?
-    /// The way whose path is drawn on the map while the cards are up.
-    var shownWay: RouteOption?
+    /// The route's stops as the pilot typed them, kept while one of the
+    /// planner's ways is flown in their place: "None" on the route line
+    /// flies them again.
+    private(set) var typedStops: [String] = []
+    /// The planner's way flown in place of the typed route, picked on the
+    /// route line; nil for the route as typed.
+    private(set) var pickedWay: RouteOption?
+    /// The route the ways in `routes` were asked for, so a re-plan of the
+    /// same route (a new altitude, a procedure) does not ask again.
+    private var routesAskedFor: String?
     private(set) var briefingProblem: String?
     private(set) var legs: [Leg] = []
     private(set) var altitudeFt: Double?
@@ -96,6 +104,7 @@ final class Plan {
         Kept.forget()
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
         extras = RouteExtras()
+        typedStops = []; pickedWay = nil; routes = nil; routesProblem = nil; routesAskedFor = nil
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
@@ -187,21 +196,33 @@ final class Plan {
         plan()
     }
 
-    /// The ways to fly the route, asked for from the Routes page.
-    func findRoutes() async {
-        guard routed else { return }
-        routesProblem = nil
+    /// The ways to fly the route as the pilot typed it, for the route
+    /// line's chips: asked for once per route, whichever way is flown.
+    private func findRoutes(dep: String, dest: String, stops: [String], aircraft: String, asked: String) async {
         do {
-            routes = try await Planner.routeOptions(dep: dep, dest: dest, stops: stops, aircraft: aircraft)
+            let found = try await Planner.routeOptions(dep: dep, dest: dest, stops: stops, aircraft: aircraft)
+            guard routesAskedFor == asked else { return }
+            routes = found
         } catch {
+            guard routesAskedFor == asked, !(error is CancellationError) else { return }
             routesProblem = error.localizedDescription
         }
     }
 
-    /// A way taken: its stops the route's, planned again.
+    /// A way off the route line flown at once, no asking first: its stops
+    /// the route's, the typed ones kept for "None".
     func use(_ way: RouteOption) {
+        if pickedWay == nil { typedStops = stops }
+        pickedWay = way
         stops = way.stops
-        shownWay = nil
+        plan()
+    }
+
+    /// "None" on the route line: the route as the pilot typed it again.
+    func useTyped() {
+        guard pickedWay != nil else { return }
+        pickedWay = nil
+        stops = typedStops
         plan()
     }
 
@@ -227,6 +248,18 @@ final class Plan {
         let picks = procedures.filter { idents.contains($0.ident) }
         let extra = extras.query(procedures: picks)
         self.dep = dep; self.dest = dest; self.stops = stops
+        // A way picked stands while its stops are the route's; a stop
+        // added, taken out or moved makes the route the pilot's own again,
+        // and the ways are asked for afresh for it.
+        if let way = pickedWay, way.stops.map({ $0.uppercased() }) != stops { pickedWay = nil }
+        if pickedWay == nil { typedStops = stops }
+        let asked = ([dep, dest, aircraft] + typedStops).joined(separator: " ")
+        if asked != routesAskedFor {
+            routesAskedFor = asked
+            routes = nil; routesProblem = nil
+            let typed = typedStops
+            Task { [weak self] in await self?.findRoutes(dep: dep, dest: dest, stops: typed, aircraft: aircraft, asked: asked) }
+        }
         planning = true
         problem = nil
         stage = "Finding the route…"
