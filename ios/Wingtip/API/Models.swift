@@ -347,6 +347,9 @@ struct RouteOption: Codable, Equatable, Sendable, Identifiable {
     var marginal: [Int] = []
     var tailKt: Double?
     var floorFt: Int?
+    /// The chip's words as the planner gives them, the same on the web
+    /// and the phone; an older planner leaves it out.
+    var label: String?
 
     var id: String { kind + ":" + stops.joined(separator: ",") }
 }

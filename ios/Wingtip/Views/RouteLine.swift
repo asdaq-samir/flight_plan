@@ -19,8 +19,11 @@ struct RouteChip: Identifiable, Equatable {
 enum RouteLine {
     static let none = RouteChip(id: "none", label: "None", way: nil)
 
+    /// The planner's own words for the chip where it sends them, else its
+    /// title and the stops the way adds.
     static func label(_ way: RouteOption) -> String {
-        way.stops.isEmpty ? way.title : way.title + " · " + way.stops.joined(separator: " ")
+        if let label = way.label, !label.isEmpty { return label }
+        return way.stops.isEmpty ? way.title : way.title + " · " + way.stops.joined(separator: " ")
     }
 
     static func chips(_ routes: RouteOptions?, typed: [String]) -> [RouteChip] {

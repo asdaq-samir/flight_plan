@@ -32,6 +32,14 @@ struct RouteLineTests {
         #expect(chips.first?.label == "None")
     }
 
+    @Test func thePlannersOwnLabelIsUsedWhereItSendsOne() throws {
+        let json = #"{"kind":"weather","kinds":["weather"],"title":"Best weather","label":"Avoid Weather · KMVN KJLN","stops":["KMVN","KJLN"],"fuel":[],"path":[],"distance_nm":650.0,"air_min":400.0,"ground_min":0.0,"fuel_gal":60.0,"landings":0,"crosses":[],"marginal":[]}"#
+        let way = try Planner.snakeCase.decode(RouteOption.self, from: Data(json.utf8))
+        #expect(RouteLine.label(way) == "Avoid Weather · KMVN KJLN")
+        // Without one, the title and the stops.
+        #expect(RouteLine.label(try Self.routes().options[1]) == "Fastest · KTBN")
+    }
+
     @Test func beforeTheAnswerOnlyNoneIsOffered() {
         #expect(RouteLine.chips(nil, typed: []).map(\.label) == ["None"])
     }
