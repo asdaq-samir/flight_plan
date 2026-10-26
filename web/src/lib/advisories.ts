@@ -58,6 +58,20 @@ export function faaWords(text: string | null | undefined): string {
   return words.replace(/(^|[.!?]\s+)([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase());
 }
 
+/** A place's name as it is written, each word capitalised: the FAA's and
+ *  the airport file's capitals ("EAU CLAIRE", "LA CROSSE", "STERLING/
+ *  ROCKFALLS") as a town is spelt -- "Eau Claire", "La Crosse",
+ *  "Sterling/Rockfalls" -- where faaWords' sentence case read "La crosse"
+ *  (the owner's screenshot, 2026-10-26). A name already in mixed case is
+ *  kept as it is. */
+export function placeWords(text: string | null | undefined): string {
+  if (!text) return "";
+  if (/[a-z]/.test(text)) return text;
+  return text.toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase())
+    // "Mc" names as they are written: McCook, McAlester.
+    .replace(/\bMc([a-z])/g, (_, letter: string) => `Mc${letter.toUpperCase()}`);
+}
+
 /** A SIGMET's hazard in words: "Convective", "Mountain obscuration". */
 const SIGMET_HAZARDS: Record<string, string> = {
   CONVECTIVE: "Convective", TURB: "Turbulence", ICE: "Icing", IFR: "IFR", "MTN OBSCN": "Mountain obscuration",

@@ -5,12 +5,12 @@ import { cn } from "cn";
 import { CardHead } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import QueryState from "../../../components/QueryState";
+import { ADD_CAPSULE } from "../../../components/mapChrome";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
-import { faaWords } from "../../../lib/advisories";
+import { placeWords } from "../../../lib/advisories";
 import type { FieldFood } from "../../../lib/api/types";
-import { pointName } from "../../../lib/identSchema";
 import { usePreferences } from "../../../lib/preferences";
 import { airportsFoodQuery, routeFoodQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
@@ -18,6 +18,14 @@ import { TEXT } from "../../../lib/text";
 /** The radii offered, nm: a menu of them, not a slider (the owner's
  *  discrete settings), a hundred the default (the owner, 2026-10-26). */
 const RADII = [25, 50, 100, 150, 200];
+
+/** How far off the course a field is: "on course", "3 nm off course"
+ *  (the owner's "say how far off course instead of the departure",
+ *  2026-10-26). */
+function offWords(offNm: number | null | undefined): string {
+  const nm = Math.round(offNm ?? 0);
+  return nm < 1 ? "On course" : `${nm} nm off course`;
+}
 
 /** The compass point a field is toward, from its true bearing: "NE". */
 function towards(deg: number): string {
@@ -37,7 +45,7 @@ function towards(deg: number): string {
  * 2026-10-26). A field's name opens its card. Fields whose places are
  * still being read are said, and the list asked again until they are in.
  */
-export default function FoodCard({ name, at, route, onClose, onOpenField }: {
+export default function FoodCard({ name, at, route, onClose, onOpenField, onAddStop, onDirect }: {
   name: ReactNode;
   /** Where the fields are looked for round with no course: own ship, else
    *  null. */
@@ -46,6 +54,10 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
   route: { dep: string; dest: string; stops: string } | null;
   onClose: () => void;
   onOpenField: (ident: string) => void;
+  /** Along a route: the field put in it as a stop, where it falls. */
+  onAddStop: (field: FieldFood) => void;
+  /** Round the pilot: a flight from here straight to the field. */
+  onDirect: (ident: string) => void;
 }) {
   const radius = usePreferences(p => p.foodRadiusNm);
   const setRadius = usePreferences(p => p.setFoodRadiusNm);
@@ -92,7 +104,7 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
                     type="button" onClick={() => onOpenField(field.ident)} data-testid="food-field-open"
                     className="text-left font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {field.ident} · {faaWords(field.city || field.name)}
+                    {field.ident} · {placeWords(field.city || field.name)}
                   </button>
                 )}
                 description={(
@@ -100,15 +112,27 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
                     {field.food.slice(0, 2).map(place => (
                       <span key={place.name} className="truncate">{place.name} · {place.kind}</span>
                     ))}
-                    {route && field.departure && (
-                      <span className="tabular-nums">{Math.round(field.distance_nm)} nm from {pointName(field.departure)}</span>
-                    )}
+                    {/* How far off the course, in words, where a bare "+2 nm" said
+                        nothing of what (the owner's "Why does it say +2 nm for
+                        JVL?" and "say how far off course instead of the
+                        departure", 2026-10-26). */}
+                    <span className="tabular-nums">
+                      {route ? offWords(field.off_nm) : `${Math.round(field.distance_nm)} nm ${towards(field.bearing_deg)}`}
+                    </span>
                   </span>
                 )}
-                value={(
-                  <span className={cn("tabular-nums text-muted-foreground", TEXT.detail)}>
-                    {route ? `+${Math.round(field.added_nm ?? 0)} nm` : `${Math.round(field.distance_nm)} nm ${towards(field.bearing_deg)}`}
-                  </span>
+                // Along a route, Add Stop; round the pilot, Direct To (the
+                // owner's "On course, have a button to add stop and when
+                // showing them around current position then have the button
+                // for direct to", 2026-10-26).
+                value={route ? (
+                  <button type="button" onClick={() => onAddStop(field)} data-testid="food-add-stop" aria-label={`Add ${field.ident} as a stop`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
+                    Add Stop
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => onDirect(field.ident)} data-testid="food-direct" aria-label={`Direct to ${field.ident}`} className={cn(ADD_CAPSULE, "whitespace-nowrap")}>
+                    Direct To
+                  </button>
                 )}
               />
             ))}

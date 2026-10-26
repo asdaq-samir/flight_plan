@@ -87,12 +87,15 @@ function planAt(nav: NavLogAltitude | null, altitude: number): AltitudeChoice | 
  * chip was: red with no legal altitude, IFR's flag, a tight altitude and a
  * pilot's own altitude's caution.
  */
-export default function AltitudeGroup({ nav, legs, commanded = null, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
+export default function AltitudeGroup({ nav, legs, commanded = null, asked = null, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** The altitude the pilot asked for, feet, while its log is planned: the
    *  field shows it from the moment it is asked, not the one before it. */
   commanded?: number | null;
+  /** The pilot's own altitude in the address, and whether it is flown at
+   *  each leg's nearest legal one (a pick on the wheel) or as typed. */
+  asked?: { ft: number; nearest: boolean } | null;
   /** No legal altitude on the route: the group red, its card saying why. */
   problem?: boolean;
   /** A leg where no 500 ft step fits (vfr.altitude's tight altitude). */
@@ -126,7 +129,15 @@ export default function AltitudeGroup({ nav, legs, commanded = null, problem = f
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
-    if (ft >= 500 && ft <= top && ft !== flying) onFlyAltitude(ft);
+    // Nothing to plan only where it is what was asked and every leg flies
+    // it. A pick on the wheel asks for one altitude and flies each leg at
+    // its nearest legal one, so a figure typed equal to the highest of those
+    // is still the pilot's own: the whole route at it, kept as they change
+    // it (CI's C81-KDLH: 3,000 ft picked, flown at 3,500, then 035 typed).
+    const flownAlready = commanded !== null ? ft === commanded
+      : asked ? ft === asked.ft && !asked.nearest
+        : legs.length ? legs.every(leg => leg.altitude_ft === ft) : ft === flying;
+    if (ft >= 500 && ft <= top && !flownAlready) onFlyAltitude(ft);
   };
   const profiled = !disabled && (problem || (!!nav && (flying !== null || nav.flown === null)));
   // The button there as soon as a figure is, greyed till the plan it shows

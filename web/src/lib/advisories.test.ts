@@ -68,3 +68,14 @@ describe("a name the FAA writes in capitals", () => {
     expect(titleCase("ROCKFORD")).toBe("Rockford");
   });
 });
+
+describe("a place's name", () => {
+  it("is spelt as a town is, each word capitalised", async () => {
+    const { placeWords } = await import("./advisories");
+    expect(placeWords("LA CROSSE")).toBe("La Crosse");
+    expect(placeWords("EAU CLAIRE")).toBe("Eau Claire");
+    expect(placeWords("STERLING/ROCKFALLS")).toBe("Sterling/Rockfalls");
+    expect(placeWords("MCCOOK")).toBe("McCook");
+    expect(placeWords("Madison")).toBe("Madison");
+  });
+});

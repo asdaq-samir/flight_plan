@@ -1130,7 +1130,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     })();
     return () => { gone = true; };
   }, [place, fromFor]);
-  const flyHere = useCallback(async (to: AirportPlace) => {
+  const flyHere = useCallback(async (to: Pick<AirportPlace, "ident">) => {
     const from = await fromFor(to.ident, await positionNow());
     const next: Record<string, string> = { dest: to.ident };
     if (from) next.dep = from;
@@ -1339,6 +1339,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const isBreak = fuelStops.some(f => f.reason === "break" && [...f.stops, ...(f.choices ?? [])].some(c => idents.includes(c.ident)));
     if (next) setStops(next.stops, isBreak ? [] : next.added);
   }, [setStops, planned.dep, planned.stops, fuelStops]);
+  // A field from the map's fly-in food put in the route after its flight's
+  // departure, the pilot's own stop: by the route's own points, not its
+  // course, which a tap before the course was in found missing.
+  const addFoodStop = useCallback((field: { ident: string; departure?: string | null }) => {
+    const next = withStopsAfter(planned.dep, planned.stops, field.departure ?? planned.dep, [field.ident]);
+    if (next) setStops(next.stops);
+  }, [setStops, planned.dep, planned.stops]);
   // The suggested stop the airport's card is open on, where it is one: its
   // figures at the card's top, and Add Stop keeps it at its place
   // (PlaceCard's `stop`).
@@ -1534,8 +1541,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const foodRadius = usePreferences(p => p.foodRadiusNm);
   // While the map's fly-in food is open, its fields pinned in the
   // suggestions' place (the same queries as the card's).
-  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: stopsShown && !foodRoute && !!foodAt });
-  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: stopsShown && !!foodRoute });
+  // Asked for as soon as there is a route (or a position), not at the
+  // button's tap: the planner reads each field's places and outline from
+  // Overture the first time, half a minute for a long route's forty, and
+  // the owner waited on it ("why is it taking a long time to see these
+  // fly in airports", 2026-10-26). Not for each Routes card swiped past.
+  // Pinned only while the card is open.
+  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: !foodRoute && !!foodAt });
+  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: !!foodRoute && (!choosing || stopsShown) });
   const foodFields = foodRoute ? foodAlong : foodNear;
   const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
     ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,
@@ -2334,6 +2347,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           // with no log yet: with no route the figure typed went blank, as
           // if it were not taken, where the route entered next flies it.
           commanded={(s.replanning || !s.nav) && altitudeFt ? Number(altitudeFt) : null}
+          asked={altitudeFt ? { ft: Number(altitudeFt), nearest: altitudeNearest } : null}
           problem={!!unflyable}
           // What the altitude was planned within, marked on the group, said
           // in the Profile card (AltitudeProfile).
@@ -2350,7 +2364,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
   ), [aircraftValue, aircraftChoices, changeAircraft, pickTail, openAirplaneCard, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
-    routed, depart, changeDepart, flightRules, s.replanning, altitudeFt]);
+    routed, depart, changeDepart, flightRules, s.replanning, altitudeFt, altitudeNearest]);
 
   // Saving the flight, the narrative and Print.
   const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
@@ -2751,7 +2765,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </ProfileCard>
         )}
         {stopsHere && !savedOpen && (
-          <FoodCard name="Fly-in Food" at={foodAt} route={foodRoute} onClose={closeStops} onOpenField={selectPlace} />
+          <FoodCard
+            name="Fly-in Food" at={foodAt} route={foodRoute} onClose={closeStops} onOpenField={selectPlace}
+            onAddStop={addFoodStop}
+            onDirect={ident => void flyHere({ ident })}
+          />
         )}
         <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (savedOpen || briefHere || profileHere || stopsHere || !hasPoints) && "hidden")}>{navLog}</div>
         {/* A departure alone: under it the flights saved and the routes
