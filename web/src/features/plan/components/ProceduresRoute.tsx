@@ -1010,7 +1010,9 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
     <li className="relative flex gap-2.5" data-testid="route-line">
       <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />
       <div className="w-7 shrink-0" />
-      <div className="flex min-w-0 flex-1 items-center gap-2 pb-4">
+      {/* Twenty under the chips, not sixteen: the next field's toggle's
+          44 points came up into the picked chip's (the iOS audit, P1). */}
+      <div className="flex min-w-0 flex-1 items-center gap-2 pb-5">
         <Route className="size-5 shrink-0 text-muted-foreground" aria-label="Route options" role="img" />
         {!open ? (
           <div role="radiogroup" aria-label="Route options">
