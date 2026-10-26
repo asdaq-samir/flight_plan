@@ -2428,7 +2428,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The open card's name for the bar over it: an airport's ident, the
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
-  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Food" : undefined);
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Fly-in Food" : undefined);
   // The airport's card: all the way up in the panel's body; at the pill's
   // size its summary, the pill's own (`summary`), as a tap on the map opens
   // it, at the owner's pick of the redesign.
