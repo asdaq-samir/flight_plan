@@ -11,7 +11,12 @@ struct AirportSearchView: View {
     /// writes them: a field tapped on the chart opens its card here, a
     /// point held on it the airspace there.
     @Binding var path: [String]
-    @State private var query = ""
+    /// What is typed, kept where the iPad's sidebar can give the column
+    /// its search field too (SplitLayout).
+    private var query: String {
+        get { AirportQuery.shared.text }
+        nonmutating set { AirportQuery.shared.text = newValue }
+    }
     @State private var found: [AirportSuggestion] = []
     @State private var places: [PlaceFound] = []
     @State private var searching: Task<Void, Never>?
@@ -62,7 +67,7 @@ struct AirportSearchView: View {
             .navigationTitle("Airport")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: String.self) { text in AirportDestination(route: AirportRoute(text), nearest: nearest) }
-            .searchable(text: $query, prompt: "Identifier, name or town")
+            .searchable(text: Binding(get: { query }, set: { query = $0 }), prompt: AirportQuery.prompt)
             .textInputAutocapitalization(.characters)
             .autocorrectionDisabled()
             // The nearest fields from where the phone is, asked again once
