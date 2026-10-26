@@ -16,8 +16,12 @@ export function FuelGauge({ gal, usable, tone }: { gal: number; usable: number |
       data-testid="fuel-gauge"
     >
       {share !== null && (
-        <span aria-hidden="true" className="inline-flex h-2.5 w-6 overflow-hidden rounded-[3px] bg-foreground/15">
-          <span className={cn("h-full", tone === "low" ? "bg-destructive" : tone === "fuel" ? "bg-caution" : "bg-foreground/60")} style={{ width: `${Math.max(8, share * 100)}%` }} />
+        // Drawn as a gauge, its edge in the words' colour and the share
+        // left filled in it, as iOS draws a battery: a grey bar on a grey
+        // track read as text blacked out (the owner's "your canvas looks
+        // much prettier than the actual app", 2026-10-26).
+        <span aria-hidden="true" className="inline-flex h-3 w-6 rounded-[3.5px] border-[1.5px] border-current p-px opacity-90">
+          <span className="h-full rounded-[1.5px] bg-current" style={{ width: `${Math.max(10, share * 100)}%` }} />
         </span>
       )}
       <span><span className="sr-only">Fuel in the tanks </span>{Math.floor(gal)} gal</span>
