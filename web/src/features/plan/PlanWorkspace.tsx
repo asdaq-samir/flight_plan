@@ -1558,6 +1558,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
     ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,
   })) : null), [stopsShown, foodFields]);
+  // Food's pins beside the fuel stops, not in their place (the owner's
+  // "when food is shown, don't hide the fuel", 2026-10-26): a fuel stop
+  // with food on it pinned once, as the fuel stop.
+  const stopPins = useMemo(() => (alongPins
+    ? [...fuelStopPins, ...alongPins.filter(p => !fuelStopPins.some(f => f.ident === p.ident))]
+    : fuelStopPins), [alongPins, fuelStopPins]);
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
@@ -2630,7 +2636,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           crossings={crossings}
           directs={mapDirects}
           onProcedureFix={showFix}
-          fuelStops={alongPins ?? fuelStopPins}
+          fuelStops={stopPins}
           ways={wayLines} wayShown={wayShown ?? "own"} onPickWay={pickWay}
         />
         </Suspense>
@@ -2719,7 +2725,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {/* And while a finger takes it up: the pill's own are out of
             sight then (the owner's notice, "Fpl hides Saved while dragging
             up"). */}
-        {!savedOpen && !hasPoints && (panel !== "peek" || dragging) && (
+        {/* Not under Fly-in Food with no route: FPL's Saved stood over
+            its list (the owner's screenshot, 2026-10-26). */}
+        {!savedOpen && !hasPoints && !stopsHere && (panel !== "peek" || dragging) && (
           routeRecentsOpen ? (
             <TabPage testId="route-recents-list">
               <RecentRoutesPage onBack={closeList} />

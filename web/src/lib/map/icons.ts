@@ -4,7 +4,7 @@ import type { AirspaceClass } from "../preferences";
 import { inkOn } from "../scoreScale";
 import { textWidth } from "../textWidth";
 import { AIRPORT_MARK, airportMarkSvg, text } from "./airportMark";
-import { COURSE_MAGENTA, MAP_BLUE, WAYPOINT_MAGENTA } from "./chartColors";
+import { MAP_BLUE, WAYPOINT_MAGENTA } from "./chartColors";
 
 /** An icon made once for the same arguments and handed out again after:
  *  react-leaflet sets a marker's icon again whenever the icon is a new
@@ -216,35 +216,27 @@ export const diamondIcon = made(function diamondIcon() {
   });
 });
 
-/** A waypoint the route flies through (a VFR or GPS waypoint): a chip in
- *  white with magenta words and the diamond the chart's waypoints wear,
- *  where an airport's chip wears its weather. */
-export const waypointIcon = made(function waypointIcon(ident: string) {
-  const width = Math.max(40, Math.ceil(ident.length * 7.5) + 30);
+/** A point the route flies through or works out -- a VFR or GPS waypoint,
+ *  a present position (POS0), a top of climb or descent -- as the chart
+ *  marks a fix: the magenta diamond on the course itself, its name beside
+ *  it, dark on a white halo as an airport's ident is (airportMarkIcon), on
+ *  the `side` kept clear of the airports' names (the owner's "TOC and TOD
+ *  should have the fix on the course for those labels. Just like that
+ *  POS0 should have a fix symbol with a label POS0", 2026-10-26). A
+ *  finger's 44 points of target round the diamond. */
+export const fixMarkIcon = made(function fixMarkIcon(label: string, side: "right" | "left" = "right") {
+  const at = side === "right" ? "left-[calc(50%+10px)]" : "right-[calc(50%+10px)]";
   return L.divIcon({
     className: "",
-    iconSize: [width, 24], iconAnchor: [width / 2, 12],
+    iconSize: [TAP, TAP], iconAnchor: [TAP / 2, TAP / 2],
     html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-full border-2 bg-white px-1.5 py-0.5 text-[11px] font-bold text-[#8a1f5f] shadow-sm"` +
-      ` style="border-color:${WAYPOINT_MAGENTA}">&#9670;&#8202;${text(ident)}</span>`,
+      `<span class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border-2 border-white shadow-sm"` +
+      ` style="background-color:${WAYPOINT_MAGENTA}"></span>` +
+      `<span class="absolute top-1/2 ${at} -translate-y-1/2 whitespace-nowrap text-[11px] leading-none font-bold text-[#1c1a17] [text-shadow:0_0_2px_#fff,0_0_2px_#fff,0_0_3px_#fff,0_0_4px_#fff]">${text(label)}</span>`,
   });
 });
-
-/** A top of climb or descent on the course line: "TOC" or "TOD" in a
- *  small white tag edged in the line's magenta, under the checkpoints'
- *  dots (it is a point the plan works out, not one to look for); `up`
- *  points over or (negative) under its point, where an airport's name
- *  is in the way (RouteMap's LegPoints). */
-export const LEG_POINT_SIZE = [38, 20] as const;
-export const legPointIcon = made(function legPointIcon(label: "TOC" | "TOD", up: number) {
-  return L.divIcon({
-    className: "",
-    iconSize: [LEG_POINT_SIZE[0], LEG_POINT_SIZE[1]], iconAnchor: [LEG_POINT_SIZE[0] / 2, LEG_POINT_SIZE[1] / 2 + up],
-    html:
-      `<span class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded-sm border-[1.5px] bg-white px-1 text-[11px] leading-[13px] font-bold text-[#1c1a17] shadow-sm"` +
-      ` style="border-color:${COURSE_MAGENTA}">${text(label)}</span>`,
-  });
-});
+/** How far a fix's name runs beside its diamond (fixMarkIcon), points. */
+export const fixMarkReach = (label: string) => 10 + Math.ceil(label.length * 7.5);
 
 /**
  * A field nobody asked about -- a training corridor's endpoint: its ident
