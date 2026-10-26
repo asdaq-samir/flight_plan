@@ -2168,11 +2168,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // A way's line or chip on the chart tapped: its chip picked.
   const pickWay = useCallback((key: string) => applyChip(key === "own" ? "none" : key), [applyChip]);
   // The routes the chips put in, end to end, for the route box to keep
-  // its height through them (RouteBox's holdFor).
+  // its height through them while the line is open and they are tapped
+  // through (RouteBox's holdFor); folded, the box is the route's own
+  // height -- a short route's one line was held at two.
   const browsedRoutes = useMemo(() => {
-    if (!routeLine) return undefined;
+    if (!routeLine || !lineOpen) return undefined;
     return chips.map(c => [planned.dep, ...c.stops, `${planned.dest ?? ""}`]);
-  }, [routeLine, chips, planned.dep, planned.dest]);
+  }, [routeLine, lineOpen, chips, planned.dep, planned.dest]);
   const routeList = useMemo(() => (
     <>
     <ProceduresRoute

@@ -754,16 +754,19 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   await expect(page).toHaveURL(/[?&]stops=VPBNG/);
 });
 
-test("the route's airports are coloured by their airspace, or by the weather from the settings", async ({ page }) => {
+test("the route's airports are marked by their airspace, or by the weather from the settings", async ({ page }) => {
   await page.route(url => /\/(checkpoints|navlog)$/.test(url.pathname), route => route.abort());
-  const background = () => sideDrawer(page).getByRole("group", { name: "Destination KDLH" }).evaluate(el => getComputedStyle(el).backgroundColor);
-  // Duluth's Class D: a wash of the sectional's blue, inside a dashed line.
+  // Each point of the route's title led by its field's chart mark (the
+  // polish pass, 2026-10-26): Duluth's Class D ring.
+  const mark = () => sideDrawer(page).getByRole("group", { name: "Destination KDLH" }).locator("[data-airport-mark]");
+  const weather = () => mark().locator("[data-weather]").getAttribute("fill");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  await expect.poll(background, { timeout: slow(15000) }).toBe("rgba(36, 101, 184, 0.12)");
+  await expect(mark()).toHaveAttribute("data-airspace", "D", { timeout: slow(15000) });
+  const plain = await weather();
 
-  // By the weather instead: its METAR's colour, or the grey of none.
+  // By the weather instead: its METAR's colour in the middle, or the grey of none.
   await page.goto("/app/plan");
   await openSettings(page);
   await page.getByTestId("route-colours-select").getByRole("radio", { name: "Weather" }).click();
@@ -771,7 +774,9 @@ test("the route's airports are coloured by their airspace, or by the weather fro
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  await expect.poll(background, { timeout: slow(15000) }).toMatch(/^rgb\(/);
+  await expect(mark()).toHaveAttribute("data-airspace", "D", { timeout: slow(15000) });
+  await expect.poll(weather, { timeout: slow(15000) }).toMatch(/^(#|rgb|oklch)/);
+  expect(plain).toMatch(/^(#|rgb|oklch)/);
 });
 
 /**
