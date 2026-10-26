@@ -29,7 +29,19 @@ const FOOD = {
 
 async function food(page: Page) {
   await page.route(url => url.pathname.endsWith("/airports/food") || url.pathname.endsWith("/route-food"), route => route.fulfill({ json: FOOD }));
+  // Google's stars, photos and reviews (the owner's pick, 2026-10-26),
+  // Pilot Pete's alone; none for the others, as with no key.
+  await page.route(url => url.pathname.endsWith("/food-details"), route => (
+    new URL(route.request().url()).searchParams.get("name") === "Pilot Pete's"
+      ? route.fulfill({ json: DETAILS }) : route.fulfill({ status: 404, json: { detail: "none" } })));
 }
+
+const PIXEL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=";
+const DETAILS = {
+  place_id: "x", name: "Pilot Pete's", rating: 4.4, ratings: 1312, maps_url: "https://maps.google.com/?cid=1",
+  photos: [{ url: PIXEL, credit: "A. Pilot" }],
+  reviews: [{ author: "Sam", rating: 5, text: "Great burgers, watch the planes.", when: "a month ago" }],
+};
 
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
@@ -54,6 +66,14 @@ test("with a course drawn, the map's food button opens the airports along it wit
   // airport, what it is.
   await expect(rows.nth(0)).toContainText("Pilot Pete's");
   await expect(rows.nth(0)).toContainText("American restaurant");
+  // Its stars, and a tap on its name its photos and reviews, Google's.
+  await expect(rows.nth(0).getByTestId("food-rating")).toContainText("4.4");
+  await expect(rows.nth(0).getByTestId("food-rating")).toContainText("1,312");
+  await expect(rows.nth(0).getByTestId("food-photo")).toBeVisible();
+  await rows.nth(0).getByTestId("food-name-open").click();
+  await expect(rows.nth(0).getByTestId("food-review")).toContainText("Great burgers");
+  await expect(rows.nth(0).getByTestId("food-details")).toContainText("Google");
+  await expect(rows.nth(1).getByTestId("food-rating")).toHaveCount(0);
   // Along the route (the owner's "when a course is drawn then look for
   // fly in food along the route"): how far along and the miles it adds.
   await expect(card.getByTestId("food-scope-route")).toHaveAttribute("aria-pressed", "true");
