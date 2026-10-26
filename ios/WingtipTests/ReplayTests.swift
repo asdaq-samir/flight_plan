@@ -24,9 +24,11 @@ struct ReplayTests {
         #expect(Replay.position(Self.points, at: 999) == nil)
         #expect(Replay.position(Self.points, at: 1101) == nil)
         #expect(Replay.position([], at: 1000) == nil)
-        // At a report, that report; at the end, the last.
+        // At a report, its place and height; at the end, the last place,
+        // its speed still the report before's, as the web app's.
         #expect(Replay.position(Self.points, at: 1000)?.altFt == 1000)
-        #expect(Replay.position(Self.points, at: 1100)?.gsKt == 110)
+        #expect(Replay.position(Self.points, at: 1100)?.altFt == 3000)
+        #expect(Replay.position(Self.points, at: 1100)?.lon == -70.0)
     }
 
     @Test func aHeightNotSentIsTheEarlierOnes() {
