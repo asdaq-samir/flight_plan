@@ -193,7 +193,9 @@ def fields_with_food(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-1
     found = [p for p in airports.nearest(lat, lon, FOOD_FIELDS) if p["distance_nm"] <= FOOD_REACH_NM]
     out, pending = [], 0
     for p, (military, private) in zip(found, _owners(found)):
-        if military or private:
+        # Not the airline airports: O'Hare's food is a smoothie in the
+        # terminal, past security, not a fly-in lunch (its first answer).
+        if military or private or p.get("kind") == "large":
             continue
         places = nearby.kept(p["ident"])
         if places is None:
