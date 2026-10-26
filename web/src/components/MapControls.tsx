@@ -24,15 +24,15 @@ export default function MapControls() {
   const stops = useStopsAlong(s => s.available);
   return (
     <>
-    // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
-    // controls; still inside the map's own stacking context, under the
-    // panel and every portal. The map's right edge is the screen's, so
-    // clear of a landscape phone's notch there.
-    // Just over the sheet at its small and medium heights, as Maps' ride
-    // on its sheet (the owner's screenshot, 2026-10-26): the map's bottom
-    // inset is what the sheet covers at rest (MapPanel), and they move
-    // with it in the sheet's time; all the way up they give way
-    // (index.css). Clear of the chart credit under them.
+    {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its
+        controls; still inside the map's own stacking context, under the
+        panel and every portal. The map's right edge is the screen's, so
+        clear of a landscape phone's notch there.
+        Just over the sheet at its small and medium heights, as Maps' ride
+        on its sheet (the owner's screenshot, 2026-10-26): the map's bottom
+        inset is what the sheet covers at rest (MapPanel), and they move
+        with it in the sheet's time; all the way up they give way
+        (index.css). Clear of the chart credit under them. */}
     <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] z-[1000]">
       <div
         className={cn(
