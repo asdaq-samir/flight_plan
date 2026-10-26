@@ -66,18 +66,17 @@ LODGING = {"hotel", "bed_and_breakfast", "resort", "inn", "motel"}
 #: A car to hire.
 CARS = {"car_rental_service"}
 
-#: Each field's answer's file name after its ident: ".3.json" since
+#: Each field's answer's file name after its ident: ".4.json" since
 #: places to eat say whether they are on the field, so those kept before
 #: are read again.
-KEPT_SUFFIX = ".3.json"
+KEPT_SUFFIX = ".4.json"
 #: A place to eat is on the field inside Overture's outline of the airport
 #: (its base theme's infrastructure, subtype airport: OpenStreetMap's
-#: aerodrome), or this near it, metres, for a point set on the building's
-#: road side; where the field has no outline, this near its reference
-#: point -- Pilot Pete's at Schaumburg is 199 m from it and inside, the
-#: Cubano Bros across the road 13 m outside (the owner's "food at the
-#: airport itself, like Pete's diner at Schaumburg", 2026-10-25).
-ON_FIELD_SLACK_M = 10.0
+#: aerodrome); where the field has no outline, this near its reference
+#: point, metres -- Pilot Pete's at Schaumburg is 199 m from it and
+#: inside, the Cubano Bros across the road 13 m outside (the owner's
+#: "food at the airport itself, like Pete's diner at Schaumburg",
+#: 2026-10-25; 10 m of slack let the Cubano Bros in).
 ON_FIELD_NO_OUTLINE_M = 250.0
 #: The parts of an airport's outline that are not the airport itself.
 _NOT_OUTLINE = {"taxiway", "taxilane", "runway", "stopway", "apron", "helipad", "windsock", "airport_gate", "tower", "beacon"}
@@ -185,14 +184,12 @@ def _words(category: str | None) -> str:
 
 
 def _on_field(outline, lat: float, lon: float, metres: float) -> bool:
-    """Whether a place is at the airport itself (ON_FIELD_SLACK_M)."""
+    """Whether a place is at the airport itself: inside its outline."""
     if outline is None:
         return metres <= ON_FIELD_NO_OUTLINE_M
     import shapely
 
-    # Degrees to metres at the place's latitude, the outline's distance in
-    # degrees of longitude and latitude alike being small enough here.
-    return outline.distance(shapely.Point(lon, lat)) * 111_320.0 * max(0.2, math.cos(math.radians(lat))) <= ON_FIELD_SLACK_M
+    return bool(outline.covers(shapely.Point(lon, lat)))
 
 
 def _read(lat: float, lon: float, release: str) -> dict:
