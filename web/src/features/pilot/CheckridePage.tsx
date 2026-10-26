@@ -224,16 +224,16 @@ export default function CheckridePage() {
           const on = recorded.get(kind.code);
           return (
             <ListRow
-              key={kind.code}
+              key={kind.code} id={`endorsement-day-${kind.code}`}
               title={kind.label}
               description={<><span className="block">{kind.rule}</span><GoodTo until={on?.until} /></>}
               data-testid="endorsement"
             >
-              <Input
-                type="date" aria-label={`${kind.label}, the day endorsed`} className="h-8 w-40"
+              <FieldHit htmlFor={`endorsement-day-${kind.code}`}><Input
+                id={`endorsement-day-${kind.code}`} type="date" aria-label={`${kind.label}, the day endorsed`} className="h-8 w-40"
                 value={on?.endorsedOn ?? ""} data-testid={`endorsement-${kind.code}`}
                 onChange={e => endorse.mutate({ code: kind.code, on: e.target.value || null })}
-              />
+              /></FieldHit>
             </ListRow>
           );
         })}
