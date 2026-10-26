@@ -5,6 +5,7 @@ import { cn } from "cn";
 import { CardHead } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import QueryState from "../../../components/QueryState";
+import { ADD_CAPSULE } from "../../../components/mapChrome";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
@@ -44,7 +45,7 @@ function towards(deg: number): string {
  * 2026-10-26). A field's name opens its card. Fields whose places are
  * still being read are said, and the list asked again until they are in.
  */
-export default function FoodCard({ name, at, route, onClose, onOpenField }: {
+export default function FoodCard({ name, at, route, onClose, onOpenField, onAddStop, onDirect }: {
   name: ReactNode;
   /** Where the fields are looked for round with no course: own ship, else
    *  null. */
@@ -53,6 +54,10 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
   route: { dep: string; dest: string; stops: string } | null;
   onClose: () => void;
   onOpenField: (ident: string) => void;
+  /** Along a route: the field put in it as a stop, where it falls. */
+  onAddStop: (field: FieldFood) => void;
+  /** Round the pilot: a flight from here straight to the field. */
+  onDirect: (ident: string) => void;
 }) {
   const radius = usePreferences(p => p.foodRadiusNm);
   const setRadius = usePreferences(p => p.setFoodRadiusNm);
@@ -111,13 +116,23 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
                         nothing of what (the owner's "Why does it say +2 nm for
                         JVL?" and "say how far off course instead of the
                         departure", 2026-10-26). */}
-                    {route && <span className="tabular-nums">{offWords(field.off_nm)}</span>}
+                    <span className="tabular-nums">
+                      {route ? offWords(field.off_nm) : `${Math.round(field.distance_nm)} nm ${towards(field.bearing_deg)}`}
+                    </span>
                   </span>
                 )}
-                value={route ? undefined : (
-                  <span className={cn("tabular-nums text-muted-foreground", TEXT.detail)}>
-                    {Math.round(field.distance_nm)} nm {towards(field.bearing_deg)}
-                  </span>
+                // Along a route, Add Stop; round the pilot, Direct To (the
+                // owner's "On course, have a button to add stop and when
+                // showing them around current position then have the button
+                // for direct to", 2026-10-26).
+                value={route ? (
+                  <button type="button" onClick={() => onAddStop(field)} data-testid="food-add-stop" aria-label={`Add ${field.ident} as a stop`} className={ADD_CAPSULE}>
+                    Add Stop
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => onDirect(field.ident)} data-testid="food-direct" aria-label={`Direct to ${field.ident}`} className={ADD_CAPSULE}>
+                    Direct To
+                  </button>
                 )}
               />
             ))}
