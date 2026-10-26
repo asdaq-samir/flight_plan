@@ -35,10 +35,13 @@ final class FlightUI {
 /// The sheets over the tabs, as Maps stacks a place's card over its
 /// own: half way up with the map live above, all the way up on a drag.
 struct FlightSheets: ViewModifier {
+    /// On iPad the inspector holds them (SplitLayout), not a sheet.
+    @Environment(\.splitLayout) private var split
+
     func body(content: Content) -> some View {
         @Bindable var ui = FlightUI.shared
         content
-            .sheet(item: $ui.card, onDismiss: {
+            .sheet(item: split ? .constant(nil) : $ui.card, onDismiss: {
                 // Its card put away, the airplane is no longer tracked.
                 if case .airplane = FlightUI.shared.card {} else { Tracking.shared.track(nil) }
             }) { card in
@@ -288,7 +291,6 @@ struct FlightPage: View {
 struct HoldSheet: View {
     let fix: String
     @Environment(Plan.self) private var plan
-    @Environment(\.dismiss) private var dismiss
     @State private var course = ""
     @State private var inbound = true
     @State private var right = true
@@ -299,6 +301,9 @@ struct HoldSheet: View {
 
     static let legMinutes = [1.0, 1.5, 2, 3]
     static let legMiles = [2.0, 3, 4, 5, 10]
+
+    /// Put away, whether a sheet (iPhone) or the inspector (iPad) holds it.
+    private func dismiss() { FlightUI.shared.card = nil }
     static let lengths = ["1T", "2T", "3T", "4T", "10M", "15M", "20M", "30M"]
 
     /// "2 turns", "1 turn", "10 min".

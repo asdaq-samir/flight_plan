@@ -43,7 +43,9 @@ public repository):
 
 - a pull request, a push to `main` or to a `claude/native-*` branch that
   touches `ios/` or the workflow: XcodeGen, then `xcodebuild test` on
-  the newest iPhone simulator the runner has;
+  the newest iPhone simulator the runner has and on an iPad (a Pro
+  where there is one), for the iPad's own layout, with a picture of
+  each one's first screen kept with the run (`native-ios-screens`);
 - on `main`, with the App Store Connect key the owner sets as docs/IOS.md
   lists (the same variables and secret as the shell's), the app is
   archived and uploaded to TestFlight.
