@@ -31,7 +31,7 @@ import DepartPicker from "./navlog/DepartPicker";
 import ProcedureMenu from "./ProcedureMenu";
 import type { EditedPoint, PointAltitude } from "./PointAltitudeDialog";
 import { PointFigures, PointMenu } from "./PointControls";
-import FuelStopRow, { FuelGauge, FuelStopsAdd, FuelStopsHidden } from "./FuelStopRow";
+import FuelStopRow, { FuelGauge, FuelStopCards, FuelStopsAdd, FuelStopsHidden } from "./FuelStopRow";
 import { useFuelStops } from "../hooks/useFuelStops";
 import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
@@ -242,6 +242,9 @@ export default function ProceduresRoute({
   const procedure = page && page.at === on ? page.procedure : null;
   // The point whose altitude is being set (PointAltitudeDialog).
   const [editing, setEditing] = useState<EditedPoint | null>(null);
+  // The field in sight in each flight's swiped fuel stop cards, by the
+  // field the flight leaves: the one Add puts in (FuelStopCards).
+  const [fuelSeen, setFuelSeen] = useState<Record<string, number>>({});
   // The point a fix is being made off (FixFromDialog).
   const [fixFrom, setFixFrom] = useState<string | null>(null);
   // The point a hold is being set at (HoldSheet).
@@ -825,6 +828,27 @@ export default function ProceduresRoute({
     }
     suggested.add(flight);
     const leavesMin = row?.kind === "stop" ? (row.minutesFlown ?? 0) + row.groundMin : 0;
+    const timeOf = (minutes: number) => etaAt(depart || new Date().toISOString(), leavesMin + minutes);
+    // A flight of one stop with others to choose: its fields as cards to
+    // swipe, the one in sight what Add puts in.
+    const options = flight.stops.length === 1 && flight.choices?.length ? [flight.stops[0]!, ...flight.choices] : null;
+    if (options) {
+      const seen = Math.min(fuelSeen[ident] ?? 0, options.length - 1);
+      const pick = options[seen]!;
+      return [
+        <FuelStopCards
+          key={`fuel-${ident}-cards`} stops={options} seen={seen} onSee={i => setFuelSeen(was => ({ ...was, [ident]: i }))}
+          timeOf={timeOf} usableGal={flight.usable_gal} reason={flight.reason} onOpen={onInfo}
+        />,
+        onKeepFuelStops && (
+          <FuelStopsAdd
+            key={`fuel-${ident}-add`} count={1} last={false} reason={flight.reason} field={pick.ident}
+            onAdd={() => onKeepFuelStops(ident, [pick.ident])}
+            onRemove={onHideFuelStop ? () => flight.stops.forEach(s => onHideFuelStop(s.ident)) : undefined}
+          />
+        ),
+      ];
+    }
     return [
       ...flight.stops.map((stop, k) => (
         <FuelStopRow
