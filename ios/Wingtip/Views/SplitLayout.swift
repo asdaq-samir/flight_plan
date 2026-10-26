@@ -93,10 +93,9 @@ struct SplitLayout<Map: View>: View {
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
+            // Each tab keeps its own navigation bar, its title and its
+            // buttons (hiding the column's hid theirs too).
             SheetView(tab: $tab, airports: sidebarAirports, pill: false)
-                // Each tab has its own navigation bar; the column's would
-                // be a second, empty one over it.
-                .toolbar(.hidden, for: .navigationBar)
                 .navigationSplitViewColumnWidth(min: 320, ideal: 375, max: 420)
         } detail: {
             map
