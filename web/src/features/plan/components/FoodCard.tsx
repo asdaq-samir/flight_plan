@@ -10,12 +10,6 @@ import type { FieldFood } from "../../../lib/api/types";
 import { airportsFoodQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
 
-/** "4 min walk", "on the field" for one a minute or two from the ramp. */
-function walkWords(minutes: number | null | undefined): string {
-  if (minutes == null) return "";
-  return minutes <= 2 ? "on the field" : `${minutes} min walk`;
-}
-
 /** The compass point a field is toward, from its true bearing: "NE". */
 function towards(deg: number): string {
   return ["N", "NE", "E", "SE", "S", "SW", "W", "NW"][Math.round(((deg % 360) + 360) % 360 / 45) % 8]!;
@@ -24,10 +18,11 @@ function towards(deg: number): string {
 /**
  * The map's fly-in food, its fork-and-pump button's card over FPL, at the
  * owner's ask ("that button on the map is for at airport restaurant like
- * for a $100 hamburger", 2026-10-25): the public fields round the pilot
- * with somewhere to eat a short walk from the ramp (the planner's
- * /api/airports/food, Overture's places), nearest first -- how far and
- * which way, and the places, each with its walk. A field's name opens its
+ * for a $100 hamburger", 2026-10-25; "food at the airport itself, like
+ * Pilot Pete's at Schaumburg"): the public fields round the pilot with
+ * somewhere to eat on the field (the planner's /api/airports/food,
+ * Overture's places inside the airport's outline), nearest first -- how
+ * far and which way, and the places, each with what it is. A field's name opens its
  * card, whose Fly Here makes the trip. Fields whose places are still being
  * read are said, and the list asked again until they are in.
  */
@@ -52,7 +47,7 @@ export default function FoodCard({ name, line, at, onClose, onOpenField }: {
             <ListRow muted title="Turn on your location, or enter a route, to find food at the fields near you" />
           </ListGroup>
         )}
-        {at && !data && <QueryState query={asked} fetching="Fetching the fields with food near you…" failed="The fields with food could not be fetched." />}
+        {at && !data && <QueryState query={asked} fetching="Fetching the fields with a restaurant near you…" failed="The fields with a restaurant could not be fetched." />}
         {data && (
           <ListGroup>
             {data.fields.map((field: FieldFood) => (
@@ -70,7 +65,7 @@ export default function FoodCard({ name, line, at, onClose, onOpenField }: {
                   <span className="flex flex-col gap-0.5">
                     {field.food.slice(0, 2).map(place => (
                       <span key={place.name} className="truncate">
-                        {place.name} · {walkWords(place.walk_min)}
+                        {place.name} · {place.kind}
                       </span>
                     ))}
                   </span>
@@ -83,7 +78,7 @@ export default function FoodCard({ name, line, at, onClose, onOpenField }: {
               />
             ))}
             {data.fields.length === 0 && pending === 0 && (
-              <ListRow muted title="No field near you has food a short walk from the ramp" />
+              <ListRow muted title="No field near you has a restaurant on the field" />
             )}
             {pending > 0 && (
               <ListRow

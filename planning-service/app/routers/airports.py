@@ -172,10 +172,6 @@ def nearest_airports(
     return {"airports": out}
 
 
-#: How near the ramp a place to eat counts as at the field, minutes'
-#: walk: ten, some 800 m at vfr.nearby's pace -- the field's own diner or
-#: one across the road, the "$100 hamburger" (the owner, 2026-10-25).
-FOOD_WALK_MIN = 10
 #: How many of the nearest public fields are looked at, and how far, nm.
 FOOD_FIELDS = 40
 FOOD_REACH_NM = 150.0
@@ -183,8 +179,8 @@ FOOD_REACH_NM = 150.0
 
 @router.get("/api/airports/food", response_model=FieldsWithFood)
 def fields_with_food(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180)) -> FieldsWithFood:
-    """The public fields round a position with somewhere to eat a short
-    walk from the ramp, nearest first, for the map's fly-in food button,
+    """The public fields round a position with somewhere to eat at the
+    airport itself, nearest first, for the map's fly-in food button,
     at the owner's ask ("that button on the map is for at airport
     restaurant like for a $100 hamburger", 2026-10-25). A field's places
     are Overture's (vfr.nearby), read on the planner's pool where they
@@ -202,7 +198,10 @@ def fields_with_food(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-1
             pending += 1
             nearby.read_later(p["ident"], p["lat"], p["lon"])
             continue
-        food = [f for f in places.get("food") or [] if f.get("walk_min") is not None and f["walk_min"] <= FOOD_WALK_MIN]
+        # At the airport itself, as Pilot Pete's is at Schaumburg (the
+        # owner's "food at the airport itself", 2026-10-25): inside its
+        # outline (vfr.nearby), not a walk across the road.
+        food = [f for f in places.get("food") or [] if f.get("on_field")]
         if food:
             out.append({
                 "ident": p["ident"], "name": p["name"], "city": p.get("municipality"), "lat": p["lat"], "lon": p["lon"],

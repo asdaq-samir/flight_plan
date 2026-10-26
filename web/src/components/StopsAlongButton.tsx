@@ -25,7 +25,7 @@ export default function StopsAlongButton() {
   if (!available) return null;
   return (
     <IconButton
-      label={open ? "Hide the food at the fields" : "Food at the fields near you"} onClick={() => (open ? setOpen(false) : (opener ?? (() => setOpen(true)))())}
+      label={open ? "Hide the restaurants at the airports" : "Restaurants at the airports near you"} onClick={() => (open ? setOpen(false) : (opener ?? (() => setOpen(true)))())}
       aria-pressed={open} data-testid="stops-along-button"
     >
       <StopsGlyph />
