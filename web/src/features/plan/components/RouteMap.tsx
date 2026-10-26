@@ -5,6 +5,8 @@ import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
+import { made } from "../../../lib/map/icons";
+import { text } from "../../../lib/map/airportMark";
 import type { Candidate, ClassBAirport, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
@@ -129,14 +131,22 @@ const BREAK_PIN = L.divIcon({
   iconSize: [30, 38], iconAnchor: [15, 37],
 });
 
-/** And a fork beside a pump in it, for a field of the map's Stops
- *  (FoodCard), as its button wears (StopsAlongButton). */
-const ALONG_PIN = L.divIcon({
-  className: "",
-  html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
-    + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M15 22V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v18M15 10h5"/></g></svg>',
-  iconSize: [30, 38], iconAnchor: [15, 37],
+/** A field with a restaurant on it (FoodCard): a small chip with the fork
+ *  and knife its button wears (StopsAlongButton) and the field's ident,
+ *  just over its mark, so the chart's own name of the field stays in
+ *  sight beside it -- the pins it was hid KMSP's and stacked on one
+ *  another near the start, none saying which field (the owner's
+ *  screenshot, 2026-10-26). Sized to the ident. */
+const foodChip = made(function foodChip(ident: string) {
+  const width = 30 + ident.length * 8;
+  return L.divIcon({
+    className: "",
+    html: `<span class="flex h-[22px] items-center gap-1 rounded-full border-2 border-white bg-[#d9480f] pr-2 pl-1.5 text-[12px] leading-none font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.35)]">`
+      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M15 22V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v18M15 10h5"/></svg>'
+      + `${text(ident)}</span>`,
+    // Its foot 12 points over the field's point: clear of its mark.
+    iconSize: [width, 22], iconAnchor: [width / 2, 22 + 12],
+  });
 });
 
 /** A stop pinned on the chart: a suggestion's (the totals' fuel_stops), or
@@ -151,7 +161,7 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
   const isBreak = stop.reason === "break";
-  const icon = stop.reason === "along" ? ALONG_PIN : isBreak ? BREAK_PIN : FUEL_PIN;
+  const icon = stop.reason === "along" ? foodChip(pointName(stop.ident)) : isBreak ? BREAK_PIN : FUEL_PIN;
   return (
     <Marker
       position={[stop.lat, stop.lon]} icon={icon} title={stop.title ?? `Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}

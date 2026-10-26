@@ -8,7 +8,7 @@ import QueryState from "../../../components/QueryState";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
-import { faaWords } from "../../../lib/advisories";
+import { placeWords } from "../../../lib/advisories";
 import type { FieldFood } from "../../../lib/api/types";
 import { pointName } from "../../../lib/identSchema";
 import { usePreferences } from "../../../lib/preferences";
@@ -18,6 +18,12 @@ import { TEXT } from "../../../lib/text";
 /** The radii offered, nm: a menu of them, not a slider (the owner's
  *  discrete settings), a hundred the default (the owner, 2026-10-26). */
 const RADII = [25, 50, 100, 150, 200];
+
+/** What landing there adds to the flight: "on the route", "2 nm detour". */
+function detourWords(addedNm: number | null | undefined): string {
+  const nm = Math.round(addedNm ?? 0);
+  return nm < 1 ? "on the route" : `${nm} nm detour`;
+}
 
 /** The compass point a field is toward, from its true bearing: "NE". */
 function towards(deg: number): string {
@@ -92,7 +98,7 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
                     type="button" onClick={() => onOpenField(field.ident)} data-testid="food-field-open"
                     className="text-left font-semibold text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {field.ident} · {faaWords(field.city || field.name)}
+                    {field.ident} · {placeWords(field.city || field.name)}
                   </button>
                 )}
                 description={(
@@ -100,14 +106,19 @@ export default function FoodCard({ name, at, route, onClose, onOpenField }: {
                     {field.food.slice(0, 2).map(place => (
                       <span key={place.name} className="truncate">{place.name} · {place.kind}</span>
                     ))}
+                    {/* The miles the stop adds to the flight said in words, where a
+                        bare "+2 nm" said nothing of what (the owner's "Why does it
+                        say +2 nm for JVL?", 2026-10-26). */}
                     {route && field.departure && (
-                      <span className="tabular-nums">{Math.round(field.distance_nm)} nm from {pointName(field.departure)}</span>
+                      <span className="tabular-nums">
+                        {Math.round(field.distance_nm)} nm from {pointName(field.departure)} · {detourWords(field.added_nm)}
+                      </span>
                     )}
                   </span>
                 )}
-                value={(
+                value={route ? undefined : (
                   <span className={cn("tabular-nums text-muted-foreground", TEXT.detail)}>
-                    {route ? `+${Math.round(field.added_nm ?? 0)} nm` : `${Math.round(field.distance_nm)} nm ${towards(field.bearing_deg)}`}
+                    {Math.round(field.distance_nm)} nm {towards(field.bearing_deg)}
                   </span>
                 )}
               />

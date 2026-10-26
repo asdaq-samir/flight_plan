@@ -6,7 +6,7 @@ import { ADD_CAPSULE, GLASS_BUTTON } from "../../../components/mapChrome";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
-import { faaWords } from "../../../lib/advisories";
+import { placeWords } from "../../../lib/advisories";
 import type { FuelStop } from "../../../lib/api/types";
 import { TEXT } from "../../../lib/text";
 import { grouped } from "../../../lib/units";
@@ -18,10 +18,10 @@ import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
  *  ROUTE_LINE, solid between the route's own points). */
 const SUGGESTED_LINE = { borderColor: COURSE_MAGENTA } as const;
 
-/** A field's place in words: its city, as the FAA spells it, in sentence
- *  case ("Knoxville"), else its name. */
+/** A field's place in words: its city, as a town is spelt ("Eau Claire"),
+ *  else its name. */
 function fuelStopPlace(stop: FuelStop): string {
-  return faaWords(stop.city || stop.name);
+  return placeWords(stop.city || stop.name);
 }
 
 /**
@@ -219,7 +219,7 @@ export function FuelStopCards({ stops, seen, onSee, timeOf, usableGal, reason = 
                 <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
                 <span className="truncate">{fuelStopPlace(stop)}</span>
                 <span aria-hidden="true">·</span>
-                <span className="shrink-0 tabular-nums">{stop.added_nm < 1 ? "on the line" : `+${Math.round(stop.added_nm)} nm`}</span>
+                <span className="shrink-0 tabular-nums">{Math.round(stop.added_nm) < 1 ? "on the route" : `${Math.round(stop.added_nm)} nm detour`}</span>
                 {i === 0 && <span className="shrink-0">· Suggested</span>}
               </span>
               <StopGlance ident={stop.ident} className="pt-0.5" />
