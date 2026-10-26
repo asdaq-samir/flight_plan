@@ -56,13 +56,13 @@ test("with a course drawn, the map's food button opens the airports along it wit
   await expect(card).toContainText("At the airports along the route");
   await expect(rows.nth(0)).toContainText("On course");
   await expect(rows.nth(1)).toContainText("3 nm off course");
+  // Add Stop puts the field in the route (the owner's "On course, have a
+  // button to add stop", 2026-10-26).
+  await rows.nth(1).getByTestId("food-add-stop").click();
+  await expect(page).toHaveURL(/[?&]stops=KBBB(&|$)/);
   await expect(rows.nth(1)).toContainText("Kitty Hawk Cafe · Cafe");
   await expect(page.getByTitle("KBBB, a restaurant on the field")).toHaveCount(1);
 
-  // A name opens the field's card, with its Fly Here.
-  await rows.nth(1).getByTestId("food-field-open").click();
-  await expect(page.getByTestId("place-card")).toBeVisible();
-  await expect(page).toHaveURL(/[?&]place=KBBB(&|$)/);
 });
 
 test("with no route the food button looks round the pilot within a radius picked from its menu, a hundred miles at first", async ({ page, context }) => {
@@ -90,6 +90,10 @@ test("with no route the food button looks round the pilot within a radius picked
   await page.getByTestId("food-radius-option").filter({ hasText: "Within 50 nm" }).click();
   await expect(radius).toHaveText("Within 50 nm");
   await expect.poll(() => asked).toContain("50");
+  // Round the pilot, Direct To: a flight from here to the field.
+  await card.getByTestId("food-field").first().getByTestId("food-direct").click();
+  await expect(page).toHaveURL(/[?&]dest=KAAA(&|$)/);
+  await expect(page).toHaveURL(/[?&]dep=%4042\.3/);
   await button.click();
   await expect(card).toHaveCount(0);
 });

@@ -1130,7 +1130,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     })();
     return () => { gone = true; };
   }, [place, fromFor]);
-  const flyHere = useCallback(async (to: AirportPlace) => {
+  const flyHere = useCallback(async (to: Pick<AirportPlace, "ident">) => {
     const from = await fromFor(to.ident, await positionNow());
     const next: Record<string, string> = { dest: to.ident };
     if (from) next.dep = from;
@@ -2757,7 +2757,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </ProfileCard>
         )}
         {stopsHere && !savedOpen && (
-          <FoodCard name="Fly-in Food" at={foodAt} route={foodRoute} onClose={closeStops} onOpenField={selectPlace} />
+          <FoodCard
+            name="Fly-in Food" at={foodAt} route={foodRoute} onClose={closeStops} onOpenField={selectPlace}
+            onAddStop={field => dropIntoRoute(field.ident, { lat: field.lat, lon: field.lon }, "add")}
+            onDirect={ident => void flyHere({ ident })}
+          />
         )}
         <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (savedOpen || briefHere || profileHere || stopsHere || !hasPoints) && "hidden")}>{navLog}</div>
         {/* A departure alone: under it the flights saved and the routes
