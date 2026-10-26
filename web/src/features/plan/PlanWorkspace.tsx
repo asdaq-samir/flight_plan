@@ -1534,7 +1534,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // suggestions' place (the same query as the card's).
   const { data: foodFields } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0), enabled: stopsShown && !!foodAt });
   const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
-    ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, food a walk from the ramp`,
+    ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,
   })) : null), [stopsShown, foodFields]);
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
@@ -2748,7 +2748,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
         {stopsHere && !savedOpen && (
           <FoodCard
-            name="Fly-in Food" line={fix ? "Food a walk from the ramp, near you" : "Food a walk from the ramp, near the departure"}
+            name="Fly-in Food" line={fix ? "Restaurants at the airports near you" : "Restaurants at the airports near the departure"}
             at={foodAt} onClose={closeStops} onOpenField={selectPlace}
           />
         )}

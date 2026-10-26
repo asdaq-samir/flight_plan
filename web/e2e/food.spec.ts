@@ -13,8 +13,8 @@ import { settle, sideDrawer, slow } from "./helpers";
  * is answered with two, so the page is tried without Overture.
  */
 
-const DINER = { name: "Runway Diner", kind: "Diner", distance_m: 300, walk_min: 2, phone: null, website: null, lat: 45.2, lon: -90.5 };
-const CAFE = { name: "Prop Wash Cafe", kind: "Cafe", distance_m: 600, walk_min: 8, phone: null, website: null, lat: 45.3, lon: -90.5 };
+const DINER = { name: "Pilot Pete's", kind: "American restaurant", distance_m: 199, walk_min: 3, phone: null, website: null, lat: 45.2, lon: -90.5, on_field: true };
+const CAFE = { name: "Kitty Hawk Cafe", kind: "Cafe", distance_m: 577, walk_min: 8, phone: null, website: null, lat: 45.3, lon: -90.5, on_field: true };
 const FOOD = {
   pending: 0,
   fields: [
@@ -31,13 +31,13 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("the map's food button opens the fields near the route with food a walk from the ramp, pinned on the chart", async ({ page }) => {
+test("the map's food button opens the airports near the pilot with a restaurant on the field, pinned on the chart", async ({ page }) => {
   await food(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const button = page.getByTestId("stops-along-button");
   await expect(button).toBeVisible({ timeout: slow(30_000) });
-  await expect(button).toHaveAccessibleName("Food at the fields near you");
+  await expect(button).toHaveAccessibleName("Restaurants at the airports near you");
   await button.click();
   const card = sideDrawer(page).getByTestId("food-card");
   await expect(card).toBeVisible();
@@ -46,10 +46,10 @@ test("the map's food button opens the fields near the route with food a walk fro
   const rows = card.getByTestId("food-field");
   await expect(rows).toHaveCount(2, { timeout: slow(30_000) });
   await expect(rows.nth(0)).toContainText("KAAA · Alpha");
-  await expect(rows.nth(0)).toContainText("Runway Diner · on the field");
+  await expect(rows.nth(0)).toContainText("Pilot Pete's · American restaurant");
   await expect(rows.nth(0)).toContainText("12 nm NE");
-  await expect(rows.nth(1)).toContainText("Prop Wash Cafe · 8 min walk");
-  await expect(page.getByTitle("KBBB, food a walk from the ramp")).toHaveCount(1);
+  await expect(rows.nth(1)).toContainText("Kitty Hawk Cafe · Cafe");
+  await expect(page.getByTitle("KBBB, a restaurant on the field")).toHaveCount(1);
 
   // A name opens the field's card, with its Fly Here.
   await rows.nth(1).getByTestId("food-field-open").click();

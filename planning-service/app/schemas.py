@@ -2088,6 +2088,8 @@ class NearbyPlace(BaseModel):
     website: str | None = None
     lat: float
     lon: float
+    #: A place to eat at the airport itself (vfr.nearby's outline).
+    on_field: bool = False
 
 
 class GroundPhoto(BaseModel):

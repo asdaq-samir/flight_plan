@@ -19,19 +19,20 @@ FIELDS = [
      "distance_nm": 15.0, "bearing_deg": 180, "kind": "large"},
 ]
 DINER = {"name": "Runway Diner", "kind": "Diner", "distance_m": 300, "walk_min": 4, "phone": None, "website": None,
-         "lat": 42.0, "lon": -88.0}
-TOWN = {**DINER, "name": "Downtown Grill", "distance_m": 4000, "walk_min": None}
+         "lat": 42.0, "lon": -88.0, "on_field": True}
+ACROSS = {**DINER, "name": "Across the Road", "distance_m": 450, "walk_min": 6, "on_field": False}
+TOWN = {**DINER, "name": "Downtown Grill", "distance_m": 4000, "walk_min": None, "on_field": False}
 
 
-def test_fields_with_food_a_walk_from_the_ramp_nearest_first_the_unread_asked_for(monkeypatch):
+def test_fields_with_food_at_the_airport_itself_nearest_first_the_unread_asked_for(monkeypatch):
     read: list[str] = []
-    kept = {"KAAA": {"food": [DINER, TOWN]}, "KBBB": {"food": [TOWN]}, "KMIL": {"food": [DINER]}, "KORD": {"food": [DINER]}}
+    kept = {"KAAA": {"food": [DINER, ACROSS, TOWN]}, "KBBB": {"food": [ACROSS, TOWN]}, "KMIL": {"food": [DINER]}, "KORD": {"food": [DINER]}}
     monkeypatch.setattr(router.airports, "nearest", lambda lat, lon, limit: FIELDS)
     monkeypatch.setattr(router, "_owners", lambda places: [(p["ident"] == "KMIL", False) for p in places])
     monkeypatch.setattr(router.nearby, "kept", lambda ident: kept.get(ident))
     monkeypatch.setattr(router.nearby, "read_later", lambda ident, lat, lon: read.append(ident))
     answer = TestClient(app).get("/api/airports/food?lat=42.0&lon=-88.0").json()
-    # KAAA's diner a 4 minutes' walk; KBBB's only food a drive away; the
+    # KAAA's diner at the field; KBBB's food across the road and in town; the
     # military field and the airline airport not offered; KCCC's places
     # not yet read.
     assert [f["ident"] for f in answer["fields"]] == ["KAAA"]

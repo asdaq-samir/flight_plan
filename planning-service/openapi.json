@@ -8415,6 +8415,11 @@
             "title": "Name",
             "type": "string"
           },
+          "on_field": {
+            "default": false,
+            "title": "On Field",
+            "type": "boolean"
+          },
           "phone": {
             "anyOf": [
               {
@@ -14351,7 +14356,7 @@
     },
     "/api/airports/food": {
       "get": {
-        "description": "The public fields round a position with somewhere to eat a short\nwalk from the ramp, nearest first, for the map's fly-in food button,\nat the owner's ask (\"that button on the map is for at airport\nrestaurant like for a $100 hamburger\", 2026-10-25). A field's places\nare Overture's (vfr.nearby), read on the planner's pool where they\nhave not been and counted in `pending`; the page asks again until\nnone is.",
+        "description": "The public fields round a position with somewhere to eat at the\nairport itself, nearest first, for the map's fly-in food button,\nat the owner's ask (\"that button on the map is for at airport\nrestaurant like for a $100 hamburger\", 2026-10-25). A field's places\nare Overture's (vfr.nearby), read on the planner's pool where they\nhave not been and counted in `pending`; the page asks again until\nnone is.",
         "operationId": "fields_with_food_api_airports_food_get",
         "parameters": [
           {
