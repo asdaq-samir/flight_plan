@@ -98,6 +98,7 @@ export type RouteStops = Schemas["RouteStops"];
 export type RouteStopField = Schemas["RouteStopField"];
 /** The ways to fly a route, for FPL's Routes (vfr.route_options), and one of them. */
 export type RouteOptions = Schemas["RouteOptions"];
+export type RouteChip = Schemas["RouteChip"];
 export type RouteOption = Schemas["RouteOption"];
 export type ForecastWind = Schemas["ForecastWind"];
 export type Metar = Schemas["Metar"];

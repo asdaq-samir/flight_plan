@@ -634,7 +634,7 @@ function frdWords(ident: string): string {
   return frd ? `${frd.distanceNm} nm on ${bearing(frd.course)} from ${frd.base}` : ident;
 }
 
-/** A fuel stop suggested and not yet in the route (FuelStopRow's), in the
+/** A fuel stop suggested and not yet in the route (the totals' fuel_stops), in the
  *  box: dashed in the caution's colour with the pump; a tap its menu, to
  *  add it to the route or take it out of the box, at the owner's ask
  *  ("Fuel stops should also have a way to delete them and add them back as

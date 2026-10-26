@@ -2360,6 +2360,21 @@ class RouteOption(BaseModel):
     water_nm: int = 0
 
 
+class RouteChip(BaseModel):
+    """One choice on FPL's route line (the owner's redesign, 2026-10-26:
+    the route folding as a runway line does, a chip a way): its `key`
+    ("none" the route as typed, "fuel" it with its fuel stops, else the
+    way's kind), the words on it -- the way's name and the stops it adds
+    -- the stops and fuel stops it puts in the address, and the hazards
+    it crosses by their index in RouteOptions.hazards."""
+
+    key: str
+    label: str
+    stops: list[str]
+    fuel: list[str]
+    crosses: list[int] = []
+
+
 class RouteOptions(BaseModel):
     """The ways to fly a route, the fastest first; what the straight line
     crosses (`direct`), what is at its ends (`ends`) and what the pilot's
@@ -2377,6 +2392,10 @@ class RouteOptions(BaseModel):
     current_along: RouteAlong | None = None
     #: The pilot's own route, [[lat, lon]] end to end, for the map.
     current_path: list[list[float]] = []
+    #: FPL's route line, in its order, "None" first; empty where there is
+    #: nothing but the route itself to offer. Web and the native app both
+    #: read their words from here.
+    chips: list[RouteChip] = []
     hazards: list[RouteHazard]
     unchecked: list[str]
 

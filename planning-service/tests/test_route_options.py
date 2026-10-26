@@ -32,13 +32,18 @@ def test_the_ways_with_the_airplanes_figures_and_the_pilots_minimums(monkeypatch
     url = "/api/route-options?dep=c81&dest=koma&aircraft=c172&cruise_tas_kt=110&min_ceiling_ft=3000&min_visibility_sm=5"
     first = client.get(url)
     assert first.status_code == 200
-    assert first.json() == ANSWER
+    answer = first.json()
+    assert {k: v for k, v in answer.items() if k != "chips"} == ANSWER
+    # The route line's chips: None, the route as typed, and the way named
+    # by what it is and the stop it adds.
+    assert [(c["key"], c["label"], c["stops"], c["crosses"]) for c in answer["chips"]] == [
+        ("none", "None", [], [0]), ("weather", "Avoid Weather & Fastest · KDSM", ["KDSM"], [])]
     dep, dest, profile, given = asked[0]
     assert dep == {"ident": "C81", "lat": 1.0, "lon": 2.0} and dest["ident"] == "KOMA"
     assert profile["cruise_tas_kt"] == 110
     assert given["min_ceiling_ft"] == 3000 and given["min_visibility_sm"] == 5
     # Asked again within ten minutes, the answer kept.
-    assert client.get(url).json() == ANSWER and len(asked) == 1
+    assert client.get(url).json() == answer and len(asked) == 1
 
 
 def test_a_route_the_plan_refuses_still_gets_its_ways(monkeypatch):
@@ -64,3 +69,24 @@ def test_a_route_the_plan_refuses_still_gets_its_ways(monkeypatch):
     answer = client.get("/api/route-options?dep=c81&dest=kdlh&stops=" + ",".join(f"K{i:03d}" for i in range(20)))
     assert answer.status_code == 200
     assert asked[0]["current"] is None and asked[0]["current_idents"] == [] and asked[0]["current_landed"] == []
+
+
+def test_the_route_lines_chips_one_a_set_of_stops_in_the_owners_order():
+    def way(kind, kinds, stops, fuel=(), crosses=()):
+        return {**ANSWER["options"][0], "kind": kind, "kinds": kinds, "stops": stops, "fuel": list(fuel), "crosses": list(crosses)}
+
+    found = {
+        **ANSWER,
+        "own": {**way("own", ["own"], ["KCOU", "KMVN"], ["KMVN"]), "landings": 1},
+        "options": [way("fastest", ["fastest"], ["TBN"], ["TBN"]),
+                    way("weather", ["weather"], ["KMVN", "KJLN", "KABC", "KDEF"], crosses=[1]),
+                    # The same stops as the route with its fuel: not a chip of its own.
+                    way("land", ["land"], ["KCOU", "KMVN"]), way("stops", ["stops"], ["KXYZ"])],
+        "current": [2],
+    }
+    chips = route_options._chips(found, ["COU", "@42.1,-88.2"])
+    assert [(c["key"], c["label"]) for c in chips] == [
+        ("none", "None"), ("fuel", "Your Route · KMVN"), ("weather", "Avoid Weather · KMVN KJLN KABC +1"), ("fastest", "Fastest · TBN")]
+    assert chips[0]["crosses"] == [2] and chips[2]["crosses"] == [1]
+    # Nothing but the route itself: no line.
+    assert route_options._chips({**ANSWER, "options": []}, []) == []

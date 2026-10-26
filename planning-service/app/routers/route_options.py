@@ -23,6 +23,52 @@ _KEPT: TTLCache = TTLCache(maxsize=128, ttl=600)
 _LOCK = threading.Lock()
 
 
+#: The words on the route line's chip for each kind of way, and the order
+#: they come in after "None" and "Your Route" (the owner's canvas,
+#: 2026-10-26). The fewest stops' way is not offered (lib/routeWays).
+CHIP_WORDS = {"weather": "Avoid Weather", "fastest": "Fastest", "land": "Over Land"}
+#: The most stops a chip names before "+2".
+CHIP_MOST_IDENTS = 3
+
+
+def _same(ident: str) -> str:
+    """An ident as the route's box may spell it: KUES and UES alike."""
+    s = ident.strip().upper()
+    return s[1:] if len(s) == 4 and s.startswith("K") and s.isalpha() else s
+
+
+def _chips(found: dict, typed: list[str]) -> list[dict]:
+    """FPL's route line: "None", the route as typed; "Your Route" with the
+    fuel stops it needs; then the ways, each named by what it is and the
+    stops it adds over the typed route (a present position's turn, an
+    "@lat,lon", is not named). One chip a set of stops; none at all where
+    only the route itself is left."""
+    typed_same = {_same(t) for t in typed}
+    chips = [{"key": "none", "label": "None", "stops": typed, "fuel": [],
+              "crosses": found.get("current", []) if typed else found.get("direct", [])}]
+    seen = [[_same(t) for t in typed]]
+
+    def add(key: str, words: str, way: dict) -> None:
+        same = [_same(s) for s in way["stops"]]
+        if same in seen:
+            return
+        seen.append(same)
+        added = [s for s in way["stops"] if _same(s) not in typed_same and not s.startswith("@")]
+        shown = added[:CHIP_MOST_IDENTS]
+        more = f" +{len(added) - len(shown)}" if len(added) > len(shown) else ""
+        chips.append({"key": key, "label": f"{words} · {' '.join(shown)}{more}" if shown else words,
+                      "stops": way["stops"], "fuel": way["fuel"], "crosses": way.get("crosses", [])})
+
+    own = found.get("own")
+    if own and own.get("landings"):
+        add("fuel", "Your Route", own)
+    for kind in CHIP_WORDS:
+        way = next((o for o in found.get("options", []) if kind in o["kinds"]), None)
+        if way:
+            add(kind, " & ".join(CHIP_WORDS[k] for k in CHIP_WORDS if k in way["kinds"]), way)
+    return chips if len(chips) > 1 else []
+
+
 @router.get("/api/route-options")
 def route_options(
     dep: str, dest: str,
@@ -73,7 +119,8 @@ def route_options(
         min_ceiling_ft=min_ceiling_ft, min_visibility_sm=min_visibility_sm, current=current if stops.strip() else None,
         current_idents=current_idents, current_landed=current_landed,
     )
-    answer = RouteOptions(**found)
+    typed = [s.strip().upper() for s in stops.split(",") if s.strip()]
+    answer = RouteOptions(**{**found, "chips": _chips(found, typed)})
     with _LOCK:
         _KEPT[key] = answer
     return answer
