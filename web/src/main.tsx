@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { chartQuery, courseQuery, queryClient } from "./lib/queryClient";
 import { routeOf, stopsOf } from "./lib/identSchema";
 import AppToaster from "./components/AppToaster";
+import { BrandLook } from "./lib/brand";
 import ErrorAlert from "./components/ErrorAlert";
 import PageError from "./components/PageError";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -184,6 +185,7 @@ ReactDOM.createRoot(document.getElementById("root")!, {
       </TooltipProvider>
       <AppToaster />
       <ErrorAlert />
+      <BrandLook />
     </QueryClientProvider>
     </ThemeProvider>
   </React.StrictMode>,
