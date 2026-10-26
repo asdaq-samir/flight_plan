@@ -281,6 +281,9 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --primary: oklch(0.522 0.177 255.8);
   --primary-foreground: oklch(0.985 0 0);
   --tint: oklch(0.522 0.177 255.8);
+  /* The tint on the sheet's shade under its glass (MapPanel's SHEET_BELOW),
+     a step deeper to keep 4.5:1 there. */
+  --tint-shade: oklch(0.48 0.18 256);
   /* The words of a dashed Class D or E pill (useAirspace): the
      sectional's blue and magenta a shade darker, 4.5:1 on their wash. */
   --airspace-blue-ink: #1d559c;
@@ -358,6 +361,7 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --primary: oklch(0.55 0.193 256.2);
   --primary-foreground: oklch(0.985 0 0);
   --tint: oklch(0.72 0.15 252);
+  --tint-shade: oklch(0.7 0.165 253);
   --airspace-blue-ink: #8cb8f2;
   --airspace-magenta-ink: #f0a0cf;
   --procedure: #9d9df0;
@@ -407,12 +411,14 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   /* The cockpit's cyan, deepened to read on white (#00707E, 5.6:1). */
   --primary: #00707e;
   --tint: #00707e;
+  --tint-shade: #00707e;
 }
 :root.dark[data-brand="cockpit"] {
   /* The panel's cyan for words (#46D3E6, 8.4:1 on the card), a deep teal
      for fills under white words (#0B6E7A, 5.3:1). */
   --primary: #0b6e7a;
   --tint: #46d3e6;
+  --tint-shade: #46d3e6;
 }
 :root[data-brand="windsock"] {
   --brand-font: 'Archivo Variable';
@@ -423,11 +429,13 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
      5.2:1 on white, white on it 5:1). */
   --primary: #c73a00;
   --tint: #c73a00;
+  --tint-shade: #c73a00;
 }
 :root.dark[data-brand="windsock"] {
   --primary: #c73a00;
   /* A paler orange for words on the navy (#FF9466, 6.9:1 on the card). */
   --tint: #ff9466;
+  --tint-shade: #ff9466;
 }
 :root[data-brand="clearsky"] {
   --brand-font: 'Manrope Variable';
@@ -437,11 +445,13 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   /* Sky blue (#0A66E8, 5.2:1 on white, white on it 4.9:1). */
   --primary: #0a66e8;
   --tint: #0a66e8;
+  --tint-shade: #0a66e8;
 }
 :root.dark[data-brand="clearsky"] {
   --primary: #0a66e8;
   /* A lighter sky for words on the navy (#7AB8FF, 7.2:1 on the card). */
   --tint: #7ab8ff;
+  --tint-shade: #7ab8ff;
 }
 
 /* The chart at night (Settings' "Chart at night", lib/preferences

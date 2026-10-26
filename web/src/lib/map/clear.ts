@@ -69,9 +69,16 @@ function offsetOf({ top, bottom, left }: { top: number; bottom: number; left: nu
   return L.point(left / 2, (top - bottom) / 2);
 }
 
+/** How much of the map's right edge its buttons take (MapControls): a
+ *  44-point column and its 8 from the edge. A fit keeps clear of it, as
+ *  the buttons ride over the sheet in the corner a route's end often
+ *  falls in (C81's mark under the location button, 2026-10-26). */
+export const BUTTONS_CLEAR = 52;
+
 /** Padding for fitBounds that keeps what is fitted in what the panel
- *  leaves of the map, with `margin` to spare round it. */
+ *  leaves of the map, and clear of the map's buttons, with `margin` to
+ *  spare round it. */
 export function paddingClear(map: L.Map, margin = 24): L.FitBoundsOptions {
   const { top, bottom, left } = insetsOf(map);
-  return { paddingTopLeft: [left + margin, top + margin], paddingBottomRight: [margin, bottom + margin] };
+  return { paddingTopLeft: [left + margin, top + margin], paddingBottomRight: [margin + BUTTONS_CLEAR, bottom + margin] };
 }
