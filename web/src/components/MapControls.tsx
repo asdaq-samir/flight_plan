@@ -33,7 +33,7 @@ export default function MapControls() {
         inset is what the sheet covers at rest (MapPanel), and they move
         with it in the sheet's time; all the way up they give way
         (index.css). Clear of the chart credit under them. */}
-    <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] z-[1000]">
+    <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] z-[1000]">
       <div
         className={cn(
           // A capsule of Liquid Glass, as Maps' buttons are on iOS 26 and
@@ -60,7 +60,7 @@ export default function MapControls() {
         owner's "We can move the fly food button to the left side",
         2026-10-26); while there is a route or a position to look round. */}
     {stops && (
-      <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
+      <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
         <StopsAlongButton />
       </div>
     )}
