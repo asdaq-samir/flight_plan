@@ -1534,8 +1534,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const foodRadius = usePreferences(p => p.foodRadiusNm);
   // While the map's fly-in food is open, its fields pinned in the
   // suggestions' place (the same queries as the card's).
-  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: stopsShown && !foodRoute && !!foodAt });
-  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: stopsShown && !!foodRoute });
+  // Asked for as soon as there is a route (or a position), not at the
+  // button's tap: the planner reads each field's places and outline from
+  // Overture the first time, half a minute for a long route's forty, and
+  // the owner waited on it ("why is it taking a long time to see these
+  // fly in airports", 2026-10-26). Not for each Routes card swiped past.
+  // Pinned only while the card is open.
+  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: !foodRoute && !!foodAt });
+  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: !!foodRoute && (!choosing || stopsShown) });
   const foodFields = foodRoute ? foodAlong : foodNear;
   const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
     ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,

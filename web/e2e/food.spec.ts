@@ -21,9 +21,9 @@ const FOOD = {
   pending: 0,
   fields: [
     { ident: "KAAA", name: "ALPHA MUNI", city: "ALPHA", lat: 42.4, lon: -88.0, distance_nm: 12.4, bearing_deg: 45, food: [DINER],
-      departure: "C81", added_nm: 2.2 },
+      departure: "C81", added_nm: 2.2, off_nm: 0.4 },
     { ident: "KBBB", name: "BRAVO MUNI", city: "BRAVO", lat: 42.8, lon: -88.5, distance_nm: 40.2, bearing_deg: 300, food: [CAFE],
-      departure: "C81", added_nm: 6.0 },
+      departure: "C81", added_nm: 6.0, off_nm: 3.2 },
   ],
 };
 
@@ -54,7 +54,8 @@ test("with a course drawn, the map's food button opens the airports along it wit
   // Along the route (the owner's "when a course is drawn then look for
   // fly in food along the route"): how far along and the miles it adds.
   await expect(card).toContainText("At the airports along the route");
-  await expect(rows.nth(0)).toContainText("12 nm from C81 · 2 nm detour");
+  await expect(rows.nth(0)).toContainText("On course");
+  await expect(rows.nth(1)).toContainText("3 nm off course");
   await expect(rows.nth(1)).toContainText("Kitty Hawk Cafe · Cafe");
   await expect(page.getByTitle("KBBB, a restaurant on the field")).toHaveCount(1);
 

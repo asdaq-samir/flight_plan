@@ -65,6 +65,8 @@ def test_fields_with_food_along_a_route_in_route_order(monkeypatch):
     monkeypatch.setattr(router.airports, "find_place", lambda ident: {"kind": "small"})
     answer = TestClient(app).get("/api/route-food?dep=C81&dest=KDLH").json()
     assert [(f["ident"], f["distance_nm"], f["added_nm"], f["departure"]) for f in answer["fields"]] == [("KBBB", 150.0, 5.0, "C81")]
+    # How far off the course, the owner's "say how far off course".
+    assert 0 < answer["fields"][0]["off_nm"] < 60
 
 
 def test_no_airline_airport_along_a_route(monkeypatch):
