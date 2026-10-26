@@ -279,7 +279,6 @@ struct FlightServiceView: View {
 struct FlownTrackView: View {
     let flight: Int64
     let title: String
-    @Environment(\.dismiss) private var dismiss
     @State private var track: SavedTrack?
     @State private var loaded = false
     @State private var importing = false
@@ -289,12 +288,18 @@ struct FlownTrackView: View {
         (track?.points ?? []).map { PathPoint(t: Double($0.t) / 1000, lat: $0.lat, lon: $0.lon, altFt: $0.altFt) }
     }
 
+    private var replayKey: String { "flown:\(flight)" }
+
     var body: some View {
         NavigationStack {
             List {
                 if let track, !track.points.isEmpty {
-                    Section("Profile") {
-                        FlightProfileChart(points: points).frame(height: 200)
+                    // Its replay, the airplane flown along it again on the
+                    // map, the track put there with it.
+                    ReplaySection(points: Replay.points(track.points), key: replayKey, onPlay: {
+                        if Tracking.shared.flown.isEmpty { Tracking.shared.flown = points }
+                    })
+                    Section {
                         if let first = points.first, let last = points.last {
                             LabeledContent("Flown", value: FlightWords.lasted(last.t - first.t))
                         }
@@ -308,7 +313,7 @@ struct FlownTrackView: View {
                         }
                         Button("Delete the Track", role: .destructive) {
                             Task {
-                                do { try await Gateway.deleteTrack(flight); self.track = nil; Tracking.shared.flown = [] } catch { problem = error.localizedDescription }
+                                do { try await Gateway.deleteTrack(flight); self.track = nil; Tracking.shared.flown = []; Replay.shared.clear(replayKey) } catch { problem = error.localizedDescription }
                             }
                         }
                     }
@@ -324,12 +329,15 @@ struct FlownTrackView: View {
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) { Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close") }
+                // The card's own close, whether a sheet (iPhone) or the
+                // inspector (iPad) holds it.
+                ToolbarItem(placement: .topBarTrailing) { Button { FlightUI.shared.card = nil } label: { Image(systemName: "xmark") }.accessibilityLabel("Close") }
             }
             .task {
                 do { track = try await Gateway.track(flight) } catch { problem = error.localizedDescription }
                 loaded = true
             }
+            .onDisappear { Replay.shared.clear(replayKey) }
             .fileImporter(isPresented: $importing, allowedContentTypes: [UTType(filenameExtension: "gpx") ?? .xml, .xml]) { result in
                 guard case .success(let url) = result else { return }
                 let reading = url.startAccessingSecurityScopedResource()

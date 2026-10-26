@@ -44,22 +44,34 @@ jobs:
         run: |
           brew install xcodegen
           xcodegen generate --spec ios/project.yml --project ios
-      - name: A simulator to test on
+      - name: The simulators to test on
         id: sim
         run: |
-          # The newest iPhone the runner's Xcode has, whatever it is named.
-          name=$(xcrun simctl list devices available -j | python3 -c '
+          # The newest iPhone the runner's Xcode has, whatever it is named,
+          # and an iPad -- a Pro where there is one -- for the iPad's own
+          # layout (SplitLayout), each by its id.
+          pick() {
+            xcrun simctl list devices available -j | python3 -c '
           import json, sys
-          devices = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith("iPhone")]
-          print(sorted(devices, key=lambda d: d["name"])[-1]["name"])')
-          echo "name=$name" >> "$GITHUB_OUTPUT"
-          echo "testing on $name"
+          kind = sys.argv[1]
+          devices = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith(kind)]
+          pros = [d for d in devices if "Pro" in d["name"]] if kind == "iPad" else []
+          best = sorted(pros or devices, key=lambda d: d["name"])[-1]
+          print(best["udid"] + " " + best["name"])' "$1"
+          }
+          read -r iphone iphone_name <<< "$(pick iPhone)"
+          read -r ipad ipad_name <<< "$(pick iPad)"
+          echo "iphone=$iphone" >> "$GITHUB_OUTPUT"
+          echo "ipad=$ipad" >> "$GITHUB_OUTPUT"
+          echo "testing on $iphone_name and $ipad_name"
       - name: Built and tested on the simulator
         run: |
           host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")
           set -o pipefail
           xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Debug \
-            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.iphone }}" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.ipad }}" \
+            -derivedDataPath "$RUNNER_TEMP/derived" \
             -resultBundlePath "$RUNNER_TEMP/Wingtip.xcresult" \
             CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" \
             test > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || true
@@ -70,6 +82,37 @@ jobs:
           # Each test's own line, and the verdict.
           grep -E "✔ Test|✘ Test|Test run with" "$RUNNER_TEMP/xcodebuild.log" || true
           grep -qE "\*\* TEST SUCCEEDED \*\*" "$RUNNER_TEMP/xcodebuild.log"
+      - name: Each device's first screen
+        # What the app shows on launch on the iPhone and on the iPad, for
+        # the pull request's reader: a picture, not a check.
+        continue-on-error: true
+        run: |
+          app="$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/Wingtip.app"
+          mkdir -p "$RUNNER_TEMP/screens"
+          for pair in "iphone:${{ steps.sim.outputs.iphone }}" "ipad:${{ steps.sim.outputs.ipad }}"; do
+            name=${pair%%:*}; id=${pair#*:}
+            xcrun simctl boot "$id" 2>/dev/null || true
+            xcrun simctl bootstatus "$id" -b > /dev/null
+            xcrun simctl install "$id" "$app"
+            xcrun simctl privacy "$id" grant location "$WINGTIP_BUNDLE_ID" || true
+            xcrun simctl launch "$id" "$WINGTIP_BUNDLE_ID"
+            sleep 25
+            xcrun simctl io "$id" screenshot "$RUNNER_TEMP/screens/$name.png"
+          done
+          # And the iPad's Airport tab, its sidebar's search and title.
+          ipad=${{ steps.sim.outputs.ipad }}
+          xcrun simctl terminate "$ipad" "$WINGTIP_BUNDLE_ID" || true
+          xcrun simctl launch "$ipad" "$WINGTIP_BUNDLE_ID" -tab airport
+          sleep 15
+          xcrun simctl io "$ipad" screenshot "$RUNNER_TEMP/screens/ipad-airport.png"
+      - name: The screens
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4
+        with:
+          name: native-ios-screens
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: ignore
+          retention-days: 7
       - name: The log, on failure
         if: failure()
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4

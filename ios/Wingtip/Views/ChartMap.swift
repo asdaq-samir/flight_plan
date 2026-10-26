@@ -152,9 +152,17 @@ struct ChartMap: UIViewRepresentable {
             plane.coordinate = simulated.coordinate
             plane.heading = simulated.trackDeg ?? 0
             (map.view(for: plane) as? PlaneMarkView)?.turn(to: plane.heading)
+            // Kept in sight as it moves: brought back to the middle of the
+            // map clear of the sheet where it would leave it, as the web
+            // app's replay keeps its airplane (useReplayMarker).
+            if context.coordinator.simulatedAt != simulated.at {
+                context.coordinator.simulatedAt = simulated.at
+                Self.keepInSight(simulated.coordinate, on: map)
+            }
         } else if let plane = context.coordinator.plane {
             map.removeAnnotation(plane)
             context.coordinator.plane = nil
+            context.coordinator.simulatedAt = nil
         }
         context.coordinator.showHazardLegs(hazardLegs, on: map)
         if context.coordinator.courseShown != course {
@@ -173,7 +181,25 @@ struct ChartMap: UIViewRepresentable {
     }
 
     static func routePadding(in map: MKMapView) -> UIEdgeInsets {
-        UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
+        // On the iPad the sidebar and the inspector are beside the map
+        // (their safe areas), the figures along its foot; on the iPhone
+        // the sheet covers the lower half.
+        if RootLayout.of(map.traitCollection.horizontalSizeClass == .regular ? .regular : .compact, pad: map.traitCollection.userInterfaceIdiom == .pad) == .split {
+            let safe = map.safeAreaInsets
+            return UIEdgeInsets(top: safe.top + 80, left: safe.left + 40, bottom: safe.bottom + 120, right: safe.right + 40)
+        }
+        return UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
+    }
+
+    /// A moving airplane's point brought back into the part of the map in
+    /// sight, the route's padding in from its edges, once it leaves it.
+    static func keepInSight(_ at: CLLocationCoordinate2D, on map: MKMapView) {
+        guard map.bounds.width > 0 else { return }
+        let clear = map.bounds.inset(by: routePadding(in: map))
+        let point = map.convert(at, toPointTo: map)
+        guard clear.width > 0, clear.height > 0, !clear.contains(point) else { return }
+        let middle = CGPoint(x: map.bounds.midX + point.x - clear.midX, y: map.bounds.midY + point.y - clear.midY)
+        map.setCenter(map.convert(middle, toCoordinateFrom: map), animated: true)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -187,6 +213,7 @@ struct ChartMap: UIViewRepresentable {
         var checkpointsShown: [Checkpoint] = []
         var proceduresShown: [[CLLocationCoordinate2D]] = []
         var plane: PlaneAnnotation?
+        var simulatedAt: Date?
         var procedureLines: [ProcedurePolyline] = []
         var checkpointMarks: [CheckpointAnnotation] = []
         var onAirport: ((String) -> Void)?

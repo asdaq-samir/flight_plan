@@ -85,8 +85,9 @@ struct FPLView: View {
                             .focused($focused, equals: .altitude)
                             .onSubmit(flyAltitude)
                         // The profile, with the altitude's warning tick where
-                        // the pilot's own breaks a limit.
-                        NavigationLink(value: "profile") {
+                        // the pilot's own breaks a limit: in the inspector
+                        // on the iPad (CardLink), as the brief is.
+                        CardLink(.profile) {
                             Image(systemName: (plan.altitude?.cautions.isEmpty ?? true) ? "chart.xyaxis.line" : "exclamationmark.triangle.fill")
                                 .foregroundStyle((plan.altitude?.cautions.isEmpty ?? true) ? Color.accentColor : Color.orange)
                         }
@@ -94,7 +95,7 @@ struct FPLView: View {
                         .buttonStyle(.plain)
                         // The Brief, marked where the planner says VFR is
                         // not recommended.
-                        NavigationLink(value: "brief") {
+                        CardLink(.brief) {
                             Image(systemName: "doc.text")
                                 .foregroundStyle((plan.briefing?.vfrNotRecommended?.isEmpty ?? true) ? Color.accentColor : Color.red)
                         }
