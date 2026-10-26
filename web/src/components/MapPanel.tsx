@@ -579,12 +579,30 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const out = expanded;
   useEffect(() => {
     const up = state === "full";
-    if (!onPhone && state !== "peek") onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true, up });
-    else {
-      const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
-      onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up });
+    if (!onPhone && state !== "peek") {
+      onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true, up });
+      return;
     }
-  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange]);
+    const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
+    onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up });
+    if (!onPhone || !fromBottom) return;
+    // And again once it has come to rest, from where the sheet's foot
+    // really is over the map's: on the owner's iPhone, Safari's toolbar
+    // made the gap under the pill other than the one asked for, and the
+    // map's buttons, which ride on this, stood 100 points over the pill
+    // (the owner's screenshot, 2026-10-26).
+    const timer = window.setTimeout(() => {
+      const sheet = document.querySelector<HTMLElement>("[data-slot=map-panel]");
+      const map = document.getElementById("content");
+      if (!sheet || !map) return;
+      // Negative where the map ends above the sheet's foot (a shorter
+      // viewport for the map than for the fixed sheet).
+      const gap = Math.round(map.getBoundingClientRect().bottom - sheet.getBoundingClientRect().bottom);
+      const measured = Math.max(0, (expanded ? detents.half : peek) + gap);
+      if (Math.abs(measured - strip) > 1) onInsetsChange({ top: 0, bottom: measured, left: 0, out, up });
+    }, SHEET_SECONDS * 1000 + 100);
+    return () => window.clearTimeout(timer);
+  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange, expanded, detents.half]);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.
