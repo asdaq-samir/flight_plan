@@ -3,10 +3,8 @@ import L from "leaflet";
 import { CircleMarker, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { classBQuery } from "../../../lib/queryClient";
+import { airportQuery, classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
-import { made } from "../../../lib/map/icons";
-import { text } from "../../../lib/map/airportMark";
 import type { Candidate, ClassBAirport, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
@@ -24,15 +22,15 @@ const NO_PATTERNS: TrafficPattern[] = [];
 const NO_POINTS: { lat: number; lon: number }[] = [];
 const NO_POINTS_AT: { ident: string; lat: number; lon: number }[] = [];
 const NO_PROCEDURES: ProcedureDrawing[] = [];
-import { chipColourOf } from "../../../lib/map/flightCategory";
+import { chipColourOf, colourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { RouteWaysLayer, type RouteWay } from "../../../lib/map/RouteWaysLayer";
 import { COURSE_MAGENTA, MAP_BLUE } from "../../../lib/map/chartColors";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { Halo } from "../../../lib/map/Halo";
 import {
-  AIRPORT_MARK, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, LEG_POINT_SIZE, airportMarkIcon, airportMarkReach, checkpointLabelIcon, checkpointLabelWidth, dotIcon, legPointIcon,
-  waypointIcon,
+  AIRPORT_MARK, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportMarkIcon, airportMarkReach, checkpointLabelIcon, checkpointLabelWidth, dotIcon, fixMarkIcon,
+  fixMarkReach,
 } from "../../../lib/map/icons";
 import { FitTo, FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
@@ -111,43 +109,28 @@ interface Props {
   onPickWay?: (key: string) => void;
 }
 
-/** A suggested fuel stop's pin: the caution's orange, the pump in white,
- *  its point on the field, as Tesla's trip map pins its chargers (the
- *  owner's screenshot, 2026-10-21). One icon for every pin. */
-const FUEL_PIN = L.divIcon({
-  className: "",
-  html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
-    + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></g></svg>',
-  iconSize: [30, 38], iconAnchor: [15, 37],
-});
-/** And a break's on a long flight the tanks hold (fuelstops.suggest_break):
- *  the same pin, a cup in it (lucide's Coffee). */
-const BREAK_PIN = L.divIcon({
-  className: "",
-  html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
-    + '<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">'
-    + '<path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/></g></svg>',
-  iconSize: [30, 38], iconAnchor: [15, 37],
-});
-
-/** A field with a restaurant on it (FoodCard): a small chip with the fork
- *  and knife its button wears (StopsAlongButton) and the field's ident,
- *  just over its mark, so the chart's own name of the field stays in
- *  sight beside it -- the pins it was hid KMSP's and stacked on one
- *  another near the start, none saying which field (the owner's
- *  screenshot, 2026-10-26). Sized to the ident. */
-const foodChip = made(function foodChip(ident: string) {
-  const width = 30 + ident.length * 8;
+/** A stop's pin: the caution's orange, its glyph in white (lucide's), its
+ *  point in the middle of the field's mark drawn under it (StopPin), as
+ *  Tesla's trip map pins its chargers (the owner's screenshot,
+ *  2026-10-21) -- the field under the pin, with its ident, at the owner's
+ *  asks ("Put airports under the fuel markers"; "at the middle of the
+ *  airport markers", 2026-10-26). */
+function stopPin(glyph: string) {
   return L.divIcon({
     className: "",
-    html: `<span class="flex h-[22px] items-center gap-1 rounded-full border-2 border-white bg-[#d9480f] pr-2 pl-1.5 text-[12px] leading-none font-bold text-white shadow-[0_1px_3px_rgba(0,0,0,.35)]">`
-      + '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M15 22V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v18M15 10h5"/></svg>'
-      + `${text(ident)}</span>`,
-    // Its foot 12 points over the field's point: clear of its mark.
-    iconSize: [width, 22], iconAnchor: [width / 2, 22 + 12],
+    html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
+      + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></svg>`,
+    iconSize: [30, 38], iconAnchor: [15, 37],
   });
-});
+}
+/** A suggested fuel stop's: the pump (lucide's Fuel). */
+const FUEL_PIN = stopPin('<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>');
+/** A break's on a long flight the tanks hold (fuelstops.suggest_break): a cup (lucide's Coffee). */
+const BREAK_PIN = stopPin('<path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/>');
+/** A field with a restaurant on it (FoodCard): the fork and knife its
+ *  button wears (StopsAlongButton), as the fuel stops' are pinned (the
+ *  owner's "make the food markers similar", 2026-10-26). */
+const FOOD_PIN = stopPin('<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M15 22V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v18M15 10h5"/>');
 
 /** A stop pinned on the chart: a suggestion's (the totals' fuel_stops), or
  *  a field of the map's Stops (`along`, with its `title`). */
@@ -161,14 +144,29 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
   const isBreak = stop.reason === "break";
-  const icon = stop.reason === "along" ? foodChip(pointName(stop.ident)) : isBreak ? BREAK_PIN : FUEL_PIN;
+  const icon = stop.reason === "along" ? FOOD_PIN : isBreak ? BREAK_PIN : FUEL_PIN;
+  // The field under the pin in its class of airspace's look and its
+  // METAR's colour, as the chart marks it: the card's own answer, which
+  // the stop's row asks for too. A small field the chart leaves off at
+  // this zoom was a pin over nothing, no ident to it (the owner's
+  // screenshot, 2026-10-26).
+  const { data: place } = useQuery(airportQuery(stop.ident));
+  const space = place?.airspace_class ?? null;
+  const weather = colourOf(place?.metar?.flight_category);
+  const use = place?.military === "military" ? "military" : null;
   return (
-    <Marker
-      position={[stop.lat, stop.lon]} icon={icon} title={stop.title ?? `Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
-      eventHandlers={handlers} zIndexOffset={500}
-    >
-      <MapTooltip>{stop.title ? pointName(stop.ident) : `${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
-    </Marker>
+    <>
+      <Marker
+        position={[stop.lat, stop.lon]} icon={airportMarkIcon(pointName(stop.ident), space, weather, use)}
+        eventHandlers={handlers} zIndexOffset={450}
+      />
+      <Marker
+        position={[stop.lat, stop.lon]} icon={icon} title={stop.title ?? `Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
+        eventHandlers={handlers} zIndexOffset={500}
+      >
+        <MapTooltip>{stop.title ? pointName(stop.ident) : `${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
+      </Marker>
+    </>
   );
 });
 
@@ -307,7 +305,7 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
         if (a.kind === "fix") {
           return (
             <Marker
-              key={a.ident} position={[a.lat, a.lon]} icon={waypointIcon(pointName(a.ident))}
+              key={a.ident} position={[a.lat, a.lon]} icon={fixMarkIcon(pointName(a.ident))}
               eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); } }}
             >
               <MapTooltip><span className="font-semibold">{pointName(a.ident)}</span> · {a.name}</MapTooltip>
@@ -460,16 +458,12 @@ function useLabelled(
   }, [selected, airports, view, map]);
 }
 
-/** How far over or under its point a top of climb's or descent's tag
- *  is tried, points, where an airport's name is in the way: on the
- *  point first, then just over it, then just under it. */
-const LEG_POINT_SHIFTS = [0, 24, -24];
-
 /** Each leg's top of climb and of descent, where the nav log has a row
  *  for it: a tap brings the map there and selects the row, as a
- *  checkpoint's does. Its tag kept off the route's airports' names: a
- *  short climb's TOC sat on the departure's (the owner's screenshot,
- *  2026-10-24, TOC over POS0), worked out again as the map settles. */
+ *  checkpoint's does. A fix on the course (fixMarkIcon), its name on the
+ *  side kept off the route's airports' names: a short climb's TOC sat on
+ *  the departure's (the owner's screenshot, 2026-10-24, TOC over POS0),
+ *  worked out again as the map settles. */
 function LegPoints({ legs, airports, onSelectPoint }: {
   legs: Leg[]; airports: { ident: string; lat: number; lon: number }[]; onSelectPoint: Props["onSelectPoint"];
 }) {
@@ -481,22 +475,21 @@ function LegPoints({ legs, airports, onSelectPoint }: {
       const p = map.latLngToContainerPoint([a.lat, a.lon]), half = AIRPORT_MARK / 2;
       return L.bounds([p.x - half, p.y - half], [p.x + airportMarkReach(a.ident), p.y + half]);
     });
-    const [w, h] = LEG_POINT_SIZE;
-    const clear = (at: { lat: number; lon: number }) => {
+    const clear = (at: { lat: number; lon: number }, label: string): "right" | "left" => {
       const p = map.latLngToContainerPoint([at.lat, at.lon]);
-      return LEG_POINT_SHIFTS.find(up => {
-        const box = L.bounds([p.x - w / 2, p.y - h / 2 - up], [p.x + w / 2, p.y + h / 2 - up]);
-        return !chips.some(c => c.intersects(box));
-      }) ?? 0;
+      const box = L.bounds([p.x + 8, p.y - 7], [p.x + fixMarkReach(label), p.y + 7]);
+      return chips.some(c => c.intersects(box)) ? "left" : "right";
     };
-    return legs.map(leg => ({ toc: leg.toc ? clear(leg.toc) : 0, tod: leg.tod ? clear(leg.tod) : 0 }));
+    return legs.map(leg => ({
+      toc: leg.toc ? clear(leg.toc, "TOC") : "right" as const, tod: leg.tod ? clear(leg.tod, "TOD") : "right" as const,
+    }));
   }, [legs, airports, map, view]);
   return (
     <>
       {legs.flatMap((leg, i) => [
         leg.toc && (
           <Marker
-            key={`toc-${i}`} position={[leg.toc.lat, leg.toc.lon]} icon={legPointIcon("TOC", shifts[i]?.toc ?? 0)} zIndexOffset={-100}
+            key={`toc-${i}`} position={[leg.toc.lat, leg.toc.lon]} icon={fixMarkIcon("TOC", shifts[i]?.toc)} zIndexOffset={-100}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.toc!.lat, leg.toc!.lon); } }}
           >
             <MapTooltip>Top of climb · {feet(leg.toc.altitude_ft)}</MapTooltip>
@@ -504,7 +497,7 @@ function LegPoints({ legs, airports, onSelectPoint }: {
         ),
         leg.tod && (
           <Marker
-            key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={legPointIcon("TOD", shifts[i]?.tod ?? 0)} zIndexOffset={-100}
+            key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={fixMarkIcon("TOD", shifts[i]?.tod)} zIndexOffset={-100}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.tod!.lat, leg.tod!.lon); } }}
           >
             <MapTooltip>Top of descent · {leg.tod.fpm} fpm to {feet(leg.tod.to_ft)}{leg.tod.fix ? ` by ${leg.tod.fix}` : ""}</MapTooltip>

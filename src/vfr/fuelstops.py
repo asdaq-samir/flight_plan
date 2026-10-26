@@ -23,7 +23,7 @@ import numpy as np
 import pandas as pd
 
 from . import airports, faa_data
-from .geo import distance_nm
+from .geo import cross_track_distance_nm, distance_nm
 from .terrain import DEFAULT_FAA_CACHE_DIR
 
 #: The fuel looked for: avgas, which every piston profile here burns. A
@@ -172,8 +172,10 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
     and `ground_min` on the ground at each stop, the least of them over
     every chain of fields the tanks reach between (a shortest path from
     the destination back). Among first stops within SAME_MINUTES of the
-    quickest, the one whose landings keep the most fuel, so no leg of it
-    runs close; the others offered, quickest first."""
+    quickest, the one nearest the line, to the whole mile (the owner's
+    pick, 2026-10-26: Erie 0.7 nm off on Chicago to Bradley, not
+    Greenville 8.4 nm off); of those as near, the one whose landings keep
+    the most fuel, so no leg of it runs close; the others offered after."""
     if _fits(start, end, fuel_per_nm, usable_gal, taxi_gal, reserve_gal):
         return [], []
     fields = fields_with_fuel() if fields is None else fields
@@ -225,7 +227,9 @@ def suggest(start: tuple, end: tuple, *, fuel_per_nm: float, min_per_nm: float, 
     if not first:
         return [], []
     quickest = min(trip(i) for i in first)
-    ranked = sorted(first, key=lambda i: (trip(i) > quickest + SAME_MINUTES, -least_landing(i), trip(i)))
+    off_line = np.abs(cross_track_distance_nm(lat, lon, start, end))
+    ranked = sorted(first, key=lambda i: (trip(i) > quickest + SAME_MINUTES, round(float(off_line[i])),
+                                          -least_landing(i), trip(i)))
     direct = float(distance_nm(start[0], start[1], end[0], end[1]))
 
     def stop(i: int, prev: int | None, flown_nm: float) -> FuelStop:

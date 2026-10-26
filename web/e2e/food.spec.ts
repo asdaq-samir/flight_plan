@@ -105,6 +105,8 @@ test("with no route the food button looks round the pilot within a radius picked
   await button.click();
   const card = sideDrawer(page).getByTestId("food-card");
   await expect(card).toBeVisible();
+  // The card alone: FPL's Saved stood over it (the owner's screenshot, 2026-10-26).
+  await expect(sideDrawer(page).getByTestId("saved-strip")).toHaveCount(0);
   const radius = card.getByTestId("food-radius");
   await expect(radius).toHaveText("Within 100 nm");
   await expect(card.getByTestId("food-field").first()).toContainText("12 nm NE", { timeout: slow(30_000) });
