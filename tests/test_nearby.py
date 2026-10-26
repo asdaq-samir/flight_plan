@@ -39,12 +39,12 @@ def test_a_fields_places_are_read_once_a_release_and_kept(tmp_path, monkeypatch)
     assert nearby.around("khys", 38.8, -99.3, tmp_path) == {"food": [], "lodging": [], "cars": []}
     nearby.around("KHYS", 38.8, -99.3, tmp_path)
     assert reads == ["2026-10-21.0"]
-    assert json.loads((tmp_path / "2026-10-21.0" / "KHYS.4.json").read_text()) == {"food": [], "lodging": [], "cars": []}
+    assert json.loads((tmp_path / "2026-10-21.0" / "KHYS.5.json").read_text()) == {"food": [], "lodging": [], "cars": []}
 
 
 def test_an_older_releases_answer_where_overture_cannot_be_read(tmp_path, monkeypatch):
     (tmp_path / "2026-09-23.0").mkdir()
-    (tmp_path / "2026-09-23.0" / "KHYS.4.json").write_text('{"food": [], "lodging": [], "cars": []}')
+    (tmp_path / "2026-09-23.0" / "KHYS.5.json").write_text('{"food": [], "lodging": [], "cars": []}')
     monkeypatch.setattr(nearby, "latest_release", lambda: "2026-10-21.0")
 
     def unreadable(lat, lon, release):
@@ -66,7 +66,7 @@ def test_a_field_not_yet_read_is_none_and_read_once_however_often_asked(tmp_path
         reads.append(ident)
         gate.wait(5)
         (tmp_path / "2026-10-21.0").mkdir(exist_ok=True)
-        (tmp_path / "2026-10-21.0" / f"{ident}.4.json").write_text('{"food": [], "lodging": [], "cars": []}')
+        (tmp_path / "2026-10-21.0" / f"{ident}.5.json").write_text('{"food": [], "lodging": [], "cars": []}')
     monkeypatch.setattr(nearby, "around", around)
     nearby.read_later("khys", 38.8, -99.3)
     nearby.read_later("KHYS", 38.8, -99.3)
@@ -90,3 +90,10 @@ def test_a_place_to_eat_is_on_the_field_inside_its_outline_not_across_the_road()
     assert not nearby._on_field(outline, 41.989803, -88.09545, 462.0)
     assert nearby._on_field(None, 41.99, -88.10, 199.0)
     assert not nearby._on_field(None, 41.99, -88.10, 462.0)
+
+
+def test_a_companys_registered_name_is_not_somewhere_to_eat():
+    for name in ["Team Advantage Inc", "Kobev International Inc.", "Tailwind Eri Llc", "Sky Holdings, LLC"]:
+        assert nearby._COMPANY.search(name.rstrip(" ,")), name
+    for name in ["Pilot Pete's", "Kitty Hawk Cafe", "The Inc Diner", "Bessie's Diner"]:
+        assert not nearby._COMPANY.search(name), name
