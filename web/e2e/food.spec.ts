@@ -50,17 +50,20 @@ test("with a course drawn, the map's food button opens the airports along it wit
   const rows = card.getByTestId("food-field");
   await expect(rows).toHaveCount(2, { timeout: slow(30_000) });
   await expect(rows.nth(0)).toContainText("KAAA · Alpha");
-  await expect(rows.nth(0)).toContainText("Pilot Pete's · American restaurant");
+  // Restaurant first (the owner's pick B, 2026-10-26): its name, its
+  // airport, what it is.
+  await expect(rows.nth(0)).toContainText("Pilot Pete's");
+  await expect(rows.nth(0)).toContainText("American restaurant");
   // Along the route (the owner's "when a course is drawn then look for
   // fly in food along the route"): how far along and the miles it adds.
-  await expect(card).toContainText("At the airports along the route");
+  await expect(card.getByTestId("food-scope-route")).toHaveAttribute("aria-pressed", "true");
   await expect(rows.nth(0)).toContainText("On course");
   await expect(rows.nth(1)).toContainText("3 nm off course");
   // Add Stop puts the field in the route (the owner's "On course, have a
   // button to add stop", 2026-10-26).
   await rows.nth(1).getByTestId("food-add-stop").click();
   await expect(page).toHaveURL(/[?&]stops=KBBB(&|$)/);
-  await expect(rows.nth(1)).toContainText("Kitty Hawk Cafe · Cafe");
+  await expect(rows.nth(1)).toContainText("Kitty Hawk Cafe");
   await expect(page.getByTitle("KBBB, a restaurant on the field")).toHaveCount(1);
 
 });

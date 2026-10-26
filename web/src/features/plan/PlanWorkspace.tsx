@@ -1539,6 +1539,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   [routed, s.local, planned.dep, planned.dest, planned.stops]);
   const foodAt = useMemo(() => (fix ? { lat: fix.lat, lon: fix.lon } : null), [fix]);
   const foodRadius = usePreferences(p => p.foodRadiusNm);
+  // Along the route or round the pilot, as the card's two pills pick
+  // (FoodCard): along it where there is one, until the pilot says.
+  const foodScopePicked = useStopsAlong(st => st.scope);
+  const setFoodScope = useStopsAlong(st => st.setScope);
+  const foodScope = foodRoute ? foodScopePicked ?? "route" : "near";
   // While the map's fly-in food is open, its fields pinned in the
   // suggestions' place (the same queries as the card's).
   // Asked for as soon as there is a route (or a position), not at the
@@ -1547,9 +1552,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the owner waited on it ("why is it taking a long time to see these
   // fly in airports", 2026-10-26). Not for each Routes card swiped past.
   // Pinned only while the card is open.
-  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: !foodRoute && !!foodAt });
+  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: !!foodAt && (!foodRoute || foodScope === "near") });
   const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: !!foodRoute && (!choosing || stopsShown) });
-  const foodFields = foodRoute ? foodAlong : foodNear;
+  const foodFields = foodScope === "route" ? foodAlong : foodNear;
   const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
     ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,
   })) : null), [stopsShown, foodFields]);
@@ -2766,7 +2771,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         )}
         {stopsHere && !savedOpen && (
           <FoodCard
-            name="Fly-in Food" at={foodAt} route={foodRoute} onClose={closeStops} onOpenField={selectPlace}
+            name="Fly-in Food" at={foodAt} route={foodRoute} scope={foodScope} onScope={setFoodScope} onClose={closeStops} onOpenField={selectPlace}
             onAddStop={addFoodStop}
             onDirect={ident => void flyHere({ ident })}
           />
