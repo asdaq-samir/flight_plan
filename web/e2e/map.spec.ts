@@ -208,7 +208,9 @@ test("the chart's airports keep coming in under a finger's pan, before it lets g
   // the box asked for (the view and a screen round it).
   const viewport = page.viewportSize()!;
   const y = viewport.width < 768 ? 160 : viewport.height / 3;
-  const from = viewport.width - 20;
+  // Clear of the map's buttons down the right edge: the food button is
+  // there with no route too since 2026-10-25, and took the press.
+  const from = viewport.width - 90;
   await page.mouse.move(from, y);
   await page.mouse.down();
   for (let i = 1; i <= 30; i++) {
