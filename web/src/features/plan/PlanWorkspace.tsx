@@ -1339,6 +1339,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const isBreak = fuelStops.some(f => f.reason === "break" && [...f.stops, ...(f.choices ?? [])].some(c => idents.includes(c.ident)));
     if (next) setStops(next.stops, isBreak ? [] : next.added);
   }, [setStops, planned.dep, planned.stops, fuelStops]);
+  // A field from the map's fly-in food put in the route after its flight's
+  // departure, the pilot's own stop: by the route's own points, not its
+  // course, which a tap before the course was in found missing.
+  const addFoodStop = useCallback((field: { ident: string; departure?: string | null }) => {
+    const next = withStopsAfter(planned.dep, planned.stops, field.departure ?? planned.dep, [field.ident]);
+    if (next) setStops(next.stops);
+  }, [setStops, planned.dep, planned.stops]);
   // The suggested stop the airport's card is open on, where it is one: its
   // figures at the card's top, and Add Stop keeps it at its place
   // (PlaceCard's `stop`).
@@ -2759,7 +2766,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {stopsHere && !savedOpen && (
           <FoodCard
             name="Fly-in Food" at={foodAt} route={foodRoute} onClose={closeStops} onOpenField={selectPlace}
-            onAddStop={field => dropIntoRoute(field.ident, { lat: field.lat, lon: field.lon }, "add")}
+            onAddStop={addFoodStop}
             onDirect={ident => void flyHere({ ident })}
           />
         )}
