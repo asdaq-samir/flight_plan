@@ -51,6 +51,8 @@ struct SetupView: View {
                     Toggle("VFR waypoints", isOn: $waypointsOn)
                     Toggle("Class B weather", isOn: $classBOn)
                     Toggle("Approach plates", isOn: $platesOn)
+                    // How old each weather layer's data is.
+                    LayerAgesRows()
                 }
                 Section("Chart") {
                     if let info = charts.info {

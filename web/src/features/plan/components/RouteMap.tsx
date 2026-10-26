@@ -27,6 +27,7 @@ import { CourseLine } from "../../../lib/map/CourseLine";
 import { RouteWaysLayer, type RouteWay } from "../../../lib/map/RouteWaysLayer";
 import { COURSE_MAGENTA, MAP_BLUE } from "../../../lib/map/chartColors";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
+import { LegHighlightLayer } from "../../../lib/map/LegHighlightLayer";
 import { Halo } from "../../../lib/map/Halo";
 import {
   AIRPORT_MARK, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportMarkIcon, airportMarkReach, checkpointLabelIcon, checkpointLabelWidth, dotIcon, fixMarkIcon,
@@ -616,6 +617,8 @@ export default memo(function RouteMap({
         <>
           {/* Under the course line, as Maps draws the routes not picked. */}
           {onPickWay && <RouteWaysLayer ways={ways} shown={wayShown} onPick={onPickWay} />}
+          {/* The legs a hazard in the Brief is on, at the pilot's tap. */}
+          <LegHighlightLayer course={course} />
           <CourseLine
             line={course.course_line as [number, number][]}
             tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${nm(course.distance_nm)}`}

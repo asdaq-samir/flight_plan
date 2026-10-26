@@ -105,6 +105,7 @@ def quiet_sky(monkeypatch):
     monkeypatch.setattr(tfr, "along_route", lambda path, start, end: [])
     monkeypatch.setattr(weather, "pireps_along_route", lambda path: [])
     monkeypatch.setattr(weather, "gairmets_along_route", lambda path, window: [])
+    monkeypatch.setattr(weather, "gairmet_snapshots_along_route", lambda path, window: [])
 
 
 @pytest.fixture(autouse=True)

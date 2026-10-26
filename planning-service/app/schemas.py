@@ -435,14 +435,39 @@ class HopTotals(BaseModel):
 Totals.model_rebuild()
 
 
+class OnRoute(BaseModel):
+    """Where and when the flight meets a hazard (app.exposure): the legs
+    it is on (0-based, Briefing.leg_fixes' -- the nav log's where the
+    page sent them), from how far along to how far (nm from the
+    departure), when the airplane gets there and leaves (ISO 8601 UTC),
+    and the hazard's own times -- valid from and to, and when it was
+    issued (a pilot report's, when it was made; a METAR's, when it was
+    observed). `when` is whether the airplane is in it while it is
+    valid, give or take half an hour; None for one with no valid times
+    (a pilot report, a report or forecast for a field)."""
+
+    legs: list[int]
+    from_nm: float
+    to_nm: float
+    enter: str | None = None
+    leave: str | None = None
+    valid_from: str | None = None
+    valid_to: str | None = None
+    when: Literal["during", "before", "after"] | None = None
+    source: Literal["SIGMET", "Convective SIGMET", "AIRMET", "G-AIRMET", "TFR", "PIREP", "METAR", "TAF"]
+    issued: str | None = None
+
+
 class Hazard(BaseModel):
-    """A SIGMET/AIRMET whose polygon the route line crosses."""
+    """A SIGMET/AIRMET whose polygon the route line crosses; in the
+    briefing, with where and when the flight meets it."""
 
     hazard: str | None = None
     type: str | None = None
     altitude_low_ft: float | None = None
     altitude_high_ft: float | None = None
     raw: str | None = None
+    on_route: OnRoute | None = None
 
 
 class AirspaceTransit(BaseModel):
@@ -1429,6 +1454,7 @@ class RouteTfr(TfrInfo):
     along_track_nm: float
     crosses: bool
     active_now: bool
+    on_route: OnRoute | None = None
 
 
 class Pirep(BaseModel):
@@ -1444,6 +1470,7 @@ class Pirep(BaseModel):
     icing: str | None = None
     raw: str | None = None
     along_track_nm: float
+    on_route: OnRoute | None = None
 
 
 class GAirmet(BaseModel):
@@ -1456,9 +1483,41 @@ class GAirmet(BaseModel):
     severity: str | None = None
     due_to: str | None = None
     valid_at: str | None = None
+    #: When the G-AIRMET was issued, as aviationweather.gov gives it.
+    issued: str | None = None
     altitude_low_ft: float | None = None
     from_freezing_level: bool = False
     altitude_high_ft: float | None = None
+    on_route: OnRoute | None = None
+
+
+class FieldBelowVfr(BaseModel):
+    """A field whose weather is below VFR where the flight meets it
+    (app.exposure.fields_below_vfr): an airport flown from or to whose
+    METAR reports IFR or LIFR now, or a TAF station along the route
+    forecast under 14 CFR 91.155's basic minimums for when the airplane
+    is there, with the ceiling and visibility that put it there."""
+
+    ident: str
+    source: Literal["METAR", "TAF"]
+    flight_category: str | None = None
+    ceiling_ft: float | None = None
+    visibility_sm: float | None = None
+    on_route: OnRoute
+
+
+class RoutePoint(BaseModel):
+    lat: float
+    lon: float
+
+
+class MapLayerAges(BaseModel):
+    """When the planner fetched what the map's weather layers are drawn
+    from (ISO 8601 UTC; None before the first fetch): the METARs the
+    airports' flight categories come from, and the TFRs."""
+
+    metars_at: str | None = None
+    tfrs_at: str | None = None
 
 
 class Briefing(BaseModel):
@@ -1481,6 +1540,13 @@ class Briefing(BaseModel):
     # minimums -- worked out here (vfr.weather) rather than by the page.
     # Empty when nothing warrants it.
     vfr_not_recommended: list[str] = []
+    # The fields below VFR where the flight meets them.
+    fields_below_vfr: list[FieldBelowVfr] = []
+    # The fixes the hazards' legs run between (OnRoute.legs), one more
+    # than the legs: the nav log's where the page sent them ("navlog"),
+    # else the route's own, airport to airport ("route").
+    leg_fixes: list[RoutePoint] = []
+    legs_from: Literal["navlog", "route"] = "route"
 
 
 # --- the chart: picks and detections ------------------------------------

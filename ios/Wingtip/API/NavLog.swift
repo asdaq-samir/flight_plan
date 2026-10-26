@@ -103,6 +103,9 @@ struct Leg: Codable, Hashable, Sendable, Identifiable {
     var tod: TopOfDescent?
     /// The procedure's path this leg flies, where one was picked.
     var procedure: LegProcedure?
+    /// Into a stop landed at: the minutes on the ground there before the
+    /// next leg (Leg.ground_min), for the briefing's times.
+    var groundMin: Double?
 
     var id: String { "\(from)-\(to)" }
 

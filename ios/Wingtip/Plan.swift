@@ -46,6 +46,9 @@ final class Plan {
     /// The way whose path is drawn on the map while the cards are up.
     var shownWay: RouteOption?
     private(set) var briefingProblem: String?
+    /// The legs a hazard tapped in the Brief is on, shown on the map
+    /// (BriefLegs.swift); nil when none is.
+    var hazardLegs: HazardLegs?
     private(set) var legs: [Leg] = []
     private(set) var altitudeFt: Double?
     private(set) var totals: Totals?
@@ -91,7 +94,7 @@ final class Plan {
     func clear() {
         running?.cancel()
         dep = ""; dest = ""; stops = []
-        course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil
+        course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil; hazardLegs = nil
         legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
         Kept.forget()
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
@@ -208,8 +211,10 @@ final class Plan {
     /// The briefing, as the web app fetches it as soon as the route is known
     /// and again as the nav log gives the flight's time.
     func brief(dep: String, dest: String, stops: [String], eteMin: Double?) async {
+        // Its hazards placed on the nav log's legs once they are in.
+        let legs = BriefLegs.query(course: course, checkpoints: checkpoints, legs: self.legs)
         do {
-            briefing = try await Planner.briefing(dep: dep, dest: dest, stops: stops, eteMin: eteMin)
+            briefing = try await Planner.briefing(dep: dep, dest: dest, stops: stops, eteMin: eteMin, legs: legs)
             briefingProblem = nil
             keep()
         } catch {
@@ -235,6 +240,7 @@ final class Plan {
             do {
                 let course = try await Planner.course(dep: dep, dest: dest, stops: stops)
                 guard !Task.isCancelled else { return }
+                if self.course != course { self.hazardLegs = nil }
                 self.course = course
                 // The checkpoints beside the nav log, not before it: the
                 // first read of a new route's chart takes a while, and the

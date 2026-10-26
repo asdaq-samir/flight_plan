@@ -226,6 +226,8 @@ struct Hazard: Codable, Equatable, Sendable {
     var raw: String?
     var altitudeLowFt: Double?
     var altitudeHighFt: Double?
+    /// Where and when the flight meets it (BriefLegs.swift).
+    var onRoute: OnRoute?
 }
 
 struct GAirmet: Codable, Equatable, Sendable {
@@ -236,6 +238,7 @@ struct GAirmet: Codable, Equatable, Sendable {
     var altitudeLowFt: Double?
     var altitudeHighFt: Double?
     var fromFreezingLevel: Bool? = false
+    var onRoute: OnRoute?
 }
 
 struct RouteTfr: Codable, Equatable, Sendable, Identifiable {
@@ -250,6 +253,7 @@ struct RouteTfr: Codable, Equatable, Sendable, Identifiable {
     var expires: String?
     var floorFt: Double?
     var ceilingFt: Double?
+    var onRoute: OnRoute?
 
     var id: String { notamId }
 }
@@ -263,6 +267,7 @@ struct Pirep: Codable, Equatable, Sendable {
     var icing: String?
     var urgent: Bool? = false
     var observedAt: String?
+    var onRoute: OnRoute?
 }
 
 struct ForecastStation: Codable, Equatable, Sendable {
@@ -287,6 +292,11 @@ struct Briefing: Codable, Equatable, Sendable {
     var tfrs: [RouteTfr]? = []
     var vfrNotRecommended: [String]? = []
     var weatherUnavailable: [String] = []
+    /// The fields below VFR where the flight meets them, and the fixes
+    /// the hazards' legs run between (BriefLegs.swift).
+    var fieldsBelowVfr: [FieldBelowVfr]?
+    var legFixes: [RoutePoint]?
+    var legsFrom: String?
 }
 
 /// One thing ahead of the airplane (AheadAlert, vfr.alerts): airspace, a
