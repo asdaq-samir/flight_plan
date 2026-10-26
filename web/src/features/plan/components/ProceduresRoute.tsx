@@ -31,7 +31,7 @@ import DepartPicker from "./navlog/DepartPicker";
 import ProcedureMenu from "./ProcedureMenu";
 import type { EditedPoint, PointAltitude } from "./PointAltitudeDialog";
 import { PointFigures, PointMenu } from "./PointControls";
-import FuelStopRow, { FuelGauge, FuelStopsAdd } from "./FuelStopRow";
+import FuelStopRow, { FuelGauge, FuelStopsAdd, FuelStopsHidden } from "./FuelStopRow";
 import { useFuelStops } from "../hooks/useFuelStops";
 import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
@@ -126,7 +126,7 @@ const NO_AUTO: ReadonlySet<string> = new Set();
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked = NO_AUTO, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops,
+  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop, hiddenFuelStops = NO_FUEL_STOPS, onShowFuelStops,
   fuel = null,
 }: {
   airports: ProcedureAirport[];
@@ -220,6 +220,13 @@ export default function ProceduresRoute({
    *  put in the route after the flight's departure, in order. */
   fuelStops?: FuelStopSuggestion[];
   onKeepFuelStops?: (after: string, idents: string[]) => void;
+  /** A suggested stop taken out of the route (its minus beside Add), the
+   *  route's menu putting it back (PlanWorkspace's hideFuelStop). */
+  onHideFuelStop?: (ident: string) => void;
+  /** The suggestions taken out, by the flight they were for, each with
+   *  only its stops taken out; and the way to put them all back. */
+  hiddenFuelStops?: FuelStopSuggestion[];
+  onShowFuelStops?: () => void;
   /** The tanks, for the fuel in them at each point: their usable fuel, the
    *  start, taxi and takeoff allowance and the reserve the flight is held
    *  to (the totals' fuel check); none known, no fuel shown. */
@@ -809,7 +816,13 @@ export default function ProceduresRoute({
     // from the list, dashed in the route's box alone (the owner's
     // screenshot, 2026-10-22).
     const flight = fuelStops.find(f => (sameField(f.departure, ident) || (first && f === fuelStops[0])) && !suggested.has(f));
-    if (!flight || !flight.stops.length) return [];
+    if (!flight || !flight.stops.length) {
+      // Taken out: a way to put them back where they were.
+      const hidden = hiddenFuelStops.find(f => (sameField(f.departure, ident) || (first && f === hiddenFuelStops[0])) && !suggested.has(f));
+      if (!hidden || !hidden.stops.length || !onShowFuelStops) return [];
+      suggested.add(hidden);
+      return [<FuelStopsHidden key={`fuel-${ident}-hidden`} count={hidden.stops.length} reason={hidden.reason} onShow={onShowFuelStops} />];
+    }
     suggested.add(flight);
     const leavesMin = row?.kind === "stop" ? (row.minutesFlown ?? 0) + row.groundMin : 0;
     return [
@@ -826,6 +839,7 @@ export default function ProceduresRoute({
         <FuelStopsAdd
           key={`fuel-${ident}-add`} count={flight.stops.length} last={false} reason={flight.reason}
           onAdd={() => onKeepFuelStops(ident, flight.stops.map(s => s.ident))}
+          onRemove={onHideFuelStop ? () => flight.stops.forEach(s => onHideFuelStop(s.ident)) : undefined}
         />
       ),
     ];

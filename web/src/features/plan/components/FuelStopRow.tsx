@@ -1,5 +1,6 @@
-import { Coffee, Fuel, Mountain } from "lucide-react";
+import { Coffee, Fuel, Minus, Mountain } from "lucide-react";
 import { cn } from "cn";
+import IconButton from "../../../components/IconButton";
 import { ADD_CAPSULE, GLASS_BUTTON } from "../../../components/mapChrome";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
@@ -159,23 +160,58 @@ export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, us
 }
 
 /**
+ * Where suggested stops were taken out (FuelStopsAdd's minus, the chip's
+ * Remove): one tap puts them back in the list and the route's box, at the
+ * owner's ask ("when the fuel stops are deleted, we still want to be able
+ * to add them back", 2026-10-25), as the route's menu's Show Fuel Stops
+ * does.
+ */
+export function FuelStopsHidden({ count, onShow, reason = "fuel" }: { count: number; onShow: () => void; reason?: "fuel" | "break" }) {
+  return (
+    <li className="relative flex gap-2.5">
+      <div className="w-7 shrink-0" />
+      <div className="min-w-0 flex-1 pb-4">
+        <button type="button" onClick={onShow} data-testid="fuel-stop-show" className={ADD_CAPSULE}>
+          {reason === "break" ? "Show Suggested Stop" : count === 1 ? "Show Fuel Stop" : `Show ${count} Fuel Stops`}
+        </button>
+      </div>
+    </li>
+  );
+}
+
+/**
  * The suggested stops put in the route, one tap after the last of them,
  * as Tesla's trip is sent to the car: "Add Fuel Stop", or "Add 2 Fuel
  * Stops", in the tint -- an action's words in Title Case, as iOS sets a
  * button's (the owner's D2, 2026-10-23).
  */
-export function FuelStopsAdd({ count, onAdd, last, reason = "fuel" }: { count: number; onAdd: () => void; last: boolean; reason?: "fuel" | "break" }) {
+export function FuelStopsAdd({ count, onAdd, onRemove, last, reason = "fuel" }: {
+  count: number; onAdd: () => void; last: boolean; reason?: "fuel" | "break";
+  /** The suggestion taken out, as its chip's Remove in the route box does:
+   *  a round minus beside Add, at the owner's ask (2026-10-25). */
+  onRemove?: () => void;
+}) {
+  const what = reason === "break" ? "stop" : count === 1 ? "fuel stop" : "fuel stops";
   return (
     <li className="relative flex gap-2.5">
       {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0 border-l-2 border-dashed" style={SUGGESTED_LINE} />}
       <div className="w-7 shrink-0" />
-      <div className="min-w-0 flex-1 pb-4">
+      {/* Twelve apart, so the capsule's and the minus's 44-point areas meet. */}
+      <div className="flex min-w-0 flex-1 items-center gap-3 pb-4">
         <button
           type="button" onClick={onAdd} data-testid="fuel-stop-keep"
           className={ADD_CAPSULE}
         >
           {reason === "break" ? "Add Stop" : count === 1 ? "Add Fuel Stop" : `Add ${count} Fuel Stops`}
         </button>
+        {onRemove && (
+          <IconButton
+            label={`Remove the suggested ${what}`} onClick={onRemove} data-testid="fuel-stop-remove"
+            className="relative size-8 shrink-0 rounded-full bg-destructive/12 text-destructive hover:bg-destructive/20 hover:text-destructive after:absolute after:-inset-1.5 after:content-['']"
+          >
+            <Minus className="size-[1.125rem]" strokeWidth={2.5} />
+          </IconButton>
+        )}
       </div>
     </li>
   );
