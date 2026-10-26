@@ -48,6 +48,15 @@ def test_of_two_as_quick_the_one_that_lands_with_more_fuel_on_both_legs():
     assert [s.ident for s in stops] == ["MIDDLE"]
 
 
+def test_of_two_as_quick_the_one_nearest_the_line_before_the_one_with_more_fuel():
+    # MIDDLE splits the trip evenly but sits 4 nm off the line; EARLY is on
+    # it. A few tenths of a mile apart in the flying, so the nearer one
+    # (the owner's pick: Erie on the line, not Greenville 8 nm off).
+    stops, choices = fuelstops.suggest(START, END, fields=fields(("EARLY", 0.0, 4.5), ("MIDDLE", 0.07, 5.0)), **FIGURES)
+    assert [s.ident for s in stops] == ["EARLY"]
+    assert [c.ident for c in choices] == ["MIDDLE"]
+
+
 def test_every_landing_keeps_the_reserve():
     # The tanks reach 340 nm (40 - 1 - 5 gal at 0.1 a mile): a field 6
     # degrees out, 360 nm, is out of reach and the flight has no stop.
