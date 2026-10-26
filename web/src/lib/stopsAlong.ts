@@ -15,6 +15,10 @@ export const useStopsAlong = create<{
   setOpener: (opener: (() => void) | null) => void;
   setAvailable: (available: boolean) => void;
   setOpen: (open: boolean) => void;
+  /** Where the card looks: along the route, or round the pilot; null as
+   *  the route has it (along it where there is one). */
+  scope: "route" | "near" | null;
+  setScope: (scope: "route" | "near") => void;
 }>(set => ({
   available: false,
   open: false,
@@ -22,4 +26,6 @@ export const useStopsAlong = create<{
   setOpener: opener => set({ opener }),
   setAvailable: available => set(available ? { available } : { available, open: false }),
   setOpen: open => set({ open }),
+  scope: null,
+  setScope: scope => set({ scope }),
 }));
