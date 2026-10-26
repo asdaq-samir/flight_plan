@@ -125,7 +125,7 @@ function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string 
       {langgraph && (
         <>
           <h2 className={GROUP_HEADING}>Narrative</h2>
-          <p className="mt-2 text-sm text-muted-foreground">{langgraph}</p>
+          <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{langgraph}</p>
         </>
       )}
       {crewai && (
@@ -133,7 +133,7 @@ function BriefingNarrativePrintBlock({ langgraph, crewai }: { langgraph: string 
           <h2 className={cn(GROUP_HEADING, langgraph && "mt-3")}>
             Second narrative
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">{crewai}</p>
+          <p className={cn("mt-2 text-muted-foreground", TEXT.detail)}>{crewai}</p>
         </>
       )}
     </div>
