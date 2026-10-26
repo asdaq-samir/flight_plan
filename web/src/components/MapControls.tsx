@@ -23,6 +23,7 @@ import { GLASS } from "./mapChrome";
 export default function MapControls() {
   const stops = useStopsAlong(s => s.available);
   return (
+    <>
     // z-[1000]: over Leaflet's own panes, the level Leaflet gives its
     // controls; still inside the map's own stacking context, under the
     // panel and every portal. The map's right edge is the screen's, so
@@ -53,14 +54,16 @@ export default function MapControls() {
             browser and an iPad, never an iPhone. */}
         <FullscreenButton />
       </div>
-      {/* The Stops in a glass circle of their own under the group, while
-          there is a route to look along, at the owner's pick (option C of
-          the stops canvas). */}
-      {stops && (
-        <div className={cn("mt-2 flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
-          <StopsAlongButton />
-        </div>
-      )}
     </div>
+    {/* Fly-in food in a glass circle of its own at the left, level with
+        the group, as Maps keeps its other buttons on the far side (the
+        owner's "We can move the fly food button to the left side",
+        2026-10-26); while there is a route or a position to look round. */}
+    {stops && (
+      <div data-map-controls="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
+        <StopsAlongButton />
+      </div>
+    )}
+    </>
   );
 }

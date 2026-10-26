@@ -9,10 +9,12 @@ import {
   sheetSettle, type MapInsets, type PanelState,
 } from "./mapChrome";
 
-/** How far the half sheet is in from the screen's sides and its edge: on
- *  them since the owner's ask (2026-10-25), as all the way up; the pill
- *  keeps SHEET_INSET. */
-const HALF_INSET = 0;
+/** How far the half sheet is in from the screen's sides and its edge:
+ *  floating as Maps' does, every corner round, at the owner's yes to the
+ *  polish pass (2026-10-26, "the sheet floats like Maps"); it was on them
+ *  from 2026-10-25 for the route box's buttons' room, which the route's
+ *  title now leaves. All the way up it is on them. */
+const HALF_INSET = SHEET_INSET;
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -438,7 +440,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // far corners round, at the owner's ask (2026-10-25, "the extra space
     // on the sides": the route box's buttons fit on the airplane's line).
     // It floated in from them by SHEET_INSET, as iOS 26's Maps does.
-    inset: { side: HALF_INSET, gap: HALF_INSET, radius: edgeRadius },
+    inset: { side: HALF_INSET, gap: HALF_INSET, radius: HALF_INSET > 0 ? `${SHEET_INSET_RADIUS}px` : edgeRadius },
     edge: { side: 0, gap: 0, radius: edgeRadius },
   }[shape];
   // A drag from the capsule turns it into the sheet as the finger goes
@@ -482,7 +484,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // From the pill's shape, in from the sides and every corner round, to
     // the sheet's on the sides and edge, its near corners square.
     const pillRadius = Math.min(PILL_RADIUS, capsuleHeight / 2);
-    const far = between(pillRadius, SHEET_INSET_RADIUS, morph), near = between(pillRadius, 0, morph);
+    const far = between(pillRadius, SHEET_INSET_RADIUS, morph), near = between(pillRadius, HALF_INSET > 0 ? SHEET_INSET_RADIUS : 0, morph);
     geometry.side = between(SHEET_INSET, HALF_INSET, morph);
     geometry.gap = between(capsuleGap, HALF_INSET, morph);
     geometry.radius = fromBottom ? `${far}px ${far}px ${near}px ${near}px` : `${near}px ${near}px ${far}px ${far}px`;

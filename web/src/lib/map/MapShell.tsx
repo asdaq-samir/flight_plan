@@ -115,7 +115,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     if (!map || !bounds) return;
     map.invalidateSize();
     const { top, bottom, left } = insetsRef.current;
-    const padding = { paddingTopLeft: L.point(30 + left, 30 + top), paddingBottomRight: L.point(30 + BUTTONS_CLEAR, 30 + bottom) };
+    const padding = { paddingTopLeft: L.point(30 + BUTTONS_CLEAR + left, 30 + top), paddingBottomRight: L.point(30 + BUTTONS_CLEAR, 30 + bottom) };
     // A route on the map is the map gone somewhere: own ship stops pulling
     // it back to the position with every fix (Maps' tracking ends too),
     // until the location arrow is tapped. Only while own ship is on, as a
