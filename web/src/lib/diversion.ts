@@ -13,7 +13,7 @@
  * head and off the chart while flying the airplane.
  */
 import type { Leg } from "./api/types";
-import { angleBetween, deg, rad } from "./geo";
+import { angleBetween, deg, normalizeDeg, rad } from "./geo";
 
 /** The figures a student estimates, and how far off is still reasonable. */
 export const ALLOWANCES = [
@@ -37,8 +37,6 @@ export interface Diversion {
   fuel: number;
 }
 
-const round360 = (d: number) => ((d % 360) + 360) % 360;
-
 /** The wind triangle for a true course: the correction (+ right), the
  *  true heading and the ground speed; null where the crosswind is more
  *  than the airplane's speed and no heading holds the course. */
@@ -49,7 +47,7 @@ export function windTriangle(tc: number, tas: number, windFromDeg: number, windK
   // `|| 0`: a calm wind's correction is none, not -0.
   const wca = deg(Math.asin(ratio)) || 0;
   const gs = tas * Math.cos(rad(wca)) - windKt * Math.cos(angle);
-  return gs > 0 ? { wca, th: round360(tc + wca), gs } : null;
+  return gs > 0 ? { wca, th: normalizeDeg(tc + wca), gs } : null;
 }
 
 /** The diversion from a point on `leg` to a field `distanceNm` away on a
@@ -61,7 +59,7 @@ export function divert(leg: Leg, tcDeg: number, distanceNm: number): Diversion |
   return {
     tc: tcDeg, distanceNm, ...solved,
     // East is least: a variation east (positive) comes off.
-    mh: round360(solved.th - leg.magnetic_variation_deg),
+    mh: normalizeDeg(solved.th - leg.magnetic_variation_deg),
     ete, fuel: (ete / 60) * leg.fuel_burn_gph,
   };
 }

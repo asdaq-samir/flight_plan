@@ -467,7 +467,25 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
       // Up to the first opaque background, every layer on the way, and
       // the opacity the word is drawn at.
       const layers: number[][] = [];
-      let opacity = 1, base: number[] | null = null, unknown = false;
+      let opacity = 1, base: number[] | null = null, unknown = false, drawnOn: number[] | null = null;
+      // A word drawn over a shape of its own SVG -- a runway's number on the
+      // runway, in the pattern diagram -- is read against that shape's
+      // fill, not the panel behind the drawing: there it read 1.23:1, navy
+      // on navy, where it is navy on the runway's light grey.
+      if (el instanceof SVGElement) {
+        const svg = el.closest("svg");
+        // By geometry, not hit-testing: a drawing under pointer-events:
+        // none is skipped by elementsFromPoint. The last filled shape
+        // before the word in the drawing's order whose box holds the
+        // word's middle is the one it is painted on.
+        const x = box.left + box.width / 2, y = box.top + box.height / 2;
+        const under = svg && [...svg.querySelectorAll("rect, circle, ellipse, polygon, path")]
+          .filter(e => (e.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0)
+          .filter(e => { const r = e.getBoundingClientRect(); return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; })
+          .filter(e => { const f = getComputedStyle(e); return f.fill.startsWith("rgb") && parseFloat(f.fillOpacity) >= 0.999 && rgba(f.fill)[3] >= 0.999; })
+          .at(-1);
+        if (under) drawnOn = rgba(getComputedStyle(under).fill);
+      }
       for (let a: Element | null = el; a; a = a.parentElement) {
         const s = getComputedStyle(a);
         opacity *= parseFloat(s.opacity);
@@ -484,6 +502,7 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
       if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster], .leaflet-tooltip, .leaflet-popup"))) continue;
       let bg = base ?? [255, 255, 255, 1];
       for (const layer of layers.reverse()) bg = over(layer, bg);
+      if (drawnOn) bg = drawnOn;
       const fill = el instanceof SVGElement && cs.fill.startsWith("rgb") ? cs.fill : cs.color;
       const fg = rgba(fill);
       fg[3] *= opacity;

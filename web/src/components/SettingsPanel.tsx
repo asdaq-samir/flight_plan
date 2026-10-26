@@ -1,10 +1,11 @@
 import { useState, type ReactNode } from "react";
-import { CloudSun, Hexagon, Lightbulb, Monitor, Moon, Navigation, Palette, PanelBottom, PanelTop, Sparkles, Sun, SunMoon } from "lucide-react";
+import { CloudSun, Eclipse, Hexagon, Map as MapGlyph, Lightbulb, Monitor, Moon, Navigation, Palette, PanelBottom, PanelTop, Sparkles, Sun, SunMoon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented from "./Segmented";
 import { useNavEdge } from "../hooks/use-nav-edge";
-import { usePreferences, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
+import { usePreferences, type Brand, type ChartNight, type NarrativeFramework, type NavEdge, type RouteColours } from "../lib/preferences";
+import { BRANDS } from "../lib/brand";
 import { useTips } from "../lib/tips";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { RowBadge } from "./RowBadge";
@@ -62,6 +63,13 @@ const ROUTE_COLOURS = [
   { value: "metar", label: "Weather", icon: <CloudSun /> },
 ];
 
+/* The chart in the dark theme: as printed, or dimmed for night vision. A
+   segmented control, two of a kind, not a slider (the owner's rule). */
+const CHART_NIGHTS = [
+  { value: "normal", label: "Normal", icon: <MapGlyph /> },
+  { value: "dimmed", label: "Dimmed", icon: <Eclipse /> },
+];
+
 const NARRATIVES = [
   { value: "langgraph", label: "LangGraph" },
   { value: "crewai", label: "CrewAI" },
@@ -114,12 +122,38 @@ function AppearanceGroup() {
   const setNavBar = usePreferences(s => s.setNavBar);
   const routeColours = usePreferences(s => s.routeColours);
   const setRouteColours = usePreferences(s => s.setRouteColours);
+  const chartNight = usePreferences(s => s.chartNight);
+  const setChartNight = usePreferences(s => s.setChartNight);
   const look = usePreferences(s => s.ownShipLook);
   const setLook = usePreferences(s => s.setOwnShipLook);
+  const brand = usePreferences(s => s.brand);
+  const setBrand = usePreferences(s => s.setBrand);
   return (
     <ListGroup title="Appearance">
+      {/* The app's look, the owner's four (lib/brand): a menu, as a
+          discrete choice is, not a slider. */}
+      <ListRow media={badge("look", <Palette />)} title="Look">
+        <Select value={brand} onValueChange={v => setBrand(v as Brand)}>
+          <SelectTrigger size="sm" aria-label="Look" data-testid="brand-select">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent align="end">
+            {BRANDS.map(b => (
+              <SelectItem key={b.value} value={b.value} data-testid={`brand-${b.value}`}>{b.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </ListRow>
       <ListRow media={badge("theme", <SunMoon />)} title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
+      </ListRow>
+      {/* The white paper chart dimmed in the dark theme, so it does not
+          take the pilot's night vision; only its tiles (index.css). */}
+      <ListRow media={badge("chartNight", <Moon />)} title="Chart at night">
+        <Segmented
+          label="Chart at night" value={chartNight} onChange={v => setChartNight(v as ChartNight)}
+          testId="chart-night-select" options={CHART_NIGHTS}
+        />
       </ListRow>
       <ListRow media={badge("layout", <PanelBottom />)} title="Layout">
         <Segmented label="Layout" value={edge} onChange={v => setNavBar(v as NavEdge)} testId="nav-bar-select" options={LAYOUTS} />

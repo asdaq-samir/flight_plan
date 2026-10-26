@@ -31,7 +31,6 @@ import { LegHighlightLayer } from "../../../lib/map/LegHighlightLayer";
 import { Halo } from "../../../lib/map/Halo";
 import {
   AIRPORT_MARK, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportMarkIcon, airportMarkReach, checkpointLabelIcon, checkpointLabelWidth, dotIcon, fixMarkIcon,
-  fixMarkReach,
 } from "../../../lib/map/icons";
 import { FitTo, FocusOn } from "../../../lib/map/MapEffects";
 import { MapCard } from "../../../lib/map/MapCard";
@@ -461,36 +460,16 @@ function useLabelled(
 
 /** Each leg's top of climb and of descent, where the nav log has a row
  *  for it: a tap brings the map there and selects the row, as a
- *  checkpoint's does. A fix on the course (fixMarkIcon), its name on the
- *  side kept off the route's airports' names: a short climb's TOC sat on
- *  the departure's (the owner's screenshot, 2026-10-24, TOC over POS0),
- *  worked out again as the map settles. */
-function LegPoints({ legs, airports, onSelectPoint }: {
-  legs: Leg[]; airports: { ident: string; lat: number; lon: number }[]; onSelectPoint: Props["onSelectPoint"];
-}) {
-  const map = useMap();
-  const view = useScreenView();
-  const shifts = useMemo(() => {
-    void view;
-    const chips = airports.map(a => {
-      const p = map.latLngToContainerPoint([a.lat, a.lon]), half = AIRPORT_MARK / 2;
-      return L.bounds([p.x - half, p.y - half], [p.x + airportMarkReach(a.ident), p.y + half]);
-    });
-    const clear = (at: { lat: number; lon: number }, label: string): "right" | "left" => {
-      const p = map.latLngToContainerPoint([at.lat, at.lon]);
-      const box = L.bounds([p.x + 8, p.y - 7], [p.x + fixMarkReach(label), p.y + 7]);
-      return chips.some(c => c.intersects(box)) ? "left" : "right";
-    };
-    return legs.map(leg => ({
-      toc: leg.toc ? clear(leg.toc, "TOC") : "right" as const, tod: leg.tod ? clear(leg.tod, "TOD") : "right" as const,
-    }));
-  }, [legs, airports, map, view]);
+ *  checkpoint's does. A fix's pill on the course (fixMarkIcon), over the
+ *  checkpoints' dots: under them, a TOC between two was hidden (the
+ *  owner's "Those pills look a bit off their position", 2026-10-26). */
+function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props["onSelectPoint"] }) {
   return (
     <>
       {legs.flatMap((leg, i) => [
         leg.toc && (
           <Marker
-            key={`toc-${i}`} position={[leg.toc.lat, leg.toc.lon]} icon={fixMarkIcon("TOC", shifts[i]?.toc)} zIndexOffset={-100}
+            key={`toc-${i}`} position={[leg.toc.lat, leg.toc.lon]} icon={fixMarkIcon("TOC")} zIndexOffset={400}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.toc!.lat, leg.toc!.lon); } }}
           >
             <MapTooltip>Top of climb · {feet(leg.toc.altitude_ft)}</MapTooltip>
@@ -498,7 +477,7 @@ function LegPoints({ legs, airports, onSelectPoint }: {
         ),
         leg.tod && (
           <Marker
-            key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={fixMarkIcon("TOD", shifts[i]?.tod)} zIndexOffset={-100}
+            key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={fixMarkIcon("TOD")} zIndexOffset={400}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.tod!.lat, leg.tod!.lon); } }}
           >
             <MapTooltip>Top of descent · {leg.tod.fpm} fpm to {feet(leg.tod.to_ft)}{leg.tod.fix ? ` by ${leg.tod.fix}` : ""}</MapTooltip>
@@ -637,7 +616,7 @@ export default memo(function RouteMap({
           {/* A pattern just picked, all of it in sight clear of the panel. */}
           <FitTo points={focusedPattern} fitKey={focusedPattern.length ? patternFocus : null} maxZoom={13} />
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
-          <LegPoints legs={legs} airports={airports} onSelectPoint={onSelectPoint} />
+          <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
           <HoldTracks legs={legs} />
           <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} />
           {focus && <Halo at={focus} />}

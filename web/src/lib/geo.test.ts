@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { angleBetween, bearingDeg, bestStopIndex, deg, distanceNm, rad, signedTurn } from "./geo";
+import { angleBetween, bearingDeg, bestStopIndex, deg, distanceNm, normalizeDeg, rad, signedTurn } from "./geo";
 
 describe("geo", () => {
   it("turns degrees to radians and back", () => {
@@ -54,5 +54,15 @@ describe("two directions apart, and the turn between them", () => {
     expect(signedTurn(90, 120)).toBe(30);
     expect(signedTurn(350, 10)).toBe(20);
     expect(signedTurn(10, 350)).toBe(-20);
+  });
+});
+
+describe("a direction brought into 0 up to 360", () => {
+  it("wraps either way round the compass and leaves a good one alone", () => {
+    expect(normalizeDeg(-10)).toBe(350);
+    expect(normalizeDeg(370)).toBe(10);
+    expect(normalizeDeg(360)).toBe(0);
+    expect(normalizeDeg(-720)).toBeCloseTo(0);
+    expect(normalizeDeg(275)).toBe(275);
   });
 });

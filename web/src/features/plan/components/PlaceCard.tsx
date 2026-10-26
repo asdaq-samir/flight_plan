@@ -203,8 +203,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
    *  actions and its first frequencies, the rest a swipe up -- as Apple
    *  Maps opens a place, at the owner's pick of the redesign. */
   summary?: boolean;
-  /** A stop the planner suggests here, opened from its row in FPL's route
-   *  (FuelStopRow): its figures at the top (StopStrip), and Add Stop puts
+  /** A stop the planner suggests here, opened from its pin on the map or
+   *  the route's box: its figures at the top (StopStrip), and Add Stop puts
    *  it in at its place. */
   stop?: SuggestedStop;
 }) {

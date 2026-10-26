@@ -11649,6 +11649,49 @@
         "title": "RouteBand",
         "type": "object"
       },
+      "RouteChip": {
+        "description": "One choice on FPL's route line (the owner's redesign, 2026-10-26:\nthe route folding as a runway line does, a chip a way): its `key`\n(\"none\" the route as typed, \"fuel\" it with its fuel stops, else the\nway's kind), the words on it -- the way's name and the stops it adds\n-- the stops and fuel stops it puts in the address, and the hazards\nit crosses by their index in RouteOptions.hazards.",
+        "properties": {
+          "crosses": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Crosses",
+            "type": "array"
+          },
+          "fuel": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "stops": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "stops",
+          "fuel"
+        ],
+        "title": "RouteChip",
+        "type": "object"
+      },
       "RouteHazard": {
         "description": "What a way keeps clear of (vfr.route_options): its kind -- storm,\nweather, marginal, sigmet, tfr, prohibited, terrain -- and its words.",
         "properties": {
@@ -11803,6 +11846,14 @@
       "RouteOptions": {
         "description": "The ways to fly a route, the fastest first; what the straight line\ncrosses (`direct`), what is at its ends (`ends`) and what the pilot's\nown route crosses and passes (`current`, `current_marginal`), by index\nin `hazards`; and the sources that could not be read now (`unchecked`).",
         "properties": {
+          "chips": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RouteChip"
+            },
+            "title": "Chips",
+            "type": "array"
+          },
           "current": {
             "default": [],
             "items": {
@@ -18214,7 +18265,7 @@
     },
     "/api/route-food": {
       "get": {
-        "description": "The public fields along a route with somewhere to eat at the\nairport itself, in route order, for the map's fly-in food while a\ncourse is drawn, at the owner's ask (\"when a course is drawn then look\nfor fly in food along the route\", 2026-10-26): those no more than\nvfr.fuelstops' MAX_ADDED_NM off each flight's line (along), each with\nits miles from its flight's departure and those it adds.",
+        "description": "The public fields along a route with somewhere to eat at the\nairport itself, in route order, for the map's fly-in food while a\ncourse is drawn, at the owner's ask (\"when a course is drawn then look\nfor fly in food along the route\", 2026-10-26): those no more than\nFOOD_OFF_COURSE_NM off each flight's line, each with its miles from its\nflight's departure, those it adds and how far off the course it is.",
         "operationId": "route_food_api_route_food_get",
         "parameters": [
           {

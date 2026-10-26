@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { FileDown, FileUp, GraduationCap, Mail, MailX, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
+import FieldHit from "../../components/FieldHit";
 import { cn } from "cn";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
 import IconButton from "../../components/IconButton";
@@ -45,10 +46,12 @@ function Until({ date, what }: { date: string | null | undefined; what: string }
 function DateField({ value, label, onChange, testId }: { value: string | null | undefined; label: string; onChange: (v: string | null) => void; testId: string }) {
   const id = useId();
   return (
-    <Input
-      id={id} type="date" aria-label={label} value={value ?? ""} className="h-8 w-40" data-testid={testId}
-      onChange={e => onChange(e.target.value || null)}
-    />
+    <FieldHit htmlFor={id}>
+      <Input
+        id={id} type="date" aria-label={label} value={value ?? ""} className="h-8 w-40" data-testid={testId}
+        onChange={e => onChange(e.target.value || null)}
+      />
+    </FieldHit>
   );
 }
 

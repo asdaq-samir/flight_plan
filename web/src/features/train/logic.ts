@@ -1,5 +1,6 @@
 import { isEndpoint, type Point, type Rating, type Role, type Source } from "../../lib/api/types";
 import { compassPoint } from "../../lib/compass";
+import { normalizeDeg } from "../../lib/geo";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 
 export { compassPoint };
@@ -149,12 +150,12 @@ export function orderedPoints(
  * Derived from the course, so any heading works.
  */
 export function forwardIsUp(bearingDeg: number): boolean {
-  const b = ((bearingDeg % 360) + 360) % 360;
+  const b = normalizeDeg(bearingDeg);
   return b < 90 || b > 270;
 }
 
 export function forwardIsLeft(bearingDeg: number): boolean {
-  return ((bearingDeg % 360) + 360) % 360 > 180;
+  return normalizeDeg(bearingDeg) > 180;
 }
 
 /**

@@ -58,15 +58,18 @@ def test_fields_with_food_along_a_route_in_route_order(monkeypatch):
     monkeypatch.setattr(router, "load_route", lambda dep, dest, stops="": SimpleNamespace(flights=[flight], idents=("C81", "KDLH")))
     along = [{"ident": "KAAA", "name": "A", "city": "Aville", "lat": 43.0, "lon": -89.0, "departure": "C81", "from_nm": 60.0,
               "added_nm": 2.0, "flight": 0},
-             {"ident": "KBBB", "name": "B", "city": "Btown", "lat": 44.0, "lon": -90.0, "departure": "C81", "from_nm": 150.0,
-              "added_nm": 5.0, "flight": 0}]
+             {"ident": "KBBB", "name": "B", "city": "Btown", "lat": 44.0, "lon": -89.8, "departure": "C81", "from_nm": 150.0,
+              "added_nm": 5.0, "flight": 0},
+             # A diner on the field, but 23 nm off: past the owner's 10 to 15.
+             {"ident": "KFAR", "name": "Far", "city": "Fartown", "lat": 44.0, "lon": -89.0, "departure": "C81", "from_nm": 150.0,
+              "added_nm": 9.0, "flight": 0}]
     monkeypatch.setattr(router.fuelstops, "along", lambda flights, skip=None: along)
-    monkeypatch.setattr(router.nearby, "kept", lambda ident: {"food": [DINER] if ident == "KBBB" else [ACROSS]})
+    monkeypatch.setattr(router.nearby, "kept", lambda ident: {"food": [DINER] if ident in ("KBBB", "KFAR") else [ACROSS]})
     monkeypatch.setattr(router.airports, "find_place", lambda ident: {"kind": "small"})
     answer = TestClient(app).get("/api/route-food?dep=C81&dest=KDLH").json()
     assert [(f["ident"], f["distance_nm"], f["added_nm"], f["departure"]) for f in answer["fields"]] == [("KBBB", 150.0, 5.0, "C81")]
     # How far off the course, the owner's "say how far off course".
-    assert 0 < answer["fields"][0]["off_nm"] < 60
+    assert 0 < answer["fields"][0]["off_nm"] <= router.FOOD_OFF_COURSE_NM
 
 
 def test_no_airline_airport_along_a_route(monkeypatch):

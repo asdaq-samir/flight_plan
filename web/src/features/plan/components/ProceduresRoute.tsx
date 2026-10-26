@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, ChevronLeft, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Wind } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
@@ -12,7 +12,7 @@ import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } 
 import { api } from "../../../lib/api/client";
 import { useMinuteClock, zuluTime } from "../../../lib/clock";
 import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
-import { distanceNm } from "../../../lib/geo";
+import { distanceNm, normalizeDeg } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
 import { approachRunway, sameField, transitionWords, type BranchFix, type PickedProcedure } from "../../../lib/procedures";
@@ -31,11 +31,12 @@ import DepartPicker from "./navlog/DepartPicker";
 import ProcedureMenu from "./ProcedureMenu";
 import type { EditedPoint, PointAltitude } from "./PointAltitudeDialog";
 import { PointFigures, PointMenu } from "./PointControls";
-import FuelStopRow, { FuelGauge, FuelStopCards, FuelStopsAdd, FuelStopsHidden } from "./FuelStopRow";
+import { FuelGauge } from "./FuelGauge";
+import { useRouteLineOpen } from "../../../lib/routeLine";
 import { useFuelStops } from "../hooks/useFuelStops";
 import type { HoldAt } from "./HoldSheet";
 import { holdWords, type Hold } from "../../../lib/holds";
-import type { FuelStopSuggestion, LegHold } from "../../../lib/api/types";
+import type { LegHold } from "../../../lib/api/types";
 import { groundMinAt, legOf, rowPoint, type NavLogRow } from "./navlog/rows";
 
 /** The line that joins the route's points down FPL's list, in the course's
@@ -126,8 +127,8 @@ const NO_AUTO: ReadonlySet<string> = new Set();
 export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked = NO_AUTO, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop, hiddenFuelStops = NO_FUEL_STOPS, onShowFuelStops,
-  fuel = null,
+  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false,
+  fuel = null, routeLine = null,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -215,22 +216,13 @@ export default function ProceduresRoute({
   routePoints?: string[];
   /** As many stops as the planner takes (MAX_STOPS): no Create a fix. */
   stopsFull?: boolean;
-  /** Where each flight too long for its tanks could land for fuel (the
-   *  totals' fuel_stops), rows after its departure, and the stops kept:
-   *  put in the route after the flight's departure, in order. */
-  fuelStops?: FuelStopSuggestion[];
-  onKeepFuelStops?: (after: string, idents: string[]) => void;
-  /** A suggested stop taken out of the route (its minus beside Add), the
-   *  route's menu putting it back (PlanWorkspace's hideFuelStop). */
-  onHideFuelStop?: (ident: string) => void;
-  /** The suggestions taken out, by the flight they were for, each with
-   *  only its stops taken out; and the way to put them all back. */
-  hiddenFuelStops?: FuelStopSuggestion[];
-  onShowFuelStops?: () => void;
   /** The tanks, for the fuel in them at each point: their usable fuel, the
    *  start, taxi and takeoff allowance and the reserve the flight is held
    *  to (the totals' fuel check); none known, no fuel shown. */
   fuel?: { usableGal: number; taxiGal: number; reserveGal: number } | null;
+  /** The route line under the departure (RouteLine): the planner's ways as
+   *  chips, the one picked, and the way to pick one; none, no line. */
+  routeLine?: RouteLineChoices | null;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -242,9 +234,6 @@ export default function ProceduresRoute({
   const procedure = page && page.at === on ? page.procedure : null;
   // The point whose altitude is being set (PointAltitudeDialog).
   const [editing, setEditing] = useState<EditedPoint | null>(null);
-  // The field in sight in each flight's swiped fuel stop cards, by the
-  // field the flight leaves: the one Add puts in (FuelStopCards).
-  const [fuelSeen, setFuelSeen] = useState<Record<string, number>>({});
   // The point a fix is being made off (FixFromDialog).
   const [fixFrom, setFixFrom] = useState<string | null>(null);
   // The point a hold is being set at (HoldSheet).
@@ -269,7 +258,7 @@ export default function ProceduresRoute({
       setAnswered(askHold);
       setHoldAt({
         fix, hold: holdOn(fix), altitudeFt: leg.altitude_ft,
-        arrivalDeg: (((leg.true_course_deg - leg.magnetic_variation_deg) % 360) + 360) % 360,
+        arrivalDeg: normalizeDeg(leg.true_course_deg - leg.magnetic_variation_deg),
       });
     }
   }
@@ -509,7 +498,7 @@ export default function ProceduresRoute({
             setHoldAt({
               fix: ident, hold: holdOn(ident), altitudeFt: leg?.altitude_ft ?? null,
               // Magnetic = true - variation, east positive (the leg's own).
-              arrivalDeg: leg ? (((leg.true_course_deg - leg.magnetic_variation_deg) % 360) + 360) % 360 : null,
+              arrivalDeg: leg ? normalizeDeg(leg.true_course_deg - leg.magnetic_variation_deg) : null,
             });
           } : undefined}
           onRemove={at.stop && typed && onRemove ? () => onRemove(ident) : undefined}
@@ -806,68 +795,10 @@ export default function ProceduresRoute({
   }
   const steps: ReactNode[] = [];
   const shown = new Set<ProcedureAirport>();
-  // The fuel stops suggested for the flight that leaves a field, after
-  // its departure: each one where it lands, timed from when the flight
-  // leaves (the route's departure, or a stop's landing and its time on
-  // the ground), Keep it and Another field on the first. A round trip's
-  // field twice: the flight that leaves it, once.
-  const suggested = new Set<FuelStopSuggestion>();
-  const fuelStopRows = (ident: string, row: NavLogRow | undefined, first = false): ReactNode[] => {
-    // By the field it leaves; the route's first flight from a departure
-    // that is no field -- a present position, whose name the planner and
-    // the nav log may spell apart -- where its suggested stops were missing
-    // from the list, dashed in the route's box alone (the owner's
-    // screenshot, 2026-10-22).
-    const flight = fuelStops.find(f => (sameField(f.departure, ident) || (first && f === fuelStops[0])) && !suggested.has(f));
-    if (!flight || !flight.stops.length) {
-      // Taken out: a way to put them back where they were.
-      const hidden = hiddenFuelStops.find(f => (sameField(f.departure, ident) || (first && f === hiddenFuelStops[0])) && !suggested.has(f));
-      if (!hidden || !hidden.stops.length || !onShowFuelStops) return [];
-      suggested.add(hidden);
-      return [<FuelStopsHidden key={`fuel-${ident}-hidden`} count={hidden.stops.length} reason={hidden.reason} onShow={onShowFuelStops} />];
-    }
-    suggested.add(flight);
-    const leavesMin = row?.kind === "stop" ? (row.minutesFlown ?? 0) + row.groundMin : 0;
-    const timeOf = (minutes: number) => etaAt(depart || new Date().toISOString(), leavesMin + minutes);
-    // A flight of one stop with others to choose: its fields as cards to
-    // swipe, the one in sight what Add puts in.
-    const options = flight.stops.length === 1 && flight.choices?.length ? [flight.stops[0]!, ...flight.choices] : null;
-    if (options) {
-      const seen = Math.min(fuelSeen[ident] ?? 0, options.length - 1);
-      const pick = options[seen]!;
-      return [
-        <FuelStopCards
-          key={`fuel-${ident}-cards`} stops={options} seen={seen} onSee={i => setFuelSeen(was => ({ ...was, [ident]: i }))}
-          timeOf={timeOf} usableGal={flight.usable_gal} reason={flight.reason} onOpen={onInfo}
-        />,
-        onKeepFuelStops && (
-          <FuelStopsAdd
-            key={`fuel-${ident}-add`} count={1} last={false} reason={flight.reason} field={pick.ident}
-            onAdd={() => onKeepFuelStops(ident, [pick.ident])}
-            onRemove={onHideFuelStop ? () => flight.stops.forEach(s => onHideFuelStop(s.ident)) : undefined}
-          />
-        ),
-      ];
-    }
-    return [
-      ...flight.stops.map((stop, k) => (
-        <FuelStopRow
-          key={`fuel-${ident}-${stop.ident}`} stop={stop} reason={flight.reason} last={false} usableGal={flight.usable_gal}
-          onOpen={onInfo ? () => onInfo(stop.ident) : undefined}
-          time={etaAt(depart || new Date().toISOString(), leavesMin + stop.minutes)} groundMin={groundMinAt(ground, stop.ident)}
-          choices={k === 0 ? flight.choices : undefined}
-          onChoose={onKeepFuelStops ? c => onKeepFuelStops(ident, [c.ident]) : undefined}
-        />
-      )),
-      onKeepFuelStops && (
-        <FuelStopsAdd
-          key={`fuel-${ident}-add`} count={flight.stops.length} last={false} reason={flight.reason}
-          onAdd={() => onKeepFuelStops(ident, flight.stops.map(s => s.ident))}
-          onRemove={onHideFuelStop ? () => flight.stops.forEach(s => onHideFuelStop(s.ident)) : undefined}
-        />
-      ),
-    ];
-  };
+  // The route line, right under the departure's row, before any stop's
+  // (the owner's redesign, 2026-10-26): in place of the fuel stop cards
+  // and the Routes button, whose jobs its chips do.
+  const lineRow = routeLine ? <RouteLine key="route-line" line={routeLine} /> : null;
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   points.forEach((row, i) => {
     const last = i === points.length - 1;
@@ -890,7 +821,7 @@ export default function ProceduresRoute({
       shown.add(field);
       steps.push(fieldStep(field, row, last));
       if (field.role === "Destination") steps.push(holdRow(field.ident));
-      else steps.push(...fuelStopRows(field.ident, row));
+      else if (i === 0) steps.push(lineRow);
       return;
     }
     // A waypoint the route flies over (VPBNG), or ends at: its altitude
@@ -912,9 +843,11 @@ export default function ProceduresRoute({
       />,
     );
     if (to) steps.push(holdRow(row.airport.ident));
-    else if (row.kind === "departure" && "airport" in row) steps.push(...fuelStopRows(row.airport.ident, row, true));
+    else if (i === 0) steps.push(lineRow);
   });
-  const fieldsAlone = rows.length === 0 ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1)) : null;
+  const fieldsAlone = rows.length === 0
+    ? airports.flatMap((a, i) => [fieldStep(a, undefined, i === airports.length - 1), i === 0 ? lineRow : null])
+    : null;
 
   const field = on ? airports.find(a => sameField(a.ident, on.ident)) : undefined;
   const list = on ? listOf(on.ident) : undefined;
@@ -998,7 +931,6 @@ function FieldDot({ last }: { last: boolean }) {
 }
 
 const NO_HOLDS: Hold[] = [];
-const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
 /** A day, min: the longest time on the ground at a stop the planner takes. */
 const DAY_MIN = 24 * 60;
 
@@ -1040,6 +972,78 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
  * nav log draws it, its name and the time it is reached, and under them
  * what is flown there (a field's). The line runs on to the next step.
  */
+/** FPL's route line's choices (PlanWorkspace's routeLine): each chip's
+ *  key and words, and what its way meets, in amber; the one picked. */
+export interface RouteLineChoices {
+  chips: { key: string; label: string; warning: string | null }[];
+  picked: string;
+  onPick: (key: string) => void;
+}
+
+/**
+ * FPL's route line, at the owner's ask ("make it more like the runway
+ * folding with the route symbol, and no need for accept or not buttons.
+ * You can simply have none in the beginning", 2026-10-26): the route's
+ * glyph and, folded, the chip picked; a tap on it the planner's ways
+ * slide out as chips, as a runway line's do, a tap on one the route at
+ * once. "None" is the route as typed. Folded again after the runway
+ * line's wait untouched. A way that meets something is ringed in amber,
+ * said in its name: the planner warns, never refuses.
+ */
+function RouteLine({ line }: { line: RouteLineChoices }) {
+  const open = useRouteLineOpen(s => s.open);
+  const [touched, setTouched] = useState(0);
+  useEffect(() => {
+    if (!open) return;
+    const id = setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs());
+    return () => clearTimeout(id);
+  }, [open, touched]);
+  // Put away with the list, it folds after the same wait, so the map's
+  // ways go with it: not at once, as the list is drawn anew as the sheet
+  // moves and as the route comes in, and the line closed under a finger.
+  useEffect(() => () => { setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs()); }, []);
+  const picked = line.chips.find(c => c.key === line.picked) ?? line.chips[0]!;
+  const ring = (c: RouteLineChoices["chips"][number]) => (c.warning ? "ring-2 ring-amber-500" : undefined);
+  const words = (c: RouteLineChoices["chips"][number]) =>
+    `${c.key === "none" ? "None, the route as typed" : c.label}${c.warning ? `, ${c.warning.toLowerCase()}` : ""}`;
+  return (
+    <li className="relative flex gap-2.5" data-testid="route-line">
+      <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />
+      <div className="w-7 shrink-0" />
+      {/* Twenty under the chips, not sixteen: the next field's toggle's
+          44 points came up into the picked chip's (the iOS audit, P1). */}
+      <div className="flex min-w-0 flex-1 items-center gap-2 pb-5">
+        <Route className="size-5 shrink-0 text-muted-foreground" aria-label="Route options" role="img" />
+        {!open ? (
+          <div role="radiogroup" aria-label="Route options">
+            <button
+              type="button" role="radio" aria-checked="true" data-state="on" onClick={() => useRouteLineOpen.setState({ open: true })}
+              className={cn(CHIP, "inline-flex items-center whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", ring(picked))}
+              aria-label={`${words(picked)}, picked: tap for the other routes`} data-testid="route-line-picked" data-key={picked.key}
+            >
+              {picked.label}
+            </button>
+          </div>
+        ) : (
+          <div className="flex min-w-0 flex-1" onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}>
+            <Chips
+              label="Route options" value={line.picked} flushStart
+              onChange={v => { setTouched(t => t + 1); line.onPick(v); }}
+              enter="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300"
+            >
+              {line.chips.map(c => (
+                <ToggleGroupItem key={c.key} value={c.key} className={cn(CHIP, "whitespace-nowrap", ring(c))} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}>
+                  {c.label}
+                </ToggleGroupItem>
+              ))}
+            </Chips>
+          </div>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function Step({ mark, title, sub, figures, menu, last, field = false, testId, icon, children }: {
   /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
