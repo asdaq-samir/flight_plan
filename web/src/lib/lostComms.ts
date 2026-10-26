@@ -1,3 +1,4 @@
+// The planner's app/figures/lost_comms.py holds the same rules for the native app (POST /api/lost-comms): the two change together.
 /**
  * Two-way radio failure under IFR (the roadmap's lost-comms calculator,
  * 14 CFR 91.185, ACS IR.VII.A): the route to fly, the altitude on each

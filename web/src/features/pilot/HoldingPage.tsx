@@ -1,3 +1,4 @@
+// The entries' words are also the planner's (app/figures/holding.py, for the native app): the two change together.
 import { useId, useState } from "react";
 import { cn } from "cn";
 import FieldHit from "../../components/FieldHit";

@@ -1,3 +1,4 @@
+// The drill's words are also the planner's (app/figures, GET /api/diversion, for the native app): the two change together.
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Timer, X } from "lucide-react";

@@ -1,3 +1,4 @@
+// The page's words are also the planner's (app/figures/lost_comms.py, for the native app): the two change together.
 import { useId, useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "cn";

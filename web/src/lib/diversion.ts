@@ -1,3 +1,4 @@
+// The planner's app/figures/diversion.py holds the same rules for the native app (GET /api/diversion): the two change together.
 /**
  * A diversion worked out exactly (the roadmap's diversion drill, ACS
  * PA.VI.C): from a point on the route, to the field a student picks, in

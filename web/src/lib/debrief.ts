@@ -1,3 +1,4 @@
+// The planner's app/figures/debrief.py holds the same rules for the native app (POST /api/debrief): the two change together.
 /**
  * A flight debriefed from its flown track (the roadmap's debrief, against
  * ACS PA.VI.A's tolerances): the saved flight's nav log is the plan, the
