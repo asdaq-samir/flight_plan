@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { Coffee, Fuel, Minus, Mountain } from "lucide-react";
 import { cn } from "cn";
 import IconButton from "../../../components/IconButton";
@@ -160,6 +161,80 @@ export default function FuelStopRow({ stop, reason = "fuel", time, groundMin, us
 }
 
 /**
+ * The fields a fuel stop could be, swiped as FPL's Routes are, at the
+ * owner's ask ("Can you make them swipeable fuel stop options?",
+ * 2026-10-25): the planner's pick first, then its others (the quickest
+ * trips, fuelstops.CHOICES of them), a card each -- the field, the fuel it
+ * lands with, when, its town and the miles it adds, and what is there on
+ * the ground -- the one in sight the one Add puts in the route
+ * (`onSee`), a tap on a card its field's card. Dots under them.
+ */
+export function FuelStopCards({ stops, seen, onSee, timeOf, usableGal, reason = "fuel", onOpen }: {
+  stops: FuelStop[];
+  /** The one in sight, by its index. */
+  seen: number;
+  onSee: (index: number) => void;
+  /** When a field is landed at, from its minutes flown. */
+  timeOf: (minutes: number) => string;
+  usableGal: number | null;
+  reason?: "fuel" | "break";
+  onOpen?: (ident: string) => void;
+}) {
+  const strip = useRef<HTMLDivElement>(null);
+  const frame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  // A swipe come to rest on a card: it is the one Add puts in.
+  const settled = () => {
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      const el = strip.current, first = el?.children[0] as HTMLElement | undefined;
+      if (!el || !first) return;
+      const index = Math.min(stops.length - 1, Math.max(0, Math.round(el.scrollLeft / (first.offsetWidth + 8))));
+      if (index !== seen) onSee(index);
+    });
+  };
+  const Glyph = reason === "break" ? Coffee : Fuel;
+  return (
+    <li className="relative flex gap-2.5" data-testid="fuel-stop-cards">
+      <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0 border-l-2 border-dashed" style={SUGGESTED_LINE} />
+      <div className="w-7 shrink-0" />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 pb-3">
+        <div
+          ref={strip} onScroll={settled} aria-label={reason === "break" ? "Fields for the stop" : "Fields with fuel"} role="group"
+          className="-mr-3 flex snap-x snap-mandatory gap-2 overflow-x-auto pr-3 [scrollbar-width:none]"
+        >
+          {stops.map((stop, i) => (
+            <button
+              key={stop.ident} type="button" onClick={onOpen ? () => onOpen(stop.ident) : undefined}
+              aria-current={i === seen ? true : undefined} data-testid="fuel-stop-card" data-ident={stop.ident}
+              aria-label={`${i === 0 ? "Suggested" : "Another"} ${reason === "break" ? "stop for a break" : "fuel stop"}, ${stop.ident}, ${fuelStopPlace(stop)}`}
+              className="flex w-[85%] shrink-0 snap-start flex-col gap-0.5 rounded-2xl bg-foreground/6 px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="flex min-w-0 items-center gap-1.5">
+                <span className={cn("truncate font-semibold", TEXT.row)}>{stop.ident}</span>
+                <FuelGauge gal={stop.lands_with_gal} usable={usableGal} tone="fuel" />
+                <span className={cn("ml-auto shrink-0 font-semibold tabular-nums", TEXT.detail)}><span className="sr-only">Lands at </span>{timeOf(stop.minutes)}</span>
+              </span>
+              <span className={cn("flex min-w-0 items-center gap-1 text-muted-foreground", TEXT.note)}>
+                <Glyph className="size-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{fuelStopPlace(stop)}</span>
+                <span aria-hidden="true">·</span>
+                <span className="shrink-0 tabular-nums">{stop.added_nm < 1 ? "on the line" : `+${Math.round(stop.added_nm)} nm`}</span>
+                {i === 0 && <span className="shrink-0">· Suggested</span>}
+              </span>
+              <StopGlance ident={stop.ident} className="pt-0.5" />
+            </button>
+          ))}
+        </div>
+        <div className="flex justify-center gap-2" aria-hidden="true">
+          {stops.map((stop, i) => <span key={stop.ident} className={cn("size-1.5 rounded-full", i === seen ? "bg-foreground/70" : "bg-foreground/20")} />)}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+/**
  * Where suggested stops were taken out (FuelStopsAdd's minus, the chip's
  * Remove): one tap puts them back in the list and the route's box, at the
  * owner's ask ("when the fuel stops are deleted, we still want to be able
@@ -185,8 +260,10 @@ export function FuelStopsHidden({ count, onShow, reason = "fuel" }: { count: num
  * Stops", in the tint -- an action's words in Title Case, as iOS sets a
  * button's (the owner's D2, 2026-10-23).
  */
-export function FuelStopsAdd({ count, onAdd, onRemove, last, reason = "fuel" }: {
+export function FuelStopsAdd({ count, onAdd, onRemove, last, reason = "fuel", field }: {
   count: number; onAdd: () => void; last: boolean; reason?: "fuel" | "break";
+  /** The field Add puts in, where the stop is one swiped to (FuelStopCards). */
+  field?: string;
   /** The suggestion taken out, as its chip's Remove in the route box does:
    *  a round minus beside Add, at the owner's ask (2026-10-25). */
   onRemove?: () => void;
@@ -202,7 +279,7 @@ export function FuelStopsAdd({ count, onAdd, onRemove, last, reason = "fuel" }: 
           type="button" onClick={onAdd} data-testid="fuel-stop-keep"
           className={ADD_CAPSULE}
         >
-          {reason === "break" ? "Add Stop" : count === 1 ? "Add Fuel Stop" : `Add ${count} Fuel Stops`}
+          {field ? `Add ${field}` : reason === "break" ? "Add Stop" : count === 1 ? "Add Fuel Stop" : `Add ${count} Fuel Stops`}
         </button>
         {onRemove && (
           <IconButton

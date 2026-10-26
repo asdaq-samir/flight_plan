@@ -43,11 +43,12 @@ test("a fuel stop the planner suggests is a row of the route, dashed in its box 
   await settle(page);
   await openPanel(page);
 
-  // FPL's row: the field and its town, what the airplane lands with.
-  const row = sideDrawer(page).getByTestId("fuel-stop");
+  // FPL's cards, the planner's pick first: the field and its town, what
+  // the airplane lands with; the other field the next card to swipe to.
+  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
   await expect(row).toBeVisible({ timeout: slow(60_000) });
   await expect(row).toHaveAttribute("data-ident", "KRPD");
-  await expect(row.getByRole("heading")).toHaveText("KRPD");
+  await expect(row).toContainText("KRPD");
   await expect(row).toContainText(/Rice lake/i);
   await expect(row.getByTestId("fuel-gauge")).toContainText("18 gal");
 
@@ -55,25 +56,28 @@ test("a fuel stop the planner suggests is a row of the route, dashed in its box 
   await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD");
   await expect(page.getByTitle("Suggested fuel stop KRPD")).toHaveCount(1);
 
-  // Its menu offers the other field.
-  await row.getByTestId("fuel-stop-other").click();
-  await expect(page.getByTestId("fuel-stop-choice")).toHaveText(/KEAU · Eau claire/i);
-  await page.keyboard.press("Escape");
+  const other = sideDrawer(page).getByTestId("fuel-stop-card").nth(1);
+  await expect(other).toHaveAttribute("data-ident", "KEAU");
+  await expect(other).toContainText(/Eau claire/i);
 
   // Added: a stop of the route.
+  await expect(sideDrawer(page).getByTestId("fuel-stop-keep")).toHaveText("Add KRPD");
   await sideDrawer(page).getByTestId("fuel-stop-keep").click();
   await expect(page).toHaveURL(/[?&]stops=KRPD(&|$)/);
 });
 
-test("another field from the stop's menu goes in in its place", async ({ page }) => {
+test("another field swiped to goes in in its place", async ({ page }) => {
+  // The owner's "Can you make them swipeable fuel stop options?" (2026-10-25).
   await suggested(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  const row = sideDrawer(page).getByTestId("fuel-stop");
-  await expect(row).toBeVisible({ timeout: slow(60_000) });
-  await row.getByTestId("fuel-stop-other").click();
-  await page.getByTestId("fuel-stop-choice").click();
+  const cards = sideDrawer(page).getByTestId("fuel-stop-card");
+  await expect(cards.first()).toBeVisible({ timeout: slow(60_000) });
+  await cards.nth(1).evaluate(el => el.parentElement!.scrollTo({ left: (el as HTMLElement).offsetLeft - el.parentElement!.offsetLeft }));
+  const keep = sideDrawer(page).getByTestId("fuel-stop-keep");
+  await expect(keep).toHaveText("Add KEAU");
+  await keep.click();
   await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
 });
 
@@ -87,7 +91,7 @@ test("a stop suggested on a flight from a present position is a row of the route
   await settle(page);
   await openPanel(page);
   await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD", { timeout: slow(60_000) });
-  const row = sideDrawer(page).getByTestId("fuel-stop");
+  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
   await expect(row).toHaveAttribute("data-ident", "KRPD");
   await expect(sideDrawer(page).getByTestId("fuel-stop-keep")).toBeVisible();
 });
@@ -134,11 +138,11 @@ test("a suggested stop's row says what is there on the ground, and a tap opens i
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  const row = sideDrawer(page).getByTestId("fuel-stop");
+  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
   await expect(row).toBeVisible({ timeout: slow(60_000) });
   await expect(row.getByTestId("stop-glance")).toHaveText(/100LL.*Food 4 min walk.*Hotel 2\.1 mi.*Courtesy car/);
 
-  await row.getByTestId("fuel-stop-open").click();
+  await row.click();
   const card = page.getByTestId("place-card");
   await expect(card.getByTestId("place-stop")).toContainText("Suggested fuel stop");
   await expect(card.getByTestId("place-stop-after")).toContainText("From C81");
@@ -174,12 +178,12 @@ test("a long flight the tanks hold is offered a break about half way, kept as th
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  const row = sideDrawer(page).getByTestId("fuel-stop");
+  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
   await expect(row).toBeVisible({ timeout: slow(60_000) });
-  await expect(row.getByRole("region", { name: /Suggested stop for a break, KRPD/ })).toBeVisible();
+  await expect(row).toHaveAccessibleName(/Suggested stop for a break, KRPD/);
   await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveAccessibleName("Suggested stop KRPD");
   const keep = sideDrawer(page).getByTestId("fuel-stop-keep");
-  await expect(keep).toHaveText("Add Stop");
+  await expect(keep).toHaveText("Add KRPD");
   await keep.click();
   await expect(page).toHaveURL(/[?&]stops=KRPD(&|$)/);
   await expect(page).not.toHaveURL(/[?&]fuel=/);
@@ -191,7 +195,7 @@ test("a suggested fuel stop is taken out from FPL's list with the minus beside A
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  const row = sideDrawer(page).getByTestId("fuel-stop");
+  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
   await expect(row).toHaveAttribute("data-ident", "KRPD", { timeout: slow(60_000) });
   const remove = sideDrawer(page).getByTestId("fuel-stop-remove");
   await expect(remove).toHaveAccessibleName("Remove the suggested fuel stop");
