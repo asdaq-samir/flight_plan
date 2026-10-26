@@ -52,7 +52,11 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(popover).toHaveCount(0);
 
   // An altitude typed beside the airplane, three figures of hundreds of
-  // feet: the whole log at it.
+  // feet: the whole log at it. Cleared first, as a pilot types over it: the
+  // wheel's step can leave the field showing 035 already (3,000 ft asked,
+  // flown at 3,500 at each leg's nearest legal altitude), and a fill of the
+  // same figure types nothing.
+  await input.fill("");
   await input.fill("035");
   await input.press("Enter");
   await expect(page).toHaveURL(/[?&]altitude_ft=3500/);
