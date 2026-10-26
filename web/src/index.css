@@ -284,6 +284,10 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   /* The tint on the sheet's shade under its glass (MapPanel's SHEET_BELOW),
      a step deeper to keep 4.5:1 there. */
   --tint-shade: oklch(0.48 0.18 256);
+  /* The sheet's own ground, opaque, as Apple's Maps on the web draws its
+     sheet: iOS's grouped grey, white cards on it (the style audit of
+     2026-10-26: glass over the busy chart read washed out on the web). */
+  --sheet: #f2f2f7;
   /* The words of a dashed Class D or E pill (useAirspace): the
      sectional's blue and magenta a shade darker, 4.5:1 on their wash. */
   --airspace-blue-ink: #1d559c;
@@ -362,6 +366,7 @@ body[data-map-sheet][data-map-panel="full"] [data-map-controls] {
   --primary-foreground: oklch(0.985 0 0);
   --tint: oklch(0.72 0.15 252);
   --tint-shade: oklch(0.7 0.165 253);
+  --sheet: var(--background);
   --airspace-blue-ink: #8cb8f2;
   --airspace-magenta-ink: #f0a0cf;
   --procedure: #9d9df0;
@@ -702,7 +707,7 @@ html [data-sonner-toaster] {
    as the half sheet is for its words: it was a black slab over the chart
    for as long as a long route took to plan. A success keeps its green. */
 html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type="loading"], [data-type="default"], [data-type="info"]) {
-  @apply liquid-glass [--glass-fill:62%];
+  @apply liquid-glass;
   border-color: transparent;
 }
 
@@ -766,35 +771,27 @@ html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type
 }
 [data-head-band][data-under],
 [data-head-band][data-under] ~ [data-panel-body] [data-under-band] {
-  background-color: color-mix(in oklab, var(--background) 85%, transparent);
+  background-color: var(--sheet);
   box-shadow: 0 1px 0 var(--color-border);
-  &:is(.dark *) {
-    background-color: color-mix(in oklab, var(--popover) 85%, transparent);
-  }
 }
 [data-head-band][data-under="local"] {
   box-shadow: none;
 }
 
+/* What floats over the chart -- the map's buttons, its banners, the
+   panel's pill -- frosted as Apple's Maps on the web frosts its own: the
+   page's ground at 80% over a 15-point blur, a hairline and a soft shade,
+   no lit rims or sheen (the style audit of 2026-10-26: the faked Liquid
+   Glass read dirty over the FAA chart's linework; the native app keeps
+   iOS's real one). */
 @utility liquid-glass {
-  background-color: color-mix(in oklab, var(--background) var(--glass-fill, 40%), transparent);
-  -webkit-backdrop-filter: blur(14px) saturate(1.9) brightness(1.05);
-  backdrop-filter: blur(14px) saturate(1.9) brightness(1.05);
-  box-shadow:
-    inset 0 1px 1px rgb(255 255 255 / 0.9),
-    inset 0 -1px 1px rgb(255 255 255 / 0.35),
-    inset 0 0 0 1px rgb(255 255 255 / 0.45),
-    0 0 0 0.5px rgb(0 0 0 / 0.1),
-    0 8px 28px rgb(0 0 0 / 0.14);
+  background-color: color-mix(in oklab, var(--background) var(--glass-fill, 80%), transparent);
+  -webkit-backdrop-filter: blur(15px);
+  backdrop-filter: blur(15px);
+  box-shadow: 0 0 0 0.5px rgb(0 0 0 / 0.08), 0 2px 12px rgb(0 0 0 / 0.12);
   &:is(.dark *) {
-    background-color: color-mix(in oklab, var(--popover) calc(var(--glass-fill, 40%) + 10%), transparent);
-    -webkit-backdrop-filter: blur(14px) saturate(1.6) brightness(0.9);
-    backdrop-filter: blur(14px) saturate(1.6) brightness(0.9);
-    box-shadow:
-      inset 0 1px 1px rgb(255 255 255 / 0.22),
-      inset 0 0 0 1px rgb(255 255 255 / 0.08),
-      0 0 0 0.5px rgb(0 0 0 / 0.6),
-      0 8px 28px rgb(0 0 0 / 0.45);
+    background-color: color-mix(in oklab, var(--popover) var(--glass-fill, 85%), transparent);
+    box-shadow: 0 0 0 0.5px rgb(255 255 255 / 0.08), 0 2px 12px rgb(0 0 0 / 0.45);
   }
 }
 
