@@ -42,11 +42,13 @@ final class AirportQuery {
 private struct AirportSearchField: ViewModifier {
     let shown: Bool
 
-    func body(content: Content) -> some View {
+    @ViewBuilder func body(content: Content) -> some View {
         if shown {
             @Bindable var query = AirportQuery.shared
             content
-                .searchable(text: $query.text, prompt: AirportQuery.prompt)
+                // Always in sight under the column's title: the sidebar
+                // otherwise kept it folded away.
+                .searchable(text: $query.text, placement: .navigationBarDrawer(displayMode: .always), prompt: AirportQuery.prompt)
                 .textInputAutocapitalization(.characters)
                 .autocorrectionDisabled()
         } else {
