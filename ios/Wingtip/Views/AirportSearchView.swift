@@ -6,6 +6,7 @@ import SwiftUI
 /// AirportPill) and the fields nearest the phone.
 struct AirportSearchView: View {
     @Environment(OwnShip.self) private var ownShip
+    @Environment(\.splitLayout) private var split
     @State private var nearest: [NearestAirport] = []
     /// The cards open over the search, newest last, as AirportRoute
     /// writes them: a field tapped on the chart opens its card here, a
@@ -25,6 +26,22 @@ struct AirportSearchView: View {
     var body: some View {
         NavigationStack(path: $path) {
             List {
+                // The iPad's sidebar shows no system search field
+                // (AirportQuery): the same search as a row of its own.
+                if split {
+                    HStack {
+                        Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                        TextField(AirportQuery.prompt, text: Binding(get: { query }, set: { query = $0 }))
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .submitLabel(.search)
+                        if !query.isEmpty {
+                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel("Clear the search")
+                        }
+                    }
+                }
                 if query.isEmpty {
                     AirportStrip(nearest: nearest, open: { path.append($0) })
                     if shelf.shows != .nearest, !nearest.isEmpty {

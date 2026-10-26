@@ -27,34 +27,15 @@ enum RootLayout: Equatable {
     }
 }
 
-/// The Airport tab's search, typed: the iPad's sidebar column carries
-/// the field, as the tab's own is folded away there.
+/// The Airport tab's search, typed: kept in one place, as the iPad's
+/// sidebar folds the system's search field away (neither the tab's nor
+/// the column's .searchable shows there) and the tab draws its own.
 @MainActor
 @Observable
 final class AirportQuery {
     static let shared = AirportQuery()
     static let prompt = "Identifier, name or town"
     var text = ""
-}
-
-/// The Airport tab's search field on the sidebar column, while that tab
-/// is shown.
-private struct AirportSearchField: ViewModifier {
-    let shown: Bool
-
-    @ViewBuilder func body(content: Content) -> some View {
-        if shown {
-            @Bindable var query = AirportQuery.shared
-            content
-                // Always in sight under the column's title: the sidebar
-                // otherwise kept it folded away.
-                .searchable(text: $query.text, placement: .navigationBarDrawer(displayMode: .always), prompt: AirportQuery.prompt)
-                .textInputAutocapitalization(.characters)
-                .autocorrectionDisabled()
-        } else {
-            content
-        }
-    }
 }
 
 /// A second-level card, which the iPad shows in the inspector beside the
@@ -136,7 +117,6 @@ struct SplitLayout<Map: View>: View {
                 .navigationTitle(Self.title(tab))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { if tab == .fpl { fplItems } }
-                .modifier(AirportSearchField(shown: tab == .airport))
                 .navigationSplitViewColumnWidth(min: 320, ideal: 375, max: 420)
         } detail: {
             map
