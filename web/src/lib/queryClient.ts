@@ -309,14 +309,23 @@ export const photosQuery = (ident: string) => queryOptions({
  *  (api.airportsFood), for the map's fly-in food: by the position to a
  *  twentieth of a degree, asked again every two seconds while the
  *  planner is still reading some fields' places (`pending`). */
-export const airportsFoodQuery = (lat: number, lon: number) => {
+export const airportsFoodQuery = (lat: number, lon: number, nm: number) => {
   const at = (n: number) => Math.round(n * 20) / 20;
   return queryOptions({
-    queryKey: ["airports-food", at(lat), at(lon)], queryFn: () => api.airportsFood(at(lat), at(lon)),
+    queryKey: ["airports-food", at(lat), at(lon), nm], queryFn: () => api.airportsFood(at(lat), at(lon), nm),
     staleTime: 30 * 60_000, meta: { silent: true },
     refetchInterval: query => (query.state.data?.pending ? 2000 : false),
   });
 };
+
+/** The fields along a route with a restaurant on the field (api.routeFood),
+ *  asked again while some are still to be read, as the fields round the
+ *  pilot are. */
+export const routeFoodQuery = (dep: string, dest: string, stops: string) => queryOptions({
+  queryKey: ["route-food", dep, dest, stops], queryFn: () => api.routeFood(dep, dest, stops),
+  staleTime: 30 * 60_000, meta: { silent: true },
+  refetchInterval: query => (query.state.data?.pending ? 2000 : false),
+});
 
 /** The fields along the route to stop at (api.routeStops), for the map's
  *  Stops: asked again every two seconds while the planner is still reading

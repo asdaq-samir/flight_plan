@@ -38,3 +38,29 @@ def test_fields_with_food_at_the_airport_itself_nearest_first_the_unread_asked_f
     assert [f["ident"] for f in answer["fields"]] == ["KAAA"]
     assert [p["name"] for p in answer["fields"][0]["food"]] == ["Runway Diner"]
     assert answer["pending"] == 1 and read == ["KCCC"]
+
+
+def test_fields_with_food_within_the_radius_asked(monkeypatch):
+    monkeypatch.setattr(router.airports, "nearest", lambda lat, lon, limit: FIELDS)
+    monkeypatch.setattr(router, "_owners", lambda places: [(False, False) for _ in places])
+    monkeypatch.setattr(router.nearby, "kept", lambda ident: {"food": [DINER]})
+    near = TestClient(app).get("/api/airports/food?lat=42.0&lon=-88.0&nm=25").json()
+    # Within 25 nm: KAAA and the AFB (taken as public here); KORD's an airline airport.
+    assert [f["ident"] for f in near["fields"]] == ["KAAA", "KMIL"]
+    # A hundred by default: all of them but the airline airport.
+    wide = TestClient(app).get("/api/airports/food?lat=42.0&lon=-88.0").json()
+    assert [f["ident"] for f in wide["fields"]] == ["KAAA", "KBBB", "KCCC", "KMIL"]
+
+
+def test_fields_with_food_along_a_route_in_route_order(monkeypatch):
+    from types import SimpleNamespace
+    flight = SimpleNamespace(dep_ident="C81", start=(42.3, -88.1), end=(46.8, -92.2))
+    monkeypatch.setattr(router, "load_route", lambda dep, dest, stops="": SimpleNamespace(flights=[flight], idents=("C81", "KDLH")))
+    along = [{"ident": "KAAA", "name": "A", "city": "Aville", "lat": 43.0, "lon": -89.0, "departure": "C81", "from_nm": 60.0,
+              "added_nm": 2.0, "flight": 0},
+             {"ident": "KBBB", "name": "B", "city": "Btown", "lat": 44.0, "lon": -90.0, "departure": "C81", "from_nm": 150.0,
+              "added_nm": 5.0, "flight": 0}]
+    monkeypatch.setattr(router.fuelstops, "along", lambda flights, skip=None: along)
+    monkeypatch.setattr(router.nearby, "kept", lambda ident: {"food": [DINER] if ident == "KBBB" else [ACROSS]})
+    answer = TestClient(app).get("/api/route-food?dep=C81&dest=KDLH").json()
+    assert [(f["ident"], f["distance_nm"], f["added_nm"], f["departure"]) for f in answer["fields"]] == [("KBBB", 150.0, 5.0, "C81")]

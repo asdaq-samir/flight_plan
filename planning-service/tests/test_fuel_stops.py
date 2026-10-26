@@ -55,7 +55,7 @@ def test_the_fields_along_the_route_with_their_places_once_read(monkeypatch):
         {"ident": "KVTI", "name": "VINTON VETERANS MEML", "city": "VINTON", "lat": 42.22, "lon": -92.03, "flight": 0, "departure": "C81",
          "from_nm": 175.0, "added_nm": 2.0, "fuel_types": ["100LL"], "runway_ft": 4200, "elevation_ft": 842.0}])
     diner = {"name": "Dairy Queen", "kind": "Fast food restaurant", "distance_m": 700, "walk_min": 9, "phone": None,
-             "website": None, "lat": 41.6, "lon": -91.5}
+             "website": None, "lat": 41.6, "lon": -91.5, "on_field": False}
     monkeypatch.setattr(plan.nearby, "kept", lambda ident: {"food": [diner], "lodging": [], "cars": []} if ident == "KIOW" else None)
     later = []
     monkeypatch.setattr(plan.nearby, "read_later", lambda ident, lat, lon: later.append(ident))

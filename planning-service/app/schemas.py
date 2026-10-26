@@ -2179,9 +2179,13 @@ class FieldFood(BaseModel):
     city: str | None = None
     lat: float
     lon: float
+    #: From the pilot: how far and which way (true). Along a route: the
+    #: miles from its flight's departure and those it adds to the flight.
     distance_nm: float
     bearing_deg: int
     food: list[NearbyPlace]
+    departure: str | None = None
+    added_nm: float | None = None
 
 
 class FieldsWithFood(BaseModel):

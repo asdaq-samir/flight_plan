@@ -7,7 +7,7 @@ import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
-import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, airportsFoodQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
+import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, airportsFoodQuery, routeFoodQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteOption, RouteOptions } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, minutesWords } from "../../lib/clock";
@@ -1525,14 +1525,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const briefHere = briefOpen && routed;
   const profileHere = profileOpen && routed && !briefHere && !(navLogOpen && routed);
   const stopsHere = stopsOpen && !briefHere && !(navLogOpen && routed) && !profileHere;
-  // Where the fields with food are looked for round: own ship, else the
-  // route's departure (FoodCard).
-  const courseDep = s.course?.departure;
-  const foodAt = useMemo(() => (fix ? { lat: fix.lat, lon: fix.lon } : courseDep ? { lat: courseDep.lat, lon: courseDep.lon } : null),
-    [fix, courseDep]);
+  // Where the fields with food are looked for: along the course while one
+  // is drawn (the owner, 2026-10-26), else round own ship (FoodCard).
+  const foodRoute = useMemo(() => (routed && !s.local && planned.dest
+    ? { dep: planned.dep, dest: `${planned.dest}`, stops: planned.stops.join(",") } : null),
+  [routed, s.local, planned.dep, planned.dest, planned.stops]);
+  const foodAt = useMemo(() => (fix ? { lat: fix.lat, lon: fix.lon } : null), [fix]);
+  const foodRadius = usePreferences(p => p.foodRadiusNm);
   // While the map's fly-in food is open, its fields pinned in the
-  // suggestions' place (the same query as the card's).
-  const { data: foodFields } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0), enabled: stopsShown && !!foodAt });
+  // suggestions' place (the same queries as the card's).
+  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: stopsShown && !foodRoute && !!foodAt });
+  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: stopsShown && !!foodRoute });
+  const foodFields = foodRoute ? foodAlong : foodNear;
   const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
     ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,
   })) : null), [stopsShown, foodFields]);
@@ -2747,10 +2751,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </ProfileCard>
         )}
         {stopsHere && !savedOpen && (
-          <FoodCard
-            name="Fly-in Food" line={fix ? "Restaurants at the airports near you" : "Restaurants at the airports near the departure"}
-            at={foodAt} onClose={closeStops} onOpenField={selectPlace}
-          />
+          <FoodCard name="Fly-in Food" at={foodAt} route={foodRoute} onClose={closeStops} onOpenField={selectPlace} />
         )}
         <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (savedOpen || briefHere || profileHere || stopsHere || !hasPoints) && "hidden")}>{navLog}</div>
         {/* A departure alone: under it the flights saved and the routes

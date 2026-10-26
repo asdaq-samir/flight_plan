@@ -108,6 +108,9 @@ interface Preferences {
    *  minimums, or 14 CFR 91.155's alone; thunderstorms are kept clear of
    *  either way. The owner's "This can be a setting" (2026-10-23). */
   routeWeather: RouteWeather;
+  /** How far round the pilot the map's fly-in food looks, nm: a hundred
+   *  unless picked (the owner, 2026-10-26; FoodCard's menu). */
+  foodRadiusNm: number;
   /** Each airplane's load as last set (lib/weightBalance), by its name. */
   loads: Record<string, Load>;
   /** Whether each route loaded keeps its charts for use without a
@@ -190,6 +193,7 @@ interface Preferences {
   setOverlayStrength: (overlayStrength: OverlayStrength) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
   setRouteWeather: (weather: RouteWeather) => void;
+  setFoodRadiusNm: (nm: number) => void;
   setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
@@ -249,6 +253,7 @@ export const usePreferences = create<Preferences>()(
       overlayStrength: "half",
       minimums: NO_MINIMUMS,
       routeWeather: "personal",
+      foodRadiusNm: 100,
       loads: {}, tailFigures: {},
       keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
@@ -312,6 +317,7 @@ export const usePreferences = create<Preferences>()(
       setOverlayStrength: overlayStrength => set({ overlayStrength }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
       setRouteWeather: routeWeather => set({ routeWeather }),
+      setFoodRadiusNm: foodRadiusNm => set({ foodRadiusNm }),
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
@@ -354,7 +360,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, routeWeather: s.routeWeather, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, routeWeather: s.routeWeather, foodRadiusNm: s.foodRadiusNm, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

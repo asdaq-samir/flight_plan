@@ -158,8 +158,9 @@ public class PlannerProxyController {
             route("GET", "/api/airports/in-view"),
             route("GET", "/api/waypoints/in-view"),
             route("GET", "/api/airports/nearest"),
-            // The map's fly-in food: fields with somewhere to eat a walk from the ramp.
+            // The map's fly-in food: fields with a restaurant on the field, round the pilot or along the route.
             route("GET", "/api/airports/food"),
+            route("GET", "/api/route-food"),
             route("GET", "/api/places/search"),
             route("GET", "/api/airport/{ident}"),
             route("GET", "/api/airport/{ident}/forecast-wind"),

@@ -300,8 +300,12 @@ export const api = {
     planner.GET("/api/airports/nearest", { params: { query: { lat, lon, limit: 10 } } }).then(data<NearestAirports>).then(r => r.airports),
   /** The fields round a position with food a walk from the ramp, for the
    *  map's fly-in food (FoodCard). */
-  airportsFood: (lat: number, lon: number) =>
-    planner.GET("/api/airports/food", { params: { query: { lat, lon } } }).then(data<FieldsWithFood>),
+  airportsFood: (lat: number, lon: number, nm: number) =>
+    planner.GET("/api/airports/food", { params: { query: { lat, lon, nm } } }).then(data<FieldsWithFood>),
+  /** The fields along a route with a restaurant on the field, in route
+   *  order, for the map's fly-in food while a course is drawn. */
+  routeFood: (dep: string, dest: string, stops: string) =>
+    planner.GET("/api/route-food", { params: { query: { dep, dest, stops } } }).then(data<FieldsWithFood>),
   /** Where a place typed is -- an airport, a town, an address -- for
    *  Nearest to find the fields near it. */
   placesSearch: (q: string) =>

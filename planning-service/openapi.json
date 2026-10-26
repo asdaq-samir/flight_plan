@@ -5017,6 +5017,17 @@
       "FieldFood": {
         "description": "A field with somewhere to eat on it or a short walk from it, for the\nmap's fly-in food (the \"$100 hamburger\"): where it is from the pilot,\nand its places to eat nearest first (vfr.nearby).",
         "properties": {
+          "added_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added Nm"
+          },
           "bearing_deg": {
             "title": "Bearing Deg",
             "type": "integer"
@@ -5031,6 +5042,17 @@
               }
             ],
             "title": "City"
+          },
+          "departure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departure"
           },
           "distance_nm": {
             "title": "Distance Nm",
@@ -14380,6 +14402,18 @@
               "title": "Lon",
               "type": "number"
             }
+          },
+          {
+            "in": "query",
+            "name": "nm",
+            "required": false,
+            "schema": {
+              "default": 100.0,
+              "maximum": 250,
+              "minimum": 5,
+              "title": "Nm",
+              "type": "number"
+            }
           }
         ],
         "responses": {
@@ -17610,6 +17644,65 @@
           }
         },
         "summary": "Retrain"
+      }
+    },
+    "/api/route-food": {
+      "get": {
+        "description": "The public fields along a route with somewhere to eat at the\nairport itself, in route order, for the map's fly-in food while a\ncourse is drawn, at the owner's ask (\"when a course is drawn then look\nfor fly in food along the route\", 2026-10-26): those no more than\nvfr.fuelstops' MAX_ADDED_NM off each flight's line (along), each with\nits miles from its flight's departure and those it adds.",
+        "operationId": "route_food_api_route_food_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FieldsWithFood"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Route Food"
       }
     },
     "/api/route-options": {

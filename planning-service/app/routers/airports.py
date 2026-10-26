@@ -17,11 +17,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
 from vfr import (
-    airport_photos, airports, airspace, altitude, faa_data, fixes, geocode, glmp, nearby, pattern, places, plates, procedures,
+    airport_photos, airports, airspace, altitude, faa_data, fixes, fuelstops, geocode, glmp, nearby, pattern, places, plates, procedures,
     publications, remarks, runway_wind, weather,
 )
 
-from ..common import DIAGRAM_CACHE
+from ..common import DIAGRAM_CACHE, load_route
 from ..schemas import (
     AirportPhotos, AirportPlace, AirportServices, FieldsWithFood, ForecastWind, AirportsInView, ChartPages, NearestAirports, PlacesFound,
     PlateOverlay,
@@ -172,13 +172,29 @@ def nearest_airports(
     return {"airports": out}
 
 
-#: How many of the nearest public fields are looked at, and how far, nm.
-FOOD_FIELDS = 40
-FOOD_REACH_NM = 150.0
+#: The most of the nearest fields looked at round the pilot: a hundred
+#: miles round Chicago hold some three hundred, each's places read once.
+FOOD_FIELDS = 150
+
+
+def _food_of(field: dict) -> list[dict] | None:
+    """A field's places to eat at the airport itself (vfr.nearby's
+    outline), None while they are still to be read (read on the pool)."""
+    places = nearby.kept(field["ident"])
+    if places is None:
+        nearby.read_later(field["ident"], field["lat"], field["lon"])
+        return None
+    # At the airport itself, as Pilot Pete's is at Schaumburg (the owner's
+    # "food at the airport itself", 2026-10-25): inside its outline, not
+    # a walk across the road.
+    return [f for f in places.get("food") or [] if f.get("on_field")]
 
 
 @router.get("/api/airports/food", response_model=FieldsWithFood)
-def fields_with_food(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180)) -> FieldsWithFood:
+def fields_with_food(
+    lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
+    nm: float = Query(default=100.0, ge=5, le=250),
+) -> FieldsWithFood:
     """The public fields round a position with somewhere to eat at the
     airport itself, nearest first, for the map's fly-in food button,
     at the owner's ask ("that button on the map is for at airport
@@ -186,26 +202,48 @@ def fields_with_food(lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-1
     are Overture's (vfr.nearby), read on the planner's pool where they
     have not been and counted in `pending`; the page asks again until
     none is."""
-    found = [p for p in airports.nearest(lat, lon, FOOD_FIELDS) if p["distance_nm"] <= FOOD_REACH_NM]
+    # Within `nm` (the card's radius, a hundred unless the pilot picks
+    # another: the owner, 2026-10-26).
+    found = [p for p in airports.nearest(lat, lon, FOOD_FIELDS) if p["distance_nm"] <= nm]
     out, pending = [], 0
     for p, (military, private) in zip(found, _owners(found)):
         # Not the airline airports: O'Hare's food is a smoothie in the
         # terminal, past security, not a fly-in lunch (its first answer).
         if military or private or p.get("kind") == "large":
             continue
-        places = nearby.kept(p["ident"])
-        if places is None:
+        food = _food_of(p)
+        if food is None:
             pending += 1
-            nearby.read_later(p["ident"], p["lat"], p["lon"])
             continue
-        # At the airport itself, as Pilot Pete's is at Schaumburg (the
-        # owner's "food at the airport itself", 2026-10-25): inside its
-        # outline (vfr.nearby), not a walk across the road.
-        food = [f for f in places.get("food") or [] if f.get("on_field")]
         if food:
             out.append({
                 "ident": p["ident"], "name": p["name"], "city": p.get("municipality"), "lat": p["lat"], "lon": p["lon"],
                 "distance_nm": p["distance_nm"], "bearing_deg": p["bearing_deg"], "food": food,
+            })
+    return FieldsWithFood(fields=out, pending=pending)
+
+
+@router.get("/api/route-food", response_model=FieldsWithFood)
+def route_food(dep: str, dest: str, stops: str = "") -> FieldsWithFood:
+    """The public fields along a route with somewhere to eat at the
+    airport itself, in route order, for the map's fly-in food while a
+    course is drawn, at the owner's ask ("when a course is drawn then look
+    for fly in food along the route", 2026-10-26): those no more than
+    vfr.fuelstops' MAX_ADDED_NM off each flight's line (along), each with
+    its miles from its flight's departure and those it adds."""
+    r = load_route(dep, dest, stops)
+    found = fuelstops.along([(f.dep_ident, f.start, f.end) for f in r.flights], skip=set(r.idents))
+    out, pending = [], 0
+    for field in found:
+        food = _food_of(field)
+        if food is None:
+            pending += 1
+            continue
+        if food:
+            out.append({
+                "ident": field["ident"], "name": field["name"], "city": field.get("city"), "lat": field["lat"], "lon": field["lon"],
+                "distance_nm": field["from_nm"], "bearing_deg": 0, "food": food,
+                "departure": field["departure"], "added_nm": field["added_nm"],
             })
     return FieldsWithFood(fields=out, pending=pending)
 
