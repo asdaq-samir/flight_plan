@@ -3,7 +3,7 @@ floor read from it (vfr.terrain.floor_profile)."""
 import numpy as np
 import pytest
 
-from vfr import faa_data, geo, ground_grid, terrain
+from vfr import congested, faa_data, geo, ground_grid, terrain
 
 START, END = (45.0, -90.0), (45.0, -89.0)   # due east, about 42.4 nm
 TOTAL_NM = geo.distance_nm(*START, *END)
@@ -21,6 +21,8 @@ def grid(monkeypatch, tmp_path):
     low = np.full((ground_grid.ROWS, ground_grid.COLS), 900, dtype=np.int16)
     monkeypatch.setattr(ground_grid, "_grids", lambda: (high, low))
     monkeypatch.setattr(faa_data, "_OBSTACLES_CACHE", {})
+    # Over a town everywhere: 14 CFR 91.119(b)'s 1,000 ft (vfr.congested).
+    monkeypatch.setattr(congested, "congested", lambda lats, lons: np.ones(len(lats), dtype=bool))
     dof = tmp_path / "DOF.DAT"
     dof.write_text("", encoding="latin-1")
     monkeypatch.setattr(faa_data, "ensure_nasr_file", lambda name, cache_dir: dof, raising=False)

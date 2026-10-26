@@ -538,7 +538,7 @@ def select_cruise_altitude(
                 "hemispheric_rule_from_ft": round(rules_from_ft[i]),
                 "candidates_ft": segment_candidates_ft,
                 "tight": segment_tight,
-                **(_ifr_floor(floors[i]) if under_ifr else {}),
+                **(_ifr_floor(floors[i]) if under_ifr else _vfr_floor(floors[i])),
             })
 
     # Icing: an altitude this could recommend reaching the freezing level
@@ -603,6 +603,21 @@ def select_cruise_altitude(
         # Under IFR: whether any leg is over a designated mountainous
         # area (14 CFR Part 95), its floor 2,000 ft over the obstacles.
         "mountainous": under_ifr and any(bool(f.mountainous) for f in floors),
+    }
+
+
+def _vfr_floor(floor: "terrain.SegmentFloor") -> dict:
+    """14 CFR 91.119's own minimum over a leg, for a caution to measure a
+    pilot's altitude against (app.planning.floor_caution): the ground or
+    the DOF obstacle, its height, and 91.119's clearance over it -- 1,000
+    ft over a congested area ((b)), 500 elsewhere ((c)); `congested` None
+    where the towns could not be read and it took the 1,000 ft."""
+    return {
+        "highest_ft": floor.highest_ft,
+        "highest_is_obstacle": floor.highest_is_obstacle,
+        "obstacle_type": floor.obstacle_type,
+        "obstacle_clearance_ft": floor.clearance_ft,
+        "congested": floor.congested,
     }
 
 
