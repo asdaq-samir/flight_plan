@@ -2,24 +2,41 @@
 altitude a pilot should plan to cruise at, given what's actually on the
 ground along the way.
 
-This is a Maximum Elevation Figure (MEF) for the route, by the rule FAA
-sectional charts use for the printed MEF in each chart quadrangle -- a
-man-made obstacle's height + 100ft (measurement-error buffer), or natural
-terrain plus a margin, whichever is higher, rounded up to the next 100ft
--- except that the terrain margin is 14 CFR 91.119's 1,000 ft, where the
-chart's is 300. 91.119 asks 1,000 ft over a congested area (above the
-highest obstacle within 2,000 ft) and 500 ft elsewhere, and nothing here
-can tell a town from a field, so it keeps the 1,000. The floor used to
-be the chart's figure, only 300 ft over the highest ground; the
-hemispheric rounding above it hid that, until altitudes within 3,000 ft
-of the ground, where the rounding does not apply (vfr.altitude), could
-be flown right at it -- at 500 ft, the lowest plan out of C81 flew
-1,500 ft over the Chicago suburbs. The other difference from a real
-chart MEF: this is
-computed continuously along the actual route line (every
+The clearances are 14 CFR 91.119's (eCFR, current to 2026-10-22):
+
+  (b) Over congested areas. Over any congested area of a city, town, or
+  settlement, or over any open air assembly of persons, an altitude of
+  1,000 feet above the highest obstacle within a horizontal radius of
+  2,000 feet of the aircraft.
+
+  (c) Over other than congested areas. An altitude of 500 feet above the
+  surface, except over open water or sparsely populated areas. In those
+  cases, the aircraft may not be operated closer than 500 feet to any
+  person, vessel, vehicle, or structure.
+
+So the ground and each DOF obstacle get 1,000 ft where they are over or
+within 2,000 ft of a congested area (vfr.congested: the Census urban
+areas and gazetteer places), and 500 ft elsewhere -- above an obstacle
+too, since 500 ft from a structure is at least that over its top. Over
+sparsely populated land 91.119(c) asks only the 500 ft from structures,
+not over the surface; the floor keeps 500 ft over the surface there as
+well, the simpler and safer reading. Where the towns cannot be read,
+every point takes 1,000 ft. 91.119(a)'s altitude for a power-off landing
+"without undue hazard" has no figure, and is the pilot's.
+
+The floor used to be 1,000 ft over the ground everywhere, as nothing could
+tell a town from a field, and only 100 ft over a DOF obstacle, the
+sectional MEF's measurement buffer: a plan could cross a tower in a town
+at 100 ft over its top, where 91.119(b) asks 1,000.
+
+Like a sectional's Maximum Elevation Figure it is the highest of those,
+rounded up to the next 100 ft, but computed continuously along the actual
+route line (every cell of vfr.ground_grid it crosses, else every
 SAMPLE_INTERVAL_NM), not gridded to a fixed 30-minute quadrangle, so it
 doesn't dilute a single tall feature across a whole quadrangle the way
-the printed chart figure does.
+the printed chart figure does. It is what the planner suggests, never a
+limit: a pilot's own altitude under it is flown with a caution
+(app.planning.own_altitude_caution).
 """
 import threading
 from pathlib import Path
@@ -27,14 +44,18 @@ from typing import NamedTuple
 
 import numpy as np
 
-from . import elevation, faa_data, geo, ground_grid
+from . import congested, elevation, faa_data, geo, ground_grid
 
 M_TO_FT = 3.28084
 
 SAMPLE_INTERVAL_NM = 2.0  # how finely to sample terrain along the route
 CORRIDOR_HALF_WIDTH_NM = 5.0  # how far off the direct line an obstacle still counts
-OBSTACLE_MARGIN_FT = 100  # measurement-error buffer, man-made obstacles
-TERRAIN_MARGIN_FT = 1000  # 14 CFR 91.119(b): 1,000 ft over a congested area
+#: 14 CFR 91.119(b): 1,000 ft above the highest obstacle within 2,000 ft,
+#: over a congested area.
+CONGESTED_CLEARANCE_FT = 1000
+#: 14 CFR 91.119(c): 500 ft above the surface, and no closer than 500 ft to
+#: any structure, elsewhere.
+OTHER_CLEARANCE_FT = 500
 
 DEFAULT_FAA_CACHE_DIR = Path(__file__).resolve().parents[2] / "data" / "raw" / "faa_nasr"
 
@@ -85,12 +106,23 @@ def _elevations_m(points: list) -> dict:
 
 
 class SegmentFloor(NamedTuple):
-    """One segment's floor (MSL, the margin rule above), and the lowest
+    """One segment's floor (MSL, the clearances above), and the lowest
     ground under it (MSL): 3,000 ft above that is where 14 CFR 91.159's
-    hemispheric rule begins to apply over the whole segment."""
+    hemispheric rule begins to apply over the whole segment.
+
+    And what the floor rests on, for a caution to name: the ground or the
+    DOF obstacle whose top plus its clearance is highest, its height MSL,
+    the obstacle's DOF type (TOWER, BLDG ...), the clearance it takes, and
+    whether that is for a congested area (91.119(b)) -- None where the
+    towns could not be read and it took 91.119(b)'s 1,000 ft anyway."""
 
     floor_ft: float
     lowest_ground_ft: float
+    highest_ft: float | None = None
+    highest_is_obstacle: bool | None = None
+    obstacle_type: str | None = None
+    clearance_ft: float | None = None
+    congested: bool | None = None
 
 
 def min_safe_altitude_msl(
@@ -101,7 +133,7 @@ def min_safe_altitude_msl(
     faa_cache_dir=DEFAULT_FAA_CACHE_DIR,
 ) -> float:
     """MEF-style floor for the route, in feet MSL -- see module docstring
-    for the margin rule.
+    for the clearances.
 
     Terrain is sampled at fixed intervals along the direct route line
     (reusing geo.destination_point the same way vfr.elevation's ring
@@ -160,6 +192,8 @@ def floor_profile(
         elevations_m = _elevations_m(sample_points)
         sample_along = np.arange(len(sample_points)) * spacing_nm
         terrain_ft = terrain_low_ft = np.array([elevations_m[p] for p in sample_points]) * M_TO_FT
+        lats = np.array([p[0] for p in sample_points])
+        lons = np.array([p[1] for p in sample_points])
 
     # Every obstacle in the box placed on the route in one call -- the
     # corridor's thousands of them were two scalar geodesic solutions
@@ -168,22 +202,49 @@ def floor_profile(
     bbox = geo.corridor_bbox(route_start, route_end, buffer_nm=corridor_half_width_nm + 2)
     obstacles = faa_data.load_obstacles(faa_data.ensure_nasr_file("DOF.DAT", faa_cache_dir), bbox, min_agl_ft=0)
     if len(obstacles):
-        cross, along = geo.track_distances_nm(
-            obstacles["lat"].to_numpy(dtype=float), obstacles["lon"].to_numpy(dtype=float), route_start, route_end,
-        )
+        obstacle_lats = obstacles["lat"].to_numpy(dtype=float)
+        obstacle_lons = obstacles["lon"].to_numpy(dtype=float)
+        cross, along = geo.track_distances_nm(obstacle_lats, obstacle_lons, route_start, route_end)
         near = np.abs(cross) <= corridor_half_width_nm
         obstacle_along, obstacle_ft = along[near], obstacles["amsl_ft"].to_numpy(dtype=float)[near]
+        obstacle_lats, obstacle_lons = obstacle_lats[near], obstacle_lons[near]
+        obstacle_types = obstacles["type"].to_numpy(dtype=object)[near] if "type" in obstacles else np.full(near.sum(), None)
     else:
-        obstacle_along = obstacle_ft = np.empty(0)
+        obstacle_along = obstacle_ft = obstacle_lats = obstacle_lons = np.empty(0)
+        obstacle_types = np.empty(0, dtype=object)
+
+    # The ground under the line and each obstacle near it, over a town or
+    # not (vfr.congested), one read for both: where the towns cannot be
+    # read, all of it is taken as congested -- 91.119(b)'s 1,000 ft, the
+    # safer answer -- and said to be unknown (None).
+    over_town = congested.congested(np.concatenate([lats, obstacle_lats]), np.concatenate([lons, obstacle_lons]))
+    known = over_town is not None
+    if over_town is None:
+        over_town = np.ones(len(lats) + len(obstacle_lats), dtype=bool)
+    clearance = np.where(over_town, CONGESTED_CLEARANCE_FT, OTHER_CLEARANCE_FT).astype(float)
+    terrain_clearance, obstacle_clearance = clearance[:len(lats)], clearance[len(lats):]
 
     floors = []
     for a, b in pairwise(breaks_nm):
-        here = (sample_along >= a - spacing_nm) & (sample_along <= b + spacing_nm)
-        terrain_here = terrain_ft[here]
-        obstacles_here = obstacle_ft[
-            (obstacle_along >= a - corridor_half_width_nm) & (obstacle_along <= b + corridor_half_width_nm)
-        ]
-        terrain_mef = terrain_here.max() + TERRAIN_MARGIN_FT
-        obstacle_mef = obstacles_here.max() + OBSTACLE_MARGIN_FT if obstacles_here.size else 0
-        floors.append(SegmentFloor(_round_up_100(max(terrain_mef, obstacle_mef)), float(terrain_low_ft[here].min())))
+        here = np.flatnonzero((sample_along >= a - spacing_nm) & (sample_along <= b + spacing_nm))
+        there = np.flatnonzero(
+            (obstacle_along >= a - corridor_half_width_nm) & (obstacle_along <= b + corridor_half_width_nm))
+        ground_need = terrain_ft[here] + terrain_clearance[here]
+        i = int(here[np.argmax(ground_need)])
+        bound = (float(terrain_ft[i]), False, None, float(terrain_clearance[i]))
+        if there.size:
+            obstacle_need = obstacle_ft[there] + obstacle_clearance[there]
+            j = int(there[np.argmax(obstacle_need)])
+            # The obstacle where it needs more than the ground, the ground
+            # on a tie: the ground is under the airplane the whole way.
+            if obstacle_need.max() > ground_need.max():
+                kind = obstacle_types[j]
+                bound = (float(obstacle_ft[j]), True, kind.strip() or None if isinstance(kind, str) else None,
+                         float(obstacle_clearance[j]))
+        highest, is_obstacle, kind, need = bound
+        floors.append(SegmentFloor(
+            _round_up_100(highest + need), float(terrain_low_ft[here].min()),
+            highest_ft=round(highest), highest_is_obstacle=is_obstacle, obstacle_type=kind, clearance_ft=need,
+            congested=(need == CONGESTED_CLEARANCE_FT) if known else None,
+        ))
     return floors

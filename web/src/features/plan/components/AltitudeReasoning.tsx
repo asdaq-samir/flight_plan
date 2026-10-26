@@ -270,9 +270,11 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
       value: `${altFt(s.floor_ft)} ft`,
       body: (
         <>
-          The highest ground along the course plus 1,000 ft (14 CFR 91.119 over a town, which the planner cannot tell
-          from a field), or the tallest charted obstacle within 5 nm of it plus 100 ft, whichever is higher, rounded up
-          to the next 100 ft. Worked out leg by leg as well, so a leg over lower ground may fly lower.
+          {/* 14 CFR 91.119(b) and (c), as the planner keeps them (vfr.terrain): towns are the Census Bureau's urban
+              areas and places (vfr.congested). */}
+          The ground along the course and every charted obstacle within 5 nm of it, each plus 1,000 ft over or within
+          2,000 ft of a town (14 CFR 91.119(b)) and 500 ft elsewhere (91.119(c)), the highest of those rounded up to the
+          next 100 ft. Worked out leg by leg as well, so a leg over lower ground may fly lower.
         </>
       ),
     },

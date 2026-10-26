@@ -520,15 +520,24 @@ class AltitudeSegment(BaseModel):
     #: is the highest whole hundred under it that clears the floor (1,800
     #: ft under a 1,900 ft shelf): legal, but tight (vfr.altitude).
     tight: bool = False
-    #: Under IFR, what the floor is from (vfr.ifr, 14 CFR 91.177(a)(2)):
-    #: the highest obstacle within 4 nm of the leg's course, ground or a
-    #: DOF obstacle, its height MSL, whether the leg is over a mountainous
-    #: area (Part 95), and the clearance over it, 2,000 ft there and
-    #: 1,000 elsewhere. None under VFR.
+    #: What the floor is from: the ground or the DOF obstacle it rests on
+    #: and its height MSL, and the clearance over it. Under IFR (vfr.ifr,
+    #: 14 CFR 91.177(a)(2)) the highest within 4 nm of the leg's course,
+    #: whether the leg is over a mountainous area (Part 95), and 2,000 ft
+    #: there, 1,000 elsewhere. Under VFR (vfr.terrain, 14 CFR 91.119) the
+    #: one whose top and clearance are highest: 1,000 ft over or within
+    #: 2,000 ft of a congested area (91.119(b)), 500 ft elsewhere (91.119(c)).
     highest_ft: float | None = None
     highest_is_obstacle: bool | None = None
     mountainous: bool | None = None
     obstacle_clearance_ft: float | None = None
+    #: Under VFR, the DOF obstacle's type where the floor rests on one
+    #: (TOWER, BLDG ...), as the FAA writes it.
+    obstacle_type: str | None = None
+    #: Under VFR, whether the clearance is 91.119(b)'s for a congested area
+    #: (the Census urban areas and places, vfr.congested); None where the
+    #: towns could not be read and it took the 1,000 ft anyway.
+    congested: bool | None = None
     #: Under IFR along an airway (vfr.airways): the segment's published
     #: altitudes, its MEA the floor (14 CFR 91.177(a)(1)) and its MAA a
     #: ceiling.

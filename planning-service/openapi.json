@@ -2603,6 +2603,18 @@
             "default": null,
             "title": "Cloud Station"
           },
+          "congested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Congested"
+          },
           "course_magnetic_deg": {
             "anyOf": [
               {
@@ -2694,6 +2706,18 @@
             ],
             "default": null,
             "title": "Obstacle Clearance Ft"
+          },
+          "obstacle_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Obstacle Type"
           },
           "service_ceiling_ft": {
             "anyOf": [
