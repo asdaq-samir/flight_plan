@@ -355,3 +355,17 @@ def test_a_fuel_stop_whose_way_in_crosses_a_storm_is_not_landed_at(sky):
     out = route_options.options(DEP, dest, PROFILE, fields=table)
     for option in out["options"]:
         assert "BEHIND" not in option["fuel"]
+
+
+def test_the_fastest_is_the_way_that_is_fastest_whatever_search_found_it(sky):
+    # Two ways a search may find, the one called fastest the slower: the
+    # name goes to the quicker (KSEA to KSFO's "fastest" was 110 minutes
+    # slower than the best weather's, out over the Pacific, 2026-10-25).
+    grid = route_options._Grid((0.0, 0.0), (0.0, 4.0))
+    slow = {"kind": "fastest", "kinds": ["fastest"], "title": "Fastest", "air_min": 600.0, "ground_min": 0.0,
+            "crosses": [], "marginal": [], "landings": 0, "stops": ["A"]}
+    quick = {"kind": "weather", "kinds": ["weather"], "title": "Best weather", "air_min": 490.0, "ground_min": 0.0,
+             "crosses": [], "marginal": [], "landings": 0, "stops": ["B"]}
+    named = route_options._named_by_what_they_are(grid, [slow, quick])
+    assert named == [quick]
+    assert set(quick["kinds"]) == {"weather", "fastest", "stops"} and quick["kind"] == "weather"
