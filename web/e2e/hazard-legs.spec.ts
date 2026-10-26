@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openMapSettings, openSection, openTab, settle, sideDrawer, slow } from "./helpers";
+import { grabberTo, openMapSettings, openSection, openTab, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * Each hazard in the Brief says which legs of the route it is on and when
@@ -14,10 +14,10 @@ test("a SIGMET says its legs and times, and a tap shows the legs on the map", as
   await page.route("**/api/planner/briefing?*", async route => {
     const response = await route.fetch();
     const json = await response.json();
-    // Three fixes at least, from the planner's own answer: the route's.
-    const fixes = json.leg_fixes.length >= 3 ? json.leg_fixes : [json.leg_fixes[0], json.leg_fixes[0], ...json.leg_fixes.slice(1)];
+    // The legs' fixes given here, C81 by Madison to Duluth, not read off
+    // the answer: a planner from before them gives none.
     Object.assign(json, {
-      leg_fixes: fixes,
+      leg_fixes: [{ lat: 42.32, lon: -88.07 }, { lat: 43.14, lon: -89.34 }, { lat: 46.84, lon: -92.19 }],
       gairmets: [], vfr_not_recommended: [], fields_below_vfr: [],
       hazards: [{
         hazard: "CONVECTIVE", type: "SIGMET", altitude_low_ft: null, altitude_high_ft: 43000, raw: "CONVECTIVE SIGMET 45C",
@@ -28,9 +28,11 @@ test("a SIGMET says its legs and times, and a tap shows the legs on the map", as
     await route.fulfill({ response, json });
   });
 
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  // The panel open on the briefing, on a phone as on a desktop.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
-  await page.getByTestId("sidebar-trigger-button").click();
+  // All the way up on a phone, where the section's rows are in reach.
+  await grabberTo(page, "full");
   await openTab(page, "Weather");
   await openSection(page, "Adverse Conditions");
   const row = sideDrawer(page).getByTestId("on-route").first();
@@ -47,13 +49,14 @@ test("a SIGMET says its legs and times, and a tap shows the legs on the map", as
 });
 
 test("the map's settings say when the METARs and TFRs were fetched", async ({ page }) => {
+  // Fetched some minutes before it is asked, worked out as it is asked.
   await page.route(url => url.pathname.endsWith("/api/planner/map/ages"), route => route.fulfill({ json: {
-    metars_at: new Date(Date.now() - 4 * 60_000).toISOString(), tfrs_at: null,
+    metars_at: new Date(Date.now() - 4.5 * 60_000).toISOString(), tfrs_at: null,
   } }));
   await page.goto("/app/plan");
   await settle(page);
   await openMapSettings(page);
-  await expect(page.getByTestId("metars-age")).toContainText("aviationweather.gov · 4 min ago");
+  await expect(page.getByTestId("metars-age")).toHaveText(/^METARs\s*aviationweather\.gov · \d min ago$/);
   // Not fetched yet: the source alone, no age made up.
   await expect(page.getByTestId("tfrs-age")).toHaveText(/TFR data\s*tfr\.faa\.gov$/);
   await page.unrouteAll({ behavior: "ignoreErrors" });
