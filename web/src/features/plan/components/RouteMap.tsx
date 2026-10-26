@@ -369,7 +369,8 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
 }) {
   const show = usePreferences(s => s.waypoints);
   const { carded, cardEvents } = useCardedMarker<string>();
-  const labelled = useLabelled(selected, airports);
+  const spaced = useSpaced(selected, airports);
+  const labelled = useLabelled(selected.filter(c => spaced.has(`${c.lat},${c.lon}`)), airports);
   if (!show) return null;
   return (
     <>
@@ -381,6 +382,9 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
       })}
       {selected.map((c, i) => {
         const key = `${c.lat},${c.lon}`;
+        // Drawn where it has room: zoomed out, a long route's dots piled
+        // into one brown line along it (the style audit, 2026-10-26).
+        if (!spaced.has(key)) return null;
         return (
           <Marker
             key={key} position={[c.lat, c.lon]} icon={dotIcon(scoreColor(c.predicted_score), i + 1)}
@@ -402,6 +406,34 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
       })}
     </>
   );
+}
+
+/** How far apart two checkpoints' dots are kept on the screen, points:
+ *  their 24-point dots and a little room between them. */
+const DOT_ROOM = 30;
+
+/**
+ * Which checkpoints have room for their dots in the map as it is, in route
+ * order: one closer than DOT_ROOM to a dot already kept, or over one of the
+ * route's airports' marks, waits until the map is closer in -- each keeps
+ * its number in the route, so the gaps read as such.
+ */
+function useSpaced(selected: Candidate[], airports: { lat: number; lon: number }[]): Set<string> {
+  const map = useMap();
+  const view = useScreenView();
+  return useMemo(() => {
+    void view;
+    const marks = airports.map(a => map.latLngToContainerPoint([a.lat, a.lon]));
+    const kept: L.Point[] = [];
+    const out = new Set<string>();
+    for (const c of selected) {
+      const p = map.latLngToContainerPoint([c.lat, c.lon]);
+      if (kept.some(k => k.distanceTo(p) < DOT_ROOM) || marks.some(m => m.distanceTo(p) < AIRPORT_MARK)) continue;
+      kept.push(p);
+      out.add(`${c.lat},${c.lon}`);
+    }
+    return out;
+  }, [selected, airports, view, map]);
 }
 
 /** A checkpoint's name as its label shows it: its ForeFlight waypoint's,
@@ -458,16 +490,40 @@ function useLabelled(
   }, [selected, airports, view, map]);
 }
 
+/** How far apart two TOC/TOD pills' middles are kept, points: a pill's
+ *  width and height (fixMarkIcon) and a little room. */
+const PILL_ROOM = { x: 58, y: 26 };
+
 /** Each leg's top of climb and of descent, where the nav log has a row
  *  for it: a tap brings the map there and selects the row, as a
  *  checkpoint's does. A fix's pill on the course (fixMarkIcon), over the
  *  checkpoints' dots: under them, a TOC between two was hidden (the
  *  owner's "Those pills look a bit off their position", 2026-10-26). */
 function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props["onSelectPoint"] }) {
+  // Each pill where it has room, in route order: zoomed out, a short
+  // climb's TOC and the next leg's lay on one another (the style audit,
+  // 2026-10-26); closer in, every one.
+  const map = useMap();
+  const view = useScreenView();
+  const roomy = useMemo(() => {
+    void view;
+    const kept: L.Point[] = [];
+    const out = new Set<string>();
+    legs.forEach((leg, i) => {
+      for (const [key, at] of [[`toc-${i}`, leg.toc], [`tod-${i}`, leg.tod]] as const) {
+        if (!at) continue;
+        const p = map.latLngToContainerPoint([at.lat, at.lon]);
+        if (kept.some(k => Math.abs(k.x - p.x) < PILL_ROOM.x && Math.abs(k.y - p.y) < PILL_ROOM.y)) continue;
+        kept.push(p);
+        out.add(key);
+      }
+    });
+    return out;
+  }, [legs, map, view]);
   return (
     <>
       {legs.flatMap((leg, i) => [
-        leg.toc && (
+        leg.toc && roomy.has(`toc-${i}`) && (
           <Marker
             key={`toc-${i}`} position={[leg.toc.lat, leg.toc.lon]} icon={fixMarkIcon("TOC")} zIndexOffset={400}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.toc!.lat, leg.toc!.lon); } }}
@@ -475,7 +531,7 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
             <MapTooltip>Top of climb · {feet(leg.toc.altitude_ft)}</MapTooltip>
           </Marker>
         ),
-        leg.tod && (
+        leg.tod && roomy.has(`tod-${i}`) && (
           <Marker
             key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={fixMarkIcon("TOD")} zIndexOffset={400}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.tod!.lat, leg.tod!.lon); } }}
