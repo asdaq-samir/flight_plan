@@ -11,6 +11,7 @@ struct RootView: View {
     @Environment(OwnShip.self) private var ownShip
     @Environment(DryRun.self) private var dryRun
     @Environment(Traffic.self) private var traffic
+    @Environment(\.undoManager) private var undoManager
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
     @State private var tab: Tabs = .fpl
@@ -101,6 +102,10 @@ struct RootView: View {
         .task { await Tracking.shared.run() }
         .onChange(of: traffic.planes) { _, planes in Tracking.shared.heard(planes) }
         .onChange(of: ownShip.ahead) { _, alerts in SpokenAlerts.shared.hear(alerts) }
+        // The window's UndoManager for the route's history: shake to undo
+        // and the Edit menu (PlanHistory).
+        .onAppear { plan.undoManager = undoManager }
+        .onChange(of: undoManager) { _, manager in plan.undoManager = manager }
         .sheet(isPresented: $sheetUp) {
             SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
                 .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
@@ -115,6 +120,7 @@ struct RootView: View {
 /// The four tabs of the planner, in the sheet: FPL, Airport, Aircraft
 /// and Setup.
 struct SheetView: View {
+    @Environment(Plan.self) private var plan
     @Binding var tab: RootView.Tabs
     @Binding var airports: [String]
     /// At the pill: the figures over the tab bar, nothing else.
@@ -147,6 +153,12 @@ struct SheetView: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: pill)
+        // The Undo bar over the tab bar, where the edit was made.
+        .overlay(alignment: .bottom) {
+            UndoBar()
+                .padding(.bottom, 60)
+                .animation(.easeOut(duration: 0.25), value: plan.undoNote)
+        }
         // An airplane's card, a point pressed on the map, a hold, a flown
         // track, over the tabs.
         .modifier(FlightSheets())

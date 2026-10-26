@@ -5,6 +5,7 @@ extension Plan {
     /// out: the next person on the device had them (the web app's
     /// forgetPilot, the audit's finding).
     func forgetPilot() {
+        forgetHistory()
         tail = nil
         figures = Figures()
     }

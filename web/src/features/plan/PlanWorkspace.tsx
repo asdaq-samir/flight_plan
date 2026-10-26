@@ -32,6 +32,7 @@ import type { WorkspaceProps } from "../page/workspace";
 import type { PanelState } from "../../components/mapChrome";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useNavEdge } from "../../hooks/use-nav-edge";
+import { usePlanHistory } from "../../hooks/use-plan-history";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import type { RouteCard } from "../../lib/openCards";
@@ -316,6 +317,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // picked on the map opens its section.
   const panelOpen = panel !== "peek";
   const [searchParams, setSearchParams] = useSearchParamsNow();
+  // Every change of the plan can be taken back (Undo, Cmd-Z), whichever
+  // button made it, in place of asking first.
+  usePlanHistory(searchParams, setSearchParams);
   // The route: its two ends, and the airports it lands at on the way --
   // the stops one array while the address has the same, so what is made
   // from them (the map's add-a-stop, the box's waypoints) is too, and the
