@@ -2,7 +2,6 @@ import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt, bearing, flightLevel, one } from "../../lib/units";
 import { clockTime, hoursMinutes, zuluTime } from "../../lib/clock";
-import type { WindPick } from "../../lib/pattern";
 import { calmOnRunway, isCalm } from "../../lib/wind";
 
 export { altFt, bearing, one };
@@ -190,29 +189,6 @@ export function windOnRunway(wind: NonNullable<Runway["wind"]>): string {
   const along = parts.headwindKt >= 0 ? `${parts.headwindKt} kt headwind` : `${-parts.headwindKt} kt tailwind`;
   const cross = across(parts);
   return `${along}, ${cross.kt} kt crosswind${cross.side ? ` from the ${cross.side}` : ""}${cross.gustKt != null ? `, ${cross.gustKt} in the gusts` : ""}`;
-}
-
-/** The wind a runway is picked by (lib/pattern's windPick), in words, as
- *  its symbols in FPL's list say it: "24 into the wind: headwind 8 kt,
- *  crosswind 2 gusting 9 kt (KUGN, 11 nm)", or "Wind calm". The crosswind
- *  left out where there is none, steady or in the gusts. */
-export function windPickWords(wind: WindPick): string {
-  const from = wind.from ? ` (${wind.from.ident}, ${wind.from.nm} nm)` : "";
-  if (wind.calm) {
-    const said = wind.variableKt != null ? `Wind variable at ${wind.variableKt} kt` : "Wind calm";
-    return `${said}${wind.ident ? `, ${wind.ident}${wind.inUse ? " in use" : ""}` : ""}${from}`;
-  }
-  const cross = across(wind);
-  const crosswind = cross.kt > 0 || cross.gustKt != null ? `, crosswind ${cross.kt}${cross.gustKt != null ? ` gusting ${cross.gustKt}` : ""} kt` : "";
-  const along = wind.headwindKt >= 0 ? `headwind ${wind.headwindKt} kt` : `tailwind ${-wind.headwindKt} kt`;
-  return `${wind.ident} into the wind: ${along}${crosswind}${from}`;
-}
-
-/** The crosswind and its gust's of a picked wind, for its symbol: "2",
- *  "2G9", null with none either way. */
-export function windPickCrosswind(wind: WindPick): string | null {
-  const cross = across(wind);
-  return cross.kt > 0 || cross.gustKt != null ? `${cross.kt}${cross.gustKt != null ? `G${cross.gustKt}` : ""}` : null;
 }
 
 /** The wind as a METAR reports it, true: "240° at 15 kt, gusts 25",

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Detection, Endpoint, LoosePick, Point } from "../../lib/api/types";
 import {
-  DEFAULT_FILTERS, filterCounts, forwardIsLeft, forwardIsUp, hasRating,
+  DEFAULT_FILTERS, filterCounts, forwardIsLeft, hasRating,
   isVisible, modelNote, orderedPoints, ratedOf, roleOf, sourceOf, type Filters,
 } from "./logic";
 
@@ -103,15 +103,12 @@ describe("ordering", () => {
 describe("arrow direction", () => {
   test("arrows follow the course across the screen", () => {
     // C81->KDLH bears 328: flying it goes up and to the left.
-    expect(forwardIsUp(328)).toBe(true);
     expect(forwardIsLeft(328)).toBe(true);
   });
   test("a southeasterly course reverses both", () => {
-    expect(forwardIsUp(135)).toBe(false);
     expect(forwardIsLeft(135)).toBe(false);
   });
   test("bearings outside 0-360 wrap", () => {
-    expect(forwardIsUp(688)).toBe(forwardIsUp(328));
     expect(forwardIsLeft(-32)).toBe(forwardIsLeft(328));
   });
 });

@@ -144,16 +144,6 @@ export function orderedPoints(
     .sort((a, b) => a.point.along_track_nm - b.point.along_track_nm);
 }
 
-/**
- * Which way flying the route moves you across the screen, so the arrows
- * follow the map rather than the order points happen to be stored in.
- * Derived from the course, so any heading works.
- */
-export function forwardIsUp(bearingDeg: number): boolean {
-  const b = normalizeDeg(bearingDeg);
-  return b < 90 || b > 270;
-}
-
 export function forwardIsLeft(bearingDeg: number): boolean {
   return normalizeDeg(bearingDeg) > 180;
 }
