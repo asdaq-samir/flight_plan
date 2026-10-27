@@ -6,9 +6,7 @@ import { CardClose } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import QueryState from "../../../components/QueryState";
 import { ADD_CAPSULE } from "../../../components/mapChrome";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
+import PullDown from "../../../components/PullDown";
 import { placeWords } from "../../../lib/advisories";
 import type { FieldFood } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";
@@ -195,18 +193,15 @@ export default function FoodCard({ name, at, route, scope, onScope, onClose, onO
           </button>
         ) : (
           // Picked, a second tap its radii.
-          <DropdownMenu>
-            <DropdownMenuTrigger aria-pressed className={pill(true)} data-testid="food-radius">
-              Within {radius} nm<ChevronDown className="size-4" aria-hidden="true" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuRadioGroup value={`${radius}`} onValueChange={value => setRadius(Number(value))}>
-                {RADII.map(nm => (
-                  <DropdownMenuRadioItem key={nm} value={`${nm}`} data-testid="food-radius-option">Within {nm} nm</DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <PullDown
+            label="How far to look" value={`${radius}`} align="start" onChange={value => setRadius(Number(value))}
+            options={RADII.map(nm => ({ value: `${nm}`, label: `Within ${nm} nm`, testId: "food-radius-option" }))}
+            trigger={(
+              <button type="button" aria-pressed className={pill(true)} data-testid="food-radius">
+                Within {radius} nm<ChevronDown className="size-4" aria-hidden="true" />
+              </button>
+            )}
+          />
         )}
       </div>
       <div className="mt-3 min-h-0 flex-1 overflow-y-auto pb-3">

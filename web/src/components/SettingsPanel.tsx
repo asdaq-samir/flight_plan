@@ -9,7 +9,7 @@ import { BRANDS } from "../lib/brand";
 import { useTips } from "../lib/tips";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { RowBadge } from "./RowBadge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
+import PullDown from "./PullDown";
 import { OWN_SHIP_LOOKS, ownShipSvg, type OwnShipLook } from "../lib/map/ownShipLook";
 
 /**
@@ -133,16 +133,10 @@ function AppearanceGroup() {
       {/* The app's look, the owner's four (lib/brand): a menu, as a
           discrete choice is, not a slider. */}
       <ListRow media={badge("look", <Palette />)} title="Look">
-        <Select value={brand} onValueChange={v => setBrand(v as Brand)}>
-          <SelectTrigger size="sm" aria-label="Look" data-testid="brand-select">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {BRANDS.map(b => (
-              <SelectItem key={b.value} value={b.value} data-testid={`brand-${b.value}`}>{b.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PullDown<Brand>
+          label="Look" value={brand} onChange={setBrand} testId="brand-select"
+          options={BRANDS.map(b => ({ value: b.value, label: b.label, testId: `brand-${b.value}` }))}
+        />
       </ListRow>
       <ListRow media={badge("theme", <SunMoon />)} title="Theme">
         <Segmented label="Theme" value={theme ?? "system"} onChange={setTheme} testId="theme-select" options={THEMES} />
@@ -170,19 +164,18 @@ function AppearanceGroup() {
           ("can we change the current location marker on map to be a plane
           that can be picked from setup"): a menu, each with its picture. */}
       <ListRow media={badge("position", <Navigation />)} title="You on the map">
-        <Select value={look} onValueChange={v => setLook(v as OwnShipLook)}>
-          <SelectTrigger size="sm" aria-label="You on the map" data-testid="own-ship-look">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            {OWN_SHIP_LOOKS.map(o => (
-              <SelectItem key={o.value} value={o.value} data-testid={`own-ship-look-${o.value}`}>
+        <PullDown<OwnShipLook>
+          label="You on the map" value={look} onChange={setLook} testId="own-ship-look"
+          options={OWN_SHIP_LOOKS.map(o => ({
+            value: o.value, text: o.label, testId: `own-ship-look-${o.value}`,
+            label: (
+              <>
                 <span className="size-5 shrink-0" dangerouslySetInnerHTML={{ __html: ownShipSvg(o.value, "#2563eb", 20) }} />
                 {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              </>
+            ),
+          }))}
+        />
       </ListRow>
     </ListGroup>
   );

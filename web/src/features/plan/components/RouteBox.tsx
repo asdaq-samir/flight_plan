@@ -7,10 +7,10 @@ import {
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
-import AirportPicker, { AirportRow, PickerGroup, SearchRows } from "../../../components/AirportPicker";
+import AirportPicker from "../../../components/AirportPicker";
+import AirportResults, { AirportRow, PickerGroup } from "../../../components/AirportResults";
 import ClearButton from "../../../components/ClearButton";
 import { PANEL_FIELD } from "../../../components/panelField";
-import { CommandList } from "../../../components/ui/command";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "../../../components/ui/context-menu";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import { PointMenuItems } from "./PointControls";
@@ -20,7 +20,8 @@ import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/p
 import type { Detour, FuelStopSuggestion } from "../../../lib/api/types";
 import { MAX_STOPS, frdOf, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
-import { useAirportSearch } from "../../../lib/useAirportSearch";
+import { useAirportSearch, type AirportSearchRow } from "../../../lib/useAirportSearch";
+import { useKeyboardInset } from "../../../hooks/use-viewport";
 import { useAirspace } from "../../../lib/useAirspace";
 import { airportMarkSvg } from "../../../lib/map/airportMark";
 import { colourOf } from "../../../lib/map/flightCategory";
@@ -335,6 +336,9 @@ export default function RouteBox({
   // before anything is typed, Fly via's ways round. Put away with Escape
   // or a tap elsewhere, until the next thing typed.
   const { rows, answered } = useAirportSearch(typed, !!typed.trim(), true);
+  // Room under the suggestions' last row for a phone's keyboard, as the
+  // airport picker's sheet has, so they scroll up above it.
+  const keyboard = useKeyboardInset();
   // The pilot's own point off a fix, typed as a flight plan writes one
   // ("VPBNG/090/30", at the owner's ask): offered first, as it reads.
   const ownPoint = stopOf(typed) && frdOf(stopOf(typed)) ? stopOf(typed) : null;
@@ -588,15 +592,24 @@ export default function RouteBox({
             {footer && <div className="flex w-full basis-full items-center pt-2.5 pr-0.5 pb-2 pl-1.5" data-testid="route-box-footer">{footer}</div>}
           </InputGroup>
         </PopoverAnchor>
+        {/* The airport search's own list (AirportResults), its rows and
+            groups as the picker's sheet has them, under the box: the typing
+            stays in the box, where the picker's sheet from the top would
+            take the focus to a field of its own. As tall as there is room,
+            the sheet's list as long. */}
         <PopoverContent
           align="start" sideOffset={6}
-          className="w-(--radix-popper-anchor-width) max-w-[calc(100vw-16px)] p-2"
+          className="w-(--radix-popper-anchor-width) max-w-[calc(100vw-16px)] gap-0 p-2"
+          style={keyboard > 0 ? { paddingBottom: keyboard } : undefined}
           // The typing stays in the box.
           onOpenAutoFocus={e => e.preventDefault()}
           onInteractOutside={e => { if (field.current?.closest("[data-slot=input-group]")?.contains(e.target as Node)) e.preventDefault(); }}
           data-testid="route-suggestions"
         >
-          <CommandList className="max-h-72" id={listId}>
+          <AirportResults
+            id={listId} rows={typed.trim() ? rows : NO_ROWS} answered={!typed.trim() || answered}
+            onAirport={airport => pick(airport.ident, airport)} onWaypoint={ident => pick(ident)}
+          >
             {!typed.trim() && via && via.length > 0 && (
               <PickerGroup heading="Suggested">
                 {via.map(d => (
@@ -615,8 +628,7 @@ export default function RouteBox({
                 <AirportRow waypoint airport={{ ident: ownPoint, name: frdWords(ownPoint) }} onSelect={() => pick(ownPoint)} testId="route-own-point" />
               </PickerGroup>
             )}
-            {typed.trim() && <SearchRows rows={rows} onAirport={airport => pick(airport.ident, airport)} onWaypoint={ident => pick(ident)} />}
-          </CommandList>
+          </AirportResults>
         </PopoverContent>
       </Popover>
       <PointAltitudeDialog
@@ -628,6 +640,7 @@ export default function RouteBox({
 }
 
 const NO_PROCEDURES: RouteProcedure[] = [];
+const NO_ROWS: AirportSearchRow[] = [];
 const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
 
 /** The pilot's own point as words: "30 nm on 090° from VPBNG". */

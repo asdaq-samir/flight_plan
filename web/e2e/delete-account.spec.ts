@@ -37,8 +37,9 @@ test("Delete account asks, then deletes the account and everything in it, and si
   await openAccount(page);
   await console.getByTestId("role-menu").click();
   await page.getByTestId("delete-account").click();
-  // Asked first: Cancel keeps it.
-  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+  // Asked first: Cancel keeps it -- on a phone the sheet's close, in its
+  // title row.
+  await page.getByRole("alertdialog").getByRole("button", { name: /^(Cancel|Close)$/ }).click();
   expect((await page.request.get("/api/me")).status()).toBe(200);
 
   await console.getByTestId("role-menu").click();

@@ -33,8 +33,6 @@ import { dryRunRow, type DryRun } from "./dryRun";
 import { DRY_RUN, usePastFlight } from "../../../../lib/map/pastFlight";
 import { PointMark } from "./PointMark";
 import { NavLogList } from "./NavLogList";
-import CloseButton from "../../../../components/CloseButton";
-import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../../components/ResponsivePopover";
 
 
 // TanStack Table's own extension point for arbitrary per-column data --
@@ -146,13 +144,10 @@ interface Props {
    *  row it is flying to tinted and kept in sight. */
   dryRun?: DryRun | null;
   /** FPL's own list in the nav log's place on screen: the route in order
-   *  (ProceduresRoute), the nav log then in a sheet of its own, opened by
-   *  the route's box's Nav log button, at the owner's ask ("I want to
-   *  replace navlog with procedures", 2026-10-18). */
+   *  (ProceduresRoute), at the owner's ask ("I want to replace navlog with
+   *  procedures", 2026-10-18). The nav log is then a card of its own in
+   *  the main sheet, this view drawn again without the route. */
   route?: ReactNode;
-  /** That sheet out, and put away. */
-  navLogOpen?: boolean;
-  onNavLogOpenChange?: (open: boolean) => void;
 }
 
 /**
@@ -359,11 +354,11 @@ export default function NavLogView({
   selected, descriptions, onSaveDescription,
   onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, cardHead, footer, local = false, metarColourOf = noWeather,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
-  aircraftLabel, dryRun = null, route, navLogOpen = false, onNavLogOpenChange,
+  aircraftLabel, dryRun = null, route,
 }: Props) {
-  // Where the log's rows are in sight: in its sheet where FPL shows the
-  // route, else FPL all the way up.
-  const logInSight = route ? navLogOpen : drawerOpen;
+  // Where the log's rows are in sight: FPL all the way up, and never where
+  // the route's list is in their place.
+  const logInSight = !route && drawerOpen;
   const noWind = totals ? legsWithoutWind(totals) : null;
   // Its winds past their forecast's period are the route box's refresh's
   // dot now (PlanWorkspace's `stale`), at the owner's ask.
@@ -926,20 +921,6 @@ export default function NavLogView({
             <section aria-label={local ? "Local Flight" : route ? "Route" : "Nav Log"} className={TEXT.prose} data-testid={cardHead ? "navlog-sheet" : undefined}>{legsSection}</section>
             {footer}
           </div>
-          {route && !local && (
-            // The nav log in a sheet of its own: on a phone the floating
-            // sheet's (PhoneSheetContent), as tall as it needs up to 85%
-            // of the screen; from md up a popover beside the panel.
-            <ResponsivePopover open={navLogOpen} onOpenChange={open => onNavLogOpenChange?.(open)}>
-              <ResponsivePopoverAnchor asChild><span aria-hidden="true" className="block h-0" /></ResponsivePopoverAnchor>
-              <ResponsivePopoverContent
-                title="Nav log" className="max-h-[80vh] w-[26rem] overflow-y-auto p-3" align="start" side="right"
-                action={<CloseButton onClick={() => onNavLogOpenChange?.(false)} data-testid="navlog-close" />}
-              >
-                <section aria-label="Nav Log" className={TEXT.prose} data-testid="navlog-sheet">{navLogList}</section>
-              </ResponsivePopoverContent>
-            </ResponsivePopover>
-          )}
         </div>
       )}
       {/* Where it is either way, so turning to paper does not draw it

@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type ComponentProps, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type PointerEvent, type ReactNode } from "react";
 import { cn } from "cn";
-import { SheetClose, SheetContent } from "./ui/sheet";
+import { SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "./ui/sheet";
+import { SHEET_CORNERS } from "./mapChrome";
 import type { NavEdge } from "../lib/preferences";
+import { TEXT } from "../lib/text";
 
 /** A swipe toward the sheet's edge, let go, puts it away past this share
  *  of its height, or faster than this many points a millisecond: a
@@ -28,7 +30,7 @@ const BACK = "transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1)";
  * holds, at most 85% of the screen. shadcn's SheetContent under it.
  */
 export function PhoneSheetContent({ edge, className, style, children, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, ...props }:
-  Omit<ComponentProps<typeof SheetContent>, "side" | "glass" | "showCloseButton"> & { edge: NavEdge }) {
+  Omit<ComponentProps<typeof SheetContent>, "side" | "glass"> & { edge: NavEdge }) {
   const close = useRef<HTMLButtonElement>(null);
   const press = useRef<{ id: number; y: number; t: number; height: number; moved: boolean } | null>(null);
   // How far it has been swiped toward its edge, while a finger has it or
@@ -105,8 +107,8 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
     // list scrolled under its foot stood square past them (the owner's
     // screenshot of an approach's runways).
     <SheetContent
-      ref={setSheet} side={edge} glass showCloseButton={false} data-floating=""
-      className={cn("max-h-[calc(85dvh-1rem)] gap-0 overflow-hidden rounded-[36px]", className)}
+      ref={setSheet} side={edge} glass data-floating=""
+      className={cn("max-h-[calc(85dvh-1rem)] gap-0 overflow-hidden", SHEET_CORNERS, className)}
       style={swiped === null ? style : { ...style, transform: `translateY(${toward * swiped}px)`, transition: held ? "none" : BACK }}
       onPointerDown={event => {
         onPointerDown?.(event);
@@ -167,5 +169,46 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
       {/* What a swipe away presses: the sheet's own close, as its × does. */}
       <SheetClose ref={close} hidden tabIndex={-1} aria-hidden="true" />
     </SheetContent>
+  );
+}
+
+/**
+ * A phone's sheet's title row, as an iOS sheet's navigation bar is: its
+ * title, the app's close (CloseButton) at the row's end -- or a form's
+ * Cancel at its start and its Add or Set at its end, the title between --
+ * and what the sheet is about under it. The row is what a swipe takes the
+ * sheet away by, with the grabber, clear of which it starts.
+ */
+export function PhoneSheetHeader({ edge, title, description, leading, end }: {
+  edge: NavEdge;
+  title: ReactNode;
+  description?: ReactNode;
+  leading?: ReactNode;
+  end?: ReactNode;
+}) {
+  return (
+    <SheetHeader
+      data-swipe-handle=""
+      className={cn("touch-none flex-row flex-wrap items-center justify-between pb-2 text-left", edge === "bottom" && "pt-5")}
+    >
+      {leading}
+      {/* A sheet's title at the app's size for one (TEXT). */}
+      <SheetTitle className={cn("min-w-0 flex-1 font-semibold", TEXT.title, leading && "text-center")}>{title}</SheetTitle>
+      {end}
+      {description ? <SheetDescription className={cn("basis-full", TEXT.prose)}>{description}</SheetDescription> : null}
+    </SheetHeader>
+  );
+}
+
+/** A phone's sheet's room under its title row: its content scrolling
+ *  there when it holds more than the sheet has room for (the keyboard
+ *  up), clear of the grabber at its far edge and of the home indicator
+ *  the sheet floats eight points over. */
+export function PhoneSheetBody({ edge, className, ...props }: ComponentProps<"div"> & { edge: NavEdge }) {
+  return (
+    <div
+      className={cn("min-h-0 overflow-y-auto px-4", edge === "top" ? "pb-5" : "pb-[max(1rem,calc(env(safe-area-inset-bottom)-0.5rem))]", className)}
+      {...props}
+    />
   );
 }

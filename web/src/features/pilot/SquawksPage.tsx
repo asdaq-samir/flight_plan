@@ -6,7 +6,7 @@ import { ListGroup, ListRow } from "../../components/GroupedList";
 import QueryState from "../../components/QueryState";
 import TogglePill from "../../components/TogglePill";
 import { Input } from "../../components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import PullDown from "../../components/PullDown";
 import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
 import type { Aircraft, Squawk, SquawkRequest } from "../../lib/api/types";
@@ -116,12 +116,10 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
         </ListRow>
         {draft.inoperative && (
           <ListRow title="91.213(d)">
-            <Select value={draft.deferredFor ?? "none"} onValueChange={v => setDraft({ ...draft, deferredFor: v === "none" ? null : v as SquawkRequest["deferredFor"] })}>
-              <SelectTrigger size="sm" aria-label="Deferred for" data-testid="squawk-deferred"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {REACHES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <PullDown
+              label="Deferred for" value={draft.deferredFor ?? "none"} options={REACHES} testId="squawk-deferred"
+              onChange={v => setDraft({ ...draft, deferredFor: v === "none" ? null : v })}
+            />
           </ListRow>
         )}
         <ListRow

@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Input } from "../../components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import PullDown from "../../components/PullDown";
 import { Textarea } from "../../components/ui/textarea";
 import type { InstructorLink } from "../../lib/api/types";
 import { localDay } from "../../lib/clock";
@@ -40,10 +40,7 @@ export function ReviewAskForm({ instructors, initialDay, pending, onAsk }: {
     <ListGroup>
       {instructors.length > 1 && (
         <ListRow title="Instructor">
-          <Select value={String(chosen.id)} onValueChange={setInstructorId}>
-            <SelectTrigger size="sm" aria-label="Instructor"><SelectValue /></SelectTrigger>
-            <SelectContent>{instructors.map(l => <SelectItem key={l.id} value={String(l.id)}>{l.name ?? l.email}</SelectItem>)}</SelectContent>
-          </Select>
+          <PullDown label="Instructor" value={`${chosen.id}`} options={instructors.map(l => ({ value: `${l.id}`, label: l.name ?? l.email }))} onChange={setInstructorId} />
         </ListRow>
       )}
       <ListRow id={ids.mm} title="Make and model">

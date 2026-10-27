@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
+import PullDown from "../../../../components/PullDown";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { INLINE_FIELD_BUTTON, InlineField } from "../../../../components/InlineField";
 import { GLASS_BUTTON } from "../../../../components/mapChrome";
@@ -494,16 +494,14 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
       {nav && nav.options.length > 0 && (
         <div className="flex items-center justify-between gap-3">
           <span className={cn("font-semibold", TEXT.row)}>Plan</span>
-          <Select value={PREFERRED.includes(nav.flown as AltitudeChoice) ? nav.flown! : ""} onValueChange={v => onAltitudeChoiceChange(v as AltitudeChoice)}>
-            <SelectTrigger className="w-48" data-testid="altitude-plan" aria-label="Altitude plan"><SelectValue placeholder="Your altitude" /></SelectTrigger>
-            <SelectContent>
-              {[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => (
-                <SelectItem key={o.kind} value={o.kind} data-testid="altitude-plan-option">
-                  {PLAN_NAME[o.kind]} · {feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PullDown<AltitudeChoice>
+            label="Altitude plan" value={PREFERRED.includes(nav.flown as AltitudeChoice) ? nav.flown as AltitudeChoice : ""}
+            placeholder="Your altitude" testId="altitude-plan" onChange={onAltitudeChoiceChange}
+            options={[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => ({
+              value: o.kind, testId: "altitude-plan-option",
+              label: `${PLAN_NAME[o.kind]} · ${feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft`,
+            }))}
+          />
         </div>
       )}
       {onRulesChange && (

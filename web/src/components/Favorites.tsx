@@ -1,5 +1,5 @@
 import { ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plus } from "lucide-react";
-import { Fragment, useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { airportMarkSvg } from "../lib/map/airportMark";
@@ -12,9 +12,7 @@ import { useSwipeRow } from "./swipeRow";
 import { useAway } from "../lib/useAway";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
-} from "./ui/dropdown-menu";
+import PullDown from "./PullDown";
 import { ListGroup, ListRow } from "./GroupedList";
 import IconButton from "./IconButton";
 import CloseButton from "./CloseButton";
@@ -431,31 +429,17 @@ export function PillMenu<V extends string>({ label, value, options, onChange, te
   top?: ReactNode;
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        {/* The app's one icon-only button, 36 with a 20 glyph (the iOS
-            audit's P18), the heading's height kept round it. */}
+    <PullDown
+      label={label} value={value} onChange={onChange} options={options} top={top}
+      contentClassName={cn("min-w-44", className)}
+      trigger={(
+        // The app's one icon-only button, 36 with a 20 glyph (the iOS
+        // audit's P18), the heading's height kept round it.
         <IconButton label={label} className="-my-2 text-tint" data-testid={testId}>
           <ListFilter className="size-5" />
         </IconButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className={cn("min-w-44", className)}>
-        {top && (
-          <>
-            {top}
-            <DropdownMenuSeparator />
-          </>
-        )}
-        <DropdownMenuRadioGroup value={value} onValueChange={v => onChange(v as V)}>
-          {options.map(o => (
-            <Fragment key={o.value}>
-              <DropdownMenuRadioItem value={o.value} data-testid={o.testId}>{o.label}</DropdownMenuRadioItem>
-              {o.apart && <DropdownMenuSeparator />}
-            </Fragment>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      )}
+    />
   );
 }
 

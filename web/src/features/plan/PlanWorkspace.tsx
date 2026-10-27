@@ -2256,7 +2256,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
       drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning}
-      route={navLogShown ? undefined : routeList} navLogOpen={false}
+      route={navLogShown ? undefined : routeList}
       cardHead={navLogShown ? (
         <CardHead
           // As the Brief's head: the route's name, and the line under it --
