@@ -130,6 +130,8 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // for (the map's Military setting): a civil airplane lands there only
   // with the service's permission.
   const showMilitary = usePreferences(s => s.military);
+  // And the private ones unless turned off (the map's Private setting).
+  const showPrivate = usePreferences(s => s.privateFields);
   const map = useMap();
   // The view as it rests, what the planner is asked by; and as it is
   // now, a few times a second while it moves, what the marks are drawn for.
@@ -297,7 +299,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   const exclude = useMemo(() => new Set(others.map(a => a.ident)), [others]);
   const shown = useMemo(() => {
     if (!reports) return [];
-    const kept = data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military"));
+    const kept = data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
     if (zoom >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
@@ -311,7 +313,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       out.push(a);
     }
     return out;
-  }, [reports, data, exclude, near, showMilitary, zoom, map]);
+  }, [reports, data, exclude, near, showMilitary, showPrivate, zoom, map]);
   useEffect(() => { drawn.current = shown; }, [shown]);
   useEffect(() => { elsewhere.current = others; }, [others]);
   // What the canvas draws (AirportCanvas): each field's mark where it

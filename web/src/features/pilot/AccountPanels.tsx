@@ -130,7 +130,7 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
   });
   const record = useMutation({
     mutationFn: () => api.aircraft.vorCheck(aircraft.id, { ...check, place: check.place || null }),
-    onSuccess: () => { toast.success("VOR check recorded"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
+    onSuccess: () => { toast.success("VOR Check Saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
   });
   const last = aircraft.vorCheck;
   const today = localDay();
@@ -214,7 +214,7 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
   });
   const save = useMutation({
     mutationFn: () => api.aircraft.inspections(aircraft.id, form),
-    onSuccess: () => { toast.success("Inspections saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
+    onSuccess: () => { toast.success("Inspections Saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
   });
   const today = localDay();
   const hours = (value: string) => (value === "" ? null : Number(value));
@@ -320,7 +320,7 @@ export function AircraftPanel() {
     // (a route, a rating). This is the one place in the app a genuine
     // list-editing success has nothing else to announce it.
     onSuccess: (_data, { id }) => {
-      toast.success(id ? "Airplane updated" : "Airplane added");
+      toast.success(id ? "Airplane Saved" : "Airplane Added");
       // Cleared only while it still shows what was saved.
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
@@ -330,7 +330,7 @@ export function AircraftPanel() {
   const remove = useMutation({
     mutationFn: (id: number) => api.aircraft.remove(id),
     onSuccess: (_data, id) => {
-      toast.success("Airplane deleted");
+      toast.success("Airplane Deleted");
       if (editingId === id) cancelEdit();
       void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
     },
@@ -638,7 +638,7 @@ export function FlightsPanel({ onBack }: {
   const remove = useMutation({
     mutationFn: (id: number) => api.flights.remove(id),
     onSuccess: () => {
-      toast.success("Flight deleted");
+      toast.success("Flight Deleted");
       setFlightToDelete(null);
       void queryClient.invalidateQueries({ queryKey: ["flights"] });
     },

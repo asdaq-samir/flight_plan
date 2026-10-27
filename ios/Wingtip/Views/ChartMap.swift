@@ -77,6 +77,9 @@ struct ChartMap: UIViewRepresentable {
     /// and the course's night magenta (NightPalette).
     @Environment(\.colorScheme) var colorScheme
     @AppStorage(ChartNight.key) var chartNight = ChartNight.dimmed.rawValue
+    /// Setup's Military fields and Private fields.
+    @AppStorage(MapExtrasInput.Keys.military) var militaryFields = false
+    @AppStorage(MapExtrasInput.Keys.privateFields) var privateFields = true
     /// The legs a hazard tapped in the Brief is on (HazardLegsViews.swift).
     var hazardLegs: HazardLegs?
 
@@ -113,6 +116,7 @@ struct ChartMap: UIViewRepresentable {
         context.coordinator.onAirport = onAirport
         context.coordinator.dim((ChartNight(rawValue: chartNight) ?? .dimmed).shade(dark: colorScheme == .dark))
         context.coordinator.onRegion = onRegion
+        context.coordinator.useFields(military: militaryFields, privateFields: privateFields, on: map)
         context.coordinator.show(traffic, ownFt: ownFt, on: map)
         context.coordinator.flight?.update(map, flight)
         context.coordinator.extras.update(map, extras, tiles: context.coordinator.overlay)
@@ -361,7 +365,10 @@ struct ChartMap: UIViewRepresentable {
                 let west = region.center.longitude - region.span.longitudeDelta / 2
                 let east = region.center.longitude + region.span.longitudeDelta / 2
                 guard let pins = try? await Planner.airports(south: south, west: west, north: north, east: east), !Task.isCancelled else { return }
-                await MainActor.run { self.show(pins.map(AirportAnnotation.init), on: mapView) }
+                await MainActor.run {
+                    self.pins = pins
+                    self.showFields(on: mapView)
+                }
             }
         }
 
@@ -391,6 +398,25 @@ struct ChartMap: UIViewRepresentable {
         /// The marks changed, not every mark drawn again: the ones gone
         /// out of view removed, the new ones added, the rest left be.
         @MainActor
+        /// The fields in the view as the planner gave them, and which of
+        /// them Setup draws.
+        private var pins: [AirportPin] = []
+        private var fieldUse = (military: false, privateFields: true)
+
+        /// Setup's settings put to the marks already drawn, at once.
+        @MainActor
+        func useFields(military: Bool, privateFields: Bool, on map: MKMapView) {
+            guard fieldUse.military != military || fieldUse.privateFields != privateFields else { return }
+            fieldUse = (military: military, privateFields: privateFields)
+            showFields(on: map)
+        }
+
+        @MainActor
+        private func showFields(on map: MKMapView) {
+            let kept = AirportPin.shown(pins, military: fieldUse.military, privateFields: fieldUse.privateFields)
+            show(kept.map(AirportAnnotation.init), on: map)
+        }
+
         private func show(_ fields: [AirportAnnotation], on map: MKMapView) {
             let fresh = Dictionary(fields.map { ($0.ident, $0) }, uniquingKeysWith: { a, _ in a })
             let gone = shown.filter { fresh[$0.key] == nil }.map(\.value)

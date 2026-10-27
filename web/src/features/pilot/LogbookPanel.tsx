@@ -141,7 +141,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
   };
   const save = useMutation({
     mutationFn: ({ id, entry }: { id?: number; entry: LogbookEntryRequest }) => (id ? api.logbook.update(id, entry) : api.logbook.add(entry)),
-    onSuccess: () => { toast.success("Logged"); setAdding(false); setChanging(null); refresh(); },
+    onSuccess: () => { toast.success("Flight Logged"); setAdding(false); setChanging(null); refresh(); },
   });
   const remove = useMutation({ mutationFn: (id: number) => api.logbook.remove(id), onSuccess: () => { setToDelete(null); refresh(); } });
   const dates = useMutation({

@@ -45,6 +45,15 @@ struct AirportPin: Codable, Equatable, Sendable {
         case ident, name, lat, lon, kind, flightCategory, airspaceClass, military
         case isPrivate = "private"
     }
+
+    /// The fields the map draws, as the web app's AirportsLayer does: the
+    /// armed services' (NASR's military, landed at only with the
+    /// service's permission) only when asked for, the private ones
+    /// (APT_BASE's facility use PR, only with the owner's) unless put
+    /// away (the owner, 2026-10-27). Joint-use fields always.
+    static func shown(_ pins: [AirportPin], military: Bool, privateFields: Bool) -> [AirportPin] {
+        pins.filter { (military || $0.military != "military") && (privateFields || $0.isPrivate != true) }
+    }
 }
 
 /// A field near a point, nearest first (NearestAirport): its distance

@@ -102,6 +102,12 @@ interface Preferences {
    *  civil airplane lands there only with the service's permission (the
    *  planner's `military`). Joint-use fields are always drawn. */
   military: boolean;
+  /** Whether the privately owned fields are drawn (AirportsLayer): on
+   *  by default, as they were always drawn; off at the pilot's ask (the
+   *  owner, 2026-10-27), as one is landed at only with the owner's
+   *  permission (NASR APT_BASE's facility use, PR, the planner's
+   *  `private`). A field on the route or picked is drawn either way. */
+  privateFields: boolean;
   /** Whether a picked approach's plate is laid on the chart (PlateLayer),
    *  switched from the approach's pull-down, at the owner's ask. On by
    *  default. */
@@ -201,6 +207,7 @@ interface Preferences {
   setPlates: (plates: boolean) => void;
   setTraffic: (traffic: boolean) => void;
   setMilitary: (military: boolean) => void;
+  setPrivateFields: (privateFields: boolean) => void;
   setOverlay: (overlay: MapOverlay) => void;
   setOverlayStrength: (overlayStrength: OverlayStrength) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
@@ -263,6 +270,7 @@ export const usePreferences = create<Preferences>()(
       plates: true,
       traffic: false,
       military: false,
+      privateFields: true,
       overlay: "none",
       overlayStrength: "half",
       minimums: NO_MINIMUMS,
@@ -329,6 +337,7 @@ export const usePreferences = create<Preferences>()(
       setPlates: plates => set({ plates }),
       setTraffic: traffic => set({ traffic }),
       setMilitary: military => set({ military }),
+      setPrivateFields: privateFields => set({ privateFields }),
       setOverlay: overlay => set({ overlay }),
       setOverlayStrength: overlayStrength => set({ overlayStrength }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),

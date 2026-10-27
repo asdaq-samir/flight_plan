@@ -64,8 +64,8 @@ test("an add still saving when Edit is clicked says added, and leaves the airpla
   await expect(page.getByLabel("Tail number")).toHaveValue("N2");
   hold.release();
 
-  await expect(page.locator("[data-sonner-toast]", { hasText: "Airplane added" })).toBeVisible();
-  await expect(page.locator("[data-sonner-toast]", { hasText: "Airplane updated" })).toHaveCount(0);
+  await expect(page.locator("[data-sonner-toast]", { hasText: "Airplane Added" })).toBeVisible();
+  await expect(page.locator("[data-sonner-toast]", { hasText: "Airplane Saved" })).toHaveCount(0);
   await expect(page.getByLabel("Tail number")).toHaveValue("N2");
 });
 

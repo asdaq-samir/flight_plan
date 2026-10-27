@@ -461,7 +461,7 @@ function StackLink({ link }: { link: { label: string; href: string; service?: st
         if (tab) tab.opener = null;
         start.mutate(link.service!, {
           onSuccess: () => {
-            toast.success(`Started ${link.service}`);
+            toast.success(`${(link.service ?? "").replace(/^./, c => c.toUpperCase())} Started`);
             // So the control goes back to being a plain link rather
             // than still offering to start what is now running.
             void queryClient.invalidateQueries({ queryKey: ["devServices"] });
@@ -626,7 +626,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
   const refreshCharts = useMutation({
     mutationFn: api.refreshCharts,
     onSuccess: r => {
-      toast.success(r.started ? `Fetching and rendering cycle ${r.current_cycle} in the background` : "A chart refresh is already running");
+      toast.success(r.started ? `Fetching Charts ${r.current_cycle}` : "Charts Already Fetching");
       void queryClient.invalidateQueries({ queryKey: ["status"] });
     },
   });
