@@ -581,6 +581,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const up = state === "full";
     if (!onPhone && state !== "peek") {
       onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true, up });
+      document.body.style.setProperty("--sheet-cover", "0px");
       return;
     }
     const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
@@ -607,6 +608,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     }, SHEET_SECONDS * 1000 + 100);
     return () => window.clearTimeout(timer);
   }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange, expanded, detents.half]);
+
+  useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); }, []);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.

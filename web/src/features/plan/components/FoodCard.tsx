@@ -87,7 +87,7 @@ function FoodRow({ field, place, along, onOpenField, onAddStop, onDirect }: {
           </span>
           {details?.rating != null && (
             <span className="inline-flex items-center gap-1 tabular-nums" data-testid="food-rating">
-              <Star className="size-3.5 fill-[#f5a623] text-[#f5a623]" aria-hidden="true" />
+              <Star className="size-3.5 fill-[#ffcc00] text-[#ffcc00] dark:fill-[#ffd60a] dark:text-[#ffd60a]" aria-hidden="true" />
               <span className="sr-only">Rated </span>{stars(details.rating)}
               {details.ratings != null && <span className="text-muted-foreground">({details.ratings.toLocaleString()})</span>}
             </span>

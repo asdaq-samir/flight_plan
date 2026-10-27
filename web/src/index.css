@@ -365,7 +365,9 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --primary: oklch(0.55 0.193 256.2);
   --primary-foreground: oklch(0.985 0 0);
   --tint: oklch(0.72 0.15 252);
-  --tint-shade: oklch(0.7 0.165 253);
+  /* A step lighter than the tint on the night's sheet, which no longer
+     has the shade band under it (the iOS audit's P15: 4.3:1 at 0.7). */
+  --tint-shade: oklch(0.76 0.14 252);
   --sheet: var(--background);
   --airspace-blue-ink: #8cb8f2;
   --airspace-magenta-ink: #f0a0cf;

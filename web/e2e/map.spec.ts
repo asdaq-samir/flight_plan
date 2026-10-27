@@ -80,7 +80,9 @@ test("plan page: a checkpoint picked on the map brings the map in to it, so ther
   const zoomOfTiles = () => page.evaluate(() => Math.max(...[...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")]
     .map(img => Number(new URL(img.src).pathname.split("/").at(-3))).filter(Number.isFinite)));
   const before = await zoomOfTiles();
-  const marker = page.locator(".leaflet-marker-icon", { hasText: /^9$/ }).first();
+  // A checkpoint drawn at this zoom: those without room for their dots
+  // wait for the map to come in (RouteMap's useSpaced).
+  const marker = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ }).first();
   await expect(marker).toBeVisible({ timeout: slow(60000) });
   // Its own click, not one at its place: the route fitted to a phone
   // stacks neighbouring checkpoints, and a click there lands on the one
