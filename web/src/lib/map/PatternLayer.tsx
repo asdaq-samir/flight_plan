@@ -4,6 +4,7 @@ import { Marker, Pane, Polyline } from "react-leaflet";
 import { bearingDeg, type LatLon } from "../geo";
 import type { TrafficPattern } from "../trafficPattern";
 import { altFt } from "../units";
+import { LINE_CASING } from "./chartColors";
 import { useLiveZoom } from "./useView";
 
 /**
@@ -21,7 +22,6 @@ const TEAL = "#0e8f8a";
 const LABEL_TEAL = "#0b7a75";
 // A path's class and whether it takes taps are read as it is made, so
 // they are its own props below, not these styles.
-const CASING: L.PathOptions = { color: "#ffffff", weight: 7, opacity: 0.9, lineJoin: "round" };
 const LEG: L.PathOptions = { color: TEAL, weight: 3.5, opacity: 1, lineJoin: "round" };
 const ENTRY: L.PathOptions = { color: TEAL, weight: 3, opacity: 1, dashArray: "7,6" };
 /** From this zoom in, the legs' arrows and names: further out the pattern
@@ -63,8 +63,8 @@ export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns:
         const downwind = p.legs.find(l => l.name === "Downwind")!;
         return (
           <Fragment key={`${p.ident}-${p.runway}`}>
-            <Polyline positions={circuit} pathOptions={CASING} interactive={false} />
-            <Polyline positions={[pair(p.entry.from), pair(p.entry.to)]} pathOptions={CASING} interactive={false} />
+            <Polyline positions={circuit} pathOptions={LINE_CASING} interactive={false} />
+            <Polyline positions={[pair(p.entry.from), pair(p.entry.to)]} pathOptions={LINE_CASING} interactive={false} />
             <Polyline positions={circuit} pathOptions={LEG} interactive={false} className={`traffic-pattern pattern-at-${p.ident}`} />
             <Polyline positions={[pair(p.entry.from), pair(p.entry.to)]} pathOptions={ENTRY} interactive={false} className="traffic-pattern-entry" />
             {words && p.legs.map(l => (

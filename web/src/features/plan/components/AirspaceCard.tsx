@@ -14,7 +14,7 @@ import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { FINDING_TONE } from "../../../lib/status";
-import { faaWords, suaAltitudes } from "../../../lib/advisories";
+import { faaWords, suaAltitudes, tfrPage } from "../../../lib/advisories";
 
 /** One of a band's rules on a line of its own, its glyph before it: the
  *  weather minimums, what it takes to go in, what the airplane carries,
@@ -197,7 +197,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
                       media={<RowBadge colour={t.active_now ? BADGE.hazard : BADGE.other}><Ban /></RowBadge>}
                       title={<span className={cn(t.active_now && cn("font-semibold", FINDING_TONE.stop))}>{`TFR ${t.notam_id}${t.kind ? ` · ${t.kind}` : ""}`}</span>}
                       description={[t.active_now ? "In force now" : "To come", t.title].filter(Boolean).join(" · ")}
-                      href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
+                      href={tfrPage(t.notam_id)}
                       data-testid="airspace-tfr"
                     />
                   ))}

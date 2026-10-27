@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
-import { altitudeLines, fixRoles, type BranchFix } from "../../../lib/procedures";
+import { altitudeLines, decorationOf, fixRoles, type BranchFix } from "../../../lib/procedures";
 import { altFt } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
 import { PointFigures, PointMenu } from "./PointControls";
@@ -100,7 +100,7 @@ export default function FixBranch({ name, kind, menu, fixes, direct, crossings, 
                   time={null} kind={own != null ? "set" : "pub"}
                   spoken={own != null ? `cross at ${altFt(own)} ft, set by you` : altitudeLines(fix).words ? `published, ${altitudeLines(fix).words}` : undefined}
                   altitude={own != null ? altFt(own) : charted ? (
-                    <span style={{ textDecoration: [charted.under && "underline", charted.over && "overline"].filter(Boolean).join(" ") || "none" }}>{charted.text}</span>
+                    <span style={{ textDecoration: decorationOf(charted) }}>{charted.text}</span>
                   ) : null}
                 />
                 <PointMenu

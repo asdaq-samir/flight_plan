@@ -6,7 +6,7 @@ import { PillStrip, SmallTile, StripNote, StripSection } from "../../../componen
 import { DropdownMenuCheckboxItem } from "../../../components/ui/dropdown-menu";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { inEmergency } from "../../../lib/fbo";
-import { useOwnShip } from "../../../lib/map/ownShip";
+import { useOwnShip, useOwnFix } from "../../../lib/map/ownShip";
 import { useTracking } from "../../../lib/map/tracking";
 import { usePreferences } from "../../../lib/preferences";
 import { pickKeptAircraft } from "../../../lib/tabSearch";
@@ -50,7 +50,7 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
 }) {
   const seen = useTracking(s => s.seen);
   const planes = useSeenPlanes(seen);
-  const from = useOwnShip(s => (s.enabled ? s.fix : null));
+  const from = useOwnFix();
   const setOwnShip = useOwnShip(s => s.setEnabled);
   const { filter, field, kept: found } = useFilteredAircraft(planes, from);
   const change = usePreferences(s => s.setAircraftFilter);

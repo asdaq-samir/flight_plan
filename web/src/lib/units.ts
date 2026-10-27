@@ -78,6 +78,18 @@ export function gal(n: number | null | undefined): string {
   return n === null || n === undefined ? "—" : `${one(n)} gal`;
 }
 
+/** Weight with its unit, grouped: "2,450 lb". */
+export function pounds(lb: number): string {
+  return `${grouped(lb)} lb`;
+}
+
+/** The altitudes flown, lowest to highest: "4,500 ft", or "3,500–5,500
+ *  ft" where they differ. */
+export function feetRange(alts: number[]): string {
+  const low = Math.min(...alts), high = Math.max(...alts);
+  return low === high ? `${altFt(low)} ft` : `${altFt(low)}–${altFt(high)} ft`;
+}
+
 /** Statute miles as reported: "2.5 sm". */
 export function miles(sm: number | null | undefined): string {
   return sm === null || sm === undefined ? "—" : `${sm} sm`;

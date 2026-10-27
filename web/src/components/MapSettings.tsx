@@ -1,6 +1,6 @@
 import { Bell, BellOff, CloudSun, Download, Eye, EyeOff, Map as MapIcon, Plane, Trash2, Volume2, VolumeX } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { editionOf } from "../lib/chartEdition";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented from "./Segmented";
 import TogglePill from "./TogglePill";
@@ -17,14 +17,6 @@ import { inNativeApp } from "../lib/native";
 import { useReceiver } from "../lib/map/receiver";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 import { useLayerAges } from "../lib/map/layerAges";
-
-/** "09-03-2026", the FAA's cycle as the chart server names it, as "3 Sep
- *  2026"; the cycle as it is where it reads otherwise. */
-function editionOf(cycle: string): string {
-  const [month, day, year] = cycle.split("-").map(Number);
-  const date = new Date(year!, (month ?? 1) - 1, day);
-  return Number.isNaN(date.getTime()) ? cycle : format(date, "d MMM yyyy");
-}
 
 /**
  * The map's settings, the whole of the map's own button's sheet

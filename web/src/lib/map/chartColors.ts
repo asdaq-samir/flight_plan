@@ -1,3 +1,5 @@
+import type L from "leaflet";
+
 /**
  * The colours the planner draws on the chart, each written once. They are
  * the chart's own and stay the same in the dark theme, as the sectional
@@ -18,3 +20,7 @@ export const WAYPOINT_MAGENTA = "#c0309f";
  *  Not --tint, which is a step deeper for words on white and lighter in
  *  the dark theme, where the chart stays light. */
 export const MAP_BLUE = "#007aff";
+
+/** The white casing under a procedure's or a traffic pattern's line, so
+ *  the line reads over any chart. */
+export const LINE_CASING: L.PathOptions = { color: "#ffffff", weight: 7, opacity: 0.9, lineJoin: "round" };

@@ -9,7 +9,7 @@ import { RowBadge } from "../../../components/RowBadge";
 import RoundButton from "../../../components/RoundButton";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { bearingDeg } from "../../../lib/geo";
-import { useOwnShip } from "../../../lib/map/ownShip";
+import { useOwnFix } from "../../../lib/map/ownShip";
 import { carriedOn, closestApproach } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
 import { alertsLine } from "../../../lib/aircraftAlerts";
@@ -99,7 +99,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
 }) {
   const latest = useTracking(s => (s.latest?.plane.hex === hex ? s.latest : null));
   const follow = useTracking(s => s.follow);
-  const fix = useOwnShip(s => (s.enabled ? s.fix : null));
+  const fix = useOwnFix();
   const { data: detail } = useQuery(flightQuery(hex));
   // Its flight number's route, asked once a callsign is heard, with where
   // it is then, to say whether it is flying that route today.

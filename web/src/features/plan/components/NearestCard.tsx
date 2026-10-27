@@ -8,13 +8,13 @@ import QueryState from "../../../components/QueryState";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { NearestAirport, PlaceFound } from "../../../lib/api/types";
-import { compassPoint } from "../../../lib/compass";
+import { compassPoint, saidPoint } from "../../../lib/compass";
 import { nmAway, nmFigure } from "../../../lib/useAway";
 import { mhzText } from "../../../lib/frequencies";
 import { colourOf } from "../../../lib/map/flightCategory";
 import { glideRangeNm, reachesField } from "../../../lib/map/glide";
 import { airportMarkSvg } from "../../../lib/map/airportMark";
-import { positionNow, useOwnShip } from "../../../lib/map/ownShip";
+import { positionNow, useOwnShip, useOwnFix } from "../../../lib/map/ownShip";
 import { nearestQuery } from "../../../lib/queryClient";
 import { inkOn } from "../../../lib/scoreScale";
 import { TEXT } from "../../../lib/text";
@@ -114,10 +114,6 @@ const MOVING_KT = 30;
  * compass point. A row that opens the field's card, so its words are the
  * text's and it ends in a chevron, as iOS's do.
  */
-const COMPASS_WORDS: Record<string, string> = {
-  N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest",
-};
-
 function NearestRow({ field, ahead, reach, onOpen }: {
   field: NearestAirport;
   /** The airplane's track, true, when it is moving; else null. */
@@ -174,7 +170,7 @@ function NearestRow({ field, ahead, reach, onOpen }: {
           <span className={cn("font-semibold text-foreground tabular-nums", TEXT.row)}>{nmAway(field.distance_nm)}</span>
           <span className={cn("text-muted-foreground", TEXT.note)}>{point}</span>
         </span>
-        <span className="sr-only">{nmFigure(field.distance_nm)} nautical miles, true bearing {COMPASS_WORDS[point] ?? point}</span>
+        <span className="sr-only">{nmFigure(field.distance_nm)} nautical miles, true bearing {saidPoint(point)}</span>
       </span>
     </ListRow>
   );
@@ -248,7 +244,7 @@ export default function NearestCard({ onOpen, from, onFrom, onBack }: {
 }) {
   const enabled = useOwnShip(s => s.enabled);
   const setEnabled = useOwnShip(s => s.setEnabled);
-  const fix = useOwnShip(s => (s.enabled ? s.fix : null));
+  const fix = useOwnFix();
   const origin = from ?? fix;
   const nearestAsked = useQuery({ ...nearestQuery(origin?.lat ?? 0, origin?.lon ?? 0), enabled: !!origin });
   const data = nearestAsked.data;

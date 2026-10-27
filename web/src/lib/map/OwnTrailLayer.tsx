@@ -1,7 +1,7 @@
 import type { PathOptions } from "leaflet";
 import { useMemo } from "react";
 import { Polyline } from "react-leaflet";
-import { useOwnShip } from "./ownShip";
+import { useOwnFix } from "./ownShip";
 import { useOwnTrail } from "./ownTrail";
 
 // Constants, not literals: react-leaflet restyles a path whenever its
@@ -16,7 +16,7 @@ const LINE: PathOptions = { color: "#2563eb", weight: 3, opacity: 1, interactive
  */
 export function OwnTrailLayer() {
   const path = useOwnTrail(s => s.path);
-  const fix = useOwnShip(s => (s.enabled ? s.fix : null));
+  const fix = useOwnFix();
   const line = useMemo(() => path.map(p => [p.lat, p.lon] as [number, number]), [path]);
   // The path as kept, drawn again only as a point is added to it, and the
   // stretch from its last point to the airplane apart: the whole path

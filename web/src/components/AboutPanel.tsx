@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { editionOf } from "../lib/chartEdition";
 import { FileText, Hand, LifeBuoy } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "./GroupedList";
@@ -12,13 +12,6 @@ import { chartQuery } from "../lib/queryClient";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { versionOf } from "../lib/speed";
 import { TEXT } from "../lib/text";
-
-/** "09-03-2026", the chart server's cycle, as "3 Sep 2026". */
-function editionOf(cycle: string): string {
-  const [month, day, year] = cycle.split("-").map(Number);
-  const date = new Date(year!, (month ?? 1) - 1, day);
-  return Number.isNaN(date.getTime()) ? cycle : format(date, "d MMM yyyy");
-}
 
 const LEGAL_GLYPHS: Record<(typeof LEGAL_PAGES)[number]["key"], ReactNode> = {
   privacy: <Hand />, terms: <FileText />, support: <LifeBuoy />,

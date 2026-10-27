@@ -21,7 +21,7 @@ import type {
 import type { FrameworkNarrative } from "../../hooks/useNarratives";
 import type { BriefingState } from "../../hooks/usePlan";
 import { altFt, ceilingAndVisibility, clockTime, PLAN_NAME, reportedWind, windAloft } from "../../format";
-import { flightLevel, grouped } from "../../../../lib/units";
+import { feetRange, flightLevel, grouped } from "../../../../lib/units";
 import { identOf, isAirwayToken, withoutAltitude } from "../../../../lib/identSchema";
 import { navLogRows, savedCheckpoints } from "../navlog/rows";
 import { useLoad } from "../../hooks/useLoad";
@@ -29,7 +29,7 @@ import { TakeoffLandingSection, WeightBalanceSection } from "./PreflightSections
 import OnRouteRow from "./OnRouteRow";
 import { underMinimums } from "../../../../lib/minimums";
 import { usePreferences } from "../../../../lib/preferences";
-import { faaWords, gairmetAltitudes, gairmetTitle, sigmetHazard, suaAltitudes, tfrAltitudes, tfrTimes } from "../../../../lib/advisories";
+import { faaWords, gairmetAltitudes, gairmetTitle, sigmetHazard, suaAltitudes, tfrAltitudes, tfrPage, tfrTimes } from "../../../../lib/advisories";
 import { passLine, passTime, suaWhen, tfrWhen, type SuaWhen, type TfrWhen } from "../../../../lib/passTimes";
 import { pickedEnd, runwayFlown, runwayNumber } from "../../../../lib/pattern";
 import { useRunwayPicks } from "../../../../lib/useRunwayPicks";
@@ -196,8 +196,7 @@ function altitudeRange(nav: NavLogAltitude): string {
   const chosen = nav.options.find(o => o.kind === nav.flown);
   const alts = chosen ? chosen.steps.map(s => s.altitude_ft) : nav.altitude_ft != null ? [nav.altitude_ft] : [];
   if (alts.length === 0) return "No altitude";
-  const low = Math.min(...alts), high = Math.max(...alts);
-  return low === high ? `${altFt(low)} ft` : `${altFt(low)}–${altFt(high)} ft`;
+  return feetRange(alts);
 }
 
 /**
@@ -821,7 +820,7 @@ export default memo(function FlightBriefingView({
                             </>
                           }
                           value={t.crosses ? "On the route" : `${Math.round(t.along_track_nm)} nm along`}
-                          href={`https://tfr.faa.gov/tfr3/?page=detail_${t.notam_id.replace("/", "_")}`}
+                          href={tfrPage(t.notam_id)}
                         />,
                         t.on_route?.legs.length ? <OnRouteRow key={`${t.notam_id}-on`} on={t.on_route} briefing={briefing} hazardKey={`tfr-${t.notam_id}`} /> : null,
                       ];

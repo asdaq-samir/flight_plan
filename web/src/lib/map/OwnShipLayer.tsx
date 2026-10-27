@@ -2,6 +2,7 @@ import L, { type PathOptions } from "leaflet";
 import { useEffect, useMemo, useRef } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
+import { signedTurn } from "../geo";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm, underway } from "./glide";
 import { prefersReducedMotion } from "../motion";
@@ -196,7 +197,7 @@ export function OwnShipLayer() {
       return;
     }
     const was = turned.current?.el === el ? turned.current.deg : null;
-    const delta = was == null ? 0 : ((((heading - was) % 360) + 540) % 360) - 180;
+    const delta = was == null ? 0 : signedTurn(was, heading);
     const deg = was == null ? heading : was + delta;
     const still = was == null || prefersReducedMotion();
     el.style.transition = still ? "none" : `transform ${Math.min(1.2, Math.max(0.25, Math.abs(delta) / 120)).toFixed(2)}s ease-in-out`;
