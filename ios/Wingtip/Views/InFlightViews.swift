@@ -36,7 +36,7 @@ struct DiversionView: View {
                     }
                 }
             }
-            if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+            ProblemLine(problem)
             // The checkride's diversion from here, worked by the planner.
             Section {
                 NavigationLink { DiversionDrillView() } label: { Label("Diversion Drill", systemImage: "timer") }
@@ -78,7 +78,7 @@ struct CheckpointNotesView: View {
             Section {
                 Button(writing ? (count.map { "Writing \(notes.count) of \($0)…" } ?? "Writing…") : "Describe the Checkpoints") { describe() }
                     .disabled(writing || plan.checkpoints.isEmpty)
-                if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                ProblemLine(problem)
             }
             Section("Checkpoints") {
                 if plan.checkpoints.isEmpty { Text("The route's checkpoints come with its plan.").foregroundStyle(.secondary) }
@@ -221,7 +221,7 @@ struct FlightServiceView: View {
                         .disabled(request() == nil || reference != nil || sending)
                     Button("Standard Briefing") { Task { await brief() } }
                         .disabled(request() == nil || sending)
-                    if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                    ProblemLine(problem)
                 }
                 if let briefing {
                     Section("Standard briefing") { Text(briefing).font(.footnote.monospaced()).textSelection(.enabled) }
@@ -323,7 +323,7 @@ struct FlownTrackView: View {
                 }
                 Section {
                     Button("Put In a GPX File…") { importing = true }
-                    if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                    ProblemLine(problem)
                 }
             }
             .navigationTitle(title)

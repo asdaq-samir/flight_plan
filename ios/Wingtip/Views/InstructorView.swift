@@ -79,7 +79,7 @@ struct InstructorView: View {
             } else if problem == nil {
                 ProgressView()
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Instructing")
         .navigationBarTitleDisplayMode(.inline)
@@ -197,7 +197,7 @@ struct StudentView: View {
             } else if problem == nil {
                 ProgressView()
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle(row.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -290,7 +290,7 @@ struct ReviewSection: View {
             } else {
                 Button("Not Endorsed", role: .destructive) { declining = true }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
     }
 }
@@ -365,7 +365,7 @@ struct SignView: View {
                     Text("Fill in \(missing.map { $0.label.lowercased() }.joined(separator: ", "))").font(.footnote).foregroundStyle(.secondary)
                 }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle(kind.label)
         .navigationBarTitleDisplayMode(.inline)

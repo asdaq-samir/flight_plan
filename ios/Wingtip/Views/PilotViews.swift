@@ -48,7 +48,7 @@ struct FlightsView: View {
                 flights.remove(atOffsets: at)
                 Task { for flight in gone { try? await Gateway.deleteFlight(flight.id) } }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Flights")
         .navigationBarTitleDisplayMode(.inline)

@@ -148,7 +148,7 @@ struct AirplaneCard: View {
                         Button(fetchingMore ? "Fetching earlier flights…" : "Show earlier flights") { Task { await more() } }
                             .disabled(fetchingMore)
                     }
-                    if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                    ProblemLine(problem)
                 }
                 Section("Airplane") {
                     if let model = detail?.description { LabeledContent("Model", value: FlightWords.nameCase(model)) }

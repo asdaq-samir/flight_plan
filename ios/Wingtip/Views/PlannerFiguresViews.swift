@@ -251,7 +251,7 @@ struct DiversionDrillView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-                if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                ProblemLine(problem)
                 Section {
                     if checked {
                         Button("Again") { start() }
@@ -380,7 +380,7 @@ struct HoldingView: View {
             } else if let line = answer?.windProblem {
                 Text(line).foregroundStyle(.secondary)
             }
-            if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+            ProblemLine(problem)
         }
         .navigationTitle("Holding Entries")
         .navigationBarTitleDisplayMode(.inline)
@@ -603,7 +603,7 @@ struct LostCommsSegmentsSections: View {
             Button { segments.append(LostCommsSegmentAsk(name: "", minimumFt: nil)); minimums.append("") } label: {
                 Label("Add a Segment", systemImage: "plus")
             }
-            if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+            ProblemLine(problem)
         }
     }
 }

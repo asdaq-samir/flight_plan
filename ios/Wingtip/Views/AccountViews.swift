@@ -32,7 +32,7 @@ struct ContactView: View {
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                 }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Contact")
         .navigationBarTitleDisplayMode(.inline)
@@ -87,6 +87,6 @@ struct DeleteAccountButton: View {
             } message: {
                 Text("Your airplanes, flights, logbook and endorsements go, and you are signed out on every device. This can't be undone.")
             }
-        if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+        ProblemLine(problem)
     }
 }

@@ -28,9 +28,7 @@ struct SetupView: View {
                         Button("Sign In") { signingIn = true }
                             .disabled(!session.loaded)
                     }
-                    if let problem = session.problem {
-                        Text(problem).foregroundStyle(.red).font(.footnote)
-                    }
+                    ProblemLine(session.problem)
                 }
                 if session.signedIn {
                     Section("Pilot") {
@@ -69,9 +67,7 @@ struct SetupView: View {
                     } else {
                         LabeledContent("Edition", value: "Fetching…")
                     }
-                    if let problem = charts.problem {
-                        Text(problem).foregroundStyle(.red).font(.footnote)
-                    }
+                    ProblemLine(charts.problem)
                 }
                 Section {
                     LabeledContent("Server", value: Config.host)
