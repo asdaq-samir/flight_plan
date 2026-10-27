@@ -347,7 +347,14 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
         return !!bounds && L.bounds(L.point(insets.left + BUTTONS_CLEAR, insets.top), L.point(size.x - BUTTONS_CLEAR, size.y - insets.bottom))
           .contains(L.bounds(corner(bounds.getNorthWest()), corner(bounds.getSouthEast())));
       };
-      const routeWay = fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
+      // Fitted again only where the whole route was in sight before: a
+      // map zoomed in on part of it is where the pilot put it, slid and
+      // never zoomed back out to the route (a TAC pinned from the map's
+      // card over C81, closed, was zoomed out to the whole route and drew
+      // no TAC: tiles.spec, CI on a phone, 2026-10-27).
+      const corners = bounds && L.bounds(map.latLngToContainerPoint(bounds.getNorthWest()), map.latLngToContainerPoint(bounds.getSouthEast()));
+      const wholeBefore = !!corners && L.bounds(sight.min!.subtract([30, 30]), sight.max!.add([30, 30])).contains(corners);
+      const routeWay = !wholeBefore || fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
       what = routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : null;
       if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
       following.current = what
