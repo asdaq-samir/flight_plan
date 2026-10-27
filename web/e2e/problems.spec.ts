@@ -131,10 +131,16 @@ test("the line sits beside the map's buttons, level with them, one line tall, an
 
   const box = (await line.boundingBox())!;
   const controls = (await page.locator("[data-map-controls]").boundingBox())!;
-  expect(box.x + box.width).toBeLessThanOrEqual(controls.x);
-  const levelTop = Math.abs(box.y - controls.y) <= 1;
-  const levelBottom = Math.abs(box.y + box.height - (controls.y + controls.height)) <= 1;
-  expect(levelTop || levelBottom).toBe(true);
+  if (page.viewportSize()!.width < 768) {
+    // A phone: at the top, the buttons riding on the sheet below it
+    // (2026-10-26), clear of them.
+    expect(box.y + box.height <= controls.y || box.x + box.width <= controls.x).toBe(true);
+  } else {
+    expect(box.x + box.width).toBeLessThanOrEqual(controls.x);
+    const levelTop = Math.abs(box.y - controls.y) <= 1;
+    const levelBottom = Math.abs(box.y + box.height - (controls.y + controls.height)) <= 1;
+    expect(levelTop || levelBottom).toBe(true);
+  }
   expect(box.height).toBeLessThanOrEqual(48);
 
   const arrow = (await page.getByTestId("my-position-button").boundingBox())!;
@@ -186,10 +192,9 @@ test("the progress line spans the screen and is centred on it", async ({ page })
   expect(leftGap).toBeGreaterThanOrEqual(8);                     // a gutter, not edge to edge
   expect(Math.abs(leftGap - rightGap)).toBeLessThanOrEqual(2);   // centred
   if (viewport.width < 768) {
-    // A phone: the screen's width less a gutter either side, across the
-    // map's buttons, level with them -- its top on their card's.
-    const controls = (await page.locator("[data-map-controls] > *").first().boundingBox())!;
-    expect(Math.abs(box.y - controls.y)).toBeLessThanOrEqual(1);
+    // A phone: the screen's width less a gutter either side, at its top
+    // (the map's buttons ride on the sheet since 2026-10-26).
+    expect(box.y).toBeLessThan(80);
     expect(box.width).toBeGreaterThan(viewport.width * 0.7);
   }
 });
