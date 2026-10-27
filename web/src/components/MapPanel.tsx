@@ -600,10 +600,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       const sheet = document.querySelector<HTMLElement>("[data-slot=map-panel]");
       const map = document.getElementById("content");
       if (!sheet || !map) return;
-      // Negative where the map ends above the sheet's foot (a shorter
-      // viewport for the map than for the fixed sheet).
-      const gap = Math.round(map.getBoundingClientRect().bottom - sheet.getBoundingClientRect().bottom);
-      const measured = Math.max(0, (expanded ? detents.half : peek) + gap);
+      // From the sheet's own top at rest; all the way up, what the half
+      // would cover (the buttons are put away there). Negative gaps where
+      // the map ends above the sheet's foot (a shorter viewport for the map
+      // than for the fixed sheet).
+      const mapBottom = map.getBoundingClientRect().bottom, rect = sheet.getBoundingClientRect();
+      const measured = Math.max(0, Math.round(state === "full" ? detents.half + mapBottom - rect.bottom : mapBottom - rect.top));
       body.style.setProperty("--sheet-cover", `${measured}px`);
     }, SHEET_SECONDS * 1000 + 100);
     return () => window.clearTimeout(timer);
