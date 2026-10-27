@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { cn } from "cn"
-import { GLASS_SHEET_FULL } from "../mapChrome"
+import { DIALOG_CORNERS, DIM, GLASS_SHEET_FULL } from "../mapChrome"
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
 import { Button } from "@/components/ui/button"
@@ -37,7 +37,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Overlay
       data-slot="alert-dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/10 duration-100 dark:bg-black/50 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        cn("fixed inset-0 z-50 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0", DIM),
         className
       )}
       {...props}
@@ -63,7 +63,7 @@ function AlertDialogContent({
           "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-6 p-6 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           // Liquid Glass with an iOS alert's round corners, at the owner's
           // pick of the sheets audit (D3, 2026-10-17).
-          cn(GLASS_SHEET_FULL, "rounded-[28px] text-foreground"),
+          cn(GLASS_SHEET_FULL, DIALOG_CORNERS, "text-foreground"),
           className
         )}
         {...props}

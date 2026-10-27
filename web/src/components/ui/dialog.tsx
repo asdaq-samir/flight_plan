@@ -1,8 +1,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
-import CloseButton from "../CloseButton"
-import { GLASS_SHEET_FULL } from "../mapChrome"
+import { DIALOG_CORNERS, DIM, GLASS_SHEET_FULL } from "../mapChrome"
 
 function Dialog({
   ...props
@@ -33,7 +32,7 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/50 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        cn("fixed inset-0 z-50 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0", DIM),
         className
       )}
       {...props}
@@ -41,15 +40,17 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
   )
 }
 
+/**
+ * Its close is the caller's, in its title row (SheetDialog), as every
+ * sheet's is: the stock one stood alone in the corner, over nothing.
+ */
 function DialogContent({
   className,
   children,
-  showCloseButton = true,
   glass = true,
   onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
   /** Liquid Glass with an iOS alert's round corners, over a light dim,
    *  at the owner's pick of the sheets audit (D3, 2026-10-17); false for
    *  what fills the screen (an airport's diagram), opaque and square. */
@@ -57,7 +58,7 @@ function DialogContent({
 }) {
   return (
     <DialogPortal>
-      <DialogOverlay className={glass ? "bg-black/20" : undefined} />
+      <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         data-glass={glass ? "" : undefined}
@@ -72,19 +73,12 @@ function DialogContent({
         }}
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-sm -translate-x-1/2 -translate-y-1/2 gap-4 p-6 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          glass ? cn(GLASS_SHEET_FULL, "rounded-[28px] text-foreground") : "rounded-lg bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10",
+          glass ? cn(GLASS_SHEET_FULL, DIALOG_CORNERS, "text-foreground") : "rounded-lg bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10",
           className
         )}
         {...props}
       >
         {children}
-        {/* The app's one close (CloseButton), as every panel's is, at the
-            pilot's ask: the stock one was a faint 16-point cross. */}
-        {showCloseButton && (
-          <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <CloseButton className="absolute top-3 right-3" />
-          </DialogPrimitive.Close>
-        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )

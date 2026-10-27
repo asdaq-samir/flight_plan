@@ -174,7 +174,8 @@ test("a position that is the phone's approximate one, Precise Location off, is s
   const alert = page.getByTestId("error-alert");
   await expect(alert).toContainText("Approximate position");
   await expect(alert).toContainText("Precise Location is off");
-  await alert.getByRole("button", { name: "OK" }).click();
+  // OK from md up; on a phone the sheet's close in its title row.
+  await alert.getByRole("button", { name: /^(OK|Close)$/ }).click();
   // Not again at each second's fix.
   await page.waitForTimeout(2500);
   await expect(alert).toHaveCount(0);

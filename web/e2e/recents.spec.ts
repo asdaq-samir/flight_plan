@@ -101,7 +101,32 @@ test("a swipe to the left uncovers a Delete that takes an airport off the Recent
   await page.keyboard.press("Enter");
   await expect(recents).toHaveCount(1);
 
-  // Clear, asked first.
+  // Clear, asked first. On a phone the question is the floating sheet from
+  // the bottom (SheetDialog), the app's close at its title row's end with
+  // the focus, so Enter never clears unasked; from md up an alert, whose
+  // Cancel has it. Either way out keeps the Recents.
+  await panel.getByTestId("recents-clear").click();
+  const ask = page.getByRole("alertdialog", { name: "Clear the Recents?" });
+  await expect(ask).toBeVisible();
+  const onPhone = page.viewportSize()!.width < 768;
+  const out = ask.getByRole("button", { name: onPhone ? "Close" : "Cancel", exact: true });
+  await expect(out).toBeFocused();
+  if (onPhone) {
+    await expect(ask).toHaveAttribute("data-slot", "sheet-content");
+    await ask.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+    const foot = await ask.evaluate(el => innerHeight - el.getBoundingClientRect().bottom);
+    expect(foot).toBeCloseTo(8, 0);
+    // In the title row, at its end, level with the title.
+    const row = ask.locator("[data-slot=sheet-header]");
+    const [title, close] = [(await row.locator("[data-slot=sheet-title]").boundingBox())!, (await row.getByRole("button", { name: "Close" }).boundingBox())!];
+    expect(close.x).toBeGreaterThanOrEqual(title.x + title.width - 1);
+    expect(Math.abs((close.y + close.height / 2) - (title.y + title.height / 2))).toBeLessThanOrEqual(4);
+    // No Cancel beside it: the close is the way out.
+    await expect(ask.getByRole("button", { name: "Cancel" })).toHaveCount(0);
+  }
+  await out.click();
+  await expect(ask).toHaveCount(0);
+  await expect(recents).toHaveCount(1);
   await panel.getByTestId("recents-clear").click();
   await page.getByRole("button", { name: "Clear", exact: true }).last().click();
   await expect(recents).toHaveCount(0);
