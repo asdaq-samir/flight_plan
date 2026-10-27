@@ -152,10 +152,11 @@ test("spoken, each alert ahead is said once as it comes, and turned on it says s
 
   // Settings' In Flight, with the alerts themselves.
   await openSettings(page);
-  const spoken = page.getByTestId("speak-alerts-toggle");
-  await expect(spoken).toHaveAttribute("aria-checked", "false");
-  await spoken.click();
-  await expect(spoken).toHaveAttribute("aria-checked", "true");
+  // One control: Off, On and Spoken.
+  const mode = page.getByTestId("alerts-mode");
+  await expect(mode.getByRole("radio", { name: "On" })).toBeChecked();
+  await mode.getByRole("radio", { name: "Spoken" }).click();
+  await expect(mode.getByRole("radio", { name: "Spoken" })).toBeChecked();
   await closeConsole(page);
   // Turned on in the air: it says so, then what is ahead.
   await expect.poll(said).toEqual(["Alerts will be spoken.", "Chicago Class B, in 2 minutes."]);
