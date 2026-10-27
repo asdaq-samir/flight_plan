@@ -10,6 +10,7 @@ from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Query
 from vfr import route_options as vfr_route_options
 
+from .. import prefetch
 from ..common import DEFAULT_AIRCRAFT, load_route, resolve
 from ..planning import aircraft_profile, forecast_hour_for
 from ..schemas import RouteOptions
@@ -120,7 +121,15 @@ def route_options(
         current_idents=current_idents, current_landed=current_landed,
     )
     typed = [s.strip().upper() for s in stops.split(",") if s.strip()]
-    answer = RouteOptions(**{**found, "chips": _chips(found, typed)})
+    chips = _chips(found, typed)
+    # Each chip's route read ahead, its chart and its ground, as a typed
+    # route is (app.prefetch): a tap on one waited on every new hop's
+    # chart read, 18 s for KPWK to KCOS by three fixes (2026-10-27). The
+    # first chip last, as the reads ahead go newest first.
+    for chip in reversed(chips):
+        if chip["key"] != "none":
+            prefetch.route(dep, dest, ",".join(chip["stops"]))
+    answer = RouteOptions(**{**found, "chips": chips})
     with _LOCK:
         _KEPT[key] = answer
     return answer

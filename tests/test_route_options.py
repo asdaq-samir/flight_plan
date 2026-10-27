@@ -369,3 +369,18 @@ def test_the_fastest_is_the_way_that_is_fastest_whatever_search_found_it(sky):
     named = route_options._named_by_what_they_are(grid, [slow, quick])
     assert named == [quick]
     assert set(quick["kinds"]) == {"weather", "fastest", "stops"} and quick["kind"] == "weather"
+
+
+def test_the_cells_near_a_point_are_the_whole_grids_measure_in_its_box():
+    # near() measures only the box round the point: the same cells as
+    # measuring every one, north and south, wide and narrow, and for a
+    # point off the grid's edge.
+    rng = np.random.default_rng(7)
+    for start, end in [((42.2, -88.0), (39.8, -104.7)), ((25.8, -80.3), (47.5, -122.3)), ((61.2, -150.0), (64.8, -147.9))]:
+        grid = route_options._Grid(start, end)
+        for _ in range(40):
+            lat = rng.uniform(grid.lat0 - 0.5, grid.lat0 + grid.rows * route_options.CELL_DEG + 0.5)
+            lon = rng.uniform(grid.lon0 - 0.5, grid.lon0 + grid.cols * route_options.CELL_DEG + 0.5)
+            nm = float(rng.choice([route_options.STORM_NM, route_options.FIELD_WX_NM, route_options.MARGINAL_NM]))
+            whole = geo.distance_nm(lat, lon, grid.lat_grid, grid.lon_grid) <= nm
+            assert (grid.near(lat, lon, nm) == whole).all()
