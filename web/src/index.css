@@ -706,13 +706,30 @@ html [data-sonner-toaster] {
   }
 }
 
-/* A toast that only says something -- the progress line, a note -- on
-   Liquid Glass, as the panel's capsule and the map's buttons are, frosted
-   as the half sheet is for its words: it was a black slab over the chart
-   for as long as a long route took to plan. A success keeps its green. */
-html [data-sonner-toaster] [data-sonner-toast][data-styled="true"]:is([data-type="loading"], [data-type="default"], [data-type="info"]) {
+/* Every toast Apple Maps' banner (the toast rewrite, 2026-10-27): on
+   Liquid Glass, as the panel's capsule and the map's buttons are, a
+   capsule round one line, its title semibold and a second line, where
+   there is one, in the secondary grey. It was a black slab over the chart
+   for as long as a long route took to plan, and a success a green card. */
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
   @apply liquid-glass;
   border-color: transparent;
+  border-radius: 1.375rem;
+  padding: 0.625rem 1rem;
+  gap: 0.5rem;
+}
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-title] {
+  font-weight: 600;
+}
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-description] {
+  color: var(--muted-foreground);
+}
+html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-button] {
+  margin-left: auto;
+  background: transparent;
+  color: var(--tint);
+  font-weight: 600;
+  padding-inline: 0.25rem;
 }
 
 /* With the phone's sheet all the way up, the progress line gives way as

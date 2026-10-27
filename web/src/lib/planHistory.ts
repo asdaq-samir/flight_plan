@@ -97,18 +97,18 @@ export function redone(h: PlanHistory, at: number): PlanHistory | null {
 
 const listOf = (value: string | undefined) => (value ? value.split(",").filter(Boolean) : []);
 
-/** What a change took away, in the bar's words ("Route cleared", "KMSN
+/** What a change took away, in the bar's words ("Route Cleared", "KMSN
  *  removed"); null for one that only added or changed a figure, which the
  *  keyboard still undoes. */
 export function describeEdit(before: PlanState, after: PlanState): string | null {
   const hadRoute = !!(before.dep || before.dest);
-  if (hadRoute && !after.dep && !after.dest) return "Route cleared";
+  if (hadRoute && !after.dep && !after.dest) return "Route Cleared";
   if (after.direct && after.direct !== before.direct) return `Direct to ${after.direct}`;
-  if (before.dep && before.dest && (after.dep !== before.dep || after.dest !== before.dest)) return "Route replaced";
+  if (before.dep && before.dest && (after.dep !== before.dep || after.dest !== before.dest)) return "Route Replaced";
   const gone = listOf(before.stops).filter(stop => !listOf(after.stops).includes(stop));
-  if (gone.length === 1) return `${gone[0]} removed`;
-  if (gone.length > 1) return "Stops removed";
-  if (listOf(after.procs).length < listOf(before.procs).length) return "Procedure removed";
-  if (listOf(after.holds).length < listOf(before.holds).length) return "Hold removed";
+  if (gone.length === 1) return `${gone[0]} Removed`;
+  if (gone.length > 1) return "Stops Removed";
+  if (listOf(after.procs).length < listOf(before.procs).length) return "Procedure Removed";
+  if (listOf(after.holds).length < listOf(before.holds).length) return "Hold Removed";
   return null;
 }

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { Check } from "lucide-react";
 import { Toaster } from "./ui/sonner";
 import { useNavEdge } from "../hooks/use-nav-edge";
 
@@ -15,17 +16,20 @@ import { useNavEdge } from "../hooks/use-nav-edge";
  * still taking a tap (a toast takes none but its controls', index.css).
  * It stopped short of them at the top while Settings was among them.
  *
- * Only news that goes by itself -- progress, "Link copied", "Aircraft
- * added" -- so no close button, as iOS's banners have none: what went
+ * Only news that goes by itself -- progress, "Link Copied", "Airplane
+ * Added" -- so no close button, as iOS's banners have none: what went
  * wrong is said where it belongs (lib/problems), not in a toast that
- * stayed until closed. richColors: a success's tick reads green.
+ * stayed until closed. Apple Maps' banner, at the owner's ask (the toast
+ * rewrite, 2026-10-27): a frosted capsule with a tick in the tint where
+ * it was a green card, two seconds of it, the words a short title.
  */
 export default function AppToaster() {
   const edge = useNavEdge();
   return (
     <Toaster
       position={edge === "bottom" ? "top-center" : "bottom-center"}
-      richColors
+      duration={2000}
+      icons={{ success: <Check className="size-4 text-tint" strokeWidth={2.5} aria-hidden /> }}
       // The app's one radius for what floats (index.css), over sonner's 8.
       style={{ "--width": "min(34rem, calc(100vw - 2rem))", "--border-radius": "var(--radius)" } as CSSProperties}
       expand={false}

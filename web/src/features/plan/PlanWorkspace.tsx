@@ -1872,12 +1872,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // nothing measured, and "Loading briefing…" over a nav log still
   // streaming. Failures are the query client's to report
   // (queryClient.ts).
-  const progress = s.navStage
-    ?? (s.stage === "navlog" ? "Asking the planner for the nav log…" : null)
-    ?? (s.stage === "course" ? "Plotting the course…" : null)
-    ?? (s.stage === "checkpoints" ? "Scoring checkpoints…" : null)
-    ?? (s.briefing.state === "loading" ? "Fetching METARs, forecasts, hazards, runways and frequencies…" : null)
-    ?? (s.descriptionProgress ? `Writing descriptions ${s.descriptionProgress.done}/${s.descriptionProgress.total}…` : null);
+  //
+  // In a few words, what is being done and never how long it has taken
+  // (the owner's toast rewrite, 2026-10-27): the planner's own stage
+  // ("Altitudes C81 → KDLH, 12 s, waiting on the terrain and obstacles…",
+  // which the stream's heartbeat tests read) said as its step alone.
+  const progress = (s.navStage ? planningWords(s.navStage) : null)
+    ?? (s.stage === "navlog" ? "Planning…" : null)
+    ?? (s.stage === "course" ? "Drawing Route…" : null)
+    ?? (s.stage === "checkpoints" ? "Finding Checkpoints…" : null)
+    ?? (s.briefing.state === "loading" ? "Fetching Weather…" : null)
+    ?? (s.descriptionProgress ? `Describing Checkpoints ${s.descriptionProgress.done} of ${s.descriptionProgress.total}` : null);
   // The flight's figures before the nav log's, at the pilot's ask for
   // them as soon as can be (FlightLine's `estimate`): this route's course
   // distance, and the airplane's book cruise speed and burn -- its own
@@ -2857,4 +2862,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     submit,
     loading: s.stage !== null,
   });
+}
+
+/** The planner's stage as the progress toast says it: its step, without
+ *  the leg, the seconds or what it waits on. */
+function planningWords(stage: string): string {
+  if (/checkpoint/i.test(stage)) return "Finding Checkpoints…";
+  if (/altitude/i.test(stage)) return "Planning Altitudes…";
+  return "Planning…";
 }

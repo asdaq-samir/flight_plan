@@ -14,7 +14,7 @@ import { create } from "zustand";
  * - A one-off failure of something the pilot just did -- a share, a
  *   save -- is iOS's alert (ErrorAlert, `showError`), with OK.
  *
- * Brief news that goes by itself -- the progress line, "Link copied" --
+ * Brief news that goes by itself -- the progress line, "Link Copied" --
  * stays sonner's toast. Errors and warnings were sonner toasts drawn by
  * hand, folded to lines that the panel had to stop short of.
  */

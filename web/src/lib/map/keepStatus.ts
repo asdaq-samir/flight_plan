@@ -46,18 +46,17 @@ export function useKeepRouteToast() {
     was.current = job.status;
     if (job.status === "keeping") {
       clearProblem(TOAST_ID);
-      const counted = job.progress ? ` ${grouped(job.progress.done)} of ${grouped(job.progress.total)} tiles` : "";
-      toast.loading(`Keeping charts offline…${counted}`, { id: TOAST_ID });
+      toast.loading("Saving Charts Offline", {
+        id: TOAST_ID,
+        description: job.progress ? `${grouped(job.progress.done)} of ${grouped(job.progress.total)}` : undefined,
+      });
     } else if (before === "keeping" && job.status === "kept") {
       const { total, failed } = job.progress;
       if (failed >= total) {
         toast.dismiss(TOAST_ID);
         raiseProblem({ id: TOAST_ID, title: "Charts not kept: none of the tiles could be fetched" });
       } else {
-        toast.success("Charts kept offline", {
-          id: TOAST_ID,
-          description: failed ? `${grouped(total - failed)} tiles` : `${grouped(total)} tiles: the route draws without a connection now.`,
-        });
+        toast.success("Charts Saved Offline", { id: TOAST_ID, description: undefined });
         // The tiles that could not be fetched are a problem, said where
         // problems are (lib/problems) and kept until the next keep, not a
         // bracket inside the news that it worked.

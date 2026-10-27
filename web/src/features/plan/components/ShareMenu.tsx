@@ -93,7 +93,7 @@ export default function ShareMenu({
     const url = window.location.href;
     const title = routeName(planned.dep, planned.dest, planned.stops);
     try {
-      if (await shareOrCopy({ title, url }) === "copied") toast.success("Link copied");
+      if (await shareOrCopy({ title, url }) === "copied") toast.success("Link Copied");
     } catch (err) {
       if (!cancelled(err)) showError("Could not share the route", (err as Error).message);
     }
@@ -139,7 +139,7 @@ export default function ShareMenu({
     // The button's own link changes after the tap has followed it: changed
     // at once, the tap followed the new one, the route's.
     window.setTimeout(() => packChanged(n => n + 1), 0);
-    toast.info("Sending the checkpoints to ForeFlight. When it has added them, tap Open in ForeFlight again for the route, the checkpoints by name.");
+    toast.success("Sent to ForeFlight", { description: "Then tap Open in ForeFlight again" });
   };
 
   return (

@@ -298,7 +298,7 @@ export function SaveFlightButton(flight: FlightToSave) {
     // note, the menu it was saved from having gone.
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["flights"] });
-      toast.success("Flight saved");
+      toast.success("Flight Saved");
     },
   });
   // "Saved" belongs to the plan that was saved: another route, time,
@@ -370,7 +370,7 @@ export function ReviewAskSheet({ flight, onDone }: { flight: FlightToSave; onDon
     onSuccess: next => {
       queryClient.setQueryData(["training"], next);
       void queryClient.invalidateQueries({ queryKey: ["flights"] });
-      toast.success("Asked for a review");
+      toast.success("Sent to Your Instructor");
       onDone();
     },
   });

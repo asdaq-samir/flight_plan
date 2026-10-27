@@ -9,7 +9,7 @@ import { observed, planStateOf, redone, restored, started, undone, type PlanHist
 const UNDO_TOAST = "plan-undo";
 /** Long enough to read the words and reach the button, as iOS's own
  *  undo banners stay. */
-const UNDO_MS = 6000;
+const UNDO_MS = 4000;
 
 /** Typing in a field undoes the field's own text, the browser's way. */
 const typing = (target: EventTarget | null) =>

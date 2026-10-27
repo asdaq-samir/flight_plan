@@ -152,7 +152,7 @@ describe("the keep's toast", () => {
     await flush();
     expect(toast.loading).toHaveBeenCalled();
     await act(async () => { await done; });
-    expect(toast.success).toHaveBeenCalledWith("Charts kept offline", expect.objectContaining({ id: "keep-route" }));
+    expect(toast.success).toHaveBeenCalledWith("Charts Saved Offline", expect.objectContaining({ id: "keep-route" }));
   });
 
   test("tiles that could not be fetched are a problem of their own, not part of the news that it kept", async () => {

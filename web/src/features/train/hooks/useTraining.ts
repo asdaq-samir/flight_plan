@@ -79,9 +79,7 @@ const withoutDisplaced = (e: Edits, saved: PickSaved, points: Map<string, { poin
     if (was) overrides[key] = { ...editOf(was), ...overrides[key], rating: null, rated: false };
   }
   const what = saved.displaced.map(d => d.category.replace(/_/g, " ")).join(", ");
-  toast.info(`That took the place of the pick on the ${what} beside it`, {
-    description: "The planner keeps one pick per place.",
-  });
+  toast.success("Nearby Pick Replaced", { description: `The ${what} beside it: one pick per place` });
   return { ...e, overrides };
 };
 
