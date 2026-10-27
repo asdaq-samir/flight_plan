@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { closeConsole, openSettings, settle, slow } from "./helpers";
+import { closeConsole, openSetup, pickControl, settle, slow } from "./helpers";
 
 /**
  * What is ahead of own ship in the air (lib/map/ahead), said over the map
@@ -150,13 +150,12 @@ test("spoken, each alert ahead is said once as it comes, and turned on it says s
   // Off by default: nothing said.
   expect(await said()).toEqual([]);
 
-  // Settings' In Flight, with the alerts themselves.
-  await openSettings(page);
-  // One control: Off, On and Spoken.
-  const mode = page.getByTestId("alerts-mode");
-  await expect(mode.getByRole("radio", { name: "On" })).toBeChecked();
-  await mode.getByRole("radio", { name: "Spoken" }).click();
-  await expect(mode.getByRole("radio", { name: "Spoken" })).toBeChecked();
+  // Setup's Controls: one Alerts control of Off, On and Spoken.
+  await openSetup(page);
+  const mode = page.getByTestId("setup-page").getByTestId("alerts-mode");
+  await expect(mode).toHaveAccessibleName("Alerts: On");
+  await pickControl(page, "alerts-mode", "alerts-mode-spoken");
+  await expect(mode).toHaveAccessibleName("Alerts: Spoken");
   await closeConsole(page);
   // Turned on in the air: it says so, then what is ahead.
   await expect.poll(said).toEqual(["Alerts will be spoken.", "Chicago Class B, in 2 minutes."]);

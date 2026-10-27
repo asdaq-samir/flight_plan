@@ -195,14 +195,19 @@ export async function openConsole(page: Page) {
   await grabberTo(page, "full");
 }
 
-/** The settings: the console's last tab, the console opened from its
- *  button -- on the planner's search bar, on the training page among the
- *  map's -- and all the way out. Escape closes the console again. */
-export async function openSettings(page: Page) {
+/** Setup's page all the way out, its Controls on top (QuickControls):
+ *  the one home of the alerts, offline charts, layout and theme since the
+ *  Settings page went (the owner, 2026-10-27). Escape closes it again. */
+export async function openSetup(page: Page) {
   await openConsole(page);
-  await consolePage(page.getByTestId("console-sheet"), "Settings");
-  await expect(page.getByTestId("settings-panel")).toBeVisible();
+  await expect(page.getByTestId("quick-controls").first()).toBeVisible();
   await expandConsole(page);
+}
+
+/** One of Setup's Controls set from its menu: its tile, then the item. */
+export async function pickControl(page: Page, control: "alerts-mode" | "nav-bar-select" | "theme-select", item: string) {
+  await page.getByTestId("setup-page").getByTestId(control).click();
+  await page.getByTestId(item).click();
 }
 
 /** The map's settings: the sheet of the map's own button, first among
@@ -635,7 +640,7 @@ export async function openAccount(page: Page) {
  *  that name; the pilot's console is one page now (Setup, at the owner's
  *  pick of the redesign), its account first and Settings, Guide and About
  *  rows that open their pages -- Account is the page itself. */
-export async function consolePage(scope: Page | Locator, name: "Account" | "Settings" | "Guide" | "About" | "Status") {
+export async function consolePage(scope: Page | Locator, name: "Account" | "Guide" | "About" | "Status") {
   const tab = scope.getByRole("tab", { name, exact: true });
   const setup = scope.getByTestId("setup-page");
   await expect(tab.or(setup).first()).toBeVisible();

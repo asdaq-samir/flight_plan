@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openMapSettings, openSettings, settle, slow } from "./helpers";
+import { openMapSettings, openSetup, pickControl, settle, slow } from "./helpers";
 
 /**
  * Night: in the dark theme the sheets are the cockpit palette's navy and
@@ -62,8 +62,8 @@ test("in the dark theme the page is the night's navy and only the chart's tiles 
   await page.getByTestId("chart-night-select").getByRole("radio", { name: "Dimmed" }).click();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("map-settings")).toHaveCount(0);
-  await openSettings(page);
-  await page.getByTestId("theme-select").getByRole("radio", { name: "Light" }).click();
+  await openSetup(page);
+  await pickControl(page, "theme-select", "theme-light");
   await expect(html).not.toHaveClass(/dark/);
   await expect.poll(() => filterOf(page, ".leaflet-layer.chart-tiles")).toBe("none");
 });

@@ -65,7 +65,7 @@ function AirspaceTile({ airport, detail, onClick }: { airport: RecentAirport; de
 /** A round tile and its words under it, as Maps' Favorites: the
  *  airports' here, and the Aircraft card's own (AircraftCard). */
 /** A strip's tile: its round mark over its name, a detail under it --
- *  Favorites' places, and the account's things in Setup (PageTile). */
+ *  Favorites' places. */
 export function PlaceTile({ icon, className, style, title, label, detail, tinted, onClick, disabled, testId }: {
   icon: ReactNode;
   className?: string;

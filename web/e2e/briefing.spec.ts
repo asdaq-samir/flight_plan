@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, settled, closeCard, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, openSettings, closeConsole, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet, briefPage } from "./helpers";
+import { slow, settle, settled, closeCard, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet, briefPage } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -197,10 +197,13 @@ test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGr
   await expect(narrative).toContainText("A test narrative.", { timeout: slow(60000) });
   await expect.poll(() => asked).toEqual(["langgraph"]);
   // CrewAI's instead, from the settings: asked for as the console goes.
-  await page.goto("/app/plan");
-  await openSettings(page);
-  await page.getByTestId("narrative-framework").getByRole("radio", { name: "CrewAI" }).click();
-  await closeConsole(page);
+  // The developer's pick now (the developer's Status page): set as it
+  // sets it, in the stored preferences.
+  await page.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? "{\"state\":{},\"version\":1}");
+    kept.state = { ...kept.state, narrative: "crewai" };
+    localStorage.setItem("vfr.preferences", JSON.stringify(kept));
+  });
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await openTab(page, "Preflight");
   await openSection(page, "Narrative");

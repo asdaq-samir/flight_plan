@@ -1,4 +1,8 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { Lightbulb } from "lucide-react";
+import { RowBadge } from "../../components/RowBadge";
+import { SETTING_BADGE } from "../../lib/rowBadges";
+import { useTips } from "../../lib/tips";
 import { Download, Layers, Maximize, Navigation, Settings } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
@@ -78,7 +82,7 @@ export default function PilotGuide() {
                 </p>
               </Reading>
               <ListGroup title="The map's buttons">
-                <ListRow media={<Settings className="size-5 text-tint" />} title="Settings" description="This, the last tab: the guide, your airplanes and flights, and the settings" />
+                <ListRow media={<Settings className="size-5 text-tint" />} title="Setup" description="The last tab: the controls, your airplanes and flights, and this guide" />
                 <ListRow media={<Navigation className="size-5 text-tint" />} title="My position" description="Where you are, from the phone's GPS, the map brought in close and kept on you; again to hide it" />
                 <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
               </ListGroup>
@@ -104,12 +108,13 @@ export default function PilotGuide() {
       }}
     >
       <div className="space-y-6">
+        <TipsGroup />
         <ListGroup title="Plan a flight">
           <StepRow n={1} title="Choose your route" description="Departure and destination at the top of the panel, then the arrow. The course draws at once." />
           <StepRow n={2} title="Find your checkpoints" description="The numbered dots are landmarks you can pick out from the air. Tap one for how to spot it, and add your own note." />
           <StepRow n={3} title="Read the nav log" description="Pull the panel up: each leg's heading, time and fuel, then the weather, NOTAMs and airports. Your airplane and departure time are under the route." />
           <StepRow n={4} title="Look at an airport" description="Close in and tap one on the chart for its weather, radio and runways. Fly Here makes it your destination." />
-          <StepRow n={5} title="Take it with you" description="Print, beside the route, for the nav log on paper; and Offline in the settings keeps each route's charts on this device for the air." />
+          <StepRow n={5} title="Take it with you" description="Print, beside the route, for the nav log on paper; and Offline in Setup's Controls keeps each route's charts on this device for the air." />
         </ListGroup>
 
         <ListGroup title="Checkpoint colours">
@@ -137,5 +142,23 @@ export default function PilotGuide() {
         </ListGroup>
       </div>
     </ConsolePages>
+  );
+}
+
+/** The first-run tips (lib/tips), offered again from the start: the
+ *  guide's short version, at its top, at the owner's ask (2026-10-27,
+ *  "Tips can move to guide"), where they were a group of the Settings
+ *  page. */
+function TipsGroup() {
+  const reset = useTips(s => s.reset);
+  const [asked, setAsked] = useState(false);
+  return (
+    <ListGroup>
+      <ListRow
+        media={<RowBadge colour={SETTING_BADGE.tips}><Lightbulb /></RowBadge>}
+        title={asked ? "Tips Will Show Again" : "Show Tips Again"} disabled={asked}
+        onClick={() => { reset(); setAsked(true); }} data-testid="tips-reset"
+      />
+    </ListGroup>
   );
 }

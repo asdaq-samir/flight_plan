@@ -1,5 +1,5 @@
 import { GLASS_EDGE } from "../lib/glass";
-import { createContext, type ReactNode } from "react";
+import { createContext } from "react";
 import { create } from "zustand";
 import { TEXT } from "../lib/text";
 
@@ -38,10 +38,6 @@ export interface MapInsets {
 }
 export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0, out: false, up: false };
 export const MapInsetsContext = createContext<MapInsets>(NO_INSETS);
-
-/** The settings, as the console's last tab (ConsoleTabs): the page's
- *  own (MapPage), the same in either console. */
-export const ConsoleSettingsContext = createContext<ReactNode>(null);
 
 /** The console's close where it is a layer of the map's panel rather
  *  than a sheet of its own -- on a phone (MapPage) -- for its header to

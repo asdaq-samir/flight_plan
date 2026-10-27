@@ -1,22 +1,23 @@
-import { usePreferences } from "../../lib/preferences";
+import { Suspense, lazy } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, Plane, Route, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { cn } from "cn";
-import { useContext, type ReactNode } from "react";
-import { Activity, CircleHelp, Info, Settings } from "lucide-react";
+import type { ReactNode } from "react";
 import AboutPanel from "../../components/AboutPanel";
-import { ConsoleSettingsContext } from "../../components/mapChrome";
-import { ConsolePages, PageRow, PageTile } from "../../components/ConsolePages";
+import { ConsolePages, PageButton, PageLink, PageRow } from "../../components/ConsolePages";
 import EmptyState from "../../components/EmptyState";
-import { PillSection } from "../../components/Favorites";
 import { ListGroup } from "../../components/GroupedList";
 import { RowBadge } from "../../components/RowBadge";
 import { SETTING_BADGE } from "../../lib/rowBadges";
 import type { Pilot } from "../../lib/api/types";
-import { pilotQuery } from "../../lib/queryClient";
+import { api } from "../../lib/api/client";
+import { flightsQuery, pilotQuery } from "../../lib/queryClient";
 import { shortName } from "../../lib/aircraftChoice";
+import { usePreferences } from "../../lib/preferences";
+import type { Minimums } from "../../lib/minimums";
 import { TEXT } from "../../lib/text";
 import { AircraftPanel, FlightsPanel } from "./AccountPanels";
+import { AccountMenu } from "./AccountMenu";
 import { LogbookPanel } from "./LogbookPanel";
 import MinimumsPanel from "./MinimumsPanel";
 import SubscriptionPanel from "./SubscriptionPanel";
@@ -26,31 +27,14 @@ import PilotPage from "./PilotPage";
 import SetupPill from "./SetupPill";
 import TabPage, { TAB_PAGE_GAP } from "../../components/TabPage";
 
+// Loaded when it is drawn, as PaidPrompt does: imported here it put the
+// sign-in sheet in the first load for every pilot already signed in.
+const SignInModal = lazy(() => import("./SignInModal"));
+
 /** Who is signed in, or why nobody is: null signed out, "loading"
  *  while the check is in flight, "error" when it failed. */
 type PilotState = Pilot | null | "loading" | "error";
 
-const SECTIONS = [
-  { value: "aircraft", label: "Airplanes", icon: <Plane />, colour: SETTING_BADGE.aircraft },
-  // Flights are FPL's too (its SAVED strip and card), at the owner's pick
-  // of the redesign; here with the pilot's other things all the way up.
-  { value: "flights", label: "Flights", icon: <Route />, colour: SETTING_BADGE.flights },
-  { value: "logbook", label: "Logbook", icon: <BookOpen />, colour: SETTING_BADGE.logbook },
-  { value: "minimums", label: "Minimums", icon: <ShieldCheck />, colour: SETTING_BADGE.minimums },
-];
-
-/**
- * The pilot's own things in one tab, Personal (it was Library, at the
- * pilot's ask): their airplanes, their filed flights, their logbook and
- * their personal minimums, a row each that opens its page, as iOS's
- * Settings lists its parts -- each with its glyph in a colour of its own
- * -- at the pilot's ask: they were a segmented control under the
- * console's tabs, tabs inside tabs. A page's own pages (a flight, an
- * entry) open over it with the way back to it (ConsolePages). The first
- * three need a sign-in: signed out, what signing in keeps is said once
- * over the list with the way in, and their rows wait greyed; the
- * minimums are kept on this device and need none.
- */
 /** The developer's own pages in Setup: the stack's status, and the
  *  guide to training the model in place of the planner's guide. */
 export interface DevPages {
@@ -66,28 +50,23 @@ function Personal({ pilot, dev }: {
   // The airplane picked for planning, for a logbook entry's, and said on
   // its row.
   const aircraft = usePreferences(s => s.aircraft);
+  const minimums = usePreferences(s => s.minimums);
   const signedIn = pilot !== "loading" && pilot !== "error" && pilot !== null;
-  // Their name as their certificate gives it, on the Pilot row.
-  const fullName = signedIn ? pilot.fullName : null;
   // While the sign-in is checked, or where it could not be, said under
-  // the account (signed out, its way in is the account's own, SetupPill).
+  // the controls (signed out, its way in is the account's own card).
   const account = pilot === "loading" ? <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Checking your sign-in…</p>
     : pilot === "error" ? <EmptyState icon={<UserRound />} title="Sign-in Unknown">Your sign-in status could not be checked.</EmptyState>
       : null;
   const sold = useSold();
-  // The pilot's things, a tile each as Favorites' places are, at the
-  // owner's ask: the account's three greyed until there is one; the
-  // minimums are this device's.
-  const sectionRows = SECTIONS.map(s => (
-    <PageTile
-      key={s.value} page={s.value} title={s.label} icon={s.icon} colour={s.colour} disabled={!(s.value === "minimums" || signedIn)}
-      detail={s.value === "aircraft" && aircraft.label ? shortName(aircraft.label) : undefined}
-    />
-  ));
-  const settings = useContext(ConsoleSettingsContext);
+  // Each of the pilot's things with where it stands at its row's end, at
+  // the owner's pick (T3): asked for only signed in, as the rows open to
+  // nothing otherwise.
+  const { data: flights } = useQuery({ ...flightsQuery, enabled: signedIn });
+  const { data: entries } = useQuery({ queryKey: ["logbook"], queryFn: api.logbook.list, enabled: signedIn, meta: { silent: true } });
+  const hours = entries?.reduce((sum, e) => sum + (e.totalHours ?? 0), 0);
+  const settings = minimumsWords(minimums);
   const pages = {
     ...(dev ? { status: { title: "Status", content: dev.status } } : {}),
-    settings: { title: "Settings", content: settings },
     guide: { title: "Guide", content: dev ? dev.guide : <PilotGuide /> },
     about: { title: "About", content: <AboutPanel /> },
     aircraft: { title: "Airplanes", content: <AircraftPanel /> },
@@ -106,45 +85,88 @@ function Personal({ pilot, dev }: {
           away Minimums, which needs no sign-in, or an edit in it. */}
       <ConsolePages key={pilot === null || pilot === "error" ? "out" : "in"} back="Account" pages={pages}>
         <div className={cn("flex flex-col", TAB_PAGE_GAP)}>
-          {/* Setup's page starts as its half card does -- Controls, the
-              switches -- so a drag up only adds what is under them, at the
-              owner's ask ("make the dragging up consistent in fpl and
-              setup as well"); the account then heads the Account group
-              ("move the email down with aircraft's etc and label the
-              section Account"). */}
-          <SetupPill testId="setup-head" rows={sectionRows} />
+          {/* The Controls first, as Setup's half card is, at the owner's
+              pick of the canvas (2026-10-27, T3): a drag up only adds what
+              is under them -- who is signed in, their things, and the way
+              to the guide and about. The settings that were a page of
+              their own went to the Controls and the map's menu. */}
+          <SetupPill testId="setup-head" />
           {account}
-          {/* The pilot's own details, for their flight plans (PilotPage),
-              and what they have of the paid features, rows by their things,
-              as iOS's Settings puts the account's at the top. The
-              subscription's not where this deployment sells none (the
-              proof of concept). */}
-          {signedIn && (
-            <ListGroup>
+          <AccountCard pilot={signedIn ? pilot : null} />
+          {/* The pilot's things, a row each with where it stands, as iOS's
+              Settings lists its parts: the account's three greyed until
+              there is one; the minimums are this device's. */}
+          <div data-testid="library-section">
+          <ListGroup>
               <PageRow
-                page="pilot" title="Pilot details" value={fullName ?? undefined} testId="pilot-row"
-                media={<RowBadge colour={SETTING_BADGE.pilot}><UserRound /></RowBadge>}
+                page="aircraft" title="Airplanes" disabled={!signedIn} value={aircraft.label ? shortName(aircraft.label) : undefined}
+                media={<RowBadge colour={SETTING_BADGE.aircraft}><Plane /></RowBadge>}
               />
-              {sold && <SubscriptionRow />}
-            </ListGroup>
-          )}
-          <>
-              {/* The rest of the app as rows that open their pages, as
-                  iPhone's Settings lists its own -- at the owner's pick of
-                  the redesign, where Guide, Account, Settings and About
-                  were tabs. */}
-              <PillSection title="App">
-              <ListGroup>
-                {dev && <PageRow page="status" title="Status" media={<RowBadge colour={SETTING_BADGE.general}><Activity /></RowBadge>} />}
-                <PageRow page="settings" title="Settings" media={<RowBadge colour={SETTING_BADGE.general}><Settings /></RowBadge>} />
-                <PageRow page="guide" title="Guide" media={<RowBadge colour={SETTING_BADGE.guide}><CircleHelp /></RowBadge>} />
-                <PageRow page="about" title="About" media={<RowBadge colour={SETTING_BADGE.about}><Info /></RowBadge>} />
-              </ListGroup>
-              </PillSection>
-          </>
+              <PageRow
+                page="flights" title="Flights" disabled={!signedIn} value={flights ? `${flights.length} saved` : undefined}
+                media={<RowBadge colour={SETTING_BADGE.flights}><Route /></RowBadge>}
+              />
+              <PageRow
+                page="logbook" title="Logbook" disabled={!signedIn} value={hours !== undefined && entries?.length ? `${hours.toFixed(1)} h` : undefined}
+                media={<RowBadge colour={SETTING_BADGE.logbook}><BookOpen /></RowBadge>}
+              />
+              <PageRow
+                page="minimums" title="Minimums" value={settings ?? undefined}
+                media={<RowBadge colour={SETTING_BADGE.minimums}><ShieldCheck /></RowBadge>}
+              />
+          </ListGroup>
+          </div>
+          {signedIn && sold && <ListGroup><SubscriptionRow /></ListGroup>}
+          {/* The guide (its tips with it) and about, links at the foot, at
+              the owner's pick: a developer's status first. */}
+          <nav aria-label="More" className="flex justify-center gap-6 pb-2">
+            {dev && <PageLink page="status" testId="status-link">Status</PageLink>}
+            <PageLink page="guide" testId="guide-link">Guide</PageLink>
+            <PageLink page="about" testId="about-link">About</PageLink>
+          </nav>
         </div>
       </ConsolePages>
     </>
+  );
+}
+
+/** The personal minimums in a few words, the ceiling and visibility
+ *  first; none set, nothing. */
+function minimumsWords(m: Minimums): string | null {
+  const parts = [
+    m.visibilitySm !== null ? `${m.visibilitySm} mi` : null,
+    m.ceilingFt !== null ? `${m.ceilingFt.toLocaleString("en-US")} ft` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : null;
+}
+
+/** Who is signed in, as iOS's Settings opens on its account: their
+ *  initials, their name and address, the role's menu at its end (sign
+ *  out, delete). A tap on it opens their details, for their flight plans.
+ *  Signed out, the way in. */
+function AccountCard({ pilot }: { pilot: Pilot | null }) {
+  if (!pilot) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5" data-testid="setup-pill-account">
+        <span className={cn("flex-1 text-muted-foreground", TEXT.detail)}>Sign in to keep your airplanes, flights and logbook.</span>
+        <Suspense fallback={null}><SignInModal plain /></Suspense>
+        <AccountMenu />
+      </div>
+    );
+  }
+  const name = pilot.fullName || pilot.displayName;
+  const initials = name.split(/\s+/).filter(Boolean).map(w => w[0]!).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border bg-card pr-3" data-testid="setup-pill-account">
+      <PageButton page="pilot" testId="pilot-row" label={`${name}: pilot details`}>
+        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground">{initials}</span>
+        <span className="flex min-w-0 flex-col text-left">
+          <span className={cn("truncate font-semibold", TEXT.row)}>{name}</span>
+          <span className={cn("truncate text-muted-foreground", TEXT.note)}>{pilot.email}</span>
+        </span>
+      </PageButton>
+      <AccountMenu />
+    </div>
   );
 }
 

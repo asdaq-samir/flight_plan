@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { consolePage, controlsInSight, openNavLog, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
+import { consolePage, controlsInSight, openNavLog, grabberTo, openConsole, openPanel, openSection, openSetup, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -207,18 +207,18 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    name: "settings",
+    name: "setup controls",
     ready: async page => {
       await page.goto("/app/plan");
-      await openSettings(page);
-      await expect(page.getByTestId("settings-panel")).toBeVisible();
+      await openSetup(page);
+      await expect(page.getByTestId("quick-controls").first()).toBeVisible();
     },
   },
   {
     name: "pilot console, About tab",
     ready: async page => {
       await page.goto("/app/plan");
-      await openSettings(page);
+      await openSetup(page);
       await consolePage(page.getByTestId("console-sheet"), "About");
       await expect(page.getByTestId("about-build")).toBeVisible();
     },

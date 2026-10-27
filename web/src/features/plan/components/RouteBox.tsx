@@ -782,9 +782,11 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   // dashed; G, and one not known yet, the sheet's own pill. A waypoint in
   // the sectional's magenta letters, where it carried a diamond that cost
   // a third pill its place on a phone's line.
-  // Or, as the setting has it, by the METAR's flight category, as the
-  // map's chips are (metarColourOf, PlanWorkspace's); grey without one.
-  const byWeather = usePreferences(s => s.routeColours) === "metar";
+  // Its METAR's flight category in the middle, as the chart's and
+  // Nearest's marks have it (metarColourOf, PlanWorkspace's); grey without
+  // one. It was a setting, airspace or weather, until the owner's split
+  // (2026-10-27) found it did no more than this dot: the ring says the
+  // airspace either way.
   // The class the course came with, else the airport's card asked for.
   const known = airspaceOf(ident);
   // Not for a present position, which has no card to ask for (it was
@@ -801,7 +803,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   ) : (
     <span
       aria-hidden="true" className="block size-[14px] shrink-0"
-      dangerouslySetInnerHTML={{ __html: airportMarkSvg(spaceClass, byWeather ? (metarColourOf(ident) ?? colourOf(null)) : colourOf(null), null, "block size-full overflow-visible") }}
+      dangerouslySetInnerHTML={{ __html: airportMarkSvg(spaceClass, metarColourOf(ident) ?? colourOf(null), null, "block size-full overflow-visible") }}
     />
   );
   // The fields' own names, as the two fields were: "Departure", "Stop 1".

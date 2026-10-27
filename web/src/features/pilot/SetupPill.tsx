@@ -1,48 +1,21 @@
-import { Suspense, lazy, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { cn } from "cn";
 import { PillSection } from "../../components/Favorites";
 import QuickControls from "../../components/QuickControls";
-import { pilotQuery } from "../../lib/queryClient";
-import { AccountMenu } from "./AccountMenu";
-import { TAB_PAGE_GAP } from "../../components/TabPage";
-
-// Loaded when it is drawn, as PaidPrompt does: imported here it put the
-// sign-in sheet in the first load for every pilot already signed in.
-const SignInModal = lazy(() => import("./SignInModal"));
 
 /**
- * Setup's pill: the quick switches in two rows under their title,
- * Controls, then Account -- the mode at the title's right, the address
- * under it, not in a table ("Email doesn't need to be in the table") -- at the
- * owner's asks ("Label the top as controls"; "setup can show the account
- * section with the email and then expanded starts showing everything
- * after that"). All the way up Setup's page starts with this, the
- * account's group going on with the airplanes, the flights, the logbook
- * and the minimums (`rows`), so a drag up only adds below. Signed out,
- * the way in where the account would be.
+ * Setup's pill: the Controls, the cockpit's four, alone -- the owner's pick
+ * of the Setup canvas (2026-10-27, T3, "Controls first"): the half sheet
+ * the cockpit's, big tiles for a hand in rough air; who is signed in and
+ * their things under it, all the way up (PilotPanel). Setup's page starts
+ * with this all the way up too, so a drag up only adds below.
  */
-export default function SetupPill({ testId = "setup-pill", rows }: {
+export default function SetupPill({ testId = "setup-pill" }: {
   /** Its own name where Setup's page starts with it all the way up. */
   testId?: string;
-  /** The Account's group under the address, all the way up. */
-  rows?: ReactNode;
 } = {}) {
-  const { data: pilot } = useQuery(pilotQuery);
   return (
-    // Its sections as far apart as the page's others (TabPage).
-    <div className={cn("flex flex-col", TAB_PAGE_GAP)} data-testid={testId}>
+    <div data-testid={testId}>
       <PillSection title="Controls" testId={`${testId}-controls`}>
         <QuickControls />
-      </PillSection>
-      <PillSection
-        title="Account" testId={`${testId}-account`}
-        right={<>{!pilot && <Suspense fallback={null}><SignInModal plain /></Suspense>}<AccountMenu /></>}
-      >
-        {/* Who is signed in is the role menu's title (AccountMenu); signed
-            out, Sign in at the heading's right says so, with no line of its
-            own, at the owner's ask ("no need to show Not Signed in"). */}
-        {rows && <div className="flex justify-between gap-2 pt-1" data-testid="library-section">{rows}</div>}
       </PillSection>
     </div>
   );

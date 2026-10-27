@@ -29,20 +29,6 @@ export const SETTING_BADGE = {
   logbook: BADGE.traffic,
   minimums: BADGE.hazard,
   subscription: "#be185d",
-  pilot: "#0e7490",
-  theme: BADGE.approach,
-  layout: BADGE.weather,
-  look: BADGE.food,
-  route: BADGE.ground,
-  narrative: "#7e3fb8",
   tips: BADGE.lights,
-  // Settings' In Flight (SettingsPanel).
-  alerts: BADGE.hazard,
-  offline: BADGE.chart,
-  receiver: BADGE.traffic,
   about: BADGE.other,
-  // Setup's own rows (PilotPanel): the settings grey as iPhone's General,
-  // the guide the tint's blue.
-  general: "#8e8e93",
-  guide: BADGE.tower,
 } as const;

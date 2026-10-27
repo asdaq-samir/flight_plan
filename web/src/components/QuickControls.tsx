@@ -1,95 +1,124 @@
 import type { ReactNode } from "react";
-import { Bell, BellOff, BellRing, Download, Moon, Plane } from "lucide-react";
+import { Bell, BellOff, BellRing, ChevronsUpDown, Download, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "cn";
 import { Toggle } from "./ui/toggle";
-import PullDown from "./PullDown";
-import { ALERT_MODES, useAlertMode } from "../lib/alertMode";
+import PullDown, { type PullDownOption } from "./PullDown";
+import { usePreferences, type NavEdge } from "../lib/preferences";
+import { useNavEdge } from "../hooks/use-nav-edge";
+import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 import { keepingAvailable } from "../lib/map/keepRoute";
-import { usePreferences } from "../lib/preferences";
 import { TEXT } from "../lib/text";
 
 /**
- * The Settings tab's pill, under the tab bar, at the owner's ask
- * ("Settings can show quick controls"): the switches a pilot reaches for
- * in the cockpit, one tap each, as iOS's Control Center lays them out --
- * a round mark filled in the tint while on, its word under it: the
- * traffic, the alerts in flight, the charts kept offline, and dark mode for
- * night. The alerts are one control of three settings, Off, On and Spoken,
- * at the owner's ask (2026-10-27: "Shouldn't this be combined control?"):
- * their voice was a fourth button that did nothing with them off. Its tap
- * a menu, as Apple Maps' voice is, not a cycle a pilot cannot foresee;
- * the slot it freed holds the charts kept offline, set before a flight.
- * Stock Toggles: each says it is on with aria-pressed.
+ * Setup's Controls, the only home of the four things a pilot changes in
+ * the cockpit, at the owner's split (2026-10-27): "Controls can be alerts,
+ * offline, layout, theme", everything else in the map's menu, and no
+ * Settings page. Four big tiles, as iOS's Control Center lays its out, at
+ * the owner's pick of the Setup canvas (T3): each a round mark filled in
+ * the tint while on, its name, and its setting under it. Alerts, Layout
+ * and Theme are a pick of a few, a tap their menu, as Apple Maps' voice
+ * is -- not a cycle a pilot cannot foresee; Offline is on or off.
  *
- * Those four alone, one row, at the owner's ask ("so just the four",
- * 2026-10-22): the rest -- TFRs, the Class B fields' weather and their
- * terminal sheet, the route's checkpoints, the military fields and the
- * charts kept for offline -- are set once and left, in the map's
- * settings (MapSettings), where each still is. TFRs most of all, which a
- * pilot must know of on every flight (14 CFR 91.103): one tap from hidden
- * in the cockpit was one too near.
+ * Traffic went to the map's menu, a layer of the map's, and Dark became
+ * Theme, keeping System, which a Dark switch could not say.
  */
 export default function QuickControls() {
-  const traffic = usePreferences(s => s.traffic);
   const keepOffline = usePreferences(s => s.keepOffline);
+  const setKeepOffline = usePreferences(s => s.setKeepOffline);
+  const setNavBar = usePreferences(s => s.setNavBar);
+  const edge = useNavEdge();
   const [alertMode, setAlertMode] = useAlertMode();
-  const set = usePreferences.getState();
+  const { theme, setTheme } = useTheme();
   const available = keepingAvailable();
-  const { resolvedTheme, setTheme } = useTheme();
+  const picked = theme === "light" || theme === "dark" ? theme : "system";
   return (
-    <div
-      className="grid grid-cols-4 gap-x-1"
-      data-testid="quick-controls"
-    >
-      <Quick on={traffic} onChange={set.setTraffic} icon={<Plane />} label="Traffic" testId="quick-traffic" />
-      <PullDown
-        label="Alerts" value={alertMode} onChange={setAlertMode} align="center"
-        options={ALERT_MODES.map(m => ({ value: m.value, label: m.label, testId: `quick-alerts-${m.value}` }))}
-        trigger={(
-          <button type="button" aria-label={`Alerts: ${ALERT_MODES.find(m => m.value === alertMode)!.label}`} data-testid="quick-alerts" data-state={alertMode === "off" ? "off" : "on"} className={QUICK}>
-            <span aria-hidden="true" className={MARK}>
-              {alertMode === "off" ? <BellOff /> : alertMode === "spoken" ? <BellRing /> : <Bell />}
-            </span>
-            <span className={cn("max-w-full truncate font-medium leading-tight text-foreground", TEXT.note)}>
-              {alertMode === "spoken" ? "Spoken" : "Alerts"}
-            </span>
-          </button>
-        )}
+    <div className="grid grid-cols-2 gap-2" data-testid="quick-controls">
+      <MenuTile<AlertMode>
+        label="Alerts" value={alertMode} onChange={setAlertMode} on={alertMode !== "off"} testId="alerts-mode"
+        icon={alertMode === "off" ? <BellOff /> : alertMode === "spoken" ? <BellRing /> : <Bell />}
+        options={ALERT_MODES.map(m => ({ value: m.value, label: m.label, testId: `alerts-mode-${m.value}` }))}
       />
-      <Quick
-        on={keepOffline && available} disabled={!available} onChange={set.setKeepOffline} icon={<Download />}
-        label="Offline" spoken="Keep charts offline" testId="quick-offline"
+      {/* The base chart along each route loaded, held for the air
+          (useKeepOffline); how a keep goes is its toast. Over plain http
+          there is no service worker to hold it, and it cannot be on. */}
+      <Toggle
+        pressed={keepOffline && available} onPressedChange={setKeepOffline} disabled={!available}
+        aria-label="Keep charts offline" data-testid="keep-offline-toggle" className={TILE}
+      >
+        <Face icon={<Download />} label="Offline" value={keepOffline && available ? "On" : "Off"} />
+      </Toggle>
+      {/* The edge the route panel is on, which the sheets come from too
+          and the map's buttons keep clear of (useNavEdge). */}
+      <MenuTile<NavEdge>
+        label="Layout" value={edge} onChange={setNavBar} on={false} testId="nav-bar-select"
+        icon={edge === "top" ? <PanelTop /> : <PanelBottom />}
+        options={[{ value: "top", label: "Top", testId: "nav-bar-top" }, { value: "bottom", label: "Bottom", testId: "nav-bar-bottom" }]}
       />
-      <Quick on={resolvedTheme === "dark"} onChange={on => setTheme(on ? "dark" : "light")} icon={<Moon />} label="Dark" testId="quick-dark" />
+      {/* The theme next-themes keeps, following the phone on System: a
+          pilot planning at night wants the page as dim as the panel
+          lights. */}
+      <MenuTile<"system" | "light" | "dark">
+        label="Theme" value={picked} onChange={setTheme} on={false} testId="theme-select"
+        icon={picked === "dark" ? <Moon /> : picked === "light" ? <Sun /> : <Monitor />}
+        options={[
+          { value: "system", label: "System", testId: "theme-system" },
+          { value: "light", label: "Light", testId: "theme-light" },
+          { value: "dark", label: "Dark", testId: "theme-dark" },
+        ]}
+      />
     </div>
   );
 }
 
-/** A control's tile, a Toggle or the alerts' menu button alike: a round
- *  mark filled in the tint while on, its word under it. */
-const QUICK = "group inline-flex h-auto min-h-11 w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg p-0.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=on]:bg-transparent";
-const MARK = "grid size-7 place-items-center rounded-full bg-muted text-foreground group-data-[state=on]:bg-primary group-data-[state=on]:text-primary-foreground [&_svg]:size-3.5";
+/** A control's tile: a rounded card, its mark at the left, its name over
+ *  its setting. Its own height is past 44, so it needs no area of its
+ *  own. */
+const TILE = cn(
+  "group flex h-auto min-h-14 w-full min-w-0 items-center justify-start gap-2.5 rounded-2xl bg-card px-2.5 py-2 text-left outline-none",
+  "hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 data-[state=on]:bg-card",
+);
 
-function Quick({ on, onChange, icon, label, spoken, testId, disabled }: {
-  on: boolean;
-  onChange: (on: boolean) => void;
-  icon: ReactNode;
-  label: string;
-  /** Its whole name to a screen reader, where the tile's is short. */
-  spoken?: string;
-  testId: string;
-  disabled?: boolean;
-}) {
+function Face({ icon, label, value, menu = false }: { icon: ReactNode; label: string; value: string; menu?: boolean }) {
   return (
-    <Toggle
-      pressed={on} onPressedChange={onChange} disabled={disabled} data-testid={testId} aria-label={spoken}
-      className={QUICK}
-    >
-      <span aria-hidden="true" className={MARK}>
+    <>
+      <span
+        aria-hidden="true"
+        className="grid size-9 shrink-0 place-items-center rounded-full bg-muted text-foreground group-data-[state=on]:bg-primary group-data-[state=on]:text-primary-foreground [&_svg]:size-4"
+      >
         {icon}
       </span>
-      <span className={cn("max-w-full truncate font-medium leading-tight text-foreground", TEXT.note)}>{label}</span>
-    </Toggle>
+      <span className="flex min-w-0 flex-col">
+        <span className={cn("truncate font-semibold text-foreground", TEXT.detail)}>{label}</span>
+        <span className={cn("flex items-center gap-0.5 truncate", menu ? "text-tint" : "text-muted-foreground", TEXT.note)}>
+          {value}{menu && <ChevronsUpDown className="size-3 shrink-0" aria-hidden />}
+        </span>
+      </span>
+    </>
+  );
+}
+
+/** A tile that is a pick of a few: a tap its menu (PullDown), the one
+ *  picked under its name. */
+function MenuTile<V extends string>({ label, value, onChange, options, icon, on, testId }: {
+  label: string;
+  value: V;
+  onChange: (value: V) => void;
+  options: PullDownOption<V>[];
+  icon: ReactNode;
+  /** Its mark filled in the tint, as a toggle's while on. */
+  on: boolean;
+  testId: string;
+}) {
+  const words = String(options.find(o => o.value === value)?.label ?? "");
+  return (
+    <PullDown
+      label={label} value={value} onChange={onChange} options={options} align="start"
+      trigger={(
+        <button type="button" aria-label={`${label}: ${words}`} data-testid={testId} data-state={on ? "on" : "off"} className={TILE}>
+          <Face icon={icon} label={label} value={words} menu />
+        </button>
+      )}
+    />
   );
 }

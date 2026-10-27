@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { clearTheRoute, openPanel, settle, sideDrawer, slow, openSettings, closeConsole, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
+import { clearTheRoute, openPanel, settle, sideDrawer, slow, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
 
 // A runway line opened stays open while the spec picks from it: the app
 // folds it after two seconds untouched, which a loaded runner can spend
@@ -807,7 +807,7 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   await expect(page).toHaveURL(/[?&]stops=VPBNG/);
 });
 
-test("the route's airports are marked by their airspace, or by the weather from the settings", async ({ page }) => {
+test("the route's airports are marked by their airspace's ring and their weather's dot", async ({ page }) => {
   await page.route(url => /\/(checkpoints|navlog)$/.test(url.pathname), route => route.abort());
   // Each point of the route's title led by its field's chart mark (the
   // polish pass, 2026-10-26): Duluth's Class D ring.
@@ -817,19 +817,9 @@ test("the route's airports are marked by their airspace, or by the weather from 
   await settle(page);
   await openPanel(page);
   await expect(mark()).toHaveAttribute("data-airspace", "D", { timeout: slow(15000) });
-  const plain = await weather();
-
-  // By the weather instead: its METAR's colour in the middle, or the grey of none.
-  await page.goto("/app/plan");
-  await openSettings(page);
-  await page.getByTestId("route-colours-select").getByRole("radio", { name: "Weather" }).click();
-  await closeConsole(page);
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await settle(page);
-  await openPanel(page);
-  await expect(mark()).toHaveAttribute("data-airspace", "D", { timeout: slow(15000) });
+  // Its METAR's colour in the middle, or the grey of none, as the chart's
+  // marks have it: no setting since the owner's split (2026-10-27).
   await expect.poll(weather, { timeout: slow(15000) }).toMatch(/^(#|rgb|oklch)/);
-  expect(plain).toMatch(/^(#|rgb|oklch)/);
 });
 
 /**
