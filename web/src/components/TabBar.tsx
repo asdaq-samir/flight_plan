@@ -7,8 +7,7 @@ import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
 import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
-import { GLASS_EDGE_LIFTED } from "../lib/glass";
-import { GLASS_CLEAR, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
+import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -622,12 +621,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
         <span
           aria-hidden="true" data-testid="tab-bubble" data-lifted={lens ? "" : undefined}
           className={cn(
-            // The clear glass the tab up's is in the sheet (TabGlass,
-            // GLASS_CLEAR): bright at its top, its rim lit, on a soft
-            // shadow. Lifted, on a deeper shadow, as a lens raised over
-            // the bar.
-            "pointer-events-none absolute rounded-full", GLASS_CLEAR,
-            lens && GLASS_EDGE_LIFTED,
+            // The same flat pane of the tint as the tab up's in the sheet
+            // (TabGlass), so the bar reads alike at every height (the
+            // owner's "Why does the tab selection look different from small
+            // detent to medium detent", 2026-10-26). Lifted, a step deeper.
+            "pointer-events-none absolute rounded-2xl", lens ? "bg-tint/16" : "bg-tint/10",
           )}
           style={lensStyle}
         />
