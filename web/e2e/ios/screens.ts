@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { consolePage, controlsInSight, openNavLog, grabberTo, openConsole, openPanel, openSection, openSettings, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
+import { consolePage, controlsInSight, openNavLog, grabberTo, openConsole, openProfile, openPanel, openSection, openSetup, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -207,18 +207,18 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    name: "settings",
+    name: "setup controls",
     ready: async page => {
       await page.goto("/app/plan");
-      await openSettings(page);
-      await expect(page.getByTestId("settings-panel")).toBeVisible();
+      await openSetup(page);
+      await expect(page.getByTestId("quick-controls").first()).toBeVisible();
     },
   },
   {
     name: "pilot console, About tab",
     ready: async page => {
       await page.goto("/app/plan");
-      await openSettings(page);
+      await openSetup(page);
       await consolePage(page.getByTestId("console-sheet"), "About");
       await expect(page.getByTestId("about-build")).toBeVisible();
     },
@@ -388,7 +388,7 @@ export const SCREENS: Screen[] = [
       }));
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await controlsInSight(page);
-      await page.getByTestId("altitude-why").click({ timeout: slow(30000) });
+      await openProfile(page);
       await expect(page.getByTestId("unflyable-fly-via")).toBeVisible();
     },
   },
@@ -402,7 +402,7 @@ export const SCREENS: Screen[] = [
       await settle(page);
       await controlsInSight(page);
       await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/feet|FL/, { timeout: slow(60000) });
-      await page.getByTestId("altitude-why").click();
+      await openProfile(page);
       await expect(page.getByTestId("altitude-wheel")).toBeVisible();
       await expect(page.getByTestId("altitude-figures")).toBeVisible();
     },

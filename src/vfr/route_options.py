@@ -132,6 +132,13 @@ WATER_COST = 10.0
 #: the clear, three times that for the best weather's way: the planner's
 #: own figure, half an hour's flying past one to a field in VFR.
 MARGINAL_STOP_MIN = 30.0
+#: How many minutes a fuel stop with somewhere to eat on the field or a
+#: walk from it is worth, among chains of as many stops: a field with a
+#: meal is landed at in place of one without where it costs no more than
+#: this, and never at the price of another landing (the owner's "try to
+#: find a fuel stop that also has food while still maintaining min
+#: stops", 2026-10-27). The planner's own figure: a third of an hour.
+FOOD_CREDIT_MIN = 20.0
 
 #: The eight ways out of a cell: (rows, columns).
 _STEPS = [(dr, dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1) if dr or dc]
@@ -612,7 +619,7 @@ def _crossed(grid: _Grid, points: list[tuple], marginal: bool = False) -> list[i
 
 
 def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields, reserve_gal: float,
-           fewest: bool, marginal_stop_min: float = MARGINAL_STOP_MIN) -> list[dict] | None:
+           fewest: bool, marginal_stop_min: float = MARGINAL_STOP_MIN, food=None) -> list[dict] | None:
     """The fields to land at for fuel along the way: those with 100LL on a
     paved runway (vfr.fuelstops) within STOP_FIELD_NM of it, in open
     cells, each flight landing with `reserve_gal` (91.151) -- the fewest
@@ -621,8 +628,11 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     one closed itself; one in marginal weather costing `marginal_stop_min`
     more, so a field in the clear a little further on is landed at instead
     (the owner's "Or even a different fuel stop to avoid weather?",
-    2026-10-25). [] where the tanks reach; None where no chain of fields does (or no
-    table of fields could be had)."""
+    2026-10-25). With `food` (ident, lat, lon -> whether there is
+    somewhere to eat at the field), among the chains of as many landings
+    the one landing where there is, by FOOD_CREDIT_MIN a stop; each stop
+    says so ("food"). [] where the tanks reach; None where no chain of
+    fields does (or no table of fields could be had)."""
     tas = max(float(profile["cruise_tas_kt"]), 1.0)
     gph = float(profile["fuel_burn_gph"])
     usable = float(profile.get("usable_fuel_gal") or 0.0)
@@ -686,7 +696,8 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
             continue
         nodes.append({"at": float(best_at[i]), "off": float(best_off[i]), "ident": str(row["ident"]),
                       "name": str(row["name"]), "lat": float(lat_f[i]), "lon": float(lon_f[i]),
-                      "dear": marginal_stop_min if grid.marginal[cell] >= 0 else 0.0})
+                      "dear": marginal_stop_min if grid.marginal[cell] >= 0 else 0.0,
+                      "food": bool(food(str(row["ident"]), float(lat_f[i]), float(lon_f[i]))) if food else False})
     nodes.append({"at": total_min, "off": 0.0})
     count = len(nodes)
     best = [math.inf] * count
@@ -709,6 +720,43 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     while at not in (None, 0):
         chain.append(nodes[at])
         at = prev[at]
+    chain = chain[::-1]
+    if food and chain and not all(n["food"] for n in chain):
+        return _with_food(nodes, len(chain), tas, gph, reach_gal) or chain
+    return chain
+
+
+def _with_food(nodes: list[dict], landings: int, tas: float, gph: float, reach_gal: float) -> list[dict] | None:
+    """The chain of exactly `landings` stops through `nodes` (the way's
+    ends first and last) costing least, a stop where there is somewhere to
+    eat costing FOOD_CREDIT_MIN less: as many landings as the best chain,
+    the meal taken where it is on the way or near it."""
+    count = len(nodes)
+    best = [[math.inf] * (landings + 1) for _ in range(count)]
+    prev: list[list] = [[None] * (landings + 1) for _ in range(count)]
+    best[0][0] = 0.0
+    for j in range(1, count):
+        last = j == count - 1
+        for i in range(j):
+            minutes = nodes[j]["at"] - nodes[i]["at"] + (nodes[i]["off"] + nodes[j]["off"]) / tas * 60.0
+            if minutes / 60.0 * gph > reach_gal:
+                continue
+            for k in range(landings + 1):
+                if not math.isfinite(best[i][k]):
+                    continue
+                to = k if last else k + 1
+                if to > landings:
+                    continue
+                landing = 0.0 if last else TURNAROUND_MIN + nodes[j]["dear"] - (FOOD_CREDIT_MIN if nodes[j]["food"] else 0.0)
+                cost = best[i][k] + minutes + landing
+                if cost < best[j][to]:
+                    best[j][to], prev[j][to] = cost, (i, k)
+    if not math.isfinite(best[-1][landings]):
+        return None
+    chain, at = [], prev[-1][landings]
+    while at is not None and at[0] != 0:
+        chain.append(nodes[at[0]])
+        at = prev[at[0]][at[1]]
     return chain[::-1]
 
 
@@ -716,7 +764,7 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             min_ceiling_ft: float | None = None, min_visibility_sm: float | None = None,
             current: list[tuple] | None = None, current_idents: list[str] | None = None,
             current_landed: list[bool] | None = None, fields=None,
-            filed: tuple[list[tuple], list[str]] | None = None) -> dict:
+            filed: tuple[list[tuple], list[str]] | None = None, food=None) -> dict:
     """The ways to fly from `dep` to `dest` ({"ident", "lat", "lon"}) in
     an airplane of `profile` (vfr.aircraft's: cruise_tas_kt, fuel_burn_gph,
     usable_fuel_gal, service_ceiling_ft): {"options": [{"kind", "title",
@@ -807,7 +855,7 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             turns = _straightened(grid, gs, points, marginal_cost, slower, water_cost)
             if len(turns) - 2 <= MAX_TURNS:
                 break
-        stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops",
+        stops = _stops(grid, gs, turns, profile, table, reserve_gal, fewest=kind == "stops", food=food,
                        marginal_stop_min=MARGINAL_STOP_MIN * (3 if kind == "weather" else 1))
         # No chain of fields reaches: the way offered all the same, with
         # that said (the owner's rule: no hard limits, only warnings).
@@ -819,12 +867,13 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
             continue
         found.append(option)
     found = _named_by_what_they_are(grid, found)
-    own = _own(grid, gs, current or [start, end], current_idents or [], current_landed or [], profile, table, reserve_gal)
+    own = _own(grid, gs, current or [start, end], current_idents or [], current_landed or [], profile, table, reserve_gal,
+               food=food)
     # The most filed route's fixes are flown over, none landed at.
     most_filed = None
     if filed:
         most_filed = {**_own(grid, gs, [start, *filed[0], end], filed[1], [False] * len(filed[1]), profile, table,
-                             reserve_gal), "kind": "filed", "kinds": ["filed"], "title": "Most Filed"}
+                             reserve_gal, food=food), "kind": "filed", "kinds": ["filed"], "title": "Most Filed"}
     return {
         "options": found,
         "own": own,
@@ -848,7 +897,7 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
 
 
 def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], landed: list[bool], profile: dict, table,
-         reserve_gal: float) -> dict:
+         reserve_gal: float, food=None) -> dict:
     """The pilot's own route with the fuel stops it needs put in where they
     fall along it -- its own points kept, in order -- for FPL's card of it
     before anything is planned (the owner's "Don't plan anything unless a
@@ -871,7 +920,7 @@ def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], land
     no_fuel = False
     at = 0.0
     for hop in hops:
-        found = _stops(grid, gs, hop, profile, table, reserve_gal, fewest=False)
+        found = _stops(grid, gs, hop, profile, table, reserve_gal, fewest=False, food=food)
         if found is None:
             no_fuel = True
         else:
@@ -892,6 +941,7 @@ def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], land
         "kind": "own", "kinds": ["own"], "title": "Your Route",
         "stops": [p["ident"] for _, p in points],
         "fuel": [p["ident"] for _, p in points if p["fuel"]],
+        "food": [stop["ident"] for stop in stops if stop.get("food")],
         "path": [[round(lat, 5), round(lon, 5)] for lat, lon in way],
         "distance_nm": round(distance, 1),
         "air_min": round(air, 1),
@@ -1075,6 +1125,8 @@ def _option(kind: str, grid: _Grid, gs: np.ndarray, turns: list[tuple], stops: l
         "title": TITLES[kind],
         "stops": [p["ident"] for _, p in points],
         "fuel": [p["ident"] for _, p in points if p["fuel"]],
+        # The fuel stops with somewhere to eat, for the map's marks.
+        "food": [s["ident"] for s in stops if s.get("food")],
         "path": [[round(lat, 5), round(lon, 5)] for lat, lon in path],
         "distance_nm": round(distance, 1),
         "air_min": round(air, 1),

@@ -74,6 +74,14 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // and each re-draws the markers, so Playwright's wait for the marker
   // to hold still ran the test out of time.
   await marker.dispatchEvent("click");
+  // On a phone its card comes up in the map's sheet over the route
+  // (MapPopup): put away, the pick kept, for the route's box under it.
+  if (page.viewportSize()!.width < 768) {
+    const card = page.locator("[data-sheet-card]");
+    await expect(card).toBeVisible();
+    await card.getByTestId("sheet-card-close").click();
+    await expect(card).toHaveCount(0);
+  }
 
   // Then a short window, so the nav log has to scroll: the row used to
   // come to rest at the bottom edge (scrollIntoView "nearest"), the

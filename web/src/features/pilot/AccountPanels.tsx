@@ -15,7 +15,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
 import { Spinner } from "../../components/ui/spinner";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import PullDown from "../../components/PullDown";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import { useConfirm } from "../../components/useConfirm";
@@ -154,12 +154,11 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
           onChange={e => setCheck({ ...check, checkedOn: e.target.value })} aria-label="VOR check date" data-testid="vor-check-date" /></FieldHit>
       </ListRow>
       <ListRow title="How">
-        <Select value={check.kind} onValueChange={kind => setCheck({ ...check, kind: kind as VorCheckRequest["kind"] })}>
-          <SelectTrigger size="sm" aria-label="How the VOR was checked" data-testid="vor-check-kind"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {VOR_CHECKS.map(k => <SelectItem key={k.value} value={k.value}>{k.label} (±{k.limit}°)</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <PullDown
+          label="How the VOR was checked" value={check.kind} testId="vor-check-kind"
+          options={VOR_CHECKS.map(k => ({ value: k.value, label: `${k.label} (±${k.limit}°)` }))}
+          onChange={kind => setCheck({ ...check, kind })}
+        />
       </ListRow>
       <ListRow id={`${id}-place`} title="Where">
         <FieldHit htmlFor={`${id}-place`}><Input id={`${id}-place`} className="h-8 w-40 text-right" placeholder="KDLH VOT" value={check.place ?? ""}

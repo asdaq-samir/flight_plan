@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { openMapSettings, settle, slow } from "./helpers";
+import { closeConsole, openSetup, pickControl, settle, slow } from "./helpers";
 
 /**
  * What is ahead of own ship in the air (lib/map/ahead), said over the map
@@ -150,12 +150,13 @@ test("spoken, each alert ahead is said once as it comes, and turned on it says s
   // Off by default: nothing said.
   expect(await said()).toEqual([]);
 
-  await openMapSettings(page);
-  const spoken = page.getByTestId("speak-alerts-toggle");
-  await expect(spoken).toHaveAttribute("aria-pressed", "false");
-  await spoken.click();
-  await expect(spoken).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("Escape");
+  // Setup's Controls: one Alerts control of Off, On and Spoken.
+  await openSetup(page);
+  const mode = page.getByTestId("setup-page").getByTestId("alerts-mode");
+  await expect(mode).toHaveAccessibleName("Alerts: On");
+  await pickControl(page, "alerts-mode", "alerts-mode-spoken");
+  await expect(mode).toHaveAccessibleName("Alerts: Spoken");
+  await closeConsole(page);
   // Turned on in the air: it says so, then what is ahead.
   await expect.poll(said).toEqual(["Alerts will be spoken.", "Chicago Class B, in 2 minutes."]);
 
@@ -174,7 +175,8 @@ test("a position that is the phone's approximate one, Precise Location off, is s
   const alert = page.getByTestId("error-alert");
   await expect(alert).toContainText("Approximate position");
   await expect(alert).toContainText("Precise Location is off");
-  await alert.getByRole("button", { name: "OK" }).click();
+  // OK from md up; on a phone the sheet's close in its title row.
+  await alert.getByRole("button", { name: /^(OK|Close)$/ }).click();
   // Not again at each second's fix.
   await page.waitForTimeout(2500);
   await expect(alert).toHaveCount(0);

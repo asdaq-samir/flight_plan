@@ -1,5 +1,4 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import { PlaceTile } from "./Favorites";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { ListRow } from "./GroupedList";
@@ -92,39 +91,49 @@ export function ConsolePages({ back, pages, children }: {
 
 /** A row that opens one of the tab's pages: its name, what it holds at
  *  its end as a value, and the chevron. */
-export function PageRow({ page, title, description, value, media, testId }: {
+export function PageRow({ page, title, description, value, media, testId, disabled }: {
   page: string;
   title: ReactNode;
   description?: ReactNode;
   value?: ReactNode;
   media?: ReactNode;
   testId?: string;
+  /** Waiting on something: the account's things signed out. */
+  disabled?: boolean;
 }) {
   const pages = useContext(Pages);
   const row = useRef<HTMLButtonElement>(null);
   const back = pages?.from === page;
   useEffect(() => { if (back) row.current?.focus(); }, [back]);
-  return <ListRow ref={row} title={title} description={description} value={value} media={media} chevron onClick={() => pages?.open(page)} data-testid={testId} />;
+  return <ListRow ref={row} title={title} description={description} value={value} media={media} chevron disabled={disabled} onClick={() => pages?.open(page)} data-testid={testId} />;
 }
 
-/** A page's tile, as Favorites' places are, its page opened at a tap:
- *  the account's things in Setup, at the owner's ask ("like favorites, an
- *  account can have the 4 things as icons that open in their card"). */
-export function PageTile({ page, title, detail, icon, colour, disabled, testId }: {
-  page: string;
-  title: string;
-  detail?: string;
-  icon: ReactNode;
-  colour: string;
-  disabled?: boolean;
-  testId?: string;
-}) {
+/** A page opened by a tap anywhere on a block of the caller's own -- the
+ *  account's card in Setup, its details. */
+export function PageButton({ page, label, testId, children }: { page: string; label: string; testId?: string; children: ReactNode }) {
   const pages = useContext(Pages);
   return (
-    <PlaceTile
-      icon={icon} className="text-white" style={{ backgroundColor: colour }} title={title} detail={detail}
-      onClick={() => pages?.open(page)} disabled={disabled} testId={testId}
-    />
+    <button
+      type="button" onClick={() => pages?.open(page)} aria-label={label} data-testid={testId}
+      className="flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {children}
+    </button>
+  );
+}
+
+/** A page opened from a link in the tint, at a page's foot: Setup's Guide
+ *  and About, at the owner's pick (T3). Its 44 points a pseudo-element
+ *  round the words, the words not grown. */
+export function PageLink({ page, children, testId }: { page: string; children: ReactNode; testId?: string }) {
+  const pages = useContext(Pages);
+  return (
+    <button
+      type="button" onClick={() => pages?.open(page)} data-testid={testId}
+      className={cn("relative rounded-sm text-tint outline-none after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
+    >
+      {children}
+    </button>
   );
 }
 

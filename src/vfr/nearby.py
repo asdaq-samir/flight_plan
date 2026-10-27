@@ -1,6 +1,7 @@
 """What a pilot landing for a break can find on the ground near a field:
-somewhere to eat, somewhere to sleep and a car to hire, at the owner's
-ask for food, fuel and rest stops on a long cross-country (2026-10-22).
+somewhere to eat, somewhere to sleep, a car to hire and a flight school,
+at the owner's ask for food, fuel and rest stops on a long cross-country
+(2026-10-22) and for training among the map's Stops (2026-10-27).
 
 The places are Overture Maps' (the places theme, CDLA Permissive 2.0:
 free to use and show, with its credit), read straight from its public
@@ -56,7 +57,7 @@ _COMPANY = re.compile(r"\b(inc|llc|l\.l\.c|corp|corporation|co|ltd|lp|llp|pllc|h
 #: under it, the listings near Hays were LLCs and stale entries.
 MIN_CONFIDENCE = 0.7
 #: The most of each kind offered, nearest first.
-MOST = {"food": 5, "lodging": 3, "cars": 2}
+MOST = {"food": 5, "lodging": 3, "cars": 2, "training": 3}
 
 #: Somewhere to eat: the places theme's restaurants, casual eateries
 #: (diners, cafés, delis) and coffee and juice shops -- its second level
@@ -70,11 +71,17 @@ FOOD = {"restaurant", "casual_eatery", "non_alcoholic_beverage_venue"}
 LODGING = {"hotel", "bed_and_breakfast", "resort", "inn", "motel"}
 #: A car to hire.
 CARS = {"car_rental_service"}
+#: A flight school: the places theme's own category under education >
+#: place_of_learning > specialty_school (Leading Edge Flying Club and ATP
+#: Flight School at Chicago Executive, Citywings at Schaumburg, read from
+#: the 2026-10-21.0 release). Not "specialty_school" alone, which is
+#: nursing, music and language schools as well.
+TRAINING = {"flight_school"}
 
-#: Each field's answer's file name after its ident: ".5.json" since
-#: places to eat say whether they are on the field, so those kept before
-#: are read again.
-KEPT_SUFFIX = ".5.json"
+#: Each field's answer's file name after its ident: ".6.json" since it
+#: holds the flight schools too (and places to eat and schools say whether
+#: they are on the field), so those kept before are read again.
+KEPT_SUFFIX = ".6.json"
 #: A place to eat is on the field inside Overture's outline of the airport
 #: (its base theme's infrastructure, subtype airport: OpenStreetMap's
 #: aerodrome); where the field has no outline, this near its reference
@@ -169,14 +176,17 @@ def _dataset(release: str):
 
 
 def _kind_of(taxonomy: dict | None, basic: str | None) -> str | None:
-    """"food", "lodging" or "cars", or None for a place of none of them,
-    by the places theme's taxonomy (its hierarchy, then its own category)."""
+    """"food", "lodging", "cars" or "training", or None for a place of
+    none of them, by the places theme's taxonomy (its hierarchy, then its
+    own category)."""
     hierarchy = (taxonomy or {}).get("hierarchy") or []
     primary = (taxonomy or {}).get("primary")
     if len(hierarchy) > 1 and hierarchy[0] == "food_and_drink" and hierarchy[1] in FOOD:
         return "food"
     if primary in CARS:
         return "cars"
+    if primary in TRAINING or TRAINING & set(hierarchy):
+        return "training"
     if hierarchy[:1] == ["lodging"] and (basic in LODGING or primary in LODGING):
         return "lodging"
     return None
@@ -231,7 +241,9 @@ def _read(lat: float, lon: float, release: str) -> dict:
             "distance_m": round(metres), "walk_min": math.ceil(metres / WALK_M_PER_MIN) if metres <= WALK_M else None,
             "phone": (row.get("phones") or [None])[0], "website": (row.get("websites") or [None])[0],
             "lat": round(plat, 6), "lon": round(plon, 6),
-            "on_field": _on_field(outline, plat, plon, metres) if kind == "food" else False,
+            # On the field for food and schools alike: a school is the
+            # field's own as its restaurant is (the Stops' Training).
+            "on_field": _on_field(outline, plat, plon, metres) if kind in ("food", "training") else False,
         })
     out = {}
     for kind, places in found.items():
@@ -247,8 +259,9 @@ def _read(lat: float, lon: float, release: str) -> dict:
 
 
 def around(ident: str, lat: float, lon: float, cache_dir: Path = CACHE_DIR) -> dict:
-    """The places to eat, sleep and hire a car within REACH_M of a field,
-    nearest first: {"food": [...], "lodging": [...], "cars": [...]}, each
+    """The places to eat, sleep and hire a car and the flight schools
+    within REACH_M of a field, nearest first: {"food": [...], "lodging":
+    [...], "cars": [...], "training": [...]}, each
     with its name, its kind in words, how far (metres, and the minutes'
     walk where it is a walk), its phone and where. Raises
     NearbyUnavailable where Overture cannot be read and the field's
@@ -300,6 +313,16 @@ def kept(ident: str, cache_dir: Path = CACHE_DIR) -> dict | None:
         return json.loads((Path(cache_dir) / latest_release() / f"{ident.strip().upper()}{KEPT_SUFFIX}").read_text())
     except (OSError, ValueError, NearbyUnavailable):
         return None
+
+
+def food_at(ident: str, cache_dir: Path = CACHE_DIR) -> bool | None:
+    """Whether there is somewhere to eat at the field: a place on it, or a
+    walk from it (WALK_M), as its kept places say; None where they have
+    not been read yet (read_later)."""
+    places = kept(ident, cache_dir)
+    if places is None:
+        return None
+    return any(p.get("on_field") or p.get("walk_min") is not None for p in places.get("food", []))
 
 
 def read_later(ident: str, lat: float, lon: float) -> None:

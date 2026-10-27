@@ -89,7 +89,7 @@ test("a field the armed services keep to themselves is off the map until Militar
   // drawn said on its data-airport-marks.
   const drawn = (ident: string) => async () => !!(await airportMark(page, ident));
   await openMapSettings(page);
-  await expect(page.getByTestId("military-toggle")).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("military-toggle")).toHaveAttribute("aria-checked", "false");
   await page.keyboard.press("Escape");
   await expect.poll(drawn("KCIV"), { timeout: slow(15000) }).toBe(true);
   expect(await drawn("KMIL")()).toBe(false);

@@ -5,7 +5,8 @@ import { cn } from "cn";
 import { PagesShown } from "../../components/pagesShown";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
-import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
+import { useSheetCards } from "../../lib/sheetCards";
+import { ConsoleInPanelContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
@@ -14,7 +15,6 @@ import LinkSignIn from "../pilot/LinkSignIn";
 import TvLink from "../pilot/TvLink";
 import PlanWorkspace from "../plan/PlanWorkspace";
 import type { WorkspacePieces } from "./workspace";
-import { fromChunk } from "../../lib/fromChunk";
 
 /** Setup's pill (the switches, the account), with the console's code
  *  rather than the page's first load: asked for once the page has drawn,
@@ -32,12 +32,6 @@ import { fromChunk } from "../../lib/fromChunk";
  * empty shell.
  */
 const TrainWorkspace = lazy(() => import("../train/TrainWorkspace"));
-
-/** The settings, the console's last tab, on their own chunk for the same
- *  reason: nothing on the map needs them until the console opens. Asked
- *  for once the page has drawn (MapPage), and drawn straight from the
- *  chunk then (fromChunk): opened on Settings, the console waited on it. */
-const { Part: SettingsPanel, prefetch: prefetchSettings } = fromChunk(() => import("../../components/SettingsPanel"), m => m.default);
 
 export type Mode = "pilot" | "dev";
 
@@ -91,13 +85,6 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const dest = typed?.dest ?? addressDest;
   const setDep = useCallback((d: string) => setDraft({ of: addressKey, dep: d, dest }), [addressKey, dest]);
   const setDest = useCallback((a: string) => setDraft({ of: addressKey, dep, dest: a }), [addressKey, dep]);
-
-  // The settings' chunk, once the page has drawn (the console's own is
-  // PlanWorkspace's to ask for).
-  useEffect(() => {
-    const later = window.setTimeout(() => { prefetchSettings(); }, 2000);
-    return () => window.clearTimeout(later);
-  }, []);
 
   // A Google or Apple sign-in the webapp refused comes back here: an
   // address the provider has not verified can be nobody's pilot. Said
@@ -210,11 +197,9 @@ export default function MapPage({ mode }: { mode: Mode }) {
   const consoleLayerOf = (pieces: WorkspacePieces) => (
     <ConsoleInPanelContext.Provider value={consoleInPanel}>
       <ConsoleLayer label={consoleLabel} detent={panel === "full" ? "large" : "medium"} edge={edge} onClose={closeConsole} shown={consoleLayer}>
-        <ConsoleSettingsContext.Provider value={<SettingsPanel />}>
           <PagesShown.Provider value={consoleLayer}>
             <AfterTheSheet>{pieces.console}</AfterTheSheet>
           </PagesShown.Provider>
-        </ConsoleSettingsContext.Provider>
       </ConsoleLayer>
     </ConsoleInPanelContext.Provider>
   );
@@ -354,6 +339,8 @@ function ConsoleLayer({ label, detent, edge, onClose, shown, children }: {
     if (!node || !shown) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
+      // A card over it (SheetCard) is put away first, by its own Escape.
+      if (useSheetCards.getState().stack.length) return;
       event.preventDefault();
       close.current();
     };

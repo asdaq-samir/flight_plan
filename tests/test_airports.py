@@ -348,3 +348,27 @@ def test_a_search_puts_a_name_that_starts_with_it_and_then_the_nearest_first_amo
     # And of those, the nearest first.
     assert [a["ident"] for a in search_airports("campbell", cache_path=path, near=grayslake)] == ["C81", "06XS", "1A3"]
     assert [a["ident"] for a in search_airports("campbell air", cache_path=path, near=grayslake)] == ["C81"]
+
+
+def test_only_the_fields_the_faa_lists_are_drawn_searched_and_nearest(us_airports_csv, tmp_path):
+    # The owner, 2026-10-27, of LL97 (in OurAirports, not in NASR): "I
+    # would take it out if it's not showing with FAA". With the FAA's
+    # airport file beside OurAirports', a field it doesn't list by any of
+    # its idents is left out.
+    (tmp_path / "faa_nasr").mkdir()
+    pd.DataFrame([
+        {"ARPT_ID": "DLH", "ICAO_ID": "KDLH"},
+        {"ARPT_ID": "C81", "ICAO_ID": None},
+        {"ARPT_ID": "PWK", "ICAO_ID": "KPWK"},
+    ]).to_csv(tmp_path / "faa_nasr" / "APT_BASE.csv", index=False)
+    everywhere = [p["ident"] for p in places_in(40, -95, 48, -87, cache_path=us_airports_csv)]
+    assert sorted(everywhere) == ["C81", "KDLH", "KPWK"]
+    assert search_airports("minneapolis", cache_path=us_airports_csv) == []
+    assert search_airports("MSP", cache_path=us_airports_csv) == []
+    assert {a["ident"] for a in search_airports("campbell", cache_path=us_airports_csv)} == {"C81"}
+    assert "KMSP" not in [a["ident"] for a in airports.nearest(44.88, -93.22, limit=3, cache_path=us_airports_csv)]
+    assert find_place("KMSP", cache_path=us_airports_csv) is None
+
+
+def test_with_no_faa_file_every_field_is_kept(us_airports_csv):
+    assert "KMSP" in [p["ident"] for p in places_in(40, -95, 48, -87, cache_path=us_airports_csv)]

@@ -1,12 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Info } from "lucide-react";
 import { cn } from "cn";
 import { N_NUMBER, profileOfRegistered, shortName } from "../../../../lib/aircraftChoice";
 import { api } from "../../../../lib/api/client";
-import { flightQuery } from "../../../../lib/queryClient";
-import { GLASS_BUTTON } from "../../../../components/mapChrome";
-import { INLINE_FIELD_BUTTON, InlineField } from "../../../../components/InlineField";
+import { InlineField } from "../../../../components/InlineField";
 import { TEXT } from "../../../../lib/text";
 import DepartPicker from "./DepartPicker";
 
@@ -20,15 +17,13 @@ import DepartPicker from "./DepartPicker";
  * and picks the winds forecast period -- shadcn's date picker with a time
  * box (DepartPicker), empty for about now. Changing either re-plans.
  */
-export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraftChange, onTailPick, onOpenAirplane, altitude, depart, onDepartChange }: {
+export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraftChange, onTailPick, altitude, depart, onDepartChange }: {
   aircraftValue: string;
   aircraftOptions: { value: string; label: string }[];
   onAircraftChange: (value: string) => void;
   /** An N-number typed that is none of the pilot's own: flown on its type's
    *  stock profile once the FAA's registry says it. */
   onTailPick?: (tail: string, profile: string) => void;
-  /** The airplane's card, by its Mode S hex (the FAA's registry's). */
-  onOpenAirplane?: (hex: string) => void;
   /** Beside the airplane: the altitude it flies (AltitudeGroup). */
   altitude?: ReactNode;
   /** An ISO instant, or "" for about now; with no handler, no picker here
@@ -66,52 +61,28 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
       if (profile && profile !== now) onTailPick?.(tail, profile);
     }).catch(() => { /* the profile in use stands */ });
   };
-  // Its registry entry and its flight today asked for as soon as the
-  // N-number is in, so its card opens at the tap: the button waited on
-  // the registry (1.5 s, more on a busy phone) and then the card on the
-  // airplane's trace, the owner's "taking a long time to open".
-  const canOpen = !!onOpenAirplane;
-  useEffect(() => {
-    if (!tailNow || !canOpen) return;
-    void queryClient.fetchQuery({
-      queryKey: ["registered", tailNow], queryFn: () => api.trafficFind(tailNow), staleTime: 24 * 60 * 60_000, meta: { silent: true },
-    }).then(found => {
-      const hex = found?.registered?.mode_s_hex;
-      if (hex) void queryClient.prefetchQuery(flightQuery(hex.toLowerCase()));
-    }).catch(() => { /* asked again at the tap */ });
-  }, [tailNow, canOpen, queryClient]);
-  // Its card, at the owner's ask ("should have a button show up to go to
-  // its card"): the airplane by its Mode S hex, from the registry.
-  const openCard = () => {
-    if (!tailNow || !onOpenAirplane) return;
-    void registered(tailNow).then(found => {
-      const hex = found?.registered?.mode_s_hex;
-      if (hex) onOpenAirplane(hex.toLowerCase());
-    }).catch(() => { /* no card to open */ });
-  };
   return (
     <>
       {/* A field as the altitude's is, at the owner's ask ("N-number should
           look similar to altitude"), the same field (InlineField): typed
           in, its card's button at its end once there is one. */}
       <InlineField
-        label="Airplane" testId="aircraft-select" widest="N888MM" placeholder="N-number" shrink
+        label="Airplane" testId="aircraft-select" widest="N-888MM" placeholder="" prefix="N-" endRoom="w-0" shrink
         placeholderClassName={TEXT.detail}
         input={{
-          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: shown, "aria-label": "Airplane, N-number",
-          onChange: e => setTyped(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6)),
+          // The N fixed before it, the rest typed, at the owner's ask
+          // (2026-10-27: "N- can stay static while the rest of the number
+          // can be entered", "add a - after N"): a US registration always
+          // starts with it.
+          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: shown.replace(/^N-?/, ""), "aria-label": "Airplane, N-number",
+          onChange: e => {
+            const rest = e.target.value.toUpperCase().replace(/^N-?/, "").replace(/[^A-Z0-9]/g, "").slice(0, 5);
+            setTyped(rest ? `N${rest}` : "");
+          },
           onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },
           onBlur: commit, "data-testid": "aircraft-input",
         }}
         inputClassName={cn("text-foreground", !shown && TEXT.detail)}
-        button={tailNow && typed === null && onOpenAirplane && (
-          <button
-            type="button" onClick={openCard} aria-label={`${tailNow}: its card`} data-testid="aircraft-card-button"
-            className={cn(INLINE_FIELD_BUTTON, GLASS_BUTTON)}
-          >
-            <Info className="size-3.5" aria-hidden="true" />
-          </button>
-        )}
       />
       {altitude}
       {onDepartChange && <DepartPicker value={depart} onChange={onDepartChange} />}

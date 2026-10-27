@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import IconButton from "../../../components/IconButton";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../components/ui/select";
+import PullDown from "../../../components/PullDown";
 import { MapCard } from "../../../lib/map/MapCard";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
@@ -149,14 +149,7 @@ export default function PointPopup({
       {/* Twelve clear of the button under it (pb-1.5 and the card's six),
           so their hit areas meet rather than overlap. */}
       <div className="flex items-center gap-2 pb-1.5">
-        <Select value={category} onValueChange={onCategoryChange}>
-          <SelectTrigger size="sm" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {options.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <PullDown label="Category" value={category} align="start" options={options.map(c => ({ value: c, label: c }))} onChange={onCategoryChange} />
       </div>
 
       <Button type="button" size="sm" variant="destructive" onClick={onRemove} className="w-full">

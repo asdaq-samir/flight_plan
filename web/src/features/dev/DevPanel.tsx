@@ -19,6 +19,8 @@ import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
 import SpeedPage from "./SpeedPage";
 import { grouped } from "../../lib/units";
+import Segmented from "../../components/Segmented";
+import { usePreferences, type NarrativeFramework } from "../../lib/preferences";
 
 const mae = (n: number) => n.toFixed(4);
 
@@ -790,6 +792,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
       }}
     >
       <div className="space-y-6">
+        <NarrativeGroup />
         {stale && status && (
           // The service worker serves the last snapshot it has when the
           // planner is out of reach, and it arrives looking like an
@@ -822,5 +825,23 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
         </ListGroup>
       </div>
     </ConsolePages>
+  );
+}
+
+/** Which agent writes the Brief's narrative, the developer's to pick, at
+ *  the owner's word (2026-10-27): it was a group of the Settings page for
+ *  every pilot, who gets the default. */
+function NarrativeGroup() {
+  const narrative = usePreferences(s => s.narrative);
+  const setNarrative = usePreferences(s => s.setNarrative);
+  return (
+    <ListGroup title="Brief">
+      <ListRow title="Narrative">
+        <Segmented
+          label="Narrative from" value={narrative} onChange={v => setNarrative(v as NarrativeFramework)} testId="narrative-framework"
+          options={[{ value: "langgraph", label: "LangGraph" }, { value: "crewai", label: "CrewAI" }]}
+        />
+      </ListRow>
+    </ListGroup>
   );
 }

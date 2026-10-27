@@ -1,14 +1,15 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useRef, useState } from "react";
 import { Command as CommandPrimitive } from "cmdk";
-import { ChevronsUpDown, Diamond, History, Search } from "lucide-react";
+import { ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "./ui/command";
+import { Command, CommandEmpty } from "./ui/command";
+import AirportResults, { AirportRow, PickerGroup } from "./AirportResults";
 import { FavoriteTiles } from "./Favorites";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
-import { useAirportSearch, type AirportSearchRow } from "../lib/useAirportSearch";
+import { useAirportSearch } from "../lib/useAirportSearch";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useKeyboardInset } from "../hooks/use-viewport";
 import CloseButton from "./CloseButton";
@@ -180,8 +181,10 @@ export default function AirportPicker({
             </div>
           )}
           {/* Dimmed while they answer something older than the box. */}
-          <CommandList className={cn("max-h-none overflow-visible", typed && !answered && "opacity-60")} aria-busy={!answered}>
-            {typed && <CommandEmpty>No {fixes ? "airport or waypoint" : "airport"} matches; Enter keeps what you typed.</CommandEmpty>}
+          <AirportResults
+            rows={rows} answered={!typed || answered} onAirport={choose} onWaypoint={pick}
+            empty={typed && <CommandEmpty>No {fixes ? "airport or waypoint" : "airport"} matches; Enter keeps what you typed.</CommandEmpty>}
+          >
             {!typed && recents.length > 0 && (
               <PickerGroup heading="Recents">
                 {recents.map(a => <AirportRow key={a.ident} airport={a} recent onSelect={() => choose(a)} />)}
@@ -190,79 +193,9 @@ export default function AirportPicker({
             {!typed && recents.length === 0 && !home && favorites.length === 0 && (
               <p className={cn("px-1 text-muted-foreground", TEXT.note)}>Search by an airport's ident, its name or its town.</p>
             )}
-            <SearchRows rows={rows} onAirport={choose} onWaypoint={pick} />
-          </CommandList>
+          </AirportResults>
         </Command>
       </ResponsivePopoverContent>
     </ResponsivePopover>
-  );
-}
-
-/** A group's heading as a grouped list's is (GroupedList): 13, semibold,
- *  in small capitals. */
-export function PickerGroup({ heading, children }: { heading: string; children: ReactNode }) {
-  return <CommandGroup heading={heading} className={GROUP}>{children}</CommandGroup>;
-}
-
-// The group's heading is cmdk's own element, reached only by its
-// attribute's selector, so GROUP_HEADING's note sizes (TEXT.note, 12 and
-// 13) are written out here under it.
-const GROUP = "p-0 **:[[cmdk-group-heading]]:px-1 **:[[cmdk-group-heading]]:pb-1.5 **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:uppercase **:[[cmdk-group-heading]]:tracking-wide **:[[cmdk-group-heading]]:text-xs pointer-coarse:**:[[cmdk-group-heading]]:text-[0.8125rem]";
-
-/** What a search answers, as the picker lists it and the route box's
- *  suggestions do: the airports, then a stop's waypoints -- flown
- *  through, not kept among the recent airports. */
-export function SearchRows({ rows, onAirport, onWaypoint }: {
-  rows: AirportSearchRow[];
-  onAirport: (airport: RecentAirport) => void;
-  onWaypoint: (ident: string) => void;
-}) {
-  const fields = rows.filter(r => r.kind !== "fix");
-  const waypoints = rows.filter(r => r.kind === "fix");
-  return (
-    <>
-      {fields.length > 0 && (
-        <PickerGroup heading="Airports">
-          {fields.map(r => (
-            <AirportRow
-              key={r.ident} airport={{ ident: r.ident, name: r.name, municipality: r.municipality }}
-              onSelect={() => onAirport({ ident: r.ident, name: r.name, municipality: r.municipality })}
-            />
-          ))}
-        </PickerGroup>
-      )}
-      {waypoints.length > 0 && (
-        <PickerGroup heading="Waypoints">
-          {waypoints.map(r => (
-            <AirportRow
-              key={r.ident} waypoint airport={{ ident: r.ident, name: r.name, municipality: r.region }}
-              onSelect={() => onWaypoint(r.ident)}
-            />
-          ))}
-        </PickerGroup>
-      )}
-    </>
-  );
-}
-
-/** One airport in the picker's list, as a row of the search bar's: its
- *  ident and name, its town under them -- or a waypoint, with the
- *  magenta diamond the map marks one with, its kind and its state. */
-export function AirportRow({ airport, recent = false, waypoint = false, onSelect, testId }: {
-  airport: RecentAirport; recent?: boolean; waypoint?: boolean; onSelect: () => void; testId?: string;
-}) {
-  return (
-    // A list's row, 44 at the least as iOS's rows are: the row is the
-    // control, not a control grown to its hit area.
-    <CommandItem value={airport.ident} onSelect={onSelect} className="min-h-11 gap-3 rounded-lg px-2 py-2" data-testid={testId}>
-      {/* Its magenta as fill and stroke, not the text colour: a row's
-          highlight recolours its icons' text, and the diamond went black. */}
-      {waypoint ? <Diamond className="size-5 fill-[#c0309f] stroke-[#c0309f] dark:fill-[#e070b0] dark:stroke-[#e070b0]" />
-        : recent ? <History className="size-5 text-muted-foreground" /> : <Search className="size-5 text-muted-foreground" />}
-      <span className="min-w-0 flex-1">
-        <span className={cn("block truncate", TEXT.row)}><span className="font-mono font-semibold">{airport.ident}</span> · {airport.name}</span>
-        {airport.municipality && <span className={cn("block truncate text-muted-foreground", TEXT.detail)}>{airport.municipality}</span>}
-      </span>
-    </CommandItem>
   );
 }

@@ -53,12 +53,12 @@ test("a route's panel out, each of its tabs", async ({ page }) => {
   }
 });
 
-test("the console's Settings", async ({ page }) => {
+test("the console's Guide", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await showTabs(page);
   await openConsole(page);
-  await consolePage(page.getByTestId("console-sheet"), "Settings");
+  await consolePage(page.getByTestId("console-sheet"), "Guide");
   // Come to rest: sliding in, its glass is over the moving map, and its
   // words were read against that.
   await page.getByTestId("console-sheet").evaluate(el => Promise.all(el.getAnimations({ subtree: true })

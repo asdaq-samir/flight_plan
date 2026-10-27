@@ -1,7 +1,7 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { create } from "zustand";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, ChevronLeft, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
+import { Check, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
@@ -581,30 +581,34 @@ export default function ProceduresRoute({
       return (
         <div className="space-y-3 pt-3">
           <div className="flex items-center gap-2">
-            <Glyph className="size-5 shrink-0 text-muted-foreground" aria-label={part.role === "Arrive" ? "landing" : "takeoff"} role="img" />
-            {/* The runway line's arrow by the landing's or the takeoff's glyph,
-                at the owner's ask ("the arrow next to runway can be next to
-                the depart/arrive symbol"): to the right while it is folded
-                to the runway picked, to open it; to the left while it is
-                open, to fold it. A disclosure, a small arrow in its own 44
-                points -- over the glyph, the arrow at their right -- the
-                line's chips right after them ("too much space between arrow
-                and runways"). */}
-            {foldable && (
-              <button
-                type="button" data-disclosure="" data-testid="runway-line-toggle" aria-expanded={lineOpen}
-                aria-label={lineOpen ? `${a.ident}: fold the runways` : `${a.ident}: all the runways`}
-                onClick={() => useOpenRunwayLines.setState(st => ({ open: lineOpen ? st.open.filter(k => k !== part.line.key) : [...st.open, part.line.key] }))}
-                className="relative -my-1.5 -mr-2 -ml-6 flex size-11 shrink-0 items-center justify-end rounded-full pr-1.5 text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {lineOpen ? <ChevronLeft className="size-4" aria-hidden /> : <ChevronRight className="size-4" aria-hidden />}
-              </button>
-            )}
-            {/* The pull-downs on the runways' own line, beside the runway
-                picked while it is folded and sliding with the runways while
-                it is open (the owner's "Approach doesn't need to go next
-                line just let it slide with runways"). */}
-            <div className="min-w-0 flex-1">{part.chips(adds.length > 0 ? adds : null)}</div>
+            {/* The glyph and its runways one tray, at the owner's pick of the
+                canvas (2026-10-27, G2, artifact JMQabZH2W33kzmvUuahbad): the
+                landing's or the takeoff's glyph at its head, the runway
+                picked after it with its arrow while it is folded, every
+                runway in it while it is open. The head is the line's
+                button where it folds, a tap on it opening or folding it, as
+                a tap on the runway picked opens it; it was a small arrow
+                after the glyph ("the arrow next to runway can be next to
+                the depart/arrive symbol"). The pull-downs follow the tray,
+                sliding with the runways (the owner's "Approach doesn't need
+                to go next line just let it slide with runways"). */}
+            <div className="flex min-w-0 flex-1 items-center">
+              {foldable ? (
+                <button
+                  type="button" data-testid="runway-line-toggle" data-disclosure="" aria-expanded={lineOpen}
+                  aria-label={lineOpen ? `${a.ident}: fold the runways` : `${a.ident}: all the runways`}
+                  onClick={() => useOpenRunwayLines.setState(st => ({ open: lineOpen ? st.open.filter(k => k !== part.line.key) : [...st.open, part.line.key] }))}
+                  className={cn(TRAY_HEAD, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+                >
+                  <Glyph className="size-5" aria-hidden />
+                </button>
+              ) : (
+                <span className={TRAY_HEAD}>
+                  <Glyph className="size-5" aria-label={part.role === "Arrive" ? "landing" : "takeoff"} role="img" />
+                </span>
+              )}
+              <div className="min-w-0 flex-1">{part.chips(adds.length > 0 ? adds : null)}</div>
+            </div>
             {part.leaves && <span className="shrink-0">{part.leaves}</span>}
           </div>
           {picked.map(branch)}
@@ -883,11 +887,10 @@ export default function ProceduresRoute({
           />
         </Suspense>
       )}
-      {/* On a phone a sheet that keeps its height from page to page, as
-          an iOS sheet does pushing one. Half the screen (PROCEDURES_SHEET),
-          the map above it in sight and clear -- no shade over it -- as a
-          procedure is picked, as ForeFlight's Procedure Advisor keeps it,
-          at the owner's pick. */}
+      {/* On a phone a card in the map's panel (ResponsivePopover), half
+          way up, the map above it in sight and clear as a procedure is
+          picked, as ForeFlight's Procedure Advisor keeps it, at the
+          owner's pick. */}
       <ResponsivePopoverContent
         title={on ? (procedure ? `${on.ident} ${procedure.name}` : listTitle(on.ident, on.kind)) : "Procedures"}
         className="max-h-[70vh] w-80 overflow-y-auto p-3" align="start" side="right"
@@ -895,8 +898,6 @@ export default function ProceduresRoute({
         // at the owner's ask ("close button should behave as the back
         // button", 2026-10-22).
         action={<CloseButton label={procedure ? "Back" : "Close"} onClick={() => (procedure ? setPage(null) : close())} data-testid="procedures-close" />}
-        sheetClassName="data-[side=bottom]:h-[55dvh] data-[side=top]:h-[55dvh]"
-        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
       >
         {on && (procedure ? (
           <ProcedurePage
@@ -1023,22 +1024,33 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
       <div className="w-7 shrink-0" />
       {/* Twenty under the chips, not sixteen: the next field's toggle's
           44 points came up into the picked chip's (the iOS audit, P1). */}
-      <div className="flex min-w-0 flex-1 items-center gap-2 pb-5">
-        <Route className="size-5 shrink-0 text-muted-foreground" aria-label="Route options" role="img" />
+      <div className="flex min-w-0 flex-1 items-center pb-5">
+        {/* The route's glyph and its ways one tray, as a runway line's
+            (G2, the owner's pick): the glyph its head and the line's
+            button, the way picked after it with its arrow. */}
+        <button
+          type="button" data-testid="route-line-toggle" data-disclosure="" aria-expanded={open}
+          aria-label={open ? "Route options: fold" : "Route options: all the routes"}
+          onClick={() => useRouteLineOpen.setState({ open: !open })}
+          className={cn(TRAY_HEAD, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+        >
+          <Route className="size-5" aria-hidden />
+        </button>
         {!open ? (
-          <div role="radiogroup" aria-label="Route options">
+          <div role="radiogroup" aria-label="Route options" className={TRAY_BODY}>
             <button
               type="button" role="radio" aria-checked="true" data-state="on" onClick={() => useRouteLineOpen.setState({ open: true })}
-              className={cn(CHIP, "inline-flex items-center whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", ring(picked))}
+              className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", ring(picked))}
               aria-label={`${words(picked)}, picked: tap for the other routes`} data-testid="route-line-picked" data-key={picked.key}
             >
               {picked.label}
+              {FOLDED_ARROW}
             </button>
           </div>
         ) : (
           <div className="flex min-w-0 flex-1" onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}>
             <Chips
-              label="Route options" value={line.picked} flushStart
+              label="Route options" value={line.picked} flushStart tray
               onChange={v => { setTouched(t => t + 1); line.onPick(v); }}
               enter="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300"
             >
@@ -1102,7 +1114,9 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
  * neighbours' across the twelve between them, along a row and between
  * the rows they wrap to, the chip not grown.
  */
-function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStart = false, children }: {
+function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStart = false, tray = false, children }: {
+  /** The chips the body of a tray, after its head (TRAY_HEAD). */
+  tray?: boolean;
   /** The pull-downs' box, for the line to glide them as it opens. */
   trailingRef?: RefObject<HTMLDivElement | null>;
   /** How the chips come in, the pull-downs after them left out of it. */
@@ -1161,7 +1175,7 @@ function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStar
         // The group's own 44 a pseudo-element behind it, as Segmented's
         // track has, so a tap just over or under a row of chips is the
         // group's and not the page's (isolate keeps it over what is round).
-        className={cn("relative isolate w-max flex-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']", !trailing && "min-w-full", enter)}
+        className={cn("relative isolate w-max flex-nowrap after:absolute after:inset-x-0 after:-inset-y-1.5 after:-z-10 after:content-['']", !trailing && !tray && "min-w-full", tray && TRAY_BODY, enter)}
       >
         {children}
       </ToggleGroup>
@@ -1213,6 +1227,18 @@ function fieldsOpenAtFirst(): boolean {
 // runway ("4") is narrower than the chip's least width, and sat at its left,
 // the room to its right empty (the owner's "Why is there extra space to the
 // right of runway 4").
+/** A tray, the owner's pick for a line that folds (G2): its glyph's head,
+ *  the round start of a pale tint capsule, and its chips' body, the rest
+ *  of it, hugging them. Two boxes, not one, as the chips scroll sideways
+ *  under the head while the line is open: the body goes under the head's
+ *  edge, and the tray reads as one. 38 high, the 32 chips three in; the
+ *  head 44 across, so the chip against it takes none of its 44 points
+ *  (the iOS audit's P1). */
+const TRAY_HEAD = "relative flex h-[38px] w-11 shrink-0 items-center justify-center rounded-l-full bg-tint/12 text-tint";
+const TRAY_BODY = "rounded-r-full bg-tint/12 p-[3px] pl-0";
+/** The arrow in a folded line's chip, after its words: a tap opens it. */
+const FOLDED_ARROW = <ChevronRight className="-mr-1 size-3.5 shrink-0" strokeWidth={2.6} aria-hidden />;
+
 const CHIP = cn(
   "relative h-8 min-w-11 justify-center rounded-full px-3 font-normal", GLASS_BUTTON, GLASS_PICKED,
   "after:absolute after:-inset-1.5 after:content-['']",
@@ -1338,13 +1364,16 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
   if (shown === "folded" && picked) {
     const c = chip(picked.runway, picked.end);
     return (
-      <div ref={line} className="flex items-center gap-3" data-testid="procedure-patterns">
+      // The pull-downs under the tray where there is no room beside it:
+      // a field with an arrival and an approach to add ran the nav log
+      // 41 points past a phone's width (the iOS audit's "no sideways
+      // scroll in a panel").
+      <div ref={line} className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="procedure-patterns">
         {/* Still the group's choice to a screen reader, picked; a tap on it
             opens the line. */}
-        <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`}>
-          {/* The arrow that opens the line is by the landing's or the
-              takeoff's glyph now (the block's runway-line-toggle); a tap on
-              the chip still opens it. */}
+        <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} className={TRAY_BODY}>
+          {/* The tray's body, its head the glyph (the block's
+              runway-line-toggle); a tap on the chip opens it too. */}
           <button
             type="button" role="radio" aria-checked="true" data-state="on" onClick={() => setOpen(true)}
             // One line, the wind's mark, the runway and the arrow side by side:
@@ -1354,6 +1383,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
             aria-label={`${c.words}${note ? `, ${note}` : ""}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}
+            {FOLDED_ARROW}
           </button>
         </div>
         {trailing && <div ref={after} className="flex shrink-0 items-center gap-2">{trailing}</div>}
@@ -1369,7 +1399,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
         <>
           {/* The runways' chips in outline while they come (the style
               audit, 2026-10-26), their words for a screen reader. */}
-          <span role="status" className="flex items-center gap-2">
+          <span role="status" className={cn("flex items-center gap-2", TRAY_BODY)}>
             <span className="sr-only">Fetching the runways…</span>
             {[0, 1, 2].map(k => <Skeleton key={k} aria-hidden="true" className="h-8 w-11 rounded-full" />)}
           </span>
@@ -1388,7 +1418,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
               the chip picked tapped again is no way to unpick it either. */}
           <Chips
             label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE}
-            onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart
+            onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart tray
             trailingRef={after} enter={chosen !== null ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300" : undefined}
           >
             {ends.map(({ runway, end }) => {

@@ -172,7 +172,7 @@ test("on an IFR base, the settings' TAC draws the IFR area chart at a Class B fi
   await openMapSettings(page);
   await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
   await page.getByTestId("class-b-toggle").click();
-  await expect(page.getByTestId("tac-toggle")).toHaveText("Area");
+  await expect(page.getByTestId("map-settings").getByText("IFR Area Charts")).toBeVisible();
   await page.getByTestId("tac-toggle").click();
   await page.keyboard.press("Escape");
 

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { controlsInSight, openSettings, settle, slow } from "./helpers";
+import { consolePage, controlsInSight, openSetup, settle, slow } from "./helpers";
 
 /**
  * The first-run tips (lib/tips, TipHost): one at a time beside the
@@ -48,11 +48,13 @@ test("a new pilot is shown what to look for, a tip at a time, each once", async 
   await page.waitForTimeout(2500);
   await expect(tip.filter({ hasText: /Your route|The quick numbers|Why this altitude/ })).toHaveCount(0);
 
-  // Settings, Tips, offers them again from the start.
+  // The Guide offers them again from the start, at its top (the owner's
+  // "Tips can move to guide").
   await page.goto("/app/plan");
-  await openSettings(page);
+  await openSetup(page);
+  await consolePage(page.getByTestId("console-sheet"), "Guide");
   await page.getByTestId("tips-reset").click();
-  await expect(page.getByTestId("tips-reset")).toContainText("Tips will show again");
+  await expect(page.getByTestId("tips-reset")).toContainText("Tips Will Show Again");
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await controlsInSight(page);

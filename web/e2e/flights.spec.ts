@@ -179,7 +179,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
-test("Print is in the Brief's Share menu; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
+test("Print is in the Brief's Share menu; Keep Charts Offline is in the map's menu, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await controlsInSight(page);
   await openBrief(page);

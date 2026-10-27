@@ -1,5 +1,5 @@
 import { ListGroup, ListRow } from "../../components/GroupedList";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import PullDown from "../../components/PullDown";
 import { MINIMUM_CHOICES, type Minimums } from "../../lib/minimums";
 import { usePreferences, type RouteWeather } from "../../lib/preferences";
 import { feet, miles } from "../../lib/units";
@@ -28,30 +28,21 @@ export default function MinimumsPanel() {
     <ListGroup title="Personal minimums">
       {MINIMUM_ROWS.map(({ key, title, unit }) => (
         <ListRow key={key} title={title}>
-          <Select value={minimums[key] == null ? "off" : String(minimums[key])} onValueChange={v => setMinimum(key, v === "off" ? null : Number(v))}>
-            <SelectTrigger size="sm" aria-label={`Minimum ${title.toLowerCase()}`} data-testid={`minimum-${key}`}>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              <SelectItem value="off">Off</SelectItem>
-              {MINIMUM_CHOICES[key].map(n => <SelectItem key={n} value={String(n)}>{unit(n)}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <PullDown
+            label={`Minimum ${title.toLowerCase()}`} value={minimums[key] == null ? "off" : `${minimums[key]}`} testId={`minimum-${key}`}
+            options={[{ value: "off", label: "Off" }, ...MINIMUM_CHOICES[key].map(n => ({ value: `${n}`, label: unit(n) }))]}
+            onChange={v => setMinimum(key, v === "off" ? null : Number(v))}
+          />
         </ListRow>
       ))}
       {/* What FPL's Routes go round: these, or 14 CFR 91.155's alone --
           thunderstorms either way (lib/routeOptions), at the owner's "This
           can be a setting. But also avoid thunderstorms etc". */}
       <ListRow title="Routes keep to">
-        <Select value={routeWeather} onValueChange={v => setRouteWeather(v as RouteWeather)}>
-          <SelectTrigger size="sm" aria-label="Routes keep to" data-testid="route-weather">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent align="end">
-            <SelectItem value="personal">These minimums</SelectItem>
-            <SelectItem value="legal">VFR minimums</SelectItem>
-          </SelectContent>
-        </Select>
+        <PullDown<RouteWeather>
+          label="Routes keep to" value={routeWeather} testId="route-weather" onChange={setRouteWeather}
+          options={[{ value: "personal", label: "These minimums" }, { value: "legal", label: "VFR minimums" }]}
+        />
       </ListRow>
     </ListGroup>
   );

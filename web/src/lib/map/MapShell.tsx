@@ -11,6 +11,7 @@ import { MapContainer, ZoomControl } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import MapBanners from "../../components/MapBanners";
 import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
+import { useSheetCards } from "../sheetCards";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
@@ -18,7 +19,7 @@ import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 import { prefersReducedMotion } from "../motion";
-import { BUTTONS_CLEAR, centreClearFor, hideLinesWhileZooming, panClear } from "./clear";
+import { BUTTONS_CLEAR, centreClearFor, hideLinesWhileZooming } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
@@ -62,7 +63,25 @@ const COUNTRY: [number, number] = [39.5, -98.35];
 /** The least the map is fitted to round a route: about 10 nm across. */
 const MIN_FIT_M = 18_520;
 
-export function MapShell({ course, onReady, children, onSelectPlace, held = false }: Props) {
+/** The map slid by `by` in the sheet's own time, the chart where it comes
+ *  to rest asked for first: a phone's tiles load only once a move ends
+ *  (Leaflet's updateWhenIdle), and the strip a slide brings in came blank
+ *  until they did. GridLayer's `_update` takes the centre to load for. */
+function slide(map: L.Map, by: L.Point) {
+  const to = map.unproject(map.project(map.getCenter()).add(by));
+  map.eachLayer(layer => {
+    if (layer instanceof L.GridLayer) (layer as unknown as { _update(center: L.LatLng): void })._update(to);
+  });
+  map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS, easeLinearity: 0.5 });
+}
+
+export function MapShell({ course, onReady, children, onSelectPlace, held: heldAsked = false }: Props) {
+  // And while a card from the chart or a control is open in the sheet
+  // (SheetCard): the sheet coming up for a VFR waypoint's card fitted the
+  // route again, out past the waypoints' zoom, and took the diamond and
+  // its card off the map a tenth of a second after it opened (stops:753).
+  const cardsOpen = useSheetCards(s => s.stack.length > 0);
+  const held = heldAsked || cardsOpen;
   // Leaflet's stylesheet may come in after the module ran: once more as the
   // map first draws.
   useEffect(() => dropDraggingCursorRules(), []);
@@ -128,12 +147,20 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
 
   // The whole route again, asked from the location arrow in a dry run
   // (MyPositionButton): flown to it, own ship no longer followed.
+  const recheckRoute = useRef<(() => void) | null>(null);
+  const shownRoute = useRef(false);
   const routeAsked = useOwnShip(s => s.routeAsked);
   const routeAskedWas = useRef(routeAsked);
   useEffect(() => {
     if (routeAsked === routeAskedWas.current) return;
     routeAskedWas.current = routeAsked;
     useOwnShip.getState().setFollow(false);
+    // The route is what the pilot asked to see: in view until the pilot
+    // moves the map, whatever the fit's last quarter level leaves at the
+    // edges (the arrow kept offering the route it had just fitted, CI on a
+    // phone, where the fit and the panel's settling crossed).
+    shownRoute.current = true;
+    useOwnShip.setState({ routeOutOfView: false });
     fit(true);
   }, [routeAsked, fit]);
 
@@ -155,18 +182,36 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     }
     const line = L.latLngBounds(course.course_line as [number, number][]);
     const check = () => {
+      if (shownRoute.current) return setOut(false);
       const { top, bottom, left } = insetsRef.current;
       const size = map.getSize();
       const clear = L.latLngBounds(map.containerPointToLatLng([left, top]), map.containerPointToLatLng([size.x, Math.max(top + 1, size.y - bottom)]));
       setOut(!clear.pad(0.02).contains(line));
     };
+    // The pilot's own move of the map (a drag, the wheel, a finger) ends
+    // the route asked for: from then on it is measured again.
+    const moved = () => { shownRoute.current = false; };
+    const container = map.getContainer();
     check();
+    recheckRoute.current = check;
     map.on("moveend", check);
+    map.on("dragstart", moved);
+    container.addEventListener("wheel", moved, { passive: true });
+    container.addEventListener("touchstart", moved, { passive: true });
     return () => {
+      recheckRoute.current = null;
       map.off("moveend", check);
+      map.off("dragstart", moved);
+      container.removeEventListener("wheel", moved);
+      container.removeEventListener("touchstart", moved);
       useOwnShip.setState({ routeDrawn: false });
     };
   }, [map, course]);
+  // And again as the panel comes to rest at another size: the map's last
+  // rest was read against the panel as it was, and a route fitted while
+  // the sheet was still settling stayed "out of view", the arrow offering
+  // the route it had just shown (route-fit's arrow test, CI on a phone).
+  useEffect(() => { recheckRoute.current?.(); }, [insets]);
 
   // Fit to the route when it changes.
   //
@@ -212,13 +257,13 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
 
   // The map follows the panel as it goes out or comes back to rest --
   // raised to half, lowered to its capsule -- in the sheet's own time, as
-  // Maps' does, when what it follows is in sight: the route, left where it
-  // is while all of it stays clear, else slid at its zoom so what was in
-  // the middle of what the panel left is in the middle of what it leaves
+  // Maps' does, when what it follows is in sight: the route, slid at its
+  // zoom so what was in the middle of what the panel left is in the middle of what it leaves
   // now (the whole screen at the capsule, above the sheet when it is
   // out); else the pilot's position,
   // brought to the middle of what is left. Neither in sight -- the map
-  // panned off somewhere else -- it stays where the pilot put it. With
+  // panned off somewhere else -- slid all the same on a phone, as Apple
+  // Maps' is, and left where the pilot put it from `md` up. With
   // own ship followed in the air the position wins over the route. Not
   // while the map is held on a point (a checkpoint picked, an airport's
   // card): FocusOn keeps that one in the middle.
@@ -289,23 +334,37 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       // The route slid, not fitted again: at the same zoom the chart's
       // tiles are the ones already drawn, where a fit to the new room
       // zoomed and drew the chart afresh at every turn, at the owner's ask
-      // ("Medium to small detent redraws the map?", 2026-10-27).
-      // And not moved at all where it is all clear of the panel and the
-      // map's buttons as it is, as Apple Maps' map stays put under its
-      // sheet: lowered to the capsule the room only grows, and the slide
-      // down showed the chart above it blank until its tiles came (the
-      // owner, "Medium to small detent does need some polishing",
-      // 2026-10-27). Slid where it would be clear once slid; fitted again
-      // where not even then: raised from the capsule after a pan, or to a
-      // half sheet with less room than it was fitted to.
+      // ("Medium to small detent redraws the map?", 2026-10-27). Slid
+      // even where it is all clear of the sheet as it is: left where it
+      // was, the map did not follow the sheet down at all (the owner,
+      // 2026-10-27: "The map is not moving down after transition to small
+      // detent"). The chart the slide brings in is asked for before it
+      // starts (preload), where it came blank until its tiles did.
+      // Slid where it would be clear once slid; fitted again where not
+      // even then: raised from the capsule after a pan, or to a half
+      // sheet with less room than it was fitted to.
       const fitsAfter = (shift: L.Point) => {
         const corner = (p: L.LatLng) => map.latLngToContainerPoint(p).add(shift);
         return !!bounds && L.bounds(L.point(insets.left + BUTTONS_CLEAR, insets.top), L.point(size.x - BUTTONS_CLEAR, size.y - insets.bottom))
           .contains(L.bounds(corner(bounds.getNorthWest()), corner(bounds.getSouthEast())));
       };
-      const stays = routeInSight && !keepingUp && fitsAfter(L.point(0, 0));
-      const routeWay = fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
-      what = stays ? null : routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : null;
+      // Fitted again only at about the size it was fitted to, panned part
+      // off the screen: a map zoomed in on part of it is where the pilot
+      // put it, slid and never zoomed back out to the route (a TAC pinned
+      // from the map's card over C81, closed, was zoomed out to the whole
+      // route and drew no TAC: tiles.spec, CI on a phone, 2026-10-27).
+      const corners = bounds && L.bounds(map.latLngToContainerPoint(bounds.getNorthWest()), map.latLngToContainerPoint(bounds.getSouthEast())).getSize();
+      const sightSize = sight.getSize();
+      const zoomedIn = !!corners && (corners.x > sightSize.x + 60 || corners.y > sightSize.y + 60);
+      const routeWay = zoomedIn || fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
+      // Neither in sight, on a phone the map still slides with the sheet,
+      // what was in the middle of the room it left in the middle of the
+      // room it leaves now, as Apple Maps' does (the owner, 2026-10-27:
+      // "The map should move down after moving the tabs down, like Apple
+      // Maps"). From `md` up the card comes out at the side, and the map
+      // stays where the pilot put it.
+      const sheetTurn = insets.left === was.left;
+      what = routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : sheetTurn ? "slide" : null;
       if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
       following.current = what
         ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what, focus: map.containerPointToLatLng(middle(was)) }
@@ -316,11 +375,22 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       // panBy, not panTo: panTo snaps the zoom to a whole level, and the
       // route is fitted at a quarter one.
       const by = map.latLngToContainerPoint(following.current.focus).subtract(middle(insets)).round();
-      if (by.x || by.y) map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
+      if (by.x || by.y) slide(map, by);
     }
-    else if (what === "ship") {
+    else if (what === "ship" && turned) {
+      // Once, as the sheet turns, to the middle of the room it is going
+      // to (`insets`, the panel's at rest), in the sheet's own time: panned
+      // again at each change of the room on the way, and by own ship's
+      // next fix (OwnShipLayer), the map went part of the way, jumped 51
+      // points as the sheet landed and slid on again a second later
+      // (sampled on the phone project with the GPS on, half to the pill:
+      // -153 to -96 over the slide, -45.7 the frame after, 0 at 2 s). The
+      // owner, 2026-10-27: "the map can slide down more smoothly".
       const ship = useOwnShip.getState().fix;
-      if (ship) panClear(map, [ship.lat, ship.lon], { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
+      if (ship) {
+        const by = map.latLngToContainerPoint([ship.lat, ship.lon]).subtract(middle(insets)).round();
+        if (by.x || by.y) slide(map, by);
+      }
     }
   }, [insets, map, course, bounds, routeKey, held, fit]);
 

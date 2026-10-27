@@ -177,7 +177,9 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
   // would tear the popup down and remount it, not just re-render it.
   const selectedContent = useMemo(() => {
     // Not with the panel all the way up over the map: the rating card is
-    // the panel's then (RatingCard), and the popup showed through it.
+    // the panel's then (RatingCard), the list over it what is walked. On a
+    // phone the point's card in the panel (MapPopup) covered the list and
+    // its rating card, a row picked taking the list away (dev-page:67).
     if (!point || panel === "full") return null;
     // Same idea as the arrow keys: which screen side is "forward" (step
     // +1) depends on which way the course actually runs, not a fixed

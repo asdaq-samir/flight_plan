@@ -19,7 +19,7 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // Longer aloft: its chip in the pill, in the address, and more fuel.
   await controlsInSight(page);
   await page.getByTestId("local-duration").click();
-  await page.getByRole("option", { name: "2 h", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: "2 h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("2h 00m", { timeout: slow(30000) });
 });
@@ -143,7 +143,7 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   // departure to the destination alone, as the pilot asked.
   await beforeTheRoute(page, async () => {
     const toggle = page.getByTestId("waypoints-toggle");
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
     await toggle.click();
   });
   const asked: string[] = [];
@@ -173,7 +173,8 @@ test("my position is the location arrow among the map's buttons, on both pages, 
     // An alert, with OK: something the pilot just did.
     const alert = page.getByTestId("error-alert");
     await expect(alert).toContainText("No position over this connection");
-    await alert.getByRole("button", { name: "OK" }).click();
+    // OK from md up; on a phone the sheet's close in its title row.
+    await alert.getByRole("button", { name: /^(OK|Close)$/ }).click();
     await expect(alert).toHaveCount(0);
     await expect(arrow).toHaveAttribute("aria-pressed", "false");
   }

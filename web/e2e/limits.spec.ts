@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openMapSettings, openSettings, settle, consolePage } from "./helpers";
+import { openMapSettings, openSetup, settle, consolePage } from "./helpers";
 
 /**
  * What the planner is not (lib/limits): said in About and at the
@@ -19,10 +19,10 @@ test("a fresh device opens straight onto the map, and About says what the planne
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(page.getByText("Before you fly")).toHaveCount(0);
 
-  // The console's About tab, after Settings, says it again in full, at
+  // The console's About page says it again in full, at
   // the owner's ask -- the app, its build and chart, where its data comes
   // from with each one's terms, and the legal pages.
-  await openSettings(page);
+  await openSetup(page);
   await consolePage(page.getByTestId("console-sheet"), "About");
   const about = page.getByTestId("about-panel");
   await expect(about).toContainText("Wingtip Maps");
@@ -37,9 +37,6 @@ test("a fresh device opens straight onto the map, and About says what the planne
   await expect(about.getByTestId("about-source").filter({ hasText: "FAA sectional" })).toContainText("Public domain");
   await expect(about).not.toContainText("OpenStreetMap");
   await expect(about.getByTestId("legal-privacy")).toHaveAttribute("href", "/app/privacy.html");
-  // Settings itself no longer has them.
-  await consolePage(page.getByTestId("console-sheet"), "Settings");
-  await expect(page.getByTestId("settings-panel").getByTestId("legal-privacy")).toHaveCount(0);
 });
 
 // The traffic's source credited under the map's settings beside the

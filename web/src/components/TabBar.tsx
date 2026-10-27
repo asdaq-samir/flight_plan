@@ -8,6 +8,7 @@ import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
 import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
+import { closeSheetCards, useSheetCards } from "../lib/sheetCards";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -124,7 +125,7 @@ function along(bar: HTMLElement, count: number, clientX: number) {
   return { x, width, tab, over: Math.min(count - 1, Math.floor(x / tab)) };
 }
 
-export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, routeShare, listOver = false, className }: {
+export default function TabBar<T extends string>({ tabs, tab, over, title: given, onPick, onUp, marks, onClose, routeShare, listOver = false, className }: {
   tabs: BarTab<T>[];
   tab: T;
   /** The tab whose card is open over `tab` -- Airport's, an airport's card
@@ -158,6 +159,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
 }) {
   const consoleOpen = useConsoleOpen(s => s.open);
   const setConsoleOpen = useConsoleOpen(s => s.setOpen);
+  // A card opened over the tab from a control or the chart (SheetCard):
+  // its name on the minimized bar, whose close puts it away first.
+  const cardName = useSheetCards(s => s.stack.at(-1)?.title);
+  const title = cardName ?? given;
   const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: Settings }];
   const up: T | "setup" = consoleOpen ? "setup" : tab;
   const minimized = useContext(TabBarMinimized);
@@ -174,6 +179,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // the workspace's (onPick).
   const pick = (value: T | "setup") => {
     setShown(false);
+    // Another tab's page is not what a card was opened over: put away.
+    closeSheetCards();
     if (value === "setup") {
       setConsoleOpen(true);
       return;
@@ -661,9 +668,18 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
           >
             <span className="relative">
               {/* 28 and 13, bolder lines, at the owner's pick (A with D's
-                  weight, 2026-10-22); the tab up's a touch bigger under its
-                  glass, as a lens magnifies, its room kept (a transform). */}
-              <Icon className={cn("size-7 transition-transform", at === lit && "scale-[1.08]")} strokeWidth={at === lit ? 2.5 : 2.1} aria-hidden="true" />
+                  weight, 2026-10-22), each at one weight whatever its size
+                  or state: the tab up was scaled by 1.08 and drawn heavier,
+                  its lines off the pixel grid and thicker than its
+                  neighbours' (2.5 against 2.1 of a 24 grid, measured 30.24
+                  points wide), which the owner saw as not crisp and not one
+                  size (2026-10-27). The airplane, drawn on the diagonal, a
+                  size up to look as big as the rest (its ink 18 wide to the
+                  others' 16 to 18 tall and wide, but thinner). */}
+              <Icon
+                className={value === "aircraft" ? "size-[30px]" : "size-7"} absoluteStrokeWidth strokeWidth={2.25}
+                aria-hidden="true"
+              />
               {mark && (
                 <span
                   aria-hidden="true" data-testid={`tab-mark-${value}`} data-finding={mark}

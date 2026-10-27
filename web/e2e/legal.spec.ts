@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { noTips, openConsole, openSettings, showTabs, consolePage } from "./helpers";
+import { noTips, openConsole, openSetup, showTabs, consolePage } from "./helpers";
 
 /**
  * The privacy policy, terms and support pages (public/*.html): served
@@ -30,7 +30,7 @@ test.describe("without JavaScript", () => {
 
 test("the console's About links the three pages", async ({ page }) => {
   await page.goto("/app/plan");
-  await openSettings(page);
+  await openSetup(page);
   // With the app's build and its sources, since About took them from
   // under Settings.
   await consolePage(page.getByTestId("console-sheet"), "About");

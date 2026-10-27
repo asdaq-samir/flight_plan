@@ -71,20 +71,13 @@ export async function openPanel(page: Page) {
   await grabberTo(page, "half");
 }
 
-/** The route's Share menu out, the panel half way: its sharing, Save,
- *  File flight plan, Print and Clear the route (PlanWorkspace), at the
- *  pilot's ask all under Share beside the chips. */
-async function openShareMenu(page: Page) {
+
+/** The route cleared, by the route box's own ✕ (the menu's Clear went,
+ *  the owner, 2026-10-27). */
+export async function clearTheRoute(page: Page) {
   await openPanel(page);
   await controlsInSight(page);
-  await sideDrawer(page).getByTestId("share-route").click();
-  await expect(page.getByRole("menu")).toBeVisible();
-}
-
-/** The route cleared, from its Share menu. */
-export async function clearTheRoute(page: Page) {
-  await openShareMenu(page);
-  await page.getByTestId("route-clear").click();
+  await sideDrawer(page).getByTestId("route-box-clear").click();
 }
 
 const RANK = { peek: 0, half: 1, full: 2 } as const;
@@ -195,14 +188,19 @@ export async function openConsole(page: Page) {
   await grabberTo(page, "full");
 }
 
-/** The settings: the console's last tab, the console opened from its
- *  button -- on the planner's search bar, on the training page among the
- *  map's -- and all the way out. Escape closes the console again. */
-export async function openSettings(page: Page) {
+/** Setup's page all the way out, its Controls on top (QuickControls):
+ *  the one home of the alerts, offline charts, layout and theme since the
+ *  Settings page went (the owner, 2026-10-27). Escape closes it again. */
+export async function openSetup(page: Page) {
   await openConsole(page);
-  await consolePage(page.getByTestId("console-sheet"), "Settings");
-  await expect(page.getByTestId("settings-panel")).toBeVisible();
+  await expect(page.getByTestId("quick-controls").first()).toBeVisible();
   await expandConsole(page);
+}
+
+/** One of Setup's Controls set from its menu: its tile, then the item. */
+export async function pickControl(page: Page, control: "alerts-mode" | "nav-bar-select" | "theme-select", item: string) {
+  await page.getByTestId("setup-page").getByTestId(control).click();
+  await page.getByTestId(item).click();
 }
 
 /** The map's settings: the sheet of the map's own button, first among
@@ -439,24 +437,30 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
 export async function openNavLog(page: Page) {
   await openTab(page, "Nav Log");
   const sheet = navLogSheet(page);
-  // From the route's menu: its button's place is the Brief's (2026-10-24).
-  if (!(await sheet.isVisible())) {
-    await sideDrawer(page).getByTestId("share-route").click();
-    await page.getByTestId("route-navlog").click();
-  }
+  // Its button beside the Brief's (the owner, 2026-10-27).
+  if (!(await sheet.isVisible())) await sideDrawer(page).getByTestId("route-navlog").click();
   await expect(sheet).toBeVisible();
   return sheet;
 }
 
 /** The side view, a card over FPL, with the altitude's wheel in its
- *  corner: opened from the altitude's button beside the airplane (the
- *  owner, 2026-10-20: "we won't need a separate profile button"). */
+ *  corner: opened by the map's Play, its dry run stopped where it would
+ *  fly, so the side view is at rest (the owner, 2026-10-27: the profile's
+ *  button "would be the profile demo button"). */
 export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
-  // Opened from the altitude's button beside the airplane: the Profile
-  // card has no button of its own beside the nav log's.
-  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("altitude-why").click({ timeout: slow(60_000) });
+  if (!(await card.isVisible())) {
+    // The map's buttons ride over the sheet up to half: all the way up,
+    // down to half for them.
+    if ((page.viewportSize()?.width ?? 0) < 768 && await sideDrawer(page).getAttribute("data-panel") === "full") await grabberTo(page, "half");
+    const play = page.locator("[data-map-food]").getByTestId("dry-run-button");
+    await play.click({ timeout: slow(60_000) });
+    await expect(card).toBeVisible();
+    // Stopped once it flies (a route with no legal altitude opens the
+    // profile with no run): the wheel is put away while a run plays.
+    if (await expect(play).toHaveAttribute("aria-pressed", "true", { timeout: 3000 }).then(() => true, () => false)) await play.click();
+  }
   await expect(card).toBeVisible();
   return card;
 }
@@ -635,7 +639,7 @@ export async function openAccount(page: Page) {
  *  that name; the pilot's console is one page now (Setup, at the owner's
  *  pick of the redesign), its account first and Settings, Guide and About
  *  rows that open their pages -- Account is the page itself. */
-export async function consolePage(scope: Page | Locator, name: "Account" | "Settings" | "Guide" | "About" | "Status") {
+export async function consolePage(scope: Page | Locator, name: "Account" | "Guide" | "About" | "Status") {
   const tab = scope.getByRole("tab", { name, exact: true });
   const setup = scope.getByTestId("setup-page");
   await expect(tab.or(setup).first()).toBeVisible();
@@ -691,4 +695,12 @@ export async function airportMarks(page: Page): Promise<DrawnAirport[]> {
 /** One chart airport drawn, by its ident; null while it is not. */
 export async function airportMark(page: Page, ident: string): Promise<DrawnAirport | null> {
   return (await airportMarks(page)).find(m => m.ident === ident) ?? null;
+}
+
+
+/** A card's own close in the map's sheet: on a phone the tab bar's, which
+ *  names the card and goes back one level (SheetCard, barNamed); from md up
+ *  the card's own, by its test id. */
+export function cardClose(page: Page, testId: string) {
+  return (page.viewportSize()?.width ?? 0) < 768 ? page.getByTestId("tab-close") : page.getByTestId(testId);
 }

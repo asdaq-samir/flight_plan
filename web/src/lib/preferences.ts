@@ -9,6 +9,7 @@ import { NO_MINIMUMS, type Minimums } from "./minimums";
 /** What FPL's Routes hold the weather to (Preferences.routeWeather). */
 export type RouteWeather = "personal" | "legal";
 import { sameField } from "./procedures";
+import type { StopPick } from "./stopKinds";
 import type { Load } from "./weightBalance";
 import type { OwnShipLook } from "./map/ownShipLook";
 
@@ -28,8 +29,8 @@ export type BaseChart = "sec" | "ifr_low" | "ifr_high";
 
 export const BASE_CHARTS: { kind: BaseChart; label: string }[] = [
   { kind: "sec", label: "Sectional" },
-  { kind: "ifr_low", label: "IFR low" },
-  { kind: "ifr_high", label: "IFR high" },
+  { kind: "ifr_low", label: "IFR Low" },
+  { kind: "ifr_high", label: "IFR High" },
 ];
 
 /** What is drawn over the chart, at the pilot's ask (OverlayTiles): the
@@ -43,8 +44,6 @@ export type OverlayStrength = "faint" | "half" | "full";
  *  of (useNavEdge). */
 export type NavEdge = "top" | "bottom";
 
-/** The route's pills' colours: by airspace class, or by the METAR. */
-export type RouteColours = "airspace" | "metar";
 /** The FAA chart in the dark theme: as printed, or dimmed for night
  *  vision (index.css's chart-tiles). */
 export type ChartNight = "normal" | "dimmed";
@@ -102,9 +101,10 @@ interface Preferences {
    *  civil airplane lands there only with the service's permission (the
    *  planner's `military`). Joint-use fields are always drawn. */
   military: boolean;
-  /** Whether the privately owned fields are drawn (AirportsLayer): on
-   *  by default, as they were always drawn; off at the pilot's ask (the
-   *  owner, 2026-10-27), as one is landed at only with the owner's
+  /** Whether the privately owned fields are drawn (AirportsLayer): off
+   *  by default, at the owner's ask ("Make private airports hidden by
+   *  default", 2026-10-27), on at the pilot's, as one is landed at only
+   *  with the owner's
    *  permission (NASR APT_BASE's facility use, PR, the planner's
    *  `private`). A field on the route or picked is drawn either way. */
   privateFields: boolean;
@@ -121,9 +121,12 @@ interface Preferences {
    *  minimums, or 14 CFR 91.155's alone; thunderstorms are kept clear of
    *  either way. The owner's "This can be a setting" (2026-10-23). */
   routeWeather: RouteWeather;
-  /** How far round the pilot the map's fly-in food looks, nm: a hundred
-   *  unless picked (the owner, 2026-10-26; FoodCard's menu). */
-  foodRadiusNm: number;
+  /** How far round the pilot the map's Stops look, nm: 25 unless picked
+   *  (the owner, 2026-10-27; StopsCard's menu). */
+  stopsRadiusNm: number;
+  /** The kind of stop last picked on the Stops sheet, or all of them
+   *  (the owner's "remember the last pick", 2026-10-27). */
+  stopKind: StopPick;
   /** Each airplane's load as last set (lib/weightBalance), by its name. */
   loads: Record<string, Load>;
   /** Whether each route loaded keeps its charts for use without a
@@ -139,10 +142,6 @@ interface Preferences {
   /** The navigation bar's edge, once one has been picked; until then
    *  the bottom on a phone and the top from md up. */
   navBar: NavEdge | null;
-  /** What the route's pills are coloured by (RouteBox): each airport's
-   *  airspace, as the sectional draws it, or its METAR's flight
-   *  category, as the map's chips are. */
-  routeColours: RouteColours;
   /** The chart in the dark theme (ChartTiles), dimmed unless the pilot
    *  asks for it as printed. */
   chartNight: ChartNight;
@@ -212,14 +211,14 @@ interface Preferences {
   setOverlayStrength: (overlayStrength: OverlayStrength) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
   setRouteWeather: (weather: RouteWeather) => void;
-  setFoodRadiusNm: (nm: number) => void;
+  setStopsRadiusNm: (nm: number) => void;
+  setStopKind: (kind: StopPick) => void;
   setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
   setTailFigures: (tail: string, figures: TailFigures) => void;
   setFilter: (key: FilterKey, on: boolean) => void;
   setNavBar: (navBar: NavEdge) => void;
-  setRouteColours: (routeColours: RouteColours) => void;
   setChartNight: (chartNight: ChartNight) => void;
   setBrand: (brand: Brand) => void;
   setOwnShipLook: (ownShipLook: OwnShipLook) => void;
@@ -270,18 +269,18 @@ export const usePreferences = create<Preferences>()(
       plates: true,
       traffic: false,
       military: false,
-      privateFields: true,
+      privateFields: false,
       overlay: "none",
       overlayStrength: "half",
       minimums: NO_MINIMUMS,
       routeWeather: "personal",
-      foodRadiusNm: 100,
+      stopsRadiusNm: 25,
+      stopKind: "all",
       loads: {}, tailFigures: {},
       keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
       filters: DEFAULT_FILTERS,
       navBar: null,
-      routeColours: "airspace",
       chartNight: "dimmed",
       brand: "sectional",
       // A plane, at the owner's ask, where it was the arrow.
@@ -342,14 +341,14 @@ export const usePreferences = create<Preferences>()(
       setOverlayStrength: overlayStrength => set({ overlayStrength }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
       setRouteWeather: routeWeather => set({ routeWeather }),
-      setFoodRadiusNm: foodRadiusNm => set({ foodRadiusNm }),
+      setStopsRadiusNm: stopsRadiusNm => set({ stopsRadiusNm }),
+      setStopKind: stopKind => set({ stopKind }),
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
       setTailFigures: (tail, figures) => set(s => ({ tailFigures: { ...s.tailFigures, [tail.toUpperCase()]: figures } })),
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setNavBar: navBar => set({ navBar }),
-      setRouteColours: routeColours => set({ routeColours }),
       setChartNight: chartNight => set({ chartNight }),
       setBrand: brand => set({ brand }),
       setOwnShipLook: ownShipLook => set({ ownShipLook }),
@@ -387,7 +386,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, routeWeather: s.routeWeather, foodRadiusNm: s.foodRadiusNm, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

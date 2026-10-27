@@ -138,8 +138,9 @@ export type Tfr = Schemas["Tfr"];
 export type Tfrs = Schemas["Tfrs"];
 /** The fields nearest a position: how far, which way, the longest runway. */
 export type NearestAirports = Schemas["NearestAirports"];
-export type FieldsWithFood = Schemas["FieldsWithFood"];
-export type FieldFood = Schemas["FieldFood"];
+/** The map's Stops: the fields with fuel, food, repair or a flight school. */
+export type StopFields = Schemas["StopFields"];
+export type StopField = Schemas["StopField"];
 export type FoodDetails = Schemas["FoodDetails"];
 export type NearestAirport = Schemas["NearestAirport"];
 export type PlaceFound = Schemas["PlaceFound"];

@@ -129,6 +129,11 @@ export function OwnShipLayer() {
     // Not under a zoom still animating (the dry run's start, in on its
     // airplane): a pan then cut it short. The next fix catches the map up.
     if ((map as unknown as { _animatingZoom?: boolean })._animatingZoom) return;
+    // Nor under the pan the sheet's turn started (MapShell), to the middle
+    // of the room the sheet is going to: a pan to the room it was in, from
+    // a fix mid-way, cut it short and jumped (the owner's "slide down more
+    // smoothly", 2026-10-27). The next fix keeps the map on it.
+    if ((map as unknown as { _panAnim?: { _inProgress?: boolean } })._panAnim?._inProgress) return;
     // A dry run's fixes come four a second and own ship glides between
     // them (below): the map goes with it, evenly over the same quarter
     // second, where half a second eased out and cut short by the next fix

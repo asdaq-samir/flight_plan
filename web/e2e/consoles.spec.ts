@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeConsole, closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, grabberTo, library, openConsole, openAccount, openSettings, openSidebar, settle, settled, showTabs, consolePage } from "./helpers";
+import { closeConsole, closeSidebarWithTheStockKey, consoleSheet, expectDrawerClosed, grabberTo, library, openConsole, openAccount, openSetup, openSidebar, pickControl, settle, settled, showTabs, consolePage } from "./helpers";
 
 /**
  * The consoles and the settings: fitting the screen, the pilot
@@ -81,9 +81,10 @@ test("plan page: the pilot console holds the account, airplanes and flights, and
   await expect(pilot.getByRole("region", { name: "Airplanes", exact: true })).toBeVisible();
   await library(pilot, "Flights");
   await expect(pilot.getByRole("region", { name: "Flights", exact: true })).toBeVisible();
-  // Settings, Guide and About as rows of their own.
+  // Guide and About as links at the page's foot, no Settings page.
   await consolePage(pilot, "Account");
-  for (const row of ["Settings", "Guide", "About"]) await expect(pilot.getByTestId("setup-page").getByRole("button", { name: new RegExp(`^${row}`) })).toBeVisible();
+  for (const link of ["guide-link", "about-link"]) await expect(pilot.getByTestId("setup-page").getByTestId(link)).toBeVisible();
+  await expect(pilot.getByTestId("setup-page").getByRole("button", { name: /^Settings/ })).toHaveCount(0);
   // The personal minimums are Personal's, with no sign-in needed.
   await library(pilot, "Minimums");
   await expect(pilot.getByTestId("minimum-ceilingFt")).toBeVisible();
@@ -107,8 +108,8 @@ test("the navigation bar's edge is a setting: the panel moves to it, the map's b
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("no viewport configured");
   const phone = viewport.width < 768;
-  await openSettings(page);
-  await page.getByTestId("nav-bar-select").getByRole("radio", { name: phone ? "Top" : "Bottom" }).click();
+  await openSetup(page);
+  await pickControl(page, "nav-bar-select", phone ? "nav-bar-top" : "nav-bar-bottom");
   await closeConsole(page);
   await expect(page.locator("[data-slot=sheet-content], [data-slot=popover-content], [data-testid=console-sheet]")).toHaveCount(0);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -203,24 +204,24 @@ test("the console is the panel's own: up from the bottom of a phone's screen, in
   // Setup is one page now, no tabs of its own to change (PilotPanel).
 });
 
-test("the settings' theme is system, light or dark, all three on show, and the choice survives a reload", async ({ page }) => {
+test("Setup's Appearance control is system, light or dark, a menu of all three, and the choice survives a reload", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
-  await openSettings(page);
+  await openSetup(page);
   const html = page.locator("html");
-  const theme = page.getByTestId("theme-select");
-  await expect(theme.getByRole("radio", { name: "System" })).toHaveAttribute("aria-checked", "true");
+  const theme = page.getByTestId("setup-page").getByTestId("theme-select");
+  await expect(theme).toHaveAccessibleName("Appearance: System");
   await expect(html).not.toHaveClass(/dark/);   // "system", and the test browser prefers light
-  await theme.getByRole("radio", { name: "Dark" }).click();
+  await pickControl(page, "theme-select", "theme-dark");
   await expect(html).toHaveClass(/dark/);
-  // The one already chosen, tapped again, stays chosen: a segmented
-  // control, not a set of toggles that can all be off.
-  await theme.getByRole("radio", { name: "Dark" }).click();
-  await expect(theme.getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "true");
+  // The one already chosen, picked again, stays chosen: a menu of one of
+  // three, not a set of toggles that can all be off.
+  await pickControl(page, "theme-select", "theme-dark");
+  await expect(theme).toHaveAccessibleName("Appearance: Dark");
   await page.reload();
   await page.waitForTimeout(300);
   await expect(html).toHaveClass(/dark/);
-  await openSettings(page);
-  await page.getByTestId("theme-select").getByRole("radio", { name: "Light" }).click();
+  await openSetup(page);
+  await pickControl(page, "theme-select", "theme-light");
   await expect(html).not.toHaveClass(/dark/);
 });

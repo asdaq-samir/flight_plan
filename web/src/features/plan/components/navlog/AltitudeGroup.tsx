@@ -3,10 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../../components/ui/select";
+import PullDown from "../../../../components/PullDown";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
-import { INLINE_FIELD_BUTTON, InlineField } from "../../../../components/InlineField";
-import { GLASS_BUTTON } from "../../../../components/mapChrome";
+import { InlineField } from "../../../../components/InlineField";
+import { useDryRunButton } from "../../../../lib/dryRunButton";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -29,7 +29,10 @@ const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round
 
 /** What the empty field says: an example of what it takes, at the owner's
  *  ask ("I want it to say Alt: 080 as a text filler example"). */
-const PLACEHOLDER = "Alt: 080";
+// Dashes, not an example figure: grey "080" after FL- read as an
+// altitude planned (the owner's screenshot, 2026-10-27, while the
+// altitudes were still being planned).
+const PLACEHOLDER = "---";
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
@@ -87,7 +90,7 @@ function planAt(nav: NavLogAltitude | null, altitude: number): AltitudeChoice | 
  * chip was: red with no legal altitude, IFR's flag, a tight altitude and a
  * pilot's own altitude's caution.
  */
-export default function AltitudeGroup({ nav, legs, commanded = null, asked = null, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
+export default function AltitudeGroup({ nav, legs, commanded = null, asked = null, problem = false, tight = null, onFlyAltitude, disabled = false, rules = "vfr" }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** The altitude the pilot asked for, feet, while its log is planned: the
@@ -102,8 +105,6 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   tight?: string | null;
   /** Flies the whole route at an altitude of the pilot's own, feet. */
   onFlyAltitude: (feet: number) => void;
-  /** Opens the Profile card, the altitude set on its side view. */
-  onOpenProfile: () => void;
   disabled?: boolean;
   /** The flight rules it is planned under: IFR's flag on the group. */
   rules?: FlightRules;
@@ -120,12 +121,15 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   // at most, hundreds of feet as written, at the owner's ask ("when altitude
   // is entered it should only hold 3 digits").
   const flying = commanded ?? cruise;
-  const shown = typed ?? (problem || flying === null ? "" : flightLevel(flying).slice(2));
+  const shown = typed ?? (problem || flying === null ? "" : flightLevel(flying).slice(3));
   const top = rules === "ifr" ? 41_000 : 17_999;
   const fly = () => {
     if (typed === null) return;
+    // Any of the ways a pilot writes it, at the owner's ask (2026-10-27):
+    // "090", "FL090", "FL-090" in hundreds of feet, or "9000" in feet --
+    // four figures or more are feet.
     const digits = typed.replace(/\D/g, "");
-    const ft = Number(digits) * 100;
+    const ft = digits.length >= 4 ? Math.round(Number(digits) / 100) * 100 : Number(digits) * 100;
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
@@ -144,6 +148,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   // is in, at the owner's ask ("make the profile button appear right after
   // entry but just make it disabled").
   const entered = shown !== "";
+  const dotShown = profiled && !problem && (cautions.length > 0 || !!tight);
   const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
@@ -154,49 +159,40 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
     // owner's ask ("when altitude is entered ... a profile button shows
     // up"), or why there is none to show.
     <InlineField
-      label="Cruise altitude" testId="altitude-group" widest="000" tabular placeholder={PLACEHOLDER}
+      label="Cruise altitude" testId="altitude-group" tip="altitude" widest="FL-000" tabular placeholder={PLACEHOLDER} prefix="FL-"
       input={{
-        inputMode: "numeric", value: shown, "aria-label": "Cruise altitude, hundreds of feet",
-        onChange: e => setTyped(e.target.value.replace(/\D/g, "").slice(0, 3)),
+        inputMode: "numeric", value: shown, "aria-label": "Cruise altitude, a flight level or feet",
+        onChange: e => setTyped(e.target.value.toUpperCase().replace(/^FL-?/, "").replace(/\D/g, "").slice(0, 5)),
         onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },
         onBlur: fly, "data-testid": "altitude-input",
       }}
       inputClassName={problem ? "text-destructive-ink" : "text-foreground"}
-      button={(profiled || entered) && <button
-          type="button" onClick={onOpenProfile} disabled={!profiled}
-          className={cn(
-            // The route box's icon buttons' size, 32 square with an 18-point glyph, the
-            // group's height; its 44-point area round it. A button of the
-            // tinted glass every button is (GLASS_BUTTON), at the owner's
-            // ask ("The profile button should also get the glass tinted. But
-            // the altitude entry should stay as a text box"): the field's
-            // end, where a line parted it from the figure before.
-            INLINE_FIELD_BUTTON, "disabled:text-muted-foreground",
-            GLASS_BUTTON,
-            problem && "text-destructive-ink",
+      // Room for the caution's dot only while there is one: the field as
+      // narrow as its figures otherwise (the owner's "why is there so much
+      // space ... after altitude").
+      endRoom={dotShown ? "w-[1.125rem]" : "w-0"}
+      // No button of its own at its end, at the owner's ask (2026-10-27: "No
+      // need for a separate profile button"): the profile opens with its
+      // dry run from the map's Play (DryRunButton). Its amber dot stays, at
+      // the field's end, on a caution on the pilot's own altitude or a tight
+      // one -- a warning is never dropped -- and what the altitude is and
+      // why, in its name for VoiceOver.
+      button={(profiled || entered) && (
+        <span className={dotShown ? "relative mr-2.5 flex size-2 shrink-0" : "relative flex size-0 shrink-0"}>
+          <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" className="absolute inset-0" />
+          {/* The dot opens the profile where the caution is said, as the
+              map's Play does (the owner, 2026-10-27: "just open the same
+              profile view as the play button"); 44 points round it. */}
+          {dotShown && (
+            <button
+              type="button" onClick={() => useDryRunButton.getState().play?.()}
+              aria-label={cautions.length > 0 ? "Your altitude has a caution: open the profile" : "Your altitude is tight: open the profile"}
+              className="relative size-2 rounded-full bg-caution outline-none after:absolute after:-inset-[18px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
+            />
           )}
-          aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
-          data-testid="altitude-why" data-tip="altitude"
-        >
-          {/* One amber dot on the glyph's top corner, inside the button as
-              the Brief's is, at the owner's asks ("move the dot to the top
-              corner of the profile button", "The dot is within the button
-              for brief but not for profile"): a caution on the pilot's own
-              altitude, else a tight one, which the Profile card says. Said in
-              the button's name. The route from the side, the profile's own
-              mark. */}
-          <span className="relative">
-            <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
-            </svg>
-            {profiled && !problem && (cautions.length > 0 || tight) && (
-              <span
-                className="absolute -top-0.5 -right-1 size-2 rounded-full bg-caution" aria-hidden="true"
-                data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
-              />
-            )}
-          </span>
-        </button>}
+        </span>
+      )}
     />
   );
 }
@@ -492,18 +488,19 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
       {/* The planner's four plans, one picked from a menu: the ruler's rows
           named them, and the graph's drag lands on an altitude. */}
       {nav && nav.options.length > 0 && (
-        <div className="flex items-center justify-between gap-3">
+        // A row the pull-down's 44 points fit in, so the fold under it
+        // takes none of them (the iOS audit's P1: 3 lost to "How the
+        // altitude was chosen").
+        <div className="flex min-h-11 items-center justify-between gap-3">
           <span className={cn("font-semibold", TEXT.row)}>Plan</span>
-          <Select value={PREFERRED.includes(nav.flown as AltitudeChoice) ? nav.flown! : ""} onValueChange={v => onAltitudeChoiceChange(v as AltitudeChoice)}>
-            <SelectTrigger className="w-48" data-testid="altitude-plan" aria-label="Altitude plan"><SelectValue placeholder="Your altitude" /></SelectTrigger>
-            <SelectContent>
-              {[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => (
-                <SelectItem key={o.kind} value={o.kind} data-testid="altitude-plan-option">
-                  {PLAN_NAME[o.kind]} · {feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <PullDown<AltitudeChoice>
+            label="Altitude plan" value={PREFERRED.includes(nav.flown as AltitudeChoice) ? nav.flown as AltitudeChoice : ""}
+            placeholder="Your altitude" testId="altitude-plan" onChange={onAltitudeChoiceChange}
+            options={[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => ({
+              value: o.kind, testId: "altitude-plan-option",
+              label: `${PLAN_NAME[o.kind]} · ${feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft`,
+            }))}
+          />
         </div>
       )}
       {onRulesChange && (
@@ -542,7 +539,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
         // The stock Collapsible, as the weather's raw reports fold, where a
         // native details element drew the browser's own triangle.
         <Collapsible>
-          <CollapsibleTrigger className={cn("group relative flex w-full items-center gap-1.5 py-2 text-left outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GROUP_HEADING)}>
+          <CollapsibleTrigger className={cn("group relative flex min-h-11 w-full items-center gap-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", GROUP_HEADING)}>
             <ChevronRight className="size-4 text-tint transition-transform group-data-[state=open]:rotate-90" aria-hidden />
             How the altitude was chosen
           </CollapsibleTrigger>

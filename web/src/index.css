@@ -714,7 +714,11 @@ html [data-sonner-toaster] {
 html [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
   @apply liquid-glass;
   border-color: transparent;
-  border-radius: 1.375rem;
+  /* A capsule, as Apple Maps' banner is: 48 at the least and 24 round, so
+     one line is a full capsule and two keep the same corners (the iOS
+     audit reads a toast as a capsule, min(24, half its height)). */
+  border-radius: 1.5rem;
+  min-height: 3rem;
   padding: 0.625rem 1rem;
   gap: 0.5rem;
 }

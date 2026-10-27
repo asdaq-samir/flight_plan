@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { airportMark, closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo, mapStill, openPanel, settle, sideDrawer, slow, airportSearch } from "./helpers";
+import { airportMark, closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo, mapStill, openPanel, settle, settled, sideDrawer, slow, airportSearch } from "./helpers";
 
 /**
  * The map and the sheet move together, as in Maps: opened fresh, the map
@@ -76,6 +76,25 @@ async function shipInTheMiddle(page: Page) {
 
 /** Where the map is: its pane's offset, which moves when the map does and
  *  only then. */
+/** Where the map's pane and the sheet's top are, for a turn of the sheet
+ *  to be checked against (slidWithSheet). */
+const paneAndSheet = (page: Page) => page.evaluate(() => ({
+  pane: new DOMMatrix(getComputedStyle(document.querySelector(".leaflet-map-pane")!).transform).m42,
+  top: document.querySelector('[data-slot="map-panel"]')!.getBoundingClientRect().top,
+}));
+
+/** On a phone the map slid with the sheet, what was in the middle of the
+ *  room above it still in the middle (half the sheet's move, within the
+ *  difference between the sheet's edge and the strip it reports to the
+ *  map), as Apple Maps' does; from `md` up, where the card comes out at
+ *  the side, left where it was. */
+async function slidWithSheet(page: Page, before: { pane: number; top: number }) {
+  await mapStill(page);
+  const after = await paneAndSheet(page);
+  if (page.viewportSize()!.width >= 768) expect(after.pane).toBeCloseTo(before.pane, 0);
+  else expect(Math.abs((after.pane - before.pane) - (after.top - before.top) / 2)).toBeLessThan(20);
+}
+
 const mapAt = (page: Page) => page.locator(".leaflet-map-pane").evaluate(el => (el as HTMLElement).style.transform);
 
 /** A drag on the chart, from a point clear of the panel and the map's
@@ -112,14 +131,14 @@ test("opened fresh, the map is on the pilot's position in the middle of what the
   await shipInTheMiddle(page);
 
   // Panned until the position is off the screen: the sheet raised, the
-  // map stays where the pilot put it.
+  // map slides with it on a phone, at the zoom the pilot put it.
   const viewport = page.viewportSize()!;
   for (let i = 0; i < 3; i++) await drag(page, -viewport.width * 0.45, -60);
-  const before = await mapAt(page);
+  const before = await paneAndSheet(page);
   await page.getByTestId("sidebar-trigger-button").click();
   await expect(sideDrawer(page)).not.toHaveAttribute("data-collapsed", "true");
-  await page.waitForTimeout(900);
-  expect(await mapAt(page)).toBe(before);
+  await settled(sideDrawer(page));
+  await slidWithSheet(page, before);
 
   // Turned off from the location arrow: the dot stays at its last place,
   // grey, as Maps' does.
@@ -245,16 +264,16 @@ test("a route the pilot has moved is fitted again as the sheet goes up and down 
   await openPanel(page);
   await fittedClearOf(page, sideDrawer(page));
 
-  // Panned right off it: left alone.
+  // Panned right off it: not fitted again, slid with the sheet on a phone.
   await closeSidebarWithTheStockKey(page);
   await expectDrawerClosed(page);
   await fittedClearOf(page, sideDrawer(page));
   const viewport = page.viewportSize()!;
   for (let i = 0; i < 4; i++) await drag(page, Math.min(300, viewport.width * 0.7), 0);
-  const before = await mapAt(page);
+  const before = await paneAndSheet(page);
   await openPanel(page);
-  await page.waitForTimeout(900);
-  expect(await mapAt(page)).toBe(before);
+  await settled(sideDrawer(page));
+  await slidWithSheet(page, before);
 });
 
 test("panned off the route, the location arrow turns to the route, and a tap fits the course again", async ({ page }) => {

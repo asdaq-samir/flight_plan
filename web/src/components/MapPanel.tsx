@@ -8,6 +8,9 @@ import {
   GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
   sheetSettle, type MapInsets, type PanelState,
 } from "./mapChrome";
+import { SheetCardHost } from "./SheetCard";
+import { raisedFor, useSheetCards } from "../lib/sheetCards";
+import TabKept from "./TabKept";
 
 /** How far the half sheet is in from the screen's sides and its edge: on
  *  them, as Apple's Maps on the web has its sheet (the owner's screenshots
@@ -173,7 +176,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // A tab's options for a tab, a card's for a card: what each layer takes.
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
-  const toEdge = layer !== "console" && edgeAsked;
+  // A card opened over whatever is here (SheetCard: a control's, a thing's
+  // tapped on the chart): the body's room its, the head's row, the
+  // controls and the foot out of sight under it -- kept, the controls that
+  // opened it among them, for when it is put away.
+  const raised = useSheetCards(s => raisedFor(s.stack));
+  const cardsUp = raised !== null;
+  const toEdge = layer !== "console" && edgeAsked && !cardsUp;
   // No half size, at the owner's ask ("let's remove the half card"): the
   // tabs alone, the pill and all the way up.
   const onPhone = useIsMobile();
@@ -272,14 +281,28 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // Turning between the pill and the sheet, or let go by a finger, until
   // the height has eased where it was going (fromFoot).
   const [turning, setTurning] = useState(false);
+  // Whether a finger had the sheet down in the last of the way to the
+  // pill (MORPH), where it is laid out as the pill already. Let go above
+  // that -- thrown down from half -- it settles as a tap does, keeping what
+  // it shows as it eases down: it turned into the pill at the release,
+  // its content gone while the sheet was still half way up (the owner,
+  // 2026-10-27: "it's removing all content instead of sliding it down
+  // with the sheet").
+  const [dragLow, setDragLow] = useState(false);
+  const low = dragged !== null && dragged - capsuleHeight < MORPH;
+  if (dragged !== null && low !== dragLow) setDragLow(low);
   if (state !== stateWas) {
     setStateWas(state);
-    setSettling(stateWas !== "peek" && state === "peek" && dragged === null && !wasDragging && hasPill);
+    setSettling(stateWas !== "peek" && state === "peek" && dragged === null && (!wasDragging || !dragLow) && hasPill);
     if (stateWas === "peek" || state === "peek") setTurning(true);
   }
   if (wasDragging !== (dragged !== null)) {
     setWasDragging(dragged !== null);
-    if (dragged === null) setTurning(true);
+    if (dragged === null) {
+      setTurning(true);
+      // Gone to the pill under the finger before it let go, high.
+      if (state === "peek" && stateWas === "peek" && !dragLow && hasPill) setSettling(true);
+    }
   }
   const capsule = hasPill && state === "peek" && dragged === null && !settling;
   // Observed afresh as the panel changes size or the tab its head or the pill its own, the
@@ -320,7 +343,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   }, [footNode, state, capsule]);
   // The figures pinned at the sheet's foot, out of the pill: its one row
   // says the route's (the capsule's own).
-  const footShown = !!foot && (!capsule || !!bar);
+  const footShown = !!foot && (!capsule || !!bar) && !cardsUp;
   const footHeight = footShown ? footMeasured : 0;
   // The bar shown: the sheet's first row out of the pill, over its head or
   // the console's layer with no head of its own.
@@ -329,7 +352,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // tab bar minimized to the card's kind, Back at its left, as iOS's
   // navigation bar is; else the tabs, at the owner's ask. Wider, a card
   // with room for every tab keeps them, as iPadOS's does.
-  const minimized = cardOver;
+  // A card from a control or the chart over it too (SheetCard): its name
+  // and close take the tabs' place on top, as the expanded theme's are
+  // (the owner, 2026-10-27: "Shouldn't the title replace the tabs?"), the
+  // tabs back as it is put away.
+  const minimized = cardOver || (onPhone && cardsUp);
+  const barNamed = !!bar && barShown && minimized && cardsUp;
+  useEffect(() => {
+    useSheetCards.setState({ barNamed });
+    return () => useSheetCards.setState({ barNamed: false });
+  }, [barNamed]);
   // A pill of tabs, or of a route's figures (one button the pill's whole
   // height), rests the whole safe area up, clear of the home indicator (the
   // HIG's Layout; the iOS audit's P12 caught the figures 6 points into it);
@@ -370,8 +402,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // home indicator, a route's figures clipped at the top the last of the
     // way down (the safe area emulated as the iOS audit does, 2026-10-15).
     const pillPx = Math.round(PILL_REM * rootPx());
-    const lowest = bar && capsule ? pillPx
-      : bar && settling ? pillPx + (fromBottom ? Math.max(0, capsuleGap - HALF_INSET) : 0)
+    // Now that the settling sheet takes the pill's gap as it eases (its
+    // shape, below), it stops at the pill's own height: stopped the gap
+    // taller, it eased down 12 points more once it had turned, the
+    // readjust at the end the owner saw ("at the end readjusts for a
+    // second to small detent"; sampled: 70 at the landing, 58 after).
+    const lowest = bar && (capsule || settling) ? pillPx
       : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
@@ -379,7 +415,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const body = asked - headHeight - halfChrome - footHeight;
     const half = body > 0 && body < HALF_BODY_LEAST_REM * rootPx() ? Math.max(lowest, asked - body) : asked;
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, fromBottom, capsuleGap, headHeight, footHeight]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
@@ -430,7 +466,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // 0 at half and below, 1 all the way up, between as a finger takes it:
   // what grows with the sheet past half (FlightLine's figures).
   const progress = Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half)));
-  const shape: "capsule" | "inset" | "edge" = capsule ? "capsule" : nearFull ? "edge" : "inset";
+  // Taking the capsule's place, width and corners as it eases down to it
+  // (`settling`), its content still shown: one move into the pill, as
+  // Maps' is, where it slid down as the sheet and turned into the pill
+  // once there (the owner, 2026-10-27: "the sheet goes all the way bottom
+  // and then becomes a floating tabs").
+  const shape: "capsule" | "inset" | "edge" = capsule || settling ? "capsule" : nearFull ? "edge" : "inset";
   const edgeRadius = fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`;
   const geometry = {
     // As wide as the sheet in from the edges, at the owner's ask ("let's
@@ -461,6 +502,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The pill with a route: its figures in the tabs' place, at the tabs'
   // height (3.625rem: their row and its margins).
   const figuresPill = pillShape && !!bar && footShown;
+  // Laid out as the pill -- its grabber, its row of tabs or figures, where
+  // the pill has them -- from the start of a settle down to it, not only
+  // once there, what it shows still in sight: laid out as the half sheet
+  // to the last frame, the figures jumped 6 points up and 4 across as the
+  // pill's layout came in (sampled on the phone project: DIST at 793, 108.5
+  // the frame before, 786.7, 112.3 after), the "snap at the end" the owner
+  // felt (2026-10-27).
+  const pillLaid = pillShape || settling;
   // The head's row: in the pill only without a tab bar (whose pill is the
   // bar), out of it wherever there is a top row or no bar shown.
   const headerShown = pillShape ? !bar : top != null || !barShown;
@@ -529,7 +578,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const barMove = useRef<Animation | null>(null);
   const barWas = useRef<{ laid: number; rests: number } | null>(null);
   const pillBarTop = 0.375 * rootPx();
-  const barLaid = pillShape ? pillBarTop : GRABBER;
+  // Where the row is laid out, which is the pill's from the start of a
+  // settle down to it (pillLaid): taken as the sheet's, the row was moved
+  // ten points too high all the way down and dropped back as the pill
+  // came in (sampled on the phone project with no route: tabs at 768.8
+  // the frame before, 780 after; the owner's video, 2026-10-27).
+  const barLaid = pillLaid ? pillBarTop : GRABBER;
   const barRests = capsule || settling ? pillBarTop : GRABBER;
   const barUnder = hasPill ? between(pillBarTop, GRABBER, morph) : barLaid;
   useLayoutEffect(() => {
@@ -575,7 +629,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // the map refits once the panel settles (MapShell).
   const expanded = state !== "peek";
   // Half way and all the way up, what counts is the half sheet.
-  const coveredOnPhone = expanded ? detents.half + HALF_INSET : peek + (capsule ? capsuleGap : 0);
+  // Down at the pill, its strip at rest from the turn on, not the room
+  // the sheet takes on its way down: the map, sent to the middle of what
+  // the sheet left on the way (174 points, then 160), was slid on again
+  // once it landed (70), the map settling a second after the tabs had
+  // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
+  // settle down").
+  const pillRest = bar ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
+  const coveredOnPhone = expanded ? detents.half + HALF_INSET : hasPill ? pillRest + capsuleGap : peek;
   const out = expanded;
   useEffect(() => {
     const up = state === "full";
@@ -657,7 +718,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       document.removeEventListener("scroll", onScroll, { capture: true });
       headBand.removeAttribute("data-under");
     };
-  }, [headBand, panel, under, label, cardOver, layer]);
+  }, [headBand, panel, under, label, cardOver, layer, cardsUp]);
   // The pill once the height has eased there; or after a while, should no
   // transition end come (none to run, Reduce Motion).
   useEffect(() => {
@@ -682,11 +743,36 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useEffect(() => {
     if (!panel || !expanded) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) onStateChange("peek");
+      // Not under a card, whose own Escape puts it away (SheetCard).
+      if (event.key === "Escape" && !event.defaultPrevented && !useSheetCards.getState().stack.length) onStateChange("peek");
     };
     panel.addEventListener("keydown", onKey);
     return () => panel.removeEventListener("keydown", onKey);
   }, [panel, expanded, onStateChange]);
+  // A card opened comes up half way at the least, as a place's card does,
+  // all the way for a search; the last put away, the panel goes back to
+  // where it was and shows what was under them, as Maps' sheet does.
+  // Not where what put the last away moved the panel itself, in the same
+  // tap (the approach's Chart, all the way up on the field's card): the
+  // size it was at while they were open (`heldAt`) is no longer the one.
+  const raisedFrom = useRef<PanelState | null>(null);
+  const heldAt = useRef<PanelState | null>(null);
+  const sizeNow = useRef({ state, onStateChange });
+  useEffect(() => {
+    sizeNow.current = { state, onStateChange };
+    if (raised) heldAt.current = state;
+  });
+  useEffect(() => {
+    const { state: now, onStateChange: to } = sizeNow.current;
+    if (raised) {
+      raisedFrom.current ??= now;
+      if (RANK[now] < RANK[raised]) to(raised);
+    } else if (raisedFrom.current !== null) {
+      const back = raisedFrom.current;
+      raisedFrom.current = null;
+      if (back !== now && now === heldAt.current) to(back);
+    }
+  }, [raised]);
 
   // The panel's height on <body> as well, for the stylesheet's rules about
   // what else is over the map (index.css): the map's buttons under a
@@ -751,19 +837,19 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       // hit area reaches a point and a half past the chip, into it.
       // Over the tabs' head on a phone, no deeper than the room over the
       // tabs (their mt-1.5), so a tab's 44-point hit area stays its own.
-      style={{ height: pillShape ? CAPSULE_PAD - 2 : GRABBER }}
+      style={{ height: pillLaid ? CAPSULE_PAD - 2 : GRABBER }}
       className={cn(
         "mx-auto flex w-24 shrink-0 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
         // In the capsule's thin padding, two points from its edge; on the
         // sheet five, as iOS's.
-        fromBottom ? (pillShape ? "items-start pt-[2px]" : "items-start pt-[5px]") : (pillShape ? "items-end pb-[2px]" : "items-end pb-[5px]"),
-        pillShape && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
+        fromBottom ? (pillLaid ? "items-start pt-[2px]" : "items-start pt-[5px]") : (pillLaid ? "items-end pb-[2px]" : "items-end pb-[5px]"),
+        pillLaid && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
         fromFoot && "absolute inset-x-0 top-0 z-10",
         // Its hit area (index.css) wide but no further into the head than
         // four points: the route's box starts four under it. Over the head
         // on the sheet's edge (fromFoot), its own box only: drawn over the
         // tabs there, it took the top of their 44 points (the iOS audit's P1).
-        !pillShape && (fromBottom ? (fromFoot ? "after:bottom-0! after:top-0!" : "after:bottom-[-4px]! after:top-0!") : "after:top-[-4px]! after:bottom-0!"),
+        !pillLaid && (fromBottom ? (fromFoot ? "after:bottom-0! after:top-0!" : "after:bottom-[-4px]! after:top-0!") : "after:top-[-4px]! after:bottom-0!"),
       )}
     >
       <span className="h-[5px] w-9 rounded-full bg-muted-foreground/40" aria-hidden="true" />
@@ -784,7 +870,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // The height follows a finger without lag, and the capsule's turn
         // into the sheet with it; the shape eases in and out as a drag
         // crosses half way up, to the screen's edges and back.
-        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? settle.height : SHEET_RESHAPE,
+        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? `${settle.height}, background-color ${settle.curve}, box-shadow ${settle.curve}` : SHEET_RESHAPE,
         // In steps of four: an inherited property, every change of it
         // restyles all the sheet holds, and changed at every frame of a drag
         // above half it cost that drag a frame in three.
@@ -803,7 +889,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // Liquid Glass at every height, as Maps' is: the chart through it,
         // its rim lit, its own shadow -- the sheet a frostier pane of it,
         // for a nav log read on it, and all the way out nearly whole.
-        capsule ? GLASS
+        // The pill's glass from the start of a settle down to it, its colour
+        // easing there with the height (below), where the sheet's opaque
+        // fill turned to the pill's glass in one frame as it landed (the
+        // owner, 2026-10-27: "the color transition is not smooth").
+        capsule || (settling && onPhone) ? GLASS
           : !onPhone ? MATERIAL
             : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
         !onPhone && cn(
@@ -856,11 +946,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // under a sheet's first row, set them high in the pill, the room
               // under them twice that over (the owner's "Not centered in the
               // bottom pill").
-              "flex shrink-0 px-2", pillShape ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barShown && "hidden",
+              "flex shrink-0 px-2", pillLaid ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barShown && "hidden",
               // In the pill the pill's whole, round its grabber; out of it,
               // under a card's name, the line under the sheet's first row --
               // under the tabs, the tabs' own line of glass (TabGlass).
-              pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : minimized ? "border-b border-border/60" : "",
+              pillLaid ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : minimized ? "border-b border-border/60" : "",
               figuresPill && "hidden",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}
@@ -881,7 +971,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             {compact}
           </div>
         )}
-        <div className="flex flex-col" style={crossFade ? { opacity: morph } : undefined}>
+        <div className={cn("flex flex-col", cardsUp && !pillShape && "hidden")} style={crossFade ? { opacity: morph } : undefined}>
         {/* One header in both shapes, so what the capsule and the sheet
             both show -- the search bar -- stays the same element as the
             one turns into the other, focus and keyboard and all. From
@@ -957,12 +1047,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         style={{ "--half-body": `${halfBody}px`, "--full-body": `${fullBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
         data-panel-body=""
       >
-        {children}
+        {/* Under a card opened over it, kept as it was (TabKept). */}
+        <TabKept away={cardsUp}>{children}</TabKept>
+        <SheetCardHost shown={cardsUp} />
       </div>
       {/* The route's figures, pinned at the card's foot at every height
           (`foot`): over the home indicator's room where the body runs to
           the edge (toEdge), which then runs to the figures. */}
-      {footShown && (
+      {/* Kept under a card, out of sight, with what it holds open (the
+          fuel's breakdown, a card of its own). */}
+      {!!foot && (footShown || cardsUp) && (
         // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer convenience, not a control: the grabber is the keyboard's way to open the sheet, and the figures' own buttons stay focusable
         <div
           ref={setFoot}
@@ -974,16 +1068,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // buttons").
             // Giving way where the half is short of it, after the body: FPL's
             // side view shrinks first (PlanWorkspace), its figures kept whole.
-            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillShape && SHEET_BELOW,
+            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillLaid && SHEET_BELOW, !footShown && "hidden",
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
             // Its content centred there, the dry run's too, whose figures
             // sat at the pill's top under the grabber, its column grown.
-            pillShape ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none" : "border-t border-border/60 pt-1 pb-2.5",
+            pillLaid ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none" : "border-t border-border/60 pt-1 pb-2.5",
           )}
           style={{
-            ...(toEdge && fromBottom && !pillShape ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
+            ...(toEdge && fromBottom && !pillLaid ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
             // The figures and the foot's own border and padding (pt-1, pb-2.5).
             ...(fromFoot && footRow > 0 ? { minHeight: `calc(${footRow}px + 1px + 0.875rem)` } : {}),
             // How far up it is past half, for what grows with it (FlightLine's
@@ -1024,7 +1118,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       {!toEdge && (edgeRoom > 0 || (fromBottom && onPhone && !!bar && footShown)) && (
         <div
           className="shrink-0" aria-hidden="true"
-          style={{ height: pillShape ? 0 : edgeRoom, transition: dragged === null && measured ? `height ${settle.curve}` : "none" }}
+          style={{ height: pillLaid ? 0 : edgeRoom, transition: dragged === null && measured ? `height ${settle.curve}` : "none" }}
         />
       )}
     </section>

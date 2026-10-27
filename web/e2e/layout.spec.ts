@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { PAGES, grabberTo, settle, slow, expectDrawerClosed, openBrief, openSidebar, sideDrawer, openSettings, openPanel, closeSidebarWithTheStockKey, showTabs } from "./helpers";
+import { PAGES, grabberTo, settle, slow, expectDrawerClosed, openBrief, openSidebar, sideDrawer, openSetup, openPanel, closeSidebarWithTheStockKey, showTabs } from "./helpers";
 
 /**
  * The regressions this file exists to catch (see playwright.config.ts
@@ -286,10 +286,9 @@ for (const path of PAGES) {
       expect(await page.locator("[data-map-controls]").getByTestId("setup-button").count()).toBe(0);
     }
 
-    // The settings, the console's last tab, no longer hold the map's:
-    // they are the map button's.
-    await openSettings(page);
-    await expect(page.getByTestId("settings-panel")).toBeVisible();
+    // Setup holds the cockpit's Controls, never the map's: they are the
+    // map button's.
+    await openSetup(page);
     expect(await page.getByTestId("base-chart-select").count()).toBe(0);
     await page.keyboard.press("Escape");
   });

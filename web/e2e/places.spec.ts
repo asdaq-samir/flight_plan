@@ -320,6 +320,15 @@ test("the route's Procedures open its destination's card on its approaches, and 
  *  zooms about the cursor, so C81 stays under it) -- and where one is
  *  whose middle nothing else covers: not the route's own marker, not the
  *  panel. */
+/** The private fields drawn as well, off by default since 2026-10-27:
+ *  round C81 most of the fields on the chart are private strips. */
+async function withPrivateFields(page: Page) {
+  await page.addInitScript(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? "null") ?? { state: {}, version: 1 };
+    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, privateFields: true } }));
+  });
+}
+
 async function airportToTap(page: Page) {
   // Once the map has stopped: the panel coming back to rest fits the route
   // again (MapShell), and a wheel turned while it flies is lost to it.
@@ -376,9 +385,12 @@ async function airportToTap(page: Page) {
         // The chart under it, or a line a tap passes through to the map
         // (the course line's): no marker, control, popup or panel, which
         // would take the tap.
+        // The chart's tiles take no pointer (Leaflet's own rule), so the
+        // map's own box answers where nothing is drawn over it.
         const hit = document.elementFromPoint(x, y);
-        if (hit?.closest(".leaflet-map-pane")
-          && !hit.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip")) return { x, y };
+        if (hit?.closest(".leaflet-container") && !hit.closest(
+          ".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, .leaflet-control, [data-slot=map-panel], [data-map-controls]",
+        )) return { x, y };
       }
       return null;
     }, marks.map(m => ({ x: m.x, y: m.y })));
@@ -449,6 +461,7 @@ test("an airport tapped on the chart while Setup is up puts Setup away and opens
   // The owner's notice: "When selecting airport marker while being on
   // setup tab doesn't open the [airport] tab."
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "Setup leaves the chart in sight on a phone");
+  await withPrivateFields(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openConsole(page);
@@ -464,6 +477,7 @@ test("an airport tapped on the chart while Setup is up puts Setup away and opens
 });
 
 test("a tap on an airport on the chart opens its card, a tap elsewhere puts it away, and Fly Here makes it the destination", async ({ page }) => {
+  await withPrivateFields(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const at = await airportToTap(page);
@@ -474,13 +488,18 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await expect(card(page).getByTestId("fly-here")).toBeVisible();
 
-  // A tap on the chart elsewhere puts it away, as in Maps, and the panel
-  // back at its capsule brings the whole route back into sight
-  // (MapShell); an airport tapped again brings a card back.
+  // A tap on the chart elsewhere puts it away, as in Maps, the map left at
+  // the zoom the pilot put it (MapShell); the location arrow brings the
+  // whole route back, and an airport tapped again brings a card back.
   await tapTheChart(page);
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(card(page)).toHaveCount(0);
   await expectDrawerClosed(page);
+  const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
+  await expect(arrow).toHaveAttribute("data-face", "route");
+  await arrow.click();
+  await expect(arrow).toHaveAttribute("data-face", "position");
+  await mapStill(page);
   const again = await airportToTap(page);
   await page.mouse.click(again.x, again.y);
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty();
@@ -547,6 +566,8 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
   await settle(page);
   await openMapSettings(page);
   await page.getByTestId("military-toggle").click();
+  // And the private ones, off by default (the owner, 2026-10-27).
+  await page.getByTestId("private-toggle").click();
   await page.keyboard.press("Escape");
   // Each drawn from its airspace, its use and its weather (AirportCanvas,
   // airportMarkSvg's look; the look itself is the route's own marks', in
@@ -566,9 +587,9 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
   expect((await markOf("KGGG"))!.weather.toLowerCase()).toBe("#b3261e");
 });
 
-test("the map's Private setting puts the private fields away and back", async ({ page }) => {
-  // The owner, 2026-10-27: "toggles to show private airports or not". On
-  // by default, as they were always drawn.
+test("the map's Private setting draws the private fields, off by default and kept across a reload", async ({ page }) => {
+  // The owner, 2026-10-27: "toggles to show private airports or not", and
+  // "Make private airports hidden by default".
   const field = (ident: string, at: number, extra = {}) => ({
     ident, name: ident, lat: 42.30 + at * 0.03, lon: -88.20 + at * 0.05, kind: "medium", flight_category: "VFR",
     military: null, airspace_class: "D", ...extra,
@@ -579,17 +600,19 @@ test("the map's Private setting puts the private fields away and back", async ({
   }));
   await page.goto("/app/plan?place=C81");
   await settle(page);
+  await expect.poll(async () => !!(await airportMark(page, "KPUB")), { timeout: slow(15000) }).toBe(true);
+  expect(await airportMark(page, "KPVT")).toBeFalsy();
+  await openMapSettings(page);
+  await expect(page.getByTestId("private-toggle")).toHaveAttribute("aria-checked", "false");
+  await page.getByTestId("private-toggle").click();
+  await page.keyboard.press("Escape");
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
-  await openMapSettings(page);
-  await expect(page.getByTestId("private-toggle")).toHaveAttribute("aria-pressed", "true");
-  await page.getByTestId("private-toggle").click();
-  await page.keyboard.press("Escape");
-  await expect.poll(async () => await airportMark(page, "KPVT"), { timeout: slow(15000) }).toBeFalsy();
-  expect(await airportMark(page, "KPUB")).toBeTruthy();
-  // Back on, and kept so across a reload.
-  await openMapSettings(page);
-  await page.getByTestId("private-toggle").click();
-  await page.keyboard.press("Escape");
+  // The airport's card kept under the settings', as it was.
+  await expect(page).toHaveURL(/[?&]place=C81/);
+  // Loaded afresh on the same place: a reload starts the page clean, its
+  // place put away, and the chart further out drew KPUB alone of the two.
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
 });
 

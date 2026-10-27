@@ -1,14 +1,11 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "../../../components/CloseButton";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
+import PullDown from "../../../components/PullDown";
 import Segmented from "../../../components/Segmented";
 import { Button } from "../../../components/ui/button";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
 import { Input } from "../../../components/ui/input";
 import { lengthCode, lengthOfCode, lengthWords, type Hold } from "../../../lib/holds";
 import { legMinutes } from "../../../lib/holding";
@@ -38,8 +35,8 @@ const LENGTHS = ["1T", "2T", "3T", "4T", "10M", "15M", "20M", "30M"];
  * a minute at or below 14,000 ft, a minute and a half above (lib/holding's
  * legMinutes) -- or distance; and how long, in turns or minutes. The planner works
  * out the entry from the course flown to it, and adds the hold's time
- * and fuel to the flight's (plan.with_holds). A sheet on a phone with
- * its title on top and Close, as the fix's card is.
+ * and fuel to the flight's (plan.with_holds). A card in the map's panel
+ * on a phone, its title on top and Close, as the fix's card is.
  */
 export default function HoldSheet({ at, onClose, onSet }: {
   at: HoldAt | null;
@@ -53,7 +50,6 @@ export default function HoldSheet({ at, onClose, onSet }: {
         title={at ? `Hold at ${at.fix}` : "Hold"} side="bottom" align="center"
         className="flex w-80 flex-col gap-3 p-3" data-testid="hold-sheet"
         action={<CloseButton onClick={onClose} data-testid="hold-close" />}
-        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
       >
         {at && <HoldForm key={at.fix} at={at} onSet={onSet} />}
       </ResponsivePopoverContent>
@@ -113,12 +109,12 @@ function HoldForm({ at, onSet }: { at: HoldAt; onSet: (fix: string, hold: Hold |
               options={[{ value: "time", label: "Time" }, { value: "distance", label: "Distance" }]}
             />
             {timed
-              ? <Choice label="Leg time" value={String(legMin)} options={LEG_MIN.map(m => [String(m), `${m} min`])} onChange={v => setLegMin(Number(v))} testId="hold-leg-min" />
-              : <Choice label="Leg distance" value={String(legNm)} options={LEG_NM.map(n => [String(n), `${n} nm`])} onChange={v => setLegNm(Number(v))} testId="hold-leg-nm" />}
+              ? <PullDown label="Leg time" value={`${legMin}`} options={LEG_MIN.map(m => ({ value: `${m}`, label: `${m} min`, testId: `hold-leg-min-${m}` }))} onChange={v => setLegMin(Number(v))} testId="hold-leg-min" />
+              : <PullDown label="Leg distance" value={`${legNm}`} options={LEG_NM.map(n => ({ value: `${n}`, label: `${n} nm`, testId: `hold-leg-nm-${n}` }))} onChange={v => setLegNm(Number(v))} testId="hold-leg-nm" />}
           </span>
         </ListRow>
         <ListRow title="Hold for">
-          <Choice label="Hold for" value={length} options={LENGTHS.map(l => [l, lengthWords(lengthOfCode(l)!)])} onChange={setLength} testId="hold-length" />
+          <PullDown label="Hold for" value={length} options={LENGTHS.map(l => ({ value: l, label: lengthWords(lengthOfCode(l)!), testId: `hold-length-${l}` }))} onChange={setLength} testId="hold-length" />
         </ListRow>
       </ListGroup>
       <Button type="submit" size="lg" disabled={!valid} className={cn("w-full", TEXT.row)} data-testid="hold-set">
@@ -130,30 +126,5 @@ function HoldForm({ at, onSet }: { at: HoldAt; onSet: (fix: string, hold: Hold |
         </Button>
       )}
     </form>
-  );
-}
-
-/** A discrete choice as a pull-down chip, as the procedures' are: the
- *  stock DropdownMenu's radio items, not a slider. */
-function Choice({ label, value, options, onChange, testId }: {
-  label: string; value: string; options: [string, string][]; onChange: (value: string) => void; testId: string;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button" aria-label={`${label}: ${options.find(o => o[0] === value)?.[1] ?? value}`} data-testid={testId}
-          className={cn("relative flex h-8 items-center gap-0.5 rounded-full bg-foreground/8 px-2.5 font-semibold text-tint outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
-        >
-          {options.find(o => o[0] === value)?.[1] ?? value}
-          <ChevronDown className="size-4" aria-hidden="true" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
-          {options.map(([v, words]) => <DropdownMenuRadioItem key={v} value={v} data-testid={`${testId}-${v}`}>{words}</DropdownMenuRadioItem>)}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

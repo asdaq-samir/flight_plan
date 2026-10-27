@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openMapSettings, settle, slow } from "./helpers";
+import { closeCard, openMapSettings, settle, slow } from "./helpers";
 
 /**
  * Over the chart, at the pilot's ask (the map's settings, OverlayTiles):
@@ -38,14 +38,15 @@ test.afterEach(async ({ page }) => {
 });
 
 test("the USGS's imagery over the chart, credited, at the strength picked; no Google where there is no key", async ({ page }) => {
-  const asked = await servers(page, null);
+  await servers(page, null);
   await page.goto("/app/plan");
   await settle(page);
   await openMapSettings(page);
   const overlay = page.getByTestId("overlay-select");
-  await expect(overlay.getByRole("radio")).toHaveText(["Off", "Imagery"]);
+  await expect(overlay.getByRole("radio")).toHaveText(["None", "Imagery"]);
   await overlay.getByRole("radio", { name: "Imagery" }).click();
-  await expect.poll(() => asked.some(u => u.includes("USGSImageryOnly")), { timeout: slow(15000) }).toBe(true);
+  // The map's own layer, not the choice's picture of it.
+  await expect.poll(() => page.locator('.leaflet-layer img[src*="USGSImageryOnly"]').count(), { timeout: slow(15000) }).toBeGreaterThan(0);
   await expect(page.locator(".leaflet-control-attribution", { hasText: "USGS The National Map" })).toBeVisible();
   // Half to begin with, then full.
   const layer = page.locator(".leaflet-layer", { has: page.locator('img[src*="USGSImageryOnly"]') });
@@ -55,8 +56,8 @@ test("the USGS's imagery over the chart, credited, at the strength picked; no Go
   await page.getByTestId("overlay-strength").getByRole("radio", { name: "Full" }).click();
   await expect(layer).toHaveCSS("opacity", "1");
   // Off: gone, its credit too.
-  await overlay.getByRole("radio", { name: "Off" }).click();
-  await expect(page.locator('img[src*="USGSImageryOnly"]')).toHaveCount(0);
+  await overlay.getByRole("radio", { name: "None" }).click();
+  await expect(page.locator('.leaflet-layer img[src*="USGSImageryOnly"]')).toHaveCount(0);
   await expect(page.getByTestId("overlay-strength")).toHaveCount(0);
 });
 
@@ -85,7 +86,7 @@ test("a saved Google overlay where there is no key is off, with no Strength row 
   await page.goto("/app/plan");
   await settle(page);
   await openMapSettings(page);
-  await expect(page.getByTestId("overlay-select").getByRole("radio", { name: "Off" })).toBeChecked();
+  await expect(page.getByTestId("overlay-select").getByRole("radio", { name: "None" })).toBeChecked();
   await expect(page.getByTestId("overlay-strength")).toHaveCount(0);
   await expect(page.getByTestId("google-overlay-select")).toHaveCount(0);
 });
@@ -107,13 +108,14 @@ test("Google's session refused says so in the settings; a kept session of anothe
   await expect(page.getByTestId("google-problem")).toBeVisible({ timeout: slow(30000) });
 });
 
-test("on a phone the map's settings sheet has the app's close, the way out besides a tap on the map", async ({ page }) => {
+test("on a phone the map's settings card has the app's close, the way out besides a tap on the map", async ({ page }) => {
   // The commonality audit's C-4: the sheet was put away only by a tap on
-  // the map under it.
-  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's sheet");
+  // the map under it. A card in the map's sheet now (SheetCard).
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's card");
   await page.goto("/app/plan");
   await settle(page);
   await openMapSettings(page);
-  await page.getByTestId("sheet-close").click();
+  // The close in the tabs' place on top, the card's name beside it.
+  await closeCard(page, "sheet-card-close");
   await expect(page.getByTestId("map-settings")).toBeHidden();
 });

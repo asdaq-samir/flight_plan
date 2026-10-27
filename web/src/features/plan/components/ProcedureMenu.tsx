@@ -155,10 +155,6 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
       <ResponsivePopoverContent
         title={title} align="start" side="bottom"
         className="flex h-[26rem] w-80 flex-col gap-3 overflow-y-auto p-3"
-        sheetClassName="data-[side=bottom]:h-[60dvh] data-[side=top]:h-[60dvh]"
-        // The map above it in sight and clear, no shade or blur over it, as
-        // the Procedures sheet keeps it (the owner's screenshot: blurred).
-        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
         // No Back: the close goes back a page where one is pushed, at the
         // owner's ask ("remove the back buttons, because close button should
         // behave as the back button", 2026-10-22).

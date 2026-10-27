@@ -1,8 +1,11 @@
 import type L from "leaflet";
 import type { LeafletEventHandlerFnMap } from "leaflet";
-import { useContext, useMemo, type ComponentProps } from "react";
-import { Popup } from "react-leaflet";
+import { useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { Popup, useMap } from "react-leaflet";
 import { MapInsetsContext } from "../../components/mapChrome";
+import { SheetCard } from "../../components/SheetCard";
+import { useIsMobile } from "../../hooks/use-mobile";
+import { Halo } from "./Halo";
 
 /**
  * Every popup a marker opens, on either map.
@@ -55,13 +58,101 @@ const PAN_ONCE: LeafletEventHandlerFnMap = {
   },
 };
 
-export function MapPopup({ eventHandlers, panOnce = false, ...props }: ComponentProps<typeof Popup> & {
+type Props = ComponentProps<typeof Popup> & {
   /** Pans on opening only, for a popup whose holder draws again while it is
    *  open (the VFR waypoints'). The others keep Leaflet's pan, so a card
    *  that grows late -- a weather or airspace answer, say -- is still
    *  brought into sight. */
   panOnce?: boolean;
-}) {
+  /** On a phone, the ring round the thing tapped while its card is open
+   *  (Halo), as a picked point wears it: a point's (a checkpoint, a
+   *  waypoint). Not an area's (a TFR's), whose popup is where the finger
+   *  was, nor where the caller rings it itself. */
+  ring?: boolean;
+  /** On a phone, whether its card moves the point clear of the panel
+   *  (default yes); not where picking it flies the map in to it already
+   *  (RouteMap's checkpoints, FocusOn), whose flight that pan stopped. */
+  panCard?: boolean;
+};
+
+/**
+ * On a phone, the card a tap opens is a card in the map's panel
+ * (SheetCard), as Maps opens a place's in its sheet, where it was a
+ * Leaflet popup over the chart beside it, a second surface with no close:
+ * at the owner's ask ("let's have consistency and common code",
+ * 2026-10-27). Leaflet's own popup still says when it is open -- opened by
+ * the tap on its thing, put away by a tap on the chart or another card
+ * opening, and by the map's closePopup -- drawn as nothing, its content in
+ * the card instead; the card's close, Escape and Back put it away.
+ */
+export function MapPopup(props: Props) {
+  return useIsMobile() ? <PopupCard {...props} /> : <PopupOver {...props} />;
+}
+
+function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = true, children, ...props }: Props) {
+  const map = useMap();
+  const insets = useContext(MapInsetsContext);
+  const popup = useRef<L.Popup>(null);
+  // Open, and where its thing is.
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState<{ lat: number; lon: number } | null>(null);
+  const handlers = useMemo<LeafletEventHandlerFnMap>(() => ({
+    ...eventHandlers,
+    add: event => {
+      const point = (event.target as L.Popup).getLatLng();
+      setOpen(true);
+      setAt(point ? { lat: point.lat, lon: point.lng } : null);
+      eventHandlers?.add?.(event);
+    },
+    remove: event => {
+      setOpen(false);
+      setAt(null);
+      eventHandlers?.remove?.(event);
+    },
+  }), [eventHandlers]);
+  // In sight over the panel come up for it: the point moved clear of the
+  // half sheet, as Maps moves a place it opens, once the panel has said
+  // what it covers -- where it went under the sheet coming up. Not where
+  // the caller moves the map itself (autoPan off: the training pass).
+  const pans = ring && panCard && props.autoPan !== false;
+  const lat = at?.lat, lon = at?.lon;
+  // After the map has stopped, where the same tap set it moving -- a
+  // checkpoint's flies in to it (RouteMap's FocusOn): panInside's setView
+  // stopped that flight at once at the old zoom, and the checkpoint was
+  // never come in to (checkpoints and map specs, found by the other
+  // session, 2026-10-27).
+  const moving = useRef(false);
+  useEffect(() => {
+    const start = () => { moving.current = true; };
+    const end = () => { moving.current = false; };
+    map.on("movestart", start);
+    map.on("moveend", end);
+    return () => { map.off("movestart", start); map.off("moveend", end); };
+  }, [map]);
+  useEffect(() => {
+    if (!pans || lat === undefined || lon === undefined) return;
+    const pan = () => map.panInside([lat, lon], {
+      paddingTopLeft: [insets.left + 24, insets.top + 24],
+      paddingBottomRight: [24, insets.bottom + 24],
+    });
+    if (!moving.current) {
+      pan();
+      return;
+    }
+    map.once("moveend", pan);
+    return () => { map.off("moveend", pan); };
+  }, [map, pans, lat, lon, insets.left, insets.top, insets.bottom]);
+  return (
+    <>
+      {/* Leaflet's, for when the card is open; never in sight. */}
+      <Popup ref={popup} {...props} className="hidden" autoPan={false} closeButton={false} eventHandlers={handlers} />
+      {open && at && ring && <Halo at={at} />}
+      {open && <SheetCard onClose={() => popup.current?.close()}>{children}</SheetCard>}
+    </>
+  );
+}
+
+function PopupOver({ eventHandlers, panOnce = false, ring: _ring, panCard: _panCard, ...props }: Props) {
   // Opened, it pans the map to be in sight past the panel over the map
   // (MapPanel), not just inside the map, which runs under the panel.
   const insets = useContext(MapInsetsContext);

@@ -162,13 +162,35 @@ def get_airport(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict:
     }
 
 
+def _faa_key(cache_path: Path) -> tuple[str, float]:
+    """The FAA's airport file beside OurAirports' (faa_nasr/APT_BASE.csv,
+    as FAA_CACHE_DIR is beside DEFAULT_CACHE_PATH) and when it was written,
+    to key the tables on; ("", 0.0) where there is none yet. Never
+    fetched from here: a table of fields is not held up on the NASR
+    download, and a test's own airports file has no FAA file beside it."""
+    apt = Path(cache_path).parent / "faa_nasr" / "APT_BASE.csv"
+    try:
+        return str(apt), apt.stat().st_mtime
+    except OSError:
+        return "", 0.0
+
+
 def _us_airports(cache_path: Path) -> pd.DataFrame:
     path = _ensure_cached(OURAIRPORTS_URL, cache_path)
-    return _us_airports_of(str(path), path.stat().st_mtime)
+    return _us_airports_of(str(path), path.stat().st_mtime, *_faa_key(cache_path))
+
+
+@lru_cache(maxsize=1)
+def _faa_listed(faa_path: str, _faa_mtime: float) -> frozenset:
+    """Every field the FAA lists (NASR APT_BASE.csv: airports, heliports,
+    seaplane bases and the rest, open or private), by its FAA and its ICAO
+    identifier."""
+    df = faa_data._read_apt_base_cached(faa_path, _faa_mtime)
+    return frozenset(i.strip().upper() for i in [*df["ARPT_ID"], *df["ICAO_ID"]] if isinstance(i, str) and i.strip())
 
 
 @lru_cache(maxsize=2)
-def _us_airports_of(path: str, _mtime: float) -> pd.DataFrame:
+def _us_airports_of(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> pd.DataFrame:
     """The US-only, pre-uppercased slice `search_airports` filters --
     keyed by path and mtime like `_read_table` (a replaced file is a
     new entry, and the old one is dropped rather than kept for ever
@@ -187,7 +209,22 @@ def _us_airports_of(path: str, _mtime: float) -> pd.DataFrame:
     # aviationweather.gov data alone -- there's no route it could
     # actually fly outside the US, so a non-US match here would
     # just be a dead end once picked, not a real suggestion.
-    us = df[df["iso_country"] == "US"].copy()
+    us = df[df["iso_country"] == "US"]
+    # Only the fields the FAA lists (the owner, 2026-10-27: "I would take
+    # it out if it's not showing with FAA"): OurAirports keeps some 3,300
+    # strips and airports the FAA no longer lists -- closed, or never
+    # registered -- such as LL97 at Round Lake, drawn as a public field
+    # beside C81. A field is the FAA's by any ident it goes by. With no
+    # FAA file to hand, all of them, as before.
+    if faa_path:
+        listed = _faa_listed(faa_path, _faa_mtime)
+        if listed:
+            on = np.zeros(len(us), dtype=bool)
+            for column in ("ident", "local_code", "icao_code", "gps_code"):
+                if column in us.columns:
+                    on |= us[column].fillna("").astype(str).str.strip().str.upper().isin(listed).to_numpy()
+            us = us[on]
+    us = us.copy()
     us["_ident_upper"] = us["ident"].astype(str).str.upper()
     us["_local_upper"] = us["local_code"].astype(str).str.upper()
     us["_name_upper"] = us["name"].astype(str).str.upper()
@@ -253,7 +290,8 @@ def search_airports(query: str, limit: int = 8, cache_path: Path = DEFAULT_CACHE
         # One word -- every keystroke of an ident or a town -- from the index
         # (_search_index_of), not a scan of 20,000 rows' strings per letter.
         path = _ensure_cached(OURAIRPORTS_URL, cache_path)
-        return _rows(df, _indexed_matches(_search_index_of(str(path), path.stat().st_mtime), query, limit, near or []))
+        index = _search_index_of(str(path), path.stat().st_mtime, *_faa_key(cache_path))
+        return _rows(df, _indexed_matches(index, query, limit, near or []))
     exact = (df["_ident_upper"] == query) | (df["_local_upper"] == query) | (df["_display_ident"] == query)
     ident_hit = ~exact & (df["_ident_upper"].str.startswith(query) | df["_local_upper"].str.startswith(query))
     word_hit = ~exact & ~ident_hit & df["_words_upper"].str.contains(" " + query, regex=False)
@@ -276,12 +314,12 @@ def search_index(cache_path: Path = DEFAULT_CACHE_PATH) -> bytes:
     degree), and OurAirports' ident and the local code where either is not
     the ident shown (KC81 for C81). 32,600 rows. Made once per file."""
     path = _ensure_cached(OURAIRPORTS_URL, cache_path)
-    return _search_index_bytes(str(path), path.stat().st_mtime)
+    return _search_index_bytes(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
 @lru_cache(maxsize=2)
-def _search_index_bytes(path: str, _mtime: float) -> bytes:
-    us = _us_airports_of(path, _mtime)
+def _search_index_bytes(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> bytes:
+    us = _us_airports_of(path, _mtime, faa_path, _faa_mtime)
     rows = []
     columns = zip(us["_display_ident"].astype(str), us["_ident_upper"], us["_local_upper"], us["name"],
                   us["municipality"], us["iso_region"], us["_size_rank"], us["latitude_deg"], us["longitude_deg"])
@@ -313,14 +351,14 @@ def _rows(df: pd.DataFrame, positions: list[int]) -> list[dict]:
 
 
 @lru_cache(maxsize=2)
-def _search_index_of(path: str, _mtime: float) -> dict:
+def _search_index_of(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> dict:
     """The US table's idents and words, sorted, for `search_airports` to
     find a prefix by bisection: an ident or local code whole (`exact`),
     every ident and local code, and every word of a name and its town,
     each with its row. Built once per file, as the table is. The scan it
     replaced -- three string columns' startswith and contains over 20,000
     rows -- was 50 to 100 ms of every keystroke's answer."""
-    us = _us_airports_of(path, _mtime)
+    us = _us_airports_of(path, _mtime, faa_path, _faa_mtime)
     exact: dict[str, set[int]] = {}
     idents: list[tuple[str, int]] = []
     words: list[tuple[str, int]] = []

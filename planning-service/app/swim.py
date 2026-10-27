@@ -186,6 +186,18 @@ def _radar(text: str) -> int:
     return len(found)
 
 
+def raw(message) -> bytes | str:
+    """A message's bytes as they came, for a handler that looks in them
+    before it decodes them (RAW); its text where the client has no bytes."""
+    try:
+        payload = message.get_payload_as_bytes()
+    except Exception:  # noqa: BLE001 -- the client's error for a payload of the other kind
+        payload = None
+    return payload if payload else body(message)
+
+
+#: The feeds whose handler takes the message's bytes (filed_routes.heard).
+RAW = {"TFMS"}
 #: What each feed's messages are handed to; each gives how many items it read.
 HANDLERS = {"STDDS": _radar, "FNS": notams.heard, "TFMS": filed_routes.heard}
 
@@ -223,7 +235,7 @@ def _run(feed: str) -> None:
                 message = receiver.receive_message(timeout=5000)
                 if message is None:
                     continue
-                state["items"] += HANDLERS[feed](body(message))
+                state["items"] += HANDLERS[feed](raw(message) if feed in RAW else body(message))
                 state["messages"] += 1
                 state["last_at"] = time.time()
                 receiver.ack(message)

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { clearTheRoute, openPanel, settle, sideDrawer, slow, openSettings, closeConsole, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
+import { clearTheRoute, openPanel, settle, sideDrawer, slow, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
 
 // A runway line opened stays open while the spec picks from it: the app
 // folds it after two seconds untouched, which a loaded runner can spend
@@ -374,6 +374,57 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await expect(page).not.toHaveURL(/[?&]stops=/);
 });
 
+test("on a phone a point's altitude is asked in the floating sheet from the bottom, Cancel and Set in its title row", async ({ page }) => {
+  // The sheet consolidation (2026-10-27): it stood in the middle of a
+  // phone as a box, its Cancel and Set under the field.
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet; wider it is an alert in the middle");
+  await recordedStops(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
+  await openPanel(page);
+  const madison = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Arrive" });
+  await expect(madison.getByTestId("point-altitude-figure")).toHaveAttribute("data-kind", "elev", { timeout: slow(30_000) });
+  await madison.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-altitude").click();
+
+  const sheet = page.getByRole("alertdialog", { name: "Altitude at KMSN" });
+  await expect(sheet).toHaveAttribute("data-slot", "sheet-content");
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+  const look = await sheet.evaluate(el => {
+    const box = el.getBoundingClientRect();
+    return { left: box.left, right: innerWidth - box.right, foot: innerHeight - box.bottom, radius: parseFloat(getComputedStyle(el).borderTopLeftRadius) };
+  });
+  expect(look.left).toBeCloseTo(8, 0);
+  expect(look.right).toBeCloseTo(8, 0);
+  expect(look.foot).toBeCloseTo(8, 0);
+  expect(look.radius).toBe(36);
+  // Cancel at the title row's start, Set at its end, the title between,
+  // all on one line; the field below with the focus, to type at once.
+  const row = sheet.locator("[data-slot=sheet-header]");
+  const cancel = row.getByRole("button", { name: "Cancel", exact: true });
+  const set = row.getByTestId("point-altitude-set");
+  const [c, t, s] = [(await cancel.boundingBox())!, (await row.locator("[data-slot=sheet-title]").boundingBox())!, (await set.boundingBox())!];
+  expect(c.x + c.width).toBeLessThanOrEqual(t.x + 1);
+  expect(t.x + t.width).toBeLessThanOrEqual(s.x + 1);
+  for (const b of [c, s]) expect(Math.abs((b.y + b.height / 2) - (t.y + t.height / 2))).toBeLessThanOrEqual(4);
+  const field = sheet.getByTestId("point-altitude-input");
+  expect((await field.boundingBox())!.y).toBeGreaterThan(t.y + t.height);
+  await expect(field).toBeFocused();
+
+  // Cancel: nothing set.
+  await cancel.click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]altitudes=/);
+  // Set, from the title row, once a figure is typed.
+  await madison.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-altitude").click();
+  await field.fill("");
+  await expect(set).toBeDisabled();
+  await field.fill("2600");
+  await set.click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]altitudes=KMSN(%3A|:)2600(&|$)/);
+});
+
 test("the pilot's own point off a fix is made from a point's menu or typed as a flight plan writes it, flown over after it", async ({ page }) => {
   // The owner's asks (2026-10-20): "can a user also create their own point?
   // for example 30 miles 090 radial of vpbng", and "a fix should get its
@@ -656,7 +707,7 @@ test("a point's menu has its altitude before Remove: an airport's pattern in fee
   await page.getByTestId("point-altitude-set").click();
   await expect(page).toHaveURL(/KDLH(%3A|:)2600(%2C|,)VPBNG(%3A|:)5500(&|$)/);
   await lines.getByRole("group", { name: /VPBNG/ }).click({ button: "right" });
-  await expect(item).toContainText("FL055");
+  await expect(item).toContainText("FL-055");
   await page.keyboard.press("Escape");
 
   // Given back to the plan: Duluth's own is gone from the address.
@@ -739,8 +790,10 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
     await diamond.click({ timeout: 2000 });
     await expect(add).toBeVisible({ timeout: 2000 });
   }).toPass({ timeout: slow(15000) });
-  // What it is beside its ident, where it is on a line of its own.
-  const popup = page.locator(".leaflet-popup");
+  // What it is beside its ident, where it is on a line of its own: in its
+  // popup over the chart, or on a phone its card in the map's sheet
+  // (MapPopup).
+  const popup = page.locator(".leaflet-popup, [data-sheet-card]");
   await expect(popup.getByText("VFR waypoint", { exact: true })).toBeVisible();
   await expect(popup.getByText("3 nm SW of Campbell", { exact: true })).toBeVisible();
   // And the map holds still under the open card, once it has panned it
@@ -754,7 +807,7 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   await expect(page).toHaveURL(/[?&]stops=VPBNG/);
 });
 
-test("the route's airports are marked by their airspace, or by the weather from the settings", async ({ page }) => {
+test("the route's airports are marked by their airspace's ring and their weather's dot", async ({ page }) => {
   await page.route(url => /\/(checkpoints|navlog)$/.test(url.pathname), route => route.abort());
   // Each point of the route's title led by its field's chart mark (the
   // polish pass, 2026-10-26): Duluth's Class D ring.
@@ -764,19 +817,9 @@ test("the route's airports are marked by their airspace, or by the weather from 
   await settle(page);
   await openPanel(page);
   await expect(mark()).toHaveAttribute("data-airspace", "D", { timeout: slow(15000) });
-  const plain = await weather();
-
-  // By the weather instead: its METAR's colour in the middle, or the grey of none.
-  await page.goto("/app/plan");
-  await openSettings(page);
-  await page.getByTestId("route-colours-select").getByRole("radio", { name: "Weather" }).click();
-  await closeConsole(page);
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await settle(page);
-  await openPanel(page);
-  await expect(mark()).toHaveAttribute("data-airspace", "D", { timeout: slow(15000) });
+  // Its METAR's colour in the middle, or the grey of none, as the chart's
+  // marks have it: no setting since the owner's split (2026-10-27).
   await expect.poll(weather, { timeout: slow(15000) }).toMatch(/^(#|rgb|oklch)/);
-  expect(plain).toMatch(/^(#|rgb|oklch)/);
 });
 
 /**

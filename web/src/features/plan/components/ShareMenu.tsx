@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Ellipsis, FileArchive, FileDown, FileText, Fuel, Link2, ListOrdered, MapPinned, Printer, RotateCw, Send, Share, Trash2 } from "lucide-react";
+import { Ellipsis, FileArchive, FileDown, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share } from "lucide-react";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
@@ -49,14 +49,10 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, hasPoints, local, fileable, onFile, onClear, saving, reviewSheet, planAgain, onNavLog, onShowFuel,
+  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, local, fileable, onFile, saving, reviewSheet, planAgain, onShowFuel,
 }: {
   /** The suggested fuel stops taken out of the route box, put back. */
   onShowFuel?: () => void;
-  /** The nav log's card, from the route's menu: its button's place in the
-   *  route box is the Brief's now, at the owner's ask ("replace navlog
-   *  button with brief", 2026-10-24). */
-  onNavLog?: () => void;
   align: "start" | "end";
   /** Its button's: the route box's, or the tab bar's over the Brief and
    *  the nav log (TabBar's `routeShare`). */
@@ -69,12 +65,10 @@ export default function ShareMenu({
   altitudeFt: number | undefined;
   /** A route planned whole, its nav log in. */
   routed: boolean;
-  hasPoints: boolean;
   /** A local flight, round one field: no kneeboard card. */
   local: boolean;
   fileable: boolean;
   onFile: () => void;
-  onClear: () => void;
   /** Save and the review's item, given the way to open the review's sheet. */
   saving: (askReview: () => void) => ReactNode;
   /** The review's sheet, given the way to put it away. */
@@ -164,7 +158,6 @@ export default function ShareMenu({
           </DropdownMenuTrigger>
         </ResponsivePopoverAnchor>
         <DropdownMenuContent align={align} className="min-w-56 print:hidden">
-          {routed && onNavLog && <DropdownMenuItem onSelect={onNavLog} data-testid="route-navlog"><ListOrdered />Nav Log</DropdownMenuItem>}
           {routed && onShowFuel && <DropdownMenuItem onSelect={onShowFuel} data-testid="route-show-fuel"><Fuel />Show Fuel Stops</DropdownMenuItem>}
           {routed && <DropdownMenuItem onSelect={() => void share()} data-testid="share-link"><Link2 />Share link</DropdownMenuItem>}
           {card === "route" && (
@@ -204,15 +197,9 @@ export default function ShareMenu({
               <DropdownMenuItem disabled={!fileable} onSelect={onFile} data-testid="file-flight-plan"><FileText />File flight plan</DropdownMenuItem>
               {planAgain && (
                 <DropdownMenuItem onSelect={planAgain.onPlan} data-testid="plan-again" data-stale={planAgain.stale.length ? "" : undefined}>
-                  <RotateCw />Plan again
+                  <RotateCw />Refresh
                   {planAgain.stale.length > 0 && <span aria-hidden="true" className="ml-auto size-2 rounded-full bg-caution" />}
                 </DropdownMenuItem>
-              )}
-              {hasPoints && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onSelect={onClear} data-testid="route-clear"><Trash2 />Clear the route</DropdownMenuItem>
-                </>
               )}
             </>
           )}

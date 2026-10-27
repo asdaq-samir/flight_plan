@@ -1,5 +1,5 @@
 import { GLASS_EDGE } from "../lib/glass";
-import { createContext, type ReactNode } from "react";
+import { createContext } from "react";
 import { create } from "zustand";
 import { TEXT } from "../lib/text";
 
@@ -38,10 +38,6 @@ export interface MapInsets {
 }
 export const NO_INSETS: MapInsets = { top: 0, bottom: 0, left: 0, out: false, up: false };
 export const MapInsetsContext = createContext<MapInsets>(NO_INSETS);
-
-/** The settings, as the console's last tab (ConsoleTabs): the page's
- *  own (MapPage), the same in either console. */
-export const ConsoleSettingsContext = createContext<ReactNode>(null);
 
 /** The console's close where it is a layer of the map's panel rather
  *  than a sheet of its own -- on a phone (MapPage) -- for its header to
@@ -162,6 +158,19 @@ export const SETTLE_MOST = 0.35;
  *  sheet up to half way, and their far corners all the way up. */
 export const SHEET_INSET = 8;
 export const SHEET_INSET_RADIUS = 36;
+/** The same corners as a class, for every sheet drawn with classes: a
+ *  phone's floating sheet (PhoneSheetContent). Written out whole, as
+ *  Tailwind finds a class only as it is written. */
+export const SHEET_CORNERS = "rounded-[36px]";
+/** A box in the middle of the screen from `md` up, an iOS alert's corners
+ *  (the sheets audit's D3, 2026-10-17): the dialogs and alerts. On a
+ *  phone each is a sheet, with the sheet's corners. */
+export const DIALOG_CORNERS = "rounded-[28px]";
+/** What is behind every sheet and dialog, one dimming for all of them (the
+ *  sheet consolidation, 2026-10-27): the page a tenth darker and lightly
+ *  blurred, half in the dark theme, where the dialogs dimmed it a fifth
+ *  or a half and the sheets a tenth. */
+export const DIM = "bg-black/10 dark:bg-black/50 supports-backdrop-filter:backdrop-blur-xs";
 /** The panel at rest, its tabs and the route's figures: a rectangle with
  *  round corners, at the pilot's ask ("more of a rectangle"), where it was
  *  a capsule, its ends half its height round. */
@@ -232,8 +241,8 @@ export const CAPSULE_SEPARATOR = "before:pointer-events-none before:absolute bef
  *  the pilot's, a step up from iOS's default. */
 export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
 
-/** A tinted capsule that adds a field to the route -- Fly-in Food's Add
- *  Stop and Direct To (FoodCard) -- one height, padding and hit area (the
+/** A tinted capsule that adds a field to the route -- the Stops' Add
+ *  Stop and Direct To (StopsCard) -- one height, padding and hit area (the
  *  consistency audit, 2026-10-23): 32 points with a 44-point area round
  *  it as a pseudo-element, so the capsule is not grown to make it. */
 export const ADD_CAPSULE =

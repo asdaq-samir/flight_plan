@@ -26,7 +26,7 @@ export const TIPS: TipSpec[] = [
   },
   {
     id: "altitude", title: "Why this altitude",
-    message: "Tap the altitude to see how it was chosen, or pick another plan. Red means no VFR altitude fits; a dot, a rule to check.",
+    message: "Play on the map shows the flight from the side, how the altitude was chosen and its other plans. Red means no VFR altitude fits; a dot, a rule to check.",
   },
   {
     id: "tabs", title: "Dots mean look here",

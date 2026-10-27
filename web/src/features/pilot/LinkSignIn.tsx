@@ -1,9 +1,6 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Button } from "../../components/ui/button";
-import {
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
-} from "../../components/ui/dialog";
+import SheetDialog from "../../components/SheetDialog";
 import { ApiError, api } from "../../lib/api/client";
 import { TEXT } from "../../lib/text";
 
@@ -23,7 +20,8 @@ function forgetLink() {
 
 /**
  * The last step of an emailed-link sign-in, in the app's own dialog
- * over the planner rather than on a bare server page.
+ * over the planner rather than on a bare server page: a sheet from the
+ * bottom on a phone (SheetDialog).
  *
  * Opening the link signs nobody in: mail scanners fetch links to check
  * them, and one that spent the token would leave the pilot a link that
@@ -49,26 +47,18 @@ export default function LinkSignIn() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={next => { if (!next) close(); }}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Sign in</DialogTitle>
-          <DialogDescription>Finish signing in with the link from your email.</DialogDescription>
-        </DialogHeader>
-        {finish.isError && (
-          <p role="alert" className={`text-destructive ${TEXT.prose}`}>
-            {spent
-              ? "This link has expired or was already used. Ask for a new one from the pilot console."
-              : "Couldn't sign in just now. Try again."}
-          </p>
-        )}
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button variant="outline" onClick={close}>Cancel</Button>
-          <Button onClick={() => finish.mutate(token)} disabled={finish.isPending || spent}>
-            Sign in
-          </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
+    <SheetDialog
+      open={open} onOpenChange={next => { if (!next) close(); }}
+      title="Sign in" description="Finish signing in with the link from your email."
+      action={{ label: "Sign in", onClick: () => finish.mutate(token), disabled: finish.isPending || spent }}
+    >
+      {finish.isError && (
+        <p role="alert" className={`text-destructive ${TEXT.prose}`}>
+          {spent
+            ? "This link has expired or was already used. Ask for a new one from the pilot console."
+            : "Couldn't sign in just now. Try again."}
+        </p>
+      )}
+    </SheetDialog>
   );
 }

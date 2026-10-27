@@ -2,8 +2,7 @@ import * as React from "react"
 import { cn } from "cn"
 import { Dialog as SheetPrimitive } from "radix-ui"
 
-import CloseButton from "../CloseButton"
-import { GLASS_SHEET } from "../mapChrome"
+import { DIM, GLASS_SHEET } from "../mapChrome"
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -41,7 +40,7 @@ function SheetOverlay({
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-black/10 duration-100 dark:bg-black/50 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:pointer-events-none data-closed:animate-out data-closed:fade-out-0 data-closed:duration-200",
+        cn("fixed inset-0 z-50 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:pointer-events-none data-closed:animate-out data-closed:fade-out-0 data-closed:duration-200", DIM),
         className
       )}
       {...props}
@@ -53,7 +52,6 @@ function SheetContent({
   className,
   children,
   side = "right",
-  showCloseButton = true,
   overlayClassName,
   glass = false,
   onInteractOutside,
@@ -62,7 +60,6 @@ function SheetContent({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
-  showCloseButton?: boolean
   /** The overlay's own classes: clear, where what is under the sheet is
    *  what the sheet is for (the route's Procedures over the map). */
   overlayClassName?: string
@@ -130,12 +127,6 @@ function SheetContent({
         {...props}
       >
         {children}
-        {/* The app's one close (CloseButton), as every panel's is. */}
-        {showCloseButton && (
-          <SheetPrimitive.Close data-slot="sheet-close" asChild>
-            <CloseButton className="absolute top-3 right-3" />
-          </SheetPrimitive.Close>
-        )}
       </SheetPrimitive.Content>
     </SheetPortal>
   )
