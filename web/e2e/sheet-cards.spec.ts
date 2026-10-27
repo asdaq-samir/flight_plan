@@ -22,7 +22,7 @@ test("the Map settings open as a card in the map's sheet, and its close goes bac
 
   // From the pill: the panel up half way for it, the card its body.
   await openMapSettings(page);
-  const card = panel.getByRole("region", { name: "Map" });
+  const card = panel.getByRole("region", { name: "Map", exact: true });
   await expect(card).toBeVisible();
   await expect(card).toHaveAttribute("data-testid", "map-settings");
   await expect(panel).toHaveAttribute("data-panel", "half");
@@ -112,7 +112,7 @@ test("a checkpoint tapped on the chart opens its card in the sheet, ringed on th
   // The Map settings over it: its card on top, the checkpoint's kept
   // under it, and back to it as the top one is closed.
   await page.locator("[data-map-controls]").getByTestId("map-settings-button").click();
-  const map = panel.getByRole("region", { name: "Map" });
+  const map = panel.getByRole("region", { name: "Map", exact: true });
   await expect(map).toBeVisible();
   await expect(checkpoint).toBeHidden();
   await closeCard(page, "sheet-card-close");

@@ -94,7 +94,9 @@ function Calendar({
         month_grid: cn("w-full border-collapse", defaultClassNames.month_grid),
         weekdays: cn("flex", defaultClassNames.weekdays),
         weekday: cn(
-          "flex-1 rounded-(--cell-radius) text-[0.8rem] font-normal text-muted-foreground select-none",
+          // A note's size and its iOS leading (TEXT.note, 13 on 18 to a
+          // finger), where the stock 0.8rem stood on the browser's 1.5.
+          "flex-1 rounded-(--cell-radius) text-xs pointer-coarse:text-[0.8125rem] pointer-coarse:leading-[1.125rem] font-normal text-muted-foreground select-none",
           defaultClassNames.weekday
         ),
         week: cn("mt-2 flex w-full", defaultClassNames.week),

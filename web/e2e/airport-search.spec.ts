@@ -71,7 +71,9 @@ const rowLook = (row: Locator) => row.evaluate(el => {
     ident: getComputedStyle(ident).fontWeight,
     lines: lines.length,
     name: getComputedStyle(lines[0]!).fontSize,
-    town: lines[1] ? [getComputedStyle(lines[1]).fontSize, getComputedStyle(lines[1]).color] : null,
+    // In the grey of the surface it is on: the sheet's grey is a shade
+    // darker for its glass than a menu's over the map (index.css).
+    town: lines[1] ? [getComputedStyle(lines[1]).fontSize, lines[1].classList.contains("text-muted-foreground")] : null,
   };
 });
 
