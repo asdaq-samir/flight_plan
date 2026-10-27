@@ -10,22 +10,22 @@ struct LegDetailView: View {
     var body: some View {
         List {
             Section("Course and heading") {
-                LabeledContent("True course", value: String(format: "%03.0f°", leg.trueCourseDeg))
+                LabeledContent("True course", value: AirportWords.degrees(leg.trueCourseDeg))
                 if let wind = leg.wind, let dir = wind.directionDeg, let kt = wind.speedKt {
                     LabeledContent("Wind", value: String(format: "%03.0f° at %.0f kt", dir, kt))
                 }
                 LabeledContent("Wind correction", value: String(format: "%+.0f°", leg.wcaDeg))
-                LabeledContent("True heading", value: String(format: "%03.0f°", leg.trueHeadingDeg))
+                LabeledContent("True heading", value: AirportWords.degrees(leg.trueHeadingDeg))
                 LabeledContent("Variation", value: String(format: "%.0f° %@", abs(leg.magneticVariationDeg), leg.magneticVariationDeg < 0 ? "E" : "W"))
-                LabeledContent("Magnetic heading", value: String(format: "%03.0f°", leg.magneticHeadingDeg))
+                LabeledContent("Magnetic heading", value: AirportWords.degrees(leg.magneticHeadingDeg))
             }
             Section("Speed, time and fuel") {
                 LabeledContent("Altitude", value: "\(Int(leg.altitudeFt).formatted()) ft")
-                LabeledContent("True airspeed", value: String(format: "%.0f kt", leg.tasKt))
-                if let gs = leg.groundspeedKt { LabeledContent("Groundspeed", value: String(format: "%.0f kt", gs)) }
-                LabeledContent("Distance", value: String(format: "%.1f nm", leg.distanceNm))
+                LabeledContent("True airspeed", value: AirportWords.kt(leg.tasKt))
+                if let gs = leg.groundspeedKt { LabeledContent("Groundspeed", value: AirportWords.kt(gs)) }
+                LabeledContent("Distance", value: AirportWords.nm(leg.distanceNm))
                 if let ete = leg.eteMin { LabeledContent("Time", value: hoursMinutes(ete)) }
-                if let fuel = leg.fuelGal { LabeledContent("Fuel", value: String(format: "%.1f gal", fuel)) }
+                if let fuel = leg.fuelGal { LabeledContent("Fuel", value: AirportWords.gal(fuel)) }
                 if let climb = leg.climbMin, climb > 0 { LabeledContent("Climbing", value: hoursMinutes(climb)) }
             }
             if leg.toc != nil || leg.tod != nil {

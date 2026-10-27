@@ -57,6 +57,24 @@ enum AirportWords {
         return "\(part(lat, "N", "S", 2)) \(part(lon, "E", "W", 3))"
     }
 
+    // MARK: The nav log's figures
+
+    /// A distance to a tenth, "12.3 nm", as the nav log gives it.
+    static func nm(_ x: Double) -> String { String(format: "%.1f nm", x) }
+
+    /// Fuel to a tenth, "8.4 gal".
+    static func gal(_ x: Double) -> String { String(format: "%.1f gal", x) }
+
+    /// A speed in whole knots, "112 kt".
+    static func kt(_ x: Double) -> String { String(format: "%.0f kt", x) }
+
+    /// A course or heading as the nav log prints it, three figures, "093°".
+    static func degrees(_ x: Double) -> String { String(format: "%03.0f°", x) }
+
+    /// A point as the planner, the app's links and Maps take one,
+    /// "46.84211,-92.19358": five places, about a metre.
+    static func point(_ lat: Double, _ lon: Double) -> String { String(format: "%.5f,%.5f", lat, lon) }
+
     // MARK: Weather
 
     /// A report's wind: "250° at 12 kt, gusts 18", "Calm" for 00000KT,

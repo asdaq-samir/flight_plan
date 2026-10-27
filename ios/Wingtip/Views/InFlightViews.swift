@@ -71,7 +71,7 @@ struct CheckpointNotesView: View {
     @State private var typed = ""
 
     /// A checkpoint's key, by where it is, as the planner matches a note.
-    static func key(_ lat: Double, _ lon: Double) -> String { String(format: "%.5f,%.5f", lat, lon) }
+    static func key(_ lat: Double, _ lon: Double) -> String { AirportWords.point(lat, lon) }
 
     var body: some View {
         List {
@@ -476,8 +476,8 @@ enum RouteShare {
     static func navLogText(_ plan: Plan) -> String {
         var lines = [plan.idents.joined(separator: " → ")]
         if let totals = plan.totals {
-            lines.append([totals.distanceNm.map { String(format: "%.1f nm", $0) }, totals.eteMin.map(hoursMinutes),
-                          totals.fuelGal.map { String(format: "%.1f gal", $0) }].compactMap { $0 }.joined(separator: " · "))
+            lines.append([totals.distanceNm.map(AirportWords.nm), totals.eteMin.map(hoursMinutes),
+                          totals.fuelGal.map(AirportWords.gal)].compactMap { $0 }.joined(separator: " · "))
         }
         for leg in plan.legs {
             lines.append(String(format: "%@ → %@  %05.0f ft  MH %03.0f°  %.1f nm  %@  %@", leg.from, leg.to, leg.altitudeFt, leg.magneticHeadingDeg, leg.distanceNm,
@@ -575,8 +575,8 @@ struct Kneeboard: View {
                 Text("Date ________").font(.system(size: 9))
             }
             Rectangle().frame(height: 1.5)
-            Text([aircraft, totals?.distanceNm.map { String(format: "%.1f nm", $0) }, totals?.eteMin.map(hoursMinutes),
-                  totals?.fuelGal.map { String(format: "%.1f gal", $0) },
+            Text([aircraft, totals?.distanceNm.map(AirportWords.nm), totals?.eteMin.map(hoursMinutes),
+                  totals?.fuelGal.map(AirportWords.gal),
                   totals?.fuelRequiredGal.map { String(format: "(%.1f with reserve)", $0) }].compactMap { $0 }.joined(separator: " · "))
                 .font(.system(size: 9))
             Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 3) {

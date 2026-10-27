@@ -262,7 +262,7 @@ struct ReviewSection: View {
                 if let ft = f.cruiseAltitudeFt { LabeledContent("Altitude", value: "\(ft.formatted()) ft") }
                 if let nm = f.totalDistanceNm { LabeledContent("Distance", value: String(format: "%.0f nm", nm)) }
                 if let min = f.totalEteMin { LabeledContent("Time", value: hoursMinutes(min)) }
-                if let gal = f.totalFuelGal { LabeledContent("Fuel", value: String(format: "%.1f gal", gal)) }
+                if let gal = f.totalFuelGal { LabeledContent("Fuel", value: AirportWords.gal(gal)) }
             }
             // 14 CFR 61.93(d)(4) and (5), as the student's record has them.
             ForEach(Array(review.checks.enumerated()), id: \.offset) { _, c in

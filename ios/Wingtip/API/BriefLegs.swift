@@ -83,7 +83,7 @@ enum BriefLegs {
         points.append((course.destination.lat, course.destination.lon))
         guard points.count == legs.count + 1 else { return nil }
         return Query(
-            fixes: points.map { String(format: "%.5f,%.5f", $0.0, $0.1) }.joined(separator: ";"),
+            fixes: points.map { AirportWords.point($0.0, $0.1) }.joined(separator: ";"),
             legMin: legs.map { String(format: "%.1f", $0.eteMin ?? 0) }.joined(separator: ","),
             groundMin: legs.map { String(format: "%.0f", $0.groundMin ?? 0) }.joined(separator: ",")
         )

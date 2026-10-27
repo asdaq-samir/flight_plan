@@ -26,13 +26,13 @@ struct FiguresStrip: View {
         HStack {
             stripFigure("TO", plan.routed ? plan.dest : "—")
             if let flying {
-                stripFigure("DIST", String(format: "%.1f nm", flying.leftNm))
+                stripFigure("DIST", AirportWords.nm(flying.leftNm))
                 stripFigure("ETE", flying.minutes.map(hoursMinutes) ?? "—")
-                stripFigure("FUEL", flying.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
+                stripFigure("FUEL", flying.fuelGal.map(AirportWords.gal) ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
             } else {
-                stripFigure("DIST", plan.totals?.distanceNm.map { String(format: "%.1f nm", $0) } ?? plan.course.map { String(format: "%.1f nm", $0.distanceNm) } ?? "—")
+                stripFigure("DIST", plan.totals?.distanceNm.map(AirportWords.nm) ?? plan.course.map { AirportWords.nm($0.distanceNm) } ?? "—")
                 stripFigure("ETE", plan.totals?.eteMin.map(hoursMinutes) ?? "—")
-                stripFigure("FUEL", plan.totals?.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
+                stripFigure("FUEL", plan.totals?.fuelGal.map(AirportWords.gal) ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
             }
         }
         .padding(.horizontal)
