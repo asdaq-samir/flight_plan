@@ -650,7 +650,7 @@ function FuelStopChip({ ident, reason = "fuel", onAdd, onHide }: { ident: string
   // not yet in the route.
   const chip = cn(
     "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-1 font-semibold whitespace-nowrap text-caution-ink underline decoration-dashed decoration-1 underline-offset-4 outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
-    TEXT.row,
+    TEXT.detail,
   );
   const face = (
     <>
@@ -787,7 +787,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     <span aria-hidden="true" className="ml-0.5 size-2 shrink-0 rotate-45 rounded-[1px]" style={{ backgroundColor: WAYPOINT_MAGENTA }} />
   ) : (
     <span
-      aria-hidden="true" className="block size-[18px] shrink-0"
+      aria-hidden="true" className="block size-[14px] shrink-0"
       dangerouslySetInnerHTML={{ __html: airportMarkSvg(spaceClass, byWeather ? (metarColourOf(ident) ?? colourOf(null)) : colourOf(null), null, "block size-full overflow-visible") }}
     />
   );
@@ -809,7 +809,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       className={cn(
         // A swipe up or down scrolls the lines; a hold, then a move, drags;
         // a hold alone, its menu. No callout of iOS's own over the hold.
-        "inline-flex shrink-0 items-center gap-0.5 rounded-full touch-pan-y select-none [-webkit-touch-callout:none]",
+        "inline-flex shrink-0 items-center rounded-full touch-pan-y select-none [-webkit-touch-callout:none]",
         isDragging && "z-10 bg-background shadow-md ring-2 ring-tint",
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}
@@ -820,7 +820,9 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
         // 28 tall, as a fuel stop's and a procedure's chips are, at the
         // owner's ask ("make the other airport pills as thin as the fuel
         // airport pills"); a finger's 44 round it (index.css).
-        className={cn("h-7 rounded-full px-1", TEXT.row, "font-semibold")} onChange={onChange}
+        // A line under a row's size, as the pills were: three fields and a
+        // procedure's chip keep to one line on a phone (procedures.spec).
+        className={cn("h-7 rounded-full px-[3px]", TEXT.detail, "font-semibold")} onChange={onChange}
         open={changing} onOpenChange={setChanging} onTap={onOpen}
       />
     </span>
