@@ -22,6 +22,21 @@ export const ANSWERS = [
 
 export type AnswerKey = (typeof ANSWERS)[number]["key"];
 
+/** A figure as the student would write it: a heading round the compass,
+ *  the correction signed, the rest to its unit's precision. The leg's
+ *  workings' and the diversion drill's (whose figures are four of these). */
+export function written(key: AnswerKey, value: number): string {
+  if (key === "th" || key === "mh") return bearing(value);
+  if (key === "wca") return windCorrection(value);
+  if (key === "fuel") return `${value.toFixed(1)} gal`;
+  return `${Math.round(value)} ${key === "gs" ? "kt" : "min"}`;
+}
+
+/** A figure the student typed, as a number; null with nothing typed. */
+export function typedNumber(value: string | undefined): number | null {
+  return value === undefined || value.trim() === "" ? null : Number(value);
+}
+
 export interface Workings {
   /** The steps in order, each a name, its sum and its result. */
   steps: { name: string; sum: string; result: string }[];

@@ -1,6 +1,6 @@
 import type { FlightPlanFilingRequest, Leg, Totals } from "./api/types";
 import { hoursMinutes, utcFigures } from "./clock";
-import { grouped } from "./units";
+import { feet } from "./units";
 
 /**
  * The FAA's flight plan form filled in from a plan: FAA Form 7233-4, the
@@ -141,8 +141,6 @@ function zzzz(ident: string, slot: "DEP" | "DEST" | "ALTN"): string | undefined 
     : undefined;
 }
 
-const altitude = (ft: number) => `${grouped(ft)} ft`;
-
 /** The route's flights, landing to landing, with the stops each flies
  *  through and the legs that fly it. */
 function flights(input: FormInput) {
@@ -205,7 +203,7 @@ export function flightPlanForms(input: FormInput): FlightPlanForm[] {
     // neither process nor show a change filed in item 15 (AIM Appendix 4).
     const step = first ? hop.legs.find(leg => leg.altitude_ft !== first.altitude_ft) : undefined;
     add("15", "level", "Cruising level", first ? cruisingLevel(first.altitude_ft) : null,
-      step ? `Then ${altitude(step.altitude_ft)} from ${step.from}${ifr ? ", asked of ATC on the way" : ""}.` : undefined);
+      step ? `Then ${feet(step.altitude_ft)} from ${step.from}${ifr ? ", asked of ATC on the way" : ""}.` : undefined);
 
     // A T route, or a Q route, asks for GNSS and RNAV 2 (AIM Appendix 4,
     // TBL 4-13): filed only where the airplane is equipped and approved.

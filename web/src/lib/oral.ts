@@ -8,7 +8,7 @@
 import type { AcsTable } from "./checkride";
 import { lookUp } from "./checkride";
 import { hoursMinutes } from "./clock";
-import { grouped } from "./units";
+import { feet } from "./units";
 
 export interface PlanFacts {
   route: { ident: string; name?: string | null; airspaceClass?: string | null; patternFt?: number | null; runway?: string | null }[];
@@ -35,8 +35,6 @@ function enRoute(minutes: number): string {
   return `${t.hours} h ${t.minutes} min`;
 }
 
-const ft = (n: number) => `${grouped(n)} ft`;
-
 /** The flight as the examiner is told it: a line a fact, nothing it
  *  cannot be told plainly. */
 export function planFacts(f: PlanFacts): string {
@@ -45,14 +43,14 @@ export function planFacts(f: PlanFacts): string {
   for (const a of f.route) {
     const bits = [
       a.airspaceClass && `Class ${a.airspaceClass} at the surface`,
-      a.patternFt != null && `pattern altitude ${ft(a.patternFt)}`,
+      a.patternFt != null && `pattern altitude ${feet(a.patternFt)}`,
       a.runway && `runway ${a.runway} favoured by the wind`,
     ].filter(Boolean);
     if (bits.length) lines.push(`${a.ident}: ${bits.join(", ")}.`);
   }
   const plan = [
     f.aircraft && `Aircraft: ${f.aircraft}`,
-    f.cruiseFt != null && `cruise ${ft(f.cruiseFt)}`,
+    f.cruiseFt != null && `cruise ${feet(f.cruiseFt)}`,
     f.distanceNm != null && `${Math.round(f.distanceNm)} nm`,
     f.eteMin != null && `${enRoute(f.eteMin)} en route`,
     f.fuelGal != null && `${f.fuelGal.toFixed(1)} gal planned`,

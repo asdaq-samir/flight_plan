@@ -1,6 +1,7 @@
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import type { Totals } from "../../../lib/api/types";
 import { one } from "../format";
+import { gal } from "../../../lib/units";
 
 /** The reserve's rule, as the planner chose it (vfr.navlog.fuel_plan). */
 function reserveRule(totals: Totals): string {
@@ -28,7 +29,6 @@ export default function FuelBreakdown({ totals, short: shortOnes = [], burnt }: 
   short?: { name: string; shortGal: number }[];
 }) {
   const short = totals.fuel_margin_gal != null && totals.fuel_margin_gal < 0 ? -totals.fuel_margin_gal : null;
-  const gal = (n: number | null | undefined) => (n == null ? "—" : `${one(n)} gal`);
   return (
     <div className="flex flex-col gap-3" data-testid="fuel-breakdown">
       {shortOnes.some(f => f.name) && (

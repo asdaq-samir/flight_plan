@@ -7,7 +7,7 @@ import { TEXT } from "../../../../lib/text";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Course, Leg } from "../../../../lib/api/types";
-import { pirepConditions } from "../../../../lib/advisories";
+import { capitalised, pirepConditions } from "../../../../lib/advisories";
 import { passTime } from "../../../../lib/passTimes";
 import { altFt, ceilingAndVisibility, clockTime, windLine } from "../../format";
 import CategoryBadge from "./CategoryBadge";
@@ -33,9 +33,6 @@ type Pirep = Briefing["pireps"][number];
 /** A field's own TAF: the station by its ident, or its ICAO one (KDLH
  *  for DLH). */
 
-/** A line's first letter capitalised: the figures open a row's line. */
-const sentence = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
-
 /** A METAR's figures past its wind, in words, as FAA Order JO 7900.5
  *  codes them and the planner reads them: the ceiling and the visibility
  *  (ceilingAndVisibility), the temperature and dew point (°C), and the
@@ -44,7 +41,7 @@ function metarFigures(metar: NonNullable<Briefing["metars"][string]>): string {
   // Below zero with the minus sign, not a hyphen (M02 is −2).
   const degrees = (c: number) => `${Math.round(c) < 0 ? "−" : ""}${Math.abs(Math.round(c))}`;
   return [
-    sentence(ceilingAndVisibility(metar.ceiling_ft, metar.visibility_sm)),
+    capitalised(ceilingAndVisibility(metar.ceiling_ft, metar.visibility_sm)),
     metar.temp_c != null && `${degrees(metar.temp_c)} °C${metar.dewpoint_c != null ? `, dew point ${degrees(metar.dewpoint_c)}` : ""}`,
     metar.altimeter_in_hg != null && `${metar.altimeter_in_hg.toFixed(2)} inHg`,
   ].filter(Boolean).join(" · ");
@@ -54,7 +51,7 @@ function metarFigures(metar: NonNullable<Briefing["metars"][string]>): string {
  *  visibility then, or that it says nothing about then. */
 const atEta = (station: Station) => (station.eta_ceiling_ft == null && station.eta_visibility_sm == null
   ? "Nothing forecast for then"
-  : sentence(ceilingAndVisibility(station.eta_ceiling_ft, station.eta_visibility_sm)));
+  : capitalised(ceilingAndVisibility(station.eta_ceiling_ft, station.eta_visibility_sm)));
 
 
 

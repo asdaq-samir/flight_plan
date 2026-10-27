@@ -1,6 +1,5 @@
 import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format, parseISO } from "date-fns";
 import { FileDown, FileUp, GraduationCap, Mail, MailX, Plus, Users } from "lucide-react";
 import { toast } from "sonner";
 import FieldHit from "../../components/FieldHit";
@@ -23,12 +22,12 @@ import CheckridePage from "./CheckridePage";
 import QueryState from "../../components/QueryState";
 import InstructorPage from "./InstructorPage";
 import { localDay } from "../../lib/clock";
+import { said } from "../../lib/endorsements";
 import { FINDING_TONE } from "../../lib/status";
 import { currencyQuery, trainingQuery } from "../../lib/queryClient";
 import { EditToggle, RemoveMinus } from "../../components/Favorites";
 import { SwipeToDelete } from "../../components/SwipeToDelete";
 
-const day = (iso: string) => format(parseISO(iso), "d MMM yyyy");
 const today = () => localDay();
 
 /** "To 19 Dec 2026" in the tint's green, or "Not current" in red. */
@@ -36,7 +35,7 @@ function Until({ date, what }: { date: string | null | undefined; what: string }
   const current = !!date && date >= today();
   return (
     <span className={cn("tabular-nums", current ? FINDING_TONE.ok : FINDING_TONE.stop)} data-testid={`currency-${what}`}>
-      {!date ? "Not current" : current ? `To ${day(date)}` : `Ended ${day(date)}`}
+      {!date ? "Not current" : current ? `To ${said(date)}` : `Ended ${said(date)}`}
     </span>
   );
 }
@@ -255,7 +254,7 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
           {ipcNeeded ? <span className={FINDING_TONE.stop} data-testid="currency-instrument">IPC needed</span>
             : <Until date={currency?.instrumentCurrentUntil} what="instrument" />}
         </ListRow>
-        <ListRow title="Proficiency check" description={ipcOn ? `On ${day(ipcOn)}` : "The day of your last IPC"}>
+        <ListRow title="Proficiency check" description={ipcOn ? `On ${said(ipcOn)}` : "The day of your last IPC"}>
           <DateField value={ipcOn} label="Instrument proficiency check date" testId="ipc-date" onChange={v => setDates({ ipcOn: v })} />
         </ListRow>
       </ListGroup>
@@ -319,10 +318,10 @@ export function LogbookPanel({ aircraft }: { aircraft?: string }) {
                     // Taken off as every kept list's rows are -- a swipe to
                     // the left, or Edit's minus bringing out the Delete --
                     // asked first, the entry being the server's.
-                    <SwipeToDelete key={e.id} label={`Delete the flight of ${day(e.flownOn)}`} onDelete={() => { setToDelete(e); askDelete(); }}>
+                    <SwipeToDelete key={e.id} label={`Delete the flight of ${said(e.flownOn)}`} onDelete={() => { setToDelete(e); askDelete(); }}>
                       <ListRow
-                        media={editing ? <RemoveMinus label={`Delete the flight of ${day(e.flownOn)}…`} /> : undefined}
-                        title={`${day(e.flownOn)}${e.route ? ` · ${e.route}` : ""}`}
+                        media={editing ? <RemoveMinus label={`Delete the flight of ${said(e.flownOn)}…`} /> : undefined}
+                        title={`${said(e.flownOn)}${e.route ? ` · ${e.route}` : ""}`}
                         description={[e.aircraft, e.aircraftType, `${e.dayLandings + e.nightLandings} landing${e.dayLandings + e.nightLandings === 1 ? "" : "s"}`, e.remarks].filter(Boolean).join(" · ")}
                         value={`${e.totalHours.toFixed(1)} h`}
                         onClick={editing ? undefined : () => setChanging(e)}

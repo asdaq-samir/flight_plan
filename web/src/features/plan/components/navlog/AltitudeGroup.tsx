@@ -14,7 +14,7 @@ import type { FlightRules } from "../../../../lib/preferences";
 import { routeProfileQuery } from "../../../../lib/queryClient";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { altFt, flightLevel, one } from "../../../../lib/units";
-import { hhmm } from "../../format";
+import { hhmm, PLAN_NAME } from "../../format";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type { RouteEnds } from "./rows";
 
@@ -58,7 +58,7 @@ function planNames(nav: NavLogAltitude | null): Record<number, string> {
   for (const o of options) {
     if (!o.steps.length) continue;
     const top = Math.max(...o.steps.map(s => s.altitude_ft));
-    (names[top] ??= []).push(o.kind[0]!.toUpperCase() + o.kind.slice(1));
+    (names[top] ??= []).push(PLAN_NAME[o.kind]);
   }
   return Object.fromEntries(Object.entries(names).map(([ft, kinds]) => [ft, kinds.join(" · ")]));
 }
@@ -499,7 +499,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
             <SelectContent>
               {[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => (
                 <SelectItem key={o.kind} value={o.kind} data-testid="altitude-plan-option">
-                  {o.kind[0]!.toUpperCase() + o.kind.slice(1)} · {feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft
+                  {PLAN_NAME[o.kind]} · {feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft
                 </SelectItem>
               ))}
             </SelectContent>

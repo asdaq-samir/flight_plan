@@ -18,6 +18,7 @@ import { revealRow } from "../../../lib/revealRow";
 import { inkOn } from "../../../lib/scoreScale";
 import { TEXT } from "../../../lib/text";
 import FilterBar from "./FilterBar";
+import { capitalised } from "../../../lib/advisories";
 
 interface Props {
   /** Every point the walk can land on, in flight order: the endpoints
@@ -145,10 +146,6 @@ export default function WaypointPanel({
   );
 }
 
-/** "Road or rail" for "road or rail": a row's kind as its title. */
-function capitalised(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
 
 /**
  * One row of the walk: its number (the map popup's), what it is and,

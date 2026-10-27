@@ -4,6 +4,7 @@ import { Kbd } from "../../../components/ui/kbd";
 import type { Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
 import { COLORS } from "../logic";
+import { capitalised } from "../../../lib/advisories";
 
 /** Two keys, and everything else is a button -- the zoom on the map,
  *  Remove in the point's own popup, the filters in this drawer. */
@@ -51,7 +52,7 @@ export default function RatingGuide() {
       </ListGroup>
       <ListGroup title="Keys">
         {SHORTCUTS.map(([key, text]) => (
-          <ListRow key={text} title={text.charAt(0).toUpperCase() + text.slice(1)}>
+          <ListRow key={text} title={capitalised(text)}>
             {key && <Kbd className="whitespace-nowrap">{key}</Kbd>}
           </ListRow>
         ))}

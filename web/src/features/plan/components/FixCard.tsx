@@ -9,6 +9,7 @@ import { Input } from "../../../components/ui/input";
 import { altitudeLines, fixRoles, type BranchFix } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
+import { capitalised } from "../../../lib/advisories";
 
 /** The fix whose card is open: its field, its procedure's name as the
  *  route's box says it, and the fix. */
@@ -78,7 +79,7 @@ function FixCardBody({ open, onDirect, onCross }: {
       </Button>
       <form onSubmit={e => { e.preventDefault(); if (valid) onCross(fix.ident, feet); }}>
         <ListGroup>
-          <ListRow title="Charted" value={charted ? charted.charAt(0).toUpperCase() + charted.slice(1) : "None"} />
+          <ListRow title="Charted" value={charted ? capitalised(charted) : "None"} />
           <ListRow title={<label htmlFor="fix-cross">Cross at</label>}>
             <span className="flex items-center gap-1.5">
               <Input

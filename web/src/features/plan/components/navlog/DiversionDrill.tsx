@@ -15,14 +15,8 @@ import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../format";
 import { bearing, grouped, windCorrection } from "../../../../lib/units";
 import { FINDING_TONE } from "../../../../lib/status";
+import { typedNumber, written } from "../../../../lib/workings";
 import { nearestQuery } from "../../../../lib/queryClient";
-
-/** A figure as the student would write it. */
-function written(key: EstimateKey, value: number): string {
-  if (key === "mh") return bearing(value);
-  if (key === "fuel") return `${value.toFixed(1)} gal`;
-  return `${Math.round(value)} ${key === "gs" ? "kt" : "min"}`;
-}
 
 /** The diversion worked out, step by step, once checked. */
 function Answer({ ident, d }: { ident: string; d: Diversion }) {
@@ -72,10 +66,7 @@ export default function DiversionDrill({ leg, at }: { leg: Leg; at: { name: stri
   const chosen = fields.find(f => f.ident === field) ?? null;
   const exact = chosen ? divert(leg, chosen.bearing_deg, chosen.distance_nm) : null;
   const checked = stopped != null;
-  const number = (key: EstimateKey) => {
-    const value = typed[key];
-    return value === undefined || value.trim() === "" ? null : Number(value);
-  };
+  const number = (key: EstimateKey) => typedNumber(typed[key]);
   const start = () => {
     const t = Date.now();
     setStarted(t); setNow(t); setStopped(null); setField(null); setTyped({});

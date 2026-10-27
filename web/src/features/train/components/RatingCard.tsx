@@ -4,6 +4,7 @@ import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
 import { TEXT } from "../../../lib/text";
 import { COLORS, RATINGS, modelNote, prettyCategory } from "../logic";
+import { capitalised } from "../../../lib/advisories";
 
 /** What the scale's ends and middle mean, under the buttons -- the
  *  Guide's scale (RatingGuide) in one line, each term kept whole where
@@ -43,7 +44,7 @@ export default function RatingCard({ point, number, onRate, onStart }: {
   return (
     <div className="flex w-full flex-col gap-2 rounded-xl bg-background/70 px-3 py-2" data-testid="rating-card">
       <div className="flex min-w-0 items-baseline gap-2">
-        <span className={cn("shrink-0 font-semibold", TEXT.row)}>{number != null && `${number} · `}{kind.charAt(0).toUpperCase() + kind.slice(1)}</span>
+        <span className={cn("shrink-0 font-semibold", TEXT.row)}>{number != null && `${number} · `}{capitalised(kind)}</span>
         <span className={cn("min-w-0 truncate text-muted-foreground", TEXT.detail)}>{where}</span>
       </div>
       {/* Six across the card, eight apart: each 40 tall, its 44-point hit
