@@ -29,20 +29,20 @@ final class Verdict {
 
     init(store: UserDefaults = .standard) {
         self.store = store
-        minimums = (store.data(forKey: Self.minimumsKey)).flatMap { try? JSONDecoder().decode(PersonalMinimums.self, from: $0) } ?? PersonalMinimums()
-        loads = (store.data(forKey: Self.loadsKey)).flatMap { try? JSONDecoder().decode([String: AirplaneLoad].self, from: $0) } ?? [:]
+        minimums = store.decoded(PersonalMinimums.self, forKey: Self.minimumsKey) ?? PersonalMinimums()
+        loads = store.decoded([String: AirplaneLoad].self, forKey: Self.loadsKey) ?? [:]
     }
 
     func setMinimum(_ key: PersonalMinimums.Key, _ value: Double?) {
         minimums[key] = value
-        if let data = try? JSONEncoder().encode(minimums) { store.set(data, forKey: Self.minimumsKey) }
+        store.setEncoded(minimums, forKey: Self.minimumsKey)
     }
 
     func load(for aircraft: String) -> AirplaneLoad? { loads[aircraft] }
 
     func setLoad(_ load: AirplaneLoad, for aircraft: String) {
         loads[aircraft] = load
-        if let data = try? JSONEncoder().encode(loads) { store.set(data, forKey: Self.loadsKey) }
+        store.setEncoded(loads, forKey: Self.loadsKey)
     }
 
     func tick(_ key: String, _ on: Bool) {

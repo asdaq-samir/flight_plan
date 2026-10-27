@@ -110,15 +110,16 @@ struct AirplaneFiguresView: View {
 /// The figures kept per N-number on this device (the web app's
 /// preferences' tailFigures), as text fields.
 enum TailFigures {
-    private static func key(_ tail: String?) -> String { "figures:\(tail ?? "type")" }
+    /// Each N-number's key, under one prefix that signing out clears.
+    static let prefix = "figures:"
+    private static func key(_ tail: String?) -> String { prefix + (tail ?? "type") }
 
     static func save(_ figures: Figures, for tail: String?) {
-        UserDefaults.standard.set(try? JSONEncoder().encode(figures), forKey: key(tail))
+        UserDefaults.standard.setEncoded(figures, forKey: key(tail))
     }
 
     static func load(_ tail: String?) -> Figures {
-        guard let data = UserDefaults.standard.data(forKey: key(tail)), let figures = try? JSONDecoder().decode(Figures.self, from: data) else { return Figures() }
-        return figures
+        UserDefaults.standard.decoded(Figures.self, forKey: key(tail)) ?? Figures()
     }
 
     static func forget(_ tail: String?) { UserDefaults.standard.removeObject(forKey: key(tail)) }

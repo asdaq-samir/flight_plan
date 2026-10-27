@@ -72,8 +72,8 @@ final class AirportShelf {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        favorites = Self.read(Keys.favorites, from: defaults)
-        recents = Self.read(Keys.recents, from: defaults)
+        favorites = defaults.decoded([KeptAirport].self, forKey: Keys.favorites) ?? []
+        recents = defaults.decoded([KeptAirport].self, forKey: Keys.recents) ?? []
         shows = defaults.string(forKey: Keys.shows).flatMap(Shows.init(rawValue:)) ?? .favorites
     }
 
@@ -118,11 +118,6 @@ final class AirportShelf {
     }
 
     private func save(_ list: [KeptAirport], _ key: String) {
-        if let data = try? JSONEncoder().encode(list) { defaults.set(data, forKey: key) }
-    }
-
-    private static func read(_ key: String, from defaults: UserDefaults) -> [KeptAirport] {
-        guard let data = defaults.data(forKey: key) else { return [] }
-        return (try? JSONDecoder().decode([KeptAirport].self, from: data)) ?? []
+        defaults.setEncoded(list, forKey: key)
     }
 }

@@ -517,12 +517,11 @@ enum Drills {
     private static func key(_ deck: Deck) -> String { "drill.\(deck.key)" }
 
     static func kept(_ deck: Deck) -> Progress {
-        guard let data = UserDefaults.standard.data(forKey: key(deck)), let p = try? JSONDecoder().decode(Progress.self, from: data) else { return [:] }
-        return p
+        UserDefaults.standard.decoded(Progress.self, forKey: key(deck)) ?? [:]
     }
 
     static func keep(_ progress: Progress, for deck: Deck) {
-        UserDefaults.standard.set(try? JSONEncoder().encode(progress), forKey: key(deck))
+        UserDefaults.standard.setEncoded(progress, forKey: key(deck))
     }
 }
 

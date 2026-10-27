@@ -73,7 +73,7 @@ final class Session {
     /// The figures kept per N-number on this device and the airplanes
     /// kept as Favorites, the pilot's own.
     static func forgetPilot(_ defaults: UserDefaults = .standard) {
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix("figures:") || key == "aircraftFavorites" {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(TailFigures.prefix) || key == KeptAirplane.key {
             defaults.removeObject(forKey: key)
         }
     }
