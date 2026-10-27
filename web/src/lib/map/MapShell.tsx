@@ -301,9 +301,10 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     }
     if (what === "route") fit(true);
     else if (what === "slide" && following.current?.focus) {
-      const zoom = map.getZoom();
-      const centre = map.project(following.current.focus, zoom).add(size.divideBy(2)).subtract(middle(insets));
-      map.panTo(map.unproject(centre, zoom), { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
+      // panBy, not panTo: panTo snaps the zoom to a whole level, and the
+      // route is fitted at a quarter one.
+      const by = map.latLngToContainerPoint(following.current.focus).subtract(middle(insets)).round();
+      if (by.x || by.y) map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
     }
     else if (what === "ship") {
       const ship = useOwnShip.getState().fix;
