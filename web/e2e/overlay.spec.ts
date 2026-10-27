@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openMapSettings, settle, slow } from "./helpers";
+import { closeCard, openMapSettings, settle, slow } from "./helpers";
 
 /**
  * Over the chart, at the pilot's ask (the map's settings, OverlayTiles):
@@ -115,6 +115,7 @@ test("on a phone the map's settings card has the app's close, the way out beside
   await page.goto("/app/plan");
   await settle(page);
   await openMapSettings(page);
-  await page.getByTestId("map-settings").getByTestId("sheet-card-close").click();
+  // The close in the tabs' place on top, the card's name beside it.
+  await closeCard(page, "sheet-card-close");
   await expect(page.getByTestId("map-settings")).toBeHidden();
 });

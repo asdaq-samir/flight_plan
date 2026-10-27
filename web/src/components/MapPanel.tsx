@@ -281,14 +281,28 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // Turning between the pill and the sheet, or let go by a finger, until
   // the height has eased where it was going (fromFoot).
   const [turning, setTurning] = useState(false);
+  // Whether a finger had the sheet down in the last of the way to the
+  // pill (MORPH), where it is laid out as the pill already. Let go above
+  // that -- thrown down from half -- it settles as a tap does, keeping what
+  // it shows as it eases down: it turned into the pill at the release,
+  // its content gone while the sheet was still half way up (the owner,
+  // 2026-10-27: "it's removing all content instead of sliding it down
+  // with the sheet").
+  const [dragLow, setDragLow] = useState(false);
+  const low = dragged !== null && dragged - capsuleHeight < MORPH;
+  if (dragged !== null && low !== dragLow) setDragLow(low);
   if (state !== stateWas) {
     setStateWas(state);
-    setSettling(stateWas !== "peek" && state === "peek" && dragged === null && !wasDragging && hasPill);
+    setSettling(stateWas !== "peek" && state === "peek" && dragged === null && (!wasDragging || !dragLow) && hasPill);
     if (stateWas === "peek" || state === "peek") setTurning(true);
   }
   if (wasDragging !== (dragged !== null)) {
     setWasDragging(dragged !== null);
-    if (dragged === null) setTurning(true);
+    if (dragged === null) {
+      setTurning(true);
+      // Gone to the pill under the finger before it let go, high.
+      if (state === "peek" && stateWas === "peek" && !dragLow && hasPill) setSettling(true);
+    }
   }
   const capsule = hasPill && state === "peek" && dragged === null && !settling;
   // Observed afresh as the panel changes size or the tab its head or the pill its own, the
@@ -338,7 +352,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // tab bar minimized to the card's kind, Back at its left, as iOS's
   // navigation bar is; else the tabs, at the owner's ask. Wider, a card
   // with room for every tab keeps them, as iPadOS's does.
-  const minimized = cardOver;
+  // A card from a control or the chart over it too (SheetCard): its name
+  // and close take the tabs' place on top, as the expanded theme's are
+  // (the owner, 2026-10-27: "Shouldn't the title replace the tabs?"), the
+  // tabs back as it is put away.
+  const minimized = cardOver || (onPhone && cardsUp);
+  const barNamed = !!bar && barShown && minimized && cardsUp;
+  useEffect(() => {
+    useSheetCards.setState({ barNamed });
+    return () => useSheetCards.setState({ barNamed: false });
+  }, [barNamed]);
   // A pill of tabs, or of a route's figures (one button the pill's whole
   // height), rests the whole safe area up, clear of the home indicator (the
   // HIG's Layout; the iOS audit's P12 caught the figures 6 points into it);

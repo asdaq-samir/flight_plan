@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { grabberTo, openMapSettings, openTab, settle, settled, sideDrawer, slow, tapTheChart } from "./helpers";
+import { closeCard, grabberTo, openMapSettings, openTab, panelTabs, settle, settled, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * On a phone, what a control opens (ResponsivePopover) and what a tap on
@@ -31,8 +31,11 @@ test("the Map settings open as a card in the map's sheet, and its close goes bac
   await expect(page.getByRole("dialog")).toHaveCount(0);
   // Its name where a screen reader starts reading it.
   await expect(card.getByRole("heading", { name: "Map", level: 2 })).toBeFocused();
-  // Its close, at the right of its name: the panel back to the pill.
-  await card.getByTestId("sheet-card-close").click();
+  // Its name and close in the tabs' place on top (the owner, 2026-10-27:
+  // "Shouldn't the title replace the tabs?"): the panel back to the pill.
+  await expect(panel.getByTestId("tab-title")).toContainText("Map");
+  await expect(panelTabs(page)).toHaveCount(0);
+  await closeCard(page, "sheet-card-close");
   await expect(card).toHaveCount(0);
   await expect(panel).toHaveAttribute("data-panel", "peek");
 
@@ -112,7 +115,7 @@ test("a checkpoint tapped on the chart opens its card in the sheet, ringed on th
   const map = panel.getByRole("region", { name: "Map" });
   await expect(map).toBeVisible();
   await expect(checkpoint).toBeHidden();
-  await map.getByTestId("sheet-card-close").click();
+  await closeCard(page, "sheet-card-close");
   await expect(map).toHaveCount(0);
   await expect(checkpoint).toBeVisible();
 
