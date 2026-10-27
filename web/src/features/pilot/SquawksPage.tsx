@@ -52,7 +52,7 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
   };
   const add = useMutation({
     mutationFn: () => api.aircraft.addSquawk(aircraft.id, { ...draft, text: draft.text.trim() }),
-    onSuccess: () => { toast.success("Squawk written"); setDraft({ ...draft, text: "", inoperative: false, deferredFor: null }); refresh(); },
+    onSuccess: () => { toast.success("Squawk Saved"); setDraft({ ...draft, text: "", inoperative: false, deferredFor: null }); refresh(); },
   });
   const save = useMutation({
     mutationFn: ({ id, request }: { id: number; request: SquawkRequest }) => api.aircraft.updateSquawk(aircraft.id, id, request),

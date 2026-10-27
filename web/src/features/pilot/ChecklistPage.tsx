@@ -31,7 +31,7 @@ export default function ChecklistPage({ aircraft }: { aircraft: Aircraft }) {
       queryClient.setQueryData(["checklist", aircraft.id], saved);
       setWriting(null);
       setTicked({});
-      toast.success("Checklist saved");
+      toast.success("Checklist Saved");
     },
   });
   if (!checklist) return <QueryState query={asked} fetching="Fetching the checklist…" failed="The checklist could not be fetched." />;

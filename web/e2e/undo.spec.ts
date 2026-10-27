@@ -33,7 +33,7 @@ test("a cleared route comes back from the Undo bar, and again from the keyboard"
 
   await clearTheRoute(page);
   await expect(page).not.toHaveURL(/[?&]dep=/);
-  const bar = undoBar(page, "Route cleared");
+  const bar = undoBar(page, "Route Cleared");
   await expect(bar).toBeVisible();
   await bar.getByRole("button", { name: "Undo" }).click();
   await expect(page).toHaveURL(/[?&]dep=C81(&|$)/);
@@ -59,7 +59,7 @@ test("a stop taken out comes back from the Undo bar that names it", async ({ pag
   await lines.getByRole("group", { name: "Stop 2 KMSN" }).focus();
   await page.keyboard.press("Delete");
   await expect(page).toHaveURL(/[?&]stops=KRYV(&|$)/);
-  const bar = undoBar(page, "KMSN removed");
+  const bar = undoBar(page, "KMSN Removed");
   await expect(bar).toBeVisible();
   await bar.getByRole("button", { name: "Undo" }).click();
   await expect(page).toHaveURL(/[?&]stops=KRYV%2CKMSN(&|$)|[?&]stops=KRYV,KMSN(&|$)/);

@@ -30,9 +30,9 @@ export function useRetrain() {
   const { data: status } = useQuery({ ...statusQuery, refetchInterval: query => (underWay(query.state.data) ? 5_000 : 30_000) });
   const start = useMutation({
     mutationFn: api.retrain,
-    onSuccess: run => {
-      toast.success("Retrain started", {
-        description: run.dag_run_id ? `Airflow run ${run.dag_run_id}; the Performance tab follows it.` : undefined,
+    onSuccess: () => {
+      toast.success("Retrain Started", {
+        description: "Follow it in Performance",
       });
       // Returned, so the mutation stays pending until the snapshot shows
       // the run: Retrain was enabled again in between, for a second press.

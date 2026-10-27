@@ -18,7 +18,7 @@ describe("planHistory", () => {
   it("takes a cleared route back, and gives it again", () => {
     let h = started(route, 0);
     const cleared = observed(h, {}, 10_000);
-    expect(cleared.note).toBe("Route cleared");
+    expect(cleared.note).toBe("Route Cleared");
     h = cleared.history;
     const back = undone(h, 11_000)!;
     expect(back.now).toEqual(route);
@@ -55,12 +55,12 @@ describe("planHistory", () => {
   });
 
   it("says what was taken away", () => {
-    expect(describeEdit(route, { ...route, stops: "KJVL" })).toBe("KRFD removed");
-    expect(describeEdit(route, { dep: "KMSN", dest: "KDPA" })).toBe("Stops removed");
+    expect(describeEdit(route, { ...route, stops: "KJVL" })).toBe("KRFD Removed");
+    expect(describeEdit(route, { dep: "KMSN", dest: "KDPA" })).toBe("Stops Removed");
     expect(describeEdit(route, { dep: "@42.1,-88.2", stops: "KRFD", dest: "KDPA", direct: "KRFD", was: "KMSN|KJVL,KRFD|KDPA" })).toBe("Direct to KRFD");
-    expect(describeEdit(route, { dep: "KMSN", dest: "KUGN" })).toBe("Route replaced");
-    expect(describeEdit({ ...route, procs: "KDPA:R02R,KMSN:ACKER4" }, { ...route, procs: "KMSN:ACKER4" })).toBe("Procedure removed");
-    expect(describeEdit({ ...route, holds: "KJVL:090:R:1M:2T" }, route)).toBe("Hold removed");
+    expect(describeEdit(route, { dep: "KMSN", dest: "KUGN" })).toBe("Route Replaced");
+    expect(describeEdit({ ...route, procs: "KDPA:R02R,KMSN:ACKER4" }, { ...route, procs: "KMSN:ACKER4" })).toBe("Procedure Removed");
+    expect(describeEdit({ ...route, holds: "KJVL:090:R:1M:2T" }, route)).toBe("Hold Removed");
     // Adding is not taking away: no bar, the keyboard still undoes it.
     expect(describeEdit(route, { ...route, stops: "KJVL,KRFD,KUES" })).toBeNull();
     expect(describeEdit({ dep: "KMSN" }, { dep: "KMSN", dest: "KDPA" })).toBeNull();

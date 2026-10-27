@@ -175,7 +175,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   await page.getByRole("button", { name: "Delete KMSP → KDLH…", exact: true }).click();
   await page.getByRole("button", { name: "Delete KMSP → KDLH", exact: true }).click();
   await page.getByRole("button", { name: "Delete flight" }).click();
-  await expect(page.locator("[data-sonner-toast]", { hasText: "Flight deleted" })).toBeVisible();
+  await expect(page.locator("[data-sonner-toast]", { hasText: "Flight Deleted" })).toBeVisible();
   expect(removed).toEqual(["DELETE"]);
 });
 
