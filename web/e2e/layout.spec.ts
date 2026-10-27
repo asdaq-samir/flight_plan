@@ -250,11 +250,16 @@ for (const path of PAGES) {
 
     const first = page.locator("[data-map-controls] button").first();
     const firstBox = (await first.boundingBox())!;
-    // On the map, flush with its right edge -- the same on both pages: at
-    // the top over a phone's sheet, at the bottom under a desktop's card.
+    // On the map, flush with its right edge -- the same on both pages: on a
+    // phone just over the sheet, as Maps' ride on its sheet (2026-10-26),
+    // at the bottom under a desktop's card.
     expect(viewport.width - (firstBox.x + firstBox.width)).toBeLessThan(20);
-    if (viewport.width < 768) expect(firstBox.y).toBeLessThan(viewport.height / 2);
-    else expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
+    if (viewport.width < 768) {
+      const sheet = (await page.locator("[data-slot=map-panel]").boundingBox())!;
+      const group = (await page.locator("[data-map-controls]").boundingBox())!;
+      expect(group.y + group.height).toBeLessThanOrEqual(sheet.y);
+      expect(sheet.y - (group.y + group.height)).toBeLessThan(60);
+    } else expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
     // Never among the map's buttons, on either page: their first is the
     // map's own, its sheet the map's settings, as Maps' is.
     expect(await page.locator("[data-map-controls]").getByTestId("setup-button").count()).toBe(0);

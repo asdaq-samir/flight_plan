@@ -50,3 +50,16 @@ def test_no_key_no_details(monkeypatch):
     monkeypatch.delenv("GOOGLE_MAPS_API_KEY", raising=False)
     monkeypatch.delenv("GOOGLE_PLACES_API_KEY", raising=False)
     assert client.get("/api/food-details", params={"name": "Pilot Pete's", "lat": 41.99, "lon": -88.1}).status_code == 404
+
+
+def test_a_place_of_that_name_in_another_town_is_not_this_ones(monkeypatch):
+    # The bias only leans the search: a chain's branch 20 km away came back
+    # for the field's diner, its stars shown on the field's row.
+    monkeypatch.setenv("GOOGLE_MAPS_API_KEY", "AIza-test")
+    far = {**PLACE, "location": {"latitude": 42.17, "longitude": -88.10}}
+    monkeypatch.setattr(router.requests, "post", lambda url, headers, json, timeout: _Answer({"places": [far]}))
+    assert client.get("/api/food-details", params={"name": "Pilot Pete's", "lat": 41.99, "lon": -88.10}).status_code == 404
+    near = {**PLACE, "location": {"latitude": 41.992, "longitude": -88.101}}
+    monkeypatch.setattr(router.requests, "post", lambda url, headers, json, timeout: _Answer({"places": [near]}))
+    monkeypatch.setattr(router.requests, "get", lambda url, params, timeout: _Answer({"photoUri": "https://lh3.googleusercontent.com/p"}))
+    assert client.get("/api/food-details", params={"name": "Pilot Pete's", "lat": 41.99, "lon": -88.10}).status_code == 200

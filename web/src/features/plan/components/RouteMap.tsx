@@ -150,7 +150,10 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
   // the stop's row asks for too. A small field the chart leaves off at
   // this zoom was a pin over nothing, no ident to it (the owner's
   // screenshot, 2026-10-26).
-  const { data: place } = useQuery(airportQuery(stop.ident));
+  // Asked for a fuel stop or a break, a few on a route; a field with food
+  // takes it only from what is in already (the card, the route), as there
+  // can be dozens of them along a long route.
+  const { data: place } = useQuery({ ...airportQuery(stop.ident), enabled: stop.reason !== "along" });
   const space = place?.airspace_class ?? null;
   const weather = colourOf(place?.metar?.flight_category);
   const use = place?.military === "military" ? "military" : null;

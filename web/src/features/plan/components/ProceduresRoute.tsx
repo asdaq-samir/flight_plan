@@ -991,10 +991,17 @@ export interface RouteLineChoices {
  * line's wait untouched. A way that meets something is ringed in amber,
  * said in its name: the planner warns, never refuses.
  */
+/** The fold timed for a route line put away with the list (RouteLine),
+ *  which the next one drawn takes over. */
+let foldAfterAway = 0;
+
 function RouteLine({ line }: { line: RouteLineChoices }) {
   const open = useRouteLineOpen(s => s.open);
   const [touched, setTouched] = useState(0);
   useEffect(() => {
+    // A fold left from a line put away with the list (below) is this
+    // line's to time now.
+    window.clearTimeout(foldAfterAway);
     if (!open) return;
     const id = setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs());
     return () => clearTimeout(id);
@@ -1002,7 +1009,10 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
   // Put away with the list, it folds after the same wait, so the map's
   // ways go with it: not at once, as the list is drawn anew as the sheet
   // moves and as the route comes in, and the line closed under a finger.
-  useEffect(() => () => { setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs()); }, []);
+  useEffect(() => () => {
+    window.clearTimeout(foldAfterAway);
+    foldAfterAway = window.setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs());
+  }, []);
   const picked = line.chips.find(c => c.key === line.picked) ?? line.chips[0]!;
   const ring = (c: RouteLineChoices["chips"][number]) => (c.warning ? "ring-2 ring-amber-500" : undefined);
   const words = (c: RouteLineChoices["chips"][number]) =>
