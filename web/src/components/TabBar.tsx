@@ -8,6 +8,7 @@ import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
 import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
+import { closeSheetCards, useSheetCards } from "../lib/sheetCards";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -124,7 +125,7 @@ function along(bar: HTMLElement, count: number, clientX: number) {
   return { x, width, tab, over: Math.min(count - 1, Math.floor(x / tab)) };
 }
 
-export default function TabBar<T extends string>({ tabs, tab, over, title, onPick, onUp, marks, onClose, routeShare, listOver = false, className }: {
+export default function TabBar<T extends string>({ tabs, tab, over, title: given, onPick, onUp, marks, onClose, routeShare, listOver = false, className }: {
   tabs: BarTab<T>[];
   tab: T;
   /** The tab whose card is open over `tab` -- Airport's, an airport's card
@@ -158,6 +159,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
 }) {
   const consoleOpen = useConsoleOpen(s => s.open);
   const setConsoleOpen = useConsoleOpen(s => s.setOpen);
+  // A card opened over the tab from a control or the chart (SheetCard):
+  // its name on the minimized bar, whose close puts it away first.
+  const cardName = useSheetCards(s => s.stack.at(-1)?.title);
+  const title = cardName ?? given;
   const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: Settings }];
   const up: T | "setup" = consoleOpen ? "setup" : tab;
   const minimized = useContext(TabBarMinimized);
@@ -174,6 +179,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title, onPic
   // the workspace's (onPick).
   const pick = (value: T | "setup") => {
     setShown(false);
+    // Another tab's page is not what a card was opened over: put away.
+    closeSheetCards();
     if (value === "setup") {
       setConsoleOpen(true);
       return;

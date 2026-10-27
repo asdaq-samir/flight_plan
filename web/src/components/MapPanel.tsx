@@ -8,6 +8,9 @@ import {
   GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
   sheetSettle, type MapInsets, type PanelState,
 } from "./mapChrome";
+import { SheetCardHost } from "./SheetCard";
+import { raisedFor, useSheetCards } from "../lib/sheetCards";
+import TabKept from "./TabKept";
 
 /** How far the half sheet is in from the screen's sides and its edge: on
  *  them, as Apple's Maps on the web has its sheet (the owner's screenshots
@@ -173,7 +176,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // A tab's options for a tab, a card's for a card: what each layer takes.
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
-  const toEdge = layer !== "console" && edgeAsked;
+  // A card opened over whatever is here (SheetCard: a control's, a thing's
+  // tapped on the chart): the body's room its, the head's row, the
+  // controls and the foot out of sight under it -- kept, the controls that
+  // opened it among them, for when it is put away.
+  const raised = useSheetCards(s => raisedFor(s.stack));
+  const cardsUp = raised !== null;
+  const toEdge = layer !== "console" && edgeAsked && !cardsUp;
   // No half size, at the owner's ask ("let's remove the half card"): the
   // tabs alone, the pill and all the way up.
   const onPhone = useIsMobile();
@@ -320,7 +329,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   }, [footNode, state, capsule]);
   // The figures pinned at the sheet's foot, out of the pill: its one row
   // says the route's (the capsule's own).
-  const footShown = !!foot && (!capsule || !!bar);
+  const footShown = !!foot && (!capsule || !!bar) && !cardsUp;
   const footHeight = footShown ? footMeasured : 0;
   // The bar shown: the sheet's first row out of the pill, over its head or
   // the console's layer with no head of its own.
@@ -657,7 +666,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       document.removeEventListener("scroll", onScroll, { capture: true });
       headBand.removeAttribute("data-under");
     };
-  }, [headBand, panel, under, label, cardOver, layer]);
+  }, [headBand, panel, under, label, cardOver, layer, cardsUp]);
   // The pill once the height has eased there; or after a while, should no
   // transition end come (none to run, Reduce Motion).
   useEffect(() => {
@@ -682,11 +691,36 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useEffect(() => {
     if (!panel || !expanded) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented) onStateChange("peek");
+      // Not under a card, whose own Escape puts it away (SheetCard).
+      if (event.key === "Escape" && !event.defaultPrevented && !useSheetCards.getState().stack.length) onStateChange("peek");
     };
     panel.addEventListener("keydown", onKey);
     return () => panel.removeEventListener("keydown", onKey);
   }, [panel, expanded, onStateChange]);
+  // A card opened comes up half way at the least, as a place's card does,
+  // all the way for a search; the last put away, the panel goes back to
+  // where it was and shows what was under them, as Maps' sheet does.
+  // Not where what put the last away moved the panel itself, in the same
+  // tap (the approach's Chart, all the way up on the field's card): the
+  // size it was at while they were open (`heldAt`) is no longer the one.
+  const raisedFrom = useRef<PanelState | null>(null);
+  const heldAt = useRef<PanelState | null>(null);
+  const sizeNow = useRef({ state, onStateChange });
+  useEffect(() => {
+    sizeNow.current = { state, onStateChange };
+    if (raised) heldAt.current = state;
+  });
+  useEffect(() => {
+    const { state: now, onStateChange: to } = sizeNow.current;
+    if (raised) {
+      raisedFrom.current ??= now;
+      if (RANK[now] < RANK[raised]) to(raised);
+    } else if (raisedFrom.current !== null) {
+      const back = raisedFrom.current;
+      raisedFrom.current = null;
+      if (back !== now && now === heldAt.current) to(back);
+    }
+  }, [raised]);
 
   // The panel's height on <body> as well, for the stylesheet's rules about
   // what else is over the map (index.css): the map's buttons under a
@@ -881,7 +915,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             {compact}
           </div>
         )}
-        <div className="flex flex-col" style={crossFade ? { opacity: morph } : undefined}>
+        <div className={cn("flex flex-col", cardsUp && !pillShape && "hidden")} style={crossFade ? { opacity: morph } : undefined}>
         {/* One header in both shapes, so what the capsule and the sheet
             both show -- the search bar -- stays the same element as the
             one turns into the other, focus and keyboard and all. From
@@ -957,12 +991,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         style={{ "--half-body": `${halfBody}px`, "--full-body": `${fullBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
         data-panel-body=""
       >
-        {children}
+        {/* Under a card opened over it, kept as it was (TabKept). */}
+        <TabKept away={cardsUp}>{children}</TabKept>
+        <SheetCardHost shown={cardsUp} />
       </div>
       {/* The route's figures, pinned at the card's foot at every height
           (`foot`): over the home indicator's room where the body runs to
           the edge (toEdge), which then runs to the figures. */}
-      {footShown && (
+      {/* Kept under a card, out of sight, with what it holds open (the
+          fuel's breakdown, a card of its own). */}
+      {!!foot && (footShown || cardsUp) && (
         // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer convenience, not a control: the grabber is the keyboard's way to open the sheet, and the figures' own buttons stay focusable
         <div
           ref={setFoot}
@@ -974,7 +1012,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // buttons").
             // Giving way where the half is short of it, after the body: FPL's
             // side view shrinks first (PlanWorkspace), its figures kept whole.
-            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillShape && SHEET_BELOW,
+            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillShape && SHEET_BELOW, !footShown && "hidden",
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.

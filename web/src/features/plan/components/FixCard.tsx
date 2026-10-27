@@ -28,8 +28,8 @@ export interface OpenFix {
  * tap on it on the map (ProcedureLayer), at the owner's pick (the fix
  * canvas's card): Direct to it, as ATC sends an airplane, or flown as
  * charted again; and the altitude to cross it at -- the chart's, and the
- * pilot's own in its place, typed in feet, or As charted. A sheet on a
- * phone with its title on top, Back and Close.
+ * pilot's own in its place, typed in feet, or As charted. A card in the
+ * map's panel on a phone, its title on top and Close.
  */
 export default function FixCard({ open, onClose, onDirect, onCross }: {
   open: OpenFix | null;
@@ -45,7 +45,6 @@ export default function FixCard({ open, onClose, onDirect, onCross }: {
         title={open?.fix.ident ?? "Fix"} side="bottom" align="center"
         className="flex w-80 flex-col gap-3 p-3" data-testid="fix-card"
         action={<CloseButton onClick={onClose} data-testid="fix-card-close" />}
-        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
       >
         {open && <FixCardBody key={`${open.field}-${open.kind}-${open.fix.ident}`} open={open} onDirect={onDirect} onCross={onCross} />}
       </ResponsivePopoverContent>

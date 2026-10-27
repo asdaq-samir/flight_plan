@@ -883,11 +883,10 @@ export default function ProceduresRoute({
           />
         </Suspense>
       )}
-      {/* On a phone a sheet that keeps its height from page to page, as
-          an iOS sheet does pushing one. Half the screen (PROCEDURES_SHEET),
-          the map above it in sight and clear -- no shade over it -- as a
-          procedure is picked, as ForeFlight's Procedure Advisor keeps it,
-          at the owner's pick. */}
+      {/* On a phone a card in the map's panel (ResponsivePopover), half
+          way up, the map above it in sight and clear as a procedure is
+          picked, as ForeFlight's Procedure Advisor keeps it, at the
+          owner's pick. */}
       <ResponsivePopoverContent
         title={on ? (procedure ? `${on.ident} ${procedure.name}` : listTitle(on.ident, on.kind)) : "Procedures"}
         className="max-h-[70vh] w-80 overflow-y-auto p-3" align="start" side="right"
@@ -895,8 +894,6 @@ export default function ProceduresRoute({
         // at the owner's ask ("close button should behave as the back
         // button", 2026-10-22).
         action={<CloseButton label={procedure ? "Back" : "Close"} onClick={() => (procedure ? setPage(null) : close())} data-testid="procedures-close" />}
-        sheetClassName="data-[side=bottom]:h-[55dvh] data-[side=top]:h-[55dvh]"
-        sheetOverlayClassName="bg-transparent dark:bg-transparent supports-backdrop-filter:backdrop-blur-none"
       >
         {on && (procedure ? (
           <ProcedurePage

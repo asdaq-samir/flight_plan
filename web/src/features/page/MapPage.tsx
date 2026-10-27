@@ -5,6 +5,7 @@ import { cn } from "cn";
 import { PagesShown } from "../../components/pagesShown";
 import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
+import { useSheetCards } from "../../lib/sheetCards";
 import { ConsoleInPanelContext, ConsoleSettingsContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
 import { useNavEdge } from "../../hooks/use-nav-edge";
@@ -354,6 +355,8 @@ function ConsoleLayer({ label, detent, edge, onClose, shown, children }: {
     if (!node || !shown) return;
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
+      // A card over it (SheetCard) is put away first, by its own Escape.
+      if (useSheetCards.getState().stack.length) return;
       event.preventDefault();
       close.current();
     };
