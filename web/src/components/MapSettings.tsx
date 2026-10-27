@@ -44,6 +44,8 @@ export default function MapSettings() {
   const setSpeakAlerts = usePreferences(s => s.setSpeakAlerts);
   const military = usePreferences(s => s.military);
   const setMilitary = usePreferences(s => s.setMilitary);
+  const privateFields = usePreferences(s => s.privateFields);
+  const setPrivateFields = usePreferences(s => s.setPrivateFields);
   const waypoints = usePreferences(s => s.waypoints);
   const setWaypoints = usePreferences(s => s.setWaypoints);
   // A Google choice without a key is none (useShownOverlay).
@@ -176,6 +178,15 @@ export default function MapSettings() {
           airport on a military one, is drawn either way. */}
       <ListRow title="Military">
         <TogglePill pressed={military} onPressedChange={setMilitary} icon={military ? <Eye /> : <EyeOff />} label="Show" testId="military-toggle" />
+      </ListRow>
+      {/* The privately owned fields (the owner, 2026-10-27): on by
+          default, off to clear the chart of fields landed at only by the
+          owner's leave. */}
+      <ListRow title="Private">
+        <TogglePill
+          pressed={privateFields} onPressedChange={setPrivateFields} icon={privateFields ? <Eye /> : <EyeOff />}
+          label="Show" testId="private-toggle"
+        />
       </ListRow>
       {/* The base chart along each route loaded, held for the air
           (useKeepOffline); how a keep goes is its toast. Over plain http

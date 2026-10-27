@@ -119,6 +119,10 @@ struct MapExtrasInput {
         static let waypoints = "map.waypoints"
         static let classB = "map.classB"
         static let plates = "map.plates"
+        /// The web app's Military and Private settings (lib/preferences):
+        /// the armed services' fields off and the private ones on, at first.
+        static let military = "map.military"
+        static let privateFields = "map.private"
     }
 }
 

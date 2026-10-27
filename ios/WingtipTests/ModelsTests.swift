@@ -205,3 +205,14 @@ struct TrafficTests {
         #expect(field.distanceNm == 3.4 && field.longestRunwayFt == 6500 && field.flightCategory == "VFR")
     }
 }
+
+@Test func theMapDrawsMilitaryFieldsWhenAskedAndPrivateOnesUnlessPutAway() {
+    func pin(_ ident: String, military: String? = nil, isPrivate: Bool? = false) -> AirportPin {
+        AirportPin(ident: ident, name: ident, lat: 42, lon: -88, kind: "small", military: military, isPrivate: isPrivate)
+    }
+    let pins = [pin("KPUB"), pin("KMIL", military: "military"), pin("KJNT", military: "joint"), pin("KPVT", isPrivate: true), pin("KNIL", isPrivate: nil)]
+    let idents = { (m: Bool, p: Bool) in AirportPin.shown(pins, military: m, privateFields: p).map(\.ident) }
+    #expect(idents(false, true) == ["KPUB", "KJNT", "KPVT", "KNIL"])
+    #expect(idents(false, false) == ["KPUB", "KJNT", "KNIL"])
+    #expect(idents(true, false) == ["KPUB", "KMIL", "KJNT", "KNIL"])
+}
