@@ -11,6 +11,7 @@ import { MapContainer, ZoomControl } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import MapBanners from "../../components/MapBanners";
 import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
+import { useSheetCards } from "../sheetCards";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
@@ -62,7 +63,13 @@ const COUNTRY: [number, number] = [39.5, -98.35];
 /** The least the map is fitted to round a route: about 10 nm across. */
 const MIN_FIT_M = 18_520;
 
-export function MapShell({ course, onReady, children, onSelectPlace, held = false }: Props) {
+export function MapShell({ course, onReady, children, onSelectPlace, held: heldAsked = false }: Props) {
+  // And while a card from the chart or a control is open in the sheet
+  // (SheetCard): the sheet coming up for a VFR waypoint's card fitted the
+  // route again, out past the waypoints' zoom, and took the diamond and
+  // its card off the map a tenth of a second after it opened (stops:753).
+  const cardsOpen = useSheetCards(s => s.stack.length > 0);
+  const held = heldAsked || cardsOpen;
   // Leaflet's stylesheet may come in after the module ran: once more as the
   // map first draws.
   useEffect(() => dropDraggingCursorRules(), []);

@@ -492,7 +492,10 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
       {/* The planner's four plans, one picked from a menu: the ruler's rows
           named them, and the graph's drag lands on an altitude. */}
       {nav && nav.options.length > 0 && (
-        <div className="flex items-center justify-between gap-3">
+        // A row the pull-down's 44 points fit in, so the fold under it
+        // takes none of them (the iOS audit's P1: 3 lost to "How the
+        // altitude was chosen").
+        <div className="flex min-h-11 items-center justify-between gap-3">
           <span className={cn("font-semibold", TEXT.row)}>Plan</span>
           <PullDown<AltitudeChoice>
             label="Altitude plan" value={PREFERRED.includes(nav.flown as AltitudeChoice) ? nav.flown as AltitudeChoice : ""}
@@ -540,7 +543,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
         // The stock Collapsible, as the weather's raw reports fold, where a
         // native details element drew the browser's own triangle.
         <Collapsible>
-          <CollapsibleTrigger className={cn("group relative flex w-full items-center gap-1.5 py-2 text-left outline-none after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", GROUP_HEADING)}>
+          <CollapsibleTrigger className={cn("group relative flex min-h-11 w-full items-center gap-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", GROUP_HEADING)}>
             <ChevronRight className="size-4 text-tint transition-transform group-data-[state=open]:rotate-90" aria-hidden />
             How the altitude was chosen
           </CollapsibleTrigger>

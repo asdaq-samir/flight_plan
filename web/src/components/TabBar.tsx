@@ -668,9 +668,18 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
           >
             <span className="relative">
               {/* 28 and 13, bolder lines, at the owner's pick (A with D's
-                  weight, 2026-10-22); the tab up's a touch bigger under its
-                  glass, as a lens magnifies, its room kept (a transform). */}
-              <Icon className={cn("size-7 transition-transform", at === lit && "scale-[1.08]")} strokeWidth={at === lit ? 2.5 : 2.1} aria-hidden="true" />
+                  weight, 2026-10-22), each at one weight whatever its size
+                  or state: the tab up was scaled by 1.08 and drawn heavier,
+                  its lines off the pixel grid and thicker than its
+                  neighbours' (2.5 against 2.1 of a 24 grid, measured 30.24
+                  points wide), which the owner saw as not crisp and not one
+                  size (2026-10-27). The airplane, drawn on the diagonal, a
+                  size up to look as big as the rest (its ink 18 wide to the
+                  others' 16 to 18 tall and wide, but thinner). */}
+              <Icon
+                className={value === "aircraft" ? "size-[30px]" : "size-7"} absoluteStrokeWidth strokeWidth={2.25}
+                aria-hidden="true"
+              />
               {mark && (
                 <span
                   aria-hidden="true" data-testid={`tab-mark-${value}`} data-finding={mark}

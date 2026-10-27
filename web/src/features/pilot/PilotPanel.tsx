@@ -92,7 +92,9 @@ function Personal({ pilot, dev }: {
               their own went to the Controls and the map's menu. */}
           <SetupPill testId="setup-head" />
           {account}
-          <AccountCard pilot={signedIn ? pilot : null} />
+          {/* A section as the page's others are, so the room between them
+              is the one room every tab's sections keep (tab-consistency). */}
+          <section><AccountCard pilot={signedIn ? pilot : null} /></section>
           {/* The pilot's things, a row each with where it stands, as iOS's
               Settings lists its parts: the account's three greyed until
               there is one; the minimums are this device's. */}
@@ -147,7 +149,7 @@ function minimumsWords(m: Minimums): string | null {
 function AccountCard({ pilot }: { pilot: Pilot | null }) {
   if (!pilot) {
     return (
-      <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5" data-testid="setup-pill-account">
+      <div role="group" aria-label="Account" className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5" data-testid="setup-pill-account">
         <span className={cn("flex-1 text-muted-foreground", TEXT.detail)}>Sign in to keep your airplanes, flights and logbook.</span>
         <Suspense fallback={null}><SignInModal plain /></Suspense>
         <AccountMenu />
@@ -157,7 +159,7 @@ function AccountCard({ pilot }: { pilot: Pilot | null }) {
   const name = pilot.fullName || pilot.displayName;
   const initials = name.split(/\s+/).filter(Boolean).map(w => w[0]!).slice(0, 2).join("").toUpperCase();
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-card pr-3" data-testid="setup-pill-account">
+    <div role="group" aria-label="Account" className="flex items-center gap-3 rounded-lg border border-border bg-card pr-3" data-testid="setup-pill-account">
       <PageButton page="pilot" testId="pilot-row" label={`${name}: pilot details`}>
         <span aria-hidden="true" className={cn("grid size-10 shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground", TEXT.row)}>{initials}</span>
         <span className="flex min-w-0 flex-col text-left">
