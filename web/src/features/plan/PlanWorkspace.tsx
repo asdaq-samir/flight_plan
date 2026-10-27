@@ -2095,7 +2095,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (key === "none") {
       if (browsing) {
         setBrowsing(null);
-        setStops(browsing.stops, browsing.fuel);
+        // The typed route's own picks kept (keepLists): its stops' runways,
+        // approaches, holds and altitudes, which a way that skipped a stop
+        // would otherwise have pruned.
+        setStops(browsing.stops, browsing.fuel, true);
       }
       return;
     }
@@ -2107,7 +2110,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         withFuel: ownWithFuel, ownMinutes, ownGround, ownNm, ways: chips.map(c => c.stops),
       });
     }
-    setStops(chip.stops, chip.fuel);
+    setStops(chip.stops, chip.fuel, true);
   }, [browsing, chips, chosenKey, planned.stops, searchParams, ownWithFuel, ownMinutes, ownGround, ownNm, setStops, setBrowsing]);
   // The rules turned to IFR on a chip: the route as typed is the route
   // (the planner's ways are VFR's).
@@ -2122,9 +2125,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (!vfrRoute || chips.length < 2) return null;
     const hazards = routeWays?.hazards ?? [];
     const warning = (crosses: number[]) => {
-      const h = hazards[crosses[0] ?? -1];
+      // The worst it meets first: airspace a pilot may not enter, then
+      // storms and high ground, then weather; each by its own name (a TFR
+      // was "Crosses weather").
+      const met = crosses.map(i => hazards[i]).filter((h): h is NonNullable<typeof h> => !!h);
+      const rank = (kind: string) => ["prohibited", "tfr", "storm", "terrain", "sigmet", "fuel"].indexOf(kind) >>> 0;
+      const h = [...met].sort((a, b) => rank(a.kind) - rank(b.kind))[0];
       if (!h) return null;
-      return h.kind === "fuel" ? "No fuel stop in reach" : `Crosses ${h.kind === "storm" ? "storms" : h.kind === "terrain" ? "high ground" : "weather"}`;
+      const words: Record<string, string> = {
+        fuel: "No fuel stop in reach", prohibited: "Crosses a prohibited area", tfr: "Crosses a TFR", storm: "Crosses storms",
+        terrain: "Crosses high ground", sigmet: "Crosses a SIGMET",
+      };
+      return words[h.kind] ?? "Crosses weather";
     };
     return { chips: chips.map(c => ({ key: c.key, label: c.label, warning: warning(c.crosses ?? []) })), picked: lineKey, onPick: applyChip };
   }, [vfrRoute, chips, routeWays, lineKey, applyChip]);
@@ -2146,7 +2158,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         }
         continue;
       }
-      const way = chip.key === "fuel" ? routeWays.own : routeWays.options.find(o => o.kind === chip.key);
+      // By its stops, as the planner made the chip: a way is the best of
+      // several kinds, its own `kind` only the first of them.
+      const way = chip.key === "fuel" ? routeWays.own : routeWays.options.find(o => sameStops(o.stops, chip.stops));
       if (way) lines.push({ key: chip.key, path: way.path as [number, number][], label: wayTime(way, scale), name: chip.label });
     }
     // Each chip where it is whichever others are drawn, by its place among
