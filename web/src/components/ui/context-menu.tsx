@@ -58,7 +58,7 @@ function ContextMenuRadioGroup({
 
 function ContextMenuContent({
   className,
-  alignOffset = 4,
+  alignOffset = 8,
   ...props
 }: React.ComponentProps<typeof ContextMenuPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
@@ -67,7 +67,7 @@ function ContextMenuContent({
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         data-slot="context-menu-content"
-        // Four under the pointer: the menu's rows run edge to edge
+        // Eight under the pointer, clear of it even as the menu zooms in: the menu's rows run edge to edge
         // (menuLook), so at the pointer itself the first row took the
         // right button's own release as a pick -- a held row's Delete
         // fired as the menu opened.
