@@ -136,12 +136,19 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
   // The whole route again, asked from the location arrow in a dry run
   // (MyPositionButton): flown to it, own ship no longer followed.
   const recheckRoute = useRef<(() => void) | null>(null);
+  const shownRoute = useRef(false);
   const routeAsked = useOwnShip(s => s.routeAsked);
   const routeAskedWas = useRef(routeAsked);
   useEffect(() => {
     if (routeAsked === routeAskedWas.current) return;
     routeAskedWas.current = routeAsked;
     useOwnShip.getState().setFollow(false);
+    // The route is what the pilot asked to see: in view until the pilot
+    // moves the map, whatever the fit's last quarter level leaves at the
+    // edges (the arrow kept offering the route it had just fitted, CI on a
+    // phone, where the fit and the panel's settling crossed).
+    shownRoute.current = true;
+    useOwnShip.setState({ routeOutOfView: false });
     fit(true);
   }, [routeAsked, fit]);
 
@@ -163,17 +170,28 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     }
     const line = L.latLngBounds(course.course_line as [number, number][]);
     const check = () => {
+      if (shownRoute.current) return setOut(false);
       const { top, bottom, left } = insetsRef.current;
       const size = map.getSize();
       const clear = L.latLngBounds(map.containerPointToLatLng([left, top]), map.containerPointToLatLng([size.x, Math.max(top + 1, size.y - bottom)]));
       setOut(!clear.pad(0.02).contains(line));
     };
+    // The pilot's own move of the map (a drag, the wheel, a finger) ends
+    // the route asked for: from then on it is measured again.
+    const moved = () => { shownRoute.current = false; };
+    const container = map.getContainer();
     check();
     recheckRoute.current = check;
     map.on("moveend", check);
+    map.on("dragstart", moved);
+    container.addEventListener("wheel", moved, { passive: true });
+    container.addEventListener("touchstart", moved, { passive: true });
     return () => {
       recheckRoute.current = null;
       map.off("moveend", check);
+      map.off("dragstart", moved);
+      container.removeEventListener("wheel", moved);
+      container.removeEventListener("touchstart", moved);
       useOwnShip.setState({ routeDrawn: false });
     };
   }, [map, course]);
