@@ -262,7 +262,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
   // now (the whole screen at the capsule, above the sheet when it is
   // out); else the pilot's position,
   // brought to the middle of what is left. Neither in sight -- the map
-  // panned off somewhere else -- it stays where the pilot put it. With
+  // panned off somewhere else -- slid all the same on a phone, as Apple
+  // Maps' is, and left where the pilot put it from `md` up. With
   // own ship followed in the air the position wins over the route. Not
   // while the map is held on a point (a checkpoint picked, an airport's
   // card): FocusOn keeps that one in the middle.
@@ -356,7 +357,14 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const sightSize = sight.getSize();
       const zoomedIn = !!corners && (corners.x > sightSize.x + 60 || corners.y > sightSize.y + 60);
       const routeWay = zoomedIn || fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
-      what = routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : null;
+      // Neither in sight, on a phone the map still slides with the sheet,
+      // what was in the middle of the room it left in the middle of the
+      // room it leaves now, as Apple Maps' does (the owner, 2026-10-27:
+      // "The map should move down after moving the tabs down, like Apple
+      // Maps"). From `md` up the card comes out at the side, and the map
+      // stays where the pilot put it.
+      const sheetTurn = insets.left === was.left;
+      what = routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : sheetTurn ? "slide" : null;
       if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
       following.current = what
         ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what, focus: map.containerPointToLatLng(middle(was)) }
