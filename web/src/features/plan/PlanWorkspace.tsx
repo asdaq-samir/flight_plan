@@ -2774,7 +2774,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: (
       <div className="min-w-0 flex-1">
         {/* Its room while its code comes: the box's own line. */}
-        <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-foreground/8" />}>
+        <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-card" />}>
         <SearchNear.Provider value={searchNear}>
         <RouteBox
           dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}

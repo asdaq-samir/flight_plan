@@ -197,8 +197,10 @@ export const GLASS_CLEAR =
 export const GLASS_BUTTON =
   // Since the style audit (2026-10-26): iOS's grey fill, flat, as Apple's
   // Maps on the web draws its secondary buttons -- no sheen, rim or shade.
-  "border-0 bg-[rgb(118_118_128/0.12)] text-foreground shadow-none dark:bg-[rgb(255_255_255/0.1)] " +
-  "hover:bg-[rgb(118_118_128/0.2)] hover:text-foreground aria-expanded:bg-[rgb(118_118_128/0.2)] dark:hover:bg-[rgb(255_255_255/0.16)]";
+  // The app's one neutral fill, the text's colour at 8% -- the same grey
+  // as its tiles, chips and selected rows (bg-foreground/8), in either theme.
+  "border-0 bg-foreground/8 text-foreground shadow-none " +
+  "hover:bg-foreground/12 hover:text-foreground aria-expanded:bg-foreground/12";
 
 /** The same glass tinted the blue on a toggle's chip once it is picked
  *  (data-state "on") -- a field's runway (ProceduresRoute) -- as iOS 26's
