@@ -324,7 +324,8 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       // panel, the console) 36, inset or on the screen's edges with its
       // far corners round.
       const sheet = box.matches('[data-slot="map-panel"][data-sheet], [data-slot="console-sheet"], [data-floating]');
-      const shape = box.matches("[data-capsule]") ? Math.min(24, box.getBoundingClientRect().height / 2)
+      // A toast is Apple Maps' banner, a capsule (the toast rewrite, 2026-10-27).
+      const shape = box.matches("[data-capsule], [data-sonner-toast]") ? Math.min(24, box.getBoundingClientRect().height / 2)
         : sheet ? 36 : box.matches("[data-glass]") ? 28 : radius;
       if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${Math.round(shape)}`, what: name(box), measured: `${r}` });
     }

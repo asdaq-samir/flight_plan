@@ -92,7 +92,9 @@ function Personal({ pilot, dev }: {
               their own went to the Controls and the map's menu. */}
           <SetupPill testId="setup-head" />
           {account}
-          <AccountCard pilot={signedIn ? pilot : null} />
+          {/* A section as the page's others are, so the room between them
+              is the one room every tab's sections keep (tab-consistency). */}
+          <section aria-label="Account"><AccountCard pilot={signedIn ? pilot : null} /></section>
           {/* The pilot's things, a row each with where it stands, as iOS's
               Settings lists its parts: the account's three greyed until
               there is one; the minimums are this device's. */}

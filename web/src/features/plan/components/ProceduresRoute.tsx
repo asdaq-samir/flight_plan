@@ -1364,7 +1364,11 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
   if (shown === "folded" && picked) {
     const c = chip(picked.runway, picked.end);
     return (
-      <div ref={line} className="flex items-center gap-3" data-testid="procedure-patterns">
+      // The pull-downs under the tray where there is no room beside it:
+      // a field with an arrival and an approach to add ran the nav log
+      // 41 points past a phone's width (the iOS audit's "no sideways
+      // scroll in a panel").
+      <div ref={line} className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="procedure-patterns">
         {/* Still the group's choice to a screen reader, picked; a tap on it
             opens the line. */}
         <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} className={TRAY_BODY}>
