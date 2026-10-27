@@ -243,7 +243,7 @@ final class Plan {
     /// An airplane by its N-number: one of the pilot's own with its
     /// figures, else the FAA's registry's type on the planner's profile
     /// for it, where it has one; the profile in use stands otherwise.
-    func fly(tail: String, own: [OwnAircraft], profiles: [AircraftProfile]) async {
+    func fly(tail: String, own: [OwnAircraftRecord], profiles: [AircraftProfile]) async {
         let tail = tail.uppercased()
         self.tail = tail
         // The figures kept on this device for the N-number first, then the
