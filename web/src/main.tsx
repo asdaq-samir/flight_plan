@@ -182,10 +182,13 @@ ReactDOM.createRoot(document.getElementById("root")!, {
           default-delay timer independently. */}
       <TooltipProvider>
         <RouterProvider router={router} />
+        <AppToaster />
+        {/* Inside the provider too: its close is the app's CloseButton,
+            whose Tooltip outside one threw and blanked the page the
+            first time an alert opened on a phone. */}
+        <ErrorAlert />
+        <BrandLook />
       </TooltipProvider>
-      <AppToaster />
-      <ErrorAlert />
-      <BrandLook />
     </QueryClientProvider>
     </ThemeProvider>
   </React.StrictMode>,
