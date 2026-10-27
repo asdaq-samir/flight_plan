@@ -36,10 +36,7 @@ final class TrafficMarkView: MKAnnotationView {
         label.font = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
         label.textAlignment = .center
         label.textColor = .label
-        label.halo(for: traitCollection)
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: TrafficMarkView, _: UITraitCollection) in
-            view.label.halo(for: view.traitCollection)
-        }
+        label.haloFollowing(self)
         addSubview(chevron)
         addSubview(label)
         // A tap opens its card (FlightMapLayer), not a callout.

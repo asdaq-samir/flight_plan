@@ -55,10 +55,7 @@ final class AirportMarkView: MKAnnotationView {
         label.textColor = .label
         // A halo round the words, white by day and the night's ground in
         // dark appearance, where .label turns light (NightPalette.halo).
-        label.halo(for: traitCollection)
-        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: AirportMarkView, _: UITraitCollection) in
-            view.label.halo(for: view.traitCollection)
-        }
+        label.haloFollowing(self)
         addSubview(ring)
         addSubview(label)
         canShowCallout = false
