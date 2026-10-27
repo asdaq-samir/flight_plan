@@ -135,6 +135,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
 
   // The whole route again, asked from the location arrow in a dry run
   // (MyPositionButton): flown to it, own ship no longer followed.
+  const recheckRoute = useRef<(() => void) | null>(null);
   const routeAsked = useOwnShip(s => s.routeAsked);
   const routeAskedWas = useRef(routeAsked);
   useEffect(() => {
@@ -168,12 +169,19 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       setOut(!clear.pad(0.02).contains(line));
     };
     check();
+    recheckRoute.current = check;
     map.on("moveend", check);
     return () => {
+      recheckRoute.current = null;
       map.off("moveend", check);
       useOwnShip.setState({ routeDrawn: false });
     };
   }, [map, course]);
+  // And again as the panel comes to rest at another size: the map's last
+  // rest was read against the panel as it was, and a route fitted while
+  // the sheet was still settling stayed "out of view", the arrow offering
+  // the route it had just shown (route-fit's arrow test, CI on a phone).
+  useEffect(() => { recheckRoute.current?.(); }, [insets]);
 
   // Fit to the route when it changes.
   //
