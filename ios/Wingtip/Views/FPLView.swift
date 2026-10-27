@@ -125,10 +125,10 @@ struct FPLView: View {
                 if let totals = plan.totals {
                     Section {
                         HStack {
-                            figure("TO", plan.dest)
-                            figure("DIST", totals.distanceNm.map { String(format: "%.1f nm", $0) } ?? "—")
-                            figure("ETE", totals.eteMin.map(hoursMinutes) ?? "—")
-                            figure("FUEL", totals.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—",
+                            stripFigure("TO", plan.dest)
+                            stripFigure("DIST", totals.distanceNm.map { String(format: "%.1f nm", $0) } ?? "—")
+                            stripFigure("ETE", totals.eteMin.map(hoursMinutes) ?? "—")
+                            stripFigure("FUEL", totals.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—",
                                    warn: (totals.fuelMarginGal ?? 0) < 0)
                         }
                     }
@@ -185,17 +185,7 @@ struct FPLView: View {
                 default: FlightPage(name: page)
                 }
             }
-            .toolbar {
-                if !plan.stops.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) { EditButton() }
-                }
-                if plan.routed {
-                    ToolbarItem(placement: .topBarTrailing) { ShareMenu() }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Clear", role: .destructive) { plan.clear() }
-                    }
-                }
-            }
+            .toolbar { RouteToolbar(plan: plan) }
         }
     }
 
@@ -208,14 +198,6 @@ struct FPLView: View {
             .frame(maxWidth: 110)
             .focused($focused, equals: field)
             .onSubmit { if field == .dep { focused = .dest } else { plan.plan() } }
-    }
-
-    private func figure(_ name: String, _ value: String, warn: Bool = false) -> some View {
-        VStack(spacing: 2) {
-            Text(name).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.headline.monospacedDigit()).foregroundStyle(warn ? Color.red : Color.primary)
-        }
-        .frame(maxWidth: .infinity)
     }
 }
 
