@@ -672,6 +672,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   useEffect(() => {
     if (!cardOpen && !briefOpen) panelBeforeCard.current = panel;
   }, [cardOpen, briefOpen, panel]);
+  // The tab an airplane's card was opened over from the route box's
+  // N-number (openAirplaneCard), and the tab setter, set once the tabs
+  // are (usePanelTabs, below): its close goes back there, FPL, not to
+  // Aircraft's list under it (the owner's "when closing the card, it
+  // doesn't go back to fpl").
+  const airplaneFrom = useRef<PanelTab | null>(null);
+  const backToTab = useRef<(tab: PanelTab) => void>(() => {});
   const closeCard = useCallback((close: () => void) => {
     close();
     setPanel(panelBeforeCard.current);
@@ -723,7 +730,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const flightCard = flight && past
     ? <Suspense fallback={null}><PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} /></Suspense>
     : flight ? <Suspense fallback={null}><FlightCard
-      key={flight} hex={flight} onClose={() => closeCard(() => selectFlight(null))} onOpenPast={selectPast}
+      key={flight} hex={flight} onOpenPast={selectPast}
+      onClose={() => closeCard(() => {
+        selectFlight(null);
+        const from = airplaneFrom.current;
+        airplaneFrom.current = null;
+        if (from) backToTab.current(from);
+      })}
       onOpenAirport={openAirportOverFlight}
       onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
     /></Suspense> : null;
@@ -1800,9 +1813,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The airplane's card from the route box's N-number (FlightInputs):
   // Aircraft's tab, its card over it.
   const openAirplaneCard = useCallback((hex: string) => {
+    airplaneFrom.current = tab;
     setTabPick("aircraft");
     selectFlight(hex);
-  }, [setTabPick, selectFlight]);
+  }, [tab, setTabPick, selectFlight]);
+  useEffect(() => { backToTab.current = setTabPick; }, [setTabPick]);
     const pickTail = useCallback((tail: string, profile: string) => {
     // With the figures the pilot set for it, where they have (AirplaneFigures).
     setAircraft({ profile, label: `${tail} · ${profile.toUpperCase()}`, tail, ...usePreferences.getState().tailFigures[tail] });

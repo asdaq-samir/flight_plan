@@ -1,9 +1,10 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Plane } from "lucide-react";
+import { Info } from "lucide-react";
 import { cn } from "cn";
 import { N_NUMBER, profileOfRegistered, shortName } from "../../../../lib/aircraftChoice";
 import { api } from "../../../../lib/api/client";
+import { flightQuery } from "../../../../lib/queryClient";
 import { GLASS_BUTTON } from "../../../../components/mapChrome";
 import { INLINE_FIELD_BUTTON, InlineField } from "../../../../components/InlineField";
 import { TEXT } from "../../../../lib/text";
@@ -65,6 +66,20 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
       if (profile && profile !== now) onTailPick?.(tail, profile);
     }).catch(() => { /* the profile in use stands */ });
   };
+  // Its registry entry and its flight today asked for as soon as the
+  // N-number is in, so its card opens at the tap: the button waited on
+  // the registry (1.5 s, more on a busy phone) and then the card on the
+  // airplane's trace, the owner's "taking a long time to open".
+  const canOpen = !!onOpenAirplane;
+  useEffect(() => {
+    if (!tailNow || !canOpen) return;
+    void queryClient.fetchQuery({
+      queryKey: ["registered", tailNow], queryFn: () => api.trafficFind(tailNow), staleTime: 24 * 60 * 60_000, meta: { silent: true },
+    }).then(found => {
+      const hex = found?.registered?.mode_s_hex;
+      if (hex) void queryClient.prefetchQuery(flightQuery(hex.toLowerCase()));
+    }).catch(() => { /* asked again at the tap */ });
+  }, [tailNow, canOpen, queryClient]);
   // Its card, at the owner's ask ("should have a button show up to go to
   // its card"): the airplane by its Mode S hex, from the registry.
   const openCard = () => {
@@ -94,7 +109,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
             type="button" onClick={openCard} aria-label={`${tailNow}: its card`} data-testid="aircraft-card-button"
             className={cn(INLINE_FIELD_BUTTON, GLASS_BUTTON)}
           >
-            <Plane className="size-3.5" aria-hidden="true" />
+            <Info className="size-3.5" aria-hidden="true" />
           </button>
         )}
       />
