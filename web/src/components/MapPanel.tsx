@@ -581,41 +581,43 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const up = state === "full";
     if (!onPhone && state !== "peek") {
       onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true, up });
-      document.body.style.setProperty("--sheet-cover", "0px");
       return;
     }
     const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
     onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up });
-    const body = document.body;
-    body.style.setProperty("--sheet-cover", `${fromBottom && onPhone ? strip : 0}px`);
-    if (!onPhone || !fromBottom) return;
-    // For the map's buttons alone (--sheet-cover, MapControls), not the
-    // map's fit: once it has come to rest, what it covers taken again from
-    // where the sheet's foot really is over the map's. On the owner's
-    // iPhone, Safari's toolbar made the gap under the pill other than the
-    // one asked for, and the buttons stood 100 points over the pill (the
-    // owner's screenshot, 2026-10-26); refitting the map then moved the
-    // chart under them after every settle.
-    const timer = window.setTimeout(() => {
-      const sheet = document.querySelector<HTMLElement>("[data-slot=map-panel]");
-      const map = document.getElementById("content");
-      if (!sheet || !map) return;
-      // From the sheet's own top at rest; all the way up, what the half
-      // would cover (the buttons are put away there). Negative gaps where
-      // the map ends above the sheet's foot (a shorter viewport for the map
-      // than for the fixed sheet).
-      const mapBottom = map.getBoundingClientRect().bottom, rect = sheet.getBoundingClientRect();
-      const measured = Math.max(0, Math.round(state === "full" ? detents.half + mapBottom - rect.bottom : mapBottom - rect.top));
-      body.style.setProperty("--sheet-cover", `${measured}px`);
-    }, SHEET_SECONDS * 1000 + 100);
-    return () => window.clearTimeout(timer);
-  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange, expanded, detents.half]);
-
-  useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); }, []);
+  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange]);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.
   const [panel, setPanel] = useState<HTMLElement | null>(null);
+
+  // What the sheet covers of the map at every frame, for the map's buttons
+  // to ride on its top (--sheet-cover, MapControls), as Maps' do: under a
+  // finger and as it eases to a size, its height changing every frame
+  // (ResizeObserver), from where its top really is over the map's foot --
+  // they moved only once it had stopped, in their own time, out of step
+  // with the card (the owner's video, 2026-10-26), and on the owner's
+  // iPhone Safari's toolbar made the planned gap the wrong one. All the way
+  // up they are put away (index.css).
+  useEffect(() => {
+    const body = document.body;
+    if (!panel || !onPhone || !fromBottom) {
+      body.style.setProperty("--sheet-cover", "0px");
+      return;
+    }
+    const map = document.getElementById("content");
+    const measure = () => {
+      if (!map) return;
+      const cover = Math.max(0, Math.round(map.getBoundingClientRect().bottom - panel.getBoundingClientRect().top));
+      body.style.setProperty("--sheet-cover", `${cover}px`);
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(panel);
+    if (map) watch.observe(map);
+    return () => watch.disconnect();
+  }, [panel, onPhone, fromBottom]);
+  useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); }, []);
   // Scrolled up, a page's content runs on under the head and is seen
   // through it, at the owner's ask with a sheet of iOS's ("look at this for
   // the see-through under the top bar"): the scroller at the top of the
