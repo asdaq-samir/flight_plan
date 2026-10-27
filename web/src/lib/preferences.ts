@@ -9,6 +9,7 @@ import { NO_MINIMUMS, type Minimums } from "./minimums";
 /** What FPL's Routes hold the weather to (Preferences.routeWeather). */
 export type RouteWeather = "personal" | "legal";
 import { sameField } from "./procedures";
+import type { StopPick } from "./stopKinds";
 import type { Load } from "./weightBalance";
 import type { OwnShipLook } from "./map/ownShipLook";
 
@@ -120,9 +121,12 @@ interface Preferences {
    *  minimums, or 14 CFR 91.155's alone; thunderstorms are kept clear of
    *  either way. The owner's "This can be a setting" (2026-10-23). */
   routeWeather: RouteWeather;
-  /** How far round the pilot the map's fly-in food looks, nm: a hundred
-   *  unless picked (the owner, 2026-10-26; FoodCard's menu). */
-  foodRadiusNm: number;
+  /** How far round the pilot the map's Stops look, nm: 25 unless picked
+   *  (the owner, 2026-10-27; StopsCard's menu). */
+  stopsRadiusNm: number;
+  /** The kind of stop last picked on the Stops sheet, or all of them
+   *  (the owner's "remember the last pick", 2026-10-27). */
+  stopKind: StopPick;
   /** Each airplane's load as last set (lib/weightBalance), by its name. */
   loads: Record<string, Load>;
   /** Whether each route loaded keeps its charts for use without a
@@ -207,7 +211,8 @@ interface Preferences {
   setOverlayStrength: (overlayStrength: OverlayStrength) => void;
   setMinimum: (key: keyof Minimums, value: number | null) => void;
   setRouteWeather: (weather: RouteWeather) => void;
-  setFoodRadiusNm: (nm: number) => void;
+  setStopsRadiusNm: (nm: number) => void;
+  setStopKind: (kind: StopPick) => void;
   setLoad: (aircraft: string, load: Load) => void;
   setKeepOffline: (keepOffline: boolean) => void;
   setAircraft: (aircraft: AircraftChoice) => void;
@@ -269,7 +274,8 @@ export const usePreferences = create<Preferences>()(
       overlayStrength: "half",
       minimums: NO_MINIMUMS,
       routeWeather: "personal",
-      foodRadiusNm: 100,
+      stopsRadiusNm: 25,
+      stopKind: "all",
       loads: {}, tailFigures: {},
       keepOffline: false,
       aircraft: DEFAULT_AIRCRAFT,
@@ -335,7 +341,8 @@ export const usePreferences = create<Preferences>()(
       setOverlayStrength: overlayStrength => set({ overlayStrength }),
       setMinimum: (key, value) => set(s => ({ minimums: { ...s.minimums, [key]: value } })),
       setRouteWeather: routeWeather => set({ routeWeather }),
-      setFoodRadiusNm: foodRadiusNm => set({ foodRadiusNm }),
+      setStopsRadiusNm: stopsRadiusNm => set({ stopsRadiusNm }),
+      setStopKind: stopKind => set({ stopKind }),
       setLoad: (aircraft, load) => set(s => ({ loads: { ...s.loads, [aircraft]: load } })),
       setKeepOffline: keepOffline => set({ keepOffline }),
       setAircraft: aircraft => set({ aircraft }),
@@ -379,7 +386,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, foodRadiusNm: s.foodRadiusNm, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

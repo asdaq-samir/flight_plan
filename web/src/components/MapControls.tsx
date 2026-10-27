@@ -55,10 +55,11 @@ export default function MapControls() {
         <FullscreenButton />
       </div>
     </div>
-    {/* Fly-in food in a glass circle of its own at the left, level with
-        the group, as Maps keeps its other buttons on the far side (the
-        owner's "We can move the fly food button to the left side",
-        2026-10-26); while there is a route or a position to look round. */}
+    {/* The Stops (it was Fly-in Food) in a glass circle of its own at the
+        left, level with the group, as Maps keeps its other buttons on the
+        far side (the owner's "We can move the fly food button to the left
+        side", 2026-10-26); while there is a route or a position to look
+        round. */}
     {stops && (
       <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
         <StopsAlongButton />

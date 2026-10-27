@@ -21,6 +21,7 @@ import type { TrafficPattern } from "../../../lib/trafficPattern";
 const NO_PATTERNS: TrafficPattern[] = [];
 const NO_POINTS: { lat: number; lon: number }[] = [];
 const NO_POINTS_AT: { ident: string; lat: number; lon: number }[] = [];
+const NO_STOP_FIELDS: StopFieldPin[] = [];
 const NO_PROCEDURES: ProcedureDrawing[] = [];
 import { chipColourOf, colourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
@@ -43,6 +44,7 @@ import { useScreenView } from "../../../lib/map/useView";
 import DryRunLayer from "../../../lib/map/DryRunLayer";
 import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
 import { usePreferences } from "../../../lib/preferences";
+import { STOP_KINDS, type StopKind } from "../../../lib/stopKinds";
 import { inkOn } from "../../../lib/scoreScale";
 import { feet, nm } from "../../../lib/units";
 import { scoreColor } from "../format";
@@ -102,6 +104,8 @@ interface Props {
   /** The fuel stops the planner suggests (the totals' fuel_stops), pinned
    *  as Tesla pins its chargers on the way, a tap their field's card. */
   fuelStops?: StopPin[];
+  /** The map's Stops while their sheet is open, with a route or none. */
+  stopFields?: StopFieldPin[];
   /** The ways FPL's Routes offer beside the route (RouteWaysLayer), a tap one's pick. */
   ways?: RouteWay[];
   /** The one of them shown (FPL's Routes' card picked), drawn the stronger. */
@@ -127,14 +131,8 @@ function stopPin(glyph: string) {
 const FUEL_PIN = stopPin('<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>');
 /** A break's on a long flight the tanks hold (fuelstops.suggest_break): a cup (lucide's Coffee). */
 const BREAK_PIN = stopPin('<path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/>');
-/** A field with a restaurant on it (FoodCard): the fork and knife its
- *  button wears (StopsAlongButton), as the fuel stops' are pinned (the
- *  owner's "make the food markers similar", 2026-10-26). */
-const FOOD_PIN = stopPin('<path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M15 22V4a2 2 0 0 1 2-2h1a2 2 0 0 1 2 2v18M15 10h5"/>');
-
-/** A stop pinned on the chart: a suggestion's (the totals' fuel_stops), or
- *  a field of the map's Stops (`along`, with its `title`). */
-type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" | "along"; title?: string };
+/** A suggested stop pinned on the chart (the totals' fuel_stops). */
+type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" };
 
 function FuelStopPins({ stops, onSelect }: { stops: StopPin[]; onSelect: (ident: string) => void }) {
   return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
@@ -144,16 +142,14 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
   // Memoized, not a literal: see AirportsLayer.
   const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
   const isBreak = stop.reason === "break";
-  const icon = stop.reason === "along" ? FOOD_PIN : isBreak ? BREAK_PIN : FUEL_PIN;
+  const icon = isBreak ? BREAK_PIN : FUEL_PIN;
   // The field under the pin in its class of airspace's look and its
   // METAR's colour, as the chart marks it: the card's own answer, which
   // the stop's row asks for too. A small field the chart leaves off at
   // this zoom was a pin over nothing, no ident to it (the owner's
   // screenshot, 2026-10-26).
-  // Asked for a fuel stop or a break, a few on a route; a field with food
-  // takes it only from what is in already (the card, the route), as there
-  // can be dozens of them along a long route.
-  const { data: place } = useQuery({ ...airportQuery(stop.ident), enabled: stop.reason !== "along" });
+  // Asked for a fuel stop or a break, a few on a route.
+  const { data: place } = useQuery(airportQuery(stop.ident));
   const space = place?.airspace_class ?? null;
   const weather = colourOf(place?.metar?.flight_category);
   const use = place?.military === "military" ? "military" : null;
@@ -164,10 +160,62 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
         eventHandlers={handlers} zIndexOffset={450}
       />
       <Marker
-        position={[stop.lat, stop.lon]} icon={icon} title={stop.title ?? `Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
+        position={[stop.lat, stop.lon]} icon={icon} title={`Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
         eventHandlers={handlers} zIndexOffset={500}
       >
-        <MapTooltip>{stop.title ? pointName(stop.ident) : `${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
+        <MapTooltip>{`${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
+      </Marker>
+    </>
+  );
+});
+
+/** A field of the map's Stops (StopsCard) pinned while the sheet is open:
+ *  the kinds it has, in a row's order (lib/stopKinds). */
+export type StopFieldPin = { ident: string; lat: number; lon: number; kinds: StopKind[] };
+
+/** A field's stacked pins (the owner's pick of the Stops canvas, I,
+ *  2026-10-27): one teardrop for each kind it has, in the kind's colour
+ *  with its glyph in white, each fanned eight points right and four up
+ *  from the one before so every glyph shows, the first kind in front, its
+ *  tip on the field. One icon each set of kinds, made once: a new icon
+ *  for every render would have Leaflet draw the marker again. */
+const stackedPins = new Map<string, L.DivIcon>();
+function stackedPin(kinds: StopKind[]): L.DivIcon {
+  const key = kinds.join(",");
+  const kept = stackedPins.get(key);
+  if (kept) return kept;
+  const n = kinds.length;
+  const width = 30 + (n - 1) * 8, height = 38 + (n - 1) * 4;
+  // Back to front: the last kind drawn first, behind the others.
+  const pins = kinds.map((kind, i) => {
+    const { colour, paths } = STOP_KINDS[kind];
+    const glyph = paths.map(d => `<path d="${d}"/>`).join("");
+    return `<g transform="translate(${i * 8} ${(n - 1 - i) * 4})"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="${colour}" stroke="#fff" stroke-width="2"/>`
+      + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></g>`;
+  }).reverse().join("");
+  const icon = L.divIcon({
+    className: "",
+    html: `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">${pins}</svg>`,
+    iconSize: [width, height], iconAnchor: [15, height - 1],
+  });
+  stackedPins.set(key, icon);
+  return icon;
+}
+
+const StopFieldMark = memo(function StopFieldMark({ field, onSelect }: { field: StopFieldPin; onSelect: (ident: string) => void }) {
+  // Memoized, not a literal: see AirportsLayer.
+  const handlers = useMemo(() => ({ click: () => onSelect(field.ident) }), [onSelect, field.ident]);
+  const kinds = field.kinds.join(",");
+  // From its key, not the array: the same kinds the same icon.
+  const icon = useMemo(() => stackedPin(kinds.split(",") as StopKind[]), [kinds]);
+  const names = field.kinds.map(k => STOP_KINDS[k].name).join(", ");
+  return (
+    <>
+      {/* The field under the pins, as a suggested stop's: its own mark,
+          not asked for again for each of dozens along a long route. */}
+      <Marker position={[field.lat, field.lon]} icon={airportMarkIcon(pointName(field.ident), null, colourOf(undefined))} eventHandlers={handlers} zIndexOffset={440} />
+      <Marker position={[field.lat, field.lon]} icon={icon} title={`${field.ident}: ${names}`} eventHandlers={handlers} zIndexOffset={490}>
+        <MapTooltip>{`${pointName(field.ident)} · ${names}`}</MapTooltip>
       </Marker>
     </>
   );
@@ -596,7 +644,7 @@ export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, start = null, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
-  ways, wayShown = null, onPickWay,
+  stopFields = NO_STOP_FIELDS, ways, wayShown = null, onPickWay,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
@@ -663,6 +711,8 @@ export default memo(function RouteMap({
           them has its own card up, which brings that one in. */}
       {!place && <FitTo points={nearest ?? []} fitKey={nearest?.length ? nearest.map(a => a.ident).join(",") : null} />}
       <HeldPoint point={heldPoint} onHold={onHoldPoint} />
+      {/* The Stops' fields round the pilot as well as along a route. */}
+      {stopFields.map(field => <StopFieldMark key={field.ident} field={field} onSelect={onSelectPlace} />)}
       {course && (
         <>
           {/* Under the course line, as Maps draws the routes not picked. */}

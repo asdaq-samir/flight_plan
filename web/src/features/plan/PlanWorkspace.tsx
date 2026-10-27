@@ -7,7 +7,7 @@ import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
-import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, airportsFoodQuery, routeFoodQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
+import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, minutesWords } from "../../lib/clock";
@@ -75,6 +75,7 @@ import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
 import { useStopsAlong } from "../../lib/stopsAlong";
+import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
@@ -158,8 +159,8 @@ const PastFlightCard = fromRoutePanel("PastFlightCard");
 // An airport's card and the dry run's panel too, each drawn at a tap: with
 // the React Compiler on, the first load was 11 KB past CI's 1.10 MB.
 const PlaceCard = fromRoutePanel("PlaceCard");
-// The map's fly-in food (FoodCard), drawn at its button's tap.
-const FoodCard = fromRoutePanel("FoodCard");
+// The map's Stops (StopsCard), drawn at its button's tap.
+const StopsCard = fromRoutePanel("StopsCard");
 const DryRunControls = fromRoutePanel("DryRunControls");
 const DryRunFigures = fromRoutePanel("DryRunFigures");
 /** A round button's room while its code comes (routePanel). */
@@ -1314,10 +1315,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const isBreak = fuelStops.some(f => f.reason === "break" && [...f.stops, ...(f.choices ?? [])].some(c => idents.includes(c.ident)));
     if (next) setStops(next.stops, isBreak ? [] : next.added);
   }, [setStops, planned.dep, planned.stops, fuelStops]);
-  // A field from the map's fly-in food put in the route after its flight's
+  // A field from the map's Stops put in the route after its flight's
   // departure, the pilot's own stop: by the route's own points, not its
   // course, which a tap before the course was in found missing.
-  const addFoodStop = useCallback((field: { ident: string; departure?: string | null }) => {
+  const addStopField = useCallback((field: { ident: string; departure?: string | null }) => {
     const next = withStopsAfter(planned.dep, planned.stops, field.departure ?? planned.dep, [field.ident]);
     if (next) setStops(next.stops);
   }, [setStops, planned.dep, planned.stops]);
@@ -1501,44 +1502,51 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // from its button among the map's (StopsAlongButton).
   const stopsOpen = useStopsAlong(st => st.open);
   const setStopsOpen = useStopsAlong(st => st.setOpen);
-  // With a route or none: the fields with food are round the pilot.
+  // With a route or none: with none, the stops are round the pilot.
   const stopsShown = stopsOpen && tab === "fpl" && !briefShown && !navLogShown && !profileShown;
   // The same whatever the tab: what FPL keeps under the others (TabKept).
   const briefHere = briefOpen && routed;
   const profileHere = profileOpen && routed && !briefHere && !(navLogOpen && routed);
   const stopsHere = stopsOpen && !briefHere && !(navLogOpen && routed) && !profileHere;
-  // Where the fields with food are looked for: along the course while one
-  // is drawn (the owner, 2026-10-26), else round own ship (FoodCard).
-  const foodRoute = useMemo(() => (routed && !s.local && planned.dest
+  // Where the Stops are looked for: along the course while one is drawn
+  // (the owner, 2026-10-26), else round own ship (StopsCard).
+  const stopsRoute = useMemo(() => (routed && !s.local && planned.dest
     ? { dep: planned.dep, dest: `${planned.dest}`, stops: planned.stops.join(",") } : null),
   [routed, s.local, planned.dep, planned.dest, planned.stops]);
-  const foodAt = useMemo(() => (fix ? { lat: fix.lat, lon: fix.lon } : null), [fix]);
-  const foodRadius = usePreferences(p => p.foodRadiusNm);
-  // Along the route or round the pilot, as the card's two pills pick
-  // (FoodCard): along it where there is one, until the pilot says.
-  const foodScopePicked = useStopsAlong(st => st.scope);
-  const setFoodScope = useStopsAlong(st => st.setScope);
-  const foodScope = foodRoute ? foodScopePicked ?? "route" : "near";
-  // While the map's fly-in food is open, its fields pinned in the
-  // suggestions' place (the same queries as the card's).
+  const stopsAt = useMemo(() => (fix ? { lat: fix.lat, lon: fix.lon } : null), [fix]);
+  const stopsRadius = usePreferences(p => p.stopsRadiusNm);
+  const stopKind = usePreferences(p => p.stopKind);
+  // Along the route or round the pilot, as the sheet's pull-down picks
+  // (StopsCard): along it where there is one, until the pilot says.
+  const stopsScopePicked = useStopsAlong(st => st.scope);
+  const setStopsScope = useStopsAlong(st => st.setScope);
+  const stopsScope = stopsRoute ? stopsScopePicked ?? "route" : "near";
   // Asked for as soon as there is a route (or a position), not at the
   // button's tap: the planner reads each field's places and outline from
   // Overture the first time, half a minute for a long route's forty, and
   // the owner waited on it ("why is it taking a long time to see these
   // fly in airports", 2026-10-26). Not for each Routes card swiped past.
-  // Pinned only while the card is open.
-  const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: !!foodAt && (!foodRoute || foodScope === "near") });
-  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: !!foodRoute });
-  const foodFields = foodScope === "route" ? foodAlong : foodNear;
-  const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
-    ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,
-  })) : null), [stopsShown, foodFields]);
-  // Food's pins beside the fuel stops, not in their place (the owner's
-  // "when food is shown, don't hide the fuel", 2026-10-26): a fuel stop
-  // with food on it pinned once, as the fuel stop.
-  const stopPins = useMemo(() => (alongPins
-    ? [...fuelStopPins, ...alongPins.filter(p => !fuelStopPins.some(f => f.ident === p.ident))]
-    : fuelStopPins), [alongPins, fuelStopPins]);
+  // Pinned only while the sheet is open (the same queries as the sheet's).
+  const { data: stopsNear } = useQuery({ ...stopsNearQuery(stopsAt?.lat ?? 0, stopsAt?.lon ?? 0, stopsRadius), enabled: !!stopsAt && (!stopsRoute || stopsScope === "near") });
+  const { data: stopsAlong } = useQuery({ ...stopsAlongQuery(stopsRoute?.dep ?? "", stopsRoute?.dest ?? "", stopsRoute?.stops ?? ""), enabled: !!stopsRoute });
+  const stopsFound = stopsScope === "route" ? stopsAlong : stopsNear;
+  // Each field's stacked pins, the kind picked alone where one is (the
+  // owner's "With a kind picked, that kind's pin only"). A suggested fuel
+  // stop keeps its own pin, not stacked over (the owner's "when food is
+  // shown, don't hide the fuel", 2026-10-26).
+  const stopFieldPins = useMemo(() => (stopsShown && stopsFound ? stopsFound.fields.flatMap(f => {
+    const kinds = kindsOf(f).filter(k => stopKind === "all" || k === stopKind);
+    return kinds.length && !fuelStopPins.some(p => p.ident === f.ident) ? [{ ident: f.ident, lat: f.lat, lon: f.lon, kinds }] : [];
+  }) : undefined), [stopsShown, stopsFound, stopKind, fuelStopPins]);
+  // Find Nearby's tile (the Airport tab): the Stops round the pilot, that
+  // kind picked, over FPL as the map's button opens them.
+  const setStopKind = usePreferences(p => p.setStopKind);
+  const stopsOpener = useStopsAlong(st => st.opener);
+  const findNearby = useCallback((kind: StopKind) => {
+    setStopKind(kind);
+    setStopsScope("near");
+    stopsOpener?.();
+  }, [setStopKind, setStopsScope, stopsOpener]);
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
@@ -1617,7 +1625,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setStopsOpener(openStops);
     return () => setStopsOpener(null);
   }, [openStops, setStopsOpener]);
-  // The button there always: food near the pilot, with a route or none.
+  // The button there always: the stops near the pilot, with a route or none.
   const setStopsAvailable = useStopsAlong(st => st.setAvailable);
   const canStop = true;
   useEffect(() => {
@@ -2398,7 +2406,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The open card's name for the bar over it: an airport's ident, the
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
-  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Fly-in Food" : undefined);
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Stops" : undefined);
   // The airport's card: all the way up in the panel's body; at the pill's
   // size its summary, the pill's own (`summary`), as a tap on the map opens
   // it, at the owner's pick of the redesign.
@@ -2543,6 +2551,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       onAllFavorites={() => openList("favorites")}
       onAllRecents={() => openList("recents")}
       onAllNearest={openNearest}
+      onFindNearby={findNearby}
     />
   );
   // With the Map switch at its right (AircraftPill).
@@ -2589,7 +2598,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           crossings={crossings}
           directs={mapDirects}
           onProcedureFix={showFix}
-          fuelStops={stopPins}
+          fuelStops={fuelStopPins} stopFields={stopFieldPins}
           ways={wayLines} wayShown={lineKey === "none" ? "own" : lineKey} onPickWay={pickWay}
         />
         </Suspense>
@@ -2678,7 +2687,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {/* And while a finger takes it up: the pill's own are out of
             sight then (the owner's notice, "Fpl hides Saved while dragging
             up"). */}
-        {/* Not under Fly-in Food with no route: FPL's Saved stood over
+        {/* Not under the Stops with no route: FPL's Saved stood over
             its list (the owner's screenshot, 2026-10-26). */}
         {!savedOpen && !hasPoints && !stopsHere && (panel !== "peek" || dragging) && (
           routeRecentsOpen ? (
@@ -2731,9 +2740,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           </ProfileCard>
         )}
         {stopsHere && !savedOpen && (
-          <FoodCard
-            name="Fly-in Food" at={foodAt} route={foodRoute} scope={foodScope} onScope={setFoodScope} onClose={closeStops} onOpenField={selectPlace}
-            onAddStop={addFoodStop}
+          <StopsCard
+            at={stopsAt} route={stopsRoute} scope={stopsScope} onScope={setStopsScope} onClose={closeStops} onOpenField={selectPlace}
+            onAddStop={addStopField}
             onDirect={ident => void flyHere({ ident })}
           />
         )}
