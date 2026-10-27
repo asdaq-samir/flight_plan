@@ -47,6 +47,12 @@ def _settings(feed: str) -> tuple[str, ...]:
     return (*SETTINGS, f"SWIM_VPN_{feed}", f"SWIM_QUEUE_{feed}")
 
 
+def _host(feed: str) -> str:
+    """The broker a feed's subscription is on: its own where SCDS put it
+    on another (TFMS's on ems1, the others' on ems2), else the shared one."""
+    return os.environ.get(f"SWIM_HOST_{feed}") or os.environ["SWIM_HOST"]
+
+
 def configured(feed: str) -> bool:
     return all(os.environ.get(name) for name in _settings(feed))
 
@@ -197,7 +203,7 @@ def _run(feed: str) -> None:
         service = receiver = None
         try:
             service = (MessagingService.builder().from_properties({
-                "solace.messaging.transport.host": os.environ["SWIM_HOST"],
+                "solace.messaging.transport.host": _host(feed),
                 "solace.messaging.service.vpn-name": os.environ[f"SWIM_VPN_{feed}"],
                 "solace.messaging.authentication.scheme.basic.username": os.environ["SWIM_USERNAME"],
                 "solace.messaging.authentication.scheme.basic.password": os.environ["SWIM_PASSWORD"],
