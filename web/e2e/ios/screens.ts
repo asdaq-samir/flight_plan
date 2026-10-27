@@ -402,7 +402,7 @@ export const SCREENS: Screen[] = [
       await settle(page);
       await controlsInSight(page);
       await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/feet|FL/, { timeout: slow(60000) });
-      await page.getByTestId("altitude-why").click();
+      await openProfile(page);
       await expect(page.getByTestId("altitude-wheel")).toBeVisible();
       await expect(page.getByTestId("altitude-figures")).toBeVisible();
     },
