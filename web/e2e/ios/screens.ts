@@ -1,5 +1,5 @@
 import { expect, type Page } from "@playwright/test";
-import { consolePage, controlsInSight, openNavLog, grabberTo, openConsole, openPanel, openSection, openSetup, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
+import { consolePage, controlsInSight, openNavLog, grabberTo, openConsole, openProfile, openPanel, openSection, openSetup, openTab, settle, showTabs, sideDrawer, slow, stripShows } from "../helpers";
 
 /** One state of the app as a pilot sees it, reached from a fresh page. */
 export type Screen = { name: string; ready: (page: Page) => Promise<void> };
@@ -388,7 +388,7 @@ export const SCREENS: Screen[] = [
       }));
       await page.goto(`/app/plan?${ROUTE}&view=briefing`);
       await controlsInSight(page);
-      await page.getByTestId("altitude-why").click({ timeout: slow(30000) });
+      await openProfile(page);
       await expect(page.getByTestId("unflyable-fly-via")).toBeVisible();
     },
   },

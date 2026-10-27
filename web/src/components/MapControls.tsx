@@ -4,6 +4,8 @@ import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
 import StopsAlongButton from "./StopsAlongButton";
+import DryRunButton from "./DryRunButton";
+import { useDryRunButton } from "../lib/dryRunButton";
 import { useStopsAlong } from "../lib/stopsAlong";
 import { GLASS } from "./mapChrome";
 
@@ -22,6 +24,7 @@ import { GLASS } from "./mapChrome";
  */
 export default function MapControls() {
   const stops = useStopsAlong(s => s.available);
+  const dryRun = useDryRunButton(s => s.ready || s.flying);
   return (
     <>
     {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its
@@ -60,8 +63,11 @@ export default function MapControls() {
         far side (the owner's "We can move the fly food button to the left
         side", 2026-10-26); while there is a route or a position to look
         round. */}
-    {stops && (
-      <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col rounded-full p-1 [&_button]:rounded-full", GLASS)}>
+    {/* Play, the route's dry run, above Stops in the same glass, at the
+        owner's ask (2026-10-27). */}
+    {(stops || dryRun) && (
+      <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col gap-2 rounded-full p-1 [&_button]:rounded-full", GLASS)}>
+        <DryRunButton />
         <StopsAlongButton />
       </div>
     )}

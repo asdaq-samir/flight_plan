@@ -5,8 +5,7 @@ import { cn } from "cn";
 import { Button } from "../../../../components/ui/button";
 import PullDown from "../../../../components/PullDown";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
-import { INLINE_FIELD_BUTTON, InlineField } from "../../../../components/InlineField";
-import { GLASS_BUTTON } from "../../../../components/mapChrome";
+import { InlineField } from "../../../../components/InlineField";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -87,7 +86,7 @@ function planAt(nav: NavLogAltitude | null, altitude: number): AltitudeChoice | 
  * chip was: red with no legal altitude, IFR's flag, a tight altitude and a
  * pilot's own altitude's caution.
  */
-export default function AltitudeGroup({ nav, legs, commanded = null, asked = null, problem = false, tight = null, onFlyAltitude, onOpenProfile, disabled = false, rules = "vfr" }: {
+export default function AltitudeGroup({ nav, legs, commanded = null, asked = null, problem = false, tight = null, onFlyAltitude, disabled = false, rules = "vfr" }: {
   nav: NavLogAltitude | null;
   legs: Leg[];
   /** The altitude the pilot asked for, feet, while its log is planned: the
@@ -102,8 +101,6 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   tight?: string | null;
   /** Flies the whole route at an altitude of the pilot's own, feet. */
   onFlyAltitude: (feet: number) => void;
-  /** Opens the Profile card, the altitude set on its side view. */
-  onOpenProfile: () => void;
   disabled?: boolean;
   /** The flight rules it is planned under: IFR's flag on the group. */
   rules?: FlightRules;
@@ -162,41 +159,26 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
         onBlur: fly, "data-testid": "altitude-input",
       }}
       inputClassName={problem ? "text-destructive-ink" : "text-foreground"}
-      button={(profiled || entered) && <button
-          type="button" onClick={onOpenProfile} disabled={!profiled}
-          className={cn(
-            // The route box's icon buttons' size, 32 square with an 18-point glyph, the
-            // group's height; its 44-point area round it. A button of the
-            // tinted glass every button is (GLASS_BUTTON), at the owner's
-            // ask ("The profile button should also get the glass tinted. But
-            // the altitude entry should stay as a text box"): the field's
-            // end, where a line parted it from the figure before.
-            INLINE_FIELD_BUTTON, "disabled:text-muted-foreground",
-            GLASS_BUTTON,
-            problem && "text-destructive-ink",
-          )}
-          aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}: set it on the profile`}
-          data-testid="altitude-why" data-tip="altitude"
+      // No button of its own at its end, at the owner's ask (2026-10-27: "No
+      // need for a separate profile button"): the profile opens with its
+      // dry run from the map's Play (DryRunButton). Its amber dot stays, at
+      // the field's end, on a caution on the pilot's own altitude or a tight
+      // one -- a warning is never dropped -- and what the altitude is and
+      // why, in its name for VoiceOver.
+      button={(profiled || entered) && (
+        <span
+          role="img"
+          aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`}
+          data-testid="altitude-why" data-tip="altitude" className="relative mr-2.5 flex size-2 shrink-0"
         >
-          {/* One amber dot on the glyph's top corner, inside the button as
-              the Brief's is, at the owner's asks ("move the dot to the top
-              corner of the profile button", "The dot is within the button
-              for brief but not for profile"): a caution on the pilot's own
-              altitude, else a tight one, which the Profile card says. Said in
-              the button's name. The route from the side, the profile's own
-              mark. */}
-          <span className="relative">
-            <svg viewBox="0 0 24 24" className="size-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 19h18" /><path d="M3 16l4-5 3 2 4-6 3 3 4-3" />
-            </svg>
-            {profiled && !problem && (cautions.length > 0 || tight) && (
-              <span
-                className="absolute -top-0.5 -right-1 size-2 rounded-full bg-caution" aria-hidden="true"
-                data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
-              />
-            )}
-          </span>
-        </button>}
+          {profiled && !problem && (cautions.length > 0 || tight) && (
+            <span
+              className="size-2 rounded-full bg-caution" aria-hidden="true"
+              data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
+            />
+          )}
+        </span>
+      )}
     />
   );
 }
