@@ -566,9 +566,9 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
   expect((await markOf("KGGG"))!.weather.toLowerCase()).toBe("#b3261e");
 });
 
-test("the map's Private setting puts the private fields away and back", async ({ page }) => {
-  // The owner, 2026-10-27: "toggles to show private airports or not". On
-  // by default, as they were always drawn.
+test("the map's Private setting draws the private fields, off by default and kept across a reload", async ({ page }) => {
+  // The owner, 2026-10-27: "toggles to show private airports or not", and
+  // "Make private airports hidden by default".
   const field = (ident: string, at: number, extra = {}) => ({
     ident, name: ident, lat: 42.30 + at * 0.03, lon: -88.20 + at * 0.05, kind: "medium", flight_category: "VFR",
     military: null, airspace_class: "D", ...extra,
@@ -579,17 +579,15 @@ test("the map's Private setting puts the private fields away and back", async ({
   }));
   await page.goto("/app/plan?place=C81");
   await settle(page);
+  await expect.poll(async () => !!(await airportMark(page, "KPUB")), { timeout: slow(15000) }).toBe(true);
+  expect(await airportMark(page, "KPVT")).toBeFalsy();
+  await openMapSettings(page);
+  await expect(page.getByTestId("private-toggle")).toHaveAttribute("aria-pressed", "false");
+  await page.getByTestId("private-toggle").click();
+  await page.keyboard.press("Escape");
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
-  await openMapSettings(page);
-  await expect(page.getByTestId("private-toggle")).toHaveAttribute("aria-pressed", "true");
-  await page.getByTestId("private-toggle").click();
-  await page.keyboard.press("Escape");
-  await expect.poll(async () => await airportMark(page, "KPVT"), { timeout: slow(15000) }).toBeFalsy();
-  expect(await airportMark(page, "KPUB")).toBeTruthy();
-  // Back on, and kept so across a reload.
-  await openMapSettings(page);
-  await page.getByTestId("private-toggle").click();
-  await page.keyboard.press("Escape");
+  await page.reload();
+  await settle(page);
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
 });
 

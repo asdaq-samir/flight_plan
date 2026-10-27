@@ -120,7 +120,8 @@ struct MapExtrasInput {
         static let classB = "map.classB"
         static let plates = "map.plates"
         /// The web app's Military and Private settings (lib/preferences):
-        /// the armed services' fields off and the private ones on, at first.
+        /// the armed services' fields and the private ones off, at first
+        /// (the owner, 2026-10-27: "Make private airports hidden by default").
         static let military = "map.military"
         static let privateFields = "map.private"
     }
