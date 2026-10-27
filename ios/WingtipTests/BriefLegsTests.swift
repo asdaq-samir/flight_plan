@@ -53,8 +53,8 @@ struct BriefLegsTests {
     @Test func theMapsLayerAges() throws {
         let ages = try decode(MapLayerAges.self, #"{"metars_at":"2026-10-04T14:00:00Z","tfrs_at":null}"#)
         #expect(ages.metarsAt == "2026-10-04T14:00:00Z" && ages.tfrsAt == nil)
-        let now = BriefLegs.date("2026-10-04T14:04:30Z")!
-        #expect(BriefLegs.age(BriefLegs.date(ages.metarsAt), now: now) == "4 min ago")
+        let now = AirportWords.date("2026-10-04T14:04:30Z")!
+        #expect(BriefLegs.age(AirportWords.date(ages.metarsAt), now: now) == "4 min ago")
         #expect(BriefLegs.age(now.addingTimeInterval(-20), now: now) == "just now")
         #expect(BriefLegs.age(now.addingTimeInterval(-125 * 60), now: now) == "2 h 5 min ago")
         #expect(BriefLegs.age(nil, now: now) == nil)

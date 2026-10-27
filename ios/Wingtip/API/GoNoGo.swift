@@ -45,7 +45,7 @@ struct PersonalMinimums: Codable, Equatable, Sendable {
         func words(_ value: Double) -> String {
             let n = Int(value.rounded())
             switch self {
-            case .ceilingFt: return "\(n.formatted(.number.locale(GoNoGoAsk.faaLocale))) ft"
+            case .ceilingFt: return "\(AirportWords.grouped(value)) ft"
             case .visibilitySm: return "\(n) sm"
             case .crosswindKt, .windKt: return "\(n) kt"
             }
@@ -110,20 +110,6 @@ struct GoNoGoAsk: Encodable, Equatable, Sendable {
     /// The pilot's own airplane's records, for the risk assessment's
     /// airworthiness checks; none for a stock profile.
     var ownAirplane: OwnAirplaneAsk?
-
-    /// Figures grouped as the FAA writes them, "1,500", whatever the
-    /// phone's own region.
-    static let faaLocale = Locale(identifier: "en_US")
-
-    /// A day as the planner reads it, in the pilot's own calendar.
-    static func day(_ date: Date, in zone: TimeZone = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = zone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
 }
 
 /// What the findings come to, in a line (VerdictLine).
@@ -244,7 +230,7 @@ struct LoadCondition: Codable, Equatable, Sendable {
 
     /// "2,407 lb · 41.2 in", as the web's Balance rows.
     var words: String {
-        "\(Int(weightLb.rounded()).formatted(.number.locale(GoNoGoAsk.faaLocale))) lb · \(String(format: "%.1f", armIn)) in"
+        "\(AirportWords.grouped(weightLb)) lb · \(String(format: "%.1f", armIn)) in"
     }
 }
 

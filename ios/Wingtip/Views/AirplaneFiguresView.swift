@@ -70,12 +70,12 @@ struct AirplaneFiguresView: View {
                 do {
                     let found = Handbook.figures(of: try await Handbook.read(image))
                     if found.isEmpty { problem = "No figures were read off that page: take the specifications page, flat and in good light."; return }
-                    if let f = found.cruiseTasKt { fields["cruiseTasKt"] = Self.text(f.value) }
-                    if let f = found.cruisePowerPct { fields["cruisePowerPct"] = Self.text(f.value) }
-                    if let f = found.fuelBurnGph { fields["fuelBurnGph"] = Self.text(f.value) }
-                    if let f = found.usableFuelGal { fields["usableFuelGal"] = Self.text(f.value) }
-                    if let f = found.climbTasKt { fields["climbTasKt"] = Self.text(f.value) }
-                    if let f = found.serviceCeilingFt { fields["serviceCeilingFt"] = Self.text(f.value) }
+                    if let f = found.cruiseTasKt { fields["cruiseTasKt"] = AirportWords.tenths(f.value) }
+                    if let f = found.cruisePowerPct { fields["cruisePowerPct"] = AirportWords.tenths(f.value) }
+                    if let f = found.fuelBurnGph { fields["fuelBurnGph"] = AirportWords.tenths(f.value) }
+                    if let f = found.usableFuelGal { fields["usableFuelGal"] = AirportWords.tenths(f.value) }
+                    if let f = found.climbTasKt { fields["climbTasKt"] = AirportWords.tenths(f.value) }
+                    if let f = found.serviceCeilingFt { fields["serviceCeilingFt"] = AirportWords.tenths(f.value) }
                     words = Array(Set(found.words)).sorted()
                 } catch {
                     problem = "The page could not be read: \(error.localizedDescription)"
@@ -83,8 +83,6 @@ struct AirplaneFiguresView: View {
             }
         }
     }
-
-    private static func text(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) }
 
     private func save() {
         var figures = Figures()
@@ -133,7 +131,7 @@ extension Figures {
             ("cruiseTasKt", cruiseTasKt), ("cruisePowerPct", cruisePowerPct), ("fuelBurnGph", fuelBurnGph), ("usableFuelGal", usableFuelGal),
             ("climbTasKt", climbTasKt), ("climbFuelBurnGph", climbFuelBurnGph), ("serviceCeilingFt", serviceCeilingFt),
         ]
-        for (k, v) in pairs { if let v { out[k] = v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) } }
+        for (k, v) in pairs { if let v { out[k] = AirportWords.tenths(v) } }
         return out
     }
 }

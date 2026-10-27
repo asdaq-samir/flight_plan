@@ -74,8 +74,8 @@ struct GoNoGoTests {
     @Test func theDayIsThePilotsOwnCalendarDay() throws {
         // 03:00Z on 6 October is still the 5th in Chicago.
         let at = try #require(ISO8601DateFormatter().date(from: "2026-10-06T03:00:00Z"))
-        #expect(GoNoGoAsk.day(at, in: TimeZone(identifier: "America/Chicago")!) == "2026-10-05")
-        #expect(GoNoGoAsk.day(at, in: TimeZone(identifier: "UTC")!) == "2026-10-06")
+        #expect(Day.string(at, in: TimeZone(identifier: "America/Chicago")!) == "2026-10-05")
+        #expect(Day.string(at, in: TimeZone(identifier: "UTC")!) == "2026-10-06")
     }
 
     @Test func theMinimumsMenusAreTheWebAppsChoicesInItsWords() {

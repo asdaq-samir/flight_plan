@@ -105,22 +105,10 @@ enum BriefLegs {
         return "\(sorted.count == 1 ? "Leg" : "Legs") \(said)"
     }
 
-    private static let plain: ISO8601DateFormatter = ISO8601DateFormatter()
-    private static let fractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    static func date(_ iso: String?) -> Date? {
-        guard let iso else { return nil }
-        return plain.date(from: iso) ?? fractional.date(from: iso)
-    }
-
     /// "14:20", the hours and minutes in `zone`, as the web app's
     /// clockTime gives the device's own.
     static func clock(_ iso: String?, zone: TimeZone = .current) -> String? {
-        guard let at = date(iso) else { return nil }
+        guard let at = AirportWords.date(iso) else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = zone
         let parts = calendar.dateComponents([.hour, .minute], from: at)

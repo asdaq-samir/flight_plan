@@ -166,7 +166,7 @@ struct TrainingTests {
         #expect(training.instructors.first?.accepted == true)
         #expect(training.signed.first?.until == "2026-11-13")
         #expect(training.reviews.first?.checks.first?.met == true)
-        #expect(training.experience.first?.words == "2.5 of 5 h")
+        #expect(training.experience.first.map(ExperienceSection.amount) == "2.5 of 5 h")
     }
 }
 

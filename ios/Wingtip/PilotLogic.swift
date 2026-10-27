@@ -91,7 +91,6 @@ enum LogbookCSV {
         s.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" || $0 == "\r" }) ? "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\"" : s
     }
 
-    private static func number(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(v) }
 
     /// The logbook as a CSV file, oldest flight first.
     static func csv(_ entries: [LogbookEntry]) -> String {
@@ -99,10 +98,10 @@ enum LogbookCSV {
                      "AllLandings", "NightLandingsFullStop", "ToweredLandings", "Distance", "LongestLeg", "Approaches", "Holds", "Tracking",
                      "PilotComments"]
         let lines = entries.sorted { $0.flownOn < $1.flownOn }.map { e -> String in
-            [e.flownOn, e.aircraft ?? "", e.aircraftType ?? "", e.route ?? "", number(e.totalHours), number(e.nightHours),
-             number(e.crossCountryHours), number(e.soloHours ?? 0), number(e.dualHours ?? 0), number(e.instrumentHours),
-             String(e.dayLandings + e.nightLandings), String(e.nightLandings), String(e.toweredLandings ?? 0), number(e.distanceNm),
-             number(e.longestLegNm ?? 0), String(e.approaches), (e.holding ?? false) ? "1" : "0", (e.tracking ?? false) ? "x" : "",
+            [e.flownOn, e.aircraft ?? "", e.aircraftType ?? "", e.route ?? "", AirportWords.plain(e.totalHours), AirportWords.plain(e.nightHours),
+             AirportWords.plain(e.crossCountryHours), AirportWords.plain(e.soloHours ?? 0), AirportWords.plain(e.dualHours ?? 0), AirportWords.plain(e.instrumentHours),
+             String(e.dayLandings + e.nightLandings), String(e.nightLandings), String(e.toweredLandings ?? 0), AirportWords.plain(e.distanceNm),
+             AirportWords.plain(e.longestLegNm ?? 0), String(e.approaches), (e.holding ?? false) ? "1" : "0", (e.tracking ?? false) ? "x" : "",
              e.remarks ?? ""].map(cell).joined(separator: ",")
         }
         return ([names.joined(separator: ",")] + lines).joined(separator: "\r\n") + "\r\n"
@@ -178,7 +177,7 @@ enum LogbookCSV {
             }
             let total = hours(at("totaltime"))
             if total > 24 {
-                skipped.append(Skipped(line: line, reason: "\(number(total)) hours is more than a day: a summary entry, to log as its flights"))
+                skipped.append(Skipped(line: line, reason: "\(AirportWords.plain(total)) hours is more than a day: a summary entry, to log as its flights"))
                 continue
             }
             let tail = (at("aircraftid") ?? "").trimmingCharacters(in: .whitespaces)

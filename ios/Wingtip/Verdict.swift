@@ -61,7 +61,7 @@ final class Verdict {
             cruiseTasKt: figures.cruiseTasKt, fuelBurnGph: figures.fuelBurnGph, usableFuelGal: figures.usableFuelGal,
             cruisePowerPct: figures.cruisePowerPct, climbTasKt: figures.climbTasKt, climbFuelBurnGph: figures.climbFuelBurnGph,
             serviceCeilingFt: figures.serviceCeilingFt,
-            day: GoNoGoAsk.day(today), minimums: minimums, load: loads[plan.aircraft], ticked: ticked.sorted(), currency: currency,
+            day: Day.string(today), minimums: minimums, load: loads[plan.aircraft], ticked: ticked.sorted(), currency: currency,
             ownAirplane: records.first { $0.tailNumber == plan.tail }.map(OwnAirplaneAsk.init))
     }
 

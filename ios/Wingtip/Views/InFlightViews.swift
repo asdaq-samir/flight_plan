@@ -364,12 +364,6 @@ final class GPXTrack: NSObject, XMLParserDelegate {
     private var ele: Double?
     private var time: Date?
     private var text = ""
-    private let iso = ISO8601DateFormatter()
-    private let isoFraction: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
 
     static func points(_ data: Data) -> [SavedTrackPoint]? {
         let reader = GPXTrack()
@@ -395,7 +389,7 @@ final class GPXTrack: NSObject, XMLParserDelegate {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch name {
         case "ele": ele = Double(value)
-        case "time": time = iso.date(from: value) ?? isoFraction.date(from: value)
+        case "time": time = AirportWords.date(value)
         case "trkpt":
             if let lat, let lon, let time, abs(lat) <= 90, abs(lon) <= 180, !(lat == 0 && lon == 0) {
                 points.append(SavedTrackPoint(t: Int64(time.timeIntervalSince1970 * 1000), lat: lat, lon: lon, altFt: ele.map { $0 * 3.28084 }))

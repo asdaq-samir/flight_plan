@@ -25,6 +25,12 @@ enum AirportWords {
         x == x.rounded() && abs(x) < 1e9 ? String(Int(x)) : String(x)
     }
 
+    /// A figure to a tenth, without a ".0" it does not have: "3", "1.5"
+    /// -- a tolerance, a handbook figure in its field.
+    static func tenths(_ x: Double) -> String {
+        x == x.rounded() && abs(x) < 1e9 ? String(Int(x)) : String(format: "%.1f", x)
+    }
+
     /// A wind's direction as a pilot writes it: three figures, north 360.
     static func bearing(_ deg: Double) -> String {
         let whole = ((Int(deg.rounded()) % 360) + 360) % 360
@@ -72,10 +78,18 @@ enum AirportWords {
         return String(parts.hour ?? 0).leftPadded(to: 2) + String(parts.minute ?? 0).leftPadded(to: 2) + "Z"
     }
 
-    static func date(_ iso: String) -> Date? {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return withFraction.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+    private static let iso = ISO8601DateFormatter()
+    private static let isoFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    /// A time as the servers and GPX files send it, with or without
+    /// fractions of a second.
+    static func date(_ iso: String?) -> Date? {
+        guard let iso else { return nil }
+        return Self.iso.date(from: iso) ?? isoFraction.date(from: iso)
     }
 
     /// When a report was made and how long ago: "1255Z · 14 min ago",

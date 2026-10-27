@@ -166,11 +166,6 @@ struct ExperienceItem: Codable, Equatable, Sendable {
     let have: Double
     let need: Double
     var met: Bool = false
-
-    var words: String {
-        func n(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) }
-        return "\(n(have)) of \(n(need)) \(unit)"
-    }
 }
 
 extension Gateway {
