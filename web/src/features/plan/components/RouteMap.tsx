@@ -214,7 +214,10 @@ const StopFieldMark = memo(function StopFieldMark({ field, onSelect }: { field: 
       {/* The field under the pins, as a suggested stop's: its own mark,
           not asked for again for each of dozens along a long route. */}
       <Marker position={[field.lat, field.lon]} icon={airportMarkIcon(pointName(field.ident), null, colourOf(undefined))} eventHandlers={handlers} zIndexOffset={440} />
-      <Marker position={[field.lat, field.lon]} icon={icon} title={`${field.ident}: ${names}`} eventHandlers={handlers} zIndexOffset={490}>
+      {/* Made again for another set of kinds (its key): Leaflet sets a
+          marker's title once, as it is made, so the pins of the kind picked
+          kept the name of every kind it had been drawn with. */}
+      <Marker key={kinds} position={[field.lat, field.lon]} icon={icon} title={`${field.ident}: ${names}`} eventHandlers={handlers} zIndexOffset={490}>
         <MapTooltip>{`${pointName(field.ident)} · ${names}`}</MapTooltip>
       </Marker>
     </>
