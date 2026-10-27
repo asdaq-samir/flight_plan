@@ -47,7 +47,6 @@ struct AirportPin: Codable, Equatable, Sendable {
     }
 }
 
-/// A field found by ident or name (AirportSuggestion).
 /// A field near a point, nearest first (NearestAirport): its distance
 /// and bearing from there, worked out by the planner.
 struct NearestAirport: Codable, Equatable, Sendable, Identifiable {
@@ -90,6 +89,7 @@ struct TrafficAnswer: Codable, Equatable, Sendable {
     var ageS: Double?
 }
 
+/// A field found by ident or name (AirportSuggestion).
 struct AirportSuggestion: Codable, Equatable, Sendable, Identifiable {
     let ident: String
     let name: String

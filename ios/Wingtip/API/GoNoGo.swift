@@ -112,7 +112,6 @@ struct GoNoGoAsk: Encodable, Equatable, Sendable {
     var ownAirplane: OwnAirplaneAsk?
 }
 
-/// What the findings come to, in a line (VerdictLine).
 /// The planner's OwnAirplane: the gateway's records of the airplane
 /// flown, in the planner's names. The gateway works out each good-through
 /// day (14 CFR 91.409, 91.411, 91.413, 91.207, 91.171); this only carries
@@ -153,6 +152,7 @@ struct OwnAirplaneAsk: Encodable, Equatable, Sendable {
     }
 }
 
+/// What the findings come to, in a line (VerdictLine).
 struct VerdictLine: Codable, Equatable, Sendable {
     let finding: String
     let words: String
