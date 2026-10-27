@@ -78,7 +78,8 @@ export default function PullDown<V extends string>({
             type="button" aria-label={`${label}: ${words}`} data-testid={testId}
             className={cn(
               "relative inline-flex min-w-0 items-center gap-1 rounded-sm text-tint outline-none",
-              "after:absolute after:-inset-x-2 after:-inset-y-2.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+              // Eleven over and under the words' 22, 44 in all.
+              "after:absolute after:-inset-x-2 after:-inset-y-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
               "[&_svg]:shrink-0",
               TEXT.row, className,
             )}
