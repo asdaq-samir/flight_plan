@@ -147,6 +147,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     const setOut = (out: boolean) => {
       if (useOwnShip.getState().routeOutOfView !== out) useOwnShip.setState({ routeOutOfView: out });
     };
+    const drawn = !!map && !!course;
+    if (useOwnShip.getState().routeDrawn !== drawn) useOwnShip.setState({ routeDrawn: drawn });
     if (!map || !course) {
       setOut(false);
       return;
@@ -162,6 +164,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     map.on("moveend", check);
     return () => {
       map.off("moveend", check);
+      useOwnShip.setState({ routeDrawn: false });
     };
   }, [map, course]);
 

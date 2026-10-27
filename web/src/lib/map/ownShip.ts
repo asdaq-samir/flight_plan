@@ -68,6 +68,9 @@ interface OwnShip {
   /** A route is on the map and not all of it in sight, clear of the
    *  panel (MapShell): the location arrow offers it back. */
   routeOutOfView: boolean;
+  /** A route is on the map (MapShell): the location arrow then only goes
+   *  between the position and the whole route. */
+  routeDrawn: boolean;
 }
 
 /** Where the planner opens on the pilot's position: the region a flight
@@ -235,6 +238,7 @@ export const useOwnShip = create<OwnShip>()(
       routeAsked: 0,
       showRoute: () => set(s => ({ routeAsked: s.routeAsked + 1 })),
       routeOutOfView: false,
+      routeDrawn: false,
     }),
     {
       name: "vfr.ownship",

@@ -56,7 +56,12 @@ export default function MyPositionButton() {
   // to fit the course"): tapped, the course fitted again, and the arrow
   // back to go to the position from there.
   const routeAway = useOwnShip(s => s.routeOutOfView);
-  const routeFace = (simulated && following) || (routeAway && !following);
+  // With a route drawn the arrow only goes between the two, at the
+  // owner's ask ("when the route is drawn then only toggle between the
+  // current location and the fit route", 2026-10-27): on the position,
+  // the route; on the route, the position. Never the position put away.
+  const routeDrawn = useOwnShip(s => s.routeDrawn);
+  const routeFace = (simulated && following) || (routeDrawn ? following || routeAway : false);
   const tap = () => {
     if (routeFace) {
       showRoute();

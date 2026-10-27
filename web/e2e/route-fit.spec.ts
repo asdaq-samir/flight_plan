@@ -5,9 +5,10 @@ import { airportMark, closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo
  * The map and the sheet move together, as in Maps: opened fresh, the map
  * is on the pilot's position in the middle of what the half sheet leaves,
  * and kept there as the sheet goes down and up; a route entered is flown
- * to and fitted above the sheet; lowered to its capsule, the route is
- * fitted again to the whole screen, and raised, above the sheet again --
- * from wherever the map had got to, while any of it is in sight. With
+ * to and fitted above the sheet; lowered to its capsule, the route slides
+ * at its zoom to the middle of the whole screen, the chart not drawn
+ * afresh, and raised, back above the sheet -- fitted again instead where,
+ * slid, it would not be clear of the sheet, while any of it is in sight. With
  * neither the route nor the position in sight, the map stays put.
  */
 
@@ -39,7 +40,9 @@ async function fittedClearOf(page: Page, panel: Locator) {
     const free = viewport.width < 768
       ? { w: viewport.width, h: viewport.height - sheet.height }
       : out ? { w: viewport.width - sheet.x - sheet.width, h: viewport.height } : { w: viewport.width, h: viewport.height - sheet.y - sheet.height };
-    expect(Math.max(line.width / free.w, line.height / free.h)).toBeGreaterThan(0.4);
+    // Fitted, not lost in the room: at the capsule the route keeps the
+    // size it had above the half sheet, a little under half the screen.
+    expect(Math.max(line.width / free.w, line.height / free.h)).toBeGreaterThan(0.35);
   }).toPass({ timeout: slow(10_000) });
   return courseBox(page);
 }
@@ -274,6 +277,26 @@ test("panned off the route, the location arrow turns to the route, and a tap fit
   await arrow.click();
   await fittedClearOf(page, sideDrawer(page));
   await expect(arrow).toHaveAttribute("data-face", "position");
+});
+
+test("with a route drawn, the location arrow goes only between the position and the whole route", async ({ page, context }) => {
+  // The owner's ask: "when the route is drawn then only toggle between
+  // the current location and the fit route".
+  await context.grantPermissions(["geolocation"], { origin });
+  await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
+  await expect(arrow).toHaveAttribute("data-face", "position");
+  for (let i = 0; i < 2; i++) {
+    await arrow.click();
+    await shipInTheMiddle(page);
+    // On the position, the arrow offers the route, never "Hide my position".
+    await expect(arrow).toHaveAttribute("data-face", "route");
+    await arrow.click();
+    await fittedClearOf(page, sideDrawer(page));
+    await expect(arrow).toHaveAttribute("data-face", "position");
+  }
 });
 
 /** The field's mark on the screen and not under the card: in the map's
