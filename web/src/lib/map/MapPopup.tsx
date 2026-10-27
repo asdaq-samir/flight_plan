@@ -112,12 +112,31 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, children, ..
   // the caller moves the map itself (autoPan off: the training pass).
   const pans = ring && props.autoPan !== false;
   const lat = at?.lat, lon = at?.lon;
+  // After the map has stopped, where the same tap set it moving -- a
+  // checkpoint's flies in to it (RouteMap's FocusOn): panInside's setView
+  // stopped that flight at once at the old zoom, and the checkpoint was
+  // never come in to (checkpoints and map specs, found by the other
+  // session, 2026-10-27).
+  const moving = useRef(false);
+  useEffect(() => {
+    const start = () => { moving.current = true; };
+    const end = () => { moving.current = false; };
+    map.on("movestart", start);
+    map.on("moveend", end);
+    return () => { map.off("movestart", start); map.off("moveend", end); };
+  }, [map]);
   useEffect(() => {
     if (!pans || lat === undefined || lon === undefined) return;
-    map.panInside([lat, lon], {
+    const pan = () => map.panInside([lat, lon], {
       paddingTopLeft: [insets.left + 24, insets.top + 24],
       paddingBottomRight: [24, insets.bottom + 24],
     });
+    if (!moving.current) {
+      pan();
+      return;
+    }
+    map.once("moveend", pan);
+    return () => { map.off("moveend", pan); };
   }, [map, pans, lat, lon, insets.left, insets.top, insets.bottom]);
   return (
     <>
