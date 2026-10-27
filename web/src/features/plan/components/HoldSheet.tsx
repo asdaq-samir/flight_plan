@@ -1,14 +1,11 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "../../../components/CloseButton";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
+import PullDown from "../../../components/PullDown";
 import Segmented from "../../../components/Segmented";
 import { Button } from "../../../components/ui/button";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
 import { Input } from "../../../components/ui/input";
 import { lengthCode, lengthOfCode, lengthWords, type Hold } from "../../../lib/holds";
 import { legMinutes } from "../../../lib/holding";
@@ -113,12 +110,12 @@ function HoldForm({ at, onSet }: { at: HoldAt; onSet: (fix: string, hold: Hold |
               options={[{ value: "time", label: "Time" }, { value: "distance", label: "Distance" }]}
             />
             {timed
-              ? <Choice label="Leg time" value={String(legMin)} options={LEG_MIN.map(m => [String(m), `${m} min`])} onChange={v => setLegMin(Number(v))} testId="hold-leg-min" />
-              : <Choice label="Leg distance" value={String(legNm)} options={LEG_NM.map(n => [String(n), `${n} nm`])} onChange={v => setLegNm(Number(v))} testId="hold-leg-nm" />}
+              ? <PullDown label="Leg time" value={`${legMin}`} options={LEG_MIN.map(m => ({ value: `${m}`, label: `${m} min`, testId: `hold-leg-min-${m}` }))} onChange={v => setLegMin(Number(v))} testId="hold-leg-min" />
+              : <PullDown label="Leg distance" value={`${legNm}`} options={LEG_NM.map(n => ({ value: `${n}`, label: `${n} nm`, testId: `hold-leg-nm-${n}` }))} onChange={v => setLegNm(Number(v))} testId="hold-leg-nm" />}
           </span>
         </ListRow>
         <ListRow title="Hold for">
-          <Choice label="Hold for" value={length} options={LENGTHS.map(l => [l, lengthWords(lengthOfCode(l)!)])} onChange={setLength} testId="hold-length" />
+          <PullDown label="Hold for" value={length} options={LENGTHS.map(l => ({ value: l, label: lengthWords(lengthOfCode(l)!), testId: `hold-length-${l}` }))} onChange={setLength} testId="hold-length" />
         </ListRow>
       </ListGroup>
       <Button type="submit" size="lg" disabled={!valid} className={cn("w-full", TEXT.row)} data-testid="hold-set">
@@ -130,30 +127,5 @@ function HoldForm({ at, onSet }: { at: HoldAt; onSet: (fix: string, hold: Hold |
         </Button>
       )}
     </form>
-  );
-}
-
-/** A discrete choice as a pull-down chip, as the procedures' are: the
- *  stock DropdownMenu's radio items, not a slider. */
-function Choice({ label, value, options, onChange, testId }: {
-  label: string; value: string; options: [string, string][]; onChange: (value: string) => void; testId: string;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button" aria-label={`${label}: ${options.find(o => o[0] === value)?.[1] ?? value}`} data-testid={testId}
-          className={cn("relative flex h-8 items-center gap-0.5 rounded-full bg-foreground/8 px-2.5 font-semibold text-tint outline-none after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
-        >
-          {options.find(o => o[0] === value)?.[1] ?? value}
-          <ChevronDown className="size-4" aria-hidden="true" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
-          {options.map(([v, words]) => <DropdownMenuRadioItem key={v} value={v} data-testid={`${testId}-${v}`}>{words}</DropdownMenuRadioItem>)}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

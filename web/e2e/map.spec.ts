@@ -19,7 +19,7 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // Longer aloft: its chip in the pill, in the address, and more fuel.
   await controlsInSight(page);
   await page.getByTestId("local-duration").click();
-  await page.getByRole("option", { name: "2 h", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: "2 h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("2h 00m", { timeout: slow(30000) });
 });
