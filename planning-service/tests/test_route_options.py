@@ -26,6 +26,8 @@ def test_the_ways_with_the_airplanes_figures_and_the_pilots_minimums(monkeypatch
 
     monkeypatch.setattr(route_options, "resolve", lambda *idents: tuple({"lat": 1.0 + i, "lon": 2.0} for i, _ in enumerate(idents)))
     monkeypatch.setattr(route_options.vfr_route_options, "options", options)
+    ahead = []
+    monkeypatch.setattr(route_options.prefetch, "route", lambda dep, dest, stops="": ahead.append((dep, dest, stops)))
     monkeypatch.setattr(route_options, "load_route", lambda dep, dest, stops="": type("R", (), {
         "airports": ({"lat": 1.0, "lon": 2.0}, {"lat": 2.0, "lon": 2.0}), "idents": (dep.upper(), dest.upper())})())
     client = TestClient(app)
@@ -42,8 +44,10 @@ def test_the_ways_with_the_airplanes_figures_and_the_pilots_minimums(monkeypatch
     assert dep == {"ident": "C81", "lat": 1.0, "lon": 2.0} and dest["ident"] == "KOMA"
     assert profile["cruise_tas_kt"] == 110
     assert given["min_ceiling_ft"] == 3000 and given["min_visibility_sm"] == 5
+    # Each chip's route read ahead of a tap on it, the route as typed not.
+    assert ahead == [("c81", "koma", "KDSM")]
     # Asked again within ten minutes, the answer kept.
-    assert client.get(url).json() == answer and len(asked) == 1
+    assert client.get(url).json() == answer and len(asked) == 1 and len(ahead) == 1
 
 
 def test_a_route_the_plan_refuses_still_gets_its_ways(monkeypatch):

@@ -198,7 +198,20 @@ class _Grid:
             self.marginal[mask & (self.marginal < 0)] = self.hazard(kind, name)
 
     def near(self, lat: float, lon: float, nm: float) -> np.ndarray:
-        return geo.distance_nm(lat, lon, self.lat_grid, self.lon_grid) <= nm
+        """The cells within `nm` of a point. Measured only in the box that
+        can hold them: a field's weather asked the whole grid, nearly a
+        thousand times on a long route, its second and a half (2026-10-27).
+        The box is a cell wider than the great circle needs: no cell more
+        than `nm` of latitude away, or `nm` along the parallel nearest the
+        pole within it, is nearer (the haversine's cos term, at its least)."""
+        mask = np.zeros((self.rows, self.cols), dtype=bool)
+        pad_lat = nm / 60.0 + CELL_DEG
+        pad_lon = 1.1 * nm / 60.0 / max(0.05, math.cos(math.radians(min(89.0, abs(lat) + pad_lat)))) + CELL_DEG
+        r0, c0 = self.cell((lat - pad_lat, lon - pad_lon))
+        r1, c1 = self.cell((lat + pad_lat, lon + pad_lon))
+        box = (slice(r0, r1 + 1), slice(c0, c1 + 1))
+        mask[box] = geo.distance_nm(lat, lon, self.lat_grid[box], self.lon_grid[box]) <= nm
+        return mask
 
     def open(self, cell: tuple[int, int]) -> bool:
         return self.closed[cell] < 0 or cell in self.ends
@@ -639,20 +652,23 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     fields = near
     # Each field's nearest point on the way: how far along, how far off.
     lat_f, lon_f = fields["lat"].to_numpy(float), fields["lon"].to_numpy(float)
-    best_off = np.full(len(lat_f), np.inf)
-    best_at = np.zeros(len(lat_f))
-    # Where on the way each is nearest, for its way in and out.
-    best_lat = np.zeros(len(lat_f))
-    best_lon = np.zeros(len(lat_f))
+    # The way sampled every 5 nm, every sample against every field in one
+    # call: a call a sample was a long route's second (2026-10-27). The
+    # first sample of the nearest distance wins, as it did one by one.
+    s_lat, s_lon, s_at = [], [], []
     for k, (a, b) in enumerate(zip(way, way[1:])):
         seg = along_nm[k + 1] - along_nm[k]
         for t in np.linspace(0.0, 1.0, max(2, int(seg / 5) + 1)):
-            lat, lon = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
-            off = geo.distance_nm(lat, lon, lat_f, lon_f)
-            closer = off < best_off
-            best_off[closer] = off[closer]
-            best_at[closer] = along_min[k] + (along_min[k + 1] - along_min[k]) * t
-            best_lat[closer], best_lon[closer] = lat, lon
+            s_lat.append(a[0] + (b[0] - a[0]) * t)
+            s_lon.append(a[1] + (b[1] - a[1]) * t)
+            s_at.append(along_min[k] + (along_min[k + 1] - along_min[k]) * t)
+    off = np.asarray(geo.distance_nm(np.asarray(s_lat)[:, None], np.asarray(s_lon)[:, None], lat_f[None, :], lon_f[None, :]))
+    nearest = np.argmin(off, axis=0)
+    best_off = off[nearest, np.arange(len(lat_f))]
+    best_at = np.asarray(s_at)[nearest]
+    # Where on the way each is nearest, for its way in and out.
+    best_lat = np.asarray(s_lat)[nearest]
+    best_lon = np.asarray(s_lon)[nearest]
     nodes = [{"at": 0.0, "off": 0.0}]
     for i in np.argsort(best_at):
         if best_off[i] > STOP_FIELD_NM or not (0.0 < best_at[i] < total_min):
