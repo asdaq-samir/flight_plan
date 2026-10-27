@@ -86,7 +86,8 @@ export const TfrLayer = memo(function TfrLayer() {
 const TfrShape = memo(function TfrShape({ tfr, active }: { tfr: Tfr; active: boolean }) {
   return (
     <Polygon positions={positions(tfr)} pathOptions={active ? IN_FORCE : NOT_YET}>
-      <MapPopup>
+      {/* An area's: no ring at the point tapped (MapPopup). */}
+      <MapPopup ring={false}>
         <TfrCard tfr={tfr} active={active} />
       </MapPopup>
     </Polygon>

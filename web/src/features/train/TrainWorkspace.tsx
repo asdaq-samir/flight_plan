@@ -23,6 +23,7 @@ import {
 } from "./logic";
 import { useTraining } from "./hooks/useTraining";
 import { centreClear } from "../../lib/map/clear";
+import { useIsMobile } from "../../hooks/use-mobile";
 
 const FOCUS_ZOOM = 12;
 
@@ -175,10 +176,13 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
   // render -- including one for each block of a streaming detection --
   // and ChartMap's halo effect depends on it, so an unrelated re-render
   // would tear the popup down and remount it, not just re-render it.
+  const onPhone = useIsMobile();
   const selectedContent = useMemo(() => {
     // Not with the panel all the way up over the map: the rating card is
-    // the panel's then (RatingCard), and the popup showed through it.
-    if (!point || panel === "full") return null;
+    // the panel's then (RatingCard), and the popup showed through it. On a
+    // phone it is a card in the panel itself (MapPopup), over the rating
+    // card at every height.
+    if (!point || (panel === "full" && !onPhone)) return null;
     // Same idea as the arrow keys: which screen side is "forward" (step
     // +1) depends on which way the course actually runs, not a fixed
     // left-back/right-forward assumption -- a route heading roughly
@@ -204,7 +208,7 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
     );
   }, [
     point, place, course?.bearing_deg, course?.departure.ident,
-    rate, setCategory, removeSelected, step, walkIndex, walk.length, panel,
+    rate, setCategory, removeSelected, step, walkIndex, walk.length, panel, onPhone,
   ]);
 
 

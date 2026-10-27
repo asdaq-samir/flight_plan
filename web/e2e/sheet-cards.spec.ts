@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { grabberTo, openMapSettings, openTab, settle, settled, sideDrawer, slow } from "./helpers";
+import { grabberTo, openMapSettings, openTab, settle, settled, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * On a phone, what a control opens (ResponsivePopover) and what a tap on
@@ -78,4 +78,47 @@ test("the approaches' pull-down is a card in the sheet, and the list it opens ta
   await expect(panel.getByRole("heading", { name: "KDLH approaches" })).toHaveCount(0);
   await expect(arrive).toBeVisible();
   await expect(panel).toHaveAttribute("data-panel", "full");
+});
+
+test("a checkpoint tapped on the chart opens its card in the sheet, ringed on the map; one opened over it closes back to it", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's card; wider it is the chart's popup");
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await settled(panel);
+  const marker = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ }).first();
+  await expect(marker).toBeVisible({ timeout: slow(60000) });
+  // The ring a picked point wears (Halo's orange).
+  const rings = page.locator('.leaflet-container path[stroke="#ff3b00"]');
+  const before = await rings.count();
+  // Its own click, not one at its place: neighbouring checkpoints stack
+  // on a phone's fitted route (map.spec).
+  await marker.dispatchEvent("click");
+  const checkpoint = panel.locator("[data-sheet-card]").filter({ hasText: "nm along" });
+  await expect(checkpoint).toBeVisible();
+  // Its name in the card's head, which names it.
+  const name = checkpoint.getByRole("heading", { level: 2 });
+  await expect(name).toBeVisible();
+  await expect(checkpoint).toHaveAccessibleName((await name.innerText()).trim());
+  await expect(panel).not.toHaveAttribute("data-panel", "peek");
+  // Not a popup over the chart.
+  await expect(page.locator(".leaflet-popup:visible")).toHaveCount(0);
+  await expect.poll(() => rings.count()).toBeGreaterThan(before);
+  const ringed = await rings.count();
+
+  // The Map settings over it: its card on top, the checkpoint's kept
+  // under it, and back to it as the top one is closed.
+  await page.locator("[data-map-controls]").getByTestId("map-settings-button").click();
+  const map = panel.getByRole("region", { name: "Map" });
+  await expect(map).toBeVisible();
+  await expect(checkpoint).toBeHidden();
+  await map.getByTestId("sheet-card-close").click();
+  await expect(map).toHaveCount(0);
+  await expect(checkpoint).toBeVisible();
+
+  // A tap on the chart puts it away, as it did the popup, and its ring
+  // (the nav log's pick keeps its own).
+  await tapTheChart(page);
+  await expect(checkpoint).toHaveCount(0);
+  await expect.poll(() => rings.count()).toBeLessThan(ringed);
 });

@@ -151,7 +151,7 @@ export default function ChartMap({
           {selected && selectedContent && (
             <MapPopup
               position={[selected.lat, selected.lon]} offset={[0, -16]}
-              autoPan={false}
+              autoPan={false} ring={false}
               eventHandlers={{ remove: () => { if (showing.current) onDeselect(); } }}
             >
               {selectedContent}

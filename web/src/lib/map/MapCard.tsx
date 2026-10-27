@@ -1,5 +1,7 @@
-import type { ReactNode } from "react";
+import { useContext, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "cn";
+import { SheetCardHead } from "../sheetCards";
 import { TEXT } from "../text";
 
 /**
@@ -17,13 +19,14 @@ import { TEXT } from "../text";
  * (TEXT): to a finger the title 17 points and the rest 15, where they
  * were 14 and 12.
  *
- * There is no close button at all now: a tap on the chart puts a card
+ * There is no close button on the chart's: a tap on the chart puts a card
  * away, which is what every map does and what Leaflet's `closeOnClick`
  * already did for two of the three. `MapShell` fits the route when the
  * last card closes, so the tap that opened a card and the tap that puts
  * it away are both halves of one gesture. A card's own controls -- the
  * terminal chart's pin, the training pass's step arrows -- sit in the
- * head, which is what `leading` is for.
+ * head, which is what `leading` is for. On a phone it is a card in the
+ * map's panel instead (MapPopup), with the panel's close as every card's.
  */
 export function MapCard({ title, subtitle, leading, media, children }: {
   title: ReactNode;
@@ -39,6 +42,28 @@ export function MapCard({ title, subtitle, leading, media, children }: {
   media?: ReactNode;
   children?: ReactNode;
 }) {
+  // On a phone, a card in the map's panel (MapPopup's SheetCard): its mark
+  // and its name in the card's head, at a card's size where its close is,
+  // and the rest the card's body, the panel's width.
+  const inSheet = useContext(SheetCardHead);
+  if (inSheet) {
+    return (
+      <>
+        {inSheet.slot && createPortal(
+          <>
+            {leading}
+            {media}
+            <div className="min-w-0 flex-1">
+              <h2 id={inSheet.headingId} tabIndex={-1} className={cn("flex flex-wrap items-center gap-x-2 font-bold tracking-tight text-foreground outline-none", TEXT.card)}>{title}</h2>
+              {subtitle !== undefined && <p className={cn("text-muted-foreground", TEXT.detail)}>{subtitle}</p>}
+            </div>
+          </>,
+          inSheet.slot,
+        )}
+        <div className={cn("space-y-1.5", TEXT.detail)}>{children}</div>
+      </>
+    );
+  }
   return (
     // whitespace-normal: Leaflet's stylesheet sets `white-space: nowrap`
     // on every tooltip, which is right for a one-line course label and
