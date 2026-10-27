@@ -488,13 +488,18 @@ test("a tap on an airport on the chart opens its card, a tap elsewhere puts it a
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await expect(card(page).getByTestId("fly-here")).toBeVisible();
 
-  // A tap on the chart elsewhere puts it away, as in Maps, and the panel
-  // back at its capsule brings the whole route back into sight
-  // (MapShell); an airport tapped again brings a card back.
+  // A tap on the chart elsewhere puts it away, as in Maps, the map left at
+  // the zoom the pilot put it (MapShell); the location arrow brings the
+  // whole route back, and an airport tapped again brings a card back.
   await tapTheChart(page);
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(card(page)).toHaveCount(0);
   await expectDrawerClosed(page);
+  const arrow = page.locator("[data-map-controls]").getByTestId("my-position-button");
+  await expect(arrow).toHaveAttribute("data-face", "route");
+  await arrow.click();
+  await expect(arrow).toHaveAttribute("data-face", "position");
+  await mapStill(page);
   const again = await airportToTap(page);
   await page.mouse.click(again.x, again.y);
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty();
