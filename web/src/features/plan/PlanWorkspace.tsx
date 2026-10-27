@@ -87,7 +87,7 @@ import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import type { BriefingPart } from "./components/briefing/sections";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
-import { altFt, grouped } from "../../lib/units";
+import { flightLevel, grouped } from "../../lib/units";
 
 /** A local flight's times aloft to choose from, in minutes: a menu, not a
  *  slider. */
@@ -2256,7 +2256,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const briefLine = course ? [
     s.local ? from : `${from} to ${placeName(course.destination.name, course.destination.ident)}`,
     shortName(aircraft.label),
-    cruiseFt ? `${altFt(cruiseFt)} ft` : null,
+    // Written as the route box writes it (FL-090), the owner's format.
+    cruiseFt ? flightLevel(cruiseFt) : null,
     depart ? `leaving ${clockTime(new Date(depart))}` : "leaving now",
   ].filter(Boolean).join(" · ") : null;
   const navLog = useMemo(() => (
