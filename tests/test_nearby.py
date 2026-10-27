@@ -97,3 +97,22 @@ def test_a_companys_registered_name_is_not_somewhere_to_eat():
         assert nearby._COMPANY.search(name.rstrip(" ,")), name
     for name in ["Pilot Pete's", "Kitty Hawk Cafe", "The Inc Diner", "Bessie's Diner"]:
         assert not nearby._COMPANY.search(name), name
+
+
+def test_food_at_the_field_is_a_place_on_it_or_a_walk_from_it(tmp_path, monkeypatch):
+    import json
+
+    from vfr import nearby
+    monkeypatch.setattr(nearby, "latest_release", lambda timeout_s=10.0: "2026-10-21.0")
+    (tmp_path / "2026-10-21.0").mkdir()
+
+    def keep(ident, food):
+        (tmp_path / "2026-10-21.0" / f"{ident}{nearby.KEPT_SUFFIX}").write_text(json.dumps({"food": food, "lodging": [], "cars": []}))
+
+    keep("KPWK", [{"name": "Pete's", "on_field": True, "walk_min": 3}])
+    keep("KDLH", [{"name": "Across the road", "on_field": False, "walk_min": 12}])
+    keep("KOSH", [{"name": "In town", "on_field": False, "walk_min": None}])
+    assert nearby.food_at("KPWK", tmp_path) is True
+    assert nearby.food_at("KDLH", tmp_path) is True
+    assert nearby.food_at("KOSH", tmp_path) is False
+    assert nearby.food_at("KMSN", tmp_path) is None

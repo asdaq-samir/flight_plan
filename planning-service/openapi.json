@@ -11742,6 +11742,14 @@
             "title": "Floor Ft",
             "type": "integer"
           },
+          "food": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Food",
+            "type": "array"
+          },
           "fuel": {
             "items": {
               "type": "string"

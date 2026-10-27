@@ -3,7 +3,7 @@
 from app.routers import route_options
 
 ANSWER = {
-    "options": [{"kind": "fastest", "kinds": ["fastest", "weather"], "title": "Fastest", "stops": ["KDSM"], "fuel": ["KDSM"],
+    "options": [{"kind": "fastest", "kinds": ["fastest", "weather"], "title": "Fastest", "stops": ["KDSM"], "fuel": ["KDSM"], "food": [],
                  "path": [[42.3, -88.1], [41.5, -93.7], [41.3, -95.9]], "distance_nm": 390.0, "air_min": 190.0,
                  "ground_min": 30.0, "fuel_gal": 31.7, "landings": 1, "crosses": [], "marginal": [],
                  "bands": [{"kind": "vfr", "min": 190.0}], "tail_kt": 6.0, "floor_ft": 2200, "water_nm": 0}],

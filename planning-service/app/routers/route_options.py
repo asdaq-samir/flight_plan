@@ -8,7 +8,7 @@ from typing import Annotated
 
 from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Query
-from vfr import filed_routes
+from vfr import filed_routes, nearby
 from vfr import route_options as vfr_route_options
 
 from .. import prefetch
@@ -22,6 +22,10 @@ router = APIRouter()
 #: An answer kept ten minutes: the TAFs and METARs it reads change by the
 #: hour, and FPL asks again as the page draws.
 _KEPT: TTLCache = TTLCache(maxsize=128, ttl=600)
+#: One whose fuel stops' places to eat were not all read yet, a minute:
+#: asked again once they have been (nearby.read_later), its stops may be
+#: ones with a meal.
+_KEPT_SHORT: TTLCache = TTLCache(maxsize=128, ttl=60)
 _LOCK = threading.Lock()
 
 
@@ -119,7 +123,7 @@ def route_options(
     key = (dep.upper(), dest.upper(), stops.upper(), aircraft, cruise_tas_kt, fuel_burn_gph, usable_fuel_gal, service_ceiling_ft,
            depart.isoformat() if depart else None, min_ceiling_ft, min_visibility_sm)
     with _LOCK:
-        kept = _KEPT.get(key)
+        kept = _KEPT.get(key) or _KEPT_SHORT.get(key)
     if kept is not None:
         return kept
     start, end = resolve(dep, dest)
@@ -138,12 +142,25 @@ def route_options(
     # Which of its points are fields landed at, not fixes flown over.
     current_landed = [not a.get("fix") for a in route.airports[1:-1]] if route else []
     filed, filed_as = _most_filed(dep, dest)
+    # Where there is somewhere to eat at each fuel field the ways weigh
+    # (vfr.nearby, the places kept for it), so a stop with a meal is
+    # landed at among chains of as many stops; a field not read yet is
+    # read on the side and taken as having none this time.
+    unread: list[str] = []
+
+    def food(ident: str, lat: float, lon: float) -> bool:
+        has = nearby.food_at(ident)
+        if has is None:
+            unread.append(ident)
+            nearby.read_later(ident, lat, lon)
+        return bool(has)
+
     found = vfr_route_options.options(
         {"ident": dep.upper(), "lat": start["lat"], "lon": start["lon"]},
         {"ident": dest.upper(), "lat": end["lat"], "lon": end["lon"]},
         profile, depart=depart, fcst_hr=forecast_hour_for(depart),
         min_ceiling_ft=min_ceiling_ft, min_visibility_sm=min_visibility_sm, current=current if stops.strip() else None,
-        current_idents=current_idents, current_landed=current_landed, filed=filed,
+        current_idents=current_idents, current_landed=current_landed, filed=filed, food=food,
     )
     typed = [s.strip().upper() for s in stops.split(",") if s.strip()]
     chips = _chips(found, typed)
@@ -163,5 +180,5 @@ def route_options(
             prefetch.route(dep, dest, ",".join(chip["stops"]))
     answer = RouteOptions(**{**found, "chips": chips})
     with _LOCK:
-        _KEPT[key] = answer
+        (_KEPT_SHORT if unread else _KEPT)[key] = answer
     return answer

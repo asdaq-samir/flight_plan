@@ -396,3 +396,25 @@ def test_the_most_filed_route_is_flown_over_its_fixes_with_its_fuel_stops_put_in
     assert "NORTH" in filed["stops"] and "NORTH" not in filed["fuel"] and filed["fuel"]
     assert [1.0, 5.0] in filed["path"]
     assert route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)["filed"] is None
+
+
+def test_a_fuel_stop_with_somewhere_to_eat_is_landed_at_among_chains_of_as_many_stops(sky):
+    # The owner, 2026-10-27: "try to find a fuel stop that also has food
+    # while still maintaining min stops". 600 nm on 528 nm of reach: one
+    # stop, and of the fields that would do, the one with a meal.
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    table = fields(*[(f"F{k}", 0.0, float(k)) for k in range(1, 10)])
+    out = route_options.options(DEP, dest, PROFILE, fields=table, food=lambda ident, lat, lon: ident == "F6")
+    own = out["own"]
+    assert own["fuel"] == ["F6"] and own["food"] == ["F6"] and own["landings"] == 1
+    for option in out["options"]:
+        assert option["landings"] == 1 and option["food"] == ["F6"]
+
+
+def test_a_meal_never_costs_another_landing(sky):
+    # Food only at F1, a degree out: landing there leaves 540 nm, past the
+    # reach, so a second stop -- the one stop elsewhere is kept, no meal.
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    table = fields(*[(f"F{k}", 0.0, float(k)) for k in range(1, 10)])
+    out = route_options.options(DEP, dest, PROFILE, fields=table, food=lambda ident, lat, lon: ident == "F1")
+    assert out["own"]["landings"] == 1 and out["own"]["fuel"] != ["F1"] and out["own"]["food"] == []

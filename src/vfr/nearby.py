@@ -302,6 +302,16 @@ def kept(ident: str, cache_dir: Path = CACHE_DIR) -> dict | None:
         return None
 
 
+def food_at(ident: str, cache_dir: Path = CACHE_DIR) -> bool | None:
+    """Whether there is somewhere to eat at the field: a place on it, or a
+    walk from it (WALK_M), as its kept places say; None where they have
+    not been read yet (read_later)."""
+    places = kept(ident, cache_dir)
+    if places is None:
+        return None
+    return any(p.get("on_field") or p.get("walk_min") is not None for p in places.get("food", []))
+
+
 def read_later(ident: str, lat: float, lon: float) -> None:
     """A field's places read on the pool and kept, once however often it
     is asked while it is read: the map's Stops (along) asks for the

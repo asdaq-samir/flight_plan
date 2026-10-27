@@ -2346,6 +2346,8 @@ class RouteOption(BaseModel):
     title: str
     stops: list[str]
     fuel: list[str]
+    #: The fuel stops with somewhere to eat on the field or a walk from it.
+    food: list[str] = []
     path: list[list[float]]
     distance_nm: float
     air_min: float
