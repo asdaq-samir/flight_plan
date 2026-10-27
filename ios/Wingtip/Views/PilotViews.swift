@@ -6,6 +6,8 @@ struct FlightsView: View {
     @Environment(Plan.self) private var plan
     @Environment(Session.self) private var session
     @Environment(\.dismiss) private var dismiss
+    /// The iPad's inspector's close, where it holds the list (SplitLayout).
+    @Environment(\.closeCard) private var closeCard
     @State private var flights: [SavedFlight] = []
     @State private var problem: String?
     @State private var saving = false
@@ -20,14 +22,14 @@ struct FlightsView: View {
             ForEach(flights) { flight in
                 Button {
                     plan.open(flight)
-                    dismiss()
+                    if let closeCard { closeCard() } else { dismiss() }
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(([flight.departureIdent] + flight.stops + [flight.destinationIdent]).joined(separator: " → ")).font(.headline.monospaced())
                         HStack(spacing: 10) {
                             if let nm = flight.totalDistanceNm { Text(String(format: "%.0f nm", nm)) }
                             if let min = flight.totalEteMin { Text(hoursMinutes(min)) }
-                            if let gal = flight.totalFuelGal { Text(String(format: "%.1f gal", gal)) }
+                            if let gal = flight.totalFuelGal { Text(AirportWords.gal(gal)) }
                             if let tail = flight.aircraftTailNumber { Text(tail) }
                         }
                         .font(.footnote).foregroundStyle(.secondary)
@@ -46,7 +48,7 @@ struct FlightsView: View {
                 flights.remove(atOffsets: at)
                 Task { for flight in gone { try? await Gateway.deleteFlight(flight.id) } }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Flights")
         .navigationBarTitleDisplayMode(.inline)

@@ -40,6 +40,15 @@ enum Planner {
         return decoder
     }()
 
+    /// Bodies the planner reads, in its snake case; keys sorted, so the
+    /// same question is the same bytes (the Go / No-Go's key).
+    static let snakeEncoder: JSONEncoder = {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        encoder.outputFormatting = .sortedKeys
+        return encoder
+    }()
+
     struct Failure: Error, LocalizedError {
         let status: Int
         let detail: String?
@@ -56,11 +65,68 @@ enum Planner {
         return request
     }
 
-    static func fetch<T: Decodable>(_ type: T.Type, _ path: String, _ query: [String: String?] = [:]) async throws -> T {
-        let (data, response) = try await URLSession.shared.data(for: get(path, query))
+    /// A call that sends a body, in snake case: with the session's CSRF
+    /// token where it changes something (a checkpoint's note), as the
+    /// website's calls carry it; without, for a POST that changes nothing,
+    /// which the gateway lets through with no session or token
+    /// (SecurityConfig).
+    static func request(_ method: String, _ path: String, json: (any Encodable)?, csrf: Bool) async throws -> URLRequest {
+        // The CSRF cookie is written on any of the gateway's answers once
+        // asked for: one GET first where there is none yet.
+        if csrf, Gateway.csrfToken == nil { _ = try? await Gateway.me() }
+        var request = URLRequest(url: Config.gateway.appending(path: Config.plannerPath(path)))
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let json { request.httpBody = try snakeEncoder.encode(json) }
+        if csrf, let token = Gateway.csrfToken { request.setValue(token, forHTTPHeaderField: "X-XSRF-TOKEN") }
+        return request
+    }
+
+    /// An answer's body, or the planner's own words why not. Every
+    /// planner call goes through here.
+    static func data(for request: URLRequest, ok: ClosedRange<Int> = 200...200) async throws -> Data {
+        let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status, detail: detail(of: data)) }
-        return try snakeCase.decode(T.self, from: data)
+        guard ok.contains(status) else { throw Failure(status: status, detail: detail(of: data)) }
+        return data
+    }
+
+    static func fetch<T: Decodable>(_ type: T.Type, _ path: String, _ query: [String: String?] = [:]) async throws -> T {
+        try snakeCase.decode(T.self, from: try await data(for: get(path, query)))
+    }
+
+    /// A planner POST that changes nothing, its body in snake case.
+    static func postRead<T: Decodable>(_ type: T.Type, _ path: String, _ body: some Encodable) async throws -> T {
+        try snakeCase.decode(T.self, from: try await data(for: request("POST", path, json: body, csrf: false)))
+    }
+
+    /// An answer streamed a line at a time (newline-delimited JSON: the
+    /// nav log, the checkpoints' notes), each line read by `decode`; nil
+    /// skips a line.
+    static func lines<T>(_ make: @escaping () async throws -> URLRequest, _ decode: @escaping (Data) throws -> T?) -> AsyncThrowingStream<T, any Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let (bytes, response) = try await URLSession.shared.bytes(for: try await make())
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                    guard status == 200 else { throw Failure(status: status, detail: nil) }
+                    for try await line in bytes.lines where !line.isEmpty {
+                        if let value = try decode(Data(line.utf8)) { continuation.yield(value) }
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// A route as every planner call takes it: its ends, and its stops
+    /// joined where it has any.
+    static func route(_ dep: String, _ dest: String, _ stops: [String]) -> [String: String?] {
+        ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")]
     }
 
     /// FastAPI's `{"detail": "…"}`, where an answer carries one.
@@ -81,7 +147,6 @@ enum Planner {
         return try await fetch(Answer.self, "/api/airports/in-view", box).airports
     }
 
-    /// Fields by ident or name as they are typed (/api/airports/search).
     /// The fields nearest a point (/api/airports/nearest), nearest first.
     static func nearest(lat: Double, lon: Double, limit: Int = 10) async throws -> [NearestAirport] {
         struct Answer: Decodable { let airports: [NearestAirport] }
@@ -93,6 +158,7 @@ enum Planner {
         try await fetch(TrafficAnswer.self, "/api/traffic", ["lat": String(lat), "lon": String(lon), "radius": String(Int(radiusNm.rounded()))])
     }
 
+    /// Fields by ident or name as they are typed (/api/airports/search).
     static func search(_ q: String) async throws -> [AirportSuggestion] {
         struct Answer: Decodable { let airports: [AirportSuggestion] }
         return try await fetch(Answer.self, "/api/airports/search", ["q": q]).airports
@@ -109,23 +175,13 @@ enum Planner {
     /// route takes a while.
     static func checkpoints(dep: String, dest: String, stops: [String]) async throws -> [Checkpoint] {
         struct Answer: Decodable { let selected: [Checkpoint] }
-        return try await fetch(Answer.self, "/api/checkpoints", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")]).selected
+        return try await fetch(Answer.self, "/api/checkpoints", route(dep, dest, stops)).selected
     }
 
     /// The ground and airspace under the route, for the profile
     /// (/api/route-profile).
     static func routeProfile(dep: String, dest: String, stops: [String]) async throws -> RouteProfile {
-        try await fetch(RouteProfile.self, "/api/route-profile", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")])
-    }
-
-    /// The briefing for the route, with the flight's time where the nav
-    /// log has given one, so the forecast is read for the hours flown
-    /// (/api/briefing).
-    static func briefing(dep: String, dest: String, stops: [String], eteMin: Double?) async throws -> Briefing {
-        try await fetch(Briefing.self, "/api/briefing", [
-            "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","),
-            "ete_min": eteMin.map { String(Int($0.rounded())) },
-        ])
+        try await fetch(RouteProfile.self, "/api/route-profile", route(dep, dest, stops))
     }
 
     /// What the airplane's track runs into in the next minutes
@@ -141,9 +197,7 @@ enum Planner {
     /// The ways to fly a route (/api/route-options): the planner's grid
     /// search round what the direct line meets.
     static func routeOptions(dep: String, dest: String, stops: [String], aircraft: String) async throws -> RouteOptions {
-        try await fetch(RouteOptions.self, "/api/route-options", [
-            "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","), "aircraft": aircraft,
-        ])
+        try await fetch(RouteOptions.self, "/api/route-options", route(dep, dest, stops).merging(["aircraft": aircraft]) { $1 })
     }
 
     /// A field's procedures (/api/airport/{ident}/procedures).
@@ -165,6 +219,6 @@ enum Planner {
 
     /// The route as entered, its ends found and its line (/api/course).
     static func course(dep: String, dest: String, stops: [String]) async throws -> Course {
-        try await fetch(Course.self, "/api/course", ["dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ",")])
+        try await fetch(Course.self, "/api/course", route(dep, dest, stops))
     }
 }

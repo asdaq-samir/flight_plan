@@ -21,8 +21,9 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException
 from vfr import airports, airspace, alternates, altitude, geo, pattern, publications, runway_wind, tfr, weather
 
+from .. import exposure
 from ..common import load_route
-from ..schemas import Alternates, Briefing, Tfrs
+from ..schemas import Alternates, Briefing, MapLayerAges, Tfrs
 
 #: How long past the arrival the forecast is read over, and the flight
 #: assumed when the caller does not say how long it is.
@@ -93,6 +94,39 @@ def _metars_by_route_ident(idents: tuple, source: dict) -> dict:
     return {i: found.get(source[i]) or found.get(i) for i in idents}
 
 
+def _numbers(text: str, name: str) -> list[float] | None:
+    """A comma-separated list of numbers, None where none was sent."""
+    if not text.strip():
+        return None
+    try:
+        return [float(x) for x in text.split(",")]
+    except ValueError as err:
+        raise HTTPException(422, f"{name} is numbers separated by commas.") from err
+
+
+def _fixes(text: str) -> list[tuple[float, float]] | None:
+    """The nav log's fixes, "lat,lon;lat,lon;...", None where none or
+    fewer than two were sent."""
+    if not text.strip():
+        return None
+    try:
+        points = [(float(a), float(b)) for a, b in (p.split(",") for p in text.split(";"))]
+    except ValueError as err:
+        raise HTTPException(422, "fixes is latitude,longitude pairs separated by semicolons.") from err
+    if any(not (-90 <= lat <= 90 and -180 <= lon <= 180) for lat, lon in points):
+        raise HTTPException(422, "A fix is off the globe.")
+    return points if len(points) >= 2 else None
+
+
+@router.get("/api/map/ages")
+def map_layer_ages() -> MapLayerAges:
+    """When the planner fetched what the map's weather layers are drawn
+    from, for the map's settings to say how old each is: the METARs
+    (aviationweather.gov's METAR file, held and refreshed by vfr.weather)
+    and the TFRs (tfr.faa.gov)."""
+    return {"metars_at": exposure.iso(weather.dataset_status().get("metars")), "tfrs_at": exposure.iso(tfr.fetched_at())}
+
+
 @router.get("/api/tfrs")
 def tfrs() -> Tfrs:
     """Every temporary flight restriction in force or to come, for the
@@ -106,7 +140,8 @@ def tfrs() -> Tfrs:
 
 
 @router.get("/api/briefing")
-def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = None, ete_min: float | None = None) -> Briefing:
+def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = None, ete_min: float | None = None,
+             fixes: str = "", leg_min: str = "", ground_min: str = "") -> Briefing:
     """Everything the nav log's own leg math doesn't cover: adverse
     conditions (SIGMET/AIRMET), current conditions (METAR) and
     forecast (TAF-derived ceiling/visibility) along the route, and
@@ -119,6 +154,12 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
     hours when not given). It used to be read at the moment of asking,
     whatever time the pilot was planning to go. With stops (`stops`,
     "KDSM,KLNK"), along every hop and for every airport landed at.
+
+    Each hazard says where and when the flight meets it (`on_route`,
+    app.exposure): on the nav log's legs where the page sends them --
+    `fixes`, its points "lat,lon;lat,lon", `leg_min` each leg's ETE and
+    `ground_min` each leg's minutes on the ground after it -- else on
+    the route's own legs, the flight's time shared out by distance.
     """
     r = load_route(dep, dest, stops)
     # Every airport landed at, once each -- a round trip lands where it
@@ -149,7 +190,9 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
             tfr.along_route, path,
             datetime.fromtimestamp(window[0], timezone.utc), datetime.fromtimestamp(window[1], timezone.utc))
         pireps_future = pool.submit(weather.pireps_along_route, path)
-        gairmets_future = pool.submit(weather.gairmets_along_route, path, window)
+        # Every snapshot the route crosses, for each hazard's to be the
+        # one valid nearest when the airplane is in it (app.exposure).
+        gairmets_future = pool.submit(weather.gairmet_snapshots_along_route, path, window)
         runways = {ident: pool.submit(airports.get_runways, source[ident]) for ident in idents}
         frequencies = {ident: pool.submit(airports.get_frequencies, source[ident]) for ident in idents}
 
@@ -195,17 +238,24 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         runways = {ident: f.result() for ident, f in runways.items()}
         frequencies = {ident: f.result() for ident, f in frequencies.items()}
 
+    navlog_fixes = _fixes(fixes)
+    leg_minutes, ground_minutes = _numbers(leg_min, "leg_min"), _numbers(ground_min, "ground_min")
+    legs = exposure.Legs.of(navlog_fixes or path, start, ete_s, leg_minutes if navlog_fixes else None, ground_minutes)
     shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
     airport_of = dict(zip(r.idents, r.airports))
     return {
-        "hazards": hazards,
+        "hazards": exposure.sigmets(legs, hazards),
         "forecast": forecast,
         "metars": metars,
         "weather_unavailable": weather_unavailable,
-        "tfrs": tfrs,
-        "pireps": pireps,
-        "gairmets": gairmets,
+        "tfrs": exposure.tfrs(legs, tfrs),
+        "pireps": exposure.pireps(legs, pireps),
+        "gairmets": exposure.gairmets(legs, gairmets, list(weather.GAIRMET_HAZARDS.values())),
         "vfr_not_recommended": weather.vfr_not_recommended_reasons(list(idents), metars, forecast),
+        "fields_below_vfr": exposure.fields_below_vfr(
+            legs, list(idents), r.idents[-1], where, metars, forecast["stations"], weather.below_vfr_minimums),
+        "leg_fixes": [{"lat": lat, "lon": lon} for lat, lon in legs.fixes],
+        "legs_from": "navlog" if legs.from_navlog else "route",
         "airports": {
             ident: {"name": airport_of[ident].get("name"),
                     "elevation_ft": airport_of[ident].get("elevation_ft"),

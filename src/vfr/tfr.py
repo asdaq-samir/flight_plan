@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import math
 import threading
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -25,6 +26,9 @@ import requests
 from cachetools import LRUCache, TTLCache
 from shapely.geometry import LineString, Point, shape
 
+# The site turns away a bare python-requests User-Agent, as the FAA's
+# others do (vfr.faa_data).
+from .config import FAA_HEADERS as HEADERS
 from .geo import along_track_distance_nm
 
 SHAPES_URL = (
@@ -32,9 +36,6 @@ SHAPES_URL = (
     "&typeName=TFR:V_TFR_LOC&outputFormat=application/json"
 )
 DETAIL_URL = "https://tfr.faa.gov/download/detail_{}.xml"
-# The site turns away a bare python-requests User-Agent, as the FAA's
-# others do (vfr.faa_data).
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
 
 #: How long the shapes are held: the site updates them every few minutes.
 SHAPES_TTL_S = 10 * 60
@@ -61,6 +62,9 @@ RULES = {
 _SHAPES: TTLCache = TTLCache(maxsize=1, ttl=SHAPES_TTL_S)
 _DETAILS: LRUCache = LRUCache(maxsize=1024)
 _LOCK = threading.Lock()
+#: When the shapes held were fetched from tfr.faa.gov (UNIX seconds), for
+#: the map to say how old its TFRs are; None before the first fetch.
+_FETCHED_AT: float | None = None
 
 
 class TfrUnavailable(RuntimeError):
@@ -79,9 +83,17 @@ def _shapes() -> list:
         features = resp.json().get("features", [])
     except (requests.RequestException, ValueError) as err:
         raise TfrUnavailable(f"tfr.faa.gov did not answer: {err}") from err
+    global _FETCHED_AT
     with _LOCK:
         _SHAPES["all"] = features
+        _FETCHED_AT = time.time()
     return features
+
+
+def fetched_at() -> float | None:
+    """When the TFRs the map is drawn from were fetched (UNIX seconds),
+    None before the first fetch."""
+    return _FETCHED_AT
 
 
 def _utc(text: str | None) -> str | None:

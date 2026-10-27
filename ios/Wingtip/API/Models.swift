@@ -47,7 +47,6 @@ struct AirportPin: Codable, Equatable, Sendable {
     }
 }
 
-/// A field found by ident or name (AirportSuggestion).
 /// A field near a point, nearest first (NearestAirport): its distance
 /// and bearing from there, worked out by the planner.
 struct NearestAirport: Codable, Equatable, Sendable, Identifiable {
@@ -90,6 +89,7 @@ struct TrafficAnswer: Codable, Equatable, Sendable {
     var ageS: Double?
 }
 
+/// A field found by ident or name (AirportSuggestion).
 struct AirportSuggestion: Codable, Equatable, Sendable, Identifiable {
     let ident: String
     let name: String
@@ -153,7 +153,6 @@ struct Frequency: Codable, Equatable, Sendable {
 /// The traffic pattern's altitude: the FAA's where it publishes one, else
 /// AC 90-66C's 1,000 ft over the field (TrafficPattern).
 struct TrafficPattern: Codable, Equatable, Sendable {
-    let aglFt: Double
     var altitudeFt: Double?
     var published: Bool = false
 }
@@ -226,6 +225,8 @@ struct Hazard: Codable, Equatable, Sendable {
     var raw: String?
     var altitudeLowFt: Double?
     var altitudeHighFt: Double?
+    /// Where and when the flight meets it (BriefLegs.swift).
+    var onRoute: OnRoute?
 }
 
 struct GAirmet: Codable, Equatable, Sendable {
@@ -235,7 +236,7 @@ struct GAirmet: Codable, Equatable, Sendable {
     var validAt: String?
     var altitudeLowFt: Double?
     var altitudeHighFt: Double?
-    var fromFreezingLevel: Bool? = false
+    var onRoute: OnRoute?
 }
 
 struct RouteTfr: Codable, Equatable, Sendable, Identifiable {
@@ -250,6 +251,7 @@ struct RouteTfr: Codable, Equatable, Sendable, Identifiable {
     var expires: String?
     var floorFt: Double?
     var ceilingFt: Double?
+    var onRoute: OnRoute?
 
     var id: String { notamId }
 }
@@ -263,6 +265,7 @@ struct Pirep: Codable, Equatable, Sendable {
     var icing: String?
     var urgent: Bool? = false
     var observedAt: String?
+    var onRoute: OnRoute?
 }
 
 struct ForecastStation: Codable, Equatable, Sendable {
@@ -287,6 +290,11 @@ struct Briefing: Codable, Equatable, Sendable {
     var tfrs: [RouteTfr]? = []
     var vfrNotRecommended: [String]? = []
     var weatherUnavailable: [String] = []
+    /// The fields below VFR where the flight meets them, and the fixes
+    /// the hazards' legs run between (BriefLegs.swift).
+    var fieldsBelowVfr: [FieldBelowVfr]?
+    var legFixes: [RoutePoint]?
+    var legsFrom: String?
 }
 
 /// One thing ahead of the airplane (AheadAlert, vfr.alerts): airspace, a
@@ -337,7 +345,6 @@ struct RouteOption: Codable, Equatable, Sendable, Identifiable {
     /// The way as pairs of latitude and longitude.
     var path: [[Double]] = []
     let distanceNm: Double
-    let airMin: Double
     var groundMin: Double = 0
     let fuelGal: Double
     var landings: Int = 0
@@ -345,14 +352,31 @@ struct RouteOption: Codable, Equatable, Sendable, Identifiable {
     /// passes near.
     var crosses: [Int] = []
     var marginal: [Int] = []
-    var tailKt: Double?
     var floorFt: Int?
 
     var id: String { kind + ":" + stops.joined(separator: ",") }
 }
 
+/// One chip of the route line, as the planner words and orders it for
+/// the web app and the phone alike (RouteChip): `key` "none" for the
+/// route as typed, "fuel" for it with its fuel stops, else the way's
+/// kinds; the stops it puts in the route, and the hazards it crosses by
+/// their index in RouteOptions.hazards.
+struct RouteChip: Codable, Equatable, Sendable, Identifiable {
+    let key: String
+    let label: String
+    var stops: [String] = []
+    var fuel: [String] = []
+    var crosses: [Int]?
+
+    var id: String { key + ":" + stops.joined(separator: ",") }
+}
+
 struct RouteOptions: Codable, Equatable, Sendable {
     var options: [RouteOption] = []
+    /// The route line's chips in the order shown, "None" first; empty
+    /// when there is no way but the route itself.
+    var chips: [RouteChip]?
     var own: RouteOption?
     var hazards: [RouteHazard] = []
     var unchecked: [String] = []
@@ -370,14 +394,12 @@ struct ProcedureSummary: Codable, Equatable, Sendable, Identifiable {
     let name: String
     var runway: String?
     var transitions: [String] = []
-    var runwayTransitions: [String] = []
 }
 
 struct ProcedureList: Codable, Equatable, Sendable {
     let airport: String
     let cycle: String
     var procedures: [ProcedureSummary] = []
-    var stale: Bool? = false
 }
 
 /// A procedure picked for a field of the route, as the planner takes it

@@ -53,7 +53,7 @@ public class LogbookService {
         }
         List<LogbookEntry> added = new ArrayList<>();
         for (LogbookEntryRequest r : requests) {
-            if (seen.add(sameFlight(r.flownOn(), blankToNull(r.aircraft()), blankToNull(r.route()), r.totalHours()))) {
+            if (seen.add(sameFlight(r.flownOn(), Typed.text(r.aircraft()), Typed.text(r.route()), r.totalHours()))) {
                 added.add(fill(new LogbookEntry(pilot), r));
             }
         }
@@ -87,15 +87,11 @@ public class LogbookService {
     }
 
     private static LogbookEntry fill(LogbookEntry e, LogbookEntryRequest r) {
-        return e.set(r.flownOn(), blankToNull(r.aircraft()), blankToNull(r.aircraftType()), blankToNull(r.route()),
+        return e.set(r.flownOn(), Typed.text(r.aircraft()), Typed.text(r.aircraftType()), Typed.text(r.route()),
                 r.totalHours(), r.nightHours(), r.crossCountryHours(), r.dayLandings(), r.nightLandings(),
-                blankToNull(r.remarks()))
+                Typed.text(r.remarks()))
                 .training(r.dualHours(), r.soloHours(), r.instrumentHours(), r.toweredLandings(), r.distanceNm(),
                         r.longestLegNm())
                 .instrument(r.approaches(), r.holding(), r.tracking());
-    }
-
-    private static String blankToNull(String s) {
-        return s == null || s.isBlank() ? null : s.strip();
     }
 }

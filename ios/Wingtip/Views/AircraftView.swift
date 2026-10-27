@@ -9,7 +9,7 @@ struct AircraftView: View {
     @Environment(Plan.self) private var plan
     @Environment(Session.self) private var session
     @State private var profiles: [AircraftProfile] = []
-    @State private var own: [OwnAircraft] = []
+    @State private var own: [OwnAircraftRecord] = []
     @State private var typed = ""
     @State private var problem: String?
 
@@ -64,7 +64,7 @@ struct AircraftView: View {
                 }
                 Section("Types the planner has figures for") {
                     if profiles.isEmpty {
-                        if let problem { Text(problem).foregroundStyle(.red).font(.footnote) } else { ProgressView() }
+                        if let problem { ProblemLine(problem) } else { ProgressView() }
                     }
                     ForEach(profiles, id: \.name) { profile in
                         HStack {
@@ -87,10 +87,10 @@ struct AircraftView: View {
                 do { profiles = try await Planner.aircraftProfiles() } catch { problem = error.localizedDescription }
             }
             .task(id: session.signedIn) {
-                own = (try? await Gateway.aircraft()) ?? []
+                own = (try? await Gateway.aircraftRecords()) ?? []
             }
             // Back from Your Airplanes with one added or changed.
-            .onAppear { Task { own = (try? await Gateway.aircraft()) ?? [] } }
+            .onAppear { Task { own = (try? await Gateway.aircraftRecords()) ?? [] } }
         }
     }
 

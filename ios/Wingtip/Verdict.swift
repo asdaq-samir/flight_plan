@@ -29,20 +29,20 @@ final class Verdict {
 
     init(store: UserDefaults = .standard) {
         self.store = store
-        minimums = (store.data(forKey: Self.minimumsKey)).flatMap { try? JSONDecoder().decode(PersonalMinimums.self, from: $0) } ?? PersonalMinimums()
-        loads = (store.data(forKey: Self.loadsKey)).flatMap { try? JSONDecoder().decode([String: AirplaneLoad].self, from: $0) } ?? [:]
+        minimums = store.decoded(PersonalMinimums.self, forKey: Self.minimumsKey) ?? PersonalMinimums()
+        loads = store.decoded([String: AirplaneLoad].self, forKey: Self.loadsKey) ?? [:]
     }
 
     func setMinimum(_ key: PersonalMinimums.Key, _ value: Double?) {
         minimums[key] = value
-        if let data = try? JSONEncoder().encode(minimums) { store.set(data, forKey: Self.minimumsKey) }
+        store.setEncoded(minimums, forKey: Self.minimumsKey)
     }
 
     func load(for aircraft: String) -> AirplaneLoad? { loads[aircraft] }
 
     func setLoad(_ load: AirplaneLoad, for aircraft: String) {
         loads[aircraft] = load
-        if let data = try? JSONEncoder().encode(loads) { store.set(data, forKey: Self.loadsKey) }
+        store.setEncoded(loads, forKey: Self.loadsKey)
     }
 
     func tick(_ key: String, _ on: Bool) {
@@ -61,7 +61,7 @@ final class Verdict {
             cruiseTasKt: figures.cruiseTasKt, fuelBurnGph: figures.fuelBurnGph, usableFuelGal: figures.usableFuelGal,
             cruisePowerPct: figures.cruisePowerPct, climbTasKt: figures.climbTasKt, climbFuelBurnGph: figures.climbFuelBurnGph,
             serviceCeilingFt: figures.serviceCeilingFt,
-            day: GoNoGoAsk.day(today), minimums: minimums, load: loads[plan.aircraft], ticked: ticked.sorted(), currency: currency,
+            day: Day.string(today), minimums: minimums, load: loads[plan.aircraft], ticked: ticked.sorted(), currency: currency,
             ownAirplane: records.first { $0.tailNumber == plan.tail }.map(OwnAirplaneAsk.init))
     }
 
@@ -94,7 +94,7 @@ final class Verdict {
     /// input of the pilot's.
     func key(for plan: Plan) -> String {
         let ask = ask(for: plan)
-        let body = (try? GoNoGoAsk.encoder.encode(ask)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+        let body = (try? Planner.snakeEncoder.encode(ask)).map { String(decoding: $0, as: UTF8.self) } ?? ""
         return "\(body)|\(plan.plannedAt?.timeIntervalSince1970 ?? 0)|\(plan.problem?.detail ?? "")"
     }
 }

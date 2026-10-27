@@ -32,7 +32,8 @@ from shapely.prepared import prep
 
 from . import elevation, faa_data, geo
 from .retry import with_retries
-from .terrain import DEFAULT_FAA_CACHE_DIR, M_TO_FT
+from .terrain import DEFAULT_FAA_CACHE_DIR
+from .units import M_TO_FT
 
 #: 14 CFR 91.177(a)(2): the highest obstacle within 4 nm of the course.
 OBSTACLE_RADIUS_NM = 4.0

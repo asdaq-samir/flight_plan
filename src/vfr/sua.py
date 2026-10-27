@@ -149,11 +149,6 @@ def _shapes_in(bbox: tuple) -> list:
     ]
 
 
-def _query(bbox: tuple) -> list:
-    """GeoJSON features meeting bbox (min_lat, min_lon, max_lat, max_lon)."""
-    return [feature for feature, _ in _shapes_in(bbox)]
-
-
 def along_route(route_start: tuple, route_end: tuple, fixes: list | None = None) -> list:
     """Special-use airspace the route's legs pass laterally through, in
     along-route order: {"name", "type", "kind", "floor_ft", "ceiling_ft",

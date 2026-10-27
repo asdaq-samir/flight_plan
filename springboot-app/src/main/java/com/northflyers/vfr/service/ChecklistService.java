@@ -44,8 +44,8 @@ public class ChecklistService {
         List<ChecklistItem> out = new ArrayList<>();
         for (ChecklistDto.Section section : checklist.sections()) {
             for (ChecklistDto.Item item : section.items()) {
-                String response = item.response() == null || item.response().isBlank() ? null : item.response().strip();
-                out.add(new ChecklistItem(a, out.size(), section.title().strip(), item.challenge().strip(), response));
+                out.add(new ChecklistItem(a, out.size(), section.title().strip(), item.challenge().strip(),
+                        Typed.text(item.response())));
             }
         }
         return out;

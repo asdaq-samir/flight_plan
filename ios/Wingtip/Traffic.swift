@@ -30,6 +30,9 @@ final class Traffic {
     }
     private(set) var planes: [TrafficAircraft] = []
     private(set) var source: String?
+    /// When the airplanes last heard were where they are given: the
+    /// answer's time less its own age (TrafficAnswer.age_s).
+    private(set) var heardAt: Date?
     /// The middle of the map and the miles to its corner, as the map last
     /// rested.
     var mapCentre: CLLocationCoordinate2D?
@@ -43,6 +46,7 @@ final class Traffic {
                 if let answer = try? await Planner.traffic(lat: at.latitude, lon: at.longitude, radiusNm: radius), on {
                     planes = answer.aircraft.filter { ($0.seenS ?? 0) + (answer.ageS ?? 0) <= Self.staleS }
                     source = answer.source
+                    heardAt = Date().addingTimeInterval(-(answer.ageS ?? 0))
                 }
             }
             try? await Task.sleep(for: Self.every)

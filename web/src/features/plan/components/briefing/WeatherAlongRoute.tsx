@@ -7,7 +7,7 @@ import { TEXT } from "../../../../lib/text";
 import AccordionSection from "../../../../components/AccordionSection";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import type { Briefing, Course, Leg } from "../../../../lib/api/types";
-import { pirepConditions } from "../../../../lib/advisories";
+import { capitalised, pirepConditions } from "../../../../lib/advisories";
 import { passTime } from "../../../../lib/passTimes";
 import { altFt, ceilingAndVisibility, clockTime, windLine } from "../../format";
 import CategoryBadge from "./CategoryBadge";
@@ -15,6 +15,7 @@ import Observed from "../../../../components/Observed";
 import { phasesOf, type Phase } from "./sections";
 import { categoryAt, NEAREST_TAF_NM, nearestStation, ownStation, placesOf, type Station } from "./fieldWeather";
 import { FINDING_TONE } from "../../../../lib/status";
+import OnRouteRow from "./OnRouteRow";
 
 type Pirep = Briefing["pireps"][number];
 
@@ -32,9 +33,6 @@ type Pirep = Briefing["pireps"][number];
 /** A field's own TAF: the station by its ident, or its ICAO one (KDLH
  *  for DLH). */
 
-/** A line's first letter capitalised: the figures open a row's line. */
-const sentence = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
-
 /** A METAR's figures past its wind, in words, as FAA Order JO 7900.5
  *  codes them and the planner reads them: the ceiling and the visibility
  *  (ceilingAndVisibility), the temperature and dew point (°C), and the
@@ -43,7 +41,7 @@ function metarFigures(metar: NonNullable<Briefing["metars"][string]>): string {
   // Below zero with the minus sign, not a hyphen (M02 is −2).
   const degrees = (c: number) => `${Math.round(c) < 0 ? "−" : ""}${Math.abs(Math.round(c))}`;
   return [
-    sentence(ceilingAndVisibility(metar.ceiling_ft, metar.visibility_sm)),
+    capitalised(ceilingAndVisibility(metar.ceiling_ft, metar.visibility_sm)),
     metar.temp_c != null && `${degrees(metar.temp_c)} °C${metar.dewpoint_c != null ? `, dew point ${degrees(metar.dewpoint_c)}` : ""}`,
     metar.altimeter_in_hg != null && `${metar.altimeter_in_hg.toFixed(2)} inHg`,
   ].filter(Boolean).join(" · ");
@@ -53,7 +51,7 @@ function metarFigures(metar: NonNullable<Briefing["metars"][string]>): string {
  *  visibility then, or that it says nothing about then. */
 const atEta = (station: Station) => (station.eta_ceiling_ft == null && station.eta_visibility_sm == null
   ? "Nothing forecast for then"
-  : sentence(ceilingAndVisibility(station.eta_ceiling_ft, station.eta_visibility_sm)));
+  : capitalised(ceilingAndVisibility(station.eta_ceiling_ft, station.eta_visibility_sm)));
 
 
 
@@ -220,9 +218,14 @@ export default function WeatherAlongRoute({ briefing, course, legs, departIso, u
                 <ListGroup title={places.length > 2 ? `${place.ident} to ${next.ident}` : "En route"}>
                   {stretch.length === 0 ? (
                     <ListRow muted title="No TAFs or pilot reports near this stretch" />
-                  ) : runs(stretch).map(run => run.kind === "pirep" ? (
-                    <PirepRow key={`p${run.along}${run.pirep.raw}`} p={run.pirep} />
-                  ) : run.stations.length > 1 ? (
+                  ) : runs(stretch).flatMap(run => run.kind === "pirep" ? [
+                    <PirepRow key={`p${run.along}${run.pirep.raw}`} p={run.pirep} />,
+                    // Which leg it is on and when the airplane is abeam, a tap
+                    // showing that leg on the map.
+                    run.pirep.on_route?.legs.length
+                      ? <OnRouteRow key={`p${run.along}${run.pirep.raw}-on`} on={run.pirep.on_route} briefing={briefing} hazardKey={`pirep-${run.along}-${run.pirep.raw ?? ""}`} />
+                      : null,
+                  ] : run.stations.length > 1 ? (
                     // A run of TAFs all VFR when the flight passes is one row:
                     // twenty rows of "no ceiling · 6 sm" hid the one that was not.
                     <ListRow

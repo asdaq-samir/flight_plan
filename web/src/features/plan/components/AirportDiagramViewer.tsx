@@ -6,13 +6,12 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ImageOverlay, MapContainer, useMap } from "react-leaflet";
-import CloseButton from "../../../components/CloseButton";
 import { Button } from "../../../components/ui/button";
-import { Dialog, DialogClose, DialogContent, DialogTitle } from "../../../components/ui/dialog";
 import { api } from "../../../lib/api/client";
 import { chartPagePicture } from "../../../lib/diagram";
 import { TEXT } from "../../../lib/text";
 import { cn } from "cn";
+import FullScreenViewer from "./FullScreenViewer";
 
 /** No further out than the whole first page in sight (FitFirst), and in
  *  to two of its pixels a point: past that the picture, drawn at 360 dots
@@ -81,50 +80,38 @@ export default function ChartViewer({ title, pages, loading = false, failed = fa
 }) {
   const layout = useMemo(() => (pages.length ? laidOut(pages) : null), [pages]);
   return (
-    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-      <DialogContent
-        aria-describedby={undefined} glass={false} data-testid="airport-diagram-viewer" showCloseButton={false}
-        className="inset-0 top-0 left-0 flex h-dvh w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none bg-background p-0 ring-0 sm:max-w-none"
-      >
-        {/* Under the status bar, the close where every panel has it. */}
-        <div className="flex shrink-0 items-center gap-4 pt-[max(0.5rem,env(safe-area-inset-top))] pr-[max(0.75rem,env(safe-area-inset-right))] pb-2 pl-[max(1rem,env(safe-area-inset-left))]">
-          <DialogTitle className={cn("min-w-0 flex-1 truncate font-semibold", TEXT.title)}>{title}</DialogTitle>
-          <DialogClose asChild>
-            <CloseButton data-testid="airport-diagram-close" />
-          </DialogClose>
+    <FullScreenViewer title={title} testId="airport-diagram-viewer" closeTestId="airport-diagram-close" onClose={onClose}>
+      {layout ? (
+        <MapContainer
+          crs={L.CRS.Simple} bounds={layout.placed[0]!.bounds} maxBounds={layout.all} maxBoundsViscosity={1}
+          zoomSnap={0} minZoom={-5} maxZoom={MAX_ZOOM}
+          attributionControl={false} zoomControl={false}
+          // The chart's paper round it, black at night where it is drawn
+          // white on black.
+          className="min-h-0 flex-1 bg-white! dark:bg-black! dark:[&_.leaflet-image-layer]:invert"
+        >
+          {layout.placed.map(p => <ImageOverlay key={p.src} url={p.src} bounds={p.bounds} />)}
+          <FitFirst first={layout.placed[0]!.bounds} />
+        </MapContainer>
+      ) : (
+        <div className="flex flex-col items-start gap-2 px-4 pt-4" data-testid="chart-viewer-status">
+          <p className={cn("text-muted-foreground", TEXT.prose)}>
+            {failed
+              ? "The FAA's chart could not be had. Try again in a moment."
+              : loading
+                ? "Drawing the chart…"
+                // A booklet lists a field only where it has an entry (takeoff
+                // minimums, alternates, hot spots).
+                : "The FAA lists nothing for this field in this chart."}
+          </p>
+          {failed && onRetry && (
+            <Button type="button" variant="ghost" className="relative -ml-2 rounded-full text-tint after:absolute after:-inset-1" onClick={onRetry}>
+              Try again
+            </Button>
+          )}
         </div>
-        {layout ? (
-          <MapContainer
-            crs={L.CRS.Simple} bounds={layout.placed[0]!.bounds} maxBounds={layout.all} maxBoundsViscosity={1}
-            zoomSnap={0} minZoom={-5} maxZoom={MAX_ZOOM}
-            attributionControl={false} zoomControl={false}
-            // The chart's paper round it, black at night where it is drawn
-            // white on black.
-            className="min-h-0 flex-1 bg-white! dark:bg-black! dark:[&_.leaflet-image-layer]:invert"
-          >
-            {layout.placed.map(p => <ImageOverlay key={p.src} url={p.src} bounds={p.bounds} />)}
-            <FitFirst first={layout.placed[0]!.bounds} />
-          </MapContainer>
-        ) : (
-          <div className="flex flex-col items-start gap-2 px-4 pt-4" data-testid="chart-viewer-status">
-            <p className={cn("text-muted-foreground", TEXT.prose)}>
-              {failed
-                ? "The FAA's chart could not be had. Try again in a moment."
-                : loading
-                  ? "Drawing the chart…"
-                  // A booklet lists a field only where it has an entry (takeoff
-                  // minimums, alternates, hot spots).
-                  : "The FAA lists nothing for this field in this chart."}
-            </p>
-            {failed && onRetry && (
-              <Button type="button" variant="ghost" className="relative -ml-2 rounded-full text-tint after:absolute after:-inset-1" onClick={onRetry}>
-                Try again
-              </Button>
-            )}
-          </div>
-        )}
-      </DialogContent>
-    </Dialog>
+      )}
+    </FullScreenViewer>
   );
 }
 

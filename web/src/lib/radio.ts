@@ -14,7 +14,7 @@
  * kneeboard -- a controller may ask for something else, and the pilot
  * says what they ask.
  */
-import { titleCase } from "./advisories";
+import { capitalised, titleCase } from "./advisories";
 import type { Briefing, Frequency, Leg } from "./api/types";
 import { compassWord, exitFor, pickedEnd, runwayFlown, runwayNumber, type RunwayEnd, type RunwayPicks } from "./pattern";
 import { ctafOf, frequencyOf, mhzText } from "./frequencies";
@@ -28,13 +28,12 @@ const LETTERS: Record<string, string> = {
   J: "Juliett", K: "Kilo", L: "Lima", M: "Mike", N: "November", O: "Oscar", P: "Papa", Q: "Quebec", R: "Romeo",
   S: "Sierra", T: "Tango", U: "Uniform", V: "Victor", W: "Whiskey", X: "X-ray", Y: "Yankee", Z: "Zulu",
 };
-const capital = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
 
 /** A registration as it is spoken after the airplane's make, the N
  *  dropped (AIM 4-2-4): "N345SP" is "Three Four Five Sierra Papa". */
 export function spokenTail(tail: string): string {
   return [...tail.trim().toUpperCase().replace(/^N(?=\d)/, "")]
-    .map(c => (/\d/.test(c) ? capital(DIGITS[Number(c)]!) : LETTERS[c] ?? c))
+    .map(c => (/\d/.test(c) ? capitalised(DIGITS[Number(c)]!) : LETTERS[c] ?? c))
     .join(" ");
 }
 

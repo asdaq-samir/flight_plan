@@ -1,7 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FieldsWithFood, FoodDetails, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, RouteStops, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
+import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FieldsWithFood, FoodDetails, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, MapLayerAges, ModelComparison, NarrativeMessage, NarrativeRequest, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, RouteStops, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -296,6 +296,8 @@ export const api = {
    *  weather caches in memory already. */
   classB: () => planner.GET("/api/class-b").then(data<ClassBResponse>).then(r => r.airports),
   tfrs: () => planner.GET("/api/tfrs").then(data<Tfrs>).then(r => r.tfrs),
+  /** When the planner fetched the METARs and TFRs the map draws. */
+  mapAges: () => planner.GET("/api/map/ages").then(data<MapLayerAges>),
   nearestAirports: (lat: number, lon: number) =>
     planner.GET("/api/airports/nearest", { params: { query: { lat, lon, limit: 10 } } }).then(data<NearestAirports>).then(r => r.airports),
   /** The fields round a position with food a walk from the ramp, for the
@@ -371,9 +373,15 @@ export const api = {
   routeProfile: (dep: string, dest: string, stops?: string[]) =>
     planner.GET("/api/route-profile", { params: { query: { dep, dest, stops: stopsParam(stops) } } }).then(data<RouteProfile>),
 
-  briefing: (dep: string, dest: string, depart?: string, eteMin?: number, stops?: string[], signal?: AbortSignal) =>
+  /** `legs`, the nav log's (lib/briefingLegs), places each hazard on its
+   *  legs and times it by their ETEs (Briefing's `on_route`). */
+  briefing: (dep: string, dest: string, depart?: string, eteMin?: number, stops?: string[], signal?: AbortSignal,
+    legs?: { fixes: string; legMin: string; groundMin: string } | null) =>
     planner.GET("/api/briefing", {
-      params: { query: { dep, dest, stops: stopsParam(stops), depart, ete_min: eteMin } }, signal,
+      params: { query: {
+        dep, dest, stops: stopsParam(stops), depart, ete_min: eteMin,
+        ...(legs ? { fixes: legs.fixes, leg_min: legs.legMin, ground_min: legs.groundMin } : {}),
+      } }, signal,
     }).then(data<Briefing>),
 
   /** The chart the map draws, for a map with no route on it yet. */

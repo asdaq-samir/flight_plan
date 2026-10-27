@@ -45,6 +45,13 @@ export type NavEdge = "top" | "bottom";
 
 /** The route's pills' colours: by airspace class, or by the METAR. */
 export type RouteColours = "airspace" | "metar";
+/** The FAA chart in the dark theme: as printed, or dimmed for night
+ *  vision (index.css's chart-tiles). */
+export type ChartNight = "normal" | "dimmed";
+/** The app's look (lib/brand), one of the four the owner had drawn
+ *  (2026-10-26): Sectional, the chart's own colours; Glass Cockpit;
+ *  Windsock; Clear Sky. */
+export type Brand = "sectional" | "cockpit" | "windsock" | "clearsky";
 /** Which agent writes the Brief's narrative: nav-log-agent (LangGraph) or
  *  crewai-agent (CrewAI). */
 export type NarrativeFramework = "langgraph" | "crewai";
@@ -130,6 +137,11 @@ interface Preferences {
    *  airspace, as the sectional draws it, or its METAR's flight
    *  category, as the map's chips are. */
   routeColours: RouteColours;
+  /** The chart in the dark theme (ChartTiles), dimmed unless the pilot
+   *  asks for it as printed. */
+  chartNight: ChartNight;
+  /** The app's look: its tint, its typeface and its corners (lib/brand). */
+  brand: Brand;
   /** How own ship is drawn on the chart (lib/map/ownShipLook). */
   ownShipLook: OwnShipLook;
   /** Which writes the Brief tab's narrative (BriefNarrative), from the
@@ -201,6 +213,8 @@ interface Preferences {
   setFilter: (key: FilterKey, on: boolean) => void;
   setNavBar: (navBar: NavEdge) => void;
   setRouteColours: (routeColours: RouteColours) => void;
+  setChartNight: (chartNight: ChartNight) => void;
+  setBrand: (brand: Brand) => void;
   setOwnShipLook: (ownShipLook: OwnShipLook) => void;
   setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
@@ -260,6 +274,8 @@ export const usePreferences = create<Preferences>()(
       filters: DEFAULT_FILTERS,
       navBar: null,
       routeColours: "airspace",
+      chartNight: "dimmed",
+      brand: "sectional",
       // A plane, at the owner's ask, where it was the arrow.
       ownShipLook: "single",
       narrative: "langgraph",
@@ -325,6 +341,8 @@ export const usePreferences = create<Preferences>()(
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setNavBar: navBar => set({ navBar }),
       setRouteColours: routeColours => set({ routeColours }),
+      setChartNight: chartNight => set({ chartNight }),
+      setBrand: brand => set({ brand }),
       setOwnShipLook: ownShipLook => set({ ownShipLook }),
       setNarrative: narrative => set({ narrative }),
       setFlightRules: flightRules => set({ flightRules }),
@@ -360,7 +378,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, routeWeather: s.routeWeather, foodRadiusNm: s.foodRadiusNm, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, routeWeather: s.routeWeather, foodRadiusNm: s.foodRadiusNm, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

@@ -12,6 +12,7 @@ struct SetupView: View {
     @AppStorage(MapExtrasInput.Keys.waypoints) private var waypointsOn = false
     @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
     @AppStorage(MapExtrasInput.Keys.plates) private var platesOn = true
+    @AppStorage(ChartNight.key) private var chartNight = ChartNight.dimmed.rawValue
 
     var body: some View {
         NavigationStack {
@@ -27,9 +28,7 @@ struct SetupView: View {
                         Button("Sign In") { signingIn = true }
                             .disabled(!session.loaded)
                     }
-                    if let problem = session.problem {
-                        Text(problem).foregroundStyle(.red).font(.footnote)
-                    }
+                    ProblemLine(session.problem)
                 }
                 if session.signedIn {
                     Section("Pilot") {
@@ -51,8 +50,16 @@ struct SetupView: View {
                     Toggle("VFR waypoints", isOn: $waypointsOn)
                     Toggle("Class B weather", isOn: $classBOn)
                     Toggle("Approach plates", isOn: $platesOn)
+                    // How old each weather layer's data is.
+                    LayerAgesRows()
                 }
                 Section("Chart") {
+                    // The white paper chart dimmed in dark appearance, so it
+                    // does not take the pilot's night vision: a menu of two,
+                    // as the web app's Settings has it.
+                    Picker("Chart at night", selection: $chartNight) {
+                        ForEach(ChartNight.allCases) { Text($0.label).tag($0.rawValue) }
+                    }
                     if let info = charts.info {
                         LabeledContent("Edition", value: info.chartCycle)
                         if let base = charts.base { LabeledContent("Layer", value: base.label) }
@@ -60,9 +67,7 @@ struct SetupView: View {
                     } else {
                         LabeledContent("Edition", value: "Fetching…")
                     }
-                    if let problem = charts.problem {
-                        Text(problem).foregroundStyle(.red).font(.footnote)
-                    }
+                    ProblemLine(charts.problem)
                 }
                 Section {
                     LabeledContent("Server", value: Config.host)

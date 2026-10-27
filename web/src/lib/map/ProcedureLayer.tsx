@@ -2,9 +2,9 @@ import { Fragment, memo, useMemo } from "react";
 import L from "leaflet";
 import { Marker, Pane, Polyline } from "react-leaflet";
 import type { ProcedureDrawing, ProcedureFix } from "../api/types";
-import { altitudeLines, speedWords } from "../procedures";
+import { altitudeLines, decorationOf, speedWords } from "../procedures";
 import { BADGE } from "../rowBadges";
-import { MAP_BLUE } from "./chartColors";
+import { LINE_CASING, MAP_BLUE } from "./chartColors";
 import { made } from "./icons";
 import { useLiveZoom } from "./useView";
 
@@ -27,7 +27,6 @@ import { useLiveZoom } from "./useView";
 const INK = BADGE.approach;
 /** A procedure of an old cycle: grey, not the approaches' indigo. */
 const STALE_INK = "#6b6b6b";
-const CASING: L.PathOptions = { color: "#ffffff", weight: 7, opacity: 0.9, lineJoin: "round" };
 const lineOf = (ink: string): L.PathOptions => ({ color: ink, weight: 3.5, opacity: 1, lineJoin: "round" });
 const missedOf = (ink: string): L.PathOptions => ({ color: ink, weight: 3, opacity: 1, dashArray: "8,7" });
 const holdOf = (ink: string): L.PathOptions => ({ color: ink, weight: 2.5, opacity: 1, lineJoin: "round" });
@@ -45,10 +44,7 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
   const roles = fix.roles.filter(r => r !== "hold");
   const { lines } = altitudeLines(fix);
   const speed = speedWords(fix);
-  const alt = lines.map(l => {
-    const deco = [l.under && "underline", l.over && "overline"].filter(Boolean).join(" ");
-    return `<span style="text-decoration:${deco || "none"};text-decoration-thickness:1.5px">${esc(l.text)}</span>`;
-  }).join("");
+  const alt = lines.map(l => `<span style="text-decoration:${decorationOf(l)};text-decoration-thickness:1.5px">${esc(l.text)}</span>`).join("");
   // A runway's threshold (the missed approach point of most approaches)
   // is under the field's own mark and its ident: its diamond alone, where
   // "RW08 MAP" covered the field's name (2026-10-10).
@@ -108,7 +104,7 @@ export const ProcedureLayer = memo(function ProcedureLayer({ drawings, crossings
         const ink = d.stale ? STALE_INK : INK;
         return (
         <Fragment key={`${d.airport}-${d.id}-${d.transition ?? ""}`}>
-          {d.lines.map((line, i) => <Polyline key={`c${i}`} positions={line.points} pathOptions={CASING} interactive={false} />)}
+          {d.lines.map((line, i) => <Polyline key={`c${i}`} positions={line.points} pathOptions={LINE_CASING} interactive={false} />)}
           {d.holds.map((hold, i) => <Polyline key={`hc${i}`} positions={hold.points} pathOptions={HOLD_CASING} interactive={false} />)}
           {d.lines.map((line, i) => (
             <Polyline

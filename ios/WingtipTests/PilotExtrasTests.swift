@@ -12,7 +12,7 @@ struct PilotRecordsTests {
         let a = try JSONDecoder().decode(OwnAircraftRecord.self, from: Data(json.utf8))
         #expect(a.inspections?.hundredHourDueAtHours == 2450 && a.inspections?.annualGoodThrough == "2027-03-31")
         #expect(a.openSquawks?.first?.deferredFor == "VFR_DAY" && a.vorCheck?.withinLimit == true && a.vorCheck?.place == "KDLH VOT")
-        #expect(a.own.tailNumber == "N3429J" && a.own.usableFuelGal == 48 && a.cruisePowerPct == nil)
+        #expect(a.tailNumber == "N3429J" && a.usableFuelGal == 48 && a.cruisePowerPct == nil)
         // An airplane with nothing recorded: the gateway's nulls.
         let bare = #"{"id":8,"tailNumber":"N1","typeDesignator":"C172","cruiseTasKt":110,"fuelBurnGph":8,"usableFuelGal":null,"cruisePowerPct":null,"climbTasKt":null,"climbFuelBurnGph":null,"equipment":null,"surveillance":null,"colour":null,"createdAt":"2026-10-01T12:00:00Z","inspections":null,"openSquawks":[],"vorCheck":null}"#
         let b = try JSONDecoder().decode(OwnAircraftRecord.self, from: Data(bare.utf8))
@@ -187,11 +187,9 @@ struct DeviceKeptTests {
         #expect(defaults.bool(forKey: "traffic"))
     }
 
-    @Test func anAirplaneKeptAndLetGo() {
+    @Test func anAirplanesNameAndLine() {
         let plane = TrafficAircraft(hex: "a1b2c3", lat: 46.8, lon: -92.2, callsign: nil, registration: "N3429J", type: "P28A")
-        let kept = KeptAirplane.toggled([], plane)
-        #expect(kept == [KeptAirplane(hex: "a1b2c3", name: "N3429J", type: "P28A")])
-        #expect(KeptAirplane.toggled(kept, plane).isEmpty)
+        #expect(KeptAirplane.name(plane) == "N3429J")
         #expect(AirplaneRow.line(TrafficAircraft(hex: "x", lat: 0, lon: 0, type: "B738", altitudeFt: 34_960, speedKt: 451.6)) == "B738 · 35,000 ft · 452 kt")
     }
 }

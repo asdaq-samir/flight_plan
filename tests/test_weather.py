@@ -228,10 +228,26 @@ def test_forecast_along_the_route_reads_each_nearby_stations_current_period(mock
 def test_hazards_along_the_route_are_the_current_sigmets_the_line_crosses(mock_get, mock_time):
     hazards = hazards_along_route(C81, KDLH)
 
-    assert hazards == [{
+    assert [{k: h[k] for k in ("hazard", "type", "altitude_low_ft", "altitude_high_ft", "raw")} for h in hazards] == [{
         "hazard": "CONVECTIVE", "type": "SIGMET", "altitude_low_ft": None, "altitude_high_ft": 43000.0,
         "raw": "CONVECTIVE SIGMET 1C",
     }]
+    # With its valid times and its area, for the briefing to say where
+    # and when the flight meets it; no WMO heading here, so no issue time.
+    start = datetime(2026, 9, 20, 0, 55, tzinfo=timezone.utc).timestamp()
+    assert (hazards[0]["valid_from"], hazards[0]["valid_to"]) == (start, start + 2 * 3600)
+    assert hazards[0]["coords"] == ON_ROUTE and hazards[0]["issued"] is None
+
+
+def test_a_sigmets_issue_time_is_its_wmo_headings_day_hour_and_minute():
+    """WSUS32 KKCI 261655: issued the 26th at 1655Z (WMO-No. 386's
+    abbreviated heading), in the month of its valid time -- the month
+    before for the 31st read on the 1st."""
+    valid = datetime(2026, 10, 26, 16, 55, tzinfo=timezone.utc).timestamp()
+    assert weather._wmo_issued("WSUS32 KKCI 261655\nSIGC\nCONVECTIVE SIGMET 45C", valid) == "2026-10-26T16:55:00Z"
+    first = datetime(2026, 11, 1, 0, 55, tzinfo=timezone.utc).timestamp()
+    assert weather._wmo_issued("WSUS31 KKCI 312355 SIGE", first) == "2026-10-31T23:55:00Z"
+    assert weather._wmo_issued("CONVECTIVE SIGMET 1C", valid) is None
 
 
 # --- the basic VFR minimums, and the briefing's "VFR not recommended" ---
@@ -562,17 +578,21 @@ GAIRMET_XML = b"""<response><data>
 </data></response>"""
 
 
-def test_the_g_airmets_the_route_crosses_are_one_per_hazard_the_snapshot_nearest_the_departure(monkeypatch):
+def test_the_g_airmets_the_route_crosses_are_every_snapshot_with_its_time_and_area(monkeypatch):
     from vfr import weather
     advisories = weather._parse_gairmets(GAIRMET_XML)
     assert len(advisories) == 2                                 # high-level turbulence left out
     monkeypatch.setattr(weather, "_dataset", lambda name: advisories)
     start = 1791126000.0                                          # 2026-10-04T14:20:00Z
-    found = weather.gairmets_along_route([(41.5, -88.0), (43.5, -88.0)], (start, start + 2 * 3600))
-    assert found == [{
-        "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T15:00:00.000Z",
+    # Every snapshot the route crosses, with its time and area, for the
+    # briefing to pick the one for when the flight is in it (app.exposure).
+    snapshots = weather.gairmet_snapshots_along_route([(41.5, -88.0), (43.5, -88.0)], (start, start + 2 * 3600))
+    assert [s["valid_at"] for s in snapshots] == ["2026-10-04T15:00:00.000Z", "2026-10-04T18:00:00.000Z"]
+    assert len(snapshots[0]["coords"]) == 4
+    assert {k: v for k, v in snapshots[0].items() if k not in ("valid", "coords")} == {
+        "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T15:00:00.000Z", "issued": None,
         "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 16000.0,
-    }]
+    }
 
 
 @patch("vfr.weather.requests.get", return_value=FOG_IN_A_TEMPO)

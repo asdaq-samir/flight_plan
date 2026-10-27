@@ -217,31 +217,24 @@ export const diamondIcon = made(function diamondIcon() {
 });
 
 /** A point the route flies through or works out -- a VFR or GPS waypoint,
- *  a present position (POS0), a top of climb or descent -- as the chart
- *  marks a fix: the magenta diamond on the course itself, its name on a
- *  pill beside it, on the `side` kept clear of the airports' names (the
- *  owner's "TOC and TOD
- *  should have the fix on the course for those labels. Just like that
- *  POS0 should have a fix symbol with a label POS0", 2026-10-26). A
- *  finger's 44 points of target round the diamond. */
-export const fixMarkIcon = made(function fixMarkIcon(label: string, side: "right" | "left" = "right") {
-  const at = side === "right" ? "left-[calc(50%+10px)]" : "right-[calc(50%+10px)]";
+ *  a present position (POS0), a top of climb or descent -- as a pill on
+ *  the course itself, centred on its point: the chart's magenta diamond
+ *  of a fix and its name, white edged in the magenta (the owner's "TOC and
+ *  TOD should have the fix on the course for those labels. Just like that
+ *  POS0 should have a fix symbol with a label POS0"; "still make those
+ *  route labels as pills"; and, of the pill beside the diamond, "a bit
+ *  off their position", 2026-10-26). Never moved off its point to clear
+ *  another label: that put TOC off the line. */
+export const fixMarkIcon = made(function fixMarkIcon(label: string) {
   return L.divIcon({
     className: "",
     iconSize: [TAP, TAP], iconAnchor: [TAP / 2, TAP / 2],
     html:
-      `<span class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border-2 border-white shadow-sm"` +
-      ` style="background-color:${WAYPOINT_MAGENTA}"></span>` +
-      // Its name on a pill, white edged in the magenta, as the route's
-      // labels were (the owner's "still make those route labels as pills",
-      // 2026-10-26).
-      `<span class="absolute top-1/2 ${at} -translate-y-1/2 whitespace-nowrap rounded-full border-2 bg-white px-1.5 py-0.5 text-[11px] leading-none font-bold text-[#1c1a17] shadow-sm"` +
-      ` style="border-color:${WAYPOINT_MAGENTA}">${text(label)}</span>`,
+      `<span class="absolute left-1/2 top-1/2 inline-flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 whitespace-nowrap rounded-full border-2 bg-white py-0.5 pr-1.5 pl-1 text-[11px] leading-none font-bold text-[#1c1a17] shadow-sm"` +
+      ` style="border-color:${WAYPOINT_MAGENTA}">` +
+      `<span class="size-2 shrink-0 rotate-45 rounded-[1px]" style="background-color:${WAYPOINT_MAGENTA}"></span>${text(label)}</span>`,
   });
 });
-/** How far a fix's pill runs beside its diamond (fixMarkIcon), points:
- *  the name and the pill's padding and edge. */
-export const fixMarkReach = (label: string) => 10 + Math.ceil(label.length * 7.5) + 16;
 
 /**
  * A field nobody asked about -- a training corridor's endpoint: its ident

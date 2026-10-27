@@ -1,6 +1,6 @@
 import { compassPoint } from "./compass";
 import { bearingDeg, distanceNm, type LatLon } from "./geo";
-import { useOwnShip } from "./map/ownShip";
+import { useOwnFix } from "./map/ownShip";
 import type { RecentAirport } from "./preferences";
 
 /** How far, as a figure: to a tenth under 10 nm, where a few tenths are
@@ -18,12 +18,6 @@ export const nmAway = (nm: number) => `${nmFigure(nm)} nm`;
 /** How far and which way from `from`: "4.6 nm NE". */
 export function awayFrom(from: LatLon, to: LatLon): string {
   return `${nmAway(distanceNm(from, to))} ${compassPoint(bearingDeg(from, to))}`;
-}
-
-/** Own ship's fix while it is on, what every distance from the airplane is
- *  measured from; null while it is off. */
-export function useOwnFix() {
-  return useOwnShip(o => (o.enabled ? o.fix : null));
 }
 
 /** A kept airport's tile's second line -- Home's, the Favorites', the

@@ -36,7 +36,7 @@ struct OwnAircraftListView: View {
             } else if problem == nil {
                 ProgressView()
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Your Airplanes")
         .navigationBarTitleDisplayMode(.inline)
@@ -102,7 +102,7 @@ struct AircraftFormView: View {
                 field("Surveillance", text: $form.surveillance, placeholder: "B1", key: "surveillance", problems: problems, codes: true)
                 field("Color", text: $form.colour, placeholder: "White, blue stripe", key: "colour", problems: problems, codes: false)
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle(record == nil ? "New Airplane" : "Edit Airplane")
         .navigationBarTitleDisplayMode(.inline)
@@ -195,7 +195,7 @@ struct OwnAircraftPage: View {
             Section {
                 Button("Delete Airplane", role: .destructive) { askingDelete = true }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle(record.tailNumber)
         .navigationBarTitleDisplayMode(.inline)
@@ -316,7 +316,7 @@ struct InspectionsSection: View {
                 TextField("0", text: $hoursNow).multilineTextAlignment(.trailing).keyboardType(.decimalPad)
             }
             Button(saving ? "Saving…" : "Save Inspections") { Task { await save() } }.disabled(saving)
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .onAppear {
             guard !loaded else { return }
@@ -386,7 +386,7 @@ struct VorCheckSection: View {
                 }
             }
             Button(saving ? "Recording…" : "Record Check") { Task { await recordCheck() } }.disabled(saving)
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
     }
 
@@ -462,7 +462,7 @@ struct ChecklistView: View {
             } else if problem == nil {
                 ProgressView()
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("\(aircraft.tailNumber) Checklist")
         .navigationBarTitleDisplayMode(.inline)
@@ -566,7 +566,7 @@ struct SquawksView: View {
             } else if problem == nil {
                 ProgressView()
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("\(aircraft.tailNumber) Squawks")
         .navigationBarTitleDisplayMode(.inline)

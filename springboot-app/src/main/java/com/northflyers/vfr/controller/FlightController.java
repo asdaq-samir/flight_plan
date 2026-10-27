@@ -58,15 +58,13 @@ public class FlightController {
      *  is read against. */
     @GetMapping("/{id}")
     public ResponseEntity<FlightDto> get(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                flightService.get(pilot, id).map(f -> ResponseEntity.ok(toDto(f))).orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> flightService.get(pilot, id).map(FlightController::toDto));
     }
 
     /** The flight's track, where the pilot saved one to their account. */
     @GetMapping("/{id}/track")
     public ResponseEntity<TrackDto> track(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                flightService.track(pilot, id).map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> flightService.track(pilot, id));
     }
 
     /** A track kept on the account for its debrief, a paid feature: the
@@ -79,20 +77,17 @@ public class FlightController {
         if (refused.isPresent()) {
             return ResponseEntity.status(refused.get().status()).build();
         }
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                flightService.saveTrack(pilot, id, track) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+        return PilotResponses.done(pilots, authentication, pilot -> flightService.saveTrack(pilot, id, track));
     }
 
     @DeleteMapping("/{id}/track")
     public ResponseEntity<Void> deleteTrack(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                flightService.deleteTrack(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+        return PilotResponses.done(pilots, authentication, pilot -> flightService.deleteTrack(pilot, id));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                flightService.delete(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+        return PilotResponses.done(pilots, authentication, pilot -> flightService.delete(pilot, id));
     }
 
     private static RiskAssessmentDto riskOf(Flight f) {

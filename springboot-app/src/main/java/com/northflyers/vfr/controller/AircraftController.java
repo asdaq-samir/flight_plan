@@ -72,86 +72,71 @@ public class AircraftController {
     @PutMapping("/{id}")
     public ResponseEntity<AircraftDto> update(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody AircraftRequest request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
+        return PilotResponses.found(pilots, authentication, pilot -> aircraftService
                 .update(pilot, id, request.tailNumber(), request.typeDesignator(), request.cruiseTasKt(), request.fuelBurnGph(),
                         request.cruisePowerPct(), request.climbTasKt(), request.climbFuelBurnGph(), request.usableFuelGal(),
                         request.equipment(), request.surveillance(), request.colour())
-                .map(a -> ResponseEntity.ok(toDto(a)))
-                .orElse(ResponseEntity.notFound().build()));
+                .map(this::toDto));
     }
 
     /** The airplane's VOR check for IFR, recorded (14 CFR 91.171(d)). */
     @PutMapping("/{id}/vor-check")
     public ResponseEntity<AircraftDto> vorCheck(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody VorCheckRequest request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
+        return PilotResponses.found(pilots, authentication, pilot -> aircraftService
                 .recordVorCheck(pilot, id, request.checkedOn(), request.kind(), request.place(), request.errorDeg())
-                .map(a -> ResponseEntity.ok(toDto(a)))
-                .orElse(ResponseEntity.notFound().build()));
+                .map(this::toDto));
     }
 
     /** The airplane's inspections and tests, recorded all at once. */
     @PutMapping("/{id}/inspections")
     public ResponseEntity<AircraftDto> inspections(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody InspectionsRequest request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> aircraftService
+        return PilotResponses.found(pilots, authentication, pilot -> aircraftService
                 .recordInspections(pilot, id, request)
-                .map(a -> ResponseEntity.ok(toDto(a)))
-                .orElse(ResponseEntity.notFound().build()));
+                .map(this::toDto));
     }
 
     /** The airplane's checklist, its sections in order. */
     @GetMapping("/{id}/checklist")
     public ResponseEntity<ChecklistDto> checklist(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> checklists.get(pilot, id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> checklists.get(pilot, id));
     }
 
     /** The airplane's checklist, replaced whole as its editor saves it. */
     @PutMapping("/{id}/checklist")
     public ResponseEntity<ChecklistDto> saveChecklist(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody ChecklistDto request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> checklists.replace(pilot, id, request)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> checklists.replace(pilot, id, request));
     }
 
     /** The airplane's squawks, newest first. */
     @GetMapping("/{id}/squawks")
     public ResponseEntity<List<SquawkDto>> squawks(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> squawks.list(pilot, id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> squawks.list(pilot, id));
     }
 
     @PostMapping("/{id}/squawks")
     public ResponseEntity<SquawkDto> addSquawk(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody SquawkRequest request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> squawks.add(pilot, id, request)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> squawks.add(pilot, id, request));
     }
 
     /** A squawk changed, or fixed. */
     @PutMapping("/{id}/squawks/{squawkId}")
     public ResponseEntity<SquawkDto> updateSquawk(Authentication authentication, @PathVariable Long id,
                                                   @PathVariable Long squawkId, @Valid @RequestBody SquawkRequest request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> squawks.update(pilot, id, squawkId, request)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> squawks.update(pilot, id, squawkId, request));
     }
 
     @DeleteMapping("/{id}/squawks/{squawkId}")
     public ResponseEntity<Void> deleteSquawk(Authentication authentication, @PathVariable Long id, @PathVariable Long squawkId) {
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                squawks.delete(pilot, id, squawkId) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+        return PilotResponses.done(pilots, authentication, pilot -> squawks.delete(pilot, id, squawkId));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                aircraftService.delete(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+        return PilotResponses.done(pilots, authentication, pilot -> aircraftService.delete(pilot, id));
     }
 
     private AircraftDto toDto(Aircraft a) {

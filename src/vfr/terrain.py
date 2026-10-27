@@ -56,8 +56,7 @@ from typing import NamedTuple
 import numpy as np
 
 from . import congested, elevation, faa_data, geo, ground_grid
-
-M_TO_FT = 3.28084
+from .units import M_TO_FT
 
 SAMPLE_INTERVAL_NM = 2.0  # how finely to sample terrain along the route
 CORRIDOR_HALF_WIDTH_NM = 5.0  # how far off the direct line an obstacle still counts

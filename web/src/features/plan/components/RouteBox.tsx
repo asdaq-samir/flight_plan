@@ -21,8 +21,10 @@ import type { Detour, FuelStopSuggestion } from "../../../lib/api/types";
 import { MAX_STOPS, frdOf, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
 import { useAirportSearch } from "../../../lib/useAirportSearch";
-import { AIRSPACE_PILL, pillLook, useAirspace } from "../../../lib/useAirspace";
-import { inkOn } from "../../../lib/scoreScale";
+import { useAirspace } from "../../../lib/useAirspace";
+import { airportMarkSvg } from "../../../lib/map/airportMark";
+import { colourOf } from "../../../lib/map/flightCategory";
+import { WAYPOINT_MAGENTA } from "../../../lib/map/chartColors";
 import { altFt, bearing, flightLevel } from "../../../lib/units";
 import { sameField, TYPED_PROCEDURE, type TypedProcedure } from "../../../lib/procedures";
 import { TEXT } from "../../../lib/text";
@@ -634,7 +636,7 @@ function frdWords(ident: string): string {
   return frd ? `${frd.distanceNm} nm on ${bearing(frd.course)} from ${frd.base}` : ident;
 }
 
-/** A fuel stop suggested and not yet in the route (FuelStopRow's), in the
+/** A fuel stop suggested and not yet in the route (the totals' fuel_stops), in the
  *  box: dashed in the caution's colour with the pump; a tap its menu, to
  *  add it to the route or take it out of the box, at the owner's ask
  *  ("Fuel stops should also have a way to delete them and add them back as
@@ -643,8 +645,11 @@ function frdWords(ident: string): string {
 function FuelStopChip({ ident, reason = "fuel", onAdd, onHide }: { ident: string; reason?: "fuel" | "break"; onAdd?: () => void; onHide?: () => void }) {
   // A break on a long flight the tanks hold wears a cup, not the pump.
   const Glyph = reason === "break" ? Coffee : Fuel;
+  // A word of the route's title, as its points are (Pill), in the
+  // caution's colour with the pump and a dashed line under it: suggested,
+  // not yet in the route.
   const chip = cn(
-    "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full border-[1.5px] border-dashed border-caution bg-background/70 px-2 font-semibold whitespace-nowrap text-caution-ink outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+    "relative inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-1 font-semibold whitespace-nowrap text-caution-ink underline decoration-dashed decoration-1 underline-offset-4 outline-none after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
     TEXT.detail,
   );
   const face = (
@@ -693,7 +698,7 @@ function ProcedureChip({ procedure, before = false, onOpen }: {
       type="button" onClick={onOpen} data-testid="route-procedure"
       aria-label={`${procedure.spoken}: the route's procedures`}
       className={cn(
-        before ? "relative mr-1" : "relative ml-1", "inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full border-[1.5px] border-procedure bg-background/70 px-2 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-[#c3c3fa]",
+        before ? "relative mr-1" : "relative ml-1", "inline-flex h-7 shrink-0 after:absolute after:-inset-y-2 after:inset-x-0 after:content-[''] items-center gap-1 rounded-full px-1 font-semibold whitespace-nowrap text-[#4343b8] outline-none focus-visible:ring-2 focus-visible:ring-ring dark:text-[#c3c3fa]",
         TEXT.note,
       )}
     >
@@ -771,11 +776,21 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   const known = airspaceOf(ident);
   // Not for a present position, which has no card to ask for (it was
   // asked for, and the planner answered 404, at every Fly Here).
-  const space = useAirspace({ ident, name: ident, airspace: known }, !waypoint && !byWeather && !known && !isPosition(ident));
-  const metar = byWeather && !waypoint ? metarColourOf(ident) : undefined;
-  const look = waypoint ? undefined
-    : metar ? { backgroundColor: metar, color: inkOn(metar) }
-      : byWeather ? undefined : pillLook(space);
+  const space = useAirspace({ ident, name: ident, airspace: known }, !waypoint && !known && !isPosition(ident));
+  const spaceClass = known ?? (space.name.startsWith("Class ") ? space.name.slice(6) as AirspaceClass : null);
+  // A word of the route's title (the owner's yes to the polish pass,
+  // 2026-10-26: "the route box becomes a bold title"), led by the field's
+  // own mark as the chart and Nearest draw it -- its airspace's ring, and
+  // its METAR's colour in the middle where the setting asks for the
+  // weather -- or a waypoint's magenta diamond. A present position, none.
+  const mark = isPosition(ident) ? null : waypoint ? (
+    <span aria-hidden="true" className="ml-0.5 size-2 shrink-0 rotate-45 rounded-[1px]" style={{ backgroundColor: WAYPOINT_MAGENTA }} />
+  ) : (
+    <span
+      aria-hidden="true" className="block size-[14px] shrink-0"
+      dangerouslySetInnerHTML={{ __html: airportMarkSvg(spaceClass, byWeather ? (metarColourOf(ident) ?? colourOf(null)) : colourOf(null), null, "block size-full overflow-visible") }}
+    />
+  );
   // The fields' own names, as the two fields were: "Departure", "Stop 1".
   const label = role === "dep" ? "Departure" : role === "dest" ? "Destination" : `Stop ${stopNumber}`;
   const pill = (
@@ -790,21 +805,24 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       // Moved, never scaled: across lines the pills differ in width, and
       // dnd-kit's rect strategy scales one to another's, stretching its
       // ident while it is dragged.
-      style={{ transform: CSS.Translate.toString(transform), transition, ...look }}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         // A swipe up or down scrolls the lines; a hold, then a move, drags;
         // a hold alone, its menu. No callout of iOS's own over the hold.
-        AIRSPACE_PILL, "touch-pan-y select-none [-webkit-touch-callout:none]",
-        isDragging && "z-10 shadow-md ring-2 ring-tint",
+        "inline-flex shrink-0 items-center rounded-full touch-pan-y select-none [-webkit-touch-callout:none]",
+        isDragging && "z-10 bg-background shadow-md ring-2 ring-tint",
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}
     >
+      {mark}
       <AirportPicker
         value={pointName(ident)} placeholder={label} ariaLabel={waypoint ? `${label}, a waypoint` : label} look="pill" fixes={role === "stop"}
         // 28 tall, as a fuel stop's and a procedure's chips are, at the
         // owner's ask ("make the other airport pills as thin as the fuel
         // airport pills"); a finger's 44 round it (index.css).
-        className={cn("h-7 rounded-full px-1.5", look && "text-current", waypoint && "text-[#c0309f] dark:text-[#ec8cc4]")} onChange={onChange}
+        // A line under a row's size, as the pills were: three fields and a
+        // procedure's chip keep to one line on a phone (procedures.spec).
+        className={cn("h-7 rounded-full px-[3px]", TEXT.detail, "font-semibold")} onChange={onChange}
         open={changing} onOpenChange={setChanging} onTap={onOpen}
       />
     </span>

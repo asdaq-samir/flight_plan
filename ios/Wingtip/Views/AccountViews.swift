@@ -5,6 +5,7 @@ extension Plan {
     /// out: the next person on the device had them (the web app's
     /// forgetPilot, the audit's finding).
     func forgetPilot() {
+        forgetHistory()
         tail = nil
         figures = Figures()
     }
@@ -31,7 +32,7 @@ struct ContactView: View {
                         .textInputAutocapitalization(.characters).autocorrectionDisabled()
                 }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Contact")
         .navigationBarTitleDisplayMode(.inline)
@@ -86,6 +87,6 @@ struct DeleteAccountButton: View {
             } message: {
                 Text("Your airplanes, flights, logbook and endorsements go, and you are signed out on every device. This can't be undone.")
             }
-        if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+        ProblemLine(problem)
     }
 }

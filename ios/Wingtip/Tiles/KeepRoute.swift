@@ -49,7 +49,7 @@ enum KeepRoute {
     static func samples(of line: [CLLocationCoordinate2D], everyNm step: Double) -> [CLLocationCoordinate2D] {
         var out: [CLLocationCoordinate2D] = []
         for (a, b) in zip(line, line.dropFirst()) {
-            let nm = CLLocation(latitude: a.latitude, longitude: a.longitude).distance(from: CLLocation(latitude: b.latitude, longitude: b.longitude)) / 1852
+            let nm = Flight.nm(from: a, to: b)
             let count = max(1, Int((nm / step).rounded(.up)))
             for i in 0..<count {
                 let t = Double(i) / Double(count)

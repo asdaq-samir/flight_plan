@@ -5,9 +5,6 @@ import SwiftUI
 /// view with their flight categories, and the route's course line.
 /// MKMapView rather than SwiftUI's Map, for the tile overlay and the
 /// renderers the route and the marks need.
-/// A way from Routes, told from the course line by its class.
-final class WayPolyline: MKPolyline {}
-
 /// A procedure's path, told from the course line by its class.
 final class ProcedurePolyline: MKPolyline {}
 
@@ -27,7 +24,7 @@ final class PlaneMarkView: MKAnnotationView {
         arrow.frame = bounds.insetBy(dx: 3, dy: 3)
         arrow.contentMode = .scaleAspectFit
         arrow.tintColor = UIColor.systemBlue
-        backgroundColor = UIColor.white.withAlphaComponent(0.9)
+        backgroundColor = NightPalette.markFill
         layer.cornerRadius = 14
         layer.borderWidth = 1
         layer.borderColor = UIColor(white: 0.1, alpha: 0.4).cgColor
@@ -52,8 +49,6 @@ struct ChartMap: UIViewRepresentable {
     let course: Course?
     /// The route's checkpoints, numbered along it.
     let checkpoints: [Checkpoint]
-    /// A way from Routes shown beside the course, dashed.
-    let shownWay: [CLLocationCoordinate2D]
     /// The procedures' paths the legs fly, drawn with the course.
     let procedurePaths: [[CLLocationCoordinate2D]]
     /// A dry run's airplane, where it is and which way it points.
@@ -78,6 +73,12 @@ struct ChartMap: UIViewRepresentable {
     /// A held finger's pin, the waypoints, the Class B fields and the
     /// plates (MapExtras.swift).
     var extras = MapExtrasInput()
+    /// Dark appearance and Setup's Chart at night, for the chart's dimming
+    /// and the course's night magenta (NightPalette).
+    @Environment(\.colorScheme) var colorScheme
+    @AppStorage(ChartNight.key) var chartNight = ChartNight.dimmed.rawValue
+    /// The legs a hazard tapped in the Brief is on (HazardLegsViews.swift).
+    var hazardLegs: HazardLegs?
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -110,6 +111,7 @@ struct ChartMap: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onAirport = onAirport
+        context.coordinator.dim((ChartNight(rawValue: chartNight) ?? .dimmed).shade(dark: colorScheme == .dark))
         context.coordinator.onRegion = onRegion
         context.coordinator.show(traffic, ownFt: ownFt, on: map)
         context.coordinator.flight?.update(map, flight)
@@ -137,17 +139,6 @@ struct ChartMap: UIViewRepresentable {
             context.coordinator.checkpointMarks = checkpoints.enumerated().map { CheckpointAnnotation(number: $0.offset + 1, checkpoint: $0.element) }
             map.addAnnotations(context.coordinator.checkpointMarks)
         }
-        if context.coordinator.wayShown.map({ $0.latitude }) != shownWay.map({ $0.latitude }) {
-            context.coordinator.wayShown = shownWay
-            if let line = context.coordinator.wayLine { map.removeOverlay(line) }
-            context.coordinator.wayLine = nil
-            if shownWay.count >= 2 {
-                let line = WayPolyline(coordinates: shownWay, count: shownWay.count)
-                map.addOverlay(line, level: .aboveLabels)
-                context.coordinator.wayLine = line
-                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
-            }
-        }
         if context.coordinator.proceduresShown.count != procedurePaths.count || zip(context.coordinator.proceduresShown, procedurePaths).contains(where: { $0.count != $1.count }) {
             context.coordinator.proceduresShown = procedurePaths
             map.removeOverlays(context.coordinator.procedureLines)
@@ -161,10 +152,19 @@ struct ChartMap: UIViewRepresentable {
             plane.coordinate = simulated.coordinate
             plane.heading = simulated.trackDeg ?? 0
             (map.view(for: plane) as? PlaneMarkView)?.turn(to: plane.heading)
+            // Kept in sight as it moves: brought back to the middle of the
+            // map clear of the sheet where it would leave it, as the web
+            // app's replay keeps its airplane (useReplayMarker).
+            if context.coordinator.simulatedAt != simulated.at {
+                context.coordinator.simulatedAt = simulated.at
+                Self.keepInSight(simulated.coordinate, on: map)
+            }
         } else if let plane = context.coordinator.plane {
             map.removeAnnotation(plane)
             context.coordinator.plane = nil
+            context.coordinator.simulatedAt = nil
         }
+        context.coordinator.showHazardLegs(hazardLegs, on: map)
         if context.coordinator.courseShown != course {
             context.coordinator.courseShown = course
             if let line = context.coordinator.courseLine { map.removeOverlay(line) }
@@ -181,7 +181,25 @@ struct ChartMap: UIViewRepresentable {
     }
 
     static func routePadding(in map: MKMapView) -> UIEdgeInsets {
-        UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
+        // On the iPad the sidebar and the inspector are beside the map
+        // (their safe areas), the figures along its foot; on the iPhone
+        // the sheet covers the lower half.
+        if RootLayout.of(map.traitCollection.horizontalSizeClass == .regular ? .regular : .compact, pad: map.traitCollection.userInterfaceIdiom == .pad) == .split {
+            let safe = map.safeAreaInsets
+            return UIEdgeInsets(top: safe.top + 80, left: safe.left + 40, bottom: safe.bottom + 120, right: safe.right + 40)
+        }
+        return UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
+    }
+
+    /// A moving airplane's point brought back into the part of the map in
+    /// sight, the route's padding in from its edges, once it leaves it.
+    static func keepInSight(_ at: CLLocationCoordinate2D, on map: MKMapView) {
+        guard map.bounds.width > 0 else { return }
+        let clear = map.bounds.inset(by: routePadding(in: map))
+        let point = map.convert(at, toPointTo: map)
+        guard clear.width > 0, clear.height > 0, !clear.contains(point) else { return }
+        let middle = CGPoint(x: map.bounds.midX + point.x - clear.midX, y: map.bounds.midY + point.y - clear.midY)
+        map.setCenter(map.convert(middle, toCoordinateFrom: map), animated: true)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -190,11 +208,12 @@ struct ChartMap: UIViewRepresentable {
         var overlay: ChartTileOverlay?
         var courseLine: MKPolyline?
         var courseShown: Course?
+        var hazardLines: [HazardPolyline] = []
+        var hazardShown: HazardLegs?
         var checkpointsShown: [Checkpoint] = []
-        var wayShown: [CLLocationCoordinate2D] = []
-        var wayLine: WayPolyline?
         var proceduresShown: [[CLLocationCoordinate2D]] = []
         var plane: PlaneAnnotation?
+        var simulatedAt: Date?
         var procedureLines: [ProcedurePolyline] = []
         var checkpointMarks: [CheckpointAnnotation] = []
         var onAirport: ((String) -> Void)?
@@ -209,6 +228,20 @@ struct ChartMap: UIViewRepresentable {
         private var fetching: Task<Void, Never>?
         private var shown: [String: AirportAnnotation] = [:]
         let extras = MapExtrasState()
+        /// The chart's renderer and the course's, kept to restyle when
+        /// the appearance or the setting changes; MapKit asks for a
+        /// renderer once per overlay.
+        private var tiles: NightTileRenderer?
+        private var courseRenderer: MKPolylineRenderer?
+        private var shade: CGFloat = 0
+
+        func dim(_ shade: CGFloat) {
+            guard shade != self.shade else { return }
+            self.shade = shade
+            tiles?.shade = shade
+            courseRenderer?.strokeColor = NightPalette.course(night: shade > 0)
+            courseRenderer?.setNeedsDisplay()
+        }
 
         func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
             MainActor.assumeIsolated { extras.calloutTapped(view) }
@@ -216,8 +249,24 @@ struct ChartMap: UIViewRepresentable {
 
         func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
             if let renderer = flight?.renderer(for: overlay) { return renderer }
+            if let chart = overlay as? ChartTileOverlay {
+                let renderer = NightTileRenderer(tileOverlay: chart)
+                renderer.shade = shade
+                tiles = renderer
+                return renderer
+            }
             if let tiles = overlay as? MKTileOverlay { return MKTileOverlayRenderer(tileOverlay: tiles) }
             if let plate = overlay as? PlateMapOverlay { return PlateRenderer(overlay: plate) }
+            if let hazard = overlay as? HazardPolyline {
+                // The legs a hazard tapped in the Brief is on, wide in
+                // amber under the course (HazardLegsViews.swift).
+                let renderer = MKPolylineRenderer(polyline: hazard)
+                renderer.strokeColor = UIColor.systemOrange.withAlphaComponent(0.6)
+                renderer.lineWidth = 10
+                renderer.lineCap = .round
+                renderer.lineJoin = .round
+                return renderer
+            }
             if let procedure = overlay as? ProcedurePolyline {
                 // A procedure's path in the chart's procedure violet, as
                 // the web app draws a picked one.
@@ -227,18 +276,12 @@ struct ChartMap: UIViewRepresentable {
                 renderer.lineJoin = .round
                 return renderer
             }
-            if let way = overlay as? WayPolyline {
-                // A way from Routes, dashed in the tint, beside the course.
-                let renderer = MKPolylineRenderer(polyline: way)
-                renderer.strokeColor = UIColor.systemBlue
-                renderer.lineWidth = 3
-                renderer.lineDashPattern = [6, 6]
-                return renderer
-            }
             if let line = overlay as? MKPolyline {
-                // The web app's magenta course line, a halo under it.
+                // The web app's magenta course line, the night's lighter
+                // one over a dimmed chart.
                 let renderer = MKPolylineRenderer(polyline: line)
-                renderer.strokeColor = UIColor(red: 0.9, green: 0, blue: 0.9, alpha: 1)
+                renderer.strokeColor = NightPalette.course(night: shade > 0)
+                courseRenderer = renderer
                 renderer.lineWidth = 3
                 renderer.lineJoin = .round
                 renderer.lineCap = .round

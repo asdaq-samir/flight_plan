@@ -3,11 +3,9 @@ package com.northflyers.vfr.service;
 import com.northflyers.vfr.domain.Pilot;
 import com.northflyers.vfr.repository.PilotRepository;
 import com.northflyers.vfr.security.MagicLinkAuthenticationToken;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -49,10 +47,7 @@ public class PilotService {
      */
     public PilotService(PilotRepository pilots, @Value("${app.developer-emails:}") String developerEmails) {
         this.pilots = pilots;
-        this.developerEmails = Arrays.stream(developerEmails.split(","))
-                .map(String::trim).filter(StringUtils::hasText)
-                .map(address -> address.toLowerCase(Locale.ROOT))
-                .collect(Collectors.toUnmodifiableSet());
+        this.developerEmails = Typed.addresses(developerEmails);
     }
 
     /** The pilot, made a developer when `app.developer-emails` lists
@@ -170,8 +165,7 @@ public class PilotService {
     @Transactional
     public Pilot setContact(Pilot pilot, String phone, String homeBase) {
         pilot.setContact(
-                phone == null || phone.isBlank() ? null : phone.strip().replaceAll("\\s+", " "),
-                homeBase == null || homeBase.isBlank() ? null : homeBase.strip().toUpperCase(Locale.ROOT));
+                Typed.words(phone), Typed.code(homeBase));
         return pilots.save(pilot);
     }
 

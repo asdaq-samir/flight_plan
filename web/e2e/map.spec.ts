@@ -80,7 +80,9 @@ test("plan page: a checkpoint picked on the map brings the map in to it, so ther
   const zoomOfTiles = () => page.evaluate(() => Math.max(...[...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")]
     .map(img => Number(new URL(img.src).pathname.split("/").at(-3))).filter(Number.isFinite)));
   const before = await zoomOfTiles();
-  const marker = page.locator(".leaflet-marker-icon", { hasText: /^9$/ }).first();
+  // A checkpoint drawn at this zoom: those without room for their dots
+  // wait for the map to come in (RouteMap's useSpaced).
+  const marker = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ }).first();
   await expect(marker).toBeVisible({ timeout: slow(60000) });
   // Its own click, not one at its place: the route fitted to a phone
   // stacks neighbouring checkpoints, and a click there lands on the one
@@ -129,7 +131,9 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
     await page.waitForTimeout(400);
   }
   await expect.poll(zoomOfTiles, { timeout: slow(10000) }).toBeLessThanOrEqual(5);
-  await expect(numbered.first()).toBeVisible();
+  // So far out the route is a few points across: its numbered dots give
+  // way to its two airports' marks (RouteMap's useSpaced, 2026-10-26),
+  // the landmarks still drawn.
   // The landmarks' dim dots, in their slate outline.
   const landmarks = page.locator('path.leaflet-interactive[stroke="#5b6b76"]');
   await expect(landmarks.first()).toBeAttached();

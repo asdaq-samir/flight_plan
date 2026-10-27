@@ -74,6 +74,8 @@ export type NavLogMessage = Schemas["NavLogMessage"];
 export type Runway = Schemas["Runway"];
 export type Frequency = Schemas["Frequency"];
 export type Briefing = Schemas["Briefing"];
+export type OnRoute = Schemas["OnRoute"];
+export type MapLayerAges = Schemas["MapLayerAges"];
 /** `GET /api/alternate`: under IFR, whether the destination needs an
  *  alternate (14 CFR 91.169(b)), the pilot's alternate checked against its
  *  minimums at its ETA (91.169(c)), and the nearest fields that will do. */
@@ -96,6 +98,7 @@ export type RouteStops = Schemas["RouteStops"];
 export type RouteStopField = Schemas["RouteStopField"];
 /** The ways to fly a route, for FPL's Routes (vfr.route_options), and one of them. */
 export type RouteOptions = Schemas["RouteOptions"];
+export type RouteChip = Schemas["RouteChip"];
 export type RouteOption = Schemas["RouteOption"];
 export type ForecastWind = Schemas["ForecastWind"];
 export type Metar = Schemas["Metar"];

@@ -7,7 +7,6 @@ import com.northflyers.vfr.dto.InspectionsRequest;
 import com.northflyers.vfr.repository.AircraftRepository;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
 
@@ -36,7 +35,7 @@ public class AircraftService {
                         String equipment, String surveillance, String colour) {
         return aircraft.save(new Aircraft(pilot, tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph, cruisePowerPct,
                 climbTasKt, climbFuelBurnGph, usableFuelGal)
-                .describeForFlightPlan(code(equipment), code(surveillance), words(colour)));
+                .describeForFlightPlan(Typed.code(equipment), Typed.code(surveillance), Typed.words(colour)));
     }
 
     /** Empty when no such aircraft exists for this pilot -- not
@@ -48,23 +47,12 @@ public class AircraftService {
                                      String equipment, String surveillance, String colour) {
         return get(pilot, id).map(a -> aircraft.save(a.update(tailNumber, typeDesignator, cruiseTasKt, fuelBurnGph,
                 cruisePowerPct, climbTasKt, climbFuelBurnGph, usableFuelGal)
-                .describeForFlightPlan(code(equipment), code(surveillance), words(colour))));
-    }
-
-    /** Item 10's codes as the form writes them, in capitals (AIM Appendix
-     *  4, TBL 4-2 and 4-3); blank is none. */
-    static String code(String typed) {
-        return typed == null || typed.isBlank() ? null : typed.strip().toUpperCase(Locale.ROOT);
-    }
-
-    /** Words as typed, their spaces made single; blank is none. */
-    static String words(String typed) {
-        return typed == null || typed.isBlank() ? null : typed.strip().replaceAll("\\s+", " ");
+                .describeForFlightPlan(Typed.code(equipment), Typed.code(surveillance), Typed.words(colour))));
     }
 
     /** The airplane's VOR check for IFR, as the pilot records it (14 CFR 91.171(d)). */
     public Optional<Aircraft> recordVorCheck(Pilot pilot, Long id, LocalDate on, VorCheck kind, String place, double errorDeg) {
-        return get(pilot, id).map(a -> aircraft.save(a.recordVorCheck(on, kind, place == null || place.isBlank() ? null : place.strip(),
+        return get(pilot, id).map(a -> aircraft.save(a.recordVorCheck(on, kind, Typed.text(place),
                 errorDeg)));
     }
 

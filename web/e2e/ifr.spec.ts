@@ -93,7 +93,14 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   await closeNavLog(page);
   await controlsInSight(page);
   const why = page.getByTestId("altitude-why");
-  await expect(why).toHaveAccessibleName(/under IFR, (\d*[02468],000 feet|FL\d[02468]0)/, { timeout: slow(90000) });
+  // Whole thousands, but either parity: the group names the highest leg,
+  // and the route turns east of north on its last leg (OSH to KATW, about
+  // 009 magnetic), where 91.179(b)(1)(i) wants odd thousands -- the
+  // fastest plan climbs to 5,000 there when the live winds favour it, so
+  // the name is 4,000 or 5,000 by the day's winds. The even thousands of
+  // the legs west of north are checked on the filed level below, which is
+  // the first leg's.
+  await expect(why).toHaveAccessibleName(/under IFR, (\d+,000 feet|FL\d\d0)/, { timeout: slow(90000) });
   await why.click();
   const popover = page.getByTestId("profile-card");
   // How it was chosen, folded under the altitude's figures.

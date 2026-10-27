@@ -61,6 +61,8 @@ struct BriefView: View {
                                     if let raw = hazard.raw { Text(raw).font(.footnote.monospaced()).foregroundStyle(.secondary) }
                                 }
                                 .id(rowId("hazards", i, anchorAt: weatherAt, anchor: VerdictTarget.weatherAnchor))
+                                // Its legs and when the airplane is there; a tap shows them.
+                                OnRouteRow(on: hazard.onRoute, key: "sigmet-\(i)-\(hazard.raw ?? "")")
                             }
                         }
                     }
@@ -77,6 +79,7 @@ struct BriefView: View {
                                     .font(.footnote).foregroundStyle(.secondary)
                                 }
                                 .id(rowId("gairmets", i, anchorAt: weatherAt, anchor: VerdictTarget.weatherAnchor))
+                                OnRouteRow(on: g.onRoute, key: "gairmet-\(g.hazard)")
                             }
                         }
                     }
@@ -97,12 +100,13 @@ struct BriefView: View {
                                     .font(.footnote).foregroundStyle(.secondary)
                                 }
                                 .id(rowId("tfrs", i, anchorAt: "tfrs", anchor: VerdictTarget.airspaceAnchor))
+                                OnRouteRow(on: tfr.onRoute, key: "tfr-\(tfr.notamId)")
                             }
                         }
                     }
                     if let pireps = briefing.pireps, !pireps.isEmpty {
                         Section("Pilot reports") {
-                            ForEach(Array(pireps.enumerated()), id: \.offset) { _, p in
+                            ForEach(Array(pireps.enumerated()), id: \.offset) { i, p in
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 8) {
                                         Text(String(format: "%.0f nm along", p.alongTrackNm)).font(.headline)
@@ -112,9 +116,11 @@ struct BriefView: View {
                                     }
                                     if let raw = p.raw { Text(raw).font(.footnote.monospaced()).foregroundStyle(.secondary) }
                                 }
+                                OnRouteRow(on: p.onRoute, key: "pirep-\(i)-\(p.raw ?? "")")
                             }
                         }
                     }
+                    FieldsBelowVfrSection(fields: briefing.fieldsBelowVfr ?? [])
                     if let forecast = briefing.forecast {
                         Section("Forecast along the route") {
                             LabeledContent("Lowest ceiling", value: forecast.minCeilingFt.map { "\(Int($0).formatted()) ft" } ?? "—")

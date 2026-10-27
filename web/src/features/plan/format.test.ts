@@ -3,7 +3,7 @@ import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
 import {
   bearing, clockTime, cruiseByAltitude, decimalHours, hhmm, legsWithoutWind, one, plannedWords, reportedWind, runwayWind, scoreColor,
-  windAloft, windLine, windPickCrosswind, windPickWords, windsOutOfDate,
+  windAloft, windLine, windsOutOfDate,
 } from "./format";
 
 describe("scoreColor", () => {
@@ -111,19 +111,6 @@ describe("runwayWind", () => {
     expect(runwayWind({ end: "18", headwind_kt: 0, crosswind_kt: 0, gust_crosswind_kt: null })).toBe("Calm on 18");
     // A gust's crosswind no more than the steady one's is not said.
     expect(runwayWind({ end: "36", headwind_kt: 12, crosswind_kt: 2, gust_crosswind_kt: -2 })).toBe("Favors 36: 12 kt headwind, 2 kt crosswind from the right");
-  });
-});
-
-describe("the wind a runway is picked by, in words", () => {
-  const pick = { ident: "24", headwindKt: 8, crosswindKt: -2, gustCrosswindKt: -9, calm: false, from: { ident: "KUGN", nm: 11 } };
-  it("says the end, along and across, the gusts', and whose wind it is", () => {
-    expect(windPickWords(pick)).toBe("24 into the wind: headwind 8 kt, crosswind 2 gusting 9 kt (KUGN, 11 nm)");
-    expect(windPickCrosswind(pick)).toBe("2G9");
-    expect(windPickWords({ ...pick, headwindKt: -3, crosswindKt: 0, gustCrosswindKt: null, from: null })).toBe("24 into the wind: tailwind 3 kt");
-    expect(windPickCrosswind({ ...pick, crosswindKt: 0, gustCrosswindKt: null })).toBeNull();
-    expect(windPickWords({ ...pick, calm: true })).toBe("Wind calm, 24 (KUGN, 11 nm)");
-    expect(windPickWords({ ...pick, calm: true, inUse: true, from: null })).toBe("Wind calm, 24 in use");
-    expect(windPickWords({ ...pick, calm: true, variableKt: 6 })).toBe("Wind variable at 6 kt, 24 (KUGN, 11 nm)");
   });
 });
 

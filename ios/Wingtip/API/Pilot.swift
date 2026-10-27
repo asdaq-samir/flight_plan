@@ -166,49 +166,27 @@ struct ExperienceItem: Codable, Equatable, Sendable {
     let have: Double
     let need: Double
     var met: Bool = false
-
-    var words: String {
-        func n(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) }
-        return "\(n(have)) of \(n(need)) \(unit)"
-    }
 }
 
 extension Gateway {
-    static func training() async throws -> Training? { try await fetch(Training.self, "/api/training") }
+    static func training() async throws -> Training? { try await read(Training.self, "/api/training") }
 
     /// An instructor asked in by their address (/api/training/instructors).
     static func askInstructor(email: String) async throws {
         struct Ask: Encodable { let email: String }
-        let (_, response) = try await session.data(for: request("POST", "/api/training/instructors", json: Ask(email: email)))
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200...299).contains(status) else { throw Failure(status: status) }
+        try await send("POST", "/api/training/instructors", json: Ask(email: email))
     }
 
-    /// JSON from the gateway: its dates as the strings they come as.
-    private static func fetch<T: Decodable>(_ type: T.Type, _ path: String) async throws -> T? {
-        let (data, response) = try await session.data(for: request("GET", path))
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        switch status {
-        case 200: return try JSONDecoder().decode(T.self, from: data)
-        case 401, 403, 204: return nil
-        default: throw Failure(status: status)
-        }
-    }
-
-    static func flights() async throws -> [SavedFlight] { try await fetch([SavedFlight].self, "/api/flights") ?? [] }
-    static func logbook() async throws -> [LogbookEntry] { try await fetch([LogbookEntry].self, "/api/logbook") ?? [] }
-    static func currency() async throws -> Currency? { try await fetch(Currency.self, "/api/logbook/currency") }
+    static func flights() async throws -> [SavedFlight] { try await read([SavedFlight].self, "/api/flights") ?? [] }
+    static func logbook() async throws -> [LogbookEntry] { try await read([LogbookEntry].self, "/api/logbook") ?? [] }
+    static func currency() async throws -> Currency? { try await read(Currency.self, "/api/logbook/currency") }
 
     /// A flight saved as planned (POST /api/flights).
     static func save(_ flight: SaveFlightRequest) async throws {
-        let (_, response) = try await session.data(for: request("POST", "/api/flights", json: flight))
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200...299).contains(status) else { throw Failure(status: status) }
+        try await send("POST", "/api/flights", json: flight)
     }
 
     static func deleteFlight(_ id: Int64) async throws {
-        let (_, response) = try await session.data(for: request("DELETE", "/api/flights/\(id)"))
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200...299).contains(status) else { throw Failure(status: status) }
+        try await send("DELETE", "/api/flights/\(id)")
     }
 }

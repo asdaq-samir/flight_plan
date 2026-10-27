@@ -32,6 +32,8 @@ export const SETTING_BADGE = {
   pilot: "#0e7490",
   theme: BADGE.approach,
   layout: BADGE.weather,
+  chartNight: BADGE.chart,
+  look: BADGE.food,
   route: BADGE.ground,
   narrative: "#7e3fb8",
   position: "#2563eb",

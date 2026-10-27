@@ -103,6 +103,12 @@ export function useOwnShipNear(): { lat: number; lon: number } | null {
   }, [at]);
 }
 
+/** Own ship's fix while it is on, what every distance from the airplane is
+ *  measured from; null while it is off. */
+export function useOwnFix() {
+  return useOwnShip(o => (o.enabled ? o.fix : null));
+}
+
 /** Own ship as it was before a dry run took it over, to give back
  *  (simulateFix); above the store, which reads it as it saves. */
 let beforeSimulation: { enabled: boolean; follow: boolean } | null = null;

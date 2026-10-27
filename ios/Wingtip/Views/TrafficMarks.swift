@@ -36,8 +36,7 @@ final class TrafficMarkView: MKAnnotationView {
         label.font = UIFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
         label.textAlignment = .center
         label.textColor = .label
-        label.shadowColor = UIColor.white.withAlphaComponent(0.9)
-        label.shadowOffset = .zero
+        label.haloFollowing(self)
         addSubview(chevron)
         addSubview(label)
         // A tap opens its card (FlightMapLayer), not a callout.
@@ -50,7 +49,7 @@ final class TrafficMarkView: MKAnnotationView {
 
     func show(_ mark: TrafficAnnotation) {
         let near = Traffic.near(mark.plane, ownFt: mark.ownFt)
-        chevron.tintColor = near ? UIColor(red: 0.96, green: 0.62, blue: 0.04, alpha: 1) : UIColor(red: 0.02, green: 0.71, blue: 0.83, alpha: 1)
+        chevron.tintColor = near ? NightPalette.trafficNear : NightPalette.trafficFar
         chevron.transform = CGAffineTransform(rotationAngle: CGFloat((mark.plane.trackDeg ?? 0) * .pi / 180))
         label.text = Traffic.label(mark.plane, ownFt: mark.ownFt)
         accessibilityLabel = "\(mark.title ?? "Airplane"), \(label.text ?? "")"

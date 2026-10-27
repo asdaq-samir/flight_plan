@@ -4,9 +4,10 @@ import { openPanel, settle, sideDrawer, slow } from "./helpers";
 /**
  * Fuel stops suggested as Tesla suggests chargers, at the owner's pick
  * (option A, 2026-10-21): a flight too long for its tanks gets a stop the
- * planner chose, a row in FPL's list with what the airplane lands with and
- * when, dashed in the route's box and pinned on the map, other fields in
- * its menu, and one tap puts it in the route.
+ * planner chose, dashed in the route's box and pinned on the map, and its
+ * menu puts it in the route. FPL's list has no cards of them since the
+ * route line took their job (the owner's redesign, 2026-10-26;
+ * route-line.spec).
  *
  * The planner's choice is its own (vfr.fuelstops, tested there); here the
  * live nav log for C81-KDLH, a route CI reads anyway, is answered with a
@@ -37,63 +38,27 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("a fuel stop the planner suggests is a row of the route, dashed in its box and pinned on the map, and one tap adds it", async ({ page }) => {
+test("a fuel stop the planner suggests is dashed in the route's box and pinned on the map", async ({ page }) => {
   await suggested(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-
-  // FPL's cards, the planner's pick first: the field and its town, what
-  // the airplane lands with; the other field the next card to swipe to.
-  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
-  await expect(row).toBeVisible({ timeout: slow(60_000) });
-  await expect(row).toHaveAttribute("data-ident", "KRPD");
-  await expect(row).toContainText("KRPD");
-  await expect(row).toContainText(/Rice lake/i);
-  await expect(row.getByTestId("fuel-gauge")).toContainText("18 gal");
-
-  // Dashed in the route's box, after the departure, and pinned.
-  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD");
+  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD", { timeout: slow(60_000) });
   await expect(page.getByTitle("Suggested fuel stop KRPD")).toHaveCount(1);
-
-  const other = sideDrawer(page).getByTestId("fuel-stop-card").nth(1);
-  await expect(other).toHaveAttribute("data-ident", "KEAU");
-  await expect(other).toContainText(/Eau claire/i);
-
-  // Added: a stop of the route.
-  await expect(sideDrawer(page).getByTestId("fuel-stop-keep")).toHaveText("Add KRPD");
-  await sideDrawer(page).getByTestId("fuel-stop-keep").click();
-  await expect(page).toHaveURL(/[?&]stops=KRPD(&|$)/);
+  // No cards of it in FPL's list: the route line does their job.
+  await expect(sideDrawer(page).getByTestId("fuel-stop-card")).toHaveCount(0);
 });
 
-test("another field swiped to goes in in its place", async ({ page }) => {
-  // The owner's "Can you make them swipeable fuel stop options?" (2026-10-25).
-  await suggested(page);
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await settle(page);
-  await openPanel(page);
-  const cards = sideDrawer(page).getByTestId("fuel-stop-card");
-  await expect(cards.first()).toBeVisible({ timeout: slow(60_000) });
-  await cards.nth(1).evaluate(el => el.parentElement!.scrollTo({ left: (el as HTMLElement).offsetLeft - el.parentElement!.offsetLeft }));
-  const keep = sideDrawer(page).getByTestId("fuel-stop-keep");
-  await expect(keep).toHaveText("Add KEAU");
-  await keep.click();
-  await expect(page).toHaveURL(/[?&]stops=KEAU(&|$)/);
-});
-
-test("a stop suggested on a flight from a present position is a row of the route too", async ({ page }) => {
+test("a stop suggested on a flight from a present position is dashed in the route's box too", async ({ page }) => {
   // The owner's screenshot (2026-10-22): from a present position, the stop
-  // dashed in the route's box was missing from FPL's list, the departure
-  // there no field to follow.
+  // was missing, the departure there no field to follow.
   // Named as the route's box names the position, as the planner sends it.
   await suggested(page, "@42.2333,-87.9883");
   await page.goto("/app/plan?dep=@42.2333,-87.9883&dest=KDLH");
   await settle(page);
   await openPanel(page);
   await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveText("KRPD", { timeout: slow(60_000) });
-  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
-  await expect(row).toHaveAttribute("data-ident", "KRPD");
-  await expect(sideDrawer(page).getByTestId("fuel-stop-keep")).toBeVisible();
+  await expect(page.getByTitle("Suggested fuel stop KRPD")).toHaveCount(1);
 });
 
 test("a suggested fuel stop can be taken out of the route box and put back, or added from its menu", async ({ page }) => {
@@ -129,20 +94,16 @@ const SERVICES = {
   cars: [], nearby_unavailable: false,
 };
 
-// The owner's pick of the trip-stops canvas ("Ok do it", 2026-10-22): A,
-// what is there on the ground under each suggested stop, and the stop's
-// card a tap on its row.
-test("a suggested stop's row says what is there on the ground, and a tap opens its card with its figures", async ({ page }) => {
+// The owner's pick of the trip-stops canvas ("Ok do it", 2026-10-22): the
+// stop's card a tap on it, with its figures.
+test("a suggested stop's pin opens its card with its figures", async ({ page }) => {
   await suggested(page);
   await page.route(url => url.pathname.endsWith("/airport/KRPD/services"), route => route.fulfill({ json: SERVICES }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await openPanel(page);
-  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
-  await expect(row).toBeVisible({ timeout: slow(60_000) });
-  await expect(row.getByTestId("stop-glance")).toHaveText(/100LL.*Food 4 min walk.*Hotel 2\.1 mi.*Courtesy car/);
-
-  await row.click();
+  const pin = page.getByTitle("Suggested fuel stop KRPD");
+  await expect(pin).toHaveCount(1, { timeout: slow(60_000) });
+  await pin.click();
   const card = page.getByTestId("place-card");
   await expect(card.getByTestId("place-stop")).toContainText("Suggested fuel stop");
   await expect(card.getByTestId("place-stop-after")).toContainText("From C81");
@@ -178,37 +139,10 @@ test("a long flight the tanks hold is offered a break about half way, kept as th
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
-  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
-  await expect(row).toBeVisible({ timeout: slow(60_000) });
-  await expect(row).toHaveAccessibleName(/Suggested stop for a break, KRPD/);
-  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveAccessibleName("Suggested stop KRPD");
-  const keep = sideDrawer(page).getByTestId("fuel-stop-keep");
-  await expect(keep).toHaveText("Add KRPD");
-  await keep.click();
+  const chip = sideDrawer(page).getByTestId("route-fuel-stop");
+  await expect(chip).toHaveAccessibleName("Suggested stop KRPD", { timeout: slow(60_000) });
+  await chip.click();
+  await page.getByTestId("route-fuel-stop-add").click();
   await expect(page).toHaveURL(/[?&]stops=KRPD(&|$)/);
   await expect(page).not.toHaveURL(/[?&]fuel=/);
-});
-
-test("a suggested fuel stop is taken out from FPL's list with the minus beside Add, and put back from the list or the route's menu", async ({ page }) => {
-  // The owner's ask (2026-10-25): "Add minus delete button next to add fuel stops".
-  await suggested(page);
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
-  await settle(page);
-  await openPanel(page);
-  const row = sideDrawer(page).getByTestId("fuel-stop-card").first();
-  await expect(row).toHaveAttribute("data-ident", "KRPD", { timeout: slow(60_000) });
-  const remove = sideDrawer(page).getByTestId("fuel-stop-remove");
-  await expect(remove).toHaveAccessibleName("Remove the suggested fuel stop");
-  await remove.click();
-  await expect(row).toHaveCount(0);
-  await expect(sideDrawer(page).getByTestId("route-fuel-stop")).toHaveCount(0);
-  // Put back where it was, from the list (the owner's "we still want to be
-  // able to add them back"), as from the route's menu.
-  await sideDrawer(page).getByTestId("fuel-stop-show").click();
-  await expect(row).toHaveAttribute("data-ident", "KRPD");
-  await expect(sideDrawer(page).getByTestId("fuel-stop-show")).toHaveCount(0);
-  await remove.click();
-  await sideDrawer(page).getByTestId("share-route").click();
-  await page.getByTestId("route-show-fuel").click();
-  await expect(row).toHaveAttribute("data-ident", "KRPD");
 });

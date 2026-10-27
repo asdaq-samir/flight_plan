@@ -80,7 +80,7 @@ struct LogbookView: View {
                     }
                 }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Logbook")
         .navigationBarTitleDisplayMode(.inline)
@@ -287,7 +287,7 @@ struct LogbookEntryForm: View {
             Section("Remarks") {
                 TextField("Remarks", text: Binding(get: { entry.remarks ?? "" }, set: { entry.remarks = $0 }), axis: .vertical).lineLimit(1...4)
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle(isNew ? "Log a Flight" : "The Flight")
         .navigationBarTitleDisplayMode(.inline)

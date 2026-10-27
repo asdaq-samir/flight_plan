@@ -8,7 +8,7 @@ import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, airportsFoodQuery, routeFoodQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
-import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteOption, RouteOptions } from "../../lib/api/types";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, minutesWords } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
@@ -32,6 +32,8 @@ import type { WorkspaceProps } from "../page/workspace";
 import type { PanelState } from "../../components/mapChrome";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useNavEdge } from "../../hooks/use-nav-edge";
+import { usePlanHistory } from "../../hooks/use-plan-history";
+import { rebasedRoute } from "../../lib/routeRebase";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import type { RouteCard } from "../../lib/openCards";
@@ -55,12 +57,13 @@ import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
 import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
-import RouteChoices from "./components/RouteChoices";
 import type { RouteWay } from "../../lib/map/RouteWaysLayer";
-import { gridScale, isRoute, offered, routesOffered, sameStops, wayTime, wayTitle } from "../../lib/routeWays";
+import { gridScale, sameStops, wayTime } from "../../lib/routeWays";
+import { useRouteLineOpen } from "../../lib/routeLine";
 
 /** No ways on the chart: one array for good, so the map's memo holds. */
 const NO_WAYS: RouteWay[] = [];
+const NO_CHIPS: RouteChip[] = [];
 import TabPage from "../../components/TabPage";
 import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
@@ -187,8 +190,6 @@ function altitudeChoiceOf(value: string | null): AltitudeChoice {
 /** The route with its fuel stops put in, for the Routes' card of it: its
  *  points, the fuel stops among them, its miles, its air and ground
  *  minutes on the planner's grid, and its landings. */
-/** How long a route entered waits on its Routes before it is planned anyway. */
-const WAYS_WAIT_MS = 8_000;
 /** Where along each way its chip sits, a share of its length, by the
  *  way's place among all those offered (RouteWaysLayer's `share`). */
 const WAY_CHIP_SHARES = [0.2, 0.4, 0.6, 0.8];
@@ -317,6 +318,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // picked on the map opens its section.
   const panelOpen = panel !== "peek";
   const [searchParams, setSearchParams] = useSearchParamsNow();
+  // Every change of the plan can be taken back (Undo, Cmd-Z), whichever
+  // button made it, in place of asking first.
+  usePlanHistory(searchParams, setSearchParams);
   // The route: its two ends, and the airports it lands at on the way --
   // the stops one array while the address has the same, so what is made
   // from them (the map's add-a-stop, the box's waypoints) is too, and the
@@ -502,48 +506,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     enabled: vfrRoute,
   });
   const routeWays = routeWaysQuery.data;
-  // The way shown on the map and under the cards, by its kind (RouteChoices):
-  // a card or the way's line tapped shows it, Use puts it in the route.
-  const [wayShown, setWayShown] = useState<string | null>(null);
-  // A card used: its way the route and the cards put away, the route's
-  // list under them in their place, until the route changes (the owner's
-  // "No need to have the route at the bottom yet. Only do that once
-  // selected and all the cards go away"). By the route's ends alone: a
-  // route picked and then changed by hand (a point added, a fuel stop
-  // taken out) is still the pilot's pick, and planned.
-  // Only a route whose ends were typed into the box gets the cards first
-  // (`entered`): one that comes whole -- in the address as the page
-  // opens, a saved flight, Fly Here, a link shared -- was picked before,
-  // and is planned at once, its Routes a tap away. It was the other way
-  // about, by the first address alone, and a saved flight opened later
-  // sat on cards for good (the audit of 2026-10-24).
-  const [entered, setEntered] = useState<string | null>(null);
-  const [routesChosen, setRoutesChosen] = useState<string | null>(null);
   // The route with the fuel stops it needs put in, the planner's grid's
   // (RouteOptions.own), for its card before anything is planned.
   const own = routeWays?.own;
   const ownWithFuel = useMemo((): FuelCard | null => (own && own.landings > 0
     ? { stops: own.stops, added: own.fuel, nm: own.distance_nm, air: own.air_min, ground: own.ground_min, landings: own.landings }
     : null), [own]);
-  const fuelCard = browsing ? browsing.withFuel : ownWithFuel;
-  // The cards while there is a choice to make, and nothing planned till
-  // one is used (the owner's "Don't plan anything unless a route is
-  // picked", 2026-10-24: the pilot browses the routes, picks one, and
-  // sees it planned in full, its approaches and all; Routes in the route
-  // box brings the cards back). Planned at once where none is offered,
-  // or the planner could not say.
-  // Waited on for 8 s at the most: a planner slow to answer (cold, its
-  // grids still loading) does not hold the plan up with it.
-  const waysKey = `${chosenKey}|${baseStops.join(",")}`;
-  const waysPending = vfrRoute && routeWaysQuery.isPending;
-  const [waysLate, setWaysLate] = useState<string | null>(null);
-  useEffect(() => {
-    if (!waysPending) return;
-    const timer = window.setTimeout(() => setWaysLate(waysKey), WAYS_WAIT_MS);
-    return () => window.clearTimeout(timer);
-  }, [waysPending, waysKey]);
-  const choosing = vfrRoute && entered === chosenKey && routesChosen !== chosenKey
-    && ((waysPending && waysLate !== waysKey) || routesOffered(routeWays, baseStops, !!fuelCard));
   const planParams = {
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeNearest, altitudeChoice, depart, aircraft, load, classBClearance,
     altitudes, procedures, runways: runwaysText, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
@@ -552,7 +520,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
-    planNow: !choosing,
+    planNow: true,
   };
   const s = usePlan(planParams);
   // The route's own time and miles: its nav log's once it is planned,
@@ -704,6 +672,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   useEffect(() => {
     if (!cardOpen && !briefOpen) panelBeforeCard.current = panel;
   }, [cardOpen, briefOpen, panel]);
+  // The tab an airplane's card was opened over from the route box's
+  // N-number (openAirplaneCard), and the tab setter, set once the tabs
+  // are (usePanelTabs, below): its close goes back there, FPL, not to
+  // Aircraft's list under it (the owner's "when closing the card, it
+  // doesn't go back to fpl").
+  const airplaneFrom = useRef<PanelTab | null>(null);
+  const backToTab = useRef<(tab: PanelTab) => void>(() => {});
   const closeCard = useCallback((close: () => void) => {
     close();
     setPanel(panelBeforeCard.current);
@@ -755,7 +730,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const flightCard = flight && past
     ? <Suspense fallback={null}><PastFlightCard key={`${flight}-${past}`} hex={flight} id={past} onClose={() => selectPast(null)} /></Suspense>
     : flight ? <Suspense fallback={null}><FlightCard
-      key={flight} hex={flight} onClose={() => closeCard(() => selectFlight(null))} onOpenPast={selectPast}
+      key={flight} hex={flight} onOpenPast={selectPast}
+      onClose={() => closeCard(() => {
+        selectFlight(null);
+        const from = airplaneFrom.current;
+        airplaneFrom.current = null;
+        if (from) backToTab.current(from);
+      })}
       onOpenAirport={openAirportOverFlight}
       onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
     /></Suspense> : null;
@@ -1207,7 +1188,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the other still to be typed -- and with neither, there is no route:
   // FPL's box empty to type another in, the panel left the height it was,
   // as the route's close leaves it (clearRoute).
-  const setRoute = useCallback(({ dep, stops, dest }: RouteParts, fuelAdded: string[] = [], keepLists = false) => {
+  // An edit is worked out from the route this render drew; made while the
+  // address is a change ahead of it, it is carried onto the address's
+  // route (lib/routeRebase), never written over it.
+  const drawnDep = planned.dep, drawnDest = planned.dest;
+  const setRoute = useCallback((parts: RouteParts, fuelAdded: string[] = [], keepLists = false) => {
+    const { dep, dest } = parts;
+    const drawn = { dep: drawnDep, stops, dest: drawnDest };
     if (!dep && !dest) {
       setSearchParams({}, { replace: true });
       return;
@@ -1216,10 +1203,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // has drawn it: the draw is half a second of a phone's before the
     // plan's own requests went (measured 2026-10-07), and the course's
     // answer starts the planner's chart read and ground (app.prefetch).
-    const via = stopsOf(stops.join(","));
+    const via = stopsOf(parts.stops.join(","));
     const whole = routeOf(dep, dest, via);
     if (whole) void queryClient.prefetchQuery(courseQuery(whole.dep, whole.dest, via));
     setSearchParams(prev => {
+      const { dep, stops, dest } = rebasedRoute(drawn, parts, { dep: departureOf(prev.get("dep")), stops: stopsOf(prev.get("stops")), dest: identOf(prev.get("dest")) });
       // What was picked at a field goes with it out of the route -- its
       // runways, procedures, altitude, time on the ground and hold -- in
       // the same change, so the planner is not asked once with them.
@@ -1236,7 +1224,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         .filter((id, i, all) => id && all.indexOf(id) === i && stops.some(stop => sameField(stop, id)));
       return patched(prev, { dep, dest, stops: stops.join(","), ...fieldListParams(kept), direct: null, was: null, fuel: fuel.length ? fuel.join(",") : null });
     }, { replace: true });
-  }, [setSearchParams]);
+  }, [setSearchParams, drawnDep, stops, drawnDest]);
   // An airport's card's Add Stop, at the pilot's ask: the field the
   // route's next stop, after the ones it makes and before its destination
   // (it was Add to Route, the field the new destination); with half a
@@ -1269,16 +1257,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { altitudes: altitudesParam(own) });
     }, { replace: true });
   }, [setSearchParams]);
-  // The box's own changes (RouteBox): new ends are a route entered, the
-  // Routes' cards first (`entered`, above).
-  const routeTyped = useCallback((parts: RouteParts, fuelAdded?: string[]) => {
-    const key = `${parts.dep}|${parts.dest ?? ""}`;
-    if (key !== chosenKey) {
-      setEntered(key);
-      setRoutesChosen(null);
-    }
-    setRoute(parts, fuelAdded);
-  }, [chosenKey, setRoute]);
+  // The box's own changes (RouteBox).
+  const routeTyped = useCallback((parts: RouteParts, fuelAdded?: string[]) => setRoute(parts, fuelAdded), [setRoute]);
   const setStops = useCallback(
     (stops: string[], fuelAdded?: string[], keepLists = false) => setRoute({ dep: planned.dep, stops, dest: planned.dest }, fuelAdded, keepLists),
     [setRoute, planned.dep, planned.dest]);
@@ -1312,11 +1292,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: fuelRoute, idents: [...(was.route === fuelRoute ? was.idents : []), ident],
   })), [fuelRoute]);
   const showFuelStops = useCallback(() => setHiddenFuel({ route: "", idents: [] }), []);
-  // Those taken out, each flight with only its stops taken out, for FPL's
-  // list to offer them back where they were (FuelStopsHidden).
-  const hiddenFuelStops = useMemo(() => (hiddenHere.length
-    ? allFuelStops.map(f => ({ ...f, stops: f.stops.filter(x => hiddenHere.includes(x.ident)) })).filter(f => f.stops.length)
-    : NO_FUEL_STOPS), [allFuelStops, hiddenHere]);
   // The tanks for FPL's fuel at each point: the fuel check's usable fuel,
   // allowance and reserve, the first flight's where the route has stops
   // (each is filled again), the strictest reserve of them.
@@ -1553,7 +1528,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // fly in airports", 2026-10-26). Not for each Routes card swiped past.
   // Pinned only while the card is open.
   const { data: foodNear } = useQuery({ ...airportsFoodQuery(foodAt?.lat ?? 0, foodAt?.lon ?? 0, foodRadius), enabled: !!foodAt && (!foodRoute || foodScope === "near") });
-  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: !!foodRoute && (!choosing || stopsShown) });
+  const { data: foodAlong } = useQuery({ ...routeFoodQuery(foodRoute?.dep ?? "", foodRoute?.dest ?? "", foodRoute?.stops ?? ""), enabled: !!foodRoute });
   const foodFields = foodScope === "route" ? foodAlong : foodNear;
   const alongPins = useMemo(() => (stopsShown && foodFields ? foodFields.fields.map(f => ({
     ident: f.ident, lat: f.lat, lon: f.lon, reason: "along" as const, title: `${f.ident}, a restaurant on the field`,
@@ -1838,9 +1813,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The airplane's card from the route box's N-number (FlightInputs):
   // Aircraft's tab, its card over it.
   const openAirplaneCard = useCallback((hex: string) => {
+    airplaneFrom.current = tab;
     setTabPick("aircraft");
     selectFlight(hex);
-  }, [setTabPick, selectFlight]);
+  }, [tab, setTabPick, selectFlight]);
+  useEffect(() => { backToTab.current = setTabPick; }, [setTabPick]);
     const pickTail = useCallback((tail: string, profile: string) => {
     // With the figures the pilot set for it, where they have (AirplaneFigures).
     setAircraft({ profile, label: `${tail} · ${profile.toUpperCase()}`, tail, ...usePreferences.getState().tailFigures[tail] });
@@ -2132,122 +2109,104 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     return { feet: ownAltitudes[ident] ?? planned ?? null, own: ident in ownAltitudes, caution };
   }, [altitudes, s.legs, s.nav, routeAirport]);
 
-  const pickRoute = useCallback((option: RouteOption) => {
-    setBrowsing(null);
-    setWayShown(null);
-    setRoutesChosen(chosenKey);
-    if (!isRoute(option, planned.stops)) setStops(option.stops, option.fuel);
-  }, [setStops, planned.stops, chosenKey, setBrowsing]);
-  const keepWithFuel = useCallback(() => {
-    if (!fuelCard) return;
-    setBrowsing(null);
-    setWayShown(null);
-    setRoutesChosen(chosenKey);
-    if (!sameStops(fuelCard.stops, planned.stops)) setStops(fuelCard.stops, fuelCard.added);
-  }, [fuelCard, setStops, planned.stops, chosenKey, setBrowsing]);
-  // Your Route used: the route as it was kept, the cards put away.
-  const keepOwn = useCallback(() => {
-    setWayShown(null);
-    setRoutesChosen(chosenKey);
-    if (browsing) {
-      setBrowsing(null);
-      setStops(browsing.stops, browsing.fuel);
-    }
-  }, [browsing, chosenKey, setStops, setBrowsing]);
-  // The rules turned to IFR while browsing: the route as it was kept is
-  // the route, not the way that was in sight (the cards are VFR's).
-  useEffect(() => {
-    // A write to the address, once, as the rules turn: not a render's state.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (flightRules !== "vfr" && browsing) keepOwn();
-  }, [flightRules, browsing, keepOwn]);
-  // A card come into sight: its way put in FPL, the route as it was kept.
-  const previewWay = useCallback((kind: string | null) => {
-    setWayShown(kind);
-    const from = browsing ?? {
-      key: chosenKey, stops: planned.stops, fuel: (searchParams.get("fuel") ?? "").split(",").filter(Boolean),
-      withFuel: ownWithFuel, ownMinutes, ownGround, ownNm, ways: (routeWays?.options ?? []).map(o => o.stops),
-    };
-    if (kind === null) {
+  // FPL's route line (the owner's redesign, 2026-10-26: "make it more like
+  // the runway folding with the route symbol, and no need for accept or
+  // not buttons. You can simply have none in the beginning"): the
+  // planner's chips (RouteOptions.chips), "None" the route as typed. A
+  // chip tapped is the route at once, planned; the route as typed kept
+  // (`browsing`) and the chips asked for from it, so "None" puts it back.
+  // A change of the route by hand ends it (browsingNear).
+  const chips = routeWays?.chips ?? NO_CHIPS;
+  const lineKey = browsing ? (chips.find(c => c.key !== "none" && sameStops(c.stops, planned.stops))?.key ?? "none") : "none";
+  const applyChip = useCallback((key: string) => {
+    if (key === "none") {
       if (browsing) {
         setBrowsing(null);
+        // The typed route's own picks kept (keepLists): its stops' runways,
+        // approaches, holds and altitudes, which a way that skipped a stop
+        // would otherwise have pruned.
         setStops(browsing.stops, browsing.fuel, true);
       }
       return;
     }
-    if (!browsing) setBrowsing(from);
-    if (kind === "fuel") {
-      if (from.withFuel) setStops(from.withFuel.stops, from.withFuel.added, true);
-      return;
+    const chip = chips.find(c => c.key === key);
+    if (!chip) return;
+    if (!browsing) {
+      setBrowsing({
+        key: chosenKey, stops: planned.stops, fuel: (searchParams.get("fuel") ?? "").split(",").filter(Boolean),
+        withFuel: ownWithFuel, ownMinutes, ownGround, ownNm, ways: chips.map(c => c.stops),
+      });
     }
-    const option = routeWays?.options.find(o => o.kind === kind);
-    if (option) setStops(option.stops, option.fuel, true);
-  }, [browsing, chosenKey, planned.stops, searchParams, ownWithFuel, ownMinutes, ownGround, ownNm, routeWays, setStops, setBrowsing]);
+    setStops(chip.stops, chip.fuel, true);
+  }, [browsing, chips, chosenKey, planned.stops, searchParams, ownWithFuel, ownMinutes, ownGround, ownNm, setStops, setBrowsing]);
+  // The rules turned to IFR on a chip: the route as typed is the route
+  // (the planner's ways are VFR's).
+  useEffect(() => {
+    // A write to the address, once, as the rules turn: not a render's state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (flightRules !== "vfr" && browsing) applyChip("none");
+  }, [flightRules, browsing, applyChip]);
+  // What a chip's way meets, said on it in amber: the first thing it
+  // crosses, or no field with fuel in reach (the planner's "fuel" hazard).
+  const routeLine = useMemo(() => {
+    if (!vfrRoute || chips.length < 2) return null;
+    const hazards = routeWays?.hazards ?? [];
+    const warning = (crosses: number[]) => {
+      // The worst it meets first: airspace a pilot may not enter, then
+      // storms and high ground, then weather; each by its own name (a TFR
+      // was "Crosses weather").
+      const met = crosses.map(i => hazards[i]).filter((h): h is NonNullable<typeof h> => !!h);
+      const rank = (kind: string) => ["prohibited", "tfr", "storm", "terrain", "sigmet", "fuel"].indexOf(kind) >>> 0;
+      const h = [...met].sort((a, b) => rank(a.kind) - rank(b.kind))[0];
+      if (!h) return null;
+      const words: Record<string, string> = {
+        fuel: "No fuel stop in reach", prohibited: "Crosses a prohibited area", tfr: "Crosses a TFR", storm: "Crosses storms",
+        terrain: "Crosses high ground", sigmet: "Crosses a SIGMET",
+      };
+      return words[h.kind] ?? "Crosses weather";
+    };
+    return { chips: chips.map(c => ({ key: c.key, label: c.label, warning: warning(c.crosses ?? []) })), picked: lineKey, onPick: applyChip };
+  }, [vfrRoute, chips, routeWays, lineKey, applyChip]);
 
-  // The same ways on the chart beside the route, in faded magenta (RouteWaysLayer).
-  // Only while the cards are up: a route picked is the route alone on the
-  // chart, the other ways put away with their cards.
-  // Every card's, the pilot's own route and it with its fuel stops too, at
-  // the owner's ask ("I want all routes drawn including mine", 2026-10-25):
-  // each its chip, the one in sight solid.
+  // The chips' ways on the chart beside the course while the line is open,
+  // each its time on its chip, the one picked solid (the owner's "I want
+  // all routes drawn including mine", 2026-10-25); folded, the course alone.
+  const lineOpen = useRouteLineOpen(st => st.open);
   const wayLines = useMemo((): RouteWay[] => {
-    if (!choosing || !routeWays) return NO_WAYS;
+    if (!lineOpen || !routeLine || !routeWays) return NO_WAYS;
     const minutes = browsing ? browsing.ownMinutes : ownMinutes;
     const ground = browsing ? browsing.ownGround : ownGround;
     const scale = gridScale(routeWays, minutes);
     const lines: RouteWay[] = [];
-    if (routeWays.current_path?.length) {
-      lines.push({
-        key: "own", path: routeWays.current_path as [number, number][], name: "Your Route",
-        label: minutes === null ? "" : minutesWords(minutes + ground),
-      });
-    }
-    if (fuelCard && routeWays.own) {
-      lines.push({
-        key: "fuel", path: routeWays.own.path as [number, number][], name: "Your Route with Fuel",
-        label: minutesWords(fuelCard.air * scale + fuelCard.ground),
-      });
-    }
-    for (const o of routeWays.options) {
-      if (!offered(o)) continue;
-      // Its time alone on the chart, the cards saying which is which (the
-      // owner's "avoid putting too much text": the names ran over each other).
-      lines.push({ key: o.kind, path: o.path as [number, number][], label: wayTime(o, scale), name: wayTitle(o) });
+    for (const chip of chips) {
+      if (chip.key === "none") {
+        if (routeWays.current_path?.length) {
+          lines.push({ key: "own", path: routeWays.current_path as [number, number][], name: chip.label, label: minutes === null ? "" : minutesWords(minutes + ground) });
+        }
+        continue;
+      }
+      // By its stops, as the planner made the chip: a way is the best of
+      // several kinds, its own `kind` only the first of them.
+      const way = chip.key === "fuel" ? routeWays.own : routeWays.options.find(o => sameStops(o.stops, chip.stops));
+      if (way) lines.push({ key: chip.key, path: way.path as [number, number][], label: wayTime(way, scale), name: chip.label });
     }
     // Each chip where it is whichever others are drawn, by its place among
     // all of them (it jumped along its line as another went).
     return lines.map((line, i) => ({ ...line, share: WAY_CHIP_SHARES[i % WAY_CHIP_SHARES.length] }));
-  }, [choosing, routeWays, browsing, ownMinutes, ownGround, fuelCard]);
-  // A way's line or chip tapped: its card in sight, as a swipe to it does;
-  // the pilot's own route is the cards' first (null).
-  const pickWay = useCallback((key: string) => previewWay(key === "own" ? null : key), [previewWay]);
-  // Routes in the route box: the cards again, from the route as it is.
-  const showRoutes = useCallback(() => { setEntered(chosenKey); setRoutesChosen(null); }, [chosenKey]);
-  const routeChoices = useMemo(() => {
-    if (!choosing) return null;
-    const minutes = browsing ? browsing.ownMinutes : ownMinutes;
-    // Its air time on the route's clock, as the ways' are (gridScale).
-    const scale = gridScale(routeWays, minutes);
-    const withFuel = fuelCard && { ...fuelCard, minutes: fuelCard.air * scale + fuelCard.ground };
-    return (
-      <RouteChoices found={routeWays} stops={baseStops} depart={depart || null}
-        ownMinutes={minutes} ownGround={browsing ? browsing.ownGround : ownGround} ownNm={browsing ? browsing.ownNm : ownNm}
-        full={panel === "full"} picked={wayShown} withFuel={withFuel} onUseFuel={keepWithFuel} onUseOwn={keepOwn} onPreview={previewWay} onPick={pickRoute} />
-    );
-  }, [choosing, routeWays, baseStops, depart, browsing, ownMinutes, ownGround, ownNm, panel, wayShown, fuelCard, keepWithFuel, keepOwn, previewWay, pickRoute]);
-  // The routes the cards browse, end to end, for the route box to keep
-  // its height through them (RouteBox's holdFor).
+  }, [lineOpen, routeLine, routeWays, chips, browsing, ownMinutes, ownGround]);
+  // A way's line or chip on the chart tapped: its chip picked.
+  const pickWay = useCallback((key: string) => applyChip(key === "own" ? "none" : key), [applyChip]);
+  // The routes the chips put in, end to end, for the route box to keep
+  // its height through them while the line is open and they are tapped
+  // through (RouteBox's holdFor); folded, the box is the route's own
+  // height -- a short route's one line was held at two.
   const browsedRoutes = useMemo(() => {
-    if (!choosing) return undefined;
-    const ends = (stops: string[]) => [planned.dep, ...stops, `${planned.dest ?? ""}`];
-    return [baseStops, ...(fuelCard ? [fuelCard.stops] : []), ...(routeWays?.options ?? []).filter(offered).map(o => o.stops)].map(ends);
-  }, [choosing, planned.dep, planned.dest, baseStops, fuelCard, routeWays]);
+    if (!routeLine || !lineOpen) return undefined;
+    return chips.map(c => [planned.dep, ...c.stops, `${planned.dest ?? ""}`]);
+  }, [routeLine, lineOpen, chips, planned.dep, planned.dest]);
   const routeList = useMemo(() => (
     <>
-    {/* The ways to fly it (RouteChoices) while one is to be picked; the
-        route's points once it is. */}
-    {routeChoices}
-    {!routeChoices && <ProceduresRoute
+    <ProceduresRoute
       airports={procedureAirports} rows={routeRows} depart={depart} weather={metarColour}
       picked={pickedPatterns} onPick={pickPattern} onPreselect={preselectPattern} takeoffs={pickedTakeoffs} onTakeoff={setTakeoff}
       onPreselectTakeoff={preselectTakeoff} autoPicked={autoPicked} fit={runwayFitInputs}
@@ -2255,16 +2214,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       at={proceduresAt} onAt={setProceduresShown} crossings={crossings} onFix={showFix} onDepart={changeDepart} ground={ground} onGround={setGround}
       pointAltitude={altitudeAt} onPointAltitude={setPointAltitude} directTo={directParam} onDirectTo={directToPoint}
       onInfo={selectPlace} onRemove={removeStop} onCreateFix={insertStopAfter} holds={holds} onHoldSet={setHold} askHold={holdAsk}
-      routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop}
-      hiddenFuelStops={hiddenFuelStops} onShowFuelStops={showFuelStops} fuel={tankFigures}
+      routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuel={tankFigures}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
-      chartsDisabled={!planned.dest || noApproaches}
-    />}
+      chartsDisabled={!planned.dest || noApproaches} routeLine={routeLine}
+    />
     </>
-  ), [routeChoices, procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
+  ), [routeLine, procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length,
-    fuelStops, keepFuelStops, hideFuelStop, hiddenFuelStops, showFuelStops, tankFigures]);
+    tankFigures]);
   // Its head: the route by name, and its plan under it -- where from and
   // to, the airplane, the altitude, when -- as an airport's card has its
   // name and where it is.
@@ -2425,7 +2383,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // Plan again in the route's own menu, at the owner's pick ("A") to
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
-      onNavLog={card === undefined && course && !choosing ? openNavLogCard : undefined}
+      onNavLog={card === undefined && course ? openNavLogCard : undefined}
       onShowFuel={card === undefined && hiddenHere.length ? showFuelStops : undefined}
     />
   );
@@ -2542,22 +2500,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           Back on this line at the owner's ask (2026-10-25), the sheet edge
           to edge for the room (MapPanel's HALF_INSET). */}
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-3.5" data-testid="route-actions">
-        {/* The Routes' cards again, once one was used (RouteChoices), in the
-            Brief's place, at the owner's ask ("brief button with routes"). */}
-        {routed && !s.local && flightRules === "vfr" && (
-          <RoundButton label="Routes" onClick={showRoutes} aria-pressed={choosing} className="size-8" data-testid="route-routes">
-            <Route className="size-[1.125rem]" strokeWidth={2} />
-          </RoundButton>
-        )}
         {/* The Brief, a card over FPL (BriefCard), in the nav log's place
             at the owner's ask ("replace navlog button with brief"), marked
             as the worst of its pages is; the nav log in the route's menu. */}
         {routed && (
           <RoundButton
             label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
-            // Nothing to brief till a route is picked (planNow): it opened on
-            // "Fetching METARs…" for good.
-            disabled={choosing}
             data-testid="route-brief" data-finding={briefMark ?? undefined}
           >
             <span className="relative">
@@ -2637,7 +2585,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directs={mapDirects}
           onProcedureFix={showFix}
           fuelStops={stopPins}
-          ways={wayLines} wayShown={wayShown ?? "own"} onPickWay={pickWay}
+          ways={wayLines} wayShown={lineKey === "none" ? "own" : lineKey} onPickWay={pickWay}
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
@@ -2867,7 +2815,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     route: (
       <div className="min-w-0 flex-1">
         {/* Its room while its code comes: the box's own line. */}
-        <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-foreground/8" />}>
+        <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-card" />}>
         <SearchNear.Provider value={searchNear}>
         <RouteBox
           dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}

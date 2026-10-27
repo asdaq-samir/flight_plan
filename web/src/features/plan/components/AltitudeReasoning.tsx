@@ -6,7 +6,7 @@ import type { AltitudeSegment, Leg, NavLogAltitude } from "../../../lib/api/type
 import { CRUISE_REFERENCE_FT } from "../../../lib/performance";
 import { TEXT } from "../../../lib/text";
 import { flightLevel } from "../../../lib/units";
-import { faaWords, suaAltitudes } from "../../../lib/advisories";
+import { capitalised, faaWords, suaAltitudes } from "../../../lib/advisories";
 import { altFt, bearing, cruiseByAltitude, describeFuel, describeSteps, describeTime, PLAN_NAME } from "../format";
 
 interface Props {
@@ -399,7 +399,7 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
               s.min_ceiling_ft === null ? "none" : `${altFt(s.min_ceiling_ft)} ft`}, visibility ${s.min_visibility_sm ?? "—"} sm${
               s.low_ceiling_or_visibility && !ifr ? ", below VFR minimums (1,000 ft, 3 sm) somewhere on the way" : ""
             }. `}
-          {hazards.charAt(0).toUpperCase() + hazards.slice(1)}. {freezing}
+          {capitalised(hazards)}. {freezing}
         </>
       ),
     },

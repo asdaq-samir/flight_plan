@@ -2791,6 +2791,14 @@
             "title": "Airports",
             "type": "object"
           },
+          "fields_below_vfr": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/FieldBelowVfr"
+            },
+            "title": "Fields Below Vfr",
+            "type": "array"
+          },
           "forecast": {
             "$ref": "#/components/schemas/Forecast"
           },
@@ -2808,6 +2816,23 @@
             },
             "title": "Hazards",
             "type": "array"
+          },
+          "leg_fixes": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RoutePoint"
+            },
+            "title": "Leg Fixes",
+            "type": "array"
+          },
+          "legs_from": {
+            "default": "route",
+            "enum": [
+              "navlog",
+              "route"
+            ],
+            "title": "Legs From",
+            "type": "string"
           },
           "metars": {
             "additionalProperties": {
@@ -5014,6 +5039,66 @@
         "title": "EstimateCheck",
         "type": "object"
       },
+      "FieldBelowVfr": {
+        "description": "A field whose weather is below VFR where the flight meets it\n(app.exposure.fields_below_vfr): an airport flown from or to whose\nMETAR reports IFR or LIFR now, or a TAF station along the route\nforecast under 14 CFR 91.155's basic minimums for when the airplane\nis there, with the ceiling and visibility that put it there.",
+        "properties": {
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "flight_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flight Category"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "on_route": {
+            "$ref": "#/components/schemas/OnRoute"
+          },
+          "source": {
+            "enum": [
+              "METAR",
+              "TAF"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "visibility_sm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visibility Sm"
+          }
+        },
+        "required": [
+          "ident",
+          "source",
+          "on_route"
+        ],
+        "title": "FieldBelowVfr",
+        "type": "object"
+      },
       "FieldFood": {
         "description": "A field with somewhere to eat on it or a short walk from it, for the\nmap's fly-in food (the \"$100 hamburger\"): where it is from the pilot,\nand its places to eat nearest first (vfr.nearby).",
         "properties": {
@@ -5957,7 +6042,7 @@
         "type": "object"
       },
       "GAirmet": {
-        "description": "A G-AIRMET the route crosses during the flight\n(vfr.weather.gairmets_along_route): the hazard in words, its severity\nand cause, the time its snapshot is valid at, and its altitudes --\n`from_freezing_level` where it starts there.",
+        "description": "A G-AIRMET the route crosses during the flight\n(app.exposure.gairmets): the hazard in words, its severity\nand cause, the time its snapshot is valid at, and its altitudes --\n`from_freezing_level` where it starts there.",
         "properties": {
           "altitude_high_ft": {
             "anyOf": [
@@ -6000,6 +6085,27 @@
           "hazard": {
             "title": "Hazard",
             "type": "string"
+          },
+          "issued": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued"
+          },
+          "on_route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OnRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "severity": {
             "anyOf": [
@@ -6459,7 +6565,7 @@
         "type": "object"
       },
       "Hazard": {
-        "description": "A SIGMET/AIRMET whose polygon the route line crosses.",
+        "description": "A SIGMET/AIRMET whose polygon the route line crosses; in the\nbriefing, with where and when the flight meets it.",
         "properties": {
           "altitude_high_ft": {
             "anyOf": [
@@ -6496,6 +6602,17 @@
             ],
             "default": null,
             "title": "Hazard"
+          },
+          "on_route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OnRoute"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "raw": {
             "anyOf": [
@@ -7581,6 +7698,35 @@
           }
         },
         "title": "LostCommsSegment",
+        "type": "object"
+      },
+      "MapLayerAges": {
+        "description": "When the planner fetched what the map's weather layers are drawn\nfrom (ISO 8601 UTC; None before the first fetch): the METARs the\nairports' flight categories come from, and the TFRs.",
+        "properties": {
+          "metars_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metars At"
+          },
+          "tfrs_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tfrs At"
+          }
+        },
+        "title": "MapLayerAges",
         "type": "object"
       },
       "Metar": {
@@ -8909,6 +9055,125 @@
         "title": "NoteStart",
         "type": "object"
       },
+      "OnRoute": {
+        "description": "Where and when the flight meets a hazard (app.exposure): the legs\nit is on (0-based, Briefing.leg_fixes' -- the nav log's where the\npage sent them), from how far along to how far (nm from the\ndeparture), when the airplane gets there and leaves (ISO 8601 UTC),\nand the hazard's own times -- valid from and to, and when it was\nissued (a pilot report's, when it was made; a METAR's, when it was\nobserved). `when` is whether the airplane is in it while it is\nvalid, give or take half an hour; None for one with no valid times\n(a pilot report, a report or forecast for a field).",
+        "properties": {
+          "enter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Enter"
+          },
+          "from_nm": {
+            "title": "From Nm",
+            "type": "number"
+          },
+          "issued": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Issued"
+          },
+          "leave": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Leave"
+          },
+          "legs": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "SIGMET",
+              "Convective SIGMET",
+              "AIRMET",
+              "G-AIRMET",
+              "TFR",
+              "PIREP",
+              "METAR",
+              "TAF"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "to_nm": {
+            "title": "To Nm",
+            "type": "number"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Valid To"
+          },
+          "when": {
+            "anyOf": [
+              {
+                "enum": [
+                  "during",
+                  "before",
+                  "after"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "When"
+          }
+        },
+        "required": [
+          "legs",
+          "from_nm",
+          "to_nm",
+          "source"
+        ],
+        "title": "OnRoute",
+        "type": "object"
+      },
       "OpenSquawk": {
         "description": "A squawk not yet fixed, and how far its 14 CFR 91.213(d)\ndetermination reaches, where one was made.",
         "properties": {
@@ -10127,6 +10392,16 @@
               }
             ],
             "title": "Observed At"
+          },
+          "on_route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OnRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "raw": {
             "anyOf": [
@@ -11374,6 +11649,49 @@
         "title": "RouteBand",
         "type": "object"
       },
+      "RouteChip": {
+        "description": "One choice on FPL's route line (the owner's redesign, 2026-10-26:\nthe route folding as a runway line does, a chip a way): its `key`\n(\"none\" the route as typed, \"fuel\" it with its fuel stops, else the\nway's kind), the words on it -- the way's name and the stops it adds\n-- the stops and fuel stops it puts in the address, and the hazards\nit crosses by their index in RouteOptions.hazards.",
+        "properties": {
+          "crosses": {
+            "default": [],
+            "items": {
+              "type": "integer"
+            },
+            "title": "Crosses",
+            "type": "array"
+          },
+          "fuel": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "stops": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Stops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "stops",
+          "fuel"
+        ],
+        "title": "RouteChip",
+        "type": "object"
+      },
       "RouteHazard": {
         "description": "What a way keeps clear of (vfr.route_options): its kind -- storm,\nweather, marginal, sigmet, tfr, prohibited, terrain -- and its words.",
         "properties": {
@@ -11528,6 +11846,14 @@
       "RouteOptions": {
         "description": "The ways to fly a route, the fastest first; what the straight line\ncrosses (`direct`), what is at its ends (`ends`) and what the pilot's\nown route crosses and passes (`current`, `current_marginal`), by index\nin `hazards`; and the sources that could not be read now (`unchecked`).",
         "properties": {
+          "chips": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RouteChip"
+            },
+            "title": "Chips",
+            "type": "array"
+          },
           "current": {
             "default": [],
             "items": {
@@ -11619,6 +11945,24 @@
           "unchecked"
         ],
         "title": "RouteOptions",
+        "type": "object"
+      },
+      "RoutePoint": {
+        "properties": {
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "RoutePoint",
         "type": "object"
       },
       "RouteProfile": {
@@ -11894,6 +12238,16 @@
           "notam_id": {
             "title": "Notam Id",
             "type": "string"
+          },
+          "on_route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OnRoute"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "purpose": {
             "anyOf": [
@@ -15148,7 +15502,7 @@
     },
     "/api/briefing": {
       "get": {
-        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies, its traffic pattern\n(vfr.pattern) and the class of the airspace over it, for its\npattern card and the radio calls.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.",
+        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies, its traffic pattern\n(vfr.pattern) and the class of the airspace over it, for its\npattern card and the radio calls.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.\n\nEach hazard says where and when the flight meets it (`on_route`,\napp.exposure): on the nav log's legs where the page sends them --\n`fixes`, its points \"lat,lon;lat,lon\", `leg_min` each leg's ETE and\n`ground_min` each leg's minutes on the ground after it -- else on\nthe route's own legs, the flight's time shared out by distance.",
         "operationId": "briefing_api_briefing_get",
         "parameters": [
           {
@@ -15210,6 +15564,36 @@
                 }
               ],
               "title": "Ete Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fixes",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Fixes",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "leg_min",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Leg Min",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ground_min",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Ground Min",
+              "type": "string"
             }
           }
         ],
@@ -16878,6 +17262,25 @@
           }
         },
         "summary": "Lost Comms"
+      }
+    },
+    "/api/map/ages": {
+      "get": {
+        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by vfr.weather)\nand the TFRs (tfr.faa.gov).",
+        "operationId": "map_layer_ages_api_map_ages_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapLayerAges"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Map Layer Ages"
       }
     },
     "/api/map/google": {

@@ -6,7 +6,7 @@ import { pickedEnd, runwayFlown, runwayNumber } from "../../../lib/pattern";
 import { useRunwayPicks } from "../../../lib/useRunwayPicks";
 import { hm } from "../../../lib/clock";
 import { routeName } from "../../../lib/identSchema";
-import { altFt, gal, nm } from "../../../lib/units";
+import { altFt, feetRange, gal, nm } from "../../../lib/units";
 import { bearing, etaAt, one, plannedWords } from "../format";
 import { isLegPoint, legOf, navLogRows, rowPoint } from "./navlog/rows";
 
@@ -14,8 +14,7 @@ import { isLegPoint, legOf, navLogRows, rowPoint } from "./navlog/rows";
 function altitudes(legs: Leg[], fallback: number | null | undefined): string | null {
   const alts = legs.map(l => l.altitude_ft);
   if (!alts.length) return fallback == null ? null : `${altFt(fallback)} ft`;
-  const low = Math.min(...alts), high = Math.max(...alts);
-  return low === high ? `${altFt(low)} ft` : `${altFt(low)}–${altFt(high)} ft`;
+  return feetRange(alts);
 }
 
 /** A line to write on: the label and a rule after it. */

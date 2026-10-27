@@ -43,9 +43,20 @@ final class Plan {
     private(set) var briefing: Briefing?
     private(set) var routes: RouteOptions?
     private(set) var routesProblem: String?
-    /// The way whose path is drawn on the map while the cards are up.
-    var shownWay: RouteOption?
+    /// The route's stops as the pilot typed them, kept while one of the
+    /// planner's ways is flown in their place: "None" on the route line
+    /// flies them again.
+    private(set) var typedStops: [String] = []
+    /// The planner's way flown in place of the typed route, picked on the
+    /// route line; nil for the route as typed.
+    private(set) var pickedChip: RouteChip?
+    /// The route the ways in `routes` were asked for, so a re-plan of the
+    /// same route (a new altitude, a procedure) does not ask again.
+    private var routesAskedFor: String?
     private(set) var briefingProblem: String?
+    /// The legs a hazard tapped in the Brief is on, shown on the map
+    /// (BriefLegs.swift); nil when none is.
+    var hazardLegs: HazardLegs?
     private(set) var legs: [Leg] = []
     private(set) var altitudeFt: Double?
     private(set) var totals: Totals?
@@ -61,6 +72,18 @@ final class Plan {
 
     /// When the plan shown was made; nil while it is being made now.
     private(set) var plannedAt: Date?
+
+    /// The route's undo and redo (PlanHistory): each change taken in as
+    /// it is planned or cleared, whichever button made it.
+    private(set) var history = PlanHistory()
+    /// What the last change took away, for the Undo bar; nil once it goes.
+    private(set) var undoNote: UndoNote?
+    /// The window's, from SwiftUI's environment (RootView): shake to undo
+    /// and the Edit menu's Undo and Redo, for free.
+    @ObservationIgnored weak var undoManager: UndoManager?
+    /// Off while a kept plan is put back at launch: that is not the
+    /// pilot's change to undo.
+    @ObservationIgnored private var remembering = true
 
     var routed: Bool { !dep.isEmpty && !dest.isEmpty }
 
@@ -82,20 +105,81 @@ final class Plan {
         course = kept.course; checkpoints = kept.checkpoints; profile = kept.profile; altitude = kept.altitude
         legs = kept.legs; totals = kept.totals; altitudeFt = kept.altitude?.altitudeFt; briefing = kept.briefing
         plannedAt = kept.plannedAt
+        remembering = false
         plan()
+        remembering = true
+        history = PlanHistory(routeState)
     }
 
     /// The route's idents in order, as the route box shows them.
     var idents: [String] { [dep] + stops + [dest] }
 
+    /// The route cleared at once, no question asked: the Undo bar, shake
+    /// or the Edit menu brings it back (PlanHistory).
     func clear() {
-        running?.cancel()
         dep = ""; dest = ""; stops = []
-        course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil
-        legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
-        Kept.forget()
         ownAltitudeFt = nil; ownAltitudeLegal = false; altitudeChoice = nil; procedures = []
         extras = RouteExtras()
+        typedStops = []; pickedChip = nil; routes = nil; routesProblem = nil; routesAskedFor = nil
+        forgetPlanned()
+        remember()
+    }
+
+    /// What the planner said of the route, gone with it.
+    private func forgetPlanned() {
+        running?.cancel()
+        course = nil; checkpoints = []; profile = nil; altitude = nil; briefing = nil; briefingProblem = nil; hazardLegs = nil
+        legs = []; totals = nil; altitudeFt = nil; stage = nil; problem = nil; planning = false; plannedAt = nil
+        Kept.forget()
+    }
+
+    /// The route as it is now taken into the history: a change is a step
+    /// to undo, said in the Undo bar where it took something away.
+    private func remember() {
+        guard remembering else { return }
+        let (pushed, note) = history.observe(routeState)
+        guard pushed else { return }
+        undoNote = note.map { UndoNote(words: $0) }
+        guard let undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { plan in MainActor.assumeIsolated { plan.stepBack(registering: true) } }
+        undoManager.setActionName(note ?? "Route Change")
+    }
+
+    /// One step back, the route as it was planned again; the step to redo
+    /// handed to the UndoManager when it asked for this one.
+    func stepBack(registering: Bool) {
+        guard let state = history.undo() else { return }
+        put(state)
+        if registering, let undoManager {
+            undoManager.registerUndo(withTarget: self) { plan in MainActor.assumeIsolated { plan.stepForward(registering: true) } }
+        }
+    }
+
+    func stepForward(registering: Bool) {
+        guard let state = history.redo() else { return }
+        put(state)
+        if registering, let undoManager {
+            undoManager.registerUndo(withTarget: self) { plan in MainActor.assumeIsolated { plan.stepBack(registering: true) } }
+        }
+    }
+
+    private func put(_ state: RouteState) {
+        undoNote = nil
+        dep = state.dep; dest = state.dest; stops = state.stops; procedures = state.procedures; extras = state.extras
+        ownAltitudeFt = state.ownAltitudeFt; ownAltitudeLegal = state.ownAltitudeLegal; altitudeChoice = state.altitudeChoice
+        if routed { plan() } else { forgetPlanned() }
+    }
+
+    /// The Undo bar put away, its time up.
+    func dismissUndoNote(_ note: UndoNote) {
+        if undoNote == note { undoNote = nil }
+    }
+
+    /// No steps back: a signed-out pilot's routes are not the next one's.
+    func forgetHistory() {
+        history = PlanHistory(routeState)
+        undoNote = nil
+        undoManager?.removeAllActions(withTarget: self)
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
@@ -110,15 +194,6 @@ final class Plan {
                 Task { @MainActor in self?.keeping = (kept, wanted) }
             }
         }
-    }
-
-    /// The planner's fuel stops put into the route, the whole chain before
-    /// the flight's destination, at the owner's ask ("suggest fuel stops
-    /// just like Tesla suggests").
-    func addFuelStops(_ suggestion: FuelStopSuggestion) {
-        let before = (stops.firstIndex(of: suggestion.destination) ?? stops.count)
-        stops.insert(contentsOf: suggestion.stops.map(\.ident), at: before)
-        plan()
     }
 
     /// A way round what stops the route put in: the points to fly by,
@@ -159,7 +234,7 @@ final class Plan {
     /// An airplane by its N-number: one of the pilot's own with its
     /// figures, else the FAA's registry's type on the planner's profile
     /// for it, where it has one; the profile in use stands otherwise.
-    func fly(tail: String, own: [OwnAircraft], profiles: [AircraftProfile]) async {
+    func fly(tail: String, own: [OwnAircraftRecord], profiles: [AircraftProfile]) async {
         let tail = tail.uppercased()
         self.tail = tail
         // The figures kept on this device for the N-number first, then the
@@ -187,29 +262,46 @@ final class Plan {
         plan()
     }
 
-    /// The ways to fly the route, asked for from the Routes page.
-    func findRoutes() async {
-        guard routed else { return }
-        routesProblem = nil
+    /// The ways to fly the route as the pilot typed it, for the route
+    /// line's chips: asked for once per route, whichever way is flown.
+    private func findRoutes(dep: String, dest: String, stops: [String], aircraft: String, asked: String) async {
         do {
-            routes = try await Planner.routeOptions(dep: dep, dest: dest, stops: stops, aircraft: aircraft)
+            let found = try await Planner.routeOptions(dep: dep, dest: dest, stops: stops, aircraft: aircraft)
+            guard routesAskedFor == asked else { return }
+            routes = found
         } catch {
+            guard routesAskedFor == asked, !(error is CancellationError) else { return }
             routesProblem = error.localizedDescription
         }
     }
 
-    /// A way taken: its stops the route's, planned again.
-    func use(_ way: RouteOption) {
-        stops = way.stops
-        shownWay = nil
+    /// A way off the route line flown at once, no asking first: its stops
+    /// the route's, the typed ones kept for "None".
+    /// "None" flies the typed stops whatever the chip carries: the typed
+    /// route is the pilot's, kept here.
+    func use(_ chip: RouteChip) {
+        guard chip.key != "none" else { return useTyped() }
+        if pickedChip == nil { typedStops = stops }
+        pickedChip = chip
+        stops = chip.stops
+        plan()
+    }
+
+    /// "None" on the route line: the route as the pilot typed it again.
+    func useTyped() {
+        guard pickedChip != nil else { return }
+        pickedChip = nil
+        stops = typedStops
         plan()
     }
 
     /// The briefing, as the web app fetches it as soon as the route is known
     /// and again as the nav log gives the flight's time.
     func brief(dep: String, dest: String, stops: [String], eteMin: Double?) async {
+        // Its hazards placed on the nav log's legs once they are in.
+        let legs = BriefLegs.query(course: course, checkpoints: checkpoints, legs: self.legs)
         do {
-            briefing = try await Planner.briefing(dep: dep, dest: dest, stops: stops, eteMin: eteMin)
+            briefing = try await Planner.briefing(dep: dep, dest: dest, stops: stops, eteMin: eteMin, legs: legs)
             briefingProblem = nil
             keep()
         } catch {
@@ -227,6 +319,19 @@ final class Plan {
         let picks = procedures.filter { idents.contains($0.ident) }
         let extra = extras.query(procedures: picks)
         self.dep = dep; self.dest = dest; self.stops = stops
+        remember()
+        // A way picked stands while its stops are the route's; a stop
+        // added, taken out or moved makes the route the pilot's own again,
+        // and the ways are asked for afresh for it.
+        if let chip = pickedChip, chip.stops.map({ $0.uppercased() }) != stops { pickedChip = nil }
+        if pickedChip == nil { typedStops = stops }
+        let asked = ([dep, dest, aircraft] + typedStops).joined(separator: " ")
+        if asked != routesAskedFor {
+            routesAskedFor = asked
+            routes = nil; routesProblem = nil
+            let typed = typedStops
+            Task { [weak self] in await self?.findRoutes(dep: dep, dest: dest, stops: typed, aircraft: aircraft, asked: asked) }
+        }
         planning = true
         problem = nil
         stage = "Finding the route…"
@@ -235,6 +340,7 @@ final class Plan {
             do {
                 let course = try await Planner.course(dep: dep, dest: dest, stops: stops)
                 guard !Task.isCancelled else { return }
+                if self.course != course { self.hazardLegs = nil }
                 self.course = course
                 // The checkpoints beside the nav log, not before it: the
                 // first read of a new route's chart takes a while, and the

@@ -134,6 +134,10 @@ export function altitudeLines(fix: Pick<ProcedureFix, "min_ft" | "max_ft">): { l
   return { lines: [], words: null };
 }
 
+/** A crossing altitude's line as CSS's text-decoration: underlined for at
+ *  or above, overlined for at or below, both for at. */
+export const decorationOf = (line: AltitudeLine) => [line.under && "underline", line.over && "overline"].filter(Boolean).join(" ") || "none";
+
 /** A fix's speed as the chart words it (ARINC 424-18 5.261): "at" the
  *  speed, or "min" or "max" of it. */
 export function speedWords(fix: Pick<ProcedureFix, "speed_kt" | "speed_limit">): string | null {

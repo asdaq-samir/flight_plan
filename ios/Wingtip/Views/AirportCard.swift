@@ -138,7 +138,7 @@ struct AirportCard: View {
     static func mapsLink(_ place: AirportPlace) -> URL {
         var parts = URLComponents(string: "https://maps.apple.com/")!
         parts.queryItems = [URLQueryItem(name: "q", value: place.name)] + (place.address.map { [URLQueryItem(name: "address", value: $0)] }
-            ?? [URLQueryItem(name: "ll", value: String(format: "%.5f,%.5f", place.lat, place.lon))])
+            ?? [URLQueryItem(name: "ll", value: AirportWords.point(place.lat, place.lon))])
         return parts.url!
     }
 }

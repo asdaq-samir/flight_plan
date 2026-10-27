@@ -74,6 +74,15 @@ def test_get_airport_is_case_insensitive(airports_csv):
     assert get_airport("kdlh", cache_path=airports_csv)["ident"] == "KDLH"
 
 
+def test_get_airport_takes_the_k_form_of_a_local_code(tmp_path):
+    # Lamoni, IA: "LWD" in OurAirports with no ICAO code of its own, and
+    # "KLWD" in the FAA's NASR file, which the fuel stops are offered from.
+    path = tmp_path / "airports.csv"
+    pd.DataFrame([{"ident": "LWD", "local_code": "LWD", "name": "Lamoni Municipal", "latitude_deg": 40.63, "longitude_deg": -93.90,
+                   "elevation_ft": 1131, "municipality": "Lamoni", "iso_region": "US-IA"}]).to_csv(path, index=False)
+    assert get_airport("KLWD", cache_path=path)["ident"] == "LWD"
+
+
 def test_get_airport_raises_for_an_unknown_ident(airports_csv):
     with pytest.raises(ValueError, match="ZZZZ"):
         get_airport("ZZZZ", cache_path=airports_csv)

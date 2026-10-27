@@ -7,9 +7,7 @@ import SwiftUI
 
 /// The badges' colours, the web app's (lib/rowBadges).
 enum Badge {
-    static func hex(_ rgb: Int) -> Color {
-        Color(red: Double((rgb >> 16) & 0xff) / 255, green: Double((rgb >> 8) & 0xff) / 255, blue: Double(rgb & 0xff) / 255)
-    }
+    static func hex(_ rgb: UInt32) -> Color { Color(uiColor: UIColor(hex: rgb)) }
 
     static let tower = hex(0x2465b8)
     static let ground = hex(0x0f766e)

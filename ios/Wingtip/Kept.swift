@@ -44,3 +44,16 @@ struct Kept: Codable, Equatable, Sendable {
         try? FileManager.default.removeItem(at: file)
     }
 }
+
+/// The small things kept on the device as JSON in UserDefaults -- the
+/// favourite and recent fields and airplanes, the figures per N-number,
+/// the minimums and loads, the drills' progress -- in and out one way.
+extension UserDefaults {
+    func decoded<T: Decodable>(_ type: T.Type, forKey key: String) -> T? {
+        data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) }
+    }
+
+    func setEncoded(_ value: some Encodable, forKey key: String) {
+        set(try? JSONEncoder().encode(value), forKey: key)
+    }
+}

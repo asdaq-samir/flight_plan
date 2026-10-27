@@ -67,15 +67,13 @@ public class LogbookController {
     @PutMapping("/{id}")
     public ResponseEntity<LogbookEntryDto> update(
             Authentication authentication, @PathVariable Long id, @Valid @RequestBody LogbookEntryRequest request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> logbook.update(pilot, id, request)
-                .map(e -> ResponseEntity.ok(toDto(e)))
-                .orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> logbook.update(pilot, id, request)
+                .map(LogbookController::toDto));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(Authentication authentication, @PathVariable Long id) {
-        return PilotResponses.withPilot(pilots, authentication, pilot ->
-                logbook.delete(pilot, id) ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build());
+        return PilotResponses.done(pilots, authentication, pilot -> logbook.delete(pilot, id));
     }
 
     @GetMapping("/currency")

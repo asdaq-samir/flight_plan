@@ -36,10 +36,10 @@ from PIL import Image
 from scipy import ndimage
 
 from .config import DATA_DIR
+from .config import FAA_HEADERS as HEADERS
 
 log = logging.getLogger(__name__)
 
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
 DTPP_BASE = "https://aeronav.faa.gov/d-tpp"
 DCS_BASE = "https://aeronav.faa.gov/afd"
 CACHE_DIR = DATA_DIR / "raw" / "publications"

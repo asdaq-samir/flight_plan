@@ -335,15 +335,6 @@ export const routeFoodQuery = (dep: string, dest: string, stops: string) => quer
   refetchInterval: query => (query.state.data?.pending ? 2000 : false),
 });
 
-/** The fields along the route to stop at (api.routeStops), for the map's
- *  Stops: asked again every two seconds while the planner is still reading
- *  some fields' places (`pending`), then kept for the route. */
-export const routeStopsQuery = (dep: string, dest: string, stops: string) => queryOptions({
-  queryKey: ["route-stops", dep, dest, stops], queryFn: () => api.routeStops(dep, dest, stops),
-  staleTime: 60 * 60_000, meta: { silent: true },
-  refetchInterval: query => (query.state.data?.pending ? 2000 : false),
-});
-
 /** The ways to fly a route (api.routeOptions), for FPL's Routes: the
  *  planner's read of the TAFs and METARs is ten minutes old at most, so
  *  that long; quiet, FPL saying nothing of them where they are not had. */

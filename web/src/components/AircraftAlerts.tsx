@@ -8,7 +8,7 @@ import IconButton from "./IconButton";
 import { GLASS } from "./mapChrome";
 import { airborneNow, alertKey, dismissFired as dismiss, fired, useFiredAlerts, type Watched } from "../lib/aircraftAlerts";
 import type { FlightStatus } from "../lib/api/types";
-import { useOwnShip } from "../lib/map/ownShip";
+import { useOwnFix } from "../lib/map/ownShip";
 import { useTracking } from "../lib/map/tracking";
 import { usePreferences } from "../lib/preferences";
 import { flightStatusQuery } from "../lib/queryClient";
@@ -28,7 +28,7 @@ function useAircraftAlertWatch() {
   const alerts = usePreferences(s => s.aircraftAlerts);
   const hexes = useMemo(() => [...new Set(alerts.map(a => a.hex))], [alerts]);
   const results = useQueries({ queries: hexes.map(hex => flightStatusQuery(hex)), combine: answers });
-  const me = useOwnShip(s => (s.enabled ? s.fix : null));
+  const me = useOwnFix();
   const watched = useRef(new Map<string, Watched>());
   const read = useRef(new Map<string, number>());
   useEffect(() => {

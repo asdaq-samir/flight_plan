@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { FlightStatus } from "./api/types";
 import { clockTime } from "./clock";
-import { compassPoint } from "./compass";
+import { compassPoint, saidPoint } from "./compass";
 import { bearingDeg, distanceNm } from "./geo";
 import { altFt } from "./units";
 
@@ -44,11 +44,6 @@ export interface Watched {
   airborne: boolean | null;
   inside: Record<string, boolean>;
 }
-
-/** A compass point as said, where "NE" would be read out letter by letter. */
-const SAID: Record<string, string> = {
-  N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest",
-};
 
 /** An alert as it went off: the banner's words and the voice's. */
 export interface FiredAlert {
@@ -134,7 +129,7 @@ export function fired(
       title: `${alert.name} is ${miles} nm from ${where}`,
       detail: [`${way} of ${alert.kind === "near-me" ? "you" : alert.airport!.ident}`, height, when].filter(Boolean).join(" · "),
       spoken: alert.kind === "near-me"
-        ? `${alert.name}, ${miles} miles ${SAID[way] ?? way}${height ? `, ${height.replace(" ft", " feet")}` : ""}.`
+        ? `${alert.name}, ${miles} miles ${saidPoint(way)}${height ? `, ${height.replace(" ft", " feet")}` : ""}.`
         : `${alert.name} is ${miles} miles from ${alert.airport!.name ?? alert.airport!.ident}.`,
     },
   };

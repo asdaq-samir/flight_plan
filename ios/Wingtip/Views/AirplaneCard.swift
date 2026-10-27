@@ -59,12 +59,6 @@ enum FlightWords {
         if rounded == 0 { return "level" }
         return "\(abs(rounded).formatted()) ft \(rounded > 0 ? "above" : "below")"
     }
-
-    /// A true bearing as a compass point, "NE".
-    static func compass(_ degrees: Double) -> String {
-        let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-        return points[Int(((degrees.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360) / 45).rounded()) % 8]
-    }
 }
 
 /// An airplane being tracked, as FlightAware's flight page and the web
@@ -75,7 +69,6 @@ enum FlightWords {
 /// receivers: for knowing what is about, not for avoiding it.
 struct AirplaneCard: View {
     let hex: String
-    @Environment(\.dismiss) private var dismiss
     @State private var detail: FlightDetail?
     @State private var route: FlightRoute?
     @State private var flights: [PastFlightSummary] = []
@@ -155,7 +148,7 @@ struct AirplaneCard: View {
                         Button(fetchingMore ? "Fetching earlier flights…" : "Show earlier flights") { Task { await more() } }
                             .disabled(fetchingMore)
                     }
-                    if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                    ProblemLine(problem)
                 }
                 Section("Airplane") {
                     if let model = detail?.description { LabeledContent("Model", value: FlightWords.nameCase(model)) }
@@ -184,7 +177,9 @@ struct AirplaneCard: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
+                    // The card's own close, whether a sheet (iPhone) or the
+                    // inspector (iPad) holds it.
+                    Button { FlightUI.shared.card = nil } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
                 }
             }
             .navigationDestination(for: PastFlightSummary.self) { flight in PastFlightCard(hex: hex, flight: flight) }
@@ -290,15 +285,9 @@ struct NowFlightRow: View {
     private func fromYou(_ fix: OwnShip.Fix) -> String {
         let here = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
         let nm = Flight.nm(from: fix.coordinate, to: here)
-        let bearing = Self.bearing(from: fix.coordinate, to: here)
+        let bearing = Flight.bearing(from: fix.coordinate, to: here)
         let height = fix.altitudeFt.flatMap { own in plane.altitudeFt.map { ", " + FlightWords.against($0 - own) } } ?? ""
-        return String(format: "%.0f nm %@ of you", nm, FlightWords.compass(bearing)) + height
-    }
-
-    static func bearing(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> Double {
-        let lat1 = a.latitude * .pi / 180, lat2 = b.latitude * .pi / 180, dLon = (b.longitude - a.longitude) * .pi / 180
-        let y = sin(dLon) * cos(lat2), x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-        return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
+        return String(format: "%.0f nm %@ of you", nm, AirportWords.compassPoint(bearing)) + height
     }
 }
 
@@ -348,12 +337,14 @@ struct PastFlightCard: View {
     var body: some View {
         List {
             Section { PastFlightRow(flight: flight, type: nil) }
-            Section("Profile") {
-                if points.isEmpty {
+            if points.isEmpty {
+                Section("Profile") {
                     Text(problem ?? "Fetching its track…").foregroundStyle(problem == nil ? Color.secondary : Color.red)
-                } else {
-                    FlightProfileChart(points: points.map { PathPoint(t: $0.t, lat: $0.lat, lon: $0.lon, altFt: $0.altFt) })
-                        .frame(height: 200)
+                }
+            } else {
+                // Its replay, the airplane flown along it again on the map.
+                ReplaySection(points: Replay.points(points), key: replayKey)
+                Section {
                     LabeledContent("Highest", value: "\(Int(flight.maxAltFt).formatted()) ft")
                     LabeledContent("Flown", value: FlightWords.lasted(flight.on - flight.off))
                 }
@@ -369,28 +360,78 @@ struct PastFlightCard: View {
                 problem = "Its track could not be had."
             }
         }
-        .onDisappear { Tracking.shared.past = [] }
+        .onDisappear {
+            Tracking.shared.past = []
+            Replay.shared.clear(replayKey)
+        }
     }
+
+    private var replayKey: String { "past:\(hex):\(flight.id)" }
 }
 
-/// A flight's height against time, the line in its heights' colours, and
-/// its ground speed where sent: Swift Charts.
+/// A flight's height against time and its ground speed where known,
+/// Swift Charts: the replay's moment a cursor across it, with a dot on
+/// each trace where the airplane is, and a finger drawn along it moves
+/// the replay there (the web app's PastFlightChart). The speed is held to
+/// the lower half, so the two read apart where both run level, as the
+/// web app's are.
 struct FlightProfileChart: View {
-    let points: [PathPoint]
+    let points: [Replay.Point]
+    /// The replay's airplane, where it is.
+    var cursor: Replay.Point?
+    /// A finger on the profile: the moment under it, s since 1970.
+    var onScrub: ((Double) -> Void)?
+    @State private var picked: Date?
+
+    /// At most this many points drawn: a long flight's thousands of
+    /// reports drawn again with each tick of a replay were the cost, not
+    /// the look.
+    static let drawn = 400
+
+    private var shown: [Replay.Point] {
+        guard points.count > Self.drawn, let last = points.last else { return points }
+        let every = (points.count + Self.drawn - 1) / Self.drawn
+        return Swift.stride(from: 0, to: points.count, by: every).map { points[$0] } + [last]
+    }
+
+    private var top: Double { max(1000, (points.compactMap(\.altFt).max() ?? 0) * 1.25) }
+    private var ktTop: Double { max(1, (points.compactMap(\.gsKt).max() ?? 0) * 2.2) }
+    private func feet(_ kt: Double) -> Double { kt / ktTop * top }
 
     var body: some View {
         Chart {
-            ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+            ForEach(Array(shown.enumerated()), id: \.offset) { _, point in
                 if let ft = point.altFt {
                     AreaMark(x: .value("Time", Date(timeIntervalSince1970: point.t)), y: .value("Feet", ft))
                         .foregroundStyle(.linearGradient(colors: [Color.accentColor.opacity(0.3), Color.accentColor.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Time", Date(timeIntervalSince1970: point.t)), y: .value("Feet", ft))
+                    LineMark(x: .value("Time", Date(timeIntervalSince1970: point.t)), y: .value("Feet", ft), series: .value("Trace", "Height"))
                         .foregroundStyle(Color.accentColor)
+                }
+                if let kt = point.gsKt {
+                    LineMark(x: .value("Time", Date(timeIntervalSince1970: point.t)), y: .value("Feet", feet(kt)), series: .value("Trace", "Ground speed"))
+                        .foregroundStyle(Color.orange)
+                }
+            }
+            if let cursor {
+                RuleMark(x: .value("Now", Date(timeIntervalSince1970: cursor.t)))
+                    .foregroundStyle(Color.primary.opacity(0.5))
+                if let ft = cursor.altFt {
+                    PointMark(x: .value("Now", Date(timeIntervalSince1970: cursor.t)), y: .value("Feet", ft))
+                        .foregroundStyle(Color.accentColor).symbolSize(60)
+                }
+                if let kt = cursor.gsKt {
+                    PointMark(x: .value("Now", Date(timeIntervalSince1970: cursor.t)), y: .value("Feet", feet(kt)))
+                        .foregroundStyle(Color.orange).symbolSize(60)
                 }
             }
         }
+        .chartYScale(domain: 0...top)
         .chartYAxisLabel("ft")
         .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) { _ in AxisGridLine(); AxisValueLabel(format: .dateTime.hour().minute()) } }
+        .chartXSelection(value: $picked)
+        .onChange(of: picked) { _, date in
+            if let date { onScrub?(date.timeIntervalSince1970) }
+        }
         .accessibilityLabel("Profile, highest \(Int(points.compactMap(\.altFt).max() ?? 0).formatted()) feet")
     }
 }

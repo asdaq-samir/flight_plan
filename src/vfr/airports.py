@@ -15,12 +15,12 @@ import pandas as pd
 import requests
 
 from . import faa_data, geo
+from .config import REQUEST_HEADERS
 from .routecsv import locked
 
 OURAIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
 RUNWAYS_URL = "https://davidmegginson.github.io/ourairports-data/runways.csv"
 FREQUENCIES_URL = "https://davidmegginson.github.io/ourairports-data/airport-frequencies.csv"
-REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 _RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 DEFAULT_CACHE_PATH = _RAW_DIR / "airports.csv"
 RUNWAYS_CACHE_PATH = _RAW_DIR / "runways.csv"
@@ -137,7 +137,16 @@ def get_airport(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict:
     ident = ident.strip().upper()
     path = _ensure_cached(OURAIRPORTS_URL, cache_path)
     mtime = path.stat().st_mtime
-    at = _airport_rows(str(path), mtime).get(ident)
+    rows = _airport_rows(str(path), mtime)
+    at = rows.get(ident)
+    # A field with no ICAO code of its own in OurAirports (Lamoni, LWD)
+    # asked for by the K-form the FAA's NASR file gives it (KLWD), as the
+    # fuel stops' table (NASR) names it: a contiguous US field's ICAO
+    # identifier is its FAA one with a K before it (FAA Order JO 7350.9,
+    # Location Identifiers). The fuel stop the planner offered could not be
+    # planned (the owner's video, 2026-10-26).
+    if at is None and len(ident) == 4 and ident[0] == "K" and ident[1:].isalnum():
+        at = rows.get(ident[1:])
     if at is None:
         raise ValueError(f"Airport identifier {ident!r} not found in OurAirports data")
     row = _read_table(str(path), mtime).iloc[at]

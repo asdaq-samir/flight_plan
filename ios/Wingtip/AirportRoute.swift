@@ -28,9 +28,9 @@ enum AirportRoute: Hashable, Sendable {
     var text: String {
         switch self {
         case .airport(let ident): ident
-        case .airspace(let lat, let lon): "@" + Self.write(lat, lon)
+        case .airspace(let lat, let lon): "@" + AirportWords.point(lat, lon)
         case .list(let shows): "~" + shows.rawValue
-        case .nearFrom(let lat, let lon, let label): "#" + Self.write(lat, lon) + "|" + label
+        case .nearFrom(let lat, let lon, let label): "#" + AirportWords.point(lat, lon) + "|" + label
         }
     }
 
@@ -38,10 +38,6 @@ enum AirportRoute: Hashable, Sendable {
     var heldPoint: CLLocationCoordinate2D? {
         if case .airspace(let lat, let lon) = self { return CLLocationCoordinate2D(latitude: lat, longitude: lon) }
         return nil
-    }
-
-    private static func write(_ lat: Double, _ lon: Double) -> String {
-        String(format: "%.5f,%.5f", lat, lon)
     }
 
     private static func point(_ text: Substring) -> (lat: Double, lon: Double)? {

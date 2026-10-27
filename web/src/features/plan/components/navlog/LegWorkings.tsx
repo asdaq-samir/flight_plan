@@ -9,19 +9,9 @@ import Segmented from "../../../../components/Segmented";
 import { Button } from "../../../../components/ui/button";
 import { Input } from "../../../../components/ui/input";
 import type { Leg } from "../../../../lib/api/types";
-import { bearing, windCorrection } from "../../../../lib/units";
-import { ANSWERS, checks, workingsOf, type AnswerKey, type Workings } from "../../../../lib/workings";
+import { ANSWERS, checks, typedNumber, workingsOf, written, type AnswerKey, type Workings } from "../../../../lib/workings";
 import { TEXT } from "../../../../lib/text";
 import { FINDING_TONE } from "../../../../lib/status";
-
-/** A figure as the student would write it: a heading round the compass,
- *  the correction signed, the rest to its unit's precision. */
-function written(key: AnswerKey, value: number): string {
-  if (key === "th" || key === "mh") return bearing(value);
-  if (key === "wca") return windCorrection(value);
-  if (key === "fuel") return `${value.toFixed(1)} gal`;
-  return `${Math.round(value)} ${key === "gs" ? "kt" : "min"}`;
-}
 
 function Worked({ workings }: { workings: Workings }) {
   return (
@@ -55,7 +45,7 @@ function TryIt({ workings }: { workings: Workings }) {
       <ListGroup>
         {ANSWERS.map(answer => {
           const value = typed[answer.key];
-          const number = value === undefined || value.trim() === "" ? null : Number(value);
+          const number = typedNumber(value);
           // Only the figures typed are marked: a student works them one
           // at a time, and the rest are not given away.
           const marked = checked && number !== null && Number.isFinite(number);

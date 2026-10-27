@@ -8,21 +8,10 @@ runway's length -- the runway lengths and takeoff and landing distances
 import math
 import re
 
+from vfr import performance
+from vfr.performance import isa_temp_c
+
 from .minimums import runway_crosswind_kt
-
-#: The ICAO standard atmosphere's troposphere (ICAO Doc 7488): sea level
-#: 288.15 K, the lapse rate 6.5 K a kilometre (0.0019812 K a foot), and
-#: the exponents its pressure and density fall off with height by --
-#: g/(R·L) and one less.
-T0_K = 288.15
-LAPSE_K_PER_FT = 0.0019812
-PRESSURE_EXP = 5.25588
-DENSITY_EXP = PRESSURE_EXP - 1
-
-
-def isa_temp_c(altitude_ft: float) -> float:
-    """A standard day's temperature at an altitude, as vfr.performance has it."""
-    return 15 - 0.0019812 * altitude_ft
 
 
 def pressure_altitude_ft(elevation_ft: float, altimeter_in_hg: float | None) -> float:
@@ -37,10 +26,9 @@ def density_altitude_ft(pressure_alt_ft: float, temp_c: float) -> float:
     as thin as the field's, from its pressure altitude and temperature --
     worked out from the atmosphere itself rather than the 120 ft a degree
     rule of thumb. What an airplane performs as if it were at
-    (FAA-H-8083-25C, chapter 11)."""
-    pressure = (1 - (LAPSE_K_PER_FT * pressure_alt_ft) / T0_K) ** PRESSURE_EXP
-    density = pressure / ((temp_c + 273.15) / T0_K)
-    return (T0_K / LAPSE_K_PER_FT) * (1 - density ** (1 / DENSITY_EXP))
+    (FAA-H-8083-25C, chapter 11). vfr.performance's standard atmosphere,
+    the one the nav log's cruise and climb are flown in."""
+    return performance.density_altitude_ft(performance.density_ratio(pressure_alt_ft, temp_c))
 
 
 def _at(points: list[float], value: float) -> dict:

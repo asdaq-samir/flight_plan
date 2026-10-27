@@ -35,12 +35,13 @@ from typing import NamedTuple
 import numpy as np
 import requests
 
+from .config import REQUEST_HEADERS as HEADERS
 from .performance import isa_temp_c
 from .retry import with_retries
+from .units import M_TO_FT
 
 log = logging.getLogger(__name__)
 
-HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 WINDTEMP_URL = "https://aviationweather.gov/api/data/windtemp"
 CACHE_BASE_URL = "https://aviationweather.gov/data/cache"
 
@@ -800,10 +801,6 @@ def nearest_report(lat: float, lon: float, exclude: str | None = None, within_nm
 # Within one start time, the base forecast (FM, or the TAF's own first
 # line) sorts first; BECMG/TEMPO/PROB lines modify it.
 _CHANGE_ORDER = {"": 0, "FM": 0, "BECMG": 1, "TEMPO": 2, "PROB": 3}
-# A TAF station's elevation comes in metres; everything here is feet
-# (vfr.terrain's own constant, not imported: this module stays free of
-# the terrain and FAA data it would bring).
-M_TO_FT = 3.28084
 
 
 def _parse_tafs(xml_bytes: bytes) -> list:
@@ -1089,6 +1086,36 @@ def vfr_not_recommended_reasons(idents: list, metars: dict, forecast: dict) -> l
 # --- SIGMET hazards ---
 
 
+#: A bulletin's WMO abbreviated heading, "WSUS32 KKCI 261655": its last
+#: group, YYGGgg, is the day of the month, hour and minute (UTC) it was
+#: issued (WMO-No. 386, Manual on the Global Telecommunication System,
+#: Attachment II-5). The SIGMET file gives no issue time of its own.
+_WMO_HEADING = re.compile(r"\b[A-Z]{4}\d{2}\s+[A-Z]{4}\s+(\d{2})(\d{2})(\d{2})\b")
+
+
+def _wmo_issued(raw: str | None, near: float | None) -> str | None:
+    """When a bulletin was issued (ISO UTC), from its WMO heading's
+    day-hour-minute, put in the month of `near` (its valid time, UNIX
+    seconds) -- or the month before, for a heading of the 31st read on
+    the 1st. None where the text has no heading."""
+    m = _WMO_HEADING.search(raw or "")
+    if not m or near is None:
+        return None
+    day, hour, minute = (int(g) for g in m.groups())
+    base = datetime.fromtimestamp(near, timezone.utc)
+    for months_back in (0, 1):
+        year, month = base.year, base.month - months_back
+        if month == 0:
+            year, month = year - 1, 12
+        try:
+            issued = datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
+        except ValueError:
+            continue
+        if issued.timestamp() <= near + 86400:
+            return issued.isoformat().replace("+00:00", "Z")
+    return None
+
+
 def _parse_airsigmets(xml_bytes: bytes) -> list:
     advisories = []
     for el in ET.fromstring(xml_bytes).iter("AIRSIGMET"):
@@ -1102,6 +1129,7 @@ def _parse_airsigmets(xml_bytes: bytes) -> list:
             "raw": el.findtext("raw_text"),
             "valid_from": _unix(el.findtext("valid_time_from")),
             "valid_to": _unix(el.findtext("valid_time_to")),
+            "issued": _wmo_issued(el.findtext("raw_text"), _unix(el.findtext("valid_time_from"))),
             "coords": [(lat, lon) for lat, lon in points if lat is not None and lon is not None],
         })
     return advisories
@@ -1112,7 +1140,10 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     those valid right now. The bbox is a coarse prefilter (convective
     SIGMETs commonly span several states); the real filter is the
     route/polygon intersection. CONUS AIRMETs were discontinued in
-    January 2025 in favour of G-AIRMETs: gairmets_along_route reads them.
+    January 2025 in favour of G-AIRMETs: gairmet_snapshots_along_route reads them.
+    Each keeps its valid times ("valid_from", "valid_to"; UNIX seconds),
+    when it was issued ("issued") and its area ("coords", [(lat, lon)]),
+    for the briefing to say where and when the flight meets it.
     """
     from shapely.geometry import LineString, Polygon
 
@@ -1137,7 +1168,8 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
         if not polygon.is_valid:
             polygon = polygon.buffer(0)
         if route_line.intersects(polygon):
-            hits.append({key: advisory[key] for key in ("hazard", "type", "altitude_low_ft", "altitude_high_ft", "raw")})
+            hits.append({key: advisory.get(key) for key in (
+                "hazard", "type", "altitude_low_ft", "altitude_high_ft", "raw", "valid_from", "valid_to", "issued", "coords")})
     return hits
 
 
@@ -1184,8 +1216,8 @@ def pireps_along_route(path: list, corridor_nm: float = PIREP_CORRIDOR_NM) -> li
     """The pilot reports of the last PIREP_MAX_AGE_S within `corridor_nm`
     of the route flown through `path` [(lat, lon)], at or under
     PIREP_MAX_ALT_FT, in along-route order, urgent ones first: each
-    {"observed_at", "altitude_ft", "aircraft", "urgent", "turbulence",
-    "icing", "raw", "along_track_nm"}."""
+    {"observed_at", "lat", "lon", "altitude_ft", "aircraft", "urgent",
+    "turbulence", "icing", "raw", "along_track_nm"}."""
     from .geo import along_track_distance_nm, cross_track_distance_nm, distance_nm
 
     now = time.time()
@@ -1207,7 +1239,7 @@ def pireps_along_route(path: list, corridor_nm: float = PIREP_CORRIDOR_NM) -> li
             offset += leg_nm
         if nearest is None:
             continue
-        found.append({**{k: v for k, v in report.items() if k not in ("observed", "lat", "lon")}, "along_track_nm": round(nearest, 1)})
+        found.append({**{k: v for k, v in report.items() if k != "observed"}, "along_track_nm": round(nearest, 1)})
     return sorted(found, key=lambda r: (not r["urgent"], r["along_track_nm"]))
 
 
@@ -1245,6 +1277,7 @@ def _parse_gairmets(xml_bytes: bytes) -> list:
             "due_to": el.findtext("due_to"),
             "valid_at": el.findtext("valid_time"),
             "valid": _unix(el.findtext("valid_time")),
+            "issued": el.findtext("issue_time") or None,
             # "FZL": from the freezing level, which the advisory gives
             # beside it.
             "altitude_low_ft": None if low in (None, "", "FZL", "SFC") else _float(low),
@@ -1255,19 +1288,19 @@ def _parse_gairmets(xml_bytes: bytes) -> list:
     return advisories
 
 
-def gairmets_along_route(path: list, window: tuple) -> list:
-    """The G-AIRMETs (IFR, mountain obscuration, low-level turbulence,
-    icing, wind shear, strong surface winds) whose area the route flown
-    through `path` [(lat, lon)] crosses, valid at some time of the flight
-    `window` (start, end; UNIX seconds) give or take GAIRMET_SNAPSHOT_S:
-    one per hazard, the snapshot nearest the departure, each {"hazard",
-    "severity", "due_to", "valid_at", "altitude_low_ft",
-    "from_freezing_level", "altitude_high_ft"}."""
+def gairmet_snapshots_along_route(path: list, window: tuple) -> list:
+    """Every G-AIRMET snapshot (IFR, mountain obscuration, low-level
+    turbulence, icing, wind shear, strong surface winds) whose area the
+    route flown through `path` [(lat, lon)] crosses, valid at some time of
+    the flight `window` (start, end; UNIX seconds) give or take
+    GAIRMET_SNAPSHOT_S: _parse_gairmets' dicts, with their "valid" (UNIX
+    seconds) and their area ("coords"), for the briefing to pick each
+    hazard's snapshot for when the flight is in it."""
     from shapely.geometry import LineString, Polygon
 
     line = LineString([(lon, lat) for lat, lon in path])
     start, end = window
-    nearest: dict = {}
+    found = []
     for advisory in _dataset("gairmets"):
         valid = advisory["valid"]
         if valid is None or valid < start - GAIRMET_SNAPSHOT_S or valid > end + GAIRMET_SNAPSHOT_S:
@@ -1277,15 +1310,9 @@ def gairmets_along_route(path: list, window: tuple) -> list:
         polygon = Polygon([(lon, lat) for lat, lon in advisory["coords"]])
         if not polygon.is_valid:
             polygon = polygon.buffer(0)
-        if not line.intersects(polygon):
-            continue
-        held = nearest.get(advisory["hazard"])
-        if held is None or abs(valid - start) < abs(held["valid"] - start):
-            nearest[advisory["hazard"]] = advisory
-    return [
-        {k: v for k, v in a.items() if k not in ("valid", "coords")}
-        for a in sorted(nearest.values(), key=lambda a: list(GAIRMET_HAZARDS.values()).index(a["hazard"]))
-    ]
+        if line.intersects(polygon):
+            found.append(advisory)
+    return found
 
 
 def _fetch_each(names, force: bool = False) -> None:

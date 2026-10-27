@@ -282,7 +282,7 @@ def with_reversals(path: list, ft: list, holds: list) -> tuple[list, list]:
         if i == len(path) - 1:
             break
         cin, cout = _bearing(path[i - 1], fix), _bearing(fix, path[i + 1])
-        turn = abs(((cout - cin + 540) % 360) - 180)
+        turn = geo.angle_between(cout, cin)
         # The chart's own reversal at the fix, flown from its far side --
         # at the procedure's first fix as well, where a hold in lieu of a
         # procedure turn at an RNAV approach's IAF was never flown (the

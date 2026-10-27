@@ -5,7 +5,7 @@ import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
 import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
-import { useOwnShip } from "../../../lib/map/ownShip";
+import { useOwnFix } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { pickKeptAircraft, useTabSearch } from "../../../lib/tabSearch";
 import { HomePlane, ListPageHead, PillSection, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
@@ -79,7 +79,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
     const later = window.setTimeout(() => setAsked(wanted), TYPING_MS);
     return () => window.clearTimeout(later);
   }, [wanted, asked, isFetching]);
-  const fix = useOwnShip(s => (s.enabled ? s.fix : null));
+  const fix = useOwnFix();
   // My Plane's Add asked for the pilot's own airplane: the one picked --
   // found, its FAA record, a Favorite, a recent -- is kept as theirs
   // rather than opened, as the airport search's Home is.

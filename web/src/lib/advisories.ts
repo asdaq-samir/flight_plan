@@ -35,6 +35,12 @@ export function titleCase(text: string): string {
   return text.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
 }
 
+/** The first letter a capital, the rest as it is: "road or rail" as "Road
+ *  or rail", a line of the app's own words opening a row. */
+export function capitalised(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 /**
  * The FAA's capitalised text -- a special-use area's times of use, a
  * G-AIRMET's cause, a TFR's purpose -- in sentence case, its codes kept:
@@ -152,3 +158,7 @@ export function suaAltitudes(
   };
   return `${height(a.floor_ft, a.floor_ref, true)} to ${height(a.ceiling_ft, a.ceiling_ref, false)}`;
 }
+
+/** A TFR's own page on tfr.faa.gov, its NOTAM number's slash an
+ *  underscore ("4/1234" is detail_4_1234). */
+export const tfrPage = (notamId: string) => `https://tfr.faa.gov/tfr3/?page=detail_${notamId.replace("/", "_")}`;

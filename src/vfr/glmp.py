@@ -29,10 +29,12 @@ import numpy as np
 import requests
 from pyproj import Proj
 
+from .config import REQUEST_HEADERS as HEADERS
+from .units import M_TO_FT
+
 log = logging.getLogger(__name__)
 
 URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/glmp/prod/glmp.{day}/glmp.t{hour}30z.hr00_{field}.g.co.grib2"
-HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 #: An issue is up on NOMADS a few minutes after its half past (the hr00
 #: files at about HH:32 in the listing, 2026-10-10); looked for from then.
 POSTED_AFTER = timedelta(minutes=5)
@@ -42,7 +44,6 @@ NOT_UP_RETRY = timedelta(minutes=2)
 #: issue is common, three missing is NOMADS out.
 ISSUES_TRIED = 3
 
-_M_TO_FT = 3.28084
 _M_PER_SM = 1609.344
 #: GLMP's ceiling where there is none: no layer broken or overcast.
 _NO_CEILING_M = -100.0
@@ -162,7 +163,7 @@ def at(lat: float, lon: float, now: datetime | None = None) -> dict | None:
     ceiling_m, visibility_m = ceiling_grid.at(lat, lon), visibility_grid.at(lat, lon)
     if ceiling_m is None or visibility_m is None:
         return None
-    ceiling_ft = None if ceiling_m <= _NO_CEILING_M else ceiling_m * _M_TO_FT
+    ceiling_ft = None if ceiling_m <= _NO_CEILING_M else ceiling_m * M_TO_FT
     visibility_sm = visibility_m / _M_PER_SM
     # The category from the figures as modelled, before they are rounded
     # to say: 3,040 ft is VFR, though it reads 3,000.

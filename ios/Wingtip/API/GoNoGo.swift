@@ -45,7 +45,7 @@ struct PersonalMinimums: Codable, Equatable, Sendable {
         func words(_ value: Double) -> String {
             let n = Int(value.rounded())
             switch self {
-            case .ceilingFt: return "\(n.formatted(.number.locale(GoNoGoAsk.faaLocale))) ft"
+            case .ceilingFt: return "\(AirportWords.grouped(value)) ft"
             case .visibilitySm: return "\(n) sm"
             case .crosswindKt, .windKt: return "\(n) kt"
             }
@@ -110,30 +110,8 @@ struct GoNoGoAsk: Encodable, Equatable, Sendable {
     /// The pilot's own airplane's records, for the risk assessment's
     /// airworthiness checks; none for a stock profile.
     var ownAirplane: OwnAirplaneAsk?
-
-    /// Figures grouped as the FAA writes them, "1,500", whatever the
-    /// phone's own region.
-    static let faaLocale = Locale(identifier: "en_US")
-
-    static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        encoder.outputFormatting = .sortedKeys
-        return encoder
-    }()
-
-    /// A day as the planner reads it, in the pilot's own calendar.
-    static func day(_ date: Date, in zone: TimeZone = .current) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.timeZone = zone
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
 }
 
-/// What the findings come to, in a line (VerdictLine).
 /// The planner's OwnAirplane: the gateway's records of the airplane
 /// flown, in the planner's names. The gateway works out each good-through
 /// day (14 CFR 91.409, 91.411, 91.413, 91.207, 91.171); this only carries
@@ -174,6 +152,7 @@ struct OwnAirplaneAsk: Encodable, Equatable, Sendable {
     }
 }
 
+/// What the findings come to, in a line (VerdictLine).
 struct VerdictLine: Codable, Equatable, Sendable {
     let finding: String
     let words: String
@@ -251,7 +230,7 @@ struct LoadCondition: Codable, Equatable, Sendable {
 
     /// "2,407 lb · 41.2 in", as the web's Balance rows.
     var words: String {
-        "\(Int(weightLb.rounded()).formatted(.number.locale(GoNoGoAsk.faaLocale))) lb · \(String(format: "%.1f", armIn)) in"
+        "\(AirportWords.grouped(weightLb)) lb · \(String(format: "%.1f", armIn)) in"
     }
 }
 
@@ -276,14 +255,6 @@ struct GoNoGoAnswer: Codable, Equatable, Sendable {
 extension Planner {
     /// The Go / No-Go for the route (POST /api/go-no-go).
     static func goNoGo(_ ask: GoNoGoAsk) async throws -> GoNoGoAnswer {
-        var request = URLRequest(url: Config.gateway.appending(path: Config.plannerPath("/api/go-no-go")))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try GoNoGoAsk.encoder.encode(ask)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status, detail: detail(of: data)) }
-        return try snakeCase.decode(GoNoGoAnswer.self, from: data)
+        try await postRead(GoNoGoAnswer.self, "/api/go-no-go", ask)
     }
 }

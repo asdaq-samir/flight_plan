@@ -68,6 +68,7 @@ import requests
 from PIL import Image
 
 from .config import (
+    REQUEST_HEADERS,
     CHART_TILE_CACHE_DIR,
     CHART_TILES_BUCKET,
     CHART_TILES_PREFIX,
@@ -95,7 +96,6 @@ from .geo import tile_lat_lon, tile_xy
 log = logging.getLogger(__name__)
 
 TILE_PX = 256
-REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 
 # Web mercator's half-world extent in metres (EPSG:3857) -- the origin
 # the standard {z}/{x}/{y} tile grid is laid out from -- and the sphere

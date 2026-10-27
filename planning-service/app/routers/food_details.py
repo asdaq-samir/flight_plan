@@ -29,7 +29,7 @@ SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
 #: Only what the card shows, so the search is billed as no more.
 FIELDS = ",".join([
     "places.id", "places.displayName", "places.rating", "places.userRatingCount",
-    "places.reviews", "places.photos", "places.googleMapsUri",
+    "places.reviews", "places.photos", "places.googleMapsUri", "places.location",
 ])
 #: How far round Overture's point Google's place is looked for, metres:
 #: a field's diner is its building, Overture's point and Google's a few
@@ -38,6 +38,17 @@ BIAS_M = 300.0
 MOST_PHOTOS = 3
 MOST_REVIEWS = 3
 TIMEOUT_S = 8.0
+#: How far Google's place may be from Overture's and still be the same
+#: restaurant, metres: a field's buildings and car park.
+NEAR_M = 1000.0
+
+
+def _metres(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Great-circle distance in metres (haversine; a short hop, so plenty)."""
+    from math import asin, cos, radians, sin, sqrt
+    dlat, dlon = radians(lat2 - lat1), radians(lon2 - lon1)
+    a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+    return 2 * 6_371_000 * asin(sqrt(a))
 
 
 def _key() -> str:
@@ -84,9 +95,16 @@ def food_details(
     except (requests.RequestException, ValueError) as err:
         log.warning("Places search for %r failed: %s", name, err)
         raise HTTPException(502, "Google Places could not be reached.") from err
-    if not places:
+    # The bias only leans the search: "Subway" can come back from the next
+    # town, its stars then shown on this field's row. Not further than
+    # NEAR_M from where Overture places it.
+    place = places[0] if places else None
+    at = (place or {}).get("location") or {}
+    if place and at.get("latitude") is not None and at.get("longitude") is not None:
+        if _metres(lat, lon, at["latitude"], at["longitude"]) > NEAR_M:
+            place = None
+    if place is None:
         raise HTTPException(404, f"Google Places has no {name} there.")
-    place = places[0]
     photos = []
     for photo in (place.get("photos") or [])[:MOST_PHOTOS]:
         uri = _photo_uri(photo["name"], key)

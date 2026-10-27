@@ -10,7 +10,9 @@ import {
 } from "./mapChrome";
 
 /** How far the half sheet is in from the screen's sides and its edge: on
- *  them since the owner's ask (2026-10-25), as all the way up; the pill
+ *  them, as Apple's Maps on the web has its sheet (the owner's screenshots
+ *  of it, 2026-10-26); it floated for an hour that day, and from
+ *  2026-10-25 it was on them for the route box's buttons' room. The pill
  *  keeps SHEET_INSET. */
 const HALF_INSET = 0;
 
@@ -163,9 +165,9 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  *  shade it read 4.35:1, under WCAG's 4.5 (the iOS audit's P15 in CI,
  *  f08a6d3c); the blue of tappable words a step darker too (oklch 0.48,
  *  from 0.522): a nav log's "Show the work" on its selected row read
- *  4.33:1 (8465f5a8). The dark's as they were, set again here as the
- *  light's are set. */
-const SHEET_BELOW = "bg-black/[0.04] [--muted-foreground:oklch(0.5_0_0)] [--tint:oklch(0.48_0.18_256)] dark:bg-black/[0.18] dark:[--muted-foreground:oklch(0.708_0_0)] dark:[--tint:oklch(0.7_0.165_253)] print:bg-transparent";
+ *  4.33:1 (8465f5a8): --tint-shade, which each look sets (index.css). The
+ *  dark's grey as it was, set again here as the light's is set. */
+const SHEET_BELOW = "[--muted-foreground:oklch(0.5_0_0)] [--tint:var(--tint-shade)] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
 
 export default function MapPanel({ label, top, kept, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
   // A tab's options for a tab, a card's for a card: what each layer takes.
@@ -438,7 +440,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // far corners round, at the owner's ask (2026-10-25, "the extra space
     // on the sides": the route box's buttons fit on the airplane's line).
     // It floated in from them by SHEET_INSET, as iOS 26's Maps does.
-    inset: { side: HALF_INSET, gap: HALF_INSET, radius: edgeRadius },
+    inset: { side: HALF_INSET, gap: HALF_INSET, radius: HALF_INSET > 0 ? `${SHEET_INSET_RADIUS}px` : edgeRadius },
     edge: { side: 0, gap: 0, radius: edgeRadius },
   }[shape];
   // A drag from the capsule turns it into the sheet as the finger goes
@@ -482,7 +484,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // From the pill's shape, in from the sides and every corner round, to
     // the sheet's on the sides and edge, its near corners square.
     const pillRadius = Math.min(PILL_RADIUS, capsuleHeight / 2);
-    const far = between(pillRadius, SHEET_INSET_RADIUS, morph), near = between(pillRadius, 0, morph);
+    const far = between(pillRadius, SHEET_INSET_RADIUS, morph), near = between(pillRadius, HALF_INSET > 0 ? SHEET_INSET_RADIUS : 0, morph);
     geometry.side = between(SHEET_INSET, HALF_INSET, morph);
     geometry.gap = between(capsuleGap, HALF_INSET, morph);
     geometry.radius = fromBottom ? `${far}px ${far}px ${near}px ${near}px` : `${near}px ${near}px ${far}px ${far}px`;
@@ -577,12 +579,39 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const out = expanded;
   useEffect(() => {
     const up = state === "full";
-    if (!onPhone && state !== "peek") onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true, up });
-    else {
-      const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
-      onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up });
+    if (!onPhone && state !== "peek") {
+      onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true, up });
+      document.body.style.setProperty("--sheet-cover", "0px");
+      return;
     }
-  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange]);
+    const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
+    onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up });
+    const body = document.body;
+    body.style.setProperty("--sheet-cover", `${fromBottom && onPhone ? strip : 0}px`);
+    if (!onPhone || !fromBottom) return;
+    // For the map's buttons alone (--sheet-cover, MapControls), not the
+    // map's fit: once it has come to rest, what it covers taken again from
+    // where the sheet's foot really is over the map's. On the owner's
+    // iPhone, Safari's toolbar made the gap under the pill other than the
+    // one asked for, and the buttons stood 100 points over the pill (the
+    // owner's screenshot, 2026-10-26); refitting the map then moved the
+    // chart under them after every settle.
+    const timer = window.setTimeout(() => {
+      const sheet = document.querySelector<HTMLElement>("[data-slot=map-panel]");
+      const map = document.getElementById("content");
+      if (!sheet || !map) return;
+      // From the sheet's own top at rest; all the way up, what the half
+      // would cover (the buttons are put away there). Negative gaps where
+      // the map ends above the sheet's foot (a shorter viewport for the map
+      // than for the fixed sheet).
+      const mapBottom = map.getBoundingClientRect().bottom, rect = sheet.getBoundingClientRect();
+      const measured = Math.max(0, Math.round(state === "full" ? detents.half + mapBottom - rect.bottom : mapBottom - rect.top));
+      body.style.setProperty("--sheet-cover", `${measured}px`);
+    }, SHEET_SECONDS * 1000 + 100);
+    return () => window.clearTimeout(timer);
+  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange, expanded, detents.half]);
+
+  useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); }, []);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.
@@ -767,7 +796,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // for a nav log read on it, and all the way out nearly whole.
         capsule ? GLASS
           : !onPhone ? MATERIAL
-            : dragged !== null ? GLASS : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
+            : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
         !onPhone && cn(
           "left-[max(1rem,env(safe-area-inset-left))] w-[24rem]",
           !capsule && "rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",

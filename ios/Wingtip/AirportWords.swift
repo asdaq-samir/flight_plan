@@ -25,6 +25,12 @@ enum AirportWords {
         x == x.rounded() && abs(x) < 1e9 ? String(Int(x)) : String(x)
     }
 
+    /// A figure to a tenth, without a ".0" it does not have: "3", "1.5"
+    /// -- a tolerance, a handbook figure in its field.
+    static func tenths(_ x: Double) -> String {
+        x == x.rounded() && abs(x) < 1e9 ? String(Int(x)) : String(format: "%.1f", x)
+    }
+
     /// A wind's direction as a pilot writes it: three figures, north 360.
     static func bearing(_ deg: Double) -> String {
         let whole = ((Int(deg.rounded()) % 360) + 360) % 360
@@ -51,6 +57,24 @@ enum AirportWords {
         return "\(part(lat, "N", "S", 2)) \(part(lon, "E", "W", 3))"
     }
 
+    // MARK: The nav log's figures
+
+    /// A distance to a tenth, "12.3 nm", as the nav log gives it.
+    static func nm(_ x: Double) -> String { String(format: "%.1f nm", x) }
+
+    /// Fuel to a tenth, "8.4 gal".
+    static func gal(_ x: Double) -> String { String(format: "%.1f gal", x) }
+
+    /// A speed in whole knots, "112 kt".
+    static func kt(_ x: Double) -> String { String(format: "%.0f kt", x) }
+
+    /// A course or heading as the nav log prints it, three figures, "093°".
+    static func degrees(_ x: Double) -> String { String(format: "%03.0f°", x) }
+
+    /// A point as the planner, the app's links and Maps take one,
+    /// "46.84211,-92.19358": five places, about a metre.
+    static func point(_ lat: Double, _ lon: Double) -> String { String(format: "%.5f,%.5f", lat, lon) }
+
     // MARK: Weather
 
     /// A report's wind: "250° at 12 kt, gusts 18", "Calm" for 00000KT,
@@ -72,10 +96,18 @@ enum AirportWords {
         return String(parts.hour ?? 0).leftPadded(to: 2) + String(parts.minute ?? 0).leftPadded(to: 2) + "Z"
     }
 
-    static func date(_ iso: String) -> Date? {
-        let withFraction = ISO8601DateFormatter()
-        withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return withFraction.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+    private static let iso = ISO8601DateFormatter()
+    private static let isoFraction: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    /// A time as the servers and GPX files send it, with or without
+    /// fractions of a second.
+    static func date(_ iso: String?) -> Date? {
+        guard let iso else { return nil }
+        return Self.iso.date(from: iso) ?? isoFraction.date(from: iso)
     }
 
     /// When a report was made and how long ago: "1255Z · 14 min ago",

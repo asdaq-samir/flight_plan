@@ -10,7 +10,7 @@ import { flightQuery } from "../queryClient";
 import { prefersReducedMotion } from "../motion";
 import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
-import { useOwnShip } from "./ownShip";
+import { useOwnShip, useOwnFix } from "./ownShip";
 import { CARRY_S, agedBy, carriedOn, colourRuns, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
 import { reported, useTracking, useTrafficFocus, type Report } from "./tracking";
 import { usePastFlight } from "./pastFlight";
@@ -97,7 +97,7 @@ export function TrafficLayer() {
 
 function Traffic() {
   const map = useMap();
-  const fix = useOwnShip(s => (s.enabled ? s.fix : null));
+  const fix = useOwnFix();
   const hex = useTracking(s => s.hex);
   const follow = useTracking(s => s.follow);
   const followed = useTracking(s => (s.hex && s.follow && s.latest ? s.latest.plane : null));

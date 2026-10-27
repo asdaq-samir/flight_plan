@@ -104,20 +104,20 @@ export const GLASS = "liquid-glass";
 /** The same glass for a sheet at half height, frostier -- more of the
  *  material, less of the chart -- as what is on it is read: the map's
  *  panel and the console. */
-export const GLASS_SHEET = "liquid-glass [--glass-fill:62%]";
+export const GLASS_SHEET = "bg-[var(--sheet)] shadow-[0_-1px_12px_rgb(0_0_0/0.12)] dark:shadow-[0_-1px_12px_rgb(0_0_0/0.5)]";
 
 /** And all the way up, on the screen's edges as Maps' sheet is, nearly
  *  whole: its rim lit and its far corners round, as at half -- the opaque
  *  slab it was read heavy, the pilot found -- but the chart only faintly
  *  under a screenful of nav log. */
-export const GLASS_SHEET_FULL = "liquid-glass [--glass-fill:88%]";
+export const GLASS_SHEET_FULL = GLASS_SHEET;
 
 /** The glass's fill at each shape (GLASS, GLASS_SHEET, GLASS_SHEET_FULL),
  *  for a sheet being dragged to follow from one to the next. A dragged
  *  sheet was an opaque fill with no blur behind it, for the frames a blur
  *  re-drawn every frame was measured to cost; the pilot found the glass
  *  giving way under the finger, which Maps' never does. */
-export const GLASS_FILL = { capsule: 40, half: 62, full: 88 };
+export const GLASS_FILL = { capsule: 80, half: 100, full: 100 };
 
 /** How long the sheet takes from the pill to half (SETTLE_POINTS), in
  *  seconds, at the owner's ask ("make the 8443 a bit fast to match Apple
@@ -195,9 +195,12 @@ export const GLASS_CLEAR =
  *  so `cn` drops a variant's fill, border and shadow for these (the
  *  Select's outline, a Button's). */
 export const GLASS_BUTTON =
-  "border-0 bg-transparent text-foreground " +
-  "bg-[radial-gradient(80%_60%_at_50%_0%,var(--glass-sheen),transparent_70%),linear-gradient(180deg,var(--glass-top-fill),var(--glass-foot-fill))] " +
-  GLASS_EDGE + " hover:bg-[var(--glass-pressed)] hover:text-foreground aria-expanded:bg-[var(--glass-pressed)]";
+  // Since the style audit (2026-10-26): iOS's grey fill, flat, as Apple's
+  // Maps on the web draws its secondary buttons -- no sheen, rim or shade.
+  // The app's one neutral fill, the text's colour at 8% -- the same grey
+  // as its tiles, chips and selected rows (bg-foreground/8), in either theme.
+  "border-0 bg-foreground/8 text-foreground shadow-none " +
+  "hover:bg-foreground/12 hover:text-foreground aria-expanded:bg-foreground/12";
 
 /** The same glass tinted the blue on a toggle's chip once it is picked
  *  (data-state "on") -- a field's runway (ProceduresRoute) -- as iOS 26's
@@ -206,9 +209,7 @@ export const GLASS_BUTTON =
  *  glass's. Written out per state, as Tailwind finds its classes by their
  *  whole names. */
 export const GLASS_PICKED =
-  "data-[state=on]:bg-primary data-[state=on]:bg-[linear-gradient(180deg,rgb(255_255_255/0.3),rgb(255_255_255/0.06)_55%,transparent)] " +
-  "data-[state=on]:font-semibold data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary hover:data-[state=on]:text-primary-foreground " +
-  "data-[state=on]:shadow-[inset_0_1px_0_var(--glass-light),0_2px_8px_var(--glass-shade)]";
+  "data-[state=on]:bg-primary data-[state=on]:font-semibold data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary hover:data-[state=on]:text-primary-foreground";
 
 /** A button inside a capsule of the glass (CAPSULE): no glass of its own,
  *  the capsule's round it, a tint of the text's colour when pressed. */
@@ -231,9 +232,8 @@ export const CAPSULE_SEPARATOR = "before:pointer-events-none before:absolute bef
  *  the pilot's, a step up from iOS's default. */
 export const CHIP_TEXT = "text-xs pointer-coarse:text-[min(0.8125rem,14px)]";
 
-/** A tinted capsule that adds a field to the route -- the Stops card's Add
- *  (FoodCard), a suggested stop's Add Fuel Stop (FuelStopsAdd) -- one
- *  height, padding and hit area for both, where each had its own (the
+/** A tinted capsule that adds a field to the route -- Fly-in Food's Add
+ *  Stop and Direct To (FoodCard) -- one height, padding and hit area (the
  *  consistency audit, 2026-10-23): 32 points with a 44-point area round
  *  it as a pseudo-element, so the capsule is not grown to make it. */
 export const ADD_CAPSULE =

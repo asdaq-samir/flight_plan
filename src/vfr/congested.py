@@ -46,6 +46,7 @@ import requests
 import shapely
 
 from . import geocode
+from .units import M_PER_NM
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +63,11 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; wingtip-maps/0.1; terrain flo
 RADIUS_FT = 2000.0
 #: The largest circle a gazetteer place is drawn as, m: a nautical mile,
 #: the planner's own figure -- about the built-up core of a small town.
-PLACE_RADIUS_M = 1852.0
+PLACE_RADIUS_M = M_PER_NM
 #: A degree of latitude: sixty nautical miles of 6,076.12 ft, near enough
 #: (the earth's flattening moves it under 1% from the equator to the pole).
 FT_PER_DEG_LAT = 60 * 6076.12
-M_PER_DEG_LAT = 60 * 1852.0
+M_PER_DEG_LAT = 60 * M_PER_NM
 #: After a failed download, the next try waits this long.
 RETRY_AFTER_S = 300
 

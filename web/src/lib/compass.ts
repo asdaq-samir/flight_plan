@@ -8,3 +8,11 @@ const COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
 export function compassPoint(bearingDeg: number): string {
   return COMPASS[Math.round(normalizeDeg(bearingDeg) / 45) % 8]!;
 }
+
+const SAID: Record<string, string> = {
+  N: "north", NE: "northeast", E: "east", SE: "southeast", S: "south", SW: "southwest", W: "west", NW: "northwest",
+};
+
+/** A compass point as said, where "NE" would be read out letter by
+ *  letter: a voice's or a screen reader's "northeast". */
+export const saidPoint = (point: string) => SAID[point] ?? point;

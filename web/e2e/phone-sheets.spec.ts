@@ -26,7 +26,7 @@ async function swipe(page: Page, from: { x: number; y: number }, dy: number) {
   await cdp.detach();
 }
 
-test("a phone's sheet floats in glass as the map's sheet does, and a swipe down on its title puts it away", async ({ page }) => {
+test("a phone's sheet floats, opaque, as the map's sheet is, and a swipe down on its title puts it away", async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 768, "a phone's sheet; wider it is a popover");
   await page.goto("/app/plan");
   await settle(page);
@@ -40,7 +40,7 @@ test("a phone's sheet floats in glass as the map's sheet does, and a swipe down 
     const box = el.getBoundingClientRect();
     return {
       left: box.left, right: innerWidth - box.right, foot: innerHeight - box.bottom,
-      radius: parseFloat(style.borderTopLeftRadius), blur: style.backdropFilter,
+      radius: parseFloat(style.borderTopLeftRadius), blur: style.backdropFilter, fill: style.backgroundColor,
       grabber: !!el.querySelector("[data-swipe-handle] > span"),
     };
   });
@@ -48,7 +48,10 @@ test("a phone's sheet floats in glass as the map's sheet does, and a swipe down 
   expect(look.right).toBeCloseTo(8, 0);
   expect(look.foot).toBeCloseTo(8, 0);
   expect(look.radius).toBe(36);
-  expect(look.blur).toContain("blur");
+  // Opaque, the sheet's own grey, as the map's sheet is since the style
+  // audit (2026-10-26): no blur behind it.
+  expect(look.blur).toBe("none");
+  expect(look.fill).not.toMatch(/rgba\(.*, 0(\.\d+)?\)$/);
   expect(look.grabber).toBe(true);
 
   const title = sheet.locator("[data-slot=sheet-title]");
