@@ -163,8 +163,16 @@ def record(found: list[dict], now: float | None = None) -> int:
     return len(rows)
 
 
-def heard(xml: str) -> int:
-    """A TFMData message's routes kept: app.swim's handler for the feed."""
+def heard(xml: str | bytes) -> int:
+    """A TFMData message's routes kept: app.swim's handler for the feed.
+    Most of the feed is tracks with no route, looked for in the bytes as
+    they come, not decoded or parsed: the whole country's flights a second
+    or more, decoded first, kept the planner's CPU busy with nothing asked
+    of it."""
+    if isinstance(xml, (bytes, bytearray)):
+        if b"outeOfFlight" not in xml:
+            return 0
+        xml = xml.decode("utf-8", "replace")
     return record(filings(xml))
 
 

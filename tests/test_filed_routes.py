@@ -86,3 +86,9 @@ def test_no_store_yet_is_no_route(tmp_path, monkeypatch):
     filed_routes.reset()
     assert filed_routes.most_filed("C81", "LWD") == []
     assert not (tmp_path / "none").exists()
+
+
+def test_a_message_with_no_route_is_not_decoded_and_one_with_a_route_is_kept(store):
+    assert filed_routes.heard(b"<ds:tfmDataService><fdm:trackInformation/></ds:tfmDataService>") == 0
+    xml = service(message("B1", "C81", "LWD", "C81..BAE.V100.OBH..LWD"))
+    assert filed_routes.heard(xml.encode()) == 1
