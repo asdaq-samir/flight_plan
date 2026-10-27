@@ -32,12 +32,15 @@ export const SETTING_BADGE = {
   pilot: "#0e7490",
   theme: BADGE.approach,
   layout: BADGE.weather,
-  chartNight: BADGE.chart,
   look: BADGE.food,
   route: BADGE.ground,
   narrative: "#7e3fb8",
-  position: "#2563eb",
   tips: BADGE.lights,
+  // Settings' In Flight (SettingsPanel).
+  alerts: BADGE.hazard,
+  spoken: BADGE.approach,
+  offline: BADGE.chart,
+  receiver: BADGE.traffic,
   about: BADGE.other,
   // Setup's own rows (PilotPanel): the settings grey as iPhone's General,
   // the guide the tint's blue.

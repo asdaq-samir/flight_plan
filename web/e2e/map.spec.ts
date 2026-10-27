@@ -143,7 +143,7 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
   // departure to the destination alone, as the pilot asked.
   await beforeTheRoute(page, async () => {
     const toggle = page.getByTestId("waypoints-toggle");
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
     await toggle.click();
   });
   const asked: string[] = [];

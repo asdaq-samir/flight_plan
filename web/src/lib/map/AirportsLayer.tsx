@@ -130,7 +130,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // for (the map's Military setting): a civil airplane lands there only
   // with the service's permission.
   const showMilitary = usePreferences(s => s.military);
-  // And the private ones unless turned off (the map's Private setting).
+  // And the private ones only when asked for (the map's Private setting).
   const showPrivate = usePreferences(s => s.privateFields);
   const map = useMap();
   // The view as it rests, what the planner is asked by; and as it is

@@ -79,7 +79,7 @@ struct ChartMap: UIViewRepresentable {
     @AppStorage(ChartNight.key) var chartNight = ChartNight.dimmed.rawValue
     /// Setup's Military fields and Private fields.
     @AppStorage(MapExtrasInput.Keys.military) var militaryFields = false
-    @AppStorage(MapExtrasInput.Keys.privateFields) var privateFields = true
+    @AppStorage(MapExtrasInput.Keys.privateFields) var privateFields = false
     /// The legs a hazard tapped in the Brief is on (HazardLegsViews.swift).
     var hazardLegs: HazardLegs?
 
@@ -401,7 +401,7 @@ struct ChartMap: UIViewRepresentable {
         /// The fields in the view as the planner gave them, and which of
         /// them Setup draws.
         private var pins: [AirportPin] = []
-        private var fieldUse = (military: false, privateFields: true)
+        private var fieldUse = (military: false, privateFields: false)
 
         /// Setup's settings put to the marks already drawn, at once.
         @MainActor

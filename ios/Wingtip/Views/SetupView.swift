@@ -13,7 +13,7 @@ struct SetupView: View {
     @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
     @AppStorage(MapExtrasInput.Keys.plates) private var platesOn = true
     @AppStorage(MapExtrasInput.Keys.military) private var militaryOn = false
-    @AppStorage(MapExtrasInput.Keys.privateFields) private var privateOn = true
+    @AppStorage(MapExtrasInput.Keys.privateFields) private var privateOn = false
     @AppStorage(ChartNight.key) private var chartNight = ChartNight.dimmed.rawValue
 
     var body: some View {

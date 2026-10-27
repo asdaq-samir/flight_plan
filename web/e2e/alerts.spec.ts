@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
-import { openMapSettings, settle, slow } from "./helpers";
+import { closeConsole, openSettings, settle, slow } from "./helpers";
 
 /**
  * What is ahead of own ship in the air (lib/map/ahead), said over the map
@@ -150,12 +150,13 @@ test("spoken, each alert ahead is said once as it comes, and turned on it says s
   // Off by default: nothing said.
   expect(await said()).toEqual([]);
 
-  await openMapSettings(page);
+  // Settings' In Flight, with the alerts themselves.
+  await openSettings(page);
   const spoken = page.getByTestId("speak-alerts-toggle");
-  await expect(spoken).toHaveAttribute("aria-pressed", "false");
+  await expect(spoken).toHaveAttribute("aria-checked", "false");
   await spoken.click();
-  await expect(spoken).toHaveAttribute("aria-pressed", "true");
-  await page.keyboard.press("Escape");
+  await expect(spoken).toHaveAttribute("aria-checked", "true");
+  await closeConsole(page);
   // Turned on in the air: it says so, then what is ahead.
   await expect.poll(said).toEqual(["Alerts will be spoken.", "Chicago Class B, in 2 minutes."]);
 
