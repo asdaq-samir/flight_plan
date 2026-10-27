@@ -7,7 +7,9 @@ network hears (N3429J, a UAT airplane adsb.lol never had), and records
 the flights of the airplanes a pilot follows from takeoff, card open or
 not, since adsb.lol's history closed behind a browser check. FNS's
 NOTAMs -- each as the NOTAM System issues, replaces or cancels it --
-given to vfr.notams to keep.
+given to vfr.notams to keep. TFMS's flight data -- the NAS's flight plans
+and their amendments, each flight's route of flight -- given to
+vfr.filed_routes, which counts the routes pilots file between two fields.
 
 One connection a feed, on a thread of its own, to its subscription's
 durable queue: each message read, handed on, then acknowledged. A feed is
@@ -23,14 +25,14 @@ import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
-from vfr import notams, traffic
+from vfr import filed_routes, notams, traffic
 
 log = logging.getLogger(__name__)
 
 #: What every connection needs, and each feed's own (its VPN and queue),
 #: from the subscription's Details page.
 SETTINGS = ("SWIM_HOST", "SWIM_USERNAME", "SWIM_PASSWORD")
-FEEDS = ("STDDS", "FNS")
+FEEDS = ("STDDS", "FNS", "TFMS")
 #: The CA certificates the FAA's broker's certificate is checked against:
 #: the image's own (python:3.13-slim's ca-certificates).
 TRUST_STORE = os.environ.get("SWIM_TRUST_STORE", "/etc/ssl/certs")
@@ -43,6 +45,12 @@ STATE = {feed: {"connected": False, "messages": 0, "items": 0, "last_at": None, 
 
 def _settings(feed: str) -> tuple[str, ...]:
     return (*SETTINGS, f"SWIM_VPN_{feed}", f"SWIM_QUEUE_{feed}")
+
+
+def _host(feed: str) -> str:
+    """The broker a feed's subscription is on: its own where SCDS put it
+    on another (TFMS's on ems1, the others' on ems2), else the shared one."""
+    return os.environ.get(f"SWIM_HOST_{feed}") or os.environ["SWIM_HOST"]
 
 
 def configured(feed: str) -> bool:
@@ -179,7 +187,7 @@ def _radar(text: str) -> int:
 
 
 #: What each feed's messages are handed to; each gives how many items it read.
-HANDLERS = {"STDDS": _radar, "FNS": notams.heard}
+HANDLERS = {"STDDS": _radar, "FNS": notams.heard, "TFMS": filed_routes.heard}
 
 
 def _run(feed: str) -> None:
@@ -195,7 +203,7 @@ def _run(feed: str) -> None:
         service = receiver = None
         try:
             service = (MessagingService.builder().from_properties({
-                "solace.messaging.transport.host": os.environ["SWIM_HOST"],
+                "solace.messaging.transport.host": _host(feed),
                 "solace.messaging.service.vpn-name": os.environ[f"SWIM_VPN_{feed}"],
                 "solace.messaging.authentication.scheme.basic.username": os.environ["SWIM_USERNAME"],
                 "solace.messaging.authentication.scheme.basic.password": os.environ["SWIM_PASSWORD"],

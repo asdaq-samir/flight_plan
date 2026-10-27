@@ -715,7 +715,8 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
 def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = None, fcst_hr: str = "06",
             min_ceiling_ft: float | None = None, min_visibility_sm: float | None = None,
             current: list[tuple] | None = None, current_idents: list[str] | None = None,
-            current_landed: list[bool] | None = None, fields=None) -> dict:
+            current_landed: list[bool] | None = None, fields=None,
+            filed: tuple[list[tuple], list[str]] | None = None) -> dict:
     """The ways to fly from `dep` to `dest` ({"ident", "lat", "lon"}) in
     an airplane of `profile` (vfr.aircraft's: cruise_tas_kt, fuel_burn_gph,
     usable_fuel_gal, service_ceiling_ft): {"options": [{"kind", "title",
@@ -727,8 +728,10 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     (each {"kind", "name"}, indexed by the lists), "current" and
     "current_marginal" (what the pilot's own route through `current`,
     [(lat, lon)] from end to end, crosses and passes: the pilot's way is
-    kept, and what it meets said), "unchecked" (the sources that could
-    not be read)}. Weather is held to the pilot's minimums
+    kept, and what it meets said), "filed" (the route most filed between
+    the ends, `filed`'s points and idents between them, with the fuel
+    stops it needs put in as the pilot's own route's are; None without
+    one), "unchecked" (the sources that could not be read)}. Weather is held to the pilot's minimums
     where given, never under 91.155's (LEGAL_*)."""
     start, end = (dep["lat"], dep["lon"]), (dest["lat"], dest["lon"])
     # A naive time is UTC, as the plan's API takes it.
@@ -742,7 +745,7 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
     ceiling = max(LEGAL_CEILING_FT, float(min_ceiling_ft or 0.0))
     visibility = max(LEGAL_VISIBILITY_SM, float(min_visibility_sm or 0.0))
 
-    grid = _Grid(start, end, current or ())
+    grid = _Grid(start, end, [*(current or ()), *(filed[0] if filed else ())])
     unchecked: list[str] = []
     try:
         floor = _ground(grid, top)
@@ -817,9 +820,15 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         found.append(option)
     found = _named_by_what_they_are(grid, found)
     own = _own(grid, gs, current or [start, end], current_idents or [], current_landed or [], profile, table, reserve_gal)
+    # The most filed route's fixes are flown over, none landed at.
+    most_filed = None
+    if filed:
+        most_filed = {**_own(grid, gs, [start, *filed[0], end], filed[1], [False] * len(filed[1]), profile, table,
+                             reserve_gal), "kind": "filed", "kinds": ["filed"], "title": "Most Filed"}
     return {
         "options": found,
         "own": own,
+        "filed": most_filed,
         # The pilot's own route as it is flown, end to end, for the map to
         # draw beside the ways (the owner's "all routes drawn including
         # mine", 2026-10-25).

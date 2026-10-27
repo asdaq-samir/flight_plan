@@ -384,3 +384,15 @@ def test_the_cells_near_a_point_are_the_whole_grids_measure_in_its_box():
             nm = float(rng.choice([route_options.STORM_NM, route_options.FIELD_WX_NM, route_options.MARGINAL_NM]))
             whole = geo.distance_nm(lat, lon, grid.lat_grid, grid.lon_grid) <= nm
             assert (grid.near(lat, lon, nm) == whole).all()
+
+
+def test_the_most_filed_route_is_flown_over_its_fixes_with_its_fuel_stops_put_in(sky):
+    dest = {"ident": "CCC", "lat": 0.0, "lon": 10.0}
+    table = fields(*[(f"F{k}", 0.0, float(k)) for k in range(1, 10)])
+    # Filed by way of a fix a degree north of the line: the grid reaches it.
+    out = route_options.options(DEP, dest, PROFILE, fields=table, filed=([(1.0, 5.0)], ["NORTH"]))
+    filed = out["filed"]
+    assert (filed["kind"], filed["title"]) == ("filed", "Most Filed")
+    assert "NORTH" in filed["stops"] and "NORTH" not in filed["fuel"] and filed["fuel"]
+    assert [1.0, 5.0] in filed["path"]
+    assert route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)["filed"] is None
