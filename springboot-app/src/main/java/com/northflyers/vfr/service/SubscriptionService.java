@@ -21,13 +21,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.StringUtils;
 
 /**
  * The one entitlement to the paid features ({@link PaidFeature}), kept
@@ -117,10 +115,7 @@ public class SubscriptionService {
         this.clock = clock;
         this.trialDays = trialDays;
         this.caps = new EnumMap<>(caps);
-        this.compedEmails = Arrays.stream(compedEmails.split(","))
-                .map(String::trim).filter(StringUtils::hasText)
-                .map(address -> address.toLowerCase(Locale.ROOT))
-                .collect(Collectors.toUnmodifiableSet());
+        this.compedEmails = Typed.addresses(compedEmails);
         this.sold = sold;
         this.claude = claude;
     }
