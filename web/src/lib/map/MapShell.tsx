@@ -19,7 +19,7 @@ import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 import { prefersReducedMotion } from "../motion";
-import { BUTTONS_CLEAR, centreClearFor, hideLinesWhileZooming, panClear } from "./clear";
+import { BUTTONS_CLEAR, centreClearFor, hideLinesWhileZooming } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
 import { OwnShipLayer } from "./OwnShipLayer";
@@ -351,9 +351,20 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const by = map.latLngToContainerPoint(following.current.focus).subtract(middle(insets)).round();
       if (by.x || by.y) map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
     }
-    else if (what === "ship") {
+    else if (what === "ship" && turned) {
+      // Once, as the sheet turns, to the middle of the room it is going
+      // to (`insets`, the panel's at rest), in the sheet's own time: panned
+      // again at each change of the room on the way, and by own ship's
+      // next fix (OwnShipLayer), the map went part of the way, jumped 51
+      // points as the sheet landed and slid on again a second later
+      // (sampled on the phone project with the GPS on, half to the pill:
+      // -153 to -96 over the slide, -45.7 the frame after, 0 at 2 s). The
+      // owner, 2026-10-27: "the map can slide down more smoothly".
       const ship = useOwnShip.getState().fix;
-      if (ship) panClear(map, [ship.lat, ship.lon], { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
+      if (ship) {
+        const by = map.latLngToContainerPoint([ship.lat, ship.lon]).subtract(middle(insets)).round();
+        if (by.x || by.y) map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS, easeLinearity: 0.5 });
+      }
     }
   }, [insets, map, course, bounds, routeKey, held, fit]);
 
