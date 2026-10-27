@@ -402,8 +402,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // home indicator, a route's figures clipped at the top the last of the
     // way down (the safe area emulated as the iOS audit does, 2026-10-15).
     const pillPx = Math.round(PILL_REM * rootPx());
-    const lowest = bar && capsule ? pillPx
-      : bar && settling ? pillPx + (fromBottom ? Math.max(0, capsuleGap - HALF_INSET) : 0)
+    // Now that the settling sheet takes the pill's gap as it eases (its
+    // shape, below), it stops at the pill's own height: stopped the gap
+    // taller, it eased down 12 points more once it had turned, the
+    // readjust at the end the owner saw ("at the end readjusts for a
+    // second to small detent"; sampled: 70 at the landing, 58 after).
+    const lowest = bar && (capsule || settling) ? pillPx
       : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
@@ -411,7 +415,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const body = asked - headHeight - halfChrome - footHeight;
     const half = body > 0 && body < HALF_BODY_LEAST_REM * rootPx() ? Math.max(lowest, asked - body) : asked;
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, fromBottom, capsuleGap, headHeight, footHeight]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
