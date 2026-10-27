@@ -286,7 +286,14 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       // tiles are the ones already drawn, where a fit to the new room
       // zoomed and drew the chart afresh at every turn, at the owner's ask
       // ("Medium to small detent redraws the map?", 2026-10-27).
-      what = routeInSight && !keepingUp ? "slide" : shipInSight ? "ship" : null;
+      // Fitted again only where, slid, it would not all be clear of the
+      // panel and the map's buttons: raised from the capsule after a pan,
+      // or to a half sheet with less room than it was fitted to.
+      const shift = middle(insets).subtract(middle(was));
+      const corner = (p: L.LatLng) => map.latLngToContainerPoint(p).add(shift);
+      const routeFits = !!bounds && L.bounds(L.point(insets.left + BUTTONS_CLEAR, insets.top), L.point(size.x - BUTTONS_CLEAR, size.y - insets.bottom))
+        .contains(L.bounds(corner(bounds.getNorthWest()), corner(bounds.getSouthEast())));
+      what = routeInSight && !keepingUp ? (routeFits ? "slide" : "route") : shipInSight ? "ship" : null;
       if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
       following.current = what
         ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what, focus: map.containerPointToLatLng(middle(was)) }
