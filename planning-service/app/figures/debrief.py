@@ -17,6 +17,9 @@ FlightCheckpointDto, as `sequence_no` and so on) and its points the
 track's (TrackDto: `t` in ms since 1970, GPS altitude in feet)."""
 import math
 
+from vfr import geo
+from vfr.geo import angle_between
+
 #: PA.VI.A's tolerances: S7's altitude, and its heading applied to the
 #: ground track; S5's distance from the planned route; S6's time at each
 #: checkpoint against its estimate.
@@ -33,33 +36,20 @@ PATTERN_FT = 100
 #: single's slowest flight over it.
 AIRBORNE_KT = 40
 
-#: The mean earth radius in nautical miles, as the web's lib/geo.
-EARTH_NM = 3440.065
-
 
 def _rad(d: float) -> float:
     return d * math.pi / 180
 
 
 def distance_nm(a: dict, b: dict) -> float:
-    """Haversine, as the web's lib/geo distanceNm."""
-    d_lat, d_lon = _rad(b["lat"] - a["lat"]), _rad(b["lon"] - a["lon"])
-    h = math.sin(d_lat / 2) ** 2 + math.cos(_rad(a["lat"])) * math.cos(_rad(b["lat"])) * math.sin(d_lon / 2) ** 2
-    return 2 * EARTH_NM * math.asin(min(1, math.sqrt(h)))
+    """The great-circle distance between two points, nm (vfr.geo; the web's
+    lib/geo distanceNm, on the same sphere)."""
+    return geo.distance_nm(a["lat"], a["lon"], b["lat"], b["lon"])
 
 
 def bearing_deg(a: dict, b: dict) -> float:
-    """The initial true bearing from a to b, as lib/geo bearingDeg."""
-    d_lon = _rad(b["lon"] - a["lon"])
-    y = math.sin(d_lon) * math.cos(_rad(b["lat"]))
-    x = math.cos(_rad(a["lat"])) * math.sin(_rad(b["lat"])) - math.sin(_rad(a["lat"])) * math.cos(_rad(b["lat"])) * math.cos(d_lon)
-    return (math.degrees(math.atan2(y, x)) + 360) % 360
-
-
-def angle_between(a: float, b: float) -> float:
-    """How far apart two directions are, 0 to 180 (lib/geo angleBetween)."""
-    d = ((a - b) % 360 + 360) % 360
-    return 360 - d if d > 180 else d
+    """The initial true bearing from a to b (vfr.geo; lib/geo bearingDeg)."""
+    return geo.bearing_deg(a["lat"], a["lon"], b["lat"], b["lon"])
 
 
 def _ground_speeds(points: list[dict]) -> list[float]:

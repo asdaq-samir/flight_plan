@@ -1456,7 +1456,7 @@ def _field_at(point: dict, landing: bool) -> dict | None:
         close = field["distance_nm"] <= FIELD_NEAR_NM and (above is None or above <= FIELD_ABOVE_FT)
         # `bearing_deg` is from the report to the field: a landing heads along it, a takeoff away.
         toward = (field["bearing_deg"] if landing else field["bearing_deg"] + 180) % 360
-        headed = track is not None and abs((track - toward + 180) % 360 - 180) <= FIELD_APPROACH_DEG
+        headed = track is not None and geo.angle_between(track, toward) <= FIELD_APPROACH_DEG
         if close or ((sloping or headed) and above is not None and above <= FIELD_APPROACH_FT):
             return {"ident": field["ident"], "name": field.get("name"), "city": field.get("municipality"),
                     "region": field.get("region")}
