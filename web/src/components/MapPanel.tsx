@@ -599,6 +599,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // with the card (the owner's video, 2026-10-26), and on the owner's
   // iPhone Safari's toolbar made the planned gap the wrong one. All the way
   // up they are put away (index.css).
+  const moving = isDragged;
   useEffect(() => {
     const body = document.body;
     if (!panel || !onPhone || !fromBottom) {
@@ -615,8 +616,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const watch = new ResizeObserver(measure);
     watch.observe(panel);
     if (map) watch.observe(map);
-    return () => watch.disconnect();
-  }, [panel, onPhone, fromBottom]);
+    // And every frame while it moves: its foot rises and falls as it turns
+    // into the pill and back, with no change of size to observe.
+    let frame = 0;
+    const follow = () => { measure(); frame = requestAnimationFrame(follow); };
+    if (moving) frame = requestAnimationFrame(follow);
+    return () => { watch.disconnect(); cancelAnimationFrame(frame); measure(); };
+  }, [panel, onPhone, fromBottom, moving]);
   useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); }, []);
   // Scrolled up, a page's content runs on under the head and is seen
   // through it, at the owner's ask with a sheet of iOS's ("look at this for
