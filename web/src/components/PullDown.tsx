@@ -1,4 +1,4 @@
-import { Fragment, type ReactElement, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import { ChevronsUpDown } from "lucide-react";
 import { cn } from "cn";
 import {
@@ -54,9 +54,23 @@ export default function PullDown<V extends string>({
 }) {
   const picked = options.find(o => o.value === value);
   const words = picked ? picked.text ?? (typeof picked.label === "string" ? picked.label : picked.value) : placeholder ?? "";
+  // Open only while its trigger is in sight: the sheet it is on lowered
+  // to the pill under an open menu left the menu over the tab bar, its
+  // first choice alone above the screen's foot (the owner's screenshot,
+  // 2026-10-27: Setup's Theme menu, "System", over the tabs). An
+  // IntersectionObserver counts the sheet's clip as out of sight.
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const el = button.current;
+    if (!open || !el || typeof IntersectionObserver === "undefined") return;
+    const watch = new IntersectionObserver(([seen]) => { if (seen && !seen.isIntersecting) setOpen(false); });
+    watch.observe(el);
+    return () => watch.disconnect();
+  }, [open]);
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild ref={button}>
         {trigger ?? (
           // Its 44-point area a pseudo-element round the words, never a
           // bigger button (index.css's rule for every control).
