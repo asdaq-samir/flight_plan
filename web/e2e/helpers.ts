@@ -75,6 +75,8 @@ export async function openPanel(page: Page) {
 /** The route cleared, by the route box's own ✕ (the menu's Clear went,
  *  the owner, 2026-10-27). */
 export async function clearTheRoute(page: Page) {
+  await openPanel(page);
+  await controlsInSight(page);
   await sideDrawer(page).getByTestId("route-box-clear").click();
 }
 
@@ -455,7 +457,9 @@ export async function openProfile(page: Page) {
     const play = page.locator("[data-map-food]").getByTestId("dry-run-button");
     await play.click({ timeout: slow(60_000) });
     await expect(card).toBeVisible();
-    if ((await play.getAttribute("aria-pressed")) === "true") await play.click();
+    // Stopped once it flies (a route with no legal altitude opens the
+    // profile with no run): the wheel is put away while a run plays.
+    if (await expect(play).toHaveAttribute("aria-pressed", "true", { timeout: 3000 }).then(() => true, () => false)) await play.click();
   }
   await expect(card).toBeVisible();
   return card;
