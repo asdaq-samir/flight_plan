@@ -183,7 +183,9 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   // is a choice (the owner's "Why is it showing C172?").
   const picker = page.getByTestId("aircraft-input");
   await expect(picker).toBeVisible();
-  await expect(picker).toHaveAttribute("placeholder", "N-number");
+  // A fixed N before it and no placeholder (the owner, 2026-10-27).
+  await expect(picker).toHaveAttribute("placeholder", "");
+  await expect(page.getByTestId("aircraft-select")).toContainText("N");
   await expect(picker).toHaveValue("");
   // An N-number typed is added at once, its type looked up behind it (the
   // owner's "You can do the lookup in the background") -- here a made-up

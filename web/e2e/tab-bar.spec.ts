@@ -127,7 +127,7 @@ test("an airport tapped in the route opens its card, and is changed from its men
   await expect(page.getByPlaceholder("Search for a destination")).toBeVisible();
 });
 
-test("the side view is a card of its own, Profile, from its button beside the nav log's, half way and all the way up; FPL's foot is the figures alone", async ({ page }) => {
+test("the side view is a card of its own, Profile, opened by the map's Play; FPL's foot is the figures alone", async ({ page }) => {
   // The owner's asks: "FPL is simple with route, navlog, profile and
   // calculations"; then (2026-10-20) "profile view can move next to the
   // navlog button and open like brief and navlog opens instead of the
@@ -135,7 +135,9 @@ test("the side view is a card of its own, Profile, from its button beside the na
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
-  for (const height of ["half", "full"] as const) {
+  // Half way, where the map's Play is in sight over the sheet (all the
+  // way up, the map's buttons are under it).
+  for (const height of ["half"] as const) {
     await grabberTo(page, height);
     await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
     await expect(panel.getByTestId("mini-profile")).toHaveCount(0);

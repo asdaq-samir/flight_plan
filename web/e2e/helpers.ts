@@ -449,6 +449,9 @@ export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
   if (!(await card.isVisible())) {
+    // The map's buttons ride over the sheet up to half: all the way up,
+    // down to half for them.
+    if ((page.viewportSize()?.width ?? 0) < 768 && await sideDrawer(page).getAttribute("data-panel") === "full") await grabberTo(page, "half");
     const play = page.locator("[data-map-food]").getByTestId("dry-run-button");
     await play.click({ timeout: slow(60_000) });
     await expect(card).toBeVisible();
