@@ -629,7 +629,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // the map refits once the panel settles (MapShell).
   const expanded = state !== "peek";
   // Half way and all the way up, what counts is the half sheet.
-  const coveredOnPhone = expanded ? detents.half + HALF_INSET : peek + (capsule ? capsuleGap : 0);
+  // Down at the pill, its strip at rest from the turn on, not the room
+  // the sheet takes on its way down: the map, sent to the middle of what
+  // the sheet left on the way (174 points, then 160), was slid on again
+  // once it landed (70), the map settling a second after the tabs had
+  // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
+  // settle down").
+  const pillRest = bar ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
+  const coveredOnPhone = expanded ? detents.half + HALF_INSET : hasPill ? pillRest + capsuleGap : peek;
   const out = expanded;
   useEffect(() => {
     const up = state === "full";
