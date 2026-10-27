@@ -863,7 +863,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // The height follows a finger without lag, and the capsule's turn
         // into the sheet with it; the shape eases in and out as a drag
         // crosses half way up, to the screen's edges and back.
-        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? settle.height : SHEET_RESHAPE,
+        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? `${settle.height}, background-color ${settle.curve}, box-shadow ${settle.curve}` : SHEET_RESHAPE,
         // In steps of four: an inherited property, every change of it
         // restyles all the sheet holds, and changed at every frame of a drag
         // above half it cost that drag a frame in three.
@@ -882,7 +882,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // Liquid Glass at every height, as Maps' is: the chart through it,
         // its rim lit, its own shadow -- the sheet a frostier pane of it,
         // for a nav log read on it, and all the way out nearly whole.
-        capsule ? GLASS
+        // The pill's glass from the start of a settle down to it, its colour
+        // easing there with the height (below), where the sheet's opaque
+        // fill turned to the pill's glass in one frame as it landed (the
+        // owner, 2026-10-27: "the color transition is not smooth").
+        capsule || (settling && onPhone) ? GLASS
           : !onPhone ? MATERIAL
             : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
         !onPhone && cn(
