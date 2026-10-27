@@ -159,7 +159,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
     // owner's ask ("when altitude is entered ... a profile button shows
     // up"), or why there is none to show.
     <InlineField
-      label="Cruise altitude" testId="altitude-group" widest="FL-000" tabular placeholder={PLACEHOLDER} prefix="FL-"
+      label="Cruise altitude" testId="altitude-group" tip="altitude" widest="FL-000" tabular placeholder={PLACEHOLDER} prefix="FL-"
       input={{
         inputMode: "numeric", value: shown, "aria-label": "Cruise altitude, a flight level or feet",
         onChange: e => setTyped(e.target.value.toUpperCase().replace(/^FL-?/, "").replace(/\D/g, "").slice(0, 5)),
@@ -179,7 +179,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
       // why, in its name for VoiceOver.
       button={(profiled || entered) && (
         <span className={dotShown ? "relative mr-2.5 flex size-2 shrink-0" : "relative flex size-0 shrink-0"}>
-          <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" data-tip="altitude" className="absolute inset-0" />
+          <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" className="absolute inset-0" />
           {/* The dot opens the profile where the caution is said, as the
               map's Play does (the owner, 2026-10-27: "just open the same
               profile view as the play button"); 44 points round it. */}

@@ -22,7 +22,9 @@ export const INLINE_FIELD_BUTTON =
  *   two meet, so a tap at the text's end is the field's ("not letting me
  *   clear them").
  */
-export function InlineField({ label, testId, widest, tabular = false, placeholder, placeholderClassName, shrink = false, input, inputClassName, button, prefix, endRoom = "w-[1.5625rem]" }: {
+export function InlineField({ label, testId, widest, tabular = false, placeholder, placeholderClassName, shrink = false, input, inputClassName, button, prefix, endRoom = "w-[1.5625rem]", tip }: {
+  /** The first-run tip pointed at it (lib/tips). */
+  tip?: string;
   /** The room kept at its end for its button, so the field does not
    *  widen as one comes: none where it has none (the airplane's, since
    *  its card button went), a dot's for the altitude's caution. */
@@ -49,7 +51,7 @@ export function InlineField({ label, testId, widest, tabular = false, placeholde
   button?: ReactNode;
 }) {
   return (
-    <div role="group" aria-label={label} className={cn("grid h-7 items-center rounded-full bg-foreground/8", shrink && "shrink-0", TEXT.row)} data-testid={testId}>
+    <div role="group" aria-label={label} className={cn("grid h-7 items-center rounded-full bg-foreground/8", shrink && "shrink-0", TEXT.row)} data-testid={testId} data-tip={tip}>
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
         <span className={cn("whitespace-pre pr-1.5 pl-2.5 font-semibold", tabular && "tabular-nums")}>{widest}</span>
         <span className={cn(endRoom, "shrink-0")} />
