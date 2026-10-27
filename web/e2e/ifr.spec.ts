@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, openTab, openSection, controlsInSight, openNavLog, closeNavLog, closeCard } from "./helpers";
+import { openProfile, slow, settle, openTab, openSection, controlsInSight, openNavLog, closeNavLog, closeCard } from "./helpers";
 
 /**
  * Planning under IFR (the planner's vfr.ifr): the flight rules are the
@@ -23,7 +23,7 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   await controlsInSight(page);
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
-  await why.click();
+  await openProfile(page);
   const popover = page.getByTestId("profile-card");
   const rules = popover.getByTestId("flight-rules");
   await expect(rules.getByRole("radio", { name: "VFR" })).toHaveAttribute("aria-checked", "true");
@@ -40,7 +40,7 @@ test("under IFR the altitude is chosen from the minimum IFR altitude by directio
   // The re-plan's altitude: whole thousands, west of north out of C81
   // (even thousands, 91.179(b)(1)(ii)).
   await expect(why).toHaveAccessibleName(/under IFR, (\d*[02468],000 feet|FL\d[02468]0)/, { timeout: slow(90000) });
-  await why.click();
+  await openProfile(page);
   await expect(popover).toContainText("Minimum IFR altitude", { timeout: slow(30000) });
   await expect(popover).toContainText("14 CFR 91.179");
   await expect(popover).not.toContainText("14 CFR 91.159");
@@ -101,7 +101,7 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   // the legs west of north are checked on the filed level below, which is
   // the first leg's.
   await expect(why).toHaveAccessibleName(/under IFR, (\d+,000 feet|FL\d\d0)/, { timeout: slow(90000) });
-  await why.click();
+  await openProfile(page);
   const popover = page.getByTestId("profile-card");
   // How it was chosen, folded under the altitude's figures.
   await popover.getByText("How the altitude was chosen").click();

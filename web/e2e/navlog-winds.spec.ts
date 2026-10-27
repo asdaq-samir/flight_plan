@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openPanel, openTab, controlsInSight, settle, slow, closeCard } from "./helpers";
+import { openProfile, openPanel, openTab, controlsInSight, settle, slow, closeCard } from "./helpers";
 
 /**
  * A nav log the winds could not be read for. The planner's own stream is
@@ -31,7 +31,7 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   const why = page.getByTestId("altitude-why");
   await expect(why).toHaveAccessibleName(/no altitude/, { timeout: 60000 });
   await expect(why).not.toHaveAccessibleName(/yours/);
-  await why.click();
+  await openProfile(page);
   // The Profile card, the altitude set on its side view.
   const popover = page.getByTestId("profile-card");
   await expect(popover).toContainText("winds aloft could not be read");
