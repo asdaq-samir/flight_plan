@@ -320,6 +320,15 @@ test("the route's Procedures open its destination's card on its approaches, and 
  *  zooms about the cursor, so C81 stays under it) -- and where one is
  *  whose middle nothing else covers: not the route's own marker, not the
  *  panel. */
+/** The private fields drawn as well, off by default since 2026-10-27:
+ *  round C81 most of the fields on the chart are private strips. */
+async function withPrivateFields(page: Page) {
+  await page.addInitScript(() => {
+    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? "null") ?? { state: {}, version: 1 };
+    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, privateFields: true } }));
+  });
+}
+
 async function airportToTap(page: Page) {
   // Once the map has stopped: the panel coming back to rest fits the route
   // again (MapShell), and a wheel turned while it flies is lost to it.
@@ -449,6 +458,7 @@ test("an airport tapped on the chart while Setup is up puts Setup away and opens
   // The owner's notice: "When selecting airport marker while being on
   // setup tab doesn't open the [airport] tab."
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "Setup leaves the chart in sight on a phone");
+  await withPrivateFields(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openConsole(page);
@@ -464,6 +474,7 @@ test("an airport tapped on the chart while Setup is up puts Setup away and opens
 });
 
 test("a tap on an airport on the chart opens its card, a tap elsewhere puts it away, and Fly Here makes it the destination", async ({ page }) => {
+  await withPrivateFields(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const at = await airportToTap(page);
@@ -547,6 +558,8 @@ test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a mi
   await settle(page);
   await openMapSettings(page);
   await page.getByTestId("military-toggle").click();
+  // And the private ones, off by default (the owner, 2026-10-27).
+  await page.getByTestId("private-toggle").click();
   await page.keyboard.press("Escape");
   // Each drawn from its airspace, its use and its weather (AirportCanvas,
   // airportMarkSvg's look; the look itself is the route's own marks', in
@@ -586,6 +599,8 @@ test("the map's Private setting draws the private fields, off by default and kep
   await page.getByTestId("private-toggle").click();
   await page.keyboard.press("Escape");
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
+  // The airport's card kept under the settings', as it was.
+  await expect(page).toHaveURL(/[?&]place=C81/);
   await page.reload();
   await settle(page);
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
