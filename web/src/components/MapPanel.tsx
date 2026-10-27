@@ -616,12 +616,30 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const watch = new ResizeObserver(measure);
     watch.observe(panel);
     if (map) watch.observe(map);
-    // And every frame while it moves: its foot rises and falls as it turns
-    // into the pill and back, with no change of size to observe.
-    let frame = 0;
-    const follow = () => { measure(); frame = requestAnimationFrame(follow); };
-    if (moving) frame = requestAnimationFrame(follow);
-    return () => { watch.disconnect(); cancelAnimationFrame(frame); measure(); };
+    // And every frame while it moves -- under a finger, or easing in its
+    // own transitions of height and of where its foot is -- as its foot
+    // rises and falls turning into the pill and back, which no change of
+    // size shows.
+    let frame = 0, easing = 0;
+    const follow = () => {
+      measure();
+      frame = moving || easing > 0 ? requestAnimationFrame(follow) : 0;
+    };
+    const start = () => { if (!frame) frame = requestAnimationFrame(follow); };
+    const eased = (e: TransitionEvent) => { if (e.target !== panel) return; easing = Math.max(0, easing - 1); measure(); };
+    const eases = (e: TransitionEvent) => { if (e.target !== panel) return; easing += 1; start(); };
+    panel.addEventListener("transitionrun", eases);
+    panel.addEventListener("transitionend", eased);
+    panel.addEventListener("transitioncancel", eased);
+    if (moving) start();
+    return () => {
+      watch.disconnect();
+      cancelAnimationFrame(frame);
+      panel.removeEventListener("transitionrun", eases);
+      panel.removeEventListener("transitionend", eased);
+      panel.removeEventListener("transitioncancel", eased);
+      measure();
+    };
   }, [panel, onPhone, fromBottom, moving]);
   useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); }, []);
   // Scrolled up, a page's content runs on under the head and is seen
