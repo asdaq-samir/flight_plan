@@ -430,7 +430,9 @@ function useSpaced(selected: Candidate[], airports: { lat: number; lon: number }
     const out = new Set<string>();
     for (const c of selected) {
       const p = map.project([c.lat, c.lon], zoom);
-      if (kept.some(k => k.distanceTo(p) < DOT_ROOM) || marks.some(m => m.distanceTo(p) < AIRPORT_MARK)) continue;
+      // The first always: it is the one a pilot looks for off the field,
+      // and the ForeFlight and Garmin exports' first point.
+      if (kept.length && (kept.some(k => k.distanceTo(p) < DOT_ROOM) || marks.some(m => m.distanceTo(p) < AIRPORT_MARK))) continue;
       kept.push(p);
       out.add(`${c.lat},${c.lon}`);
     }
