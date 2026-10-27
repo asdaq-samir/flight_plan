@@ -37,6 +37,7 @@ import requests
 
 from .performance import isa_temp_c
 from .retry import with_retries
+from .units import M_TO_FT
 
 log = logging.getLogger(__name__)
 
@@ -800,10 +801,6 @@ def nearest_report(lat: float, lon: float, exclude: str | None = None, within_nm
 # Within one start time, the base forecast (FM, or the TAF's own first
 # line) sorts first; BECMG/TEMPO/PROB lines modify it.
 _CHANGE_ORDER = {"": 0, "FM": 0, "BECMG": 1, "TEMPO": 2, "PROB": 3}
-# A TAF station's elevation comes in metres; everything here is feet
-# (vfr.terrain's own constant, not imported: this module stays free of
-# the terrain and FAA data it would bring).
-M_TO_FT = 3.28084
 
 
 def _parse_tafs(xml_bytes: bytes) -> list:

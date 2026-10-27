@@ -22,6 +22,7 @@ import shapely
 from shapely.geometry import shape
 
 from . import airports, airspace, elevation, faa_data, geo, sua, terrain, tfr
+from .units import M_TO_FT
 
 #: How far ahead the airspace is looked at: the minutes it takes to find
 #: the frequency, call and be answered before a Class C or D, or to be
@@ -69,7 +70,6 @@ NEAR_FIELD_AGL_FT = 1000.0
 #: AIRBORNE_KT): nothing is alerted.
 AIRBORNE_KT = 40.0
 
-_FT_PER_M = 3.28084
 _NM_PER_DEG_LAT = 60.0
 
 #: What each class takes to enter, VFR.
@@ -280,7 +280,7 @@ def _terrain(track: _Track) -> list[dict]:
     least clearance: one alert, where it is least. Raises what the
     terrain tiles raise where they cannot be read."""
     lats, lons = _swath(track)
-    ground = np.vectorize(elevation.ground_m)(lats, lons) * _FT_PER_M
+    ground = np.vectorize(elevation.ground_m)(lats, lons) * M_TO_FT
     highest = ground.max(axis=0)
     clearance = track.alts - highest
     # The worst of them: a warning before a caution, then the least
@@ -348,7 +348,7 @@ def _near_field(lat: float, lon: float, alt_ft: float) -> bool:
 
 def _ground_ft(lat: float, lon: float) -> float | None:
     try:
-        return elevation.ground_m(lat, lon) * _FT_PER_M
+        return elevation.ground_m(lat, lon) * M_TO_FT
     except (requests.RequestException, OSError, ValueError):
         return None
 

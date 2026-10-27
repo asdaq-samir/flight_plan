@@ -31,6 +31,7 @@ import requests
 from . import remarks
 from .config import DATA_DIR
 from .geo import distance_nm
+from .units import M_PER_NM
 
 log = logging.getLogger(__name__)
 
@@ -222,7 +223,7 @@ def _read(lat: float, lon: float, release: str) -> dict:
             continue
         bbox = row["bbox"]
         plat, plon = (bbox["ymin"] + bbox["ymax"]) / 2, (bbox["xmin"] + bbox["xmax"]) / 2
-        metres = float(distance_nm(lat, lon, plat, plon)) * 1852.0
+        metres = float(distance_nm(lat, lon, plat, plon)) * M_PER_NM
         if metres > REACH_M:
             continue
         found[kind].append({

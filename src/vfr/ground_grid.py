@@ -35,7 +35,8 @@ from pathlib import Path
 import numpy as np
 import requests
 
-M_TO_FT = 3.28084
+from .units import M_TO_FT
+
 #: The grid's extent: the lower 48 and a margin round it, degrees.
 SOUTH, NORTH, WEST, EAST = 24.0, 50.0, -125.0, -66.0
 #: Cells a degree, each way.

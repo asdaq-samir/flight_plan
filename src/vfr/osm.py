@@ -21,6 +21,7 @@ import requests
 
 from .geo import cluster_points, cross_track_distance_nm, distance_nm
 from .retry import with_retries
+from .units import M_PER_NM
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 # The public Overpass instances, tried in turn: the main one answers
@@ -159,7 +160,7 @@ def _bbox_area_m2(bounds: dict) -> float:
     """
     width_nm = distance_nm(bounds["minlat"], bounds["minlon"], bounds["minlat"], bounds["maxlon"])
     height_nm = distance_nm(bounds["minlat"], bounds["minlon"], bounds["maxlat"], bounds["minlon"])
-    return (width_nm * 1852.0) * (height_nm * 1852.0)
+    return (width_nm * M_PER_NM) * (height_nm * M_PER_NM)
 
 
 def _representative_point(el: dict) -> tuple | None:

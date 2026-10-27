@@ -32,7 +32,7 @@ from vfr import (
 # As vfr_holds: PlanQuery's own `holds` is the address's.
 from vfr import holds as vfr_holds
 from vfr.profile import route_profile as side_view
-from vfr.terrain import M_TO_FT
+from vfr.units import M_TO_FT
 from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
 from vfr.weather import WeatherServiceError
 
