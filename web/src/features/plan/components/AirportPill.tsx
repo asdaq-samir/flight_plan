@@ -1,3 +1,4 @@
+import { TAB_PAGE_GAP } from "../../../components/TabPage";
 import type { ReactNode } from "react";
 import { cn } from "cn";
 import { PillSection, StripSection } from "../../../components/Favorites";
@@ -56,7 +57,10 @@ export default function AirportPill({ favorites, recents, nearest, onAllFavorite
 }) {
   const shows = useStripShows(s => s.airport);
   return (
-    <div className="flex flex-col gap-4" data-testid="airport-pill">
+    // Its sections a tab page's room apart (TAB_PAGE_GAP), as every tab's
+    // are: Find Nearby sat 16 under the strip where the rest are 24
+    // (tab-consistency).
+    <div className={cn("flex flex-col", TAB_PAGE_GAP)} data-testid="airport-pill">
       <StripSection
         lists={[
           { value: "favorites", label: "Favorites", onMore: onAllFavorites, section: "pill-section-favorites", testId: "airport-shows-favorites" },
