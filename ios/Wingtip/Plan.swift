@@ -196,15 +196,6 @@ final class Plan {
         }
     }
 
-    /// The planner's fuel stops put into the route, the whole chain before
-    /// the flight's destination, at the owner's ask ("suggest fuel stops
-    /// just like Tesla suggests").
-    func addFuelStops(_ suggestion: FuelStopSuggestion) {
-        let before = (stops.firstIndex(of: suggestion.destination) ?? stops.count)
-        stops.insert(contentsOf: suggestion.stops.map(\.ident), at: before)
-        plan()
-    }
-
     /// A way round what stops the route put in: the points to fly by,
     /// before the stop they are for.
     func goRound(_ detour: Detour) {

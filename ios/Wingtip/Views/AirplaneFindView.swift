@@ -11,21 +11,6 @@ struct KeptAirplane: Codable, Hashable, Sendable, Identifiable {
 
     static let key = "aircraftFavorites"
 
-    static func all(_ defaults: UserDefaults = .standard) -> [KeptAirplane] {
-        guard let data = defaults.data(forKey: key), let list = try? JSONDecoder().decode([KeptAirplane].self, from: data) else { return [] }
-        return list
-    }
-
-    static func save(_ list: [KeptAirplane], _ defaults: UserDefaults = .standard) {
-        defaults.set(try? JSONEncoder().encode(list), forKey: key)
-    }
-
-    /// Kept, or let go where it was kept already.
-    static func toggled(_ list: [KeptAirplane], _ plane: TrafficAircraft) -> [KeptAirplane] {
-        if list.contains(where: { $0.hex == plane.hex }) { return list.filter { $0.hex != plane.hex } }
-        return list + [KeptAirplane(hex: plane.hex, name: name(plane), type: plane.type)]
-    }
-
     /// Its callsign, else its registration, else its address.
     static func name(_ plane: TrafficAircraft) -> String { plane.callsign ?? plane.registration ?? plane.hex.uppercased() }
 }

@@ -48,7 +48,6 @@ struct GroundPhoto: Codable, Equatable, Sendable {
     var width: Int?
     var height: Int?
     var license: String?
-    var sourceUrl: String?
 }
 
 struct AirportPhotos: Codable, Equatable, Sendable {

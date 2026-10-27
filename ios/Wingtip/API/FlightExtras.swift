@@ -29,24 +29,20 @@ struct FAARecord: Codable, Equatable, Sendable {
     var aircraftType: String?
     var airworthiness: String?
     var airworthinessDate: String?
-    var certificateIssued: String?
     var city: String?
     var coOwners: Int?
     var country: String?
     var engine: String?
     var engineType: String?
-    var engines: Int?
     var expires: String?
     var fractional: Bool?
     var horsepower: Int?
-    var kit: String?
     var manufacturer: String?
     var modeSHex: String?
     var model: String?
     var owner: String?
     var ownerType: String?
     var seats: Int?
-    var serial: String?
     var standing: String?
     var state: String?
     var status: String?
@@ -202,13 +198,6 @@ struct ProcedureDrawing: Codable, Equatable, Sendable {
     var fixes: [ProcedureFix]
 }
 
-/// A pilot's note on a checkpoint, as saved (CheckpointNote).
-struct CheckpointNote: Codable, Equatable, Sendable {
-    let description: String
-    let lat: Double
-    let lon: Double
-}
-
 /// One line of the checkpoints' notes as they are written
 /// (CheckpointNoteMessage): "start", one "checkpoint" each, "error", "done".
 struct NoteLine: Codable, Equatable, Sendable {
@@ -242,8 +231,6 @@ struct FlightPlanFilingRequest: Codable, Equatable, Sendable {
     var destination: String
     var eetMinutes: Int
     var enduranceMinutes: Int
-    var alternate: String?
-    var otherInformation: String?
     var personsOnBoard: Int?
 }
 

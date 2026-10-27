@@ -33,7 +33,6 @@ struct AltitudeOption: Codable, Equatable, Sendable, Identifiable {
     var eteMin: Double?
     var fuelGal: Double?
     var tailwindKt: Double?
-    var needsOxygen: Bool = false
 
     var id: String { kind }
     /// The plan's highest altitude, the figure its row shows.
@@ -75,7 +74,6 @@ struct AltitudeSelection: Codable, Equatable, Sendable {
     var recommendedFt: Double?
     var candidatesFt: [Double] = []
     var floorFt: Double?
-    var bandCeilingFt: Double?
     var serviceCeilingFt: Double?
     var cloudBaseFt: Double?
     var airspaceCeilingFt: Double?
@@ -113,9 +111,6 @@ struct Leg: Codable, Hashable, Sendable, Identifiable {
         var path: [[Double]] = []
         var nm: Double = 0
         var landing: Bool = false
-        var moreNm: Double = 0
-        var moreMin: Double = 0
-        var moreGal: Double = 0
     }
 
     struct Wind: Codable, Hashable, Sendable {
@@ -140,7 +135,6 @@ struct Totals: Codable, Equatable, Sendable {
     var fuelRequiredGal: Double?
     var fuelMarginGal: Double?
     var usableFuelGal: Double?
-    var reserveMin: Double?
     var night: Bool?
     /// Where each flight the tanks do not hold could land for fuel, the
     /// whole chain at once (app.routers.plan.fuel_stops_of).

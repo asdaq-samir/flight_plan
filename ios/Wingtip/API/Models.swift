@@ -153,7 +153,6 @@ struct Frequency: Codable, Equatable, Sendable {
 /// The traffic pattern's altitude: the FAA's where it publishes one, else
 /// AC 90-66C's 1,000 ft over the field (TrafficPattern).
 struct TrafficPattern: Codable, Equatable, Sendable {
-    let aglFt: Double
     var altitudeFt: Double?
     var published: Bool = false
 }
@@ -237,7 +236,6 @@ struct GAirmet: Codable, Equatable, Sendable {
     var validAt: String?
     var altitudeLowFt: Double?
     var altitudeHighFt: Double?
-    var fromFreezingLevel: Bool? = false
     var onRoute: OnRoute?
 }
 
@@ -347,7 +345,6 @@ struct RouteOption: Codable, Equatable, Sendable, Identifiable {
     /// The way as pairs of latitude and longitude.
     var path: [[Double]] = []
     let distanceNm: Double
-    let airMin: Double
     var groundMin: Double = 0
     let fuelGal: Double
     var landings: Int = 0
@@ -355,7 +352,6 @@ struct RouteOption: Codable, Equatable, Sendable, Identifiable {
     /// passes near.
     var crosses: [Int] = []
     var marginal: [Int] = []
-    var tailKt: Double?
     var floorFt: Int?
 
     var id: String { kind + ":" + stops.joined(separator: ",") }
@@ -398,14 +394,12 @@ struct ProcedureSummary: Codable, Equatable, Sendable, Identifiable {
     let name: String
     var runway: String?
     var transitions: [String] = []
-    var runwayTransitions: [String] = []
 }
 
 struct ProcedureList: Codable, Equatable, Sendable {
     let airport: String
     let cycle: String
     var procedures: [ProcedureSummary] = []
-    var stale: Bool? = false
 }
 
 /// A procedure picked for a field of the route, as the planner takes it

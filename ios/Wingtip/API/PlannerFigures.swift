@@ -86,7 +86,6 @@ struct DebriefTolerances: Codable, Equatable, Sendable {
     let courseDeg: Double
     let offRouteNm: Double
     let etaMin: Double
-    let patternNm: Double
     let patternFt: Double
 }
 
@@ -158,7 +157,6 @@ struct HoldingWind: Codable, Equatable, Sendable {
     let inbound: HoldLeg
     let outbound: HoldLeg
     let outboundSec: Double
-    let ruleSec: Double
     let inboundWords: String
     let outboundWords: String
     let timeWords: String
