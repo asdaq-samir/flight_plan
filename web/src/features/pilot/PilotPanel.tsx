@@ -159,7 +159,7 @@ function AccountCard({ pilot }: { pilot: Pilot | null }) {
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border bg-card pr-3" data-testid="setup-pill-account">
       <PageButton page="pilot" testId="pilot-row" label={`${name}: pilot details`}>
-        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground">{initials}</span>
+        <span aria-hidden="true" className={cn("grid size-10 shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground", TEXT.row)}>{initials}</span>
         <span className="flex min-w-0 flex-col text-left">
           <span className={cn("truncate font-semibold", TEXT.row)}>{name}</span>
           {/* The address under the name, where the name is not the address
