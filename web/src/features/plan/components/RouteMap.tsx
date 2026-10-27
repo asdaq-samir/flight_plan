@@ -355,7 +355,9 @@ const CandidateMark = memo(function CandidateMark({ candidate: c, previewed, eve
   return (
     <CircleMarker center={[c.lat, c.lon]} radius={4} pathOptions={candidateStyle(scoreColor(c.predicted_score))} eventHandlers={events}>
       {previewed && <MapTooltip><CheckpointCard candidate={c} /></MapTooltip>}
-      <MapPopup><CheckpointCard candidate={c} /></MapPopup>
+      {/* The map flies in to it as it is picked (FocusOn): no pan of the
+          card's own, which stopped that flight on a phone. */}
+      <MapPopup panCard={false}><CheckpointCard candidate={c} /></MapPopup>
     </CircleMarker>
   );
 });
@@ -394,7 +396,7 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectCandidate(c); }, ...cardEvents(key) }}
           >
             {carded !== key && <MapTooltip><CheckpointCard candidate={c} number={i + 1} /></MapTooltip>}
-            <MapPopup><CheckpointCard candidate={c} number={i + 1} /></MapPopup>
+            <MapPopup panCard={false}><CheckpointCard candidate={c} number={i + 1} /></MapPopup>
           </Marker>
         );
       })}

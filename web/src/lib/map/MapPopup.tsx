@@ -69,6 +69,10 @@ type Props = ComponentProps<typeof Popup> & {
    *  waypoint). Not an area's (a TFR's), whose popup is where the finger
    *  was, nor where the caller rings it itself. */
   ring?: boolean;
+  /** On a phone, whether its card moves the point clear of the panel
+   *  (default yes); not where picking it flies the map in to it already
+   *  (RouteMap's checkpoints, FocusOn), whose flight that pan stopped. */
+  panCard?: boolean;
 };
 
 /**
@@ -85,7 +89,7 @@ export function MapPopup(props: Props) {
   return useIsMobile() ? <PopupCard {...props} /> : <PopupOver {...props} />;
 }
 
-function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, children, ...props }: Props) {
+function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = true, children, ...props }: Props) {
   const map = useMap();
   const insets = useContext(MapInsetsContext);
   const popup = useRef<L.Popup>(null);
@@ -110,7 +114,7 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, children, ..
   // half sheet, as Maps moves a place it opens, once the panel has said
   // what it covers -- where it went under the sheet coming up. Not where
   // the caller moves the map itself (autoPan off: the training pass).
-  const pans = ring && props.autoPan !== false;
+  const pans = ring && panCard && props.autoPan !== false;
   const lat = at?.lat, lon = at?.lon;
   // After the map has stopped, where the same tap set it moving -- a
   // checkpoint's flies in to it (RouteMap's FocusOn): panInside's setView
@@ -148,7 +152,7 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, children, ..
   );
 }
 
-function PopupOver({ eventHandlers, panOnce = false, ring: _ring, ...props }: Props) {
+function PopupOver({ eventHandlers, panOnce = false, ring: _ring, panCard: _panCard, ...props }: Props) {
   // Opened, it pans the map to be in sight past the panel over the map
   // (MapPanel), not just inside the map, which runs under the panel.
   const insets = useContext(MapInsetsContext);
