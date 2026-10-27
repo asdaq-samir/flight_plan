@@ -131,7 +131,9 @@ test("plan page: VFR Checkpoints draws the route's checkpoints and the landmarks
     await page.waitForTimeout(400);
   }
   await expect.poll(zoomOfTiles, { timeout: slow(10000) }).toBeLessThanOrEqual(5);
-  await expect(numbered.first()).toBeVisible();
+  // So far out the route is a few points across: its numbered dots give
+  // way to its two airports' marks (RouteMap's useSpaced, 2026-10-26),
+  // the landmarks still drawn.
   // The landmarks' dim dots, in their slate outline.
   const landmarks = page.locator('path.leaflet-interactive[stroke="#5b6b76"]');
   await expect(landmarks.first()).toBeAttached();
