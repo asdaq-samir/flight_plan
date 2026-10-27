@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from "react";
-import { Bell, CloudSun, Download, Hexagon, Lightbulb, Monitor, Moon, Palette, PanelBottom, PanelTop, Radio, Sparkles, Sun, SunMoon, Volume2 } from "lucide-react";
+import { Bell, CloudSun, Download, Hexagon, Lightbulb, Monitor, Moon, Palette, PanelBottom, PanelTop, Radio, Sparkles, Sun, SunMoon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { ListGroup, ListRow } from "./GroupedList";
 import Segmented from "./Segmented";
@@ -12,7 +12,7 @@ import { useTips } from "../lib/tips";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { RowBadge } from "./RowBadge";
 import PullDown from "./PullDown";
-import { say } from "../lib/speech";
+import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { inNativeApp } from "../lib/native";
 import { useReceiver } from "../lib/map/receiver";
@@ -88,37 +88,27 @@ const badge = (kind: keyof typeof SETTING_BADGE, glyph: ReactNode) => <RowBadge 
  *  there is no connection, and in the app the cockpit receiver. They were
  *  the map's settings (MapSettings), at the owner's pick (2026-10-27). */
 function InFlightGroup() {
-  const alerts = usePreferences(s => s.alerts);
-  const setAlerts = usePreferences(s => s.setAlerts);
-  const speakAlerts = usePreferences(s => s.speakAlerts);
-  const setSpeakAlerts = usePreferences(s => s.setSpeakAlerts);
+  const [alertMode, setAlertMode] = useAlertMode();
   const keepOffline = usePreferences(s => s.keepOffline);
   const setKeepOffline = usePreferences(s => s.setKeepOffline);
   const traffic = usePreferences(s => s.traffic);
   const available = keepingAvailable();
-  const ids = { alerts: useId(), spoken: useId(), offline: useId() };
+  const offlineId = useId();
   return (
     <ListGroup title="In Flight">
-      {/* What is ahead of own ship in the air, over the map (AlertsBanner):
-          on unless turned off; and said aloud (lib/map/speak), off unless
-          turned on. Turned on, it says so: a voice heard then is one the
-          pilot knows to expect, and on an iPhone the tap lets the page
-          speak at all. */}
-      <ListRow id={ids.alerts} media={badge("alerts", <Bell />)} title="Alerts">
-        <Switch id={ids.alerts} checked={alerts} onCheckedChange={setAlerts} data-testid="alerts-toggle" />
-      </ListRow>
-      <ListRow id={ids.spoken} media={badge("spoken", <Volume2 />)} title="Speak Alerts">
-        <Switch
-          id={ids.spoken} checked={alerts && speakAlerts} disabled={!alerts} data-testid="speak-alerts-toggle"
-          onCheckedChange={on => { setSpeakAlerts(on); if (on) say("Alerts will be spoken."); }}
-        />
+      {/* What is ahead of own ship in the air, over the map (AlertsBanner),
+          and said aloud (lib/map/speak): one control of three settings, at
+          the owner's ask ("Shouldn't this be combined control?"), where
+          the voice was a switch that did nothing with the alerts off. */}
+      <ListRow media={badge("alerts", <Bell />)} title="Alerts">
+        <Segmented label="Alerts" value={alertMode} onChange={v => setAlertMode(v as AlertMode)} testId="alerts-mode" options={ALERT_MODES} />
       </ListRow>
       {/* The base chart along each route loaded, held for the air
           (useKeepOffline); how a keep goes is its toast. Over plain http
           there is no service worker to hold it, and it cannot be on. */}
-      <ListRow id={ids.offline} media={badge("offline", <Download />)} title="Keep Charts Offline">
+      <ListRow id={offlineId} media={badge("offline", <Download />)} title="Keep Charts Offline">
         <Switch
-          id={ids.offline} checked={keepOffline && available} onCheckedChange={setKeepOffline} disabled={!available}
+          id={offlineId} checked={keepOffline && available} onCheckedChange={setKeepOffline} disabled={!available}
           data-testid="keep-offline-toggle"
         />
       </ListRow>

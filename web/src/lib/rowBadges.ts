@@ -38,7 +38,6 @@ export const SETTING_BADGE = {
   tips: BADGE.lights,
   // Settings' In Flight (SettingsPanel).
   alerts: BADGE.hazard,
-  spoken: BADGE.approach,
   offline: BADGE.chart,
   receiver: BADGE.traffic,
   about: BADGE.other,
