@@ -1,20 +1,20 @@
 import type { ReactNode } from "react";
-import { Bell, BellOff, BellRing, ChevronsUpDown, Download, Monitor, Moon, PanelBottom, PanelTop, Sun } from "lucide-react";
+import { Bell, BellOff, BellRing, ChevronsUpDown, Monitor, Moon, Palette, PanelBottom, PanelTop, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "cn";
-import { Toggle } from "./ui/toggle";
 import PullDown, { type PullDownOption } from "./PullDown";
-import { usePreferences, type NavEdge } from "../lib/preferences";
+import { usePreferences, type Brand, type NavEdge } from "../lib/preferences";
+import { BRANDS } from "../lib/brand";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
-import { keepingAvailable } from "../lib/map/keepRoute";
 import { TEXT } from "../lib/text";
 
 /**
  * Setup's Controls, the only home of the four things a pilot changes in
  * the cockpit, at the owner's split (2026-10-27): "Controls can be alerts,
  * offline, layout, theme", everything else in the map's menu, and no
- * Settings page. Four big tiles, as iOS's Control Center lays its out, at
+ * Settings page; App Look in Offline's place since (the owner, the same
+ * day), the charts kept offline in the map's menu. Four big tiles, as iOS's Control Center lays its out, at
  * the owner's pick of the Setup canvas (T3): each a round mark filled in
  * the tint while on, its name, and its setting under it. Alerts, Layout
  * and Theme are a pick of a few, a tap their menu, as Apple Maps' voice
@@ -24,13 +24,12 @@ import { TEXT } from "../lib/text";
  * Theme, keeping System, which a Dark switch could not say.
  */
 export default function QuickControls() {
-  const keepOffline = usePreferences(s => s.keepOffline);
-  const setKeepOffline = usePreferences(s => s.setKeepOffline);
+  const brand = usePreferences(s => s.brand);
+  const setBrand = usePreferences(s => s.setBrand);
   const setNavBar = usePreferences(s => s.setNavBar);
   const edge = useNavEdge();
   const [alertMode, setAlertMode] = useAlertMode();
   const { theme, setTheme } = useTheme();
-  const available = keepingAvailable();
   const picked = theme === "light" || theme === "dark" ? theme : "system";
   return (
     <div className="grid grid-cols-2 gap-2" data-testid="quick-controls">
@@ -39,15 +38,13 @@ export default function QuickControls() {
         icon={alertMode === "off" ? <BellOff /> : alertMode === "spoken" ? <BellRing /> : <Bell />}
         options={ALERT_MODES.map(m => ({ value: m.value, label: m.label, testId: `alerts-mode-${m.value}` }))}
       />
-      {/* The base chart along each route loaded, held for the air
-          (useKeepOffline); how a keep goes is its toast. Over plain http
-          there is no service worker to hold it, and it cannot be on. */}
-      <Toggle
-        pressed={keepOffline && available} onPressedChange={setKeepOffline} disabled={!available}
-        aria-label="Keep charts offline" data-testid="keep-offline-toggle" className={TILE}
-      >
-        <Face icon={<Download />} label="Offline" value={keepOffline && available ? "On" : "Off"} />
-      </Toggle>
+      {/* The app's look, the owner's four (lib/brand), where Offline was,
+          at the owner's ask (2026-10-27: "instead of offline, let's have
+          app look"); the charts kept offline went to the map's menu. */}
+      <MenuTile<Brand>
+        label="App Look" value={brand} onChange={setBrand} on={false} testId="brand-select" icon={<Palette />}
+        options={BRANDS.map(b => ({ value: b.value, label: b.label, testId: `brand-${b.value}` }))}
+      />
       {/* The edge the route panel is on, which the sheets come from too
           and the map's buttons keep clear of (useNavEdge). */}
       <MenuTile<NavEdge>

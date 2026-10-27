@@ -7,7 +7,7 @@ import Segmented from "./Segmented";
 import { Switch } from "./ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
-import { BASE_CHARTS, usePreferences, type BaseChart, type Brand, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { OWN_SHIP_LOOKS, ownShipSvg, type OwnShipLook } from "../lib/map/ownShipLook";
@@ -16,7 +16,7 @@ import { cn } from "../lib/utils";
 import { GROUP_HEADING, TEXT } from "../lib/text";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 import { useLayerAges } from "../lib/map/layerAges";
-import { BRANDS } from "../lib/brand";
+import { keepingAvailable } from "../lib/map/keepRoute";
 import { inNativeApp } from "../lib/native";
 import { useReceiver } from "../lib/map/receiver";
 
@@ -130,16 +130,6 @@ export default function MapSettings() {
         <SwitchRow title="Military Fields" on={prefs.military} onChange={prefs.setMilitary} testId="military-toggle" />
       </ListGroup>
       <ListGroup title="Appearance">
-        {/* The app's look, the owner's four (lib/brand): a menu, as a
-            discrete choice is. Here with the map's, at the owner's split
-            (2026-10-27: "Everything else in the overlay"), the Settings
-            page gone. */}
-        <ListRow title="App Look">
-          <PullDown<Brand>
-            label="App look" value={prefs.brand} onChange={prefs.setBrand} testId="brand-select"
-            options={BRANDS.map(b => ({ value: b.value, label: b.label, testId: `brand-${b.value}` }))}
-          />
-        </ListRow>
         {/* The white paper chart dimmed in the dark theme, so it does not
             take the pilot's night vision; only its tiles (index.css). */}
         <ListRow title="Chart at Night">
@@ -167,6 +157,17 @@ export default function MapSettings() {
         {/* Own ship's path flown (OwnTrailLayer), put away here: it starts
             again by itself with the next flight. */}
         <ListRow title="Clear Your Path" disabled={!trailed} onClick={clearOwnTrail} data-testid="own-trail-clear" />
+      </ListGroup>
+      {/* The base chart along each route loaded, held for the air
+          (useKeepOffline); how a keep goes is its toast. Over plain http
+          there is no service worker to hold it, and it cannot be on. Here
+          since App Look took its place in Setup's Controls (the owner,
+          2026-10-27). */}
+      <ListGroup title="Offline">
+        <SwitchRow
+          title="Keep Charts Offline" on={prefs.keepOffline && keepingAvailable()} onChange={prefs.setKeepOffline}
+          disabled={!keepingAvailable()} testId="keep-offline-toggle"
+        />
       </ListGroup>
       {/* Where the map's data comes from, and when the weather layers' is
           from (lib/map/layerAges): the METARs behind the airports'
