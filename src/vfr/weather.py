@@ -35,13 +35,13 @@ from typing import NamedTuple
 import numpy as np
 import requests
 
+from .config import REQUEST_HEADERS as HEADERS
 from .performance import isa_temp_c
 from .retry import with_retries
 from .units import M_TO_FT
 
 log = logging.getLogger(__name__)
 
-HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 WINDTEMP_URL = "https://aviationweather.gov/api/data/windtemp"
 CACHE_BASE_URL = "https://aviationweather.gov/data/cache"
 

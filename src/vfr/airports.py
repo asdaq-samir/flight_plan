@@ -15,12 +15,12 @@ import pandas as pd
 import requests
 
 from . import faa_data, geo
+from .config import REQUEST_HEADERS
 from .routecsv import locked
 
 OURAIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
 RUNWAYS_URL = "https://davidmegginson.github.io/ourairports-data/runways.csv"
 FREQUENCIES_URL = "https://davidmegginson.github.io/ourairports-data/airport-frequencies.csv"
-REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 _RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 DEFAULT_CACHE_PATH = _RAW_DIR / "airports.csv"
 RUNWAYS_CACHE_PATH = _RAW_DIR / "runways.csv"

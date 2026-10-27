@@ -26,6 +26,9 @@ import requests
 from cachetools import LRUCache, TTLCache
 from shapely.geometry import LineString, Point, shape
 
+# The site turns away a bare python-requests User-Agent, as the FAA's
+# others do (vfr.faa_data).
+from .config import FAA_HEADERS as HEADERS
 from .geo import along_track_distance_nm
 
 SHAPES_URL = (
@@ -33,9 +36,6 @@ SHAPES_URL = (
     "&typeName=TFR:V_TFR_LOC&outputFormat=application/json"
 )
 DETAIL_URL = "https://tfr.faa.gov/download/detail_{}.xml"
-# The site turns away a bare python-requests User-Agent, as the FAA's
-# others do (vfr.faa_data).
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
 
 #: How long the shapes are held: the site updates them every few minutes.
 SHAPES_TTL_S = 10 * 60

@@ -29,12 +29,12 @@ import numpy as np
 import requests
 from pyproj import Proj
 
+from .config import REQUEST_HEADERS as HEADERS
 from .units import M_TO_FT
 
 log = logging.getLogger(__name__)
 
 URL = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/glmp/prod/glmp.{day}/glmp.t{hour}30z.hr00_{field}.g.co.grib2"
-HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 #: An issue is up on NOMADS a few minutes after its half past (the hr00
 #: files at about HH:32 in the listing, 2026-10-10); looked for from then.
 POSTED_AFTER = timedelta(minutes=5)
