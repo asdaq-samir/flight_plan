@@ -145,6 +145,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   // is in, at the owner's ask ("make the profile button appear right after
   // entry but just make it disabled").
   const entered = shown !== "";
+  const dotShown = profiled && !problem && (cautions.length > 0 || !!tight);
   const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
@@ -163,7 +164,10 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
         onBlur: fly, "data-testid": "altitude-input",
       }}
       inputClassName={problem ? "text-destructive-ink" : "text-foreground"}
-      endRoom="w-[1.125rem]"
+      // Room for the caution's dot only while there is one: the field as
+      // narrow as its figures otherwise (the owner's "why is there so much
+      // space ... after altitude").
+      endRoom={dotShown ? "w-[1.125rem]" : "w-0"}
       // No button of its own at its end, at the owner's ask (2026-10-27: "No
       // need for a separate profile button"): the profile opens with its
       // dry run from the map's Play (DryRunButton). Its amber dot stays, at
@@ -171,12 +175,12 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
       // one -- a warning is never dropped -- and what the altitude is and
       // why, in its name for VoiceOver.
       button={(profiled || entered) && (
-        <span className="relative mr-2.5 flex size-2 shrink-0">
+        <span className={dotShown ? "relative mr-2.5 flex size-2 shrink-0" : "relative flex size-0 shrink-0"}>
           <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" data-tip="altitude" className="absolute inset-0" />
           {/* The dot opens the profile where the caution is said, as the
               map's Play does (the owner, 2026-10-27: "just open the same
               profile view as the play button"); 44 points round it. */}
-          {profiled && !problem && (cautions.length > 0 || tight) && (
+          {dotShown && (
             <button
               type="button" onClick={() => useDryRunButton.getState().play?.()}
               aria-label={cautions.length > 0 ? "Your altitude has a caution: open the profile" : "Your altitude is tight: open the profile"}
