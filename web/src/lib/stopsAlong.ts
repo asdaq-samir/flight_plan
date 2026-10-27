@@ -1,10 +1,11 @@
 import { create } from "zustand";
 
 /**
- * The map's fly-in food: a button among the map's own (StopsAlongButton,
- * `available`), which opens the card of the fields near the pilot with
- * food a walk from the ramp over FPL (FoodCard), its fields pinned on the
- * chart (the owner, 2026-10-25; it was the stops along the route).
+ * The map's Stops: a button among the map's own (StopsAlongButton,
+ * `available`), which opens the sheet of the fields with fuel, food,
+ * repair or flight training round the pilot or along the route over FPL
+ * (StopsCard), its fields pinned on the chart (the owner, 2026-10-27; it
+ * was Fly-in Food, and before that the stops along the route).
  */
 export const useStopsAlong = create<{
   available: boolean;

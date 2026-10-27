@@ -5099,119 +5099,6 @@
         "title": "FieldBelowVfr",
         "type": "object"
       },
-      "FieldFood": {
-        "description": "A field with somewhere to eat on it or a short walk from it, for the\nmap's fly-in food (the \"$100 hamburger\"): where it is from the pilot,\nand its places to eat nearest first (vfr.nearby).",
-        "properties": {
-          "added_nm": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Added Nm"
-          },
-          "bearing_deg": {
-            "title": "Bearing Deg",
-            "type": "integer"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "departure": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Departure"
-          },
-          "distance_nm": {
-            "title": "Distance Nm",
-            "type": "number"
-          },
-          "food": {
-            "items": {
-              "$ref": "#/components/schemas/NearbyPlace"
-            },
-            "title": "Food",
-            "type": "array"
-          },
-          "ident": {
-            "title": "Ident",
-            "type": "string"
-          },
-          "lat": {
-            "title": "Lat",
-            "type": "number"
-          },
-          "lon": {
-            "title": "Lon",
-            "type": "number"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "off_nm": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Off Nm"
-          }
-        },
-        "required": [
-          "ident",
-          "name",
-          "lat",
-          "lon",
-          "distance_nm",
-          "bearing_deg",
-          "food"
-        ],
-        "title": "FieldFood",
-        "type": "object"
-      },
-      "FieldsWithFood": {
-        "description": "The fields round a position with food a walk from the ramp, nearest\nfirst, and how many fields round it still have their places to be\nread (`pending`): asked again until none.",
-        "properties": {
-          "fields": {
-            "items": {
-              "$ref": "#/components/schemas/FieldFood"
-            },
-            "title": "Fields",
-            "type": "array"
-          },
-          "pending": {
-            "default": 0,
-            "title": "Pending",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "fields"
-        ],
-        "title": "FieldsWithFood",
-        "type": "object"
-      },
       "FlightArrival": {
         "description": "The field an airplane has landed at, and when it was last heard (Unix seconds).",
         "properties": {
@@ -12989,6 +12876,181 @@
         "title": "Step",
         "type": "object"
       },
+      "StopField": {
+        "description": "A field for the map's Stops, near the pilot or along a route: what\nit has of the four kinds -- the fuel it sells and its airframe and\nengine repair from its Chart Supplement entry (NASR's APT_BASE), its\nplaces to eat on the field and its flight schools from Overture\n(vfr.nearby) -- and its phone (NASR's APT_CON).",
+        "properties": {
+          "added_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Added Nm"
+          },
+          "airframe_repair": {
+            "anyOf": [
+              {
+                "enum": [
+                  "major",
+                  "minor"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Airframe Repair"
+          },
+          "bearing_deg": {
+            "title": "Bearing Deg",
+            "type": "integer"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "departure": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Departure"
+          },
+          "distance_nm": {
+            "title": "Distance Nm",
+            "type": "number"
+          },
+          "food": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NearbyPlace"
+            },
+            "title": "Food",
+            "type": "array"
+          },
+          "fuel_types": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fuel Types",
+            "type": "array"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "off_nm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Off Nm"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "places_known": {
+            "default": true,
+            "title": "Places Known",
+            "type": "boolean"
+          },
+          "powerplant_repair": {
+            "anyOf": [
+              {
+                "enum": [
+                  "major",
+                  "minor"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Powerplant Repair"
+          },
+          "training": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/NearbyPlace"
+            },
+            "title": "Training",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ident",
+          "name",
+          "lat",
+          "lon",
+          "distance_nm",
+          "bearing_deg"
+        ],
+        "title": "StopField",
+        "type": "object"
+      },
+      "StopFields": {
+        "description": "The map's Stops: the fields with fuel, food, repair or a flight\nschool, nearest first round the pilot or in route order along it, and\nhow many fields still have their places to be read (`pending`): asked\nagain until none.",
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/StopField"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "pending": {
+            "default": 0,
+            "title": "Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fields"
+        ],
+        "title": "StopFields",
+        "type": "object"
+      },
       "TerminalChart": {
         "description": "One of a field's charts in the d-TPP (vfr.publications): `kind` the\nFAA's chart code -- APD the airport diagram, HOT its hot spots, LAH\nland and hold short, IAP an approach, DP and ODP a departure, STR an\narrival, MIN the takeoff or alternate minimums -- `name` its title as\nthe FAA prints it, `url` its PDF.",
         "properties": {
@@ -14886,71 +14948,6 @@
           }
         },
         "summary": "Airport Services"
-      }
-    },
-    "/api/airports/food": {
-      "get": {
-        "description": "The public fields round a position with somewhere to eat at the\nairport itself, nearest first, for the map's fly-in food button,\nat the owner's ask (\"that button on the map is for at airport\nrestaurant like for a $100 hamburger\", 2026-10-25). A field's places\nare Overture's (vfr.nearby), read on the planner's pool where they\nhave not been and counted in `pending`; the page asks again until\nnone is.",
-        "operationId": "fields_with_food_api_airports_food_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "lat",
-            "required": true,
-            "schema": {
-              "maximum": 90,
-              "minimum": -90,
-              "title": "Lat",
-              "type": "number"
-            }
-          },
-          {
-            "in": "query",
-            "name": "lon",
-            "required": true,
-            "schema": {
-              "maximum": 180,
-              "minimum": -180,
-              "title": "Lon",
-              "type": "number"
-            }
-          },
-          {
-            "in": "query",
-            "name": "nm",
-            "required": false,
-            "schema": {
-              "default": 100.0,
-              "maximum": 250,
-              "minimum": 5,
-              "title": "Nm",
-              "type": "number"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FieldsWithFood"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Fields With Food"
       }
     },
     "/api/airports/in-view": {
@@ -18271,65 +18268,6 @@
         "summary": "Retrain"
       }
     },
-    "/api/route-food": {
-      "get": {
-        "description": "The public fields along a route with somewhere to eat at the\nairport itself, in route order, for the map's fly-in food while a\ncourse is drawn, at the owner's ask (\"when a course is drawn then look\nfor fly in food along the route\", 2026-10-26): those no more than\nFOOD_OFF_COURSE_NM off each flight's line, each with its miles from its\nflight's departure, those it adds and how far off the course it is.",
-        "operationId": "route_food_api_route_food_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "dep",
-            "required": true,
-            "schema": {
-              "title": "Dep",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "dest",
-            "required": true,
-            "schema": {
-              "title": "Dest",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "stops",
-            "required": false,
-            "schema": {
-              "default": "",
-              "title": "Stops",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FieldsWithFood"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Route Food"
-      }
-    },
     "/api/route-options": {
       "get": {
         "description": "The ways to fly from `dep` to `dest` in the airplane, at the owner's\nask (\"smart to reroute for fastest time along safe weather, over\nterrain, best tailwinds, refueling\", 2026-10-23): each its points in\norder for the address's `stops`, its fuel stops, and its distance,\nminutes and fuel, from a coarse read the plan then checks leg by leg.\nIt only suggests.",
@@ -18659,6 +18597,130 @@
           }
         },
         "summary": "Status"
+      }
+    },
+    "/api/stops/along": {
+      "get": {
+        "description": "The public fields along a route with fuel, food, repair or a flight\nschool, in route order, for the map's Stops while a course is drawn:\nthose no more than STOP_OFF_COURSE_NM off each flight's line, each\nwith its miles from its flight's departure, those it adds and how far\noff the course it is; what they have as round the pilot.",
+        "operationId": "stops_along_api_stops_along_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dep",
+            "required": true,
+            "schema": {
+              "title": "Dep",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dest",
+            "required": true,
+            "schema": {
+              "title": "Dest",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stops",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Stops",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopFields"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stops Along"
+      }
+    },
+    "/api/stops/near": {
+      "get": {
+        "description": "The public fields round a position with fuel, food, repair or a\nflight school, nearest first, for the map's Stops (the owner's one\nsheet for them near the pilot and along a route, 2026-10-27), within\n`nm` (the sheet's 10, 25, 50 or 100). A field's places are Overture's\n(vfr.nearby), read on the planner's pool where they have not been and\ncounted in `pending`; a field selling fuel or with a repair shop is\nlisted at once, its places to come (`places_known`), and the page\nasks again until none is pending.",
+        "operationId": "stops_near_api_stops_near_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lon",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Lon",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "nm",
+            "required": false,
+            "schema": {
+              "default": 25.0,
+              "maximum": 250,
+              "minimum": 5,
+              "title": "Nm",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopFields"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stops Near"
       }
     },
     "/api/tfrs": {

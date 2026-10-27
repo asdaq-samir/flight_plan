@@ -305,32 +305,22 @@ export const photosQuery = (ident: string) => queryOptions({
   queryKey: ["airport-photos", ident], queryFn: () => api.airportPhotos(ident), staleTime: Infinity, meta: { silent: true },
 });
 
-/** The fields round a position with food a walk from the ramp
- *  (api.airportsFood), for the map's fly-in food: by the position to a
- *  twentieth of a degree, asked again every two seconds while the
+/** The map's Stops round a position (api.stopsNear): by the position to
+ *  a twentieth of a degree, asked again every two seconds while the
  *  planner is still reading some fields' places (`pending`). */
-export const airportsFoodQuery = (lat: number, lon: number, nm: number) => {
+export const stopsNearQuery = (lat: number, lon: number, nm: number) => {
   const at = (n: number) => Math.round(n * 20) / 20;
   return queryOptions({
-    queryKey: ["airports-food", at(lat), at(lon), nm], queryFn: () => api.airportsFood(at(lat), at(lon), nm),
+    queryKey: ["stops-near", at(lat), at(lon), nm], queryFn: () => api.stopsNear(at(lat), at(lon), nm),
     staleTime: 30 * 60_000, meta: { silent: true },
     refetchInterval: query => (query.state.data?.pending ? 2000 : false),
   });
 };
 
-/** A restaurant's stars, reviews and photos (api.foodDetails): asked once
- *  a session -- Google bills each, and its terms keep nothing longer --
- *  and quiet where the deployment has no key (a 404: none shown). */
-export const foodDetailsQuery = (name: string, lat: number, lon: number) => queryOptions({
-  queryKey: ["food-details", name, Math.round(lat * 1e4) / 1e4, Math.round(lon * 1e4) / 1e4],
-  queryFn: () => api.foodDetails(name, lat, lon), staleTime: Infinity, gcTime: 60 * 60_000, retry: false, meta: { silent: true },
-});
-
-/** The fields along a route with a restaurant on the field (api.routeFood),
- *  asked again while some are still to be read, as the fields round the
- *  pilot are. */
-export const routeFoodQuery = (dep: string, dest: string, stops: string) => queryOptions({
-  queryKey: ["route-food", dep, dest, stops], queryFn: () => api.routeFood(dep, dest, stops),
+/** The map's Stops along a route (api.stopsAlong), asked again while some
+ *  are still to be read, as those round the pilot are. */
+export const stopsAlongQuery = (dep: string, dest: string, stops: string) => queryOptions({
+  queryKey: ["stops-along", dep, dest, stops], queryFn: () => api.stopsAlong(dep, dest, stops),
   staleTime: 30 * 60_000, meta: { silent: true },
   refetchInterval: query => (query.state.data?.pending ? 2000 : false),
 });

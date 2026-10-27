@@ -2235,10 +2235,12 @@ class RouteStopField(BaseModel):
     car: NearbyPlace | None = None
 
 
-class FieldFood(BaseModel):
-    """A field with somewhere to eat on it or a short walk from it, for the
-    map's fly-in food (the "$100 hamburger"): where it is from the pilot,
-    and its places to eat nearest first (vfr.nearby)."""
+class StopField(BaseModel):
+    """A field for the map's Stops, near the pilot or along a route: what
+    it has of the four kinds -- the fuel it sells and its airframe and
+    engine repair from its Chart Supplement entry (NASR's APT_BASE), its
+    places to eat on the field and its flight schools from Overture
+    (vfr.nearby) -- and its phone (NASR's APT_CON)."""
 
     ident: str
     name: str
@@ -2249,12 +2251,22 @@ class FieldFood(BaseModel):
     #: miles from its flight's departure and those it adds to the flight.
     distance_nm: float
     bearing_deg: int
-    food: list[NearbyPlace]
     departure: str | None = None
     added_nm: float | None = None
     #: Along a route: how far off the course it is, nm (the owner's "say
     #: how far off course", 2026-10-26).
     off_nm: float | None = None
+    #: The manager's phone, else the owner's; None where the FAA lists none.
+    phone: str | None = None
+    #: APT_BASE's FUEL_TYPES: "100LL", "A" (Jet A), "MOGAS"...
+    fuel_types: list[str] = []
+    airframe_repair: Literal["major", "minor"] | None = None
+    powerplant_repair: Literal["major", "minor"] | None = None
+    food: list[NearbyPlace] = []
+    training: list[NearbyPlace] = []
+    #: Whether its Overture places have been read: until they are, its
+    #: food and schools are still to come.
+    places_known: bool = True
 
 
 class FoodPhoto(BaseModel):
@@ -2286,12 +2298,13 @@ class FoodDetails(BaseModel):
     maps_url: str | None = None
 
 
-class FieldsWithFood(BaseModel):
-    """The fields round a position with food a walk from the ramp, nearest
-    first, and how many fields round it still have their places to be
-    read (`pending`): asked again until none."""
+class StopFields(BaseModel):
+    """The map's Stops: the fields with fuel, food, repair or a flight
+    school, nearest first round the pilot or in route order along it, and
+    how many fields still have their places to be read (`pending`): asked
+    again until none."""
 
-    fields: list[FieldFood]
+    fields: list[StopField]
     pending: int = 0
 
 
