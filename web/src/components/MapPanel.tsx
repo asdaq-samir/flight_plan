@@ -462,7 +462,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // 0 at half and below, 1 all the way up, between as a finger takes it:
   // what grows with the sheet past half (FlightLine's figures).
   const progress = Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half)));
-  const shape: "capsule" | "inset" | "edge" = capsule ? "capsule" : nearFull ? "edge" : "inset";
+  // Taking the capsule's place, width and corners as it eases down to it
+  // (`settling`), its content still shown: one move into the pill, as
+  // Maps' is, where it slid down as the sheet and turned into the pill
+  // once there (the owner, 2026-10-27: "the sheet goes all the way bottom
+  // and then becomes a floating tabs").
+  const shape: "capsule" | "inset" | "edge" = capsule || settling ? "capsule" : nearFull ? "edge" : "inset";
   const edgeRadius = fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`;
   const geometry = {
     // As wide as the sheet in from the edges, at the owner's ask ("let's
