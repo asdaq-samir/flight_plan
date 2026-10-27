@@ -63,6 +63,18 @@ const COUNTRY: [number, number] = [39.5, -98.35];
 /** The least the map is fitted to round a route: about 10 nm across. */
 const MIN_FIT_M = 18_520;
 
+/** The map slid by `by` in the sheet's own time, the chart where it comes
+ *  to rest asked for first: a phone's tiles load only once a move ends
+ *  (Leaflet's updateWhenIdle), and the strip a slide brings in came blank
+ *  until they did. GridLayer's `_update` takes the centre to load for. */
+function slide(map: L.Map, by: L.Point) {
+  const to = map.unproject(map.project(map.getCenter()).add(by));
+  map.eachLayer(layer => {
+    if (layer instanceof L.GridLayer) (layer as unknown as { _update(center: L.LatLng): void })._update(to);
+  });
+  map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS, easeLinearity: 0.5 });
+}
+
 export function MapShell({ course, onReady, children, onSelectPlace, held: heldAsked = false }: Props) {
   // And while a card from the chart or a control is open in the sheet
   // (SheetCard): the sheet coming up for a VFR waypoint's card fitted the
@@ -245,9 +257,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
 
   // The map follows the panel as it goes out or comes back to rest --
   // raised to half, lowered to its capsule -- in the sheet's own time, as
-  // Maps' does, when what it follows is in sight: the route, left where it
-  // is while all of it stays clear, else slid at its zoom so what was in
-  // the middle of what the panel left is in the middle of what it leaves
+  // Maps' does, when what it follows is in sight: the route, slid at its
+  // zoom so what was in the middle of what the panel left is in the middle of what it leaves
   // now (the whole screen at the capsule, above the sheet when it is
   // out); else the pilot's position,
   // brought to the middle of what is left. Neither in sight -- the map
@@ -322,23 +333,22 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       // The route slid, not fitted again: at the same zoom the chart's
       // tiles are the ones already drawn, where a fit to the new room
       // zoomed and drew the chart afresh at every turn, at the owner's ask
-      // ("Medium to small detent redraws the map?", 2026-10-27).
-      // And not moved at all where it is all clear of the panel and the
-      // map's buttons as it is, as Apple Maps' map stays put under its
-      // sheet: lowered to the capsule the room only grows, and the slide
-      // down showed the chart above it blank until its tiles came (the
-      // owner, "Medium to small detent does need some polishing",
-      // 2026-10-27). Slid where it would be clear once slid; fitted again
-      // where not even then: raised from the capsule after a pan, or to a
-      // half sheet with less room than it was fitted to.
+      // ("Medium to small detent redraws the map?", 2026-10-27). Slid
+      // even where it is all clear of the sheet as it is: left where it
+      // was, the map did not follow the sheet down at all (the owner,
+      // 2026-10-27: "The map is not moving down after transition to small
+      // detent"). The chart the slide brings in is asked for before it
+      // starts (preload), where it came blank until its tiles did.
+      // Slid where it would be clear once slid; fitted again where not
+      // even then: raised from the capsule after a pan, or to a half
+      // sheet with less room than it was fitted to.
       const fitsAfter = (shift: L.Point) => {
         const corner = (p: L.LatLng) => map.latLngToContainerPoint(p).add(shift);
         return !!bounds && L.bounds(L.point(insets.left + BUTTONS_CLEAR, insets.top), L.point(size.x - BUTTONS_CLEAR, size.y - insets.bottom))
           .contains(L.bounds(corner(bounds.getNorthWest()), corner(bounds.getSouthEast())));
       };
-      const stays = routeInSight && !keepingUp && fitsAfter(L.point(0, 0));
       const routeWay = fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
-      what = stays ? null : routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : null;
+      what = routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : null;
       if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
       following.current = what
         ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what, focus: map.containerPointToLatLng(middle(was)) }
@@ -349,7 +359,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       // panBy, not panTo: panTo snaps the zoom to a whole level, and the
       // route is fitted at a quarter one.
       const by = map.latLngToContainerPoint(following.current.focus).subtract(middle(insets)).round();
-      if (by.x || by.y) map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
+      if (by.x || by.y) slide(map, by);
     }
     else if (what === "ship" && turned) {
       // Once, as the sheet turns, to the middle of the room it is going
@@ -363,7 +373,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const ship = useOwnShip.getState().fix;
       if (ship) {
         const by = map.latLngToContainerPoint([ship.lat, ship.lon]).subtract(middle(insets)).round();
-        if (by.x || by.y) map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS, easeLinearity: 0.5 });
+        if (by.x || by.y) slide(map, by);
       }
     }
   }, [insets, map, course, bounds, routeKey, held, fit]);
