@@ -578,7 +578,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const barMove = useRef<Animation | null>(null);
   const barWas = useRef<{ laid: number; rests: number } | null>(null);
   const pillBarTop = 0.375 * rootPx();
-  const barLaid = pillShape ? pillBarTop : GRABBER;
+  // Where the row is laid out, which is the pill's from the start of a
+  // settle down to it (pillLaid): taken as the sheet's, the row was moved
+  // ten points too high all the way down and dropped back as the pill
+  // came in (sampled on the phone project with no route: tabs at 768.8
+  // the frame before, 780 after; the owner's video, 2026-10-27).
+  const barLaid = pillLaid ? pillBarTop : GRABBER;
   const barRests = capsule || settling ? pillBarTop : GRABBER;
   const barUnder = hasPill ? between(pillBarTop, GRABBER, morph) : barLaid;
   useLayoutEffect(() => {
