@@ -181,7 +181,9 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
   const openedOn = useRef<"route" | "other" | null>(null);
   const everFitted = useRef(false);
   // What the map follows the panel's size for, for a moment (below).
-  const following = useRef<{ until: number; what: "route" | "ship" } | null>(null);
+  // A "slide" keeps `focus`, the point that was in the middle of what the
+  // panel left, in the middle of what it leaves now.
+  const following = useRef<{ until: number; what: "route" | "ship" | "slide"; focus?: L.LatLng } | null>(null);
   useEffect(() => {
     if (map && openedOn.current === null) openedOn.current = bounds ? "route" : "other";
   }, [map, bounds]);
@@ -207,10 +209,10 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
 
   // The map follows the panel as it goes out or comes back to rest --
   // raised to half, lowered to its capsule -- in the sheet's own time, as
-  // Maps' does, when what it follows is in sight: the route, fitted again
-  // to what the panel leaves (the whole screen at the capsule, above the
-  // sheet when it is out), from wherever the map had got to -- the
-  // location arrow's close-in view as well; else the pilot's position,
+  // Maps' does, when what it follows is in sight: the route, slid at its
+  // zoom so what was in the middle of what the panel left is in the middle
+  // of what it leaves now (the whole screen at the capsule, above the
+  // sheet when it is out); else the pilot's position,
   // brought to the middle of what is left. Neither in sight -- the map
   // panned off somewhere else -- it stays where the pilot put it. With
   // own ship followed in the air the position wins over the route. Not
@@ -260,9 +262,10 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
     const settling = following.current && performance.now() < following.current.until ? following.current.what : null;
     if (!turned && !settling) return;
     let what = settling;
+    const size = map.getSize();
+    const middle = (i: { top: number; bottom: number; left: number }) => L.point((i.left + size.x) / 2, (i.top + size.y - i.bottom) / 2);
     if (turned) {
       // In sight: on the map and out from under the panel where it was.
-      const size = map.getSize();
       const sight = L.bounds(L.point(was.left, was.top), L.point(size.x, size.y - was.bottom));
       const ownShip = useOwnShip.getState();
       // On, or off and grey at its last place: the dot on the map either way.
@@ -279,11 +282,22 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       // half card").
       const flying = ownShip.simulated;
       const keepingUp = shipInSight && (flying || (ownShip.follow && underway(ship)));
-      what = routeInSight && !keepingUp ? "route" : shipInSight ? "ship" : null;
+      // The route slid, not fitted again: at the same zoom the chart's
+      // tiles are the ones already drawn, where a fit to the new room
+      // zoomed and drew the chart afresh at every turn, at the owner's ask
+      // ("Medium to small detent redraws the map?", 2026-10-27).
+      what = routeInSight && !keepingUp ? "slide" : shipInSight ? "ship" : null;
       if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
-      following.current = what ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what } : null;
+      following.current = what
+        ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what, focus: map.containerPointToLatLng(middle(was)) }
+        : null;
     }
     if (what === "route") fit(true);
+    else if (what === "slide" && following.current?.focus) {
+      const zoom = map.getZoom();
+      const centre = map.project(following.current.focus, zoom).add(size.divideBy(2)).subtract(middle(insets));
+      map.panTo(map.unproject(centre, zoom), { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
+    }
     else if (what === "ship") {
       const ship = useOwnShip.getState().fix;
       if (ship) panClear(map, [ship.lat, ship.lon], { animate: !prefersReducedMotion(), duration: SHEET_SECONDS });
