@@ -162,7 +162,9 @@ function AccountCard({ pilot }: { pilot: Pilot | null }) {
         <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground">{initials}</span>
         <span className="flex min-w-0 flex-col text-left">
           <span className={cn("truncate font-semibold", TEXT.row)}>{name}</span>
-          <span className={cn("truncate text-muted-foreground", TEXT.note)}>{pilot.email}</span>
+          {/* The address under the name, where the name is not the address
+              itself (a sign-in by email alone names the pilot by it). */}
+          <span className={cn("truncate text-muted-foreground", TEXT.note)}>{name === pilot.email ? "Pilot details" : pilot.email}</span>
         </span>
       </PageButton>
       <AccountMenu />
