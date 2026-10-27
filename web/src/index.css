@@ -124,8 +124,10 @@ body .leaflet-container {
    as Maps' do: only a sliver of them showed past its edge. The panel's
    height and shape are on <body> (MapPanel): a :has() there restyled the
    whole page at every change of the attributes it named. */
+/* Their foot rides on the sheet's top (MapPanel's --sheet-cover), eased
+   with the sheet's own curve as it settles (--sheet-cover-ease). */
 [data-map-controls], [data-map-food] {
-  transition: opacity 0.2s, bottom 0.3s cubic-bezier(0, 0, 0.58, 1);
+  transition: opacity 0.2s, bottom var(--sheet-cover-ease, 0s);
 }
 body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-food]) {
   opacity: 0;

@@ -1,6 +1,5 @@
 import type { InputHTMLAttributes, ReactNode } from "react";
 import { cn } from "cn";
-import { PANEL_FIELD_FILL } from "./panelField";
 import { TEXT } from "../lib/text";
 
 /** A field's button at its end: 22 inside the field's 28, three in from
@@ -42,7 +41,7 @@ export function InlineField({ label, testId, widest, tabular = false, placeholde
   button?: ReactNode;
 }) {
   return (
-    <div role="group" aria-label={label} className={cn("grid h-7 items-center rounded-full", shrink && "shrink-0", PANEL_FIELD_FILL, TEXT.row)} data-testid={testId}>
+    <div role="group" aria-label={label} className={cn("grid h-7 items-center rounded-full bg-foreground/8", shrink && "shrink-0", TEXT.row)} data-testid={testId}>
       <span aria-hidden="true" className="invisible col-start-1 row-start-1 flex h-0 overflow-hidden">
         <span className={cn("whitespace-pre pr-1.5 pl-2.5 font-semibold", tabular && "tabular-nums")}>{widest}</span>
         <span className="w-[1.5625rem] shrink-0" />
