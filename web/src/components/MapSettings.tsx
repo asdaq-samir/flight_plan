@@ -179,9 +179,9 @@ export default function MapSettings() {
       <ListRow title="Military">
         <TogglePill pressed={military} onPressedChange={setMilitary} icon={military ? <Eye /> : <EyeOff />} label="Show" testId="military-toggle" />
       </ListRow>
-      {/* The privately owned fields (the owner, 2026-10-27): on by
-          default, off to clear the chart of fields landed at only by the
-          owner's leave. */}
+      {/* The privately owned fields (the owner, 2026-10-27): off by
+          default, as a field landed at only by its owner's leave, on to
+          see them. */}
       <ListRow title="Private">
         <TogglePill
           pressed={privateFields} onPressedChange={setPrivateFields} icon={privateFields ? <Eye /> : <EyeOff />}
