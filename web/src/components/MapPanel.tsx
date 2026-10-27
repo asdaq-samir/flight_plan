@@ -591,57 +591,40 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // list it opened, which is a portal outside it and closes first.
   const [panel, setPanel] = useState<HTMLElement | null>(null);
 
-  // What the sheet covers of the map at every frame, for the map's buttons
-  // to ride on its top (--sheet-cover, MapControls), as Maps' do: under a
-  // finger and as it eases to a size, its height changing every frame
-  // (ResizeObserver), from where its top really is over the map's foot --
-  // they moved only once it had stopped, in their own time, out of step
-  // with the card (the owner's video, 2026-10-26), and on the owner's
-  // iPhone Safari's toolbar made the planned gap the wrong one. All the way
-  // up they are put away (index.css).
-  const moving = isDragged;
+  // What the sheet covers of the map, for the map's buttons to ride on its
+  // top (--sheet-cover, MapControls), as Maps' do: worked out from the
+  // sheet's own height and how far its foot is off the screen's edge, the
+  // very values its own style takes, and eased with its own curve when it
+  // settles (--sheet-cover-ease), so the two move as one by construction.
+  // Measured from the page, a frame behind, they lagged a fast sheet by up
+  // to 40 points; moved once it had stopped, they were out of step with the
+  // card altogether (the owner's video, 2026-10-26). `beyond` is how far the
+  // map runs past the fixed sheet's ground, taken at rest: on the owner's
+  // iPhone Safari's toolbar made it other than nothing.
+  const beyond = useRef(0);
+  const geometryGap = useRef(0);
   useEffect(() => {
-    const body = document.body;
-    if (!panel || !onPhone || !fromBottom) {
-      body.style.setProperty("--sheet-cover", "0px");
-      return;
-    }
+    if (!panel || !onPhone || !fromBottom) return;
     const map = document.getElementById("content");
-    const measure = () => {
-      if (!map) return;
-      const cover = Math.max(0, Math.round(map.getBoundingClientRect().bottom - panel.getBoundingClientRect().top));
-      body.style.setProperty("--sheet-cover", `${cover}px`);
+    if (!map) return;
+    const take = () => {
+      if (usePanelDragging.getState().dragging) return;
+      beyond.current = Math.round(map.getBoundingClientRect().bottom - (panel.getBoundingClientRect().bottom + geometryGap.current));
     };
-    measure();
-    const watch = new ResizeObserver(measure);
-    watch.observe(panel);
-    if (map) watch.observe(map);
-    // And every frame while it moves -- under a finger, or easing in its
-    // own transitions of height and of where its foot is -- as its foot
-    // rises and falls turning into the pill and back, which no change of
-    // size shows.
-    let frame = 0, easing = 0;
-    const follow = () => {
-      measure();
-      frame = moving || easing > 0 ? requestAnimationFrame(follow) : 0;
-    };
-    const start = () => { if (!frame) frame = requestAnimationFrame(follow); };
-    const eased = (e: TransitionEvent) => { if (e.target !== panel) return; easing = Math.max(0, easing - 1); measure(); };
-    const eases = (e: TransitionEvent) => { if (e.target !== panel) return; easing += 1; start(); };
-    panel.addEventListener("transitionrun", eases);
-    panel.addEventListener("transitionend", eased);
-    panel.addEventListener("transitioncancel", eased);
-    if (moving) start();
-    return () => {
-      watch.disconnect();
-      cancelAnimationFrame(frame);
-      panel.removeEventListener("transitionrun", eases);
-      panel.removeEventListener("transitionend", eased);
-      panel.removeEventListener("transitioncancel", eased);
-      measure();
-    };
-  }, [panel, onPhone, fromBottom, moving]);
-  useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); }, []);
+    take();
+    const watch = new ResizeObserver(take);
+    watch.observe(map);
+    return () => watch.disconnect();
+  }, [panel, onPhone, fromBottom]);
+  const gapNow = geometry.gap;
+  const easeNow = dragged === null && measured ? settle.curve : "0s";
+  useLayoutEffect(() => {
+    geometryGap.current = gapNow;
+    const cover = !onPhone || !fromBottom || keyboard ? 0 : Math.max(0, Math.round(beyond.current + gapNow + shown));
+    document.body.style.setProperty("--sheet-cover", `${cover}px`);
+    document.body.style.setProperty("--sheet-cover-ease", easeNow);
+  }, [onPhone, fromBottom, keyboard, gapNow, shown, easeNow]);
+  useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); document.body.style.removeProperty("--sheet-cover-ease"); }, []);
   // Scrolled up, a page's content runs on under the head and is seen
   // through it, at the owner's ask with a sheet of iOS's ("look at this for
   // the see-through under the top bar"): the scroller at the top of the
