@@ -67,15 +67,16 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           look similar to altitude"), the same field (InlineField): typed
           in, its card's button at its end once there is one. */}
       <InlineField
-        label="Airplane" testId="aircraft-select" widest="N888MM" placeholder="" prefix="N" shrink
+        label="Airplane" testId="aircraft-select" widest="N-888MM" placeholder="" prefix="N-" endRoom="w-0" shrink
         placeholderClassName={TEXT.detail}
         input={{
           // The N fixed before it, the rest typed, at the owner's ask
           // (2026-10-27: "N- can stay static while the rest of the number
-          // can be entered"): a US registration always starts with it.
-          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: shown.replace(/^N/, ""), "aria-label": "Airplane, N-number",
+          // can be entered", "add a - after N"): a US registration always
+          // starts with it.
+          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: shown.replace(/^N-?/, ""), "aria-label": "Airplane, N-number",
           onChange: e => {
-            const rest = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").replace(/^N/, "").slice(0, 5);
+            const rest = e.target.value.toUpperCase().replace(/^N-?/, "").replace(/[^A-Z0-9]/g, "").slice(0, 5);
             setTyped(rest ? `N${rest}` : "");
           },
           onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },

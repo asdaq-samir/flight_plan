@@ -95,5 +95,5 @@ export default function PointAltitudeDialog({ point, onClose, onSet }: {
 function figure(point: EditedPoint | null): string {
   const feet = point?.altitude.feet ?? null;
   if (feet === null) return "";
-  return point!.waypoint ? flightLevel(feet).slice(2) : String(Math.round(feet));
+  return point!.waypoint ? flightLevel(feet).slice(3) : String(Math.round(feet));
 }

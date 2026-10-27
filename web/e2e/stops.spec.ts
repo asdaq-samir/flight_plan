@@ -707,7 +707,7 @@ test("a point's menu has its altitude before Remove: an airport's pattern in fee
   await page.getByTestId("point-altitude-set").click();
   await expect(page).toHaveURL(/KDLH(%3A|:)2600(%2C|,)VPBNG(%3A|:)5500(&|$)/);
   await lines.getByRole("group", { name: /VPBNG/ }).click({ button: "right" });
-  await expect(item).toContainText("FL055");
+  await expect(item).toContainText("FL-055");
   await page.keyboard.press("Escape");
 
   // Given back to the plan: Duluth's own is gone from the address.

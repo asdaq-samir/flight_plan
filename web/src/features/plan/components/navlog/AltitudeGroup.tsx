@@ -6,6 +6,7 @@ import { Button } from "../../../../components/ui/button";
 import PullDown from "../../../../components/PullDown";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { InlineField } from "../../../../components/InlineField";
+import { useDryRunButton } from "../../../../lib/dryRunButton";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -28,7 +29,7 @@ const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round
 
 /** What the empty field says: an example of what it takes, at the owner's
  *  ask ("I want it to say Alt: 080 as a text filler example"). */
-const PLACEHOLDER = "Alt: 080";
+const PLACEHOLDER = "080";
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
@@ -117,12 +118,15 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   // at most, hundreds of feet as written, at the owner's ask ("when altitude
   // is entered it should only hold 3 digits").
   const flying = commanded ?? cruise;
-  const shown = typed ?? (problem || flying === null ? "" : flightLevel(flying).slice(2));
+  const shown = typed ?? (problem || flying === null ? "" : flightLevel(flying).slice(3));
   const top = rules === "ifr" ? 41_000 : 17_999;
   const fly = () => {
     if (typed === null) return;
+    // Any of the ways a pilot writes it, at the owner's ask (2026-10-27):
+    // "090", "FL090", "FL-090" in hundreds of feet, or "9000" in feet --
+    // four figures or more are feet.
     const digits = typed.replace(/\D/g, "");
-    const ft = Number(digits) * 100;
+    const ft = digits.length >= 4 ? Math.round(Number(digits) / 100) * 100 : Number(digits) * 100;
     setTyped(null);
     // A VFR altitude is under Class A (14 CFR 71.33, 91.135); IFR's up to
     // FL410, the highest 91.179(b)(4) names.
@@ -151,14 +155,15 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
     // owner's ask ("when altitude is entered ... a profile button shows
     // up"), or why there is none to show.
     <InlineField
-      label="Cruise altitude" testId="altitude-group" widest="000" tabular placeholder={PLACEHOLDER}
+      label="Cruise altitude" testId="altitude-group" widest="FL-000" tabular placeholder={PLACEHOLDER} prefix="FL-"
       input={{
-        inputMode: "numeric", value: shown, "aria-label": "Cruise altitude, hundreds of feet",
-        onChange: e => setTyped(e.target.value.replace(/\D/g, "").slice(0, 3)),
+        inputMode: "numeric", value: shown, "aria-label": "Cruise altitude, a flight level or feet",
+        onChange: e => setTyped(e.target.value.toUpperCase().replace(/^FL-?/, "").replace(/\D/g, "").slice(0, 5)),
         onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },
         onBlur: fly, "data-testid": "altitude-input",
       }}
       inputClassName={problem ? "text-destructive-ink" : "text-foreground"}
+      endRoom="w-[1.125rem]"
       // No button of its own at its end, at the owner's ask (2026-10-27: "No
       // need for a separate profile button"): the profile opens with its
       // dry run from the map's Play (DryRunButton). Its amber dot stays, at
@@ -166,14 +171,16 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
       // one -- a warning is never dropped -- and what the altitude is and
       // why, in its name for VoiceOver.
       button={(profiled || entered) && (
-        <span
-          role="img"
-          aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`}
-          data-testid="altitude-why" data-tip="altitude" className="relative mr-2.5 flex size-2 shrink-0"
-        >
+        <span className="relative mr-2.5 flex size-2 shrink-0">
+          <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" data-tip="altitude" className="absolute inset-0" />
+          {/* The dot opens the profile where the caution is said, as the
+              map's Play does (the owner, 2026-10-27: "just open the same
+              profile view as the play button"); 44 points round it. */}
           {profiled && !problem && (cautions.length > 0 || tight) && (
-            <span
-              className="size-2 rounded-full bg-caution" aria-hidden="true"
+            <button
+              type="button" onClick={() => useDryRunButton.getState().play?.()}
+              aria-label={cautions.length > 0 ? "Your altitude has a caution: open the profile" : "Your altitude is tight: open the profile"}
+              className="relative size-2 rounded-full bg-caution outline-none after:absolute after:-inset-[18px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
               data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
             />
           )}
