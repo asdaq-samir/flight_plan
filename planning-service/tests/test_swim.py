@@ -103,3 +103,11 @@ def test_tfms_flight_plans_go_to_the_filed_routes_and_the_feed_is_off_without_it
     assert not swim.configured("TFMS")
     monkeypatch.setenv("SWIM_QUEUE_TFMS", "set")
     assert swim.configured("TFMS")
+
+
+def test_a_feed_on_another_broker_connects_there(monkeypatch):
+    monkeypatch.setenv("SWIM_HOST", "tcps://ems2.swim.faa.gov:55443")
+    monkeypatch.delenv("SWIM_HOST_FNS", raising=False)
+    monkeypatch.setenv("SWIM_HOST_TFMS", "tcps://ems1.swim.faa.gov:55443")
+    assert swim._host("TFMS") == "tcps://ems1.swim.faa.gov:55443"
+    assert swim._host("FNS") == "tcps://ems2.swim.faa.gov:55443"
