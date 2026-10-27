@@ -26,7 +26,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(why).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
   // Hundreds of feet after "FL", at the owner's pick: FL045 for 4,500 ft.
   await expect(input).toHaveValue(/^\d{3}$/);
-  await why.click();
+  await openProfile(page);
   // The Profile card: the route from the side with the wheel of legal
   // altitudes in its corner, the altitude's figures, the flight rules,
   // and how it was chosen, folded.
@@ -70,7 +70,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(sideDrawer(page).getByTestId("navlog-scroller")).not.toContainText("Cruise altitude");
   // Back to the default plan from the wheel: its Fastest row, the address
   // without the altitude or the choice.
-  await why.click();
+  await openProfile(page);
   await expect(popover).toBeVisible();
   // From the plan's menu, under the graph the altitude is dragged on.
   await popover.getByTestId("altitude-plan").click();
@@ -197,7 +197,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   } }));
   await picker.fill("N181PA");
   await picker.press("Enter");
-  await expect(picker).toHaveValue("N181PA");
+  await expect(picker).toHaveValue("181PA");
   // No card button at its end since the owner's "we don't need the info
   // for n number" (2026-10-27).
   await expect(page.getByTestId("aircraft-card-button")).toHaveCount(0);
@@ -210,7 +210,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await settle(page);
   await expectDrawerOpen(page);
   await controlsInSight(page);
-  await expect(page.getByTestId("aircraft-input")).toHaveValue("N181PA");
+  await expect(page.getByTestId("aircraft-input")).toHaveValue("181PA");
 });
 
 test("plan page: no legal altitude is the route's own problem: its chip says so at rest, and a mark beside the Nav Log opens to why and the two ways on", async ({ page }) => {
@@ -269,7 +269,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
 
   // A tap on the mark: where, why as a list -- with no Try again, which
   // would only say the same -- and the section left as it was.
-  await mark.click();
+  await openProfile(page);
   await expect(problem).toContainText("No legal VFR cruising altitude 830-858 nm along the route");
   await expect(problem.getByRole("listitem")).toHaveText([
     "The terrain and obstacles there need 10,600 ft.",
@@ -292,7 +292,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   // tap while it was gone found nothing -- the tap tried again with it.
   await expect(page.locator("[data-sonner-toast][data-type=loading]")).toHaveCount(0, { timeout: slow(30000) });
   await expect(async () => {
-    if (!(await problem.isVisible())) await mark.click();
+    if (!(await problem.isVisible())) await openProfile(page);
     await problem.getByTestId("unflyable-add-stop").click({ timeout: 2000 });
   }).toPass({ timeout: slow(30000) });
   await expect(sideDrawer(page).getByTestId("route-type")).toBeFocused();
@@ -356,8 +356,7 @@ test("plan page: Class B avoided with no legal altitude offers the waypoint roun
   await expect(page.getByTestId("tab-mark-fpl")).toHaveAttribute("data-finding", "stop", { timeout: slow(30000) });
   await controlsInSight(page);
   const problem = page.getByTestId("route-problem");
-  const mark = page.getByTestId("altitude-why");
-  await mark.click();
+  await openProfile(page);
   await expect(problem.getByRole("listitem")).toHaveText(["The Chicago Class B reaches the ground there; going through it needs a clearance."]);
   // The two ways past it, and no altitude of the pilot's own: under a
   // Class B to the ground there is none.
@@ -367,7 +366,7 @@ test("plan page: Class B avoided with no legal altitude offers the waypoint roun
   await closeCard(page, "profile-close");
   await expect(page.getByTestId("altitude-input")).toBeEnabled();
   // Allowed: planned through it, the address back to its default.
-  await mark.click();
+  await openProfile(page);
   await problem.getByTestId("unflyable-accept-class-b").click();
   await expect(page).not.toHaveURL(/class_b=/);
 });
@@ -403,7 +402,7 @@ test("plan page: an altitude of the pilot's own that breaks a rule is flown as s
   const chip = page.getByTestId("altitude-why");
   await expect(chip).toHaveAccessibleName(/5,500 feet.*caution/, { timeout: slow(60000) });
   await expect(page.getByTestId("own-altitude-flag")).toBeVisible();
-  await chip.click();
+  await openProfile(page);
   const cautions = page.getByTestId("own-altitude-cautions");
   await expect(cautions).toContainText("5,500 ft C81 → KDLH");
   await expect(cautions).toContainText("Westbound above");
