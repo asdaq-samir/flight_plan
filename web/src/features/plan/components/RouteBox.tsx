@@ -787,7 +787,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     <span aria-hidden="true" className="ml-0.5 size-2 shrink-0 rotate-45 rounded-[1px]" style={{ backgroundColor: WAYPOINT_MAGENTA }} />
   ) : (
     <span
-      aria-hidden="true" className="block size-4 shrink-0"
+      aria-hidden="true" className="block size-[14px] shrink-0"
       dangerouslySetInnerHTML={{ __html: airportMarkSvg(spaceClass, byWeather ? (metarColourOf(ident) ?? colourOf(null)) : colourOf(null), null, "block size-full overflow-visible") }}
     />
   );
@@ -809,7 +809,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
       className={cn(
         // A swipe up or down scrolls the lines; a hold, then a move, drags;
         // a hold alone, its menu. No callout of iOS's own over the hold.
-        "inline-flex shrink-0 items-center gap-0.5 rounded-full touch-pan-y select-none [-webkit-touch-callout:none]",
+        "inline-flex shrink-0 items-center rounded-full touch-pan-y select-none [-webkit-touch-callout:none]",
         isDragging && "z-10 bg-background shadow-md ring-2 ring-tint",
       )}
       data-testid={role === "stop" ? "stop" : `route-${role}`}
@@ -822,7 +822,7 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
         // airport pills"); a finger's 44 round it (index.css).
         // A line under a row's size, as the pills were: three fields and a
         // procedure's chip keep to one line on a phone (procedures.spec).
-        className={cn("h-7 rounded-full px-1", TEXT.detail, "font-semibold")} onChange={onChange}
+        className={cn("h-7 rounded-full px-[3px]", TEXT.detail, "font-semibold")} onChange={onChange}
         open={changing} onOpenChange={setChanging} onTap={onOpen}
       />
     </span>
