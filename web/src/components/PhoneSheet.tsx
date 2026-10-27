@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ComponentProps, type PointerEvent } from "react";
 import { cn } from "cn";
 import { SheetClose, SheetContent } from "./ui/sheet";
+import { SHEET_CORNERS } from "./mapChrome";
 import type { NavEdge } from "../lib/preferences";
 
 /** A swipe toward the sheet's edge, let go, puts it away past this share
@@ -106,7 +107,7 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
     // screenshot of an approach's runways).
     <SheetContent
       ref={setSheet} side={edge} glass showCloseButton={false} data-floating=""
-      className={cn("max-h-[calc(85dvh-1rem)] gap-0 overflow-hidden rounded-[36px]", className)}
+      className={cn("max-h-[calc(85dvh-1rem)] gap-0 overflow-hidden", SHEET_CORNERS, className)}
       style={swiped === null ? style : { ...style, transform: `translateY(${toward * swiped}px)`, transition: held ? "none" : BACK }}
       onPointerDown={event => {
         onPointerDown?.(event);

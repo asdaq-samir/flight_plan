@@ -162,6 +162,19 @@ export const SETTLE_MOST = 0.35;
  *  sheet up to half way, and their far corners all the way up. */
 export const SHEET_INSET = 8;
 export const SHEET_INSET_RADIUS = 36;
+/** The same corners as a class, for every sheet drawn with classes: a
+ *  phone's floating sheet (PhoneSheetContent). Written out whole, as
+ *  Tailwind finds a class only as it is written. */
+export const SHEET_CORNERS = "rounded-[36px]";
+/** A box in the middle of the screen from `md` up, an iOS alert's corners
+ *  (the sheets audit's D3, 2026-10-17): the dialogs and alerts. On a
+ *  phone each is a sheet, with the sheet's corners. */
+export const DIALOG_CORNERS = "rounded-[28px]";
+/** What is behind every sheet and dialog, one dimming for all of them (the
+ *  sheet consolidation, 2026-10-27): the page a tenth darker and lightly
+ *  blurred, half in the dark theme, where the dialogs dimmed it a fifth
+ *  or a half and the sheets a tenth. */
+export const DIM = "bg-black/10 dark:bg-black/50 supports-backdrop-filter:backdrop-blur-xs";
 /** The panel at rest, its tabs and the route's figures: a rectangle with
  *  round corners, at the pilot's ask ("more of a rectangle"), where it was
  *  a capsule, its ends half its height round. */

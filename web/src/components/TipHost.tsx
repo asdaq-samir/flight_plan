@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Lightbulb, X } from "lucide-react";
+import { Lightbulb } from "lucide-react";
 import { cn } from "cn";
-import IconButton from "./IconButton";
+import CloseButton from "./CloseButton";
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/popover";
 import { TEXT } from "../lib/text";
 import { TIPS, unseen, useTips, type TipSpec } from "../lib/tips";
@@ -24,13 +24,14 @@ function inSight(el: Element): boolean {
 /** Something else up over the page -- a sheet, a menu, a popover: a tip
  *  waits for it to go. */
 const somethingOpen = () =>
-  !!document.querySelector("[role='dialog'][data-state='open'], [role='menu'], [data-slot='popover-content']:not([data-tip-content])");
+  !!document.querySelector("[role='dialog'][data-state='open'], [role='alertdialog'][data-state='open'], [role='menu'], [data-slot='popover-content']:not([data-tip-content])");
 
 /**
  * The planner's first-run tips (lib/tips), one at a time, as TipKit shows
  * a popover tip: beside its control (`data-tip`) once the control has
  * been in sight a moment and nothing else is up, a light to say it is a
- * tip, and a close. Closed, or put away by a tap elsewhere -- the pilot
+ * tip, and the app's close (CloseButton) at its title row's end, as every
+ * sheet has it. Closed, or put away by a tap elsewhere -- the pilot
  * moving on -- it is seen and not offered again on this device. The
  * stock popover, anchored to the control without wrapping it.
  */
@@ -78,18 +79,17 @@ export default function TipHost() {
       <PopoverAnchor virtualRef={anchor as React.RefObject<HTMLElement>} />
       <PopoverContent
         side="bottom" align="start" sideOffset={10} collisionPadding={12}
-        className="w-80 max-w-[calc(100vw-2rem)] flex-row items-start gap-3 p-3"
+        className="w-80 max-w-[calc(100vw-2rem)] gap-0.5 p-3"
         onOpenAutoFocus={e => e.preventDefault()}
         data-tip-content="" data-testid="tip" aria-label={current.title}
       >
-        <Lightbulb className="mt-0.5 size-5 shrink-0 text-tint" aria-hidden />
-        <div className="min-w-0 flex-1">
-          <p className={cn("font-semibold", TEXT.row)}>{current.title}</p>
-          <p className={cn("pt-0.5", TEXT.prose)}>{current.message}</p>
+        <div className="flex items-center gap-3">
+          <Lightbulb className="size-5 shrink-0 text-tint" aria-hidden />
+          <p className={cn("min-w-0 flex-1 font-semibold", TEXT.row)}>{current.title}</p>
+          <CloseButton label="Close the tip" className="-my-1 -mr-1" onClick={done} data-testid="tip-close" />
         </div>
-        <IconButton label="Close the tip" variant="ghost" className="-mt-1 -mr-1 size-8 shrink-0 text-muted-foreground" onClick={done} data-testid="tip-close">
-          <X className="size-4" />
-        </IconButton>
+        {/* Under the title, in line with it past the light. */}
+        <p className={cn("pl-8", TEXT.prose)}>{current.message}</p>
       </PopoverContent>
     </Popover>
   );
