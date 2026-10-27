@@ -604,7 +604,9 @@ test("the map's Private setting draws the private fields, off by default and kep
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
   // The airport's card kept under the settings', as it was.
   await expect(page).toHaveURL(/[?&]place=C81/);
-  await page.reload();
+  // Loaded afresh on the same place: a reload starts the page clean, its
+  // place put away, and the chart further out drew KPUB alone of the two.
+  await page.goto("/app/plan?place=C81");
   await settle(page);
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
 });
