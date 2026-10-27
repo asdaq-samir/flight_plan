@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openSettings, settle, slow } from "./helpers";
+import { openMapSettings, openSettings, settle, slow } from "./helpers";
 
 /**
  * Night: in the dark theme the sheets are the cockpit palette's navy and
@@ -46,7 +46,7 @@ test("in the dark theme the page is the night's navy and only the chart's tiles 
   }
 
   // Normal: the chart as printed, and kept so across a reload.
-  await openSettings(page);
+  await openMapSettings(page);
   const night = page.getByTestId("chart-night-select");
   await expect(night.getByRole("radio", { name: "Dimmed" })).toHaveAttribute("aria-checked", "true");
   await night.getByRole("radio", { name: "Normal" }).click();
@@ -58,8 +58,11 @@ test("in the dark theme the page is the night's navy and only the chart's tiles 
   await expect.poll(() => filterOf(page, ".leaflet-layer.chart-tiles")).toBe("none");
 
   // Back to Dimmed for the next test's sake, and the light theme never dims.
-  await openSettings(page);
+  await openMapSettings(page);
   await page.getByTestId("chart-night-select").getByRole("radio", { name: "Dimmed" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("map-settings")).toHaveCount(0);
+  await openSettings(page);
   await page.getByTestId("theme-select").getByRole("radio", { name: "Light" }).click();
   await expect(html).not.toHaveClass(/dark/);
   await expect.poll(() => filterOf(page, ".leaflet-layer.chart-tiles")).toBe("none");

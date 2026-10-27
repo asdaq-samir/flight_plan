@@ -28,8 +28,8 @@ export type BaseChart = "sec" | "ifr_low" | "ifr_high";
 
 export const BASE_CHARTS: { kind: BaseChart; label: string }[] = [
   { kind: "sec", label: "Sectional" },
-  { kind: "ifr_low", label: "IFR low" },
-  { kind: "ifr_high", label: "IFR high" },
+  { kind: "ifr_low", label: "IFR Low" },
+  { kind: "ifr_high", label: "IFR High" },
 ];
 
 /** What is drawn over the chart, at the pilot's ask (OverlayTiles): the

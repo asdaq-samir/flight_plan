@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { consoleSheet, controlsInSight, grabberTo, library, openBrief, openConsole, openMapSettings, openPanel, showTabs, sideDrawer } from "./helpers";
+import { consoleSheet, controlsInSight, grabberTo, library, openBrief, openConsole, openPanel, openSettings, showTabs, sideDrawer } from "./helpers";
 
 /**
  * "Save this flight", at the head of the briefing drawer's sections, for
@@ -179,7 +179,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
-test("Print is in the Brief's Share menu; Keep Charts Offline is a setting under Map, which cannot be on over plain http", async ({ page }) => {
+test("Print is in the Brief's Share menu; Keep Charts Offline is in Settings' In Flight, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await controlsInSight(page);
   await openBrief(page);
@@ -189,7 +189,7 @@ test("Print is in the Brief's Share menu; Keep Charts Offline is a setting under
 
   // From the search bar, the route closed.
   await page.goto("/app/plan");
-  await openMapSettings(page);
+  await openSettings(page);
   const keep = page.getByTestId("keep-offline-toggle");
   await expect(keep).toBeVisible();
   // The suite's stack is plain http, where the service worker that keeps

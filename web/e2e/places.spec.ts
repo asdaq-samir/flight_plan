@@ -581,7 +581,7 @@ test("the map's Private setting puts the private fields away and back", async ({
   await settle(page);
   await expect.poll(async () => (await airportMark(page, "KPVT"))?.use, { timeout: slow(15000) }).toBe("private");
   await openMapSettings(page);
-  await expect(page.getByTestId("private-toggle")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("private-toggle")).toHaveAttribute("aria-checked", "true");
   await page.getByTestId("private-toggle").click();
   await page.keyboard.press("Escape");
   await expect.poll(async () => await airportMark(page, "KPVT"), { timeout: slow(15000) }).toBeFalsy();

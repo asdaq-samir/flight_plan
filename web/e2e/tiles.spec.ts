@@ -53,9 +53,9 @@ for (const path of ["/app/dev"] as const) {
     // Pinned: both chart layers are asked for, the sectional and the TAC.
     await openMapSettings(page);
     const pin = page.getByTestId("tac-toggle");
-    await expect(pin).toHaveAttribute("aria-pressed", "false");
+    await expect(pin).toHaveAttribute("aria-checked", "false");
     await pin.click();
-    await expect(pin).toHaveAttribute("aria-pressed", "true");
+    await expect(pin).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("Escape");
     await expect(tacTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect.poll(
@@ -71,9 +71,9 @@ for (const path of ["/app/dev"] as const) {
     await settle(page);
     await openMapSettings(page);
     const toggle = page.getByTestId("tac-toggle");
-    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await expect(toggle).toHaveAttribute("aria-checked", "true");
     await toggle.click();
-    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    await expect(toggle).toHaveAttribute("aria-checked", "false");
     await page.keyboard.press("Escape");
     await expect(tacTiles).toHaveCount(0);
   });
@@ -93,8 +93,8 @@ for (const path of ["/app/dev"] as const) {
 
     await openMapSettings(page);
     await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
-    // The Class B row's chart is the IFR area chart over the IFR charts.
-    await expect(page.getByTestId("tac-toggle")).toHaveText("Area");
+    // The terminal sheet's row is the IFR area chart over the IFR charts.
+    await expect(page.getByTestId("map-settings").getByText("IFR Area Charts")).toBeVisible();
     await expect(ifrTiles.first()).toBeAttached({ timeout: slow(10000) });
     await expect.poll(
       () => page.evaluate(() =>
@@ -106,6 +106,6 @@ for (const path of ["/app/dev"] as const) {
 
     await page.getByTestId("base-chart-select").getByRole("radio", { name: "Sectional" }).click();
     await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(10000) });
-    await expect(page.getByTestId("tac-toggle")).toHaveText("TAC");
+    await expect(page.getByTestId("map-settings").getByText("Terminal Area Charts")).toBeVisible();
   });
 }
