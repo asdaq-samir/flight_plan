@@ -102,9 +102,10 @@ interface Preferences {
    *  civil airplane lands there only with the service's permission (the
    *  planner's `military`). Joint-use fields are always drawn. */
   military: boolean;
-  /** Whether the privately owned fields are drawn (AirportsLayer): on
-   *  by default, as they were always drawn; off at the pilot's ask (the
-   *  owner, 2026-10-27), as one is landed at only with the owner's
+  /** Whether the privately owned fields are drawn (AirportsLayer): off
+   *  by default, at the owner's ask ("Make private airports hidden by
+   *  default", 2026-10-27), on at the pilot's, as one is landed at only
+   *  with the owner's
    *  permission (NASR APT_BASE's facility use, PR, the planner's
    *  `private`). A field on the route or picked is drawn either way. */
   privateFields: boolean;
@@ -270,7 +271,7 @@ export const usePreferences = create<Preferences>()(
       plates: true,
       traffic: false,
       military: false,
-      privateFields: true,
+      privateFields: false,
       overlay: "none",
       overlayStrength: "half",
       minimums: NO_MINIMUMS,
@@ -387,7 +388,7 @@ export const usePreferences = create<Preferences>()(
       migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, minimums: s.minimums, routeWeather: s.routeWeather, foodRadiusNm: s.foodRadiusNm, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, foodRadiusNm: s.foodRadiusNm, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, routeColours: s.routeColours, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

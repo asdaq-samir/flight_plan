@@ -112,9 +112,9 @@ export default function MapSettings() {
             charts. A chip's card pins its field's sheet either way. */}
         <SwitchRow title="Class B Weather" on={prefs.classB} onChange={prefs.setClassB} testId="class-b-toggle" />
         <SwitchRow title={sec ? "Terminal Area Charts" : "IFR Area Charts"} on={prefs.tac} onChange={prefs.setTac} testId="tac-toggle" />
-        {/* The privately owned fields (the owner, 2026-10-27): on by
-            default, off to clear the chart of fields landed at only by the
-            owner's leave. */}
+        {/* The privately owned fields (the owner, 2026-10-27): off by
+            default, as a field landed at only by its owner's leave, on to
+            see them. */}
         <SwitchRow title="Private Fields" on={prefs.privateFields} onChange={prefs.setPrivateFields} testId="private-toggle" />
         {/* The fields the armed services own and keep to themselves: off by
             default, as most pilots may not land there without the
