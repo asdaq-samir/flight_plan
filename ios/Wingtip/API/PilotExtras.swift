@@ -28,12 +28,6 @@ struct OwnAircraftRecord: Codable, Equatable, Sendable, Identifiable {
     var inspections: Inspections?
     var openSquawks: [Squawk]?
     var vorCheck: VorCheck?
-
-    /// The figures Plan flies it on, the shape AircraftView already uses.
-    var own: OwnAircraft {
-        OwnAircraft(id: id, tailNumber: tailNumber, typeDesignator: typeDesignator, cruiseTasKt: cruiseTasKt, fuelBurnGph: fuelBurnGph,
-                    usableFuelGal: usableFuelGal, cruisePowerPct: cruisePowerPct, climbTasKt: climbTasKt, climbFuelBurnGph: climbFuelBurnGph)
-    }
 }
 
 /// The inspections as the owner records them, with the last day each is
@@ -339,47 +333,7 @@ struct AskReviewRequest: Codable, Equatable, Sendable {
     var note: String?
 }
 
-/// The gateway's own words for a refusal (ErrorResponse), where it sent
-/// any: "Invalid request" with each field's, or the instructor's rule.
-struct GatewayRefusal: Error, LocalizedError, Equatable {
-    let status: Int
-    let words: String?
-    var errorDescription: String? { words ?? "The server answered \(status)." }
-
-    static func words(in data: Data) -> String? {
-        struct Body: Decodable { var error: String?; var details: [String]? }
-        guard let body = try? JSONDecoder().decode(Body.self, from: data), let error = body.error else { return nil }
-        let details = body.details ?? []
-        return details.isEmpty ? error : "\(error): \(details.joined(separator: "; "))"
-    }
-}
-
 extension Gateway {
-    /// A call whose answer is read, or nothing where the server sends no
-    /// body; refused, with the gateway's own words.
-    @discardableResult
-    static func send(_ method: String, _ path: String, json: (any Encodable)? = nil) async throws -> Data {
-        let (data, response) = try await session.data(for: request(method, path, json: json))
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200...299).contains(status) else { throw GatewayRefusal(status: status, words: GatewayRefusal.words(in: data)) }
-        return data
-    }
-
-    static func send<T: Decodable>(_ type: T.Type, _ method: String, _ path: String, json: (any Encodable)? = nil) async throws -> T {
-        try JSONDecoder().decode(T.self, from: try await send(method, path, json: json))
-    }
-
-    /// A read that is nobody's when signed out (401, 403, 204): nil.
-    static func read<T: Decodable>(_ type: T.Type, _ path: String) async throws -> T? {
-        let (data, response) = try await session.data(for: request("GET", path))
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        switch status {
-        case 200: return try JSONDecoder().decode(T.self, from: data)
-        case 204, 401, 403: return nil
-        default: throw GatewayRefusal(status: status, words: GatewayRefusal.words(in: data))
-        }
-    }
-
     // The airplanes.
     static func aircraftRecords() async throws -> [OwnAircraftRecord] { try await read([OwnAircraftRecord].self, "/api/aircraft") ?? [] }
     static func addAircraft(_ r: AircraftRequest) async throws -> OwnAircraftRecord { try await send(OwnAircraftRecord.self, "POST", "/api/aircraft", json: r) }
@@ -472,11 +426,11 @@ extension Gateway {
 /// A day as the gateway sends one ("2026-10-25", the pilot's own
 /// calendar day) and as the pages say it.
 enum Day {
-    private static func formatter(_ format: String) -> DateFormatter {
+    private static func formatter(_ format: String, in zone: TimeZone = .current) -> DateFormatter {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
         f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = .current
+        f.timeZone = zone
         f.dateFormat = format
         return f
     }
@@ -484,7 +438,11 @@ enum Day {
     private static let page = formatter("d MMM yyyy")
     private static let ac = formatter("MM-dd-yyyy")
 
-    static func string(_ date: Date) -> String { iso.string(from: date) }
+    /// The day a moment falls on in the pilot's own calendar, as the
+    /// gateway and the planner read one; in another zone where asked.
+    static func string(_ date: Date, in zone: TimeZone = .current) -> String {
+        zone == iso.timeZone ? iso.string(from: date) : formatter("yyyy-MM-dd", in: zone).string(from: date)
+    }
     static func date(_ day: String) -> Date? { iso.date(from: String(day.prefix(10))) }
     static func today() -> String { string(Date()) }
     /// "13 Oct 2026", as the web app's pages say a day.

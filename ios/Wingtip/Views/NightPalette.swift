@@ -98,6 +98,15 @@ extension UILabel {
         layer.shadowRadius = 1.5
         layer.shadowOpacity = 1
     }
+
+    /// The halo now and whenever the mark it is on changes appearance:
+    /// every mark's words on the chart (fields, traffic) keep it this way.
+    func haloFollowing(_ mark: UIView) {
+        halo(for: mark.traitCollection)
+        mark.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] (view: UIView, _: UITraitCollection) in
+            self?.halo(for: view.traitCollection)
+        }
+    }
 }
 
 extension UIColor {

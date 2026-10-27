@@ -196,15 +196,6 @@ final class Plan {
         }
     }
 
-    /// The planner's fuel stops put into the route, the whole chain before
-    /// the flight's destination, at the owner's ask ("suggest fuel stops
-    /// just like Tesla suggests").
-    func addFuelStops(_ suggestion: FuelStopSuggestion) {
-        let before = (stops.firstIndex(of: suggestion.destination) ?? stops.count)
-        stops.insert(contentsOf: suggestion.stops.map(\.ident), at: before)
-        plan()
-    }
-
     /// A way round what stops the route put in: the points to fly by,
     /// before the stop they are for.
     func goRound(_ detour: Detour) {
@@ -243,7 +234,7 @@ final class Plan {
     /// An airplane by its N-number: one of the pilot's own with its
     /// figures, else the FAA's registry's type on the planner's profile
     /// for it, where it has one; the profile in use stands otherwise.
-    func fly(tail: String, own: [OwnAircraft], profiles: [AircraftProfile]) async {
+    func fly(tail: String, own: [OwnAircraftRecord], profiles: [AircraftProfile]) async {
         let tail = tail.uppercased()
         self.tail = tail
         // The figures kept on this device for the N-number first, then the

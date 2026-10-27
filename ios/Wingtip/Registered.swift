@@ -70,20 +70,6 @@ struct AircraftRegistration: Codable, Equatable, Sendable {
     // nNumber and modeSHex; a key spelt by hand would not match them.
 }
 
-/// The pilot's own airplane as the gateway keeps it (AircraftDto): its
-/// N-number, its type and the handbook figures the pilot set.
-struct OwnAircraft: Codable, Equatable, Sendable, Identifiable {
-    let id: Int64
-    let tailNumber: String
-    let typeDesignator: String
-    let cruiseTasKt: Double
-    let fuelBurnGph: Double
-    var usableFuelGal: Double?
-    var cruisePowerPct: Double?
-    var climbTasKt: Double?
-    var climbFuelBurnGph: Double?
-}
-
 /// The figures the nav log flies an airplane on: the type's, or the
 /// pilot's own where set.
 struct Figures: Codable, Equatable, Sendable {
@@ -111,7 +97,7 @@ struct Figures: Codable, Equatable, Sendable {
         self.serviceCeilingFt = serviceCeilingFt
     }
 
-    init(_ own: OwnAircraft) {
+    init(_ own: OwnAircraftRecord) {
         self.init(cruiseTasKt: own.cruiseTasKt, fuelBurnGph: own.fuelBurnGph, usableFuelGal: own.usableFuelGal, cruisePowerPct: own.cruisePowerPct,
                   climbTasKt: own.climbTasKt, climbFuelBurnGph: own.climbFuelBurnGph)
     }

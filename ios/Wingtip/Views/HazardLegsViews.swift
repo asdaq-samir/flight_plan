@@ -59,8 +59,8 @@ struct LayerAgesRows: View {
 
     var body: some View {
         Group {
-            LabeledContent("METARs", value: words("aviationweather.gov", BriefLegs.date(ages?.metarsAt)))
-            LabeledContent("TFRs", value: words("tfr.faa.gov", BriefLegs.date(ages?.tfrsAt)))
+            LabeledContent("METARs", value: words("aviationweather.gov", AirportWords.date(ages?.metarsAt)))
+            LabeledContent("TFRs", value: words("tfr.faa.gov", AirportWords.date(ages?.tfrsAt)))
             if traffic.on {
                 LabeledContent("Traffic data", value: words("adsb.lol", traffic.heardAt))
             }

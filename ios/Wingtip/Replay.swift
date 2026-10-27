@@ -156,7 +156,7 @@ final class Replay {
             let hours = (b.t - a.t) / 3600
             guard hours > 0 else { continue }
             out[i].gsKt = Flight.nm(from: a.coordinate, to: b.coordinate) / hours
-            out[i].trackDeg = bearing(from: a.coordinate, to: b.coordinate)
+            out[i].trackDeg = Flight.bearing(from: a.coordinate, to: b.coordinate)
         }
         // A point at the same second as the next takes the one before's.
         for i in out.indices.dropFirst() where out[i].gsKt == nil {
@@ -164,13 +164,5 @@ final class Replay {
             out[i].trackDeg = out[i - 1].trackDeg
         }
         return out
-    }
-
-    /// The true bearing from one point to the other, the great circle's
-    /// initial course.
-    nonisolated static func bearing(from a: CLLocationCoordinate2D, to b: CLLocationCoordinate2D) -> Double {
-        let lat1 = a.latitude * .pi / 180, lat2 = b.latitude * .pi / 180, dLon = (b.longitude - a.longitude) * .pi / 180
-        let y = sin(dLon) * cos(lat2), x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-        return (atan2(y, x) * 180 / .pi + 360).truncatingRemainder(dividingBy: 360)
     }
 }

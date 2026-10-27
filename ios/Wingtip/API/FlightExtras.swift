@@ -29,24 +29,20 @@ struct FAARecord: Codable, Equatable, Sendable {
     var aircraftType: String?
     var airworthiness: String?
     var airworthinessDate: String?
-    var certificateIssued: String?
     var city: String?
     var coOwners: Int?
     var country: String?
     var engine: String?
     var engineType: String?
-    var engines: Int?
     var expires: String?
     var fractional: Bool?
     var horsepower: Int?
-    var kit: String?
     var manufacturer: String?
     var modeSHex: String?
     var model: String?
     var owner: String?
     var ownerType: String?
     var seats: Int?
-    var serial: String?
     var standing: String?
     var state: String?
     var status: String?
@@ -202,13 +198,6 @@ struct ProcedureDrawing: Codable, Equatable, Sendable {
     var fixes: [ProcedureFix]
 }
 
-/// A pilot's note on a checkpoint, as saved (CheckpointNote).
-struct CheckpointNote: Codable, Equatable, Sendable {
-    let description: String
-    let lat: Double
-    let lon: Double
-}
-
 /// One line of the checkpoints' notes as they are written
 /// (CheckpointNoteMessage): "start", one "checkpoint" each, "error", "done".
 struct NoteLine: Codable, Equatable, Sendable {
@@ -242,8 +231,6 @@ struct FlightPlanFilingRequest: Codable, Equatable, Sendable {
     var destination: String
     var eetMinutes: Int
     var enduranceMinutes: Int
-    var alternate: String?
-    var otherInformation: String?
     var personsOnBoard: Int?
 }
 
@@ -296,23 +283,6 @@ extension Planner {
         try await fetch(ProcedureDrawing.self, "/api/airport/\(ident)/procedures/\(id)", ["transition": transition])
     }
 
-    /// A POST to the planner through the gateway, with the session's CSRF
-    /// token as the website's calls carry it, its body in snake case.
-    static func post(_ path: String, json: some Encodable, method: String = "POST") async throws -> URLRequest {
-        // The CSRF cookie is written on any of the gateway's answers once
-        // asked for: one GET first where there is none yet.
-        if Gateway.csrfToken == nil { _ = try? await Gateway.me() }
-        var request = URLRequest(url: Config.gateway.appending(path: Config.plannerPath(path)))
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        request.httpBody = try encoder.encode(json)
-        if let token = Gateway.csrfToken { request.setValue(token, forHTTPHeaderField: "X-XSRF-TOKEN") }
-        return request
-    }
-
     struct NoteRoute: Encodable {
         let departureIdent: String
         let destinationIdent: String
@@ -331,43 +301,21 @@ extension Planner {
     /// One "how to spot it" line per checkpoint, as they are written: each
     /// a billed call, so asked for only on the pilot's tap.
     static func describeCheckpoints(dep: String, dest: String, stops: [String]) -> AsyncThrowingStream<NoteLine, any Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    let request = try await Planner.post("/api/checkpoint-notes/generate", json: NoteRoute(departureIdent: dep, destinationIdent: dest, stops: stops))
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    guard status == 200 else { throw Planner.Failure(status: status, detail: nil) }
-                    for try await line in bytes.lines where !line.isEmpty {
-                        continuation.yield(try Planner.snakeCase.decode(NoteLine.self, from: Data(line.utf8)))
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
+        lines({ try await request("POST", "/api/checkpoint-notes/generate", json: NoteRoute(departureIdent: dep, destinationIdent: dest, stops: stops), csrf: true) }) {
+            try snakeCase.decode(NoteLine.self, from: $0)
         }
     }
 
     /// A pilot's own note on a checkpoint, saved.
     static func saveNote(dep: String, dest: String, stops: [String], lat: Double, lon: Double, text: String) async throws {
-        let request = try await post("/api/checkpoint-notes", json: NoteSave(departureIdent: dep, destinationIdent: dest, stops: stops, lat: lat, lon: lon, description: text))
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard (200...299).contains(status) else { throw Failure(status: status, detail: detail(of: data)) }
+        let note = NoteSave(departureIdent: dep, destinationIdent: dest, stops: stops, lat: lat, lon: lon, description: text)
+        _ = try await data(for: request("POST", "/api/checkpoint-notes", json: note, csrf: true), ok: 200...299)
     }
 
     /// Every note of the pilot's own forgotten; how many.
     static func forgetNotes() async throws -> Int {
-        struct Nothing: Encodable {}
         struct Answer: Decodable { let removed: Int }
-        var request = try await post("/api/checkpoint-notes/mine", json: Nothing(), method: "DELETE")
-        request.httpBody = nil
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status, detail: detail(of: data)) }
-        return try snakeCase.decode(Answer.self, from: data).removed
+        return try snakeCase.decode(Answer.self, from: try await data(for: request("DELETE", "/api/checkpoint-notes/mine", json: nil, csrf: true))).removed
     }
 }
 
@@ -390,12 +338,7 @@ extension Gateway {
 
     /// A saved flight's flown track; nil where none is kept.
     static func track(_ flight: Int64) async throws -> SavedTrack? {
-        let (data, response) = try await session.data(for: request("GET", "/api/flights/\(flight)/track"))
-        switch (response as? HTTPURLResponse)?.statusCode ?? 0 {
-        case 200: return try JSONDecoder().decode(SavedTrack.self, from: data)
-        case 204, 404: return nil
-        case let status: throw GatewayRefusal(status: status, words: GatewayRefusal.words(in: data))
-        }
+        try await read(SavedTrack.self, "/api/flights/\(flight)/track", none: [204, 404])
     }
 
     static func saveTrack(_ flight: Int64, _ track: SavedTrack) async throws {

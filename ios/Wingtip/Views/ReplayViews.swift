@@ -71,7 +71,7 @@ struct ReplaySection: View {
     static func figures(_ here: Replay.Point) -> String {
         let height = here.altFt.map { "\((Int(($0 / 100).rounded()) * 100).formatted()) ft" } ?? "—"
         let speed = here.gsKt.map { "\(Int($0.rounded())) kt" } ?? "—"
-        let heading = here.trackDeg.map { " · " + FlightWords.compass($0) } ?? ""
+        let heading = here.trackDeg.map { " · " + AirportWords.compassPoint($0) } ?? ""
         return "\(height) · \(speed)\(heading)"
     }
 }

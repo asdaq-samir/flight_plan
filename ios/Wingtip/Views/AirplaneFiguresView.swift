@@ -70,12 +70,12 @@ struct AirplaneFiguresView: View {
                 do {
                     let found = Handbook.figures(of: try await Handbook.read(image))
                     if found.isEmpty { problem = "No figures were read off that page: take the specifications page, flat and in good light."; return }
-                    if let f = found.cruiseTasKt { fields["cruiseTasKt"] = Self.text(f.value) }
-                    if let f = found.cruisePowerPct { fields["cruisePowerPct"] = Self.text(f.value) }
-                    if let f = found.fuelBurnGph { fields["fuelBurnGph"] = Self.text(f.value) }
-                    if let f = found.usableFuelGal { fields["usableFuelGal"] = Self.text(f.value) }
-                    if let f = found.climbTasKt { fields["climbTasKt"] = Self.text(f.value) }
-                    if let f = found.serviceCeilingFt { fields["serviceCeilingFt"] = Self.text(f.value) }
+                    if let f = found.cruiseTasKt { fields["cruiseTasKt"] = AirportWords.tenths(f.value) }
+                    if let f = found.cruisePowerPct { fields["cruisePowerPct"] = AirportWords.tenths(f.value) }
+                    if let f = found.fuelBurnGph { fields["fuelBurnGph"] = AirportWords.tenths(f.value) }
+                    if let f = found.usableFuelGal { fields["usableFuelGal"] = AirportWords.tenths(f.value) }
+                    if let f = found.climbTasKt { fields["climbTasKt"] = AirportWords.tenths(f.value) }
+                    if let f = found.serviceCeilingFt { fields["serviceCeilingFt"] = AirportWords.tenths(f.value) }
                     words = Array(Set(found.words)).sorted()
                 } catch {
                     problem = "The page could not be read: \(error.localizedDescription)"
@@ -83,8 +83,6 @@ struct AirplaneFiguresView: View {
             }
         }
     }
-
-    private static func text(_ v: Double) -> String { v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) }
 
     private func save() {
         var figures = Figures()
@@ -110,15 +108,16 @@ struct AirplaneFiguresView: View {
 /// The figures kept per N-number on this device (the web app's
 /// preferences' tailFigures), as text fields.
 enum TailFigures {
-    private static func key(_ tail: String?) -> String { "figures:\(tail ?? "type")" }
+    /// Each N-number's key, under one prefix that signing out clears.
+    static let prefix = "figures:"
+    private static func key(_ tail: String?) -> String { prefix + (tail ?? "type") }
 
     static func save(_ figures: Figures, for tail: String?) {
-        UserDefaults.standard.set(try? JSONEncoder().encode(figures), forKey: key(tail))
+        UserDefaults.standard.setEncoded(figures, forKey: key(tail))
     }
 
     static func load(_ tail: String?) -> Figures {
-        guard let data = UserDefaults.standard.data(forKey: key(tail)), let figures = try? JSONDecoder().decode(Figures.self, from: data) else { return Figures() }
-        return figures
+        UserDefaults.standard.decoded(Figures.self, forKey: key(tail)) ?? Figures()
     }
 
     static func forget(_ tail: String?) { UserDefaults.standard.removeObject(forKey: key(tail)) }
@@ -132,7 +131,7 @@ extension Figures {
             ("cruiseTasKt", cruiseTasKt), ("cruisePowerPct", cruisePowerPct), ("fuelBurnGph", fuelBurnGph), ("usableFuelGal", usableFuelGal),
             ("climbTasKt", climbTasKt), ("climbFuelBurnGph", climbFuelBurnGph), ("serviceCeilingFt", serviceCeilingFt),
         ]
-        for (k, v) in pairs { if let v { out[k] = v == v.rounded() ? String(Int(v)) : String(format: "%.1f", v) } }
+        for (k, v) in pairs { if let v { out[k] = AirportWords.tenths(v) } }
         return out
     }
 }

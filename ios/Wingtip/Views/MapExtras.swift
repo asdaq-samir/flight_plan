@@ -46,7 +46,7 @@ final class WaypointAnnotation: NSObject, MKAnnotation {
 final class WaypointMarkView: MKAnnotationView {
     static let reuse = "waypoint"
     /// The sectional's magenta (web lib/useAirspace MAGENTA).
-    static let magenta = UIColor(red: 0xc0 / 255.0, green: 0x30 / 255.0, blue: 0x9f / 255.0, alpha: 1)
+    static let magenta = UIColor(hex: 0xC0309F)
     private let diamond = UIView()
 
     override init(annotation: (any MKAnnotation)?, reuseIdentifier: String?) {

@@ -36,7 +36,7 @@ struct DiversionView: View {
                     }
                 }
             }
-            if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+            ProblemLine(problem)
             // The checkride's diversion from here, worked by the planner.
             Section {
                 NavigationLink { DiversionDrillView() } label: { Label("Diversion Drill", systemImage: "timer") }
@@ -71,14 +71,14 @@ struct CheckpointNotesView: View {
     @State private var typed = ""
 
     /// A checkpoint's key, by where it is, as the planner matches a note.
-    static func key(_ lat: Double, _ lon: Double) -> String { String(format: "%.5f,%.5f", lat, lon) }
+    static func key(_ lat: Double, _ lon: Double) -> String { AirportWords.point(lat, lon) }
 
     var body: some View {
         List {
             Section {
                 Button(writing ? (count.map { "Writing \(notes.count) of \($0)…" } ?? "Writing…") : "Describe the Checkpoints") { describe() }
                     .disabled(writing || plan.checkpoints.isEmpty)
-                if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                ProblemLine(problem)
             }
             Section("Checkpoints") {
                 if plan.checkpoints.isEmpty { Text("The route's checkpoints come with its plan.").foregroundStyle(.secondary) }
@@ -221,7 +221,7 @@ struct FlightServiceView: View {
                         .disabled(request() == nil || reference != nil || sending)
                     Button("Standard Briefing") { Task { await brief() } }
                         .disabled(request() == nil || sending)
-                    if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                    ProblemLine(problem)
                 }
                 if let briefing {
                     Section("Standard briefing") { Text(briefing).font(.footnote.monospaced()).textSelection(.enabled) }
@@ -323,7 +323,7 @@ struct FlownTrackView: View {
                 }
                 Section {
                     Button("Put In a GPX File…") { importing = true }
-                    if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                    ProblemLine(problem)
                 }
             }
             .navigationTitle(title)
@@ -364,12 +364,6 @@ final class GPXTrack: NSObject, XMLParserDelegate {
     private var ele: Double?
     private var time: Date?
     private var text = ""
-    private let iso = ISO8601DateFormatter()
-    private let isoFraction: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
 
     static func points(_ data: Data) -> [SavedTrackPoint]? {
         let reader = GPXTrack()
@@ -395,7 +389,7 @@ final class GPXTrack: NSObject, XMLParserDelegate {
         let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
         switch name {
         case "ele": ele = Double(value)
-        case "time": time = iso.date(from: value) ?? isoFraction.date(from: value)
+        case "time": time = AirportWords.date(value)
         case "trkpt":
             if let lat, let lon, let time, abs(lat) <= 90, abs(lon) <= 180, !(lat == 0 && lon == 0) {
                 points.append(SavedTrackPoint(t: Int64(time.timeIntervalSince1970 * 1000), lat: lat, lon: lon, altFt: ele.map { $0 * 3.28084 }))
@@ -482,8 +476,8 @@ enum RouteShare {
     static func navLogText(_ plan: Plan) -> String {
         var lines = [plan.idents.joined(separator: " → ")]
         if let totals = plan.totals {
-            lines.append([totals.distanceNm.map { String(format: "%.1f nm", $0) }, totals.eteMin.map(hoursMinutes),
-                          totals.fuelGal.map { String(format: "%.1f gal", $0) }].compactMap { $0 }.joined(separator: " · "))
+            lines.append([totals.distanceNm.map(AirportWords.nm), totals.eteMin.map(hoursMinutes),
+                          totals.fuelGal.map(AirportWords.gal)].compactMap { $0 }.joined(separator: " · "))
         }
         for leg in plan.legs {
             lines.append(String(format: "%@ → %@  %05.0f ft  MH %03.0f°  %.1f nm  %@  %@", leg.from, leg.to, leg.altitudeFt, leg.magneticHeadingDeg, leg.distanceNm,
@@ -581,8 +575,8 @@ struct Kneeboard: View {
                 Text("Date ________").font(.system(size: 9))
             }
             Rectangle().frame(height: 1.5)
-            Text([aircraft, totals?.distanceNm.map { String(format: "%.1f nm", $0) }, totals?.eteMin.map(hoursMinutes),
-                  totals?.fuelGal.map { String(format: "%.1f gal", $0) },
+            Text([aircraft, totals?.distanceNm.map(AirportWords.nm), totals?.eteMin.map(hoursMinutes),
+                  totals?.fuelGal.map(AirportWords.gal),
                   totals?.fuelRequiredGal.map { String(format: "(%.1f with reserve)", $0) }].compactMap { $0 }.joined(separator: " · "))
                 .font(.system(size: 9))
             Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 3) {

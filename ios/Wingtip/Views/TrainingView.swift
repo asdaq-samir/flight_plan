@@ -30,7 +30,7 @@ struct TrainingView: View {
             } else if session.signedIn, problem == nil {
                 ProgressView()
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Training")
         .navigationBarTitleDisplayMode(.inline)

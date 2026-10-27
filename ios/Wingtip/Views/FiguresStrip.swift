@@ -24,28 +24,48 @@ struct FiguresStrip: View {
 
     var body: some View {
         HStack {
-            figure("TO", plan.routed ? plan.dest : "—")
+            stripFigure("TO", plan.routed ? plan.dest : "—")
             if let flying {
-                figure("DIST", String(format: "%.1f nm", flying.leftNm))
-                figure("ETE", flying.minutes.map(hoursMinutes) ?? "—")
-                figure("FUEL", flying.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
+                stripFigure("DIST", AirportWords.nm(flying.leftNm))
+                stripFigure("ETE", flying.minutes.map(hoursMinutes) ?? "—")
+                stripFigure("FUEL", flying.fuelGal.map(AirportWords.gal) ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
             } else {
-                figure("DIST", plan.totals?.distanceNm.map { String(format: "%.1f nm", $0) } ?? plan.course.map { String(format: "%.1f nm", $0.distanceNm) } ?? "—")
-                figure("ETE", plan.totals?.eteMin.map(hoursMinutes) ?? "—")
-                figure("FUEL", plan.totals?.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
+                stripFigure("DIST", plan.totals?.distanceNm.map(AirportWords.nm) ?? plan.course.map { AirportWords.nm($0.distanceNm) } ?? "—")
+                stripFigure("ETE", plan.totals?.eteMin.map(hoursMinutes) ?? "—")
+                stripFigure("FUEL", plan.totals?.fuelGal.map(AirportWords.gal) ?? "—", warn: (plan.totals?.fuelMarginGal ?? 0) < 0)
             }
         }
         .padding(.horizontal)
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
     }
+}
 
-    private func figure(_ name: String, _ value: String, warn: Bool = false) -> some View {
-        VStack(spacing: 2) {
-            Text(name).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.headline.monospacedDigit()).foregroundStyle(warn ? Color.red : Color.primary)
-                .lineLimit(1).minimumScaleFactor(0.8)
+/// One figure of a strip, its name over it: the sheet's strip and FPL's
+/// totals.
+func stripFigure(_ name: String, _ value: String, warn: Bool = false) -> some View {
+    VStack(spacing: 2) {
+        Text(name).font(.caption2).foregroundStyle(.secondary)
+        Text(value).font(.headline.monospacedDigit()).foregroundStyle(warn ? Color.red : Color.primary)
+            .lineLimit(1).minimumScaleFactor(0.8)
+    }
+    .frame(maxWidth: .infinity)
+}
+
+/// The route's own bar items, FPL's on the iPhone and in the iPad's
+/// column alike: the stops' Edit, and with a route, Share and Clear.
+struct RouteToolbar: ToolbarContent {
+    let plan: Plan
+
+    var body: some ToolbarContent {
+        if !plan.stops.isEmpty {
+            ToolbarItem(placement: .topBarLeading) { EditButton() }
         }
-        .frame(maxWidth: .infinity)
+        if plan.routed {
+            ToolbarItem(placement: .topBarTrailing) { ShareMenu() }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Clear", role: .destructive) { plan.clear() }
+            }
+        }
     }
 }

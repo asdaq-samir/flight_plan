@@ -1,23 +1,14 @@
 import SwiftUI
 
 /// How the four planner-worked pages write a figure the planner sent: a
-/// direction as a pilot writes it, and a figure signed. Formatting only;
-/// the figures and the rules are the planner's (app.figures).
+/// figure signed, a share. Formatting only; the figures and the rules are
+/// the planner's (app.figures), and a direction, feet or a tolerance are
+/// written as AirportWords writes them.
 enum FigureWords {
-    /// "005°", north "360°" (the web's lib/units bearing).
-    static func bearing(_ deg: Double) -> String {
-        let whole = ((Int(deg.rounded()) % 360) + 360) % 360
-        return String(format: "%03d°", whole == 0 ? 360 : whole)
-    }
-
     /// "+300 ft", "−2 min", "0 ft".
     static func signed(_ value: Double, _ unit: String) -> String {
         let whole = Int(value.rounded())
         return "\(whole > 0 ? "+" : whole < 0 ? "−" : "")\(abs(whole).formatted())\(unit)"
-    }
-
-    static func feet(_ ft: Double?) -> String {
-        ft.map { "\(Int($0.rounded()).formatted()) ft" } ?? "—"
     }
 
     static func percent(_ share: Double) -> String { "\(Int((share * 100).rounded()))%" }
@@ -70,7 +61,7 @@ struct DebriefSections: View {
         if let answer, let d = answer.debrief {
             let t = answer.tolerances
             // PA.VI.A's tolerances in the title, as the web page has them.
-            Section("Leg by leg · within \(FigureWords.plain(t.offRouteNm)) nm, \(FigureWords.plain(t.altitudeFt)) ft, \(FigureWords.plain(t.courseDeg))°") {
+            Section("Leg by leg · within \(AirportWords.tenths(t.offRouteNm)) nm, \(AirportWords.tenths(t.altitudeFt)) ft, \(AirportWords.tenths(t.courseDeg))°") {
                 ForEach(Array(d.legs.enumerated()), id: \.offset) { _, leg in
                     HStack(alignment: .top, spacing: 12) {
                         WithinMark(ok: leg.ok)
@@ -82,7 +73,7 @@ struct DebriefSections: View {
                     }
                 }
             }
-            Section("Checkpoints · within \(FigureWords.plain(t.etaMin)) min") {
+            Section("Checkpoints · within \(AirportWords.tenths(t.etaMin)) min") {
                 ForEach(Array(d.passes.enumerated()), id: \.offset) { _, pass in
                     HStack(alignment: .top, spacing: 12) {
                         if let ok = pass.ok { WithinMark(ok: ok) } else { Image(systemName: "circle").foregroundStyle(.secondary).accessibilityHidden(true) }
@@ -94,15 +85,15 @@ struct DebriefSections: View {
                 }
             }
             if !d.patterns.isEmpty {
-                Section("Into the pattern · within \(FigureWords.plain(t.patternFt)) ft") {
+                Section("Into the pattern · within \(AirportWords.tenths(t.patternFt)) ft") {
                     ForEach(d.patterns, id: \.ident) { entry in
                         HStack(spacing: 12) {
                             WithinMark(ok: entry.ok)
                             LabeledContent {
-                                Text("\(FigureWords.feet(entry.altFt)) (\(FigureWords.signed(entry.offFt, "")))").monospacedDigit()
+                                Text("\(AirportWords.feet(entry.altFt)) (\(FigureWords.signed(entry.offFt, "")))").monospacedDigit()
                             } label: {
                                 Text(entry.ident)
-                                Text("Pattern altitude \(FigureWords.feet(entry.patternFt))")
+                                Text("Pattern altitude \(AirportWords.feet(entry.patternFt))")
                             }
                         }
                     }
@@ -128,13 +119,13 @@ struct DebriefSections: View {
             return d.hasAltitude ? "Altitude: no cruise on this leg" : "Altitude: the file has none"
         }
         let worst = leg.worstAltFt.map { ", at most \(FigureWords.signed($0, " ft"))" } ?? ""
-        return "Altitude: \(FigureWords.percent(within)) within \(FigureWords.plain(t.altitudeFt)) ft of \(FigureWords.feet(leg.plannedAltFt))\(worst)"
+        return "Altitude: \(FigureWords.percent(within)) within \(AirportWords.tenths(t.altitudeFt)) ft of \(AirportWords.feet(leg.plannedAltFt))\(worst)"
     }
 
     private func courseLine(_ leg: LegGrade, _ t: DebriefTolerances) -> String? {
         guard let within = leg.courseWithin, let course = leg.courseDeg else { return nil }
         let off = leg.worstOffNm.map { String(format: ", at most %.1f nm %@ of the line", abs($0), $0 >= 0 ? "right" : "left") } ?? ""
-        return "Course: \(FigureWords.percent(within)) within \(FigureWords.plain(t.courseDeg))° of \(FigureWords.bearing(course))\(off)"
+        return "Course: \(FigureWords.percent(within)) within \(AirportWords.tenths(t.courseDeg))° of \(AirportWords.bearing(course))\(off)"
     }
 
     private func passLine(_ p: CheckpointPass) -> String {
@@ -147,13 +138,6 @@ struct DebriefSections: View {
         }
         if !p.landed, let closest = p.closestNm { parts.append(String(format: "%.1f nm from it at closest", closest)) }
         return parts.joined(separator: " · ")
-    }
-}
-
-extension FigureWords {
-    /// A tolerance as written: "3", "1.5".
-    static func plain(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
     }
 }
 
@@ -198,9 +182,9 @@ struct DiversionDrillView: View {
         List {
             if started == nil {
                 Section {
-                    Text("Where you are, at \(FigureWords.feet(altitudeFt)), the examiner says: divert. Pick a field, and work out the magnetic heading, ground speed, time and fuel to it from the chart and the forecast wind.")
+                    Text("Where you are, at \(AirportWords.feet(altitudeFt)), the examiner says: divert. Pick a field, and work out the magnetic heading, ground speed, time and fuel to it from the chart and the forecast wind.")
                     Picker("Altitude", selection: $altitudeFt) {
-                        ForEach(Self.altitudes, id: \.self) { ft in Text(FigureWords.feet(ft)).tag(ft) }
+                        ForEach(Self.altitudes, id: \.self) { ft in Text(AirportWords.feet(ft)).tag(ft) }
                     }
                     .pickerStyle(.menu)
                     Button { start() } label: { Label("Start the Clock", systemImage: "timer") }
@@ -267,7 +251,7 @@ struct DiversionDrillView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                     }
                 }
-                if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+                ProblemLine(problem)
                 Section {
                     if checked {
                         Button("Again") { start() }
@@ -364,7 +348,7 @@ struct HoldingView: View {
                     HoldDiagram(inbound: i, heading: h, turns: turns, entry: answer.entry, from: answer.approachRelative)
                         .frame(maxWidth: 320).frame(maxWidth: .infinity)
                         .accessibilityElement()
-                        .accessibilityLabel("\(answer.entryName) entry to a hold with \(turns) turns on an inbound course of \(FigureWords.bearing(i)), arriving on a heading of \(FigureWords.bearing(h)).")
+                        .accessibilityLabel("\(answer.entryName) entry to a hold with \(turns) turns on an inbound course of \(AirportWords.bearing(i)), arriving on a heading of \(AirportWords.bearing(h)).")
                     VStack(alignment: .leading, spacing: 4) {
                         Text("\(answer.entryName) entry").font(.headline)
                         Text(answer.steps).font(.subheadline)
@@ -389,14 +373,14 @@ struct HoldingView: View {
             }
             if let wind = answer?.wind {
                 Section {
-                    row("Inbound heading", wind.inboundWords, FigureWords.bearing(wind.inbound.heading))
-                    row("Outbound heading", wind.outboundWords, FigureWords.bearing(wind.outbound.heading))
+                    row("Inbound heading", wind.inboundWords, AirportWords.bearing(wind.inbound.heading))
+                    row("Outbound heading", wind.outboundWords, AirportWords.bearing(wind.outbound.heading))
                     row("Outbound time", wind.timeWords, "\(Int(wind.outboundSec.rounded())) s")
                 }
             } else if let line = answer?.windProblem {
                 Text(line).foregroundStyle(.secondary)
             }
-            if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+            ProblemLine(problem)
         }
         .navigationTitle("Holding Entries")
         .navigationBarTitleDisplayMode(.inline)
@@ -619,7 +603,7 @@ struct LostCommsSegmentsSections: View {
             Button { segments.append(LostCommsSegmentAsk(name: "", minimumFt: nil)); minimums.append("") } label: {
                 Label("Add a Segment", systemImage: "plus")
             }
-            if let problem { Text(problem).font(.footnote).foregroundStyle(.red) }
+            ProblemLine(problem)
         }
     }
 }

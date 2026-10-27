@@ -57,7 +57,7 @@ struct GoNoGoTests {
         ask.ticked = ["stress"]
         ask.cruiseTasKt = 118
         ask.currency = Currency(totalHours: 240, flights: 120, dayPassengersUntil: "2026-12-01")
-        let data = try GoNoGoAsk.encoder.encode(ask)
+        let data = try Planner.snakeEncoder.encode(ask)
         let body = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(body["dep"] as? String == "C81" && body["stops"] as? String == "KMSN")
         #expect(body["altitude_choice"] as? String == "fastest" && body["altitude_nearest"] as? Bool == false)
@@ -74,8 +74,8 @@ struct GoNoGoTests {
     @Test func theDayIsThePilotsOwnCalendarDay() throws {
         // 03:00Z on 6 October is still the 5th in Chicago.
         let at = try #require(ISO8601DateFormatter().date(from: "2026-10-06T03:00:00Z"))
-        #expect(GoNoGoAsk.day(at, in: TimeZone(identifier: "America/Chicago")!) == "2026-10-05")
-        #expect(GoNoGoAsk.day(at, in: TimeZone(identifier: "UTC")!) == "2026-10-06")
+        #expect(Day.string(at, in: TimeZone(identifier: "America/Chicago")!) == "2026-10-05")
+        #expect(Day.string(at, in: TimeZone(identifier: "UTC")!) == "2026-10-06")
     }
 
     @Test func theMinimumsMenusAreTheWebAppsChoicesInItsWords() {
@@ -138,7 +138,7 @@ struct OwnAirplaneAskTests {
          "vorCheck":{"checkedOn":"2026-10-10","errorDeg":2,"goodThrough":"2026-11-09","kind":"vot","limitDeg":4,"withinLimit":true}}
         """
         let record = try JSONDecoder().decode(OwnAircraftRecord.self, from: Data(json.utf8))
-        let body = try JSONSerialization.jsonObject(with: GoNoGoAsk.encoder.encode(OwnAirplaneAsk(record))) as! [String: Any]
+        let body = try JSONSerialization.jsonObject(with: Planner.snakeEncoder.encode(OwnAirplaneAsk(record))) as! [String: Any]
         let inspections = body["inspections"] as! [String: Any]
         #expect(inspections["annual_good_through"] as? String == "2027-03-31")
         #expect(inspections["hundred_hour_due_at_hours"] as? Double == 4280)

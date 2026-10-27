@@ -29,7 +29,7 @@ struct FlightsView: View {
                         HStack(spacing: 10) {
                             if let nm = flight.totalDistanceNm { Text(String(format: "%.0f nm", nm)) }
                             if let min = flight.totalEteMin { Text(hoursMinutes(min)) }
-                            if let gal = flight.totalFuelGal { Text(String(format: "%.1f gal", gal)) }
+                            if let gal = flight.totalFuelGal { Text(AirportWords.gal(gal)) }
                             if let tail = flight.aircraftTailNumber { Text(tail) }
                         }
                         .font(.footnote).foregroundStyle(.secondary)
@@ -48,7 +48,7 @@ struct FlightsView: View {
                 flights.remove(atOffsets: at)
                 Task { for flight in gone { try? await Gateway.deleteFlight(flight.id) } }
             }
-            if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
+            ProblemLine(problem)
         }
         .navigationTitle("Flights")
         .navigationBarTitleDisplayMode(.inline)

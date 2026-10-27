@@ -93,13 +93,13 @@ struct PlannerFiguresTests {
     }
 
     @Test func thePlannersFiguresAreWrittenAsAPilotWritesThem() {
-        #expect(FigureWords.bearing(0) == "360°")
-        #expect(FigureWords.bearing(4.6) == "005°")
-        #expect(FigureWords.bearing(352.52) == "353°")
+        #expect(AirportWords.bearing(0) == "360°")
+        #expect(AirportWords.bearing(4.6) == "005°")
+        #expect(AirportWords.bearing(352.52) == "353°")
         #expect(FigureWords.signed(300, " ft") == "+300 ft")
         #expect(FigureWords.signed(-2.4, " min") == "−2 min")
         #expect(FigureWords.signed(0, " ft") == "0 ft")
-        #expect(FigureWords.plain(1.5) == "1.5" && FigureWords.plain(200) == "200")
+        #expect(AirportWords.tenths(1.5) == "1.5" && AirportWords.tenths(200) == "200")
         #expect(FigureWords.percent(0.856) == "86%")
     }
 }

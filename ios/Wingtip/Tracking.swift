@@ -48,9 +48,15 @@ final class Tracking {
     /// The pilot's own flown track, shown from a saved flight.
     var flown: [PathPoint] = []
     /// The Favorites, kept where the Aircraft tab has always kept them.
-    private(set) var favorites: [KeptAirplane] = Tracking.load(KeptAirplane.key)
-    private(set) var recents: [KeptAirplane] = Tracking.load("recentAircraft")
-    private(set) var watches: [AirplaneWatch] = Tracking.load("aircraftWatches")
+    private(set) var favorites: [KeptAirplane] = UserDefaults.standard.decoded([KeptAirplane].self, forKey: KeptAirplane.key) ?? [] {
+        didSet { UserDefaults.standard.setEncoded(favorites, forKey: KeptAirplane.key) }
+    }
+    private(set) var recents: [KeptAirplane] = UserDefaults.standard.decoded([KeptAirplane].self, forKey: "recentAircraft") ?? [] {
+        didSet { UserDefaults.standard.setEncoded(recents, forKey: "recentAircraft") }
+    }
+    private(set) var watches: [AirplaneWatch] = UserDefaults.standard.decoded([AirplaneWatch].self, forKey: "aircraftWatches") ?? [] {
+        didSet { UserDefaults.standard.setEncoded(watches, forKey: "aircraftWatches") }
+    }
     /// The last watch that went off, for the banner over the map.
     var fired: String?
     /// Whether each watched airplane was in the air, where known.
@@ -105,17 +111,14 @@ final class Tracking {
 
     func toggleFavorite(_ kept: KeptAirplane) {
         if isFavorite(kept.hex) { favorites.removeAll { $0.hex == kept.hex } } else { favorites.append(kept) }
-        Self.save(favorites, KeptAirplane.key)
     }
 
     func remember(_ kept: KeptAirplane) {
         recents = Array(([kept] + recents.filter { $0.hex != kept.hex }).prefix(Self.recentCount))
-        Self.save(recents, "recentAircraft")
     }
 
     func forget(recent hex: String) {
         recents.removeAll { $0.hex == hex }
-        Self.save(recents, "recentAircraft")
     }
 
     // MARK: Watches
@@ -124,7 +127,6 @@ final class Tracking {
 
     func toggleWatch(_ watch: AirplaneWatch) {
         if watches.contains(watch) { watches.removeAll { $0 == watch } } else { watches.append(watch) }
-        Self.save(watches, "aircraftWatches")
     }
 
     /// Whether the airplane is in the air (the web app's airborneNow): in
@@ -173,7 +175,6 @@ final class Tracking {
                             fired = words
                             SpokenAlerts.shared.say("\(words).", force: true)
                             watches.removeAll { $0 == watch }
-                            Self.save(watches, "aircraftWatches")
                         }
                     }
                     if let now { airborne[hex] = now }
@@ -182,17 +183,6 @@ final class Tracking {
             tick += 1
             try? await Task.sleep(for: .seconds(5))
         }
-    }
-
-    // MARK: Kept on the device
-
-    nonisolated private static func load<T: Decodable>(_ key: String) -> [T] {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
-        return (try? JSONDecoder().decode([T].self, from: data)) ?? []
-    }
-
-    nonisolated private static func save<T: Encodable>(_ items: [T], _ key: String) {
-        UserDefaults.standard.set(try? JSONEncoder().encode(items), forKey: key)
     }
 }
 

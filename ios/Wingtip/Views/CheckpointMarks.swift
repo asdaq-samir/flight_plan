@@ -23,8 +23,7 @@ final class CheckpointAnnotation: NSObject, MKAnnotation {
     /// The rating scale's steps (lib/scoreScale SCORE_STEPS, format.ts
     /// scoreColor): the deeper the brown, the better the checkpoint.
     static func colour(for score: Double) -> UIColor {
-        let hex: UInt32 = score >= 4.5 ? 0x4E3406 : score >= 4.0 ? 0x724D09 : score >= 3.5 ? 0x96660E : score >= 3.0 ? 0xB98014 : 0xD99A1E
-        return UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
+        UIColor(hex: score >= 4.5 ? 0x4E3406 : score >= 4.0 ? 0x724D09 : score >= 3.5 ? 0x96660E : score >= 3.0 ? 0xB98014 : 0xD99A1E)
     }
 
     /// White on the three deeper steps, ink on the two palest, as the web

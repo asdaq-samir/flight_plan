@@ -83,7 +83,7 @@ enum BriefLegs {
         points.append((course.destination.lat, course.destination.lon))
         guard points.count == legs.count + 1 else { return nil }
         return Query(
-            fixes: points.map { String(format: "%.5f,%.5f", $0.0, $0.1) }.joined(separator: ";"),
+            fixes: points.map { AirportWords.point($0.0, $0.1) }.joined(separator: ";"),
             legMin: legs.map { String(format: "%.1f", $0.eteMin ?? 0) }.joined(separator: ","),
             groundMin: legs.map { String(format: "%.0f", $0.groundMin ?? 0) }.joined(separator: ",")
         )
@@ -105,22 +105,10 @@ enum BriefLegs {
         return "\(sorted.count == 1 ? "Leg" : "Legs") \(said)"
     }
 
-    private static let plain: ISO8601DateFormatter = ISO8601DateFormatter()
-    private static let fractional: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return f
-    }()
-
-    static func date(_ iso: String?) -> Date? {
-        guard let iso else { return nil }
-        return plain.date(from: iso) ?? fractional.date(from: iso)
-    }
-
     /// "14:20", the hours and minutes in `zone`, as the web app's
     /// clockTime gives the device's own.
     static func clock(_ iso: String?, zone: TimeZone = .current) -> String? {
-        guard let at = date(iso) else { return nil }
+        guard let at = AirportWords.date(iso) else { return nil }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = zone
         let parts = calendar.dateComponents([.hour, .minute], from: at)
@@ -182,11 +170,10 @@ extension Planner {
     /// The briefing, its hazards placed on the nav log's legs where they
     /// are given (/api/briefing's fixes, leg_min, ground_min).
     static func briefing(dep: String, dest: String, stops: [String], eteMin: Double?, legs: BriefLegs.Query?) async throws -> Briefing {
-        try await fetch(Briefing.self, "/api/briefing", [
-            "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","),
+        try await fetch(Briefing.self, "/api/briefing", route(dep, dest, stops).merging([
             "ete_min": eteMin.map { String(Int($0.rounded())) },
             "fixes": legs?.fixes, "leg_min": legs?.legMin, "ground_min": legs?.groundMin,
-        ])
+        ]) { $1 })
     }
 
     /// When the planner fetched the METARs and TFRs the map draws

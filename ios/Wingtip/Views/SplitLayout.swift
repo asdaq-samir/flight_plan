@@ -219,15 +219,7 @@ struct SplitLayout<Map: View>: View {
         ToolbarItem(placement: .topBarLeading) {
             Button { card = .flights } label: { Label("Flights", systemImage: "tray.full") }
         }
-        if !plan.stops.isEmpty {
-            ToolbarItem(placement: .topBarLeading) { EditButton() }
-        }
-        if plan.routed {
-            ToolbarItem(placement: .topBarTrailing) { ShareMenu() }
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Clear", role: .destructive) { plan.clear() }
-            }
-        }
+        RouteToolbar(plan: plan)
     }
 
     private var closeItem: some ToolbarContent {

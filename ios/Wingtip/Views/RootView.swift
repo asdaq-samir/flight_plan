@@ -197,16 +197,3 @@ struct SheetView: View {
         .modifier(FlightSheets())
     }
 }
-
-struct ComingView: View {
-    let title: String
-    let detail: String
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(title, systemImage: "hammer", description: Text(detail))
-                .navigationTitle(title)
-                .navigationBarTitleDisplayMode(.inline)
-        }
-    }
-}

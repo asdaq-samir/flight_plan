@@ -125,10 +125,10 @@ struct FPLView: View {
                 if let totals = plan.totals {
                     Section {
                         HStack {
-                            figure("TO", plan.dest)
-                            figure("DIST", totals.distanceNm.map { String(format: "%.1f nm", $0) } ?? "—")
-                            figure("ETE", totals.eteMin.map(hoursMinutes) ?? "—")
-                            figure("FUEL", totals.fuelGal.map { String(format: "%.1f gal", $0) } ?? "—",
+                            stripFigure("TO", plan.dest)
+                            stripFigure("DIST", totals.distanceNm.map(AirportWords.nm) ?? "—")
+                            stripFigure("ETE", totals.eteMin.map(hoursMinutes) ?? "—")
+                            stripFigure("FUEL", totals.fuelGal.map(AirportWords.gal) ?? "—",
                                    warn: (totals.fuelMarginGal ?? 0) < 0)
                         }
                     }
@@ -185,17 +185,7 @@ struct FPLView: View {
                 default: FlightPage(name: page)
                 }
             }
-            .toolbar {
-                if !plan.stops.isEmpty {
-                    ToolbarItem(placement: .topBarLeading) { EditButton() }
-                }
-                if plan.routed {
-                    ToolbarItem(placement: .topBarTrailing) { ShareMenu() }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Clear", role: .destructive) { plan.clear() }
-                    }
-                }
-            }
+            .toolbar { RouteToolbar(plan: plan) }
         }
     }
 
@@ -209,14 +199,6 @@ struct FPLView: View {
             .focused($focused, equals: field)
             .onSubmit { if field == .dep { focused = .dest } else { plan.plan() } }
     }
-
-    private func figure(_ name: String, _ value: String, warn: Bool = false) -> some View {
-        VStack(spacing: 2) {
-            Text(name).font(.caption2).foregroundStyle(.secondary)
-            Text(value).font(.headline.monospacedDigit()).foregroundStyle(warn ? Color.red : Color.primary)
-        }
-        .frame(maxWidth: .infinity)
-    }
 }
 
 /// A leg's row: where to, the magnetic heading, the distance, the time
@@ -229,8 +211,8 @@ struct LegRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(leg.to).font(.headline)
                 HStack(spacing: 10) {
-                    Text(String(format: "%03.0f°", leg.magneticHeadingDeg))
-                    if let gs = leg.groundspeedKt { Text(String(format: "%.0f kt", gs)) }
+                    Text(AirportWords.degrees(leg.magneticHeadingDeg))
+                    if let gs = leg.groundspeedKt { Text(AirportWords.kt(gs)) }
                     if let wind = leg.wind, let dir = wind.directionDeg, let kt = wind.speedKt {
                         Text(String(format: "%03.0f/%.0f", dir, kt))
                     }
@@ -240,10 +222,10 @@ struct LegRow: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text(String(format: "%.1f nm", leg.distanceNm)).font(.subheadline.monospacedDigit())
+                Text(AirportWords.nm(leg.distanceNm)).font(.subheadline.monospacedDigit())
                 HStack(spacing: 8) {
                     if let ete = leg.eteMin { Text(hoursMinutes(ete)) }
-                    if let fuel = leg.fuelGal { Text(String(format: "%.1f gal", fuel)) }
+                    if let fuel = leg.fuelGal { Text(AirportWords.gal(fuel)) }
                 }
                 .font(.footnote.monospacedDigit())
                 .foregroundStyle(.secondary)
