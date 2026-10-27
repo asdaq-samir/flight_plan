@@ -161,7 +161,7 @@ export default function MapSettings() {
       {/* The base chart along each route loaded, held for the air
           (useKeepOffline); how a keep goes is its toast. Over plain http
           there is no service worker to hold it, and it cannot be on. Here
-          since App Look took its place in Setup's Controls (the owner,
+          since Theme (the app's look) took its place in Setup's Controls (the owner,
           2026-10-27). */}
       <ListGroup title="Offline">
         <SwitchRow

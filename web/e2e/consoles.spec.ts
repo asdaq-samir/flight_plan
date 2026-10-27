@@ -204,20 +204,20 @@ test("the console is the panel's own: up from the bottom of a phone's screen, in
   // Setup is one page now, no tabs of its own to change (PilotPanel).
 });
 
-test("Setup's Theme control is system, light or dark, a menu of all three, and the choice survives a reload", async ({ page }) => {
+test("Setup's Appearance control is system, light or dark, a menu of all three, and the choice survives a reload", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await openSetup(page);
   const html = page.locator("html");
   const theme = page.getByTestId("setup-page").getByTestId("theme-select");
-  await expect(theme).toHaveAccessibleName("Theme: System");
+  await expect(theme).toHaveAccessibleName("Appearance: System");
   await expect(html).not.toHaveClass(/dark/);   // "system", and the test browser prefers light
   await pickControl(page, "theme-select", "theme-dark");
   await expect(html).toHaveClass(/dark/);
   // The one already chosen, picked again, stays chosen: a menu of one of
   // three, not a set of toggles that can all be off.
   await pickControl(page, "theme-select", "theme-dark");
-  await expect(theme).toHaveAccessibleName("Theme: Dark");
+  await expect(theme).toHaveAccessibleName("Appearance: Dark");
   await page.reload();
   await page.waitForTimeout(300);
   await expect(html).toHaveClass(/dark/);

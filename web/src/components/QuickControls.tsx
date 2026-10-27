@@ -38,11 +38,14 @@ export default function QuickControls() {
         icon={alertMode === "off" ? <BellOff /> : alertMode === "spoken" ? <BellRing /> : <Bell />}
         options={ALERT_MODES.map(m => ({ value: m.value, label: m.label, testId: `alerts-mode-${m.value}` }))}
       />
-      {/* The app's look, the owner's four (lib/brand), where Offline was,
-          at the owner's ask (2026-10-27: "instead of offline, let's have
-          app look"); the charts kept offline went to the map's menu. */}
+      {/* The app's look, the owner's four (lib/brand), its Theme, where
+          Offline was, named so at the owner's yes (2026-10-27): what most
+          apps call a theme, and System, Light and Dark iOS's Appearance.
+          It was "App Look", put here at the owner's ask ("instead of
+          offline, let's have app look"); the charts kept offline went to
+          the map's menu. */}
       <MenuTile<Brand>
-        label="App Look" value={brand} onChange={setBrand} on={false} testId="brand-select" icon={<Palette />}
+        label="Theme" value={brand} onChange={setBrand} on={false} testId="brand-select" icon={<Palette />}
         options={BRANDS.map(b => ({ value: b.value, label: b.label, testId: `brand-${b.value}` }))}
       />
       {/* The edge the route panel is on, which the sheets come from too
@@ -52,11 +55,12 @@ export default function QuickControls() {
         icon={edge === "top" ? <PanelTop /> : <PanelBottom />}
         options={[{ value: "top", label: "Top", testId: "nav-bar-top" }, { value: "bottom", label: "Bottom", testId: "nav-bar-bottom" }]}
       />
-      {/* The theme next-themes keeps, following the phone on System: a
+      {/* Light or dark, Appearance as iOS names it (Display & Brightness),
+          next-themes keeping it and following the phone on System: a
           pilot planning at night wants the page as dim as the panel
           lights. */}
       <MenuTile<"system" | "light" | "dark">
-        label="Theme" value={picked} onChange={setTheme} on={false} testId="theme-select"
+        label="Appearance" value={picked} onChange={setTheme} on={false} testId="theme-select"
         icon={picked === "dark" ? <Moon /> : picked === "light" ? <Sun /> : <Monitor />}
         options={[
           { value: "system", label: "System", testId: "theme-system" },
