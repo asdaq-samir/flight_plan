@@ -165,7 +165,7 @@ public class InstructorService {
         if (waiting) {
             throw new Refused(HttpStatus.CONFLICT, "This flight is already with " + EndorsementRecords.nameOf(instructor) + ".");
         }
-        String note = request.note() == null || request.note().isBlank() ? null : request.note().strip();
+        String note = Typed.text(request.note());
         reviews.save(new CrossCountryReview(student, instructor, flight, request.makeModel().strip(), request.flightOn(), note, now));
         String name = EndorsementRecords.nameOf(student);
         send(instructor.getEmail(), name + " asks you to review a solo cross-country",

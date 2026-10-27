@@ -13,7 +13,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -86,19 +85,17 @@ public class PilotController {
     @DeleteMapping
     public ResponseEntity<?> delete(Authentication authentication, HttpServletRequest request,
             HttpServletResponse response) {
-        Optional<Pilot> pilot = pilots.current(authentication);
-        if (pilot.isEmpty()) {
-            return ResponseEntity.status(401).build();
-        }
-        try {
-            accounts.delete(pilot.get());
-        } catch (AccountNotDeletedException failed) {
-            log.warn("account {} not deleted: {}", pilot.get().getId(), failed.getMessage());
-            return ResponseEntity.status(502).body(new ErrorResponse(
-                    "Your account was not deleted: the planner did not answer. Nothing was removed; try again shortly."));
-        }
-        new SecurityContextLogoutHandler().logout(request, response, authentication);
-        return ResponseEntity.noContent().build();
+        return PilotResponses.<Object>withPilot(pilots, authentication, pilot -> {
+            try {
+                accounts.delete(pilot);
+            } catch (AccountNotDeletedException failed) {
+                log.warn("account {} not deleted: {}", pilot.getId(), failed.getMessage());
+                return ResponseEntity.status(502).body(new ErrorResponse(
+                        "Your account was not deleted: the planner did not answer. Nothing was removed; try again shortly."));
+            }
+            new SecurityContextLogoutHandler().logout(request, response, authentication);
+            return ResponseEntity.noContent().build();
+        });
     }
 
     private static PilotDto toDto(Pilot pilot) {

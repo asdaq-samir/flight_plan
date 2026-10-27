@@ -53,8 +53,7 @@ public class SquawkService {
     }
 
     private static Squawk fill(Squawk s, SquawkRequest r) {
-        String note = r.fixNote() == null || r.fixNote().isBlank() ? null : r.fixNote().strip();
-        return s.set(r.reportedOn(), r.text().strip(), r.inoperative(), r.deferredFor(), r.fixedOn(), note);
+        return s.set(r.reportedOn(), r.text().strip(), r.inoperative(), r.deferredFor(), r.fixedOn(), Typed.text(r.fixNote()));
     }
 
     static SquawkDto toDto(Squawk s) {

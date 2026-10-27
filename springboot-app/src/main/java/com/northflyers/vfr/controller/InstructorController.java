@@ -85,9 +85,8 @@ public class InstructorController {
     /** One student's record, as their instructor reads it. */
     @GetMapping("/students/{studentId}/training")
     public ResponseEntity<TrainingDto> student(Authentication authentication, @PathVariable Long studentId) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> instructors.student(pilot, studentId)
-                .map(student -> ResponseEntity.ok(recordOf(pilot, student)))
-                .orElse(ResponseEntity.notFound().build()));
+        return PilotResponses.found(pilots, authentication, pilot -> instructors.student(pilot, studentId)
+                .map(student -> recordOf(pilot, student)));
     }
 
     /** An endorsement signed for one of their students: 400 a field
@@ -98,12 +97,11 @@ public class InstructorController {
     @PostMapping("/students/{studentId}/endorsements")
     public ResponseEntity<TrainingDto> sign(Authentication authentication, @PathVariable Long studentId,
                                             @Valid @RequestBody SignRequest request) {
-        return PilotResponses.withPilot(pilots, authentication, pilot -> instructors.student(pilot, studentId)
+        return PilotResponses.found(pilots, authentication, pilot -> instructors.student(pilot, studentId)
                 .map(student -> {
                     instructors.sign(pilot, student, request, Instant.now());
-                    return ResponseEntity.ok(recordOf(pilot, student));
-                })
-                .orElse(ResponseEntity.notFound().build()));
+                    return recordOf(pilot, student);
+                }));
     }
 
     /** One they signed, voided for a correction. */
