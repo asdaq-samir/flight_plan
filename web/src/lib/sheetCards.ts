@@ -19,8 +19,11 @@ type Entry = {
 };
 
 /** Where the cards are put (the panel's body), and those open, the last
- *  on top. */
-export const useSheetCards = create<{ host: HTMLElement | null; stack: Entry[] }>(() => ({ host: null, stack: [] }));
+ *  on top; and whether the panel's tab bar names the top one in the
+ *  tabs' place (`barNamed`), its own head then leaving the name and the
+ *  close to the bar. */
+export const useSheetCards = create<{ host: HTMLElement | null; stack: Entry[]; barNamed: boolean }>(
+  () => ({ host: null, stack: [], barNamed: false }));
 
 /** How far the panel is asked up for the cards open: null with none. */
 export const raisedFor = (stack: Entry[]): "half" | "full" | null =>

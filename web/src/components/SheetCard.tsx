@@ -92,6 +92,10 @@ export function SheetCard({
   const headingId = `${id}-name`;
   const host = useSheetCards(s => s.host);
   const top = useSheetCards(s => s.stack.at(-1)?.id === id);
+  // The tab bar names it and has its close (TabBar, minimized): its own
+  // row keeps only a form's Cancel and Save, its name there for a screen
+  // reader and the focus.
+  const barNamed = useSheetCards(s => s.barNamed) && title !== undefined;
   const card = useRef<HTMLElement>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   // The caller's latest, for what is set up once as it opens.
@@ -165,7 +169,7 @@ export function SheetCard({
 
   if (!host) return null;
   const end = (closeButton ?? (action === undefined && !leading))
-    ? <CloseButton onClick={onClose} data-testid="sheet-card-close" />
+    ? (barNamed ? null : <CloseButton onClick={onClose} data-testid="sheet-card-close" />)
     : action;
   return createPortal(
     // Under one opened over it, kept as it was and out of sight, for the
@@ -183,12 +187,12 @@ export function SheetCard({
       {/* Its name at the left at a card's size and the close at the right
           end of its row, as CardHead sets a place's; a form's Cancel and
           Save at the two ends, the name between them. */}
-      <div className={cn("flex shrink-0 items-center gap-2 pb-3", titleHidden && "sr-only")}>
+      <div className={cn("flex shrink-0 items-center gap-2 pb-3", (titleHidden || (barNamed && end == null && !leading)) && "sr-only")}>
         {leading}
         {title === undefined ? (
           <div ref={setSlot} className="flex min-w-0 flex-1 items-center gap-2.5" />
         ) : (
-          <div className={cn("min-w-0 flex-1", leading && "text-center")}>
+          <div className={cn("min-w-0 flex-1", leading && "text-center", barNamed && "[&>*]:sr-only")}>
             <h2 id={headingId} tabIndex={-1} className={cn("font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}>{title}</h2>
             {description && <p className={cn("text-muted-foreground", TEXT.note)}>{description}</p>}
           </div>
