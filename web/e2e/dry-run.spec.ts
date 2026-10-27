@@ -199,17 +199,19 @@ test("half way a dry run started from the profile's card plays in the card, in o
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  await openProfile(page);
-  const start = panel.getByTestId("dry-run-start");
-  await expect(start).toBeVisible({ timeout: slow(60_000) });
   // The finest sectional level drawn (the coarse one kept under the map,
   // ChartTiles, aside): the route's as it was fitted, then on play the
   // dry run's, in on its airplane, smoothly (the owner's "When play is
-  // pressed it should also zoom into plane on the route").
+  // pressed it should also zoom into plane on the route"). Read before
+  // the profile opens: it opens through the map's Play, whose run zooms
+  // in before the helper stops it.
   const level = () => page.evaluate(() => Math.max(0, ...[...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/sec/"]')]
     .map(tile => Number(tile.src.match(/\/sec\/(\d+)\//)?.[1] ?? NaN)).filter(Number.isFinite)));
   await settled(panel);
   const fitted = await level();
+  await openProfile(page);
+  const start = panel.getByTestId("dry-run-start");
+  await expect(start).toBeVisible({ timeout: slow(60_000) });
   await start.click();
   // In the card, in the side view's place (the owner's "profile should play
   // the dry run within profile card").
