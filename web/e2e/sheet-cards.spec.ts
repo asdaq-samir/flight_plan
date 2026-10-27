@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeCard, grabberTo, openMapSettings, openTab, panelTabs, settle, settled, sideDrawer, slow, tapTheChart } from "./helpers";
+import { cardClose, closeCard, grabberTo, openMapSettings, openTab, panelTabs, settle, settled, sideDrawer, slow, tapTheChart } from "./helpers";
 
 /**
  * On a phone, what a control opens (ResponsivePopover) and what a tap on
@@ -77,7 +77,7 @@ test("the approaches' pull-down is a card in the sheet, and the list it opens ta
   await expect(panel.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
   await expect(panel.getByTestId("procedures-none")).toBeVisible();
   // Closed: the route's list again, the panel all the way up as it was.
-  await page.getByTestId("procedures-close").click();
+  await cardClose(page, "procedures-close").click();
   await expect(panel.getByRole("heading", { name: "KDLH approaches" })).toHaveCount(0);
   await expect(arrive).toBeVisible();
   await expect(panel).toHaveAttribute("data-panel", "full");

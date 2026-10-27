@@ -1,5 +1,5 @@
 import { test, expect, type Locator } from "@playwright/test";
-import { grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
+import { cardClose, grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
 // A runway line opened stays open while the spec picks from it: the app
 // folds it after two seconds untouched, which a loaded runner can spend
@@ -127,10 +127,12 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await expect(fixes).toContainText(/FAKER\s*2,700 ft/);
   // The close goes back, to the field's approaches: no Back (the owner's
   // "close button should behave as the back button").
-  await expect(page.getByTestId("procedures-close")).toHaveAccessibleName("Back");
-  await page.getByTestId("procedures-close").click();
+  // (Its name on the bar's close, on a phone, is the bar's own.)
+  const wide = page.viewportSize()!.width >= 768;
+  if (wide) await expect(page.getByTestId("procedures-close")).toHaveAccessibleName("Back");
+  await cardClose(page, "procedures-close").click();
   await expect(page.getByRole("heading", { name: "KDLH approaches" })).toBeVisible();
-  await expect(page.getByTestId("procedures-close")).toHaveAccessibleName("Close");
+  if (wide) await expect(page.getByTestId("procedures-close")).toHaveAccessibleName("Close");
   await page.getByTestId("procedure-option").filter({ hasText: "ILS RWY 09" }).click();
   // By DLH, drawn as it is chosen.
   await page.getByTestId("procedure-transition").filter({ hasText: "DLH" }).click();
@@ -176,7 +178,7 @@ test("a field's approach is picked on its own page with its transition, drawn on
   await expect(page).not.toHaveURL(/[?&]procs=/);
   await expect(page.getByTestId("procedure-add")).toBeVisible();
   // Put away by its own close.
-  await page.getByTestId("procedures-close").click();
+  await cardClose(page, "procedures-close").click();
   await expect(page.getByTestId("procedure-add")).toHaveCount(0);
   await expect(page.locator("path.instrument-procedure")).toHaveCount(0);
 });
@@ -216,7 +218,7 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await menu.getByTestId("procedure-menu-item").filter({ hasText: "ILS" }).click();
   // Its transitions in the menu's own place, on the screen: side by side,
   // a phone's ran off its edge (the owner's screenshot).
-  await expect(menu.getByTestId("procedure-menu-close")).toHaveAccessibleName("Back");
+  if (page.viewportSize()!.width >= 768) await expect(menu.getByTestId("procedure-menu-close")).toHaveAccessibleName("Back");
   const placed = (await menu.boundingBox())!;
   expect(placed.x + placed.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   await page.getByTestId("procedure-menu-transition").filter({ hasText: "From DLH" }).click();
@@ -542,7 +544,7 @@ test("a procedure's fixes branch off the route, each sent direct to or given an 
   await expect(card.getByTestId("fix-card-charted")).toBeVisible();
   await card.getByTestId("fix-card-charted").click();
   await expect(page).not.toHaveURL(/[?&]cross=/);
-  await card.getByTestId("fix-card-close").click();
+  await cardClose(page, "fix-card-close").click();
   await expect(card).toHaveCount(0);
   // The same card from the fix on the map: a tap's click on its mark, under
   // the sheet here, as the map's marks are tapped in the other specs.
