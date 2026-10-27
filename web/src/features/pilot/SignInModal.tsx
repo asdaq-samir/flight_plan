@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Mail } from "lucide-react";
 import { cn } from "cn";
@@ -6,12 +6,7 @@ import AppleLogo from "../../components/icons/AppleLogo";
 import GoogleLogo from "../../components/icons/GoogleLogo";
 import IconButton from "../../components/IconButton";
 import { Button } from "../../components/ui/button";
-import {
-  Dialog, DialogClose, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
-} from "../../components/ui/dialog";
-import CloseButton from "../../components/CloseButton";
-import { PhoneSheetContent } from "../../components/PhoneSheet";
-import { useIsMobile } from "../../hooks/use-mobile";
+import SheetDialog from "../../components/SheetDialog";
 import { Input } from "../../components/ui/input";
 import { Spinner } from "../../components/ui/spinner";
 import { ApiError, api } from "../../lib/api/client";
@@ -82,136 +77,115 @@ export default function SignInModal({ plain = false }: {
         : linkError instanceof ApiError && linkError.status < 500 ? "Couldn't send that link. Reload the page and try again."
           : "Couldn't reach the sign-in service. Try again in a minute.";
   const sent = magicLink.isSuccess ? magicLink.variables : null;
-  // On a phone a sheet from the bottom, as iOS asks to sign in, in the
-  // floating sheet's look (PhoneSheetContent), at the owner's pick of the
-  // sheets audit (D3, 2026-10-17); wider, the dialog in the middle.
-  const onPhone = useIsMobile();
-  const Content = onPhone ? PhoneSheetBody : DialogContent;
-
+  // On a phone a sheet from the navigation bar's edge, the bottom unless
+  // the pilot moved it, as iOS asks to sign in, in the floating sheet's
+  // look, at the owner's pick of the sheets audit (D3, 2026-10-17); wider,
+  // the dialog in the middle (SheetDialog).
   return (
-    <Dialog open={open} onOpenChange={o => {
-      setOpen(o);
-      if (!o) {
-        setEmail("");
-        magicLink.reset();
-      }
-    }}>
-      <DialogTrigger asChild>
-        {plain ? (
-          <Button
-            variant="ghost" size="sm" data-testid="sign-in"
-            className={cn("relative -mr-2 px-2 font-normal text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}
-          >
-            Sign in
-          </Button>
-        ) : <Button variant="outline" size="sm">Sign in</Button>}
-      </DialogTrigger>
-      <Content>
-        <DialogHeader data-swipe-handle="" className="touch-none">
-          <DialogTitle>Sign in to Wingtip Maps</DialogTitle>
-          <DialogDescription>Save your airplanes and filed flights to your own account.</DialogDescription>
-        </DialogHeader>
-        {/* On a TV, a code to type in on a phone (TvCode): the emailed
-            link opens where the mail is read, and Google's and Apple's
-            pages want a keyboard. */}
-        {onTv ? <TvCode /> : (<>
-        {(providers.length > 0 || native) && (
-          <>
-            <div className="flex flex-col gap-2">
-              {native && (
-                <Button variant="outline" className="justify-start gap-3" disabled={appleSheet.isPending}
-                  onClick={() => appleSheet.mutate()} data-testid="apple-native">
+    <SheetDialog
+      open={open} onOpenChange={o => {
+        setOpen(o);
+        if (!o) {
+          setEmail("");
+          magicLink.reset();
+        }
+      }}
+      title="Sign in to Wingtip Maps" description="Save your airplanes and filed flights to your own account."
+      trigger={plain ? (
+        <Button
+          variant="ghost" size="sm" data-testid="sign-in"
+          className={cn("relative -mr-2 px-2 font-normal text-tint after:absolute after:-inset-y-2 after:inset-x-0", TEXT.row)}
+        >
+          Sign in
+        </Button>
+      ) : <Button variant="outline" size="sm">Sign in</Button>}
+    >
+      {/* On a TV, a code to type in on a phone (TvCode): the emailed
+          link opens where the mail is read, and Google's and Apple's
+          pages want a keyboard. */}
+      {onTv ? <TvCode /> : (<>
+      {(providers.length > 0 || native) && (
+        <>
+          <div className="flex flex-col gap-2">
+            {native && (
+              <Button variant="outline" className="justify-start gap-3" disabled={appleSheet.isPending}
+                onClick={() => appleSheet.mutate()} data-testid="apple-native">
+                <AppleLogo className="size-4" />
+                Continue with Apple
+              </Button>
+            )}
+            {appleSheet.isError && (
+              <p role="alert" className={`text-destructive ${TEXT.note}`}>
+                {appleSheet.error instanceof ApiError ? appleSheet.error.message : "Sign in with Apple did not finish. Try again."}
+              </p>
+            )}
+            {providers.includes("google") && (
+              <Button asChild variant="outline" className="justify-start gap-3">
+                <a href="/oauth2/authorization/google">
+                  <GoogleLogo className="size-4" />
+                  Continue with Google
+                </a>
+              </Button>
+            )}
+            {providers.includes("apple") && (
+              <Button asChild variant="outline" className="justify-start gap-3">
+                <a href="/oauth2/authorization/apple">
                   <AppleLogo className="size-4" />
                   Continue with Apple
-                </Button>
-              )}
-              {appleSheet.isError && (
-                <p role="alert" className={`text-destructive ${TEXT.note}`}>
-                  {appleSheet.error instanceof ApiError ? appleSheet.error.message : "Sign in with Apple did not finish. Try again."}
-                </p>
-              )}
-              {providers.includes("google") && (
-                <Button asChild variant="outline" className="justify-start gap-3">
-                  <a href="/oauth2/authorization/google">
-                    <GoogleLogo className="size-4" />
-                    Continue with Google
-                  </a>
-                </Button>
-              )}
-              {providers.includes("apple") && (
-                <Button asChild variant="outline" className="justify-start gap-3">
-                  <a href="/oauth2/authorization/apple">
-                    <AppleLogo className="size-4" />
-                    Continue with Apple
-                  </a>
-                </Button>
-              )}
-            </div>
-            <div className={`flex items-center gap-3 text-muted-foreground ${TEXT.note} before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border`}>
-              or
-            </div>
-          </>
-        )}
-        {sent ? (
-          <p className={`text-muted-foreground ${TEXT.prose}`} role="status">
-            Check <span className="font-semibold text-foreground">{sent}</span> for a sign-in link.
-            It expires in 15 minutes.
-          </p>
-        ) : (
-          <form
-            className="flex flex-col gap-2"
-            onSubmit={e => { e.preventDefault(); magicLink.mutate(trimmedEmail); }}
-          >
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                required
-                placeholder="you@example.com"
-                aria-label="Email address"
-                autoComplete="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-              />
-              {/* A spinner in place of the envelope while the link is on
-                  its way: disabled alone looked like nothing happened. */}
-              <IconButton
-                type="submit"
-                variant="default"
-                disabled={magicLink.isPending || !trimmedEmail}
-                aria-busy={magicLink.isPending}
-                label="Send sign-in link"
-              >
-                {magicLink.isPending ? <Spinner className="size-5" role="presentation" aria-label={undefined} aria-hidden /> : <Mail className="size-5" />}
-              </IconButton>
-            </div>
-            {linkFailure && <p className={`text-destructive ${TEXT.prose}`} role="alert" data-testid="sign-in-error">{linkFailure}</p>}
-          </form>
-        )}
-        </>)}
-        {/* One row of links, not links in a sentence: each gets its 44-point
-            area from a pseudo-element, and a wrapped sentence would put
-            those areas on top of each other. */}
-        <p className={`text-center text-muted-foreground ${TEXT.note}`} data-testid="sign-in-accept">By signing in you accept the</p>
-        <nav aria-label="Legal" className={`flex justify-center gap-2 text-tint ${TEXT.note}`} data-testid="sign-in-legal">
-          {[LEGAL_PAGES[1], LEGAL_PAGES[0], LEGAL_PAGES[2]].map(p => (
-            <a key={p.key} className="relative after:absolute after:-inset-x-1 after:-inset-y-3.5" href={p.href} target="_blank" rel="noreferrer">{p.title}</a>
-          ))}
-        </nav>
-      </Content>
-    </Dialog>
-  );
-}
-
-/** The sign-in's words in a phone's floating sheet: room round them as the
- *  dialog's p-6 gives, its own close at the top right as the dialog's,
- *  scrolling inside when the keyboard leaves it less than it holds. */
-function PhoneSheetBody({ children }: { children: ReactNode }) {
-  return (
-    <PhoneSheetContent edge="bottom">
-      <div className="grid min-h-0 gap-4 overflow-y-auto px-5 pt-6 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)-0.5rem))]">
-        {children}
-      </div>
-      <DialogClose asChild><CloseButton className="absolute top-3 right-3" /></DialogClose>
-    </PhoneSheetContent>
+                </a>
+              </Button>
+            )}
+          </div>
+          <div className={`flex items-center gap-3 text-muted-foreground ${TEXT.note} before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border`}>
+            or
+          </div>
+        </>
+      )}
+      {sent ? (
+        <p className={`text-muted-foreground ${TEXT.prose}`} role="status">
+          Check <span className="font-semibold text-foreground">{sent}</span> for a sign-in link.
+          It expires in 15 minutes.
+        </p>
+      ) : (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={e => { e.preventDefault(); magicLink.mutate(trimmedEmail); }}
+        >
+          <div className="flex gap-2">
+            <Input
+              type="email"
+              required
+              placeholder="you@example.com"
+              aria-label="Email address"
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+            />
+            {/* A spinner in place of the envelope while the link is on
+                its way: disabled alone looked like nothing happened. */}
+            <IconButton
+              type="submit"
+              variant="default"
+              disabled={magicLink.isPending || !trimmedEmail}
+              aria-busy={magicLink.isPending}
+              label="Send sign-in link"
+            >
+              {magicLink.isPending ? <Spinner className="size-5" role="presentation" aria-label={undefined} aria-hidden /> : <Mail className="size-5" />}
+            </IconButton>
+          </div>
+          {linkFailure && <p className={`text-destructive ${TEXT.prose}`} role="alert" data-testid="sign-in-error">{linkFailure}</p>}
+        </form>
+      )}
+      </>)}
+      {/* One row of links, not links in a sentence: each gets its 44-point
+          area from a pseudo-element, and a wrapped sentence would put
+          those areas on top of each other. */}
+      <p className={`text-center text-muted-foreground ${TEXT.note}`} data-testid="sign-in-accept">By signing in you accept the</p>
+      <nav aria-label="Legal" className={`flex justify-center gap-2 text-tint ${TEXT.note}`} data-testid="sign-in-legal">
+        {[LEGAL_PAGES[1], LEGAL_PAGES[0], LEGAL_PAGES[2]].map(p => (
+          <a key={p.key} className="relative after:absolute after:-inset-x-1 after:-inset-y-3.5" href={p.href} target="_blank" rel="noreferrer">{p.title}</a>
+        ))}
+      </nav>
+    </SheetDialog>
   );
 }

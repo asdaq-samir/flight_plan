@@ -1,7 +1,6 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Dialog as DialogPrimitive } from "radix-ui"
-import CloseButton from "../CloseButton"
 import { DIALOG_CORNERS, DIM, GLASS_SHEET_FULL } from "../mapChrome"
 
 function Dialog({
@@ -41,15 +40,17 @@ function DialogOverlay({ className, ...props }: React.ComponentProps<typeof Dial
   )
 }
 
+/**
+ * Its close is the caller's, in its title row (SheetDialog), as every
+ * sheet's is: the stock one stood alone in the corner, over nothing.
+ */
 function DialogContent({
   className,
   children,
-  showCloseButton = true,
   glass = true,
   onInteractOutside,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
-  showCloseButton?: boolean
   /** Liquid Glass with an iOS alert's round corners, over a light dim,
    *  at the owner's pick of the sheets audit (D3, 2026-10-17); false for
    *  what fills the screen (an airport's diagram), opaque and square. */
@@ -78,13 +79,6 @@ function DialogContent({
         {...props}
       >
         {children}
-        {/* The app's one close (CloseButton), as every panel's is, at the
-            pilot's ask: the stock one was a faint 16-point cross. */}
-        {showCloseButton && (
-          <DialogPrimitive.Close data-slot="dialog-close" asChild>
-            <CloseButton className="absolute top-3 right-3" />
-          </DialogPrimitive.Close>
-        )}
       </DialogPrimitive.Content>
     </DialogPortal>
   )

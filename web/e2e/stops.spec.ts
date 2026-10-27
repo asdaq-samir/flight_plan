@@ -374,6 +374,57 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await expect(page).not.toHaveURL(/[?&]stops=/);
 });
 
+test("on a phone a point's altitude is asked in the floating sheet from the bottom, Cancel and Set in its title row", async ({ page }) => {
+  // The sheet consolidation (2026-10-27): it stood in the middle of a
+  // phone as a box, its Cancel and Set under the field.
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet; wider it is an alert in the middle");
+  await recordedStops(page);
+  await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
+  await openPanel(page);
+  const madison = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Arrive" });
+  await expect(madison.getByTestId("point-altitude-figure")).toHaveAttribute("data-kind", "elev", { timeout: slow(30_000) });
+  await madison.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-altitude").click();
+
+  const sheet = page.getByRole("alertdialog", { name: "Altitude at KMSN" });
+  await expect(sheet).toHaveAttribute("data-slot", "sheet-content");
+  await sheet.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)));
+  const look = await sheet.evaluate(el => {
+    const box = el.getBoundingClientRect();
+    return { left: box.left, right: innerWidth - box.right, foot: innerHeight - box.bottom, radius: parseFloat(getComputedStyle(el).borderTopLeftRadius) };
+  });
+  expect(look.left).toBeCloseTo(8, 0);
+  expect(look.right).toBeCloseTo(8, 0);
+  expect(look.foot).toBeCloseTo(8, 0);
+  expect(look.radius).toBe(36);
+  // Cancel at the title row's start, Set at its end, the title between,
+  // all on one line; the field below with the focus, to type at once.
+  const row = sheet.locator("[data-slot=sheet-header]");
+  const cancel = row.getByRole("button", { name: "Cancel", exact: true });
+  const set = row.getByTestId("point-altitude-set");
+  const [c, t, s] = [(await cancel.boundingBox())!, (await row.locator("[data-slot=sheet-title]").boundingBox())!, (await set.boundingBox())!];
+  expect(c.x + c.width).toBeLessThanOrEqual(t.x + 1);
+  expect(t.x + t.width).toBeLessThanOrEqual(s.x + 1);
+  for (const b of [c, s]) expect(Math.abs((b.y + b.height / 2) - (t.y + t.height / 2))).toBeLessThanOrEqual(4);
+  const field = sheet.getByTestId("point-altitude-input");
+  expect((await field.boundingBox())!.y).toBeGreaterThan(t.y + t.height);
+  await expect(field).toBeFocused();
+
+  // Cancel: nothing set.
+  await cancel.click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]altitudes=/);
+  // Set, from the title row, once a figure is typed.
+  await madison.getByTestId("point-menu").click();
+  await page.getByTestId("point-menu-altitude").click();
+  await field.fill("");
+  await expect(set).toBeDisabled();
+  await field.fill("2600");
+  await set.click();
+  await expect(sheet).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]altitudes=KMSN(%3A|:)2600(&|$)/);
+});
+
 test("the pilot's own point off a fix is made from a point's menu or typed as a flight plan writes it, flown over after it", async ({ page }) => {
   // The owner's asks (2026-10-20): "can a user also create their own point?
   // for example 30 miles 090 radial of vpbng", and "a fix should get its
