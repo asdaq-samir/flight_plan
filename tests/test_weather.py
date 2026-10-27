@@ -578,22 +578,21 @@ GAIRMET_XML = b"""<response><data>
 </data></response>"""
 
 
-def test_the_g_airmets_the_route_crosses_are_one_per_hazard_the_snapshot_nearest_the_departure(monkeypatch):
+def test_the_g_airmets_the_route_crosses_are_every_snapshot_with_its_time_and_area(monkeypatch):
     from vfr import weather
     advisories = weather._parse_gairmets(GAIRMET_XML)
     assert len(advisories) == 2                                 # high-level turbulence left out
     monkeypatch.setattr(weather, "_dataset", lambda name: advisories)
     start = 1791126000.0                                          # 2026-10-04T14:20:00Z
-    found = weather.gairmets_along_route([(41.5, -88.0), (43.5, -88.0)], (start, start + 2 * 3600))
-    assert found == [{
-        "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T15:00:00.000Z", "issued": None,
-        "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 16000.0,
-    }]
     # Every snapshot the route crosses, with its time and area, for the
-    # briefing to pick the one for when the flight is in it.
+    # briefing to pick the one for when the flight is in it (app.exposure).
     snapshots = weather.gairmet_snapshots_along_route([(41.5, -88.0), (43.5, -88.0)], (start, start + 2 * 3600))
     assert [s["valid_at"] for s in snapshots] == ["2026-10-04T15:00:00.000Z", "2026-10-04T18:00:00.000Z"]
     assert len(snapshots[0]["coords"]) == 4
+    assert {k: v for k, v in snapshots[0].items() if k not in ("valid", "coords")} == {
+        "hazard": "Icing", "severity": "MOD", "due_to": "ICE", "valid_at": "2026-10-04T15:00:00.000Z", "issued": None,
+        "altitude_low_ft": None, "from_freezing_level": True, "altitude_high_ft": 16000.0,
+    }
 
 
 @patch("vfr.weather.requests.get", return_value=FOG_IN_A_TEMPO)

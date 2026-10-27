@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 from fastapi import APIRouter, Query
 from vfr import airports, airspace, airspace_at, alerts, altitude, classb, elevation, fixes, sua, tfr
+from vfr.units import M_TO_FT
 
 from ..schemas import AirspaceAt, AlertsAhead, PointOffFix
 
@@ -15,15 +16,13 @@ log = logging.getLogger(__name__)
 
 router = APIRouter()
 
-#: Feet in a metre, for the ground's height.
-_FT_PER_M = 3.28084
 
 
 def _ground_ft(lat: float, lon: float) -> float | None:
     """The ground's height at the point, to the nearest ten feet: from
     the terrain tiles, else the nearest field's elevation, else None."""
     try:
-        return round(elevation.ground_m(lat, lon) * _FT_PER_M, -1)
+        return round(elevation.ground_m(lat, lon) * M_TO_FT, -1)
     except (requests.RequestException, OSError, ValueError) as err:
         log.warning("terrain tile for (%s, %s) not read: %s", lat, lon, err)
     try:

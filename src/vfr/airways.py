@@ -144,10 +144,8 @@ def _for_the_way(bearing: float, ft: float | None, bound: str, opposite_ft: floa
     if not bound or not opposite_bound or bound not in BOUNDS or opposite_bound not in BOUNDS:
         return max((v for v in (ft, opposite_ft) if v is not None), default=None)
 
-    def off(heading: float) -> float:
-        return abs((bearing - heading + 180) % 360 - 180)
-
-    return ft if off(BOUNDS[bound]) <= off(BOUNDS[opposite_bound]) else opposite_ft
+    off_bound = geo.angle_between(bearing, BOUNDS[bound])
+    return ft if off_bound <= geo.angle_between(bearing, BOUNDS[opposite_bound]) else opposite_ft
 
 
 def along(airway: str, from_ident: str, to_ident: str) -> list[Segment]:

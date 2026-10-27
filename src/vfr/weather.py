@@ -35,12 +35,13 @@ from typing import NamedTuple
 import numpy as np
 import requests
 
+from .config import REQUEST_HEADERS as HEADERS
 from .performance import isa_temp_c
 from .retry import with_retries
+from .units import M_TO_FT
 
 log = logging.getLogger(__name__)
 
-HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 WINDTEMP_URL = "https://aviationweather.gov/api/data/windtemp"
 CACHE_BASE_URL = "https://aviationweather.gov/data/cache"
 
@@ -800,10 +801,6 @@ def nearest_report(lat: float, lon: float, exclude: str | None = None, within_nm
 # Within one start time, the base forecast (FM, or the TAF's own first
 # line) sorts first; BECMG/TEMPO/PROB lines modify it.
 _CHANGE_ORDER = {"": 0, "FM": 0, "BECMG": 1, "TEMPO": 2, "PROB": 3}
-# A TAF station's elevation comes in metres; everything here is feet
-# (vfr.terrain's own constant, not imported: this module stays free of
-# the terrain and FAA data it would bring).
-M_TO_FT = 3.28084
 
 
 def _parse_tafs(xml_bytes: bytes) -> list:
@@ -1143,7 +1140,7 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     those valid right now. The bbox is a coarse prefilter (convective
     SIGMETs commonly span several states); the real filter is the
     route/polygon intersection. CONUS AIRMETs were discontinued in
-    January 2025 in favour of G-AIRMETs: gairmets_along_route reads them.
+    January 2025 in favour of G-AIRMETs: gairmet_snapshots_along_route reads them.
     Each keeps its valid times ("valid_from", "valid_to"; UNIX seconds),
     when it was issued ("issued") and its area ("coords", [(lat, lon)]),
     for the briefing to say where and when the flight meets it.
@@ -1316,24 +1313,6 @@ def gairmet_snapshots_along_route(path: list, window: tuple) -> list:
         if line.intersects(polygon):
             found.append(advisory)
     return found
-
-
-def gairmets_along_route(path: list, window: tuple) -> list:
-    """The G-AIRMETs the route crosses during the flight
-    (gairmet_snapshots_along_route): one per hazard, the snapshot nearest
-    the departure, each {"hazard", "severity", "due_to", "valid_at",
-    "issued", "altitude_low_ft", "from_freezing_level",
-    "altitude_high_ft"}."""
-    start = window[0]
-    nearest: dict = {}
-    for advisory in gairmet_snapshots_along_route(path, window):
-        held = nearest.get(advisory["hazard"])
-        if held is None or abs(advisory["valid"] - start) < abs(held["valid"] - start):
-            nearest[advisory["hazard"]] = advisory
-    return [
-        {k: v for k, v in a.items() if k not in ("valid", "coords")}
-        for a in sorted(nearest.values(), key=lambda a: list(GAIRMET_HAZARDS.values()).index(a["hazard"]))
-    ]
 
 
 def _fetch_each(names, force: bool = False) -> None:

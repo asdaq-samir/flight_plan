@@ -62,7 +62,10 @@ CLIMB_FUEL_FACTOR = 1.3
 #: altitude can be typed there.
 MIN_POWER_FRACTION = 0.05
 
-# The International Standard Atmosphere, below the tropopause.
+# The International Standard Atmosphere below the tropopause (ICAO Doc
+# 7488): sea level 15 C (288.15 K), the lapse rate 6.5 K a kilometre
+# (0.0019812 K a foot), and the exponent its pressure falls off with
+# height by, g/(R·L); density's is one less.
 ISA_SEA_LEVEL_C = 15.0
 ISA_LAPSE_C_PER_FT = 0.0019812
 _SEA_LEVEL_K = 288.15

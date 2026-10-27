@@ -34,7 +34,7 @@ from shapely import STRtree, from_wkb, points as shapely_points, to_wkb
 from shapely.geometry import LineString, Point, shape as shapely_shape
 from shapely.ops import unary_union
 
-from .faa_data import NASR_INDEX_URL, download_and_extract, find_current_cycle_page, find_download_link
+from .faa_data import NASR_INDEX_URL, _is_icloud_evicted, download_and_extract, find_current_cycle_page, find_download_link
 
 CONTROLLED_CLASSES = ("B", "C", "D")
 
@@ -54,24 +54,6 @@ CLEARANCE_CLASSES = ("B",)
 # holds the geometry, .shx indexes it, .dbf holds the attributes (CLASS,
 # NAME, the altitude fields). Missing any one of them fails at read time.
 SHAPEFILE_SUFFIXES = (".shp", ".shx", ".dbf")
-
-
-def _is_icloud_evicted(path: Path) -> bool:
-    """Whether iCloud has evicted this file, leaving only a placeholder.
-
-    macOS replaces an offloaded file with a hidden sibling named
-    ".<filename>.icloud" of a couple of hundred bytes. The original path
-    then simply does not exist, so an existence check reports "missing"
-    correctly -- but the *reason* matters, because re-downloading a
-    394 MB shapefile will not keep it on disk if iCloud is going to
-    offload it again, which is exactly what happened here twice in one
-    afternoon under Desktop & Documents syncing.
-
-    A file is only evicted if the real path is gone *and* the placeholder
-    is there. Testing for the placeholder alone reports a file that iCloud
-    is in the middle of restoring as missing.
-    """
-    return not path.exists() and (path.parent / f".{path.name}.icloud").exists()
 
 
 def _shapefile_is_complete(shp_path: Path) -> bool:

@@ -27,7 +27,7 @@ from pathlib import Path
 import pandas as pd
 
 from vfr import airports, elevation, faa_data, features, geo, osm
-from vfr.model_registry import CANDIDATE_MODEL_DIR
+from vfr.model_registry import CANDIDATE_MODEL_DIR, _reject_remote_uri
 
 from vfr.config import (  # noqa: F401  (re-exported: callers import these from here)
     CANDIDATES_PATH,
@@ -82,30 +82,6 @@ class InsufficientLabelsError(RuntimeError):
     labeled -- a train/test split and 5-fold CV aren't meaningful below
     that, so this fails loudly instead of letting scikit-learn raise an
     opaque stratify/fold-count error."""
-
-
-def _reject_remote_uri(path) -> None:
-    """`pathlib.Path` has no concept of URI schemes, so an unguarded
-    mkdir() against e.g. "s3://bucket/key" wouldn't raise a helpful error --
-    it'd just silently try to create a local directory literally named
-    that. This is also the one seam that would need to change to add real
-    S3 support later: swap the two functions below (and the corresponding
-    pd.read_csv/read_parquet/to_csv/to_parquet/joblib.dump calls) for
-    fsspec/s3fs-aware equivalents; nothing else in this module assumes a
-    local filesystem beyond that.
-
-    Takes the raw value (str or Path), checked *before* any Path(...)
-    conversion happens at the call site -- Path() itself collapses a
-    scheme's "//" down to a single "/" (e.g. "s3://bucket/x" ->
-    "s3:/bucket/x"), which would silently defeat an "://" check performed
-    after conversion.
-    """
-    if "://" in str(path):
-        raise NotImplementedError(
-            f"'{path}' looks like a remote URI, but this pipeline only writes to a local "
-            "filesystem right now -- see _reject_remote_uri's docstring for what S3 support "
-            "would need to change."
-        )
 
 
 def _ensure_local_output_dir(path) -> Path:

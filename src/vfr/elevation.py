@@ -19,12 +19,12 @@ import numpy as np
 import requests
 from cachetools import LRUCache
 
+from .config import REQUEST_HEADERS
 from .geo import destination_point, tile_xy
 from .retry import with_retries
 from .routecsv import locked
 
 EPQS_URL = "https://epqs.nationalmap.gov/v1/json"
-REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 DEFAULT_CACHE_PATH = Path(__file__).resolve().parents[2] / "data" / "raw" / "elevation_cache.csv"
 
 RING_RADIUS_NM = 1.0

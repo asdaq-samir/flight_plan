@@ -19,7 +19,8 @@ from functools import lru_cache
 from . import airports as airports_module
 from . import elevation, geo
 from .airspace import load_controlled_airspace
-from .terrain import M_TO_FT, SAMPLE_INTERVAL_NM, _route_sample_points
+from .terrain import SAMPLE_INTERVAL_NM, _route_sample_points
+from .units import M_TO_FT
 
 
 def _along(point: tuple, start: tuple, end: tuple, length_nm: float) -> float:

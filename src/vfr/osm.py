@@ -19,8 +19,11 @@ import numpy as np
 import pandas as pd
 import requests
 
+# Overpass rejects requests without an identifiable User-Agent (406 Not Acceptable).
+from .config import REQUEST_HEADERS
 from .geo import cluster_points, cross_track_distance_nm, distance_nm
 from .retry import with_retries
+from .units import M_PER_NM
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
 # The public Overpass instances, tried in turn: the main one answers
@@ -32,8 +35,6 @@ OVERPASS_URLS = (
     "https://overpass.kumi.systems/api/interpreter",
     "https://lz4.overpass-api.de/api/interpreter",
 )
-# Overpass rejects requests without an identifiable User-Agent (406 Not Acceptable).
-REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
 
 # category -> (Overpass tag filter clause, predicate on the element's tags dict)
 # Each category is one entry, but its rule is written twice in it: as the
@@ -159,7 +160,7 @@ def _bbox_area_m2(bounds: dict) -> float:
     """
     width_nm = distance_nm(bounds["minlat"], bounds["minlon"], bounds["minlat"], bounds["maxlon"])
     height_nm = distance_nm(bounds["minlat"], bounds["minlon"], bounds["maxlat"], bounds["minlon"])
-    return (width_nm * 1852.0) * (height_nm * 1852.0)
+    return (width_nm * M_PER_NM) * (height_nm * M_PER_NM)
 
 
 def _representative_point(el: dict) -> tuple | None:

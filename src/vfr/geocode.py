@@ -24,13 +24,13 @@ import zipfile
 import requests
 
 from .config import DATA_DIR
+from .config import FAA_HEADERS as HEADERS
 
 log = logging.getLogger(__name__)
 
 GAZETTEER_URL = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2025_Gazetteer/2025_Gaz_place_national.zip"
 GEOCODER_URL = "https://geocoding.geo.census.gov/geocoder/locations/onelineaddress"
 TOWNS_PATH = DATA_DIR / "raw" / "census" / "places-2025.json"
-HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
 
 #: A gazetteer name ends with what kind of place it is -- "Madison city",
 #: "Abanda CDP", "Nashville-Davidson metropolitan government (balance)" --

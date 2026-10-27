@@ -28,24 +28,30 @@ CHART_CURRENT_DIR = CHART_MODELS_DIR / "current"
 
 
 def _reject_remote_uri(path) -> None:
-    """Same guard as vfr.pipeline's (duplicated deliberately, see this
-    module's docstring on why it has zero deps on vfr.pipeline) -- fails
-    loudly for a URI-style path instead of pathlib silently mishandling it.
-    Takes the raw value, checked *before* any Path(...) conversion at the
-    call site -- Path() collapses a scheme's "//" to "/" (e.g.
-    "s3://bucket/x" -> "s3:/bucket/x"), which would silently defeat an
-    "://" check performed after conversion. Worth noting this module's
-    shape on AWS isn't really "swap local copy2() for an S3 copy" though:
-    a real SageMaker Model Registry "promote" is a registry API call
-    (approve a Model Package Version), not a file copy at all -- the
-    artifact is already in S3 from the Training Job. This guard is
-    defensive correctness for local use, not a signpost for what AWS
-    support here would look like.
+    """Fails loudly for a URI-style path instead of pathlib silently
+    mishandling it: an unguarded mkdir() against "s3://bucket/key" would
+    just create a local directory literally named that. vfr.pipeline's
+    reads and writes go through this same guard, which lives here because
+    this module stays on the standard library (see its docstring).
+
+    Takes the raw value (str or Path), checked *before* any Path(...)
+    conversion at the call site -- Path() collapses a scheme's "//" to "/"
+    (e.g. "s3://bucket/x" -> "s3:/bucket/x"), which would silently defeat
+    an "://" check performed after conversion.
+
+    It is also the seam real S3 support would change: vfr.pipeline's two
+    _ensure_local_* functions (and the pd.read_csv/read_parquet/to_csv/
+    to_parquet/joblib.dump calls behind them) swapped for fsspec/s3fs-aware
+    equivalents. This module's shape on AWS isn't "swap local copy2() for
+    an S3 copy" though: a real SageMaker Model Registry "promote" is a
+    registry API call (approve a Model Package Version), not a file copy
+    at all -- the artifact is already in S3 from the Training Job.
     """
     if "://" in str(path):
         raise NotImplementedError(
-            f"'{path}' looks like a remote URI, but this module only operates on a local "
-            "filesystem right now."
+            f"'{path}' looks like a remote URI, but vfr only reads and writes a local "
+            "filesystem right now -- see _reject_remote_uri's docstring for what S3 support "
+            "would need to change."
         )
 
 

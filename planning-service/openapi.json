@@ -6042,7 +6042,7 @@
         "type": "object"
       },
       "GAirmet": {
-        "description": "A G-AIRMET the route crosses during the flight\n(vfr.weather.gairmets_along_route): the hazard in words, its severity\nand cause, the time its snapshot is valid at, and its altitudes --\n`from_freezing_level` where it starts there.",
+        "description": "A G-AIRMET the route crosses during the flight\n(app.exposure.gairmets): the hazard in words, its severity\nand cause, the time its snapshot is valid at, and its altitudes --\n`from_freezing_level` where it starts there.",
         "properties": {
           "altitude_high_ft": {
             "anyOf": [

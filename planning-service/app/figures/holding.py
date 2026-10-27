@@ -9,10 +9,12 @@ heading and time worked to make it so in the wind.
 
 web/src/lib/holding.ts, and the words of features/pilot/HoldingPage.tsx,
 ported line for line: the two hold the same rules and change together."""
-import math
+from vfr import holds
+from vfr.geo import angle_between
+from vfr.holds import default_leg_min as leg_minutes
+from vfr.runway_wind import components_kt
 
 from ..gonogo.words import js_round
-from .debrief import angle_between
 from .diversion import wind_triangle
 
 ENTRY_NAME = {"direct": "Direct", "teardrop": "Teardrop", "parallel": "Parallel"}
@@ -35,13 +37,6 @@ def wind_correction(deg: float) -> str:
     return f"{'' if shown == 0 else '+' if deg > 0 else '−'}{shown}°"
 
 
-def leg_minutes(altitude_ft: float) -> float:
-    """The inbound leg's time at an altitude, minutes: "At or below 14,000
-    feet MSL: 1 minute. Above 14,000 feet MSL: 1 1/2 minutes" (AIM 5-3-8
-    j.4(a)), as the planner's vfr.holds times a hold with none given."""
-    return 1.5 if altitude_ft > 14_000 else 1
-
-
 def holding_entry(inbound_deg: float, heading_deg: float, turns: str) -> dict:
     """The entry for an airplane heading `heading_deg` to the fix of a hold
     on `inbound_deg` with `turns`: by AIM 5-3-8's sectors, the heading
@@ -53,7 +48,7 @@ def holding_entry(inbound_deg: float, heading_deg: float, turns: str) -> dict:
     considered to be within allowable good operating limits for
     determining entry", AIM 5-3-8 j.2)."""
     off = _norm(heading_deg - inbound_deg if turns == "right" else inbound_deg - heading_deg)
-    entry = "direct" if off <= 110 or off >= 290 else "teardrop" if off <= 180 else "parallel"
+    entry = holds.entry(heading_deg, inbound_deg, turns == "right")
     edges = [(110, "direct", "teardrop"), (180, "teardrop", "parallel"), (290, "parallel", "direct")]
     near = next((e for e in edges if angle_between(off, e[0]) <= 5), None)
     either = (near[2] if near[1] == entry else near[1]) if near else None
@@ -64,12 +59,6 @@ def approach_relative(inbound_deg: float, heading_deg: float) -> float:
     """The bearing from the fix the airplane comes from, against the
     inbound course, for drawing: where it is on the page round the fix."""
     return _norm(heading_deg + 180 - inbound_deg)
-
-
-def headwind_kt(from_deg: float, kt: float, heading_deg: float) -> float:
-    """The headwind of a wind on a heading, negative a tailwind (lib/wind
-    headwindKt, vfr.runway_wind.components_kt)."""
-    return kt * math.cos(math.radians(from_deg - heading_deg))
 
 
 def holding_wind(inbound_deg: float, tas_kt: float, wind_from_deg: float, wind_kt: float, altitude_ft: float) -> dict | None:
@@ -89,7 +78,7 @@ def holding_wind(inbound_deg: float, tas_kt: float, wind_from_deg: float, wind_k
     if not inbound or not out_leg:
         return None
     out_wca = -3 * inbound["wca"]
-    headwind_in = headwind_kt(wind_from_deg, wind_kt, inbound_deg)
+    headwind_in, _ = components_kt(wind_from_deg, wind_kt, inbound_deg)
     return {
         "leg_min": leg_min,
         "inbound": {"heading": _norm(inbound_deg + inbound["wca"]), "wca": inbound["wca"], "gs": inbound["gs"]},

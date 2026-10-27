@@ -103,6 +103,12 @@ def bearing_deg(lat1, lon1, lat2, lon2):
     return np.where(distance == 0.0, 0.0, azimuth)
 
 
+def angle_between(a: float, b: float) -> float:
+    """How far apart two directions are, degrees 0 to 180, either way
+    round the compass (358 is 4 from 002)."""
+    return abs((a - b + 180) % 360 - 180)
+
+
 def _track(lat, lon, route_start, route_end):
     """(cross-track, along-track) in nautical miles, both signed.
 

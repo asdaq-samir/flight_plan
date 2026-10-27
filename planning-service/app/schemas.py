@@ -1475,7 +1475,7 @@ class Pirep(BaseModel):
 
 class GAirmet(BaseModel):
     """A G-AIRMET the route crosses during the flight
-    (vfr.weather.gairmets_along_route): the hazard in words, its severity
+    (app.exposure.gairmets): the hazard in words, its severity
     and cause, the time its snapshot is valid at, and its altitudes --
     `from_freezing_level` where it starts there."""
 

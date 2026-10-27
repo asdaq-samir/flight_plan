@@ -539,7 +539,7 @@ def _procedure_turn(fix: tuple[float, float], inbound: float, pt_course: float) 
 
     def off(s: float) -> float:
         to = geo.destination_point(*fix, out, s)
-        return abs(((geo.bearing_deg(*end, *to) - back + 540) % 360) - 180)
+        return geo.angle_between(geo.bearing_deg(*end, *to), back)
     meet = min((s / 20 for s in range(10, 200)), key=off)
     return [fix, a, b, *arc, geo.destination_point(*fix, out, meet), fix]
 

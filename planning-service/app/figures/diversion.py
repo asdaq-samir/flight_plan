@@ -14,7 +14,8 @@ web/src/lib/diversion.ts ported line for line: the two hold the same rules
 and change together."""
 import math
 
-from .debrief import angle_between
+from vfr import navlog
+from vfr.geo import angle_between
 
 #: The figures a student estimates, and how far off is still reasonable.
 ALLOWANCES = [
@@ -33,13 +34,12 @@ def wind_triangle(tc: float, tas: float, wind_from_deg: float, wind_kt: float) -
     """The wind triangle for a true course: the correction (+ right), the
     true heading and the ground speed; None where the crosswind is more
     than the airplane's speed and no heading holds the course."""
-    angle = math.radians(wind_from_deg - tc)
-    ratio = (wind_kt * math.sin(angle)) / tas
-    if abs(ratio) > 1:
+    if abs(wind_kt * math.sin(math.radians(wind_from_deg - tc))) > tas:
         return None
-    # `+ 0.0`: a calm wind's correction is none, not -0.
-    wca = math.degrees(math.asin(ratio)) + 0.0
-    gs = tas * math.cos(math.radians(wca)) - wind_kt * math.cos(angle)
+    # The nav log's own wind triangle (vfr.navlog). `+ 0.0`: a calm
+    # wind's correction is none, not -0.
+    wca = navlog.wind_correction_angle_deg(tc, wind_from_deg, wind_kt, tas) + 0.0
+    gs = navlog.groundspeed_kt(tc, wind_from_deg, wind_kt, tas, wca)
     return {"wca": wca, "th": _round360(tc + wca), "gs": gs} if gs > 0 else None
 
 

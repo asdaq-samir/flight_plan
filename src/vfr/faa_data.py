@@ -27,12 +27,12 @@ from urllib.parse import urljoin
 import pandas as pd
 import requests
 
+# FAA's site 403s a bare python-requests User-Agent.
+from .config import FAA_HEADERS
 from .retry import with_retries
 
 log = logging.getLogger(__name__)
 
-# FAA's site 403s a bare python-requests User-Agent.
-FAA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
 NASR_INDEX_URL = "https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/"
 DOF_INDEX_URL = "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/dof/"
 

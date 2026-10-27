@@ -751,7 +751,7 @@ Non-obvious things worth knowing up front:
 - **`Path("s3://bucket/x")` silently collapses to `"s3:/bucket/x"`**
   under `pathlib` normalization. Code rejecting a remote URI must check
   the raw string for `"://"` *before* wrapping it in `Path(...)`. See
-  `_reject_remote_uri()` in `src/vfr/pipeline.py`/`model_registry.py`.
+  `_reject_remote_uri()` in `src/vfr/model_registry.py`, which `src/vfr/pipeline.py` uses too.
 - **`docker compose up <service>` reuses a stale container** if the image
   was rebuilt but the container wasn't recreated. Use
   `docker compose up -d --force-recreate <service>`.
