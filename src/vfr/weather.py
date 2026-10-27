@@ -1143,7 +1143,7 @@ def hazards_along_route(route_start: tuple, route_end: tuple, corridor_buffer_nm
     those valid right now. The bbox is a coarse prefilter (convective
     SIGMETs commonly span several states); the real filter is the
     route/polygon intersection. CONUS AIRMETs were discontinued in
-    January 2025 in favour of G-AIRMETs: gairmets_along_route reads them.
+    January 2025 in favour of G-AIRMETs: gairmet_snapshots_along_route reads them.
     Each keeps its valid times ("valid_from", "valid_to"; UNIX seconds),
     when it was issued ("issued") and its area ("coords", [(lat, lon)]),
     for the briefing to say where and when the flight meets it.
@@ -1316,24 +1316,6 @@ def gairmet_snapshots_along_route(path: list, window: tuple) -> list:
         if line.intersects(polygon):
             found.append(advisory)
     return found
-
-
-def gairmets_along_route(path: list, window: tuple) -> list:
-    """The G-AIRMETs the route crosses during the flight
-    (gairmet_snapshots_along_route): one per hazard, the snapshot nearest
-    the departure, each {"hazard", "severity", "due_to", "valid_at",
-    "issued", "altitude_low_ft", "from_freezing_level",
-    "altitude_high_ft"}."""
-    start = window[0]
-    nearest: dict = {}
-    for advisory in gairmet_snapshots_along_route(path, window):
-        held = nearest.get(advisory["hazard"])
-        if held is None or abs(advisory["valid"] - start) < abs(held["valid"] - start):
-            nearest[advisory["hazard"]] = advisory
-    return [
-        {k: v for k, v in a.items() if k not in ("valid", "coords")}
-        for a in sorted(nearest.values(), key=lambda a: list(GAIRMET_HAZARDS.values()).index(a["hazard"]))
-    ]
 
 
 def _fetch_each(names, force: bool = False) -> None:

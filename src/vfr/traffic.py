@@ -1140,11 +1140,6 @@ def _watch(hex_id: str) -> None:
                 _WATCH_SOURCE[hex_id] = source
 
 
-def _watching(hex_id: str) -> bool:
-    with _LOCK:
-        return _clock() - _WATCHED.get(hex_id, -math.inf) < WATCH_FOR_S
-
-
 def _recorded(hex_id: str) -> list[dict]:
     with _LOCK:
         _load_recorded(hex_id)
