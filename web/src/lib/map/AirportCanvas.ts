@@ -65,6 +65,8 @@ export class AirportMarksLayer extends L.Layer {
   private marks: CanvasMark[] = [];
   private frame = 0;
   private topLeft: L.LatLng | null = null;
+  /** What the last drawing covers, in the map's layer points. */
+  private drawn: L.Bounds | null = null;
   private font = "";
 
   constructor(pane: string) {
@@ -83,14 +85,16 @@ export class AirportMarksLayer extends L.Layer {
     this.font = `700 ${LABEL_PX}px ${getComputedStyle(map.getContainer()).fontFamily || "system-ui, sans-serif"}`;
     // Drawn again through a pan too, a frame at a time: past the canvas's
     // edge a long pan's fields came in only as it ended.
-    map.on("move moveend zoom resize viewreset", this.schedule, this);
+    map.on("moveend zoom resize viewreset", this.schedule, this);
+    map.on("move", this.moved, this);
     map.on("zoomanim", this.animate, this);
     this.draw();
     return this;
   }
 
   onRemove(map: L.Map): this {
-    map.off("move moveend zoom resize viewreset", this.schedule, this);
+    map.off("moveend zoom resize viewreset", this.schedule, this);
+    map.off("move", this.moved, this);
     map.off("zoomanim", this.animate, this);
     cancelAnimationFrame(this.frame);
     this.frame = 0;
@@ -102,6 +106,22 @@ export class AirportMarksLayer extends L.Layer {
   setMarks(marks: CanvasMark[]): void {
     this.marks = marks;
     this.schedule();
+  }
+
+  /** Under a finger's pan the canvas moves with the map's pane already:
+   *  drawn again only once the view nears the edge of what was drawn (its
+   *  PAD round the screen), not at every frame -- the redraws were most of
+   *  a pan's main-thread time on a phone (measured 2026-10-26: drawImage
+   *  and the labels 400 ms of a 20-step pan at 4x throttle). As it comes
+   *  to rest it is drawn again in full (moveend). */
+  private moved(): void {
+    const map = this._map;
+    if (!map || !this.drawn) return this.schedule();
+    const size = map.getSize();
+    const margin = size.multiplyBy(PAD / 2);
+    const tl = map.containerPointToLayerPoint(L.point(0, 0)).subtract(margin);
+    const br = map.containerPointToLayerPoint(size).add(margin);
+    if (!this.drawn.contains(tl) || !this.drawn.contains(br)) this.schedule();
   }
 
   private schedule(): void {
@@ -130,7 +150,9 @@ export class AirportMarksLayer extends L.Layer {
     const from = L.point(-pad.x, -pad.y);
     const width = size.x + 2 * pad.x, height = size.y + 2 * pad.y;
     this.topLeft = map.containerPointToLatLng(from);
-    L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint(from));
+    const origin = map.containerPointToLayerPoint(from);
+    L.DomUtil.setPosition(canvas, origin);
+    this.drawn = L.bounds(origin, origin.add(L.point(width, height)));
     const dpr = Math.min(window.devicePixelRatio || 1, MOST_DPR);
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
