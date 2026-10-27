@@ -658,7 +658,12 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
               // The others a darker grey, at the owner's pick of the tabs'
               // sizes ("A, plus D's bolder weight", 2026-10-22): they read
               // from farther, in sun, on the glass over any chart.
-              at === lit ? "text-tint" : "text-foreground/80 hover:text-foreground",
+              // The tab up's word is on its pane of the tint over the sheet's
+              // grey, which the plain tint clears by 4.6:1 at best (4.2:1 over
+              // a darker ground) where WCAG 1.4.3 asks 4.5:1 of 13-point
+              // text: the tint's deeper step (--tint-shade, as SHEET_BELOW
+              // takes for what lies under the bar) is 5.5:1 and 5.0:1.
+              at === lit ? "text-tint [--tint:var(--tint-shade)]" : "text-foreground/80 hover:text-foreground",
             )}
           >
             <span className="relative">
