@@ -389,7 +389,11 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
         const key = `${c.lat},${c.lon}`;
         // Drawn where it has room: zoomed out, a long route's dots piled
         // into one brown line along it (the style audit, 2026-10-26).
-        if (!spaced.has(key)) return null;
+        // The one whose card is open (`carded`) kept on the map whatever
+        // its room: picked, the map flies in to it, and at a zoom on the
+        // way it had no room, was taken off and its card with it, a tenth
+        // of a second after it opened (checkpoints:68, map:72 on a phone).
+        if (!spaced.has(key) && carded !== key) return null;
         return (
           <Marker
             key={key} position={[c.lat, c.lon]} icon={dotIcon(scoreColor(c.predicted_score), i + 1)}
