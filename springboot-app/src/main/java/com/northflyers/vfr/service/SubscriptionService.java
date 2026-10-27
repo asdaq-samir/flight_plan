@@ -131,11 +131,6 @@ public class SubscriptionService {
         return sold;
     }
 
-    /** Who has the features Claude writes where no subscription is sold. */
-    public ClaudeFeatures claudeFeatures() {
-        return claude;
-    }
-
     /** The pilot's subscription, with this month's uses. */
     @Transactional(readOnly = true)
     public SubscriptionDto status(Pilot pilot) {
