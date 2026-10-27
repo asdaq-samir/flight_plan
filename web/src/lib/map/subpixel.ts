@@ -56,3 +56,27 @@ export function dropDraggingCursorRules(): void {
   }
 }
 dropDraggingCursorRules();
+
+/**
+ * The map's pane slid in whole pixels of the screen (a phone's device
+ * pixels) through Leaflet's own pan animations -- a sheet's turn, a
+ * thrown pan's glide, a panBy -- where Leaflet moves it to the fraction of
+ * a pixel each frame: at a new fraction every frame each mark over the
+ * chart, its own layer with its shade, was drawn again, and the slide
+ * stuttered with marks on the map and not without them (the owner,
+ * 2026-10-27: "map markers is the cause of all this non-smooth
+ * transition"; traced on the phone project at 4x throttle, half to the
+ * pill: 96 to 123 raster tasks with the route's 27 marks, 12 to 15 with
+ * them hidden or with the pane in whole pixels). The lines are untouched:
+ * they are drawn once, in the pane, and move with it.
+ */
+type Framing = { _startPos: L.Point; _offset: L.Point; _el: HTMLElement; fire: (type: string) => void };
+L.PosAnimation.include({
+  _runFrame(this: Framing, progress: number, round?: boolean) {
+    // Stopped part way, in whole points of the page, as Leaflet's own.
+    const dpr = round ? 1 : window.devicePixelRatio || 1;
+    const pos = this._startPos.add(this._offset.multiplyBy(progress));
+    L.DomUtil.setPosition(this._el, L.point(Math.round(pos.x * dpr) / dpr, Math.round(pos.y * dpr) / dpr));
+    this.fire("step");
+  },
+});
