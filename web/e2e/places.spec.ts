@@ -385,9 +385,12 @@ async function airportToTap(page: Page) {
         // The chart under it, or a line a tap passes through to the map
         // (the course line's): no marker, control, popup or panel, which
         // would take the tap.
+        // The chart's tiles take no pointer (Leaflet's own rule), so the
+        // map's own box answers where nothing is drawn over it.
         const hit = document.elementFromPoint(x, y);
-        if (hit?.closest(".leaflet-map-pane")
-          && !hit.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip")) return { x, y };
+        if (hit?.closest(".leaflet-container") && !hit.closest(
+          ".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, .leaflet-control, [data-slot=map-panel], [data-map-controls]",
+        )) return { x, y };
       }
       return null;
     }, marks.map(m => ({ x: m.x, y: m.y })));
