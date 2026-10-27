@@ -5,10 +5,10 @@ import { airportMark, closeSidebarWithTheStockKey, expectDrawerClosed, grabberTo
  * The map and the sheet move together, as in Maps: opened fresh, the map
  * is on the pilot's position in the middle of what the half sheet leaves,
  * and kept there as the sheet goes down and up; a route entered is flown
- * to and fitted above the sheet; lowered to its capsule, the route slides
- * at its zoom to the middle of the whole screen, the chart not drawn
- * afresh, and raised, back above the sheet -- fitted again instead where,
- * slid, it would not be clear of the sheet, while any of it is in sight. With
+ * to and fitted above the sheet; lowered to its capsule, the route stays
+ * where it is, as under Apple Maps' sheet, and raised, it is still above
+ * it -- slid at its zoom where it would be under the sheet, and fitted
+ * again where even slid it would be, while any of it is in sight. With
  * neither the route nor the position in sight, the map stays put.
  */
 

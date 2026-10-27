@@ -212,10 +212,11 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
 
   // The map follows the panel as it goes out or comes back to rest --
   // raised to half, lowered to its capsule -- in the sheet's own time, as
-  // Maps' does, when what it follows is in sight: the route, slid at its
-  // zoom so what was in the middle of what the panel left is in the middle
-  // of what it leaves now (the whole screen at the capsule, above the
-  // sheet when it is out); else the pilot's position,
+  // Maps' does, when what it follows is in sight: the route, left where it
+  // is while all of it stays clear, else slid at its zoom so what was in
+  // the middle of what the panel left is in the middle of what it leaves
+  // now (the whole screen at the capsule, above the sheet when it is
+  // out); else the pilot's position,
   // brought to the middle of what is left. Neither in sight -- the map
   // panned off somewhere else -- it stays where the pilot put it. With
   // own ship followed in the air the position wins over the route. Not
@@ -289,14 +290,22 @@ export function MapShell({ course, onReady, children, onSelectPlace, held = fals
       // tiles are the ones already drawn, where a fit to the new room
       // zoomed and drew the chart afresh at every turn, at the owner's ask
       // ("Medium to small detent redraws the map?", 2026-10-27).
-      // Fitted again only where, slid, it would not all be clear of the
-      // panel and the map's buttons: raised from the capsule after a pan,
-      // or to a half sheet with less room than it was fitted to.
-      const shift = middle(insets).subtract(middle(was));
-      const corner = (p: L.LatLng) => map.latLngToContainerPoint(p).add(shift);
-      const routeFits = !!bounds && L.bounds(L.point(insets.left + BUTTONS_CLEAR, insets.top), L.point(size.x - BUTTONS_CLEAR, size.y - insets.bottom))
-        .contains(L.bounds(corner(bounds.getNorthWest()), corner(bounds.getSouthEast())));
-      what = routeInSight && !keepingUp ? (routeFits ? "slide" : "route") : shipInSight ? "ship" : null;
+      // And not moved at all where it is all clear of the panel and the
+      // map's buttons as it is, as Apple Maps' map stays put under its
+      // sheet: lowered to the capsule the room only grows, and the slide
+      // down showed the chart above it blank until its tiles came (the
+      // owner, "Medium to small detent does need some polishing",
+      // 2026-10-27). Slid where it would be clear once slid; fitted again
+      // where not even then: raised from the capsule after a pan, or to a
+      // half sheet with less room than it was fitted to.
+      const fitsAfter = (shift: L.Point) => {
+        const corner = (p: L.LatLng) => map.latLngToContainerPoint(p).add(shift);
+        return !!bounds && L.bounds(L.point(insets.left + BUTTONS_CLEAR, insets.top), L.point(size.x - BUTTONS_CLEAR, size.y - insets.bottom))
+          .contains(L.bounds(corner(bounds.getNorthWest()), corner(bounds.getSouthEast())));
+      };
+      const stays = routeInSight && !keepingUp && fitsAfter(L.point(0, 0));
+      const routeWay = fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
+      what = stays ? null : routeInSight && !keepingUp ? routeWay : shipInSight ? "ship" : null;
       if (what === "ship" && flying && !ownShip.follow) ownShip.setFollow(true);
       following.current = what
         ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what, focus: map.containerPointToLatLng(middle(was)) }
