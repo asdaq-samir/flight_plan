@@ -83,6 +83,6 @@ export function FocusOn({ point, zoom }: { point: { lat: number; lon: number } |
     // all the same under Reduce Motion, which asks for no flight.
     map.flyTo(centreClear(map, [point.lat, point.lon], to), to, { duration: SHEET_SECONDS, animate: !prefersReducedMotion() });
   }, [map, point, zoom]);
-  useClearOfPanel(point);
+  useClearOfPanel(point, zoom);
   return null;
 }
