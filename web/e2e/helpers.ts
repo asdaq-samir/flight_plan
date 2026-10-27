@@ -697,3 +697,11 @@ export async function airportMarks(page: Page): Promise<DrawnAirport[]> {
 export async function airportMark(page: Page, ident: string): Promise<DrawnAirport | null> {
   return (await airportMarks(page)).find(m => m.ident === ident) ?? null;
 }
+
+
+/** A card's own close in the map's sheet: on a phone the tab bar's, which
+ *  names the card and goes back one level (SheetCard, barNamed); from md up
+ *  the card's own, by its test id. */
+export function cardClose(page: Page, testId: string) {
+  return (page.viewportSize()?.width ?? 0) < 768 ? page.getByTestId("tab-close") : page.getByTestId(testId);
+}

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { isValidElement, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
@@ -98,9 +98,15 @@ export function SheetCard({
   const barNamed = useSheetCards(s => s.barNamed) && title !== undefined;
   const card = useRef<HTMLElement>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  // A close of the caller's own in the head (`action`, the app's
+  // CloseButton): one that goes back a page first, the procedures'. With
+  // the tab bar naming the card it is the bar's close that does it, and
+  // the card draws no second one (the owner's screenshot, 2026-10-27: two
+  // closes over the arrivals).
+  const back = isValidElement<{ onClick?: () => void }>(action) && action.type === CloseButton ? action.props.onClick : undefined;
   // The caller's latest, for what is set up once as it opens.
-  const latest = useRef({ onClose, returnFocus, onOpenAutoFocus, onCloseAutoFocus, onEscapeKeyDown });
-  useEffect(() => { latest.current = { onClose, returnFocus, onOpenAutoFocus, onCloseAutoFocus, onEscapeKeyDown }; });
+  const latest = useRef({ onClose, back, returnFocus, onOpenAutoFocus, onCloseAutoFocus, onEscapeKeyDown });
+  useEffect(() => { latest.current = { onClose, back, returnFocus, onOpenAutoFocus, onCloseAutoFocus, onEscapeKeyDown }; });
 
   // Open while it is drawn: on the panel's stack (the panel up for it, the
   // tab bar's name), and the top of what the bar's close, a swipe back and
@@ -108,7 +114,8 @@ export function SheetCard({
   useEffect(() => {
     const close = () => latest.current.onClose();
     useSheetCards.setState(s => ({ stack: [...s.stack, { id, raise, close }] }));
-    const release = holdOpenCard({ close });
+    // Back one: a page of the card's first where it has one (`back`).
+    const release = holdOpenCard({ close: () => (latest.current.back ?? latest.current.onClose)() });
     return () => {
       release();
       useSheetCards.setState(s => ({ stack: s.stack.filter(entry => entry.id !== id) }));
@@ -157,7 +164,7 @@ export function SheetCard({
       latest.current.onEscapeKeyDown?.(event);
       if (event.defaultPrevented) return;
       event.preventDefault();
-      latest.current.onClose();
+      (latest.current.back ?? latest.current.onClose)();
     };
     node.addEventListener("keydown", onKey);
     document.addEventListener("keydown", onKey);
@@ -170,7 +177,7 @@ export function SheetCard({
   if (!host) return null;
   const end = (closeButton ?? (action === undefined && !leading))
     ? (barNamed ? null : <CloseButton onClick={onClose} data-testid="sheet-card-close" />)
-    : action;
+    : barNamed && back ? null : action;
   return createPortal(
     // Under one opened over it, kept as it was and out of sight, for the
     // close to come back to, as a tab is kept (TabKept).
