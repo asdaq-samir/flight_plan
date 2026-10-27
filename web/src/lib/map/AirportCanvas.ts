@@ -167,8 +167,19 @@ export class AirportMarksLayer extends L.Layer {
     ctx.lineJoin = "round";
     const half = AIRPORT_MARK / 2;
     const written: { ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string }[] = [];
+    // Each mark at its exact place, to the fraction of a point, as the
+    // chart's tiles are while a pinch or a flight zooms (pinch.ts): by the
+    // layer's own origin, where latLngToContainerPoint rounds the
+    // projection to a whole point. On a 3x phone each mark stepped a point
+    // at a time against the chart sliding smoothly under it, and back as
+    // the rounding turned -- the owner's recording, 2026-10-27, "map markers
+    // show jitter when zooming in": KARR's mark moved only in whole points
+    // (568.2, 565.2, 568.2, 565.1 device pixels a frame apart) through a
+    // slow pinch. The container's point is the layer's less the canvas's
+    // layer origin, plus where the canvas starts (`from`).
+    const pixelOrigin = map.getPixelOrigin();
     for (const mark of this.marks) {
-      const at = map.latLngToContainerPoint([mark.lat, mark.lon]);
+      const at = map.project([mark.lat, mark.lon]).subtract(pixelOrigin).subtract(origin).add(from);
       // Every field written, in sight or not, as every marker was in the
       // page; drawn only where the canvas reaches.
       written.push({
