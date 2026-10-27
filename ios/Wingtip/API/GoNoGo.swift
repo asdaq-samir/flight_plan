@@ -115,13 +115,6 @@ struct GoNoGoAsk: Encodable, Equatable, Sendable {
     /// phone's own region.
     static let faaLocale = Locale(identifier: "en_US")
 
-    static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        encoder.outputFormatting = .sortedKeys
-        return encoder
-    }()
-
     /// A day as the planner reads it, in the pilot's own calendar.
     static func day(_ date: Date, in zone: TimeZone = .current) -> String {
         let formatter = DateFormatter()
@@ -276,14 +269,6 @@ struct GoNoGoAnswer: Codable, Equatable, Sendable {
 extension Planner {
     /// The Go / No-Go for the route (POST /api/go-no-go).
     static func goNoGo(_ ask: GoNoGoAsk) async throws -> GoNoGoAnswer {
-        var request = URLRequest(url: Config.gateway.appending(path: Config.plannerPath("/api/go-no-go")))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try GoNoGoAsk.encoder.encode(ask)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status, detail: detail(of: data)) }
-        return try snakeCase.decode(GoNoGoAnswer.self, from: data)
+        try await postRead(GoNoGoAnswer.self, "/api/go-no-go", ask)
     }
 }

@@ -265,10 +265,7 @@ extension Planner {
     static func picture(_ path: String) async throws -> Data {
         var request = URLRequest(url: address(of: path))
         request.setValue("image/*", forHTTPHeaderField: "Accept")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status, detail: detail(of: data)) }
-        return data
+        return try await data(for: request)
     }
 
     /// The field from the air and from the ground (/api/airport/{ident}/photos).

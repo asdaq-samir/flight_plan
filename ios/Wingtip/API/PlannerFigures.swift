@@ -216,27 +216,6 @@ struct LostCommsAnswer: Codable, Equatable, Sendable {
 // MARK: - The calls
 
 extension Planner {
-    static let snakeEncoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.keyEncodingStrategy = .convertToSnakeCase
-        encoder.outputFormatting = .sortedKeys
-        return encoder
-    }()
-
-    /// A planner POST that changes nothing (the gateway lets it through
-    /// with no session or token, SecurityConfig), its body in snake case.
-    static func postRead<T: Decodable>(_ type: T.Type, _ path: String, _ body: some Encodable) async throws -> T {
-        var request = URLRequest(url: Config.gateway.appending(path: Config.plannerPath(path)))
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try snakeEncoder.encode(body)
-        let (data, response) = try await URLSession.shared.data(for: request)
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status, detail: detail(of: data)) }
-        return try snakeCase.decode(T.self, from: data)
-    }
-
     /// A flight's track debriefed against its nav log (POST /api/debrief).
     static func debrief(checkpoints: [SaveFlightCheckpoint], points: [SavedTrackPoint]) async throws -> DebriefAnswer {
         try await postRead(DebriefAnswer.self, "/api/debrief", DebriefAsk(checkpoints: checkpoints, points: points))
@@ -274,9 +253,6 @@ extension Planner {
 extension Gateway {
     /// One of the pilot's saved flights with its nav log (/api/flights/{id}).
     static func flightDetail(_ id: Int64) async throws -> SavedFlightDetail {
-        let (data, response) = try await session.data(for: request("GET", "/api/flights/\(id)"))
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw Failure(status: status) }
-        return try JSONDecoder().decode(SavedFlightDetail.self, from: data)
+        try await send(SavedFlightDetail.self, "GET", "/api/flights/\(id)")
     }
 }

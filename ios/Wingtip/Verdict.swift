@@ -94,7 +94,7 @@ final class Verdict {
     /// input of the pilot's.
     func key(for plan: Plan) -> String {
         let ask = ask(for: plan)
-        let body = (try? GoNoGoAsk.encoder.encode(ask)).map { String(decoding: $0, as: UTF8.self) } ?? ""
+        let body = (try? Planner.snakeEncoder.encode(ask)).map { String(decoding: $0, as: UTF8.self) } ?? ""
         return "\(body)|\(plan.plannedAt?.timeIntervalSince1970 ?? 0)|\(plan.problem?.detail ?? "")"
     }
 }

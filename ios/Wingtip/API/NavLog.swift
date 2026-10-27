@@ -221,39 +221,22 @@ enum NavLog {
 
     /// The log for a route, line by line as the planner sends them.
     static func stream(dep: String, dest: String, stops: [String], aircraft: String?, figures: Figures = Figures(), altitudeFt: Double?, nearest: Bool, choice: String?, procedures: [ProcedurePick] = [], extra: [String: String?] = [:]) -> AsyncThrowingStream<NavLogMessage, any Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                var query = figures.query.merging([
-                    "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","), "aircraft": aircraft,
-                    // The procedures picked, which the legs are flown by and
-                    // the descents planned to.
-                    "procedures": procedures.isEmpty ? nil : procedures.map(\.param).joined(separator: ","),
-                    "altitude_ft": altitudeFt.map { String(Int($0)) },
-                    // Picked on the wheel: each leg at its nearest legal
-                    // altitude where the pick is one of the planner's.
-                    "altitude_nearest": altitudeFt != nil && nearest ? "true" : nil,
-                    // One of the four plans; fastest is the planner's own.
-                    "altitude_choice": choice.flatMap { $0 == "fastest" ? nil : $0 },
-                ]) { _, route in route }
-                // The pilot's own edits of the route (RouteExtras): points'
-                // altitudes, holds, crossings, a procedure flown direct.
-                query.merge(extra) { _, own in own }
-                let request = Planner.get("/api/navlog", query)
-                do {
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
-                    let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    guard status == 200 else {
-                        throw Planner.Failure(status: status, detail: nil)
-                    }
-                    for try await line in bytes.lines where !line.isEmpty {
-                        if let message = try decode(line: Data(line.utf8)) { continuation.yield(message) }
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
+        var query = figures.query.merging(Planner.route(dep, dest, stops).merging([
+            "aircraft": aircraft,
+            // The procedures picked, which the legs are flown by and
+            // the descents planned to.
+            "procedures": procedures.isEmpty ? nil : procedures.map(\.param).joined(separator: ","),
+            "altitude_ft": altitudeFt.map { String(Int($0)) },
+            // Picked on the wheel: each leg at its nearest legal
+            // altitude where the pick is one of the planner's.
+            "altitude_nearest": altitudeFt != nil && nearest ? "true" : nil,
+            // One of the four plans; fastest is the planner's own.
+            "altitude_choice": choice.flatMap { $0 == "fastest" ? nil : $0 },
+        ]) { $1 }) { _, route in route }
+        // The pilot's own edits of the route (RouteExtras): points'
+        // altitudes, holds, crossings, a procedure flown direct.
+        query.merge(extra) { _, own in own }
+        let request = Planner.get("/api/navlog", query)
+        return Planner.lines({ request }) { try decode(line: $0) }
     }
 }

@@ -182,11 +182,10 @@ extension Planner {
     /// The briefing, its hazards placed on the nav log's legs where they
     /// are given (/api/briefing's fixes, leg_min, ground_min).
     static func briefing(dep: String, dest: String, stops: [String], eteMin: Double?, legs: BriefLegs.Query?) async throws -> Briefing {
-        try await fetch(Briefing.self, "/api/briefing", [
-            "dep": dep, "dest": dest, "stops": stops.isEmpty ? nil : stops.joined(separator: ","),
+        try await fetch(Briefing.self, "/api/briefing", route(dep, dest, stops).merging([
             "ete_min": eteMin.map { String(Int($0.rounded())) },
             "fixes": legs?.fixes, "leg_min": legs?.legMin, "ground_min": legs?.groundMin,
-        ])
+        ]) { $1 })
     }
 
     /// When the planner fetched the METARs and TFRs the map draws
