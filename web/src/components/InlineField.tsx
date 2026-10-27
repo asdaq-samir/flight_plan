@@ -22,7 +22,9 @@ export const INLINE_FIELD_BUTTON =
  *   two meet, so a tap at the text's end is the field's ("not letting me
  *   clear them").
  */
-export function InlineField({ label, testId, widest, tabular = false, placeholder, placeholderClassName, shrink = false, input, inputClassName, button }: {
+export function InlineField({ label, testId, widest, tabular = false, placeholder, placeholderClassName, shrink = false, input, inputClassName, button, prefix }: {
+  /** Fixed before what is typed, in the secondary grey: an N-number's N. */
+  prefix?: string;
   /** The group's name, for VoiceOver. */
   label: string;
   testId?: string;
@@ -51,10 +53,12 @@ export function InlineField({ label, testId, widest, tabular = false, placeholde
       </span>
       <div className="col-start-1 row-start-1 flex h-full min-w-0 items-center">
         <label className="relative flex h-full min-w-0 flex-1 items-center pr-1 after:absolute after:-inset-y-2 after:-left-0.5 after:right-0 after:content-['']">
+          {prefix && <span aria-hidden="true" className="pl-2.5 font-semibold text-muted-foreground">{prefix}</span>}
           <input
             type="text" autoComplete="off" enterKeyHint="done" size={1} placeholder={placeholder} {...input}
             className={cn(
-              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 pl-2.5 font-semibold outline-none placeholder:font-normal",
+              "relative z-10 h-full w-0 min-w-0 flex-1 bg-transparent pr-0.5 font-semibold outline-none placeholder:font-normal",
+              prefix ? "pl-px" : "pl-2.5",
               tabular && "tabular-nums", inputClassName,
             )}
           />

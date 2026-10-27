@@ -71,20 +71,11 @@ export async function openPanel(page: Page) {
   await grabberTo(page, "half");
 }
 
-/** The route's Share menu out, the panel half way: its sharing, Save,
- *  File flight plan, Print and Clear the route (PlanWorkspace), at the
- *  pilot's ask all under Share beside the chips. */
-async function openShareMenu(page: Page) {
-  await openPanel(page);
-  await controlsInSight(page);
-  await sideDrawer(page).getByTestId("share-route").click();
-  await expect(page.getByRole("menu")).toBeVisible();
-}
 
-/** The route cleared, from its Share menu. */
+/** The route cleared, by the route box's own ✕ (the menu's Clear went,
+ *  the owner, 2026-10-27). */
 export async function clearTheRoute(page: Page) {
-  await openShareMenu(page);
-  await page.getByTestId("route-clear").click();
+  await sideDrawer(page).getByTestId("route-box-clear").click();
 }
 
 const RANK = { peek: 0, half: 1, full: 2 } as const;
@@ -444,24 +435,25 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
 export async function openNavLog(page: Page) {
   await openTab(page, "Nav Log");
   const sheet = navLogSheet(page);
-  // From the route's menu: its button's place is the Brief's (2026-10-24).
-  if (!(await sheet.isVisible())) {
-    await sideDrawer(page).getByTestId("share-route").click();
-    await page.getByTestId("route-navlog").click();
-  }
+  // Its button beside the Brief's (the owner, 2026-10-27).
+  if (!(await sheet.isVisible())) await sideDrawer(page).getByTestId("route-navlog").click();
   await expect(sheet).toBeVisible();
   return sheet;
 }
 
 /** The side view, a card over FPL, with the altitude's wheel in its
- *  corner: opened from the altitude's button beside the airplane (the
- *  owner, 2026-10-20: "we won't need a separate profile button"). */
+ *  corner: opened by the map's Play, its dry run stopped where it would
+ *  fly, so the side view is at rest (the owner, 2026-10-27: the profile's
+ *  button "would be the profile demo button"). */
 export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
-  // Opened from the altitude's button beside the airplane: the Profile
-  // card has no button of its own beside the nav log's.
-  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("altitude-why").click({ timeout: slow(60_000) });
+  if (!(await card.isVisible())) {
+    const play = page.locator("[data-map-food]").getByTestId("dry-run-button");
+    await play.click({ timeout: slow(60_000) });
+    await expect(card).toBeVisible();
+    if ((await play.getAttribute("aria-pressed")) === "true") await play.click();
+  }
   await expect(card).toBeVisible();
   return card;
 }

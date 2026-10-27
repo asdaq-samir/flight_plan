@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, MapPin, Plane, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
 import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -74,6 +74,7 @@ import ProfileCard from "./components/ProfileCard";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
+import { useDryRunButton } from "../../lib/dryRunButton";
 import { useStopsAlong } from "../../lib/stopsAlong";
 import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
@@ -1818,13 +1819,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [aircraftOptions, setAircraft]);
   // An airplane the FAA's registry has, typed by its N-number in the
   // picker: flown on its type's stock profile, named by its N-number.
-  // The airplane's card from the route box's N-number (FlightInputs):
-  // Aircraft's tab, its card over it.
-  const openAirplaneCard = useCallback((hex: string) => {
-    airplaneFrom.current = tab;
-    setTabPick("aircraft");
-    selectFlight(hex);
-  }, [tab, setTabPick, selectFlight]);
   useEffect(() => { backToTab.current = setTabPick; }, [setTabPick]);
     const pickTail = useCallback((tail: string, profile: string) => {
     // With the figures the pilot set for it, where they have (AirplaneFigures).
@@ -2101,6 +2095,24 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (dryRunning && !profileShown) clearPastFlight();
   }, [dryRunning, profileShown]);
   if (runFrom !== null && !dryRunHeld) setRunFrom(null);
+  // The map's Play (DryRunButton): the profile opened and the route flown
+  // on it, at the owner's ask (2026-10-27), where the profile had a button
+  // of its own in the route box. Through refs, so the button's store is
+  // set as the run's state changes, not at every render.
+  const playRef = useRef(() => {});
+  const stopRef = useRef(() => {});
+  useEffect(() => {
+    // The profile opened either way: a route with no legal altitude has no
+    // run to fly, and its profile is where its way round is offered.
+    playRef.current = () => { setTabPick("fpl"); openProfileCard(); if (dryRunReady) startDryRun(); };
+    stopRef.current = stopDryRun;
+  });
+  const flyingNow = !!dryRunning;
+  const playable = routed && !!course;
+  useEffect(() => {
+    useDryRunButton.setState({ ready: playable, flying: flyingNow, play: () => playRef.current(), stop: () => stopRef.current() });
+  }, [playable, flyingNow]);
+  useEffect(() => () => useDryRunButton.setState({ ready: false, flying: false, play: null, stop: null }), []);
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
@@ -2320,11 +2332,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const flightInputs = useMemo(() => (
     <FlightInputs
       aircraftValue={aircraftValue}
-      aircraftOptions={aircraftChoices} onTailPick={pickTail} onOpenAirplane={openAirplaneCard}
+      aircraftOptions={aircraftChoices} onTailPick={pickTail}
       onAircraftChange={changeAircraft}
       altitude={!s.local && (
         <AltitudeGroup
-          nav={s.nav} legs={s.legs} onFlyAltitude={flyAltitude} onOpenProfile={openProfileCard}
+          nav={s.nav} legs={s.legs} onFlyAltitude={flyAltitude}
           // The altitude asked for, at once, while its log is planned, and
           // with no log yet: with no route the figure typed went blank, as
           // if it were not taken, where the route entered next flies it.
@@ -2345,7 +2357,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // step and no altitude, beside its time aloft.
       depart={depart} onDepartChange={s.local ? changeDepart : undefined}
     />
-  ), [aircraftValue, aircraftChoices, changeAircraft, pickTail, openAirplaneCard, s.local, s.nav, s.legs, flyAltitude, openProfileCard, unflyable, tightLeg,
+  ), [aircraftValue, aircraftChoices, changeAircraft, pickTail, s.local, s.nav, s.legs, flyAltitude, unflyable, tightLeg,
     routed, depart, changeDepart, flightRules, s.replanning, altitudeFt, altitudeNearest]);
 
   // Saving the flight, the narrative and Print.
@@ -2385,7 +2397,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const shareMenu = (align: "start" | "end", testId?: string, card?: RouteCard) => (
     <ShareMenu
       align={align} testId={testId} card={card} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
-      routed={routed} hasPoints={hasPoints} local={!!s.local} fileable={fileable} onFile={fileFlightPlan} onClear={clearRoute}
+      routed={routed} local={!!s.local} fileable={fileable} onFile={fileFlightPlan}
       saving={askReview => (
         <Suspense fallback={null}>
           <SaveFlightButton {...flightToSave} />
@@ -2396,7 +2408,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // Plan again in the route's own menu, at the owner's pick ("A") to
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
-      onNavLog={card === undefined && course ? openNavLogCard : undefined}
       onShowFuel={card === undefined && hiddenHere.length ? showFuelStops : undefined}
     />
   );
@@ -2513,9 +2524,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           Back on this line at the owner's ask (2026-10-25), the sheet edge
           to edge for the room (MapPanel's HALF_INSET). */}
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-3.5" data-testid="route-actions">
-        {/* The Brief, a card over FPL (BriefCard), in the nav log's place
-            at the owner's ask ("replace navlog button with brief"), marked
-            as the worst of its pages is; the nav log in the route's menu. */}
+        {/* The nav log beside the Brief, out of the route's menu, at the
+            owner's ask (2026-10-27: "move the Navlog button next to
+            brief"). */}
+        {routed && course && (
+          <RoundButton label="Nav Log" onClick={openNavLogCard} className="size-8" data-testid="route-navlog">
+            <ListOrdered className="size-[1.125rem]" strokeWidth={2} />
+          </RoundButton>
+        )}
+        {/* The Brief, a card over FPL (BriefCard), marked as the worst of
+            its pages is. */}
         {routed && (
           <RoundButton
             label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"

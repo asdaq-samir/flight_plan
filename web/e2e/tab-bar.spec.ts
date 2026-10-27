@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, closeConsole, closeProfile, grabberTo, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, closeConsole, closeProfile, grabberTo, openProfile, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -139,7 +139,7 @@ test("the side view is a card of its own, Profile, from its button beside the na
     await grabberTo(page, height);
     await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: slow(30000) });
     await expect(panel.getByTestId("mini-profile")).toHaveCount(0);
-    await panel.getByTestId("altitude-why").click();
+    await openProfile(page);
     // At the height FPL was, the route's name under the card's, the side
     // view over the figures.
     await expect(panel).toHaveAttribute("data-panel", height);

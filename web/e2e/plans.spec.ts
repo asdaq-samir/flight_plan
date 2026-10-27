@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog, closeCard } from "./helpers";
+import { slow, settle, sideDrawer, expectDrawerOpen, openTab, openSection, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog, closeCard, openProfile } from "./helpers";
 
 /**
  * What the nav log is computed from: the altitude plans and a pilot's
@@ -196,14 +196,9 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await picker.fill("N181PA");
   await picker.press("Enter");
   await expect(picker).toHaveValue("N181PA");
-  await expect(page.getByTestId("aircraft-card-button")).toBeVisible();
-  // Its card from the button, and its close back on FPL, where it was
-  // opened from (the owner's "when closing the card, it doesn't go back
-  // to fpl"). The registry's answer is stubbed: the tap only switches.
-  await page.getByTestId("aircraft-card-button").click();
-  await expect(page.getByTestId("flight-close")).toBeAttached({ timeout: slow(15000) });
-  await closeCard(page, "flight-close");
-  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+  // No card button at its end since the owner's "we don't need the info
+  // for n number" (2026-10-27).
+  await expect(page.getByTestId("aircraft-card-button")).toHaveCount(0);
   // Remembered per browser: the same airplane with the plan opened
   // again from its address -- on which the drawer is already open, since
   // the address kept it all the way up. (A reload forgets the route:
@@ -328,7 +323,7 @@ test("plan page: Class B is planned through by default, said with its clearance,
   await controlsInSight(page);
   await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/feet|FL/, { timeout: slow(60000) });
   expect(asked).toBe("true");
-  await page.getByTestId("altitude-why").click();
+  await openProfile(page);
   const accepted = page.getByTestId("class-b-accepted");
   await expect(accepted).toContainText("Through Chicago Class B: clearance needed");
   await page.getByTestId("avoid-class-b").click();
