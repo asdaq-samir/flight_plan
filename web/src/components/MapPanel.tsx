@@ -502,6 +502,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The pill with a route: its figures in the tabs' place, at the tabs'
   // height (3.625rem: their row and its margins).
   const figuresPill = pillShape && !!bar && footShown;
+  // Laid out as the pill -- its grabber, its row of tabs or figures, where
+  // the pill has them -- from the start of a settle down to it, not only
+  // once there, what it shows still in sight: laid out as the half sheet
+  // to the last frame, the figures jumped 6 points up and 4 across as the
+  // pill's layout came in (sampled on the phone project: DIST at 793, 108.5
+  // the frame before, 786.7, 112.3 after), the "snap at the end" the owner
+  // felt (2026-10-27).
+  const pillLaid = pillShape || settling;
   // The head's row: in the pill only without a tab bar (whose pill is the
   // bar), out of it wherever there is a top row or no bar shown.
   const headerShown = pillShape ? !bar : top != null || !barShown;
@@ -817,19 +825,19 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       // hit area reaches a point and a half past the chip, into it.
       // Over the tabs' head on a phone, no deeper than the room over the
       // tabs (their mt-1.5), so a tab's 44-point hit area stays its own.
-      style={{ height: pillShape ? CAPSULE_PAD - 2 : GRABBER }}
+      style={{ height: pillLaid ? CAPSULE_PAD - 2 : GRABBER }}
       className={cn(
         "mx-auto flex w-24 shrink-0 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
         // In the capsule's thin padding, two points from its edge; on the
         // sheet five, as iOS's.
-        fromBottom ? (pillShape ? "items-start pt-[2px]" : "items-start pt-[5px]") : (pillShape ? "items-end pb-[2px]" : "items-end pb-[5px]"),
-        pillShape && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
+        fromBottom ? (pillLaid ? "items-start pt-[2px]" : "items-start pt-[5px]") : (pillLaid ? "items-end pb-[2px]" : "items-end pb-[5px]"),
+        pillLaid && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
         fromFoot && "absolute inset-x-0 top-0 z-10",
         // Its hit area (index.css) wide but no further into the head than
         // four points: the route's box starts four under it. Over the head
         // on the sheet's edge (fromFoot), its own box only: drawn over the
         // tabs there, it took the top of their 44 points (the iOS audit's P1).
-        !pillShape && (fromBottom ? (fromFoot ? "after:bottom-0! after:top-0!" : "after:bottom-[-4px]! after:top-0!") : "after:top-[-4px]! after:bottom-0!"),
+        !pillLaid && (fromBottom ? (fromFoot ? "after:bottom-0! after:top-0!" : "after:bottom-[-4px]! after:top-0!") : "after:top-[-4px]! after:bottom-0!"),
       )}
     >
       <span className="h-[5px] w-9 rounded-full bg-muted-foreground/40" aria-hidden="true" />
@@ -922,11 +930,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // under a sheet's first row, set them high in the pill, the room
               // under them twice that over (the owner's "Not centered in the
               // bottom pill").
-              "flex shrink-0 px-2", pillShape ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barShown && "hidden",
+              "flex shrink-0 px-2", pillLaid ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barShown && "hidden",
               // In the pill the pill's whole, round its grabber; out of it,
               // under a card's name, the line under the sheet's first row --
               // under the tabs, the tabs' own line of glass (TabGlass).
-              pillShape ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : minimized ? "border-b border-border/60" : "",
+              pillLaid ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : minimized ? "border-b border-border/60" : "",
               figuresPill && "hidden",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}
@@ -1044,16 +1052,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // buttons").
             // Giving way where the half is short of it, after the body: FPL's
             // side view shrinks first (PlanWorkspace), its figures kept whole.
-            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillShape && SHEET_BELOW, !footShown && "hidden",
+            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillLaid && SHEET_BELOW, !footShown && "hidden",
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
             // Its content centred there, the dry run's too, whose figures
             // sat at the pill's top under the grabber, its column grown.
-            pillShape ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none" : "border-t border-border/60 pt-1 pb-2.5",
+            pillLaid ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none" : "border-t border-border/60 pt-1 pb-2.5",
           )}
           style={{
-            ...(toEdge && fromBottom && !pillShape ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
+            ...(toEdge && fromBottom && !pillLaid ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
             // The figures and the foot's own border and padding (pt-1, pb-2.5).
             ...(fromFoot && footRow > 0 ? { minHeight: `calc(${footRow}px + 1px + 0.875rem)` } : {}),
             // How far up it is past half, for what grows with it (FlightLine's
@@ -1094,7 +1102,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       {!toEdge && (edgeRoom > 0 || (fromBottom && onPhone && !!bar && footShown)) && (
         <div
           className="shrink-0" aria-hidden="true"
-          style={{ height: pillShape ? 0 : edgeRoom, transition: dragged === null && measured ? `height ${settle.curve}` : "none" }}
+          style={{ height: pillLaid ? 0 : edgeRoom, transition: dragged === null && measured ? `height ${settle.curve}` : "none" }}
         />
       )}
     </section>
