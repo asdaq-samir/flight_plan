@@ -94,3 +94,38 @@ def test_the_route_lines_chips_one_a_set_of_stops_in_the_owners_order():
     assert chips[0]["crosses"] == [2] and chips[2]["crosses"] == [1]
     # Nothing but the route itself: no line.
     assert route_options._chips({**ANSWER, "options": []}, []) == []
+
+
+def test_the_most_filed_route_is_the_last_chip_its_airway_named(monkeypatch):
+    # The owner, 2026-10-27: "Most filed is how you get most flown".
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    asked = []
+    filed_way = {**ANSWER["options"][0], "kind": "filed", "kinds": ["filed"], "title": "Most Filed",
+                 "stops": ["BAE", "P1", "P2", "OBH"], "fuel": []}
+
+    def options(dep, dest, profile, **given):
+        asked.append(given)
+        return {**ANSWER, "filed": filed_way}
+
+    monkeypatch.setattr(route_options, "resolve", lambda *idents: tuple({"lat": 1.0 + i, "lon": 2.0} for i, _ in enumerate(idents)))
+    monkeypatch.setattr(route_options.vfr_route_options, "options", options)
+    monkeypatch.setattr(route_options.prefetch, "route", lambda dep, dest, stops="": None)
+    monkeypatch.setattr(route_options.filed_routes, "most_filed", lambda dep, dest: [
+        {"stops": ["NOPE"], "flights": 9}, {"stops": ["BAE", "V100", "OBH"], "flights": 4}])
+
+    def load(dep, dest, stops=""):
+        from fastapi import HTTPException
+        if "NOPE" in stops:
+            raise HTTPException(404, "No airport NOPE")
+        idents = (dep.upper(), *(["BAE", "P1", "P2", "OBH"] if stops else []), dest.upper())
+        return type("R", (), {"airports": tuple({"lat": 1.0 + i, "lon": 2.0} for i in range(len(idents))), "idents": idents})()
+    monkeypatch.setattr(route_options, "load_route", load)
+    answer = TestClient(app).get("/api/route-options?dep=kfiled&dest=klwd").json()
+    # The first the planner can fly, flown fix by fix for the ways' read.
+    assert asked[0]["filed"] == ([(2.0, 2.0), (3.0, 2.0), (4.0, 2.0), (5.0, 2.0)], ["BAE", "P1", "P2", "OBH"])
+    assert answer["chips"][-1] == {"key": "filed", "label": "Most Filed · BAE P1 P2 +1", "stops": ["BAE", "V100", "OBH"],
+                                   "fuel": [], "crosses": []}
+    assert "filed" not in answer

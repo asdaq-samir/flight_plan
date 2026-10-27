@@ -93,3 +93,13 @@ def test_the_tracks_read_are_those_round_a_view_and_the_followed_ones(monkeypatc
 def test_a_flat_chart_distance_is_near_enough():
     # O'Hare to N3429J's track, 39.2 nm on the ellipsoid (pyproj's WGS84).
     assert abs(swim._nm(41.98, -87.9, 42.58095, -88.24562) - 39.2) < 0.5
+
+
+def test_tfms_flight_plans_go_to_the_filed_routes_and_the_feed_is_off_without_its_queue(monkeypatch):
+    assert swim.HANDLERS["TFMS"] is swim.filed_routes.heard
+    for name in (*swim.SETTINGS, "SWIM_VPN_TFMS"):
+        monkeypatch.setenv(name, "set")
+    monkeypatch.delenv("SWIM_QUEUE_TFMS", raising=False)
+    assert not swim.configured("TFMS")
+    monkeypatch.setenv("SWIM_QUEUE_TFMS", "set")
+    assert swim.configured("TFMS")

@@ -8,6 +8,7 @@ from typing import Annotated
 
 from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Query
+from vfr import filed_routes
 from vfr import route_options as vfr_route_options
 
 from .. import prefetch
@@ -28,6 +29,10 @@ _LOCK = threading.Lock()
 #: they come in after "None" and "Your Route" (the owner's canvas,
 #: 2026-10-26). The fewest stops' way is not offered (lib/routeWays).
 CHIP_WORDS = {"weather": "Avoid Weather", "fastest": "Fastest", "land": "Over Land"}
+#: The last chip's: the route pilots file most between the two fields
+#: (vfr.filed_routes; the owner, 2026-10-27: "Most filed is how you get
+#: most flown").
+FILED_WORDS = "Most Filed"
 #: The most stops a chip names before "+2".
 CHIP_MOST_IDENTS = 3
 
@@ -67,7 +72,26 @@ def _chips(found: dict, typed: list[str]) -> list[dict]:
         way = next((o for o in found.get("options", []) if kind in o["kinds"]), None)
         if way:
             add(kind, " & ".join(CHIP_WORDS[k] for k in CHIP_WORDS if k in way["kinds"]), way)
+    filed = found.get("filed")
+    if filed:
+        add("filed", FILED_WORDS, filed)
     return chips if len(chips) > 1 else []
+
+
+def _most_filed(dep: str, dest: str) -> tuple[tuple[list[tuple], list[str]] | None, list[str]]:
+    """The route most filed between the fields that the planner can fly
+    (load_route: every fix and airway found), its points and idents
+    between the ends with each airway flown fix by fix, and its stops as
+    filed; (None, []) where none is."""
+    for way in filed_routes.most_filed(dep, dest):
+        if not way["stops"]:
+            continue
+        try:
+            route = load_route(dep, dest, ",".join(way["stops"]))
+        except HTTPException:
+            continue
+        return ([(a["lat"], a["lon"]) for a in route.airports[1:-1]], list(route.idents[1:-1])), way["stops"]
+    return None, []
 
 
 @router.get("/api/route-options")
@@ -113,15 +137,23 @@ def route_options(
     current_idents = list(route.idents[1:-1]) if route else []
     # Which of its points are fields landed at, not fixes flown over.
     current_landed = [not a.get("fix") for a in route.airports[1:-1]] if route else []
+    filed, filed_as = _most_filed(dep, dest)
     found = vfr_route_options.options(
         {"ident": dep.upper(), "lat": start["lat"], "lon": start["lon"]},
         {"ident": dest.upper(), "lat": end["lat"], "lon": end["lon"]},
         profile, depart=depart, fcst_hr=forecast_hour_for(depart),
         min_ceiling_ft=min_ceiling_ft, min_visibility_sm=min_visibility_sm, current=current if stops.strip() else None,
-        current_idents=current_idents, current_landed=current_landed,
+        current_idents=current_idents, current_landed=current_landed, filed=filed,
     )
     typed = [s.strip().upper() for s in stops.split(",") if s.strip()]
     chips = _chips(found, typed)
+    # The most filed route kept as filed, its airways named, where it
+    # needs no fuel stop: the route box shows "V4", not its every fix.
+    if filed_as and found.get("filed") and not found["filed"]["fuel"]:
+        for chip in chips:
+            if chip["key"] == "filed":
+                chip["stops"] = filed_as
+    found.pop("filed", None)
     # Each chip's route read ahead, its chart and its ground, as a typed
     # route is (app.prefetch): a tap on one waited on every new hop's
     # chart read, 18 s for KPWK to KCOS by three fixes (2026-10-27). The
