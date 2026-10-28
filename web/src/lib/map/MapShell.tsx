@@ -30,7 +30,6 @@ import { TrafficLayer } from "./TrafficLayer";
 import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "./ownShip";
 import TvMapKeys from "./TvMapKeys";
 import { tvPlatform } from "../tv";
-import { underway } from "./glide";
 
 interface Props {
   course: Course | null;
@@ -375,8 +374,13 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       // instead, the airplane flying off under the sheet, at the owner's
       // notice ("during dry run map should adjust as well to the pill and
       // half card").
+      // And the position the pilot asked the map to follow -- the location
+      // arrow tapped since the route was fitted, which a fit turns off --
+      // kept in the middle, on the ground too: the route fitted instead
+      // at the sheet's turn ended following, and own ship sat off the
+      // middle (route-fit.spec, CI on a phone, 2026-10-28).
       const flying = ownShip.simulated;
-      const keepingUp = shipInSight && (flying || (ownShip.follow && underway(ship)));
+      const keepingUp = shipInSight && (flying || (ownShip.enabled && ownShip.follow));
       // The route slid, not fitted again: at the same zoom the chart's
       // tiles are the ones already drawn, where a fit to the new room
       // zoomed and drew the chart afresh at every turn, at the owner's ask
