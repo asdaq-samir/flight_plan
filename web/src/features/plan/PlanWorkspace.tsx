@@ -828,8 +828,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const takeoffLb = fitLoad?.takeoff.weightLb ?? null, landingLb = fitLoad?.landing.weightLb ?? null;
   const runwayFitInputs = useMemo<FitInputs | null>(() => (fitAircraft ? { aircraft: fitAircraft, takeoffLb, landingLb } : null),
     [fitAircraft, takeoffLb, landingLb]);
-  // Their patterns as the map draws them.
-  const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.filter((a, i, all) => all.findIndex(b => b.ident === a.ident) === i).flatMap(a => {
+  // Their patterns as the map draws them: where the airplane lands, the
+  // destination and the stops. Not the departure, whose runway picked to
+  // leave from is kept in the same place as a landing's (`pattern`), and
+  // was drawn as a pattern to land on, 45° entry and all, at the field
+  // being left (the owner, 2026-10-27: "why is c81 also drawing a visual
+  // pattern?"), unless the flight comes back to it.
+  const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.filter((a, i, all) => all.findIndex(b => b.ident === a.ident) === i
+    && (a.role !== "Departure" || all.some(b => b.role !== "Departure" && sameField(b.ident, a.ident)))).flatMap(a => {
     const end = pickedPatterns.get(a.ident);
     if (!end) return [];
     const runway = a.runways?.find(r => (r.runway_ends ?? []).some(e => runwayNumber(e.ident) === end));
