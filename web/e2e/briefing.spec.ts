@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, settled, closeCard, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet, briefPage } from "./helpers";
+import { slow, settle, tapTheChart, settled, closeCard, sideDrawer, expectDrawerClosed, expectDrawerOpen, closeSidebarWithTheStockKey, openedDrawerBox, openBrief, openBriefing, openTab, openSection, panelTabs, grabberTo, controlsInSight, openNavLog, closeNavLog, navLogSheet, briefPage } from "./helpers";
 
 /**
  * The flight planning panel: how it opens -- from its grabber, a pasted
@@ -289,8 +289,11 @@ test("plan page: the panel's grabber cycles it up and back down, a tap on the ma
   // Not modal: the map beside the card stays live, and a click there is
   // the map's. (On a phone the sheet all the way up leaves no map
   // beside it.)
+  // Somewhere on the chart with nothing on it (tapTheChart): a fixed
+  // point beside the card could land on a field's mark, whose card opening
+  // lowered the panel (CI, 2026-10-28, three tries of three).
   if (viewport.width >= 768) {
-    await page.mouse.click(viewport.width - 200, viewport.height / 2);
+    await tapTheChart(page);
     await expectDrawerOpen(page);
   }
   await closeSidebarWithTheStockKey(page);
