@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, openPanel, settle, sideDrawer, stripShows, airportSearch } from "./helpers";
+import { clearTheRoute, grabberTo, settle, sideDrawer, stripShows, airportSearch } from "./helpers";
 
 /**
  * The Recents taken off one at a time, by a swipe to the left that
@@ -234,8 +234,7 @@ test("FPL's strip shows Saved or, from its filter, the latest routes planned as 
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.preferences")!).state.recentRoutes[0]?.dest), { timeout: 30_000 })
     .toBe("KMSN");
   // Cleared from the route's box, the sheet out where the box is.
-  await openPanel(page);
-  await panel.getByTestId("route-box-clear").click();
+  await clearTheRoute(page);
   await expect(panel.getByTestId("route-recent").first()).toContainText("C81→KMSN");
 
   // Clear, asked first, from the Recents in full: the strip says none yet
