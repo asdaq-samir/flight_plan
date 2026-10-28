@@ -286,3 +286,37 @@ def test_a_transition_that_is_its_fix_alone_is_flown_from_that_fix_round_its_pro
     assert path[1] == dlh
     assert not any(near(p, mizou) for p in path)
     assert any(near(p, (46.70, -92.27)) for p in path)
+
+
+def test_a_leg_with_runways_picked_is_flown_out_by_its_upwind_and_in_by_the_pattern():
+    """C81 to UGN with 24 and 5 picked: off the runway's threshold, round
+    UGN's pattern and down onto 5's threshold, not to the field's middle."""
+    from vfr import pattern
+    ugn = {"runway_ends": [
+        {"ident": "05", "heading_true_deg": 49.0, "traffic": "left", "lat": 42.4176, "lon": -87.8742},
+        {"ident": "23", "heading_true_deg": 229.0, "traffic": "right", "lat": 42.4268, "lon": -87.8593},
+    ]}
+    c81 = {"runway_ends": [
+        {"ident": "6", "heading_true_deg": 58.0, "traffic": "left", "lat": 42.3236, "lon": -88.0800},
+        {"ident": "24", "heading_true_deg": 238.0, "traffic": "left", "lat": 42.3270, "lon": -88.0710},
+    ]}
+    start, end = (42.3250, -88.0750), (42.4222, -87.8678)
+    out = pattern.departure_circuit(c81, "6", end)
+    into = pattern.arrival_circuit(ugn, "5", 1700, 727)
+    leg = flown(start, end, takeoff_circuit=out, landing_circuit=into)
+    assert tuple(leg["path"][0]) == (42.3236, -88.08)
+    assert tuple(leg["path"][-1]) == (42.4176, -87.8742)
+    assert leg["landing"] is True
+    assert leg["nm"] > length_nm([start, end])
+    assert leg["ft"][-1] == 727
+
+
+def test_the_pattern_alone_is_a_landing_and_nothing_picked_is_the_route():
+    from vfr import pattern
+    ugn = {"runway_ends": [
+        {"ident": "05", "heading_true_deg": 49.0, "traffic": "left", "lat": 42.4176, "lon": -87.8742},
+        {"ident": "23", "heading_true_deg": 229.0, "traffic": "right", "lat": 42.4268, "lon": -87.8593},
+    ]}
+    into = pattern.arrival_circuit(ugn, "5", 1700, 727)
+    assert flown((42.3, -88.0), (42.4222, -87.8678), landing_circuit=into)["landing"]
+    assert flown((42.3, -88.0), (42.4222, -87.8678)) is None

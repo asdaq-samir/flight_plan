@@ -17166,6 +17166,16 @@
           },
           {
             "in": "query",
+            "name": "patterns",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Patterns",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "crossings",
             "required": false,
             "schema": {
@@ -17609,6 +17619,16 @@
             "schema": {
               "default": "",
               "title": "Runways",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "patterns",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Patterns",
               "type": "string"
             }
           },
@@ -18180,6 +18200,16 @@
             "schema": {
               "default": "",
               "title": "Runways",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "patterns",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Patterns",
               "type": "string"
             }
           },

@@ -54,6 +54,19 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   await expect(page).toHaveURL(new RegExp(`[?&]pattern=[^&]*KDLH(%3A|:)${name}(%2C|,|&|$)`));
 });
 
+test("the field left from is drawn off its runway and out of the pattern, not round it, and both runways are sent to the planner", async ({ page }) => {
+  // The owner, 2026-10-27: "why is c81 also drawing a visual pattern?" and
+  // "is it not flying that and landing?".
+  const asked: URL[] = [];
+  page.on("request", r => { if (r.url().includes("/api/navlog")) asked.push(new URL(r.url())); });
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81%3A24%2CKDLH%3A27&auto=-");
+  await settle(page);
+  await expect(page.locator("path.traffic-pattern.pattern-at-KDLH")).toHaveCount(1, { timeout: slow(20000) });
+  await expect(page.locator("path.traffic-pattern.departure-at-C81")).toHaveCount(1);
+  await expect(page.locator("path.traffic-pattern.pattern-at-C81")).toHaveCount(0);
+  await expect.poll(() => asked.some(u => u.searchParams.get("runways") === "C81:24" && u.searchParams.get("patterns") === "KDLH:27"), { timeout: slow(20000) }).toBe(true);
+});
+
 // KDLH's ILS as the planner would send it (vfr.procedures), stubbed: the
 // FAA's file is not read on CI's runner.
 const LIST = {

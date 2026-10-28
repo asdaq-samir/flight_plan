@@ -661,7 +661,7 @@ export default memo(function RouteMap({
   const focusedPattern = useMemo(() => {
     const [ident, end] = (patternFocus ?? "").split(":");
     const p = patterns.find(q => q.ident === ident && q.runway === end);
-    return p ? [...p.legs.map(l => l.from), p.entry.from] : NO_POINTS;
+    return p ? [...p.legs.flatMap(l => [l.from, l.to]), p.entry.from, p.entry.to] : NO_POINTS;
   }, [patterns, patternFocus]);
   // The procedure just picked, every line and hold of it, to bring in.
   const focusedProcedure = useMemo(() => {

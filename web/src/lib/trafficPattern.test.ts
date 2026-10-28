@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Runway } from "./api/types";
 import { bearingDeg, distanceNm } from "./geo";
-import { DOWNWIND_NM, patternsOf, patternsParam, trafficPattern } from "./trafficPattern";
+import { DOWNWIND_NM, departurePattern, patternsOf, patternsParam, trafficPattern } from "./trafficPattern";
 
 // A runway 09/27 a mile long on the equator: 09 lands east, 27 west.
 const RUNWAY = {
@@ -51,5 +51,25 @@ describe("a runway's traffic pattern", () => {
     const picked = patternsOf("kdlh:27, C81:24,bad,KX:9Q");
     expect([...picked]).toEqual([["KDLH", "27"], ["C81", "24"]]);
     expect(patternsParam(picked)).toBe("KDLH:27,C81:24");
+  });
+});
+
+describe("the way out of a field left from", () => {
+  test("is off the threshold along the runway, never round to a 45° entry (AIM 4-3-3)", () => {
+    const p = departurePattern("KTST", RUNWAY, "09", 1800, { lat: 0, lon: 2 })!;
+    expect(p.kind).toBe("departure");
+    expect(p.legs.map(l => l.name)).toEqual(["Upwind"]);
+    expect(p.legs[0]!.from).toEqual({ lat: 0, lon: 0 });
+    expect(p.legs[0]!.to.lon).toBeGreaterThan(1 / 60);
+  });
+
+  test("goes straight out toward a field ahead, and turns 45° to the pattern's side for one off that way", () => {
+    const ahead = departurePattern("KTST", RUNWAY, "09", 1800, { lat: 0, lon: 2 })!;
+    expect(ahead.entry.name).toBe("Straight out");
+    expect(Math.round(bearingDeg(ahead.entry.from, ahead.entry.to))).toBe(90);
+    // Left traffic off 09: the pattern's side is north, the turn to 045°.
+    const north = departurePattern("KTST", RUNWAY, "09", 1800, { lat: 1, lon: 0.5 })!;
+    expect(north.entry.name).toBe("45° departure");
+    expect(Math.round(bearingDeg(north.entry.from, north.entry.to))).toBe(45);
   });
 });

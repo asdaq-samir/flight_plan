@@ -35,6 +35,9 @@ const ENTRY_NM = 1.2;
 export type LegName = "Upwind" | "Crosswind" | "Downwind" | "Base" | "Final";
 
 export interface TrafficPattern {
+  /** Round the runway to land on it, or off it and out of the pattern
+   *  (departurePattern). */
+  kind: "arrival" | "departure";
   ident: string;
   /** The end landed on, as painted: "27", "9L". */
   runway: string;
@@ -44,8 +47,9 @@ export interface TrafficPattern {
   /** The legs in the order flown, each from its start to its end. */
   legs: { name: LegName; from: LatLon; to: LatLon }[];
   /** The 45° entry: from out on the pattern's side to the downwind abeam
-   *  midfield. */
-  entry: { from: LatLon; to: LatLon };
+   *  midfield; leaving, the exit from the upwind's end, its name the way
+   *  it goes. */
+  entry: { from: LatLon; to: LatLon; name: string };
 }
 
 /** A runway end's threshold, where the FAA or OurAirports has it. */
@@ -58,6 +62,59 @@ const at = (end: RunwayEnd | undefined): LatLon | null =>
  * the runway's length where it alone is missing).
  */
 export function trafficPattern(ident: string, runway: Runway, endIdent: string, altitudeFt: number | null): TrafficPattern | null {
+  const c = corners(runway, endIdent);
+  if (!c) return null;
+  const { threshold, far, along, side, finalStart, upwindEnd, end } = c;
+  const crosswindEnd = destination(upwindEnd, side, DOWNWIND_NM);
+  const downwindEnd = destination(finalStart, side, DOWNWIND_NM);
+  const midfield = destination(destination(threshold, along, distanceNm(threshold, far) / 2), side, DOWNWIND_NM);
+  // From out on the pattern's side, behind the downwind's direction: the
+  // bisector of the landing direction and the pattern's side.
+  const turn = signedTurn(along, side);
+  const entryFrom = destination(midfield, (along + turn / 2 + 360) % 360, ENTRY_NM);
+  return {
+    kind: "arrival", ident, runway: runwayNumber(end.ident), traffic: end.traffic, altitudeFt,
+    legs: [
+      { name: "Upwind", from: far, to: upwindEnd },
+      { name: "Crosswind", from: upwindEnd, to: crosswindEnd },
+      { name: "Downwind", from: crosswindEnd, to: downwindEnd },
+      { name: "Base", from: downwindEnd, to: finalStart },
+      { name: "Final", from: finalStart, to: threshold },
+    ],
+    entry: { from: entryFrom, to: midfield, name: "45° entry" },
+  };
+}
+
+/**
+ * The way out of a field leaving from `endIdent`, where the field is left
+ * rather than landed at: the takeoff along the runway and the upwind past
+ * its end, then out of the pattern straight on or with a 45° turn to the
+ * pattern's side -- the two AIM 4-3-3 gives -- whichever is the nearer the
+ * way on to `toward`, the flight's next field. The planner flies the same
+ * (vfr.pattern.departure_circuit). It drew the landing's whole pattern and
+ * its 45° entry at the field left from (the owner, 2026-10-27: "why is c81
+ * also drawing a visual pattern?").
+ */
+export function departurePattern(ident: string, runway: Runway, endIdent: string, altitudeFt: number | null, toward: LatLon | null): TrafficPattern | null {
+  const c = corners(runway, endIdent);
+  if (!c) return null;
+  const { threshold, along, side, upwindEnd, end } = c;
+  const turned = (along + signedTurn(along, side) / 2 + 360) % 360;
+  const on = toward ? bearingDeg(upwindEnd, toward) : along;
+  const straight = Math.abs(signedTurn(along, on)) <= Math.abs(signedTurn(turned, on));
+  return {
+    kind: "departure", ident, runway: runwayNumber(end.ident), traffic: end.traffic, altitudeFt,
+    legs: [{ name: "Upwind", from: threshold, to: upwindEnd }],
+    entry: { from: upwindEnd, to: destination(upwindEnd, straight ? along : turned, ENTRY_NM), name: straight ? "Straight out" : "45° departure" },
+  };
+}
+
+/** The pattern's corners for `endIdent`: its threshold, the far end, the
+ *  direction along the runway and the pattern's side, the final's start
+ *  and the upwind's end. Null where its threshold or heading is not known
+ *  (the other end's place is taken from the runway's length where it
+ *  alone is missing). */
+function corners(runway: Runway, endIdent: string) {
   const ends = runway.runway_ends ?? [];
   const end = ends.find(e => e.ident === endIdent);
   const threshold = at(end);
@@ -76,24 +133,7 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
   // two ends abeam them.
   const finalStart = destination(threshold, back, DOWNWIND_NM);
   const upwindEnd = destination(far, along, DOWNWIND_NM);
-  const crosswindEnd = destination(upwindEnd, side, DOWNWIND_NM);
-  const downwindEnd = destination(finalStart, side, DOWNWIND_NM);
-  const midfield = destination(destination(threshold, along, distanceNm(threshold, far) / 2), side, DOWNWIND_NM);
-  // From out on the pattern's side, behind the downwind's direction: the
-  // bisector of the landing direction and the pattern's side.
-  const turn = signedTurn(along, side);
-  const entryFrom = destination(midfield, (along + turn / 2 + 360) % 360, ENTRY_NM);
-  return {
-    ident, runway: runwayNumber(end.ident), traffic: end.traffic, altitudeFt,
-    legs: [
-      { name: "Upwind", from: far, to: upwindEnd },
-      { name: "Crosswind", from: upwindEnd, to: crosswindEnd },
-      { name: "Downwind", from: crosswindEnd, to: downwindEnd },
-      { name: "Base", from: downwindEnd, to: finalStart },
-      { name: "Final", from: finalStart, to: threshold },
-    ],
-    entry: { from: entryFrom, to: midfield },
-  };
+  return { threshold, far, along, side, finalStart, upwindEnd, end };
 }
 
 /** The patterns picked, by field, from the address: "KDLH:27,C81:24".

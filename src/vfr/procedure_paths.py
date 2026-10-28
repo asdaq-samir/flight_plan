@@ -321,7 +321,8 @@ def _direct(piece: dict | None, drawing: dict | None) -> dict | None:
 
 
 def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict | None = None,
-          approach: dict | None = None, runway: str | None = None) -> dict | None:
+          approach: dict | None = None, runway: str | None = None,
+          takeoff_circuit: dict | None = None, landing_circuit: dict | None = None) -> dict | None:
     """A leg flown by the procedures picked, from its `start` to its `end`:
     out of the field it leaves by its departure, into the one it lands at
     by its arrival and its approach, each to its runway, a course reversal
@@ -334,18 +335,26 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
     missed approach flown from there), and the approach's missed approach;
     a departure by the runway transition for the `runway` left from. A procedure ATC
     sent the airplane direct to a fix of (its drawing's `direct`) is flown
-    from that fix, straight to it from where the leg is. None where nothing
-    of them is drawn."""
+    from that fix, straight to it from where the leg is. With no
+    departure, out by the runway left from and its upwind
+    (`takeoff_circuit`, vfr.pattern.departure_circuit); with no approach,
+    in by the traffic pattern to the runway landed on (`landing_circuit`,
+    vfr.pattern.arrival_circuit), after the arrival where there is one.
+    None where nothing of them is drawn."""
     app = approach_path(approach) if approach else None
     # Sent direct to one of the approach's fixes, the arrival is left for it.
     direct_in = bool(approach and approach.get("direct") and _direct(app, approach) is not app)
     app = _direct(app, approach)
     star = None if direct_in else _direct(procedure_path(arrival, app["points"][0] if app else None) if arrival else None, arrival)
     sid = _direct(procedure_path(departure, runway=runway) if departure else None, departure)
-    pieces = [p for p in (sid, star, app) if p]
+    out = sid or takeoff_circuit
+    circuit_in = None if app else landing_circuit
+    pieces = [p for p in (out, star, app or circuit_in) if p]
     if not pieces:
         return None
-    raw, raw_ft = [tuple(start)], [None]
+    # Out by the runway, from its threshold: the airplane on the runway, not
+    # the middle of the field.
+    raw, raw_ft = ([], []) if takeoff_circuit is not None and out is takeoff_circuit else ([tuple(start)], [None])
     for piece in pieces:
         # From vectors, onto the final at a 30° intercept (vectors_join);
         # sent direct to a fix, straight there.
@@ -355,7 +364,7 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
                 raw_ft.append(None)
         for p, ft in zip(piece["points"], piece["ft"]):
             # A point where the last piece ended is the one place.
-            if _nm(p, raw[-1]) < SAME_PLACE_NM:
+            if raw and _nm(p, raw[-1]) < SAME_PLACE_NM:
                 continue
             raw.append(p)
             raw_ft.append(ft)
@@ -363,7 +372,7 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
     # onto the route, and an arrival on to its field from where it ends --
     # most end in vectors (FM, VM), Rockford's ALEXS1 29 miles out, where the
     # dry run came down to the field's elevation (the audit of 2026-10-21).
-    if not app and _nm(raw[-1], tuple(end)) >= SAME_PLACE_NM:
+    if not app and not circuit_in and _nm(raw[-1], tuple(end)) >= SAME_PLACE_NM:
         raw.append(tuple(end))
         raw_ft.append(None)
     path, ft = with_reversals(raw, raw_ft, [h for piece in pieces for h in piece["holds"]])
@@ -381,7 +390,7 @@ def flown(start: tuple, end: tuple, departure: dict | None = None, arrival: dict
         missed = missed_path(approach, map_point)
     return {
         "path": [[round(p[0], 6), round(p[1], 6)] for p in path], "ft": ft, "nm": length_nm(path),
-        "landing": bool(star or app), "final_at": final_at, "map_at": map_at,
+        "landing": bool(star or app or circuit_in), "final_at": final_at, "map_at": map_at,
         "missed": None if missed is None else {
             "path": [[round(p[0], 6), round(p[1], 6)] for p in missed["points"]], "ft": missed["ft"],
         },

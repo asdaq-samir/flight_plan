@@ -13,7 +13,9 @@ import { useLiveZoom } from "./useView";
  * procedure is drawn apart from the route's magenta (ForeFlight draws its
  * in a cyan, at the pilot's showing), an arrow along each leg the way it
  * is flown, the downwind named with its altitude, and the 45° entry dashed
- * into it. Not tappable: a picture of the pattern, the chart under it.
+ * into it. At the field left from, the runway and its upwind, and the way
+ * out of the pattern dashed from its end (departurePattern). Not
+ * tappable: a picture of the pattern, the chart under it.
  */
 const TEAL = "#0e8f8a";
 /** A name's ground, darker: white words on the line's teal were 3.95:1,
@@ -60,12 +62,12 @@ export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns:
     <Pane name="patterns" style={{ zIndex: 430 }}>
       {patterns.map(p => {
         const circuit = [p.legs[0]!.from, ...p.legs.map(l => l.to)].map(pair);
-        const downwind = p.legs.find(l => l.name === "Downwind")!;
+        const downwind = p.legs.find(l => l.name === "Downwind");
         return (
           <Fragment key={`${p.ident}-${p.runway}`}>
             <Polyline positions={circuit} pathOptions={LINE_CASING} interactive={false} />
             <Polyline positions={[pair(p.entry.from), pair(p.entry.to)]} pathOptions={LINE_CASING} interactive={false} />
-            <Polyline positions={circuit} pathOptions={LEG} interactive={false} className={`traffic-pattern pattern-at-${p.ident}`} />
+            <Polyline positions={circuit} pathOptions={LEG} interactive={false} className={`traffic-pattern ${p.kind === "departure" ? "departure" : "pattern"}-at-${p.ident}`} />
             <Polyline positions={[pair(p.entry.from), pair(p.entry.to)]} pathOptions={ENTRY} interactive={false} className="traffic-pattern-entry" />
             {words && p.legs.map(l => (
               <Marker
@@ -75,11 +77,18 @@ export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns:
                 interactive={false} keyboard={false} pane="patterns"
               />
             ))}
-            {words && <Marker
+            {words && downwind && <Marker
               position={pair(along(downwind.from, downwind.to, 0.5))} interactive={false} keyboard={false} pane="patterns"
               icon={labelIcon(`${p.traffic === "right" ? "Right" : "Left"} downwind ${p.runway}${p.altitudeFt != null ? ` · ${altFt(p.altitudeFt)} ft` : ""}`)}
             />}
-            {words && <Marker position={pair(p.entry.from)} interactive={false} keyboard={false} pane="patterns" icon={labelIcon("45° entry")} />}
+            {/* Named at its outer end: where an entry starts, where an exit
+                goes. */}
+            {words && (
+              <Marker
+                position={pair(p.kind === "departure" ? p.entry.to : p.entry.from)} interactive={false} keyboard={false} pane="patterns"
+                icon={labelIcon(p.kind === "departure" ? `${p.entry.name} · ${p.runway}` : p.entry.name)}
+              />
+            )}
           </Fragment>
         );
       })}
