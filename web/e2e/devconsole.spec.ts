@@ -1,6 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { consolePage, expandConsole, openConsole, showTabs } from "./helpers";
 
+// A route's handler still running as the test ends -- the Recents and
+// Saved planned ahead at idle ask the planner then -- found the page
+// closed and failed the test (navlog-fit.spec, CI, 2026-10-28): the
+// handlers taken off, their errors let go, as each test ends.
+test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: "ignoreErrors" }); });
+
 /**
  * The Dev console's System tab, for the answers that are not "up": a
  * service this deployment does not run, and a planner that did not

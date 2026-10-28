@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { controlsInSight, settle, sideDrawer, slow, openNavLog, navLogSheet, navLogScroller, closeNavLog } from "./helpers";
 
+// A route's handler still running as the test ends -- the Recents and
+// Saved planned ahead at idle ask the planner then -- found the page
+// closed and failed the test (navlog-fit.spec, CI, 2026-10-28): the
+// handlers taken off, their errors let go, as each test ends.
+test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: "ignoreErrors" }); });
+
 /**
  * The nav log fits a phone's panel, with a departure time's ETA as its
  * sixth column, a cruise in five figures, and waypoint names with words
