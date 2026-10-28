@@ -23,6 +23,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from urllib.parse import urljoin
 
+import numpy as np
 import pandas as pd
 import requests
 
@@ -688,24 +689,40 @@ def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -
     in the corridor by construction, and neither is a checkpoint: you are
     taking off from one and landing at the other.
     """
-    df = _read_apt_base(apt_csv_path)
+    fields, lat, lon, ident, icao = _charted_open_airports(str(apt_csv_path), Path(apt_csv_path).stat().st_mtime)
+    min_lat, min_lon, max_lat, max_lon = bbox
+    inside = (lat >= min_lat) & (lat <= max_lat) & (lon >= min_lon) & (lon <= max_lon)
+
+    excluded = {i.strip().upper() for i in exclude_idents}
+    if excluded:
+        at = np.flatnonzero(inside)
+        inside[at[[a in excluded or c in excluded for a, c in zip(ident[at], icao[at])]]] = False
+
+    found = fields[inside].reset_index(drop=True)
+    # Each its own tags, as when they were made for each call: a caller
+    # may add to a candidate's.
+    return found.assign(tags=[dict(t) for t in found["tags"]])
+
+
+@once(maxsize=2)
+def _charted_open_airports(path: str, _mtime: float) -> tuple:
+    """APT_BASE's charted, open fields as load_route_airports gives them,
+    with their positions and upper-cased identifiers to pick them by, once
+    per file version as the table itself is (`_read_apt_base`): made again
+    on every route's checkpoints -- the type mapped, matched and the
+    status compared over all 19,400 rows, two columns turned to numbers
+    and each name title-cased -- it was a second of the planner's time
+    each call while other threads held the interpreter, where only the box
+    and the route's own two fields are the route's (py-spy on the live
+    planner, 2026-10-28)."""
+    df = _read_apt_base_cached(path, _mtime)
     df = df[
         df["SITE_TYPE_CODE"].map(_SITE_TYPE_NAMES).isin(CHARTED_FACILITY_TYPES)
         & (df["ARPT_STATUS"] == "O")
     ]
-    df["lat"] = df["LAT_DECIMAL"].astype(float)
-    df["lon"] = df["LONG_DECIMAL"].astype(float)
-    df = df[_in_bbox(df["lat"], df["lon"], bbox)]
-
-    excluded = {i.strip().upper() for i in exclude_idents}
-    if excluded:
-        keep = ~(
-            df["ARPT_ID"].str.upper().isin(excluded)
-            | df["ICAO_ID"].fillna("").str.upper().isin(excluded)
-        )
-        df = df[keep]
-
-    return pd.DataFrame(
+    lat = df["LAT_DECIMAL"].astype(float)
+    lon = df["LONG_DECIMAL"].astype(float)
+    fields = pd.DataFrame(
         {
             "osm_id": df["ARPT_ID"],
             "osm_type": "faa_airport",
@@ -713,15 +730,17 @@ def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -
             # The chart labels a field by name and identifier, so the
             # candidate carries both -- that is what you read off it.
             "name": df["ARPT_NAME"].str.title() + " (" + df["ARPT_ID"] + ")",
-            "lat": df["lat"],
-            "lon": df["lon"],
+            "lat": lat,
+            "lon": lon,
             "bbox_area_m2": 0.0,
             "tags": [
                 {"arpt_id": a, "city": c if isinstance(c, str) else "", "use": u}
                 for a, c, u in zip(df["ARPT_ID"], df["CITY"], df["FACILITY_USE_CODE"])
             ],
         }
-    ).reset_index(drop=True)
+    )
+    return (fields, lat.to_numpy(), lon.to_numpy(), df["ARPT_ID"].str.upper().to_numpy(dtype=object),
+            df["ICAO_ID"].fillna("").str.upper().to_numpy(dtype=object))
 
 
 # APT_BASE encodes the facility type as a single letter.

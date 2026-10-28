@@ -142,6 +142,9 @@ def _warm_reference_data() -> None:
         # its parse was 11.8 s of a cold KBOS to KSAN's plan (Session1's
         # profile, 2026-10-23).
         ("patterns", lambda: faa_data.pattern_agl_ft("KJFK", altitude.DEFAULT_FAA_CACHE_DIR)),
+        # And its charted, open fields, a route's checkpoint candidates.
+        ("route airports", lambda: faa_data.load_route_airports(
+            faa_data.ensure_nasr_file("APT_BASE.csv", altitude.DEFAULT_FAA_CACHE_DIR), (0.0, 0.0, 0.0, 0.0))),
         ("charts", _prepare_corridor_charts),
     ):
         try:
