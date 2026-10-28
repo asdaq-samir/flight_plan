@@ -295,6 +295,7 @@ function Traffic() {
       // the airplanes out to 165 nm, and each moved was placed on the page.
       // The next step moves one coming into sight.
       const seen = map.getBounds().pad(0.25);
+      let added = 0;
       for (const [hex, target] of targets.current) {
         const age = (now - target.at) / 1000;
         if (age > CARRY_S) {
@@ -323,8 +324,15 @@ function Traffic() {
           if (drawn) layer.removeLayer(target.marker);
           continue;
         }
+        // A few dozen put on the page a step, the rest at the steps after,
+        // a tenth of a second apart: each is a marker of the page's own,
+        // and hundreds at once held the page up for a second.
+        if (!drawn && (!target.icon || added >= ADD_PER_STEP)) continue;
         target.marker.setLatLng([lat, lon]);
-        if (!drawn && target.icon) layer.addLayer(target.marker);
+        if (!drawn) {
+          layer.addLayer(target.marker);
+          added += 1;
+        }
       }
       // The flight followed kept in the middle of what the panel leaves,
       // moved with it ten times a second.
@@ -349,6 +357,9 @@ function Traffic() {
 /** From the middle of the map to its corner, nm, kept between 10 and 165:
  *  the planner gives a view out to 165 its traffic (vfr.traffic), the
  *  map zoomed out to a state or two. */
+/** The most airplanes put on the page in one step of the traffic's. */
+const ADD_PER_STEP = 40;
+
 function radiusOf(map: L.Map): number {
   const bounds = map.getBounds();
   const metres = map.getCenter().distanceTo(bounds.getNorthEast());
