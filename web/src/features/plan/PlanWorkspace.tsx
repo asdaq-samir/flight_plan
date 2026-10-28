@@ -1470,16 +1470,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // A route on screen: one the planner plans, or a local flight -- an
   // airport to itself with no stop (usePlan's `local`).
   const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null || local;
-  // The latest Recents and Saved planned ahead, one at a time once the
-  // page is idle and the route on screen is in: their course, checkpoints
-  // and nav log in the page's cache, a tap on one drawn at once from it --
-  // a route opened again was planned again from nothing, a second to
-  // several of the planner's (the owner, 2026-10-28: "Why isn't planning
-  // instant?"). Each as the page will ask for it, with the picks the
-  // address keeps for the altitude; one with runways or procedures picked
-  // is asked for as well, the page's own log then another key, but the
-  // planner's slow parts (the chart's read, the ground, the altitude for
-  // the airplane and the hour) kept for it all the same.
+  // The latest Recents and Saved planned ahead by the planner, one at a
+  // time once the page is idle and the route on screen is in: the chart's
+  // read along each, the ground under it and the altitude for the airplane
+  // and the hour kept there, the slow part of a route's plan (2 to 4 s for
+  // a route's first checkpoints) -- the owner, 2026-10-28: "Why isn't
+  // planning instant?". Not kept in the page: a route opened with its whole
+  // plan in the cache was drawn in one go, nothing on screen for 1.9 to
+  // 3.3 s at 4x a phone's, where one asked for afresh showed its figures,
+  // worked out in the browser, in half a second and the planner's soon
+  // after (three routes each way, 2026-10-28). Each as the page will ask
+  // for it, with the picks the address keeps for the altitude.
   const recentRoutes = usePreferences(p => p.recentRoutes);
   const { data: savedFlights } = useQuery({ ...flightsQuery, enabled: false });
   const aheadRoutes = useMemo(() => [...new Set([
@@ -1511,12 +1512,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           classBClearance: q.get("class_b") !== "0", altitudes: altitudesParam(altitudesOf(q.get("altitudes"))),
           checkpoints: showWaypoints, rules: flightRules,
         };
-        // Kept half an hour unseen, where an answer no page shows goes in five.
-        const kept = { gcTime: 30 * 60_000, meta: { silent: true } };
-        await queryClient.prefetchQuery({ ...courseQuery(dep, dest, via), ...kept });
-        if (showWaypoints) await queryClient.prefetchQuery({ ...checkpointsQuery(dep, dest, via), ...kept });
-        if (gone) return;
-        await queryClient.prefetchQuery({ ...navlogQuery(plan, showWaypoints), ...kept });
+        // Asked for and let go, the page's cache as it was.
+        const ask = async (query: { queryKey: readonly unknown[] }) => {
+          if (gone || queryClient.getQueryState(query.queryKey)) return;
+          await queryClient.fetchQuery({ ...query, meta: { silent: true } } as Parameters<typeof queryClient.fetchQuery>[0]).catch(() => {});
+          if (!queryClient.getQueryCache().find({ queryKey: query.queryKey, exact: true })?.getObserversCount()) {
+            queryClient.removeQueries({ queryKey: query.queryKey, exact: true });
+          }
+        };
+        await ask(courseQuery(dep, dest, via));
+        if (showWaypoints) await ask(checkpointsQuery(dep, dest, via));
+        await ask(navlogQuery(plan, showWaypoints));
       }
     });
     return () => { gone = true; cancel(handle); };
