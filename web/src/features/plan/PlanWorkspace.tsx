@@ -7,7 +7,7 @@ import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
-import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
+import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
 import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
@@ -51,7 +51,7 @@ import { departurePattern, patternsOf, patternsParam, trafficPattern, type Traff
 import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, typedProcedure, type PickedProcedure, type TypedProcedure } from "../../lib/procedures";
 import { holdsOf, holdsParam, type Hold } from "../../lib/holds";
 import { FIELD_LIST_KEYS, fieldListParams, fieldListsOf, prunedFieldLists, renamedFieldLists } from "../../lib/fieldLists";
-import { picksOf } from "../../lib/flightLink";
+import { picksOf, planHrefOf, recentHrefOf } from "../../lib/flightLink";
 import { runwayNumber } from "../../lib/pattern";
 import NearestCard, { NearestStrip } from "./components/NearestCard";
 import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
@@ -83,7 +83,7 @@ import { loadFlightChart } from "./components/loadFlightChart";
 import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
-import { navlogQuery, usePlan } from "./hooks/usePlan";
+import { navlogQuery, usePlan, type PlanParams } from "./hooks/usePlan";
 import { useVerdict, type VerdictItem } from "../../lib/verdict";
 import type { BriefingPart } from "./components/briefing/sections";
 import { mayUse, useEntitlement } from "../../lib/subscription";
@@ -166,6 +166,9 @@ const StopsCard = fromRoutePanel("StopsCard");
 const DryRunControls = fromRoutePanel("DryRunControls");
 const DryRunFigures = fromRoutePanel("DryRunFigures");
 /** A round button's room while its code comes (routePanel). */
+
+/** How many of the latest Recents, and of Saved, are planned ahead. */
+const PLANNED_AHEAD = 3;
 
 function altitudeChoiceOf(value: string | null): AltitudeChoice {
   return value === "lowest" || value === "highest" || value === "economical" ? value : "fastest";
@@ -1183,7 +1186,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (from) {
       const plan = {
         dep: from, dest: to.ident, stops: [], altitudeFt: "", altitudeChoice: "fastest" as const, depart, aircraft, load: load + 1,
-        checkpoints: showWaypoints, rules: flightRules,
+        // Through Class B unless avoided, as the page plans it (class_b):
+        // left out, the read-ahead was another key, the page's own log
+        // asked for again at the tap.
+        classBClearance: true, checkpoints: showWaypoints, rules: flightRules,
       };
       void queryClient.prefetchQuery(courseQuery(from, to.ident));
       if (showWaypoints) void queryClient.prefetchQuery(checkpointsQuery(from, to.ident));
@@ -1464,6 +1470,57 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // A route on screen: one the planner plans, or a local flight -- an
   // airport to itself with no stop (usePlan's `local`).
   const routed = routeOf(planned.dep, planned.dest, planned.stops) !== null || local;
+  // The latest Recents and Saved planned ahead, one at a time once the
+  // page is idle and the route on screen is in: their course, checkpoints
+  // and nav log in the page's cache, a tap on one drawn at once from it --
+  // a route opened again was planned again from nothing, a second to
+  // several of the planner's (the owner, 2026-10-28: "Why isn't planning
+  // instant?"). Each as the page will ask for it, with the picks the
+  // address keeps for the altitude; one with runways or procedures picked
+  // is asked for as well, the page's own log then another key, but the
+  // planner's slow parts (the chart's read, the ground, the altitude for
+  // the airplane and the hour) kept for it all the same.
+  const recentRoutes = usePreferences(p => p.recentRoutes);
+  const { data: savedFlights } = useQuery({ ...flightsQuery, enabled: false });
+  const aheadRoutes = useMemo(() => [...new Set([
+    ...recentRoutes.slice(0, PLANNED_AHEAD).map(recentHrefOf),
+    ...(savedFlights ?? []).slice(0, PLANNED_AHEAD).map(f => planHrefOf(f)),
+  ])], [recentRoutes, savedFlights]);
+  const planSettled = !routed || s.totals != null || s.unflyable != null;
+  const plannedAhead = useRef(new Set<string>());
+  useEffect(() => {
+    if (!planSettled || aheadRoutes.length === 0) return;
+    // Not on a connection the pilot asked to spare.
+    if ((navigator as { connection?: { saveData?: boolean } }).connection?.saveData) return;
+    let gone = false;
+    const idle = window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000));
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
+    const handle = idle(async () => {
+      for (const href of aheadRoutes.slice(0, PLANNED_AHEAD * 2)) {
+        const q = new URLSearchParams(href.split("?")[1]);
+        const dep = q.get("dep") ?? "", dest = q.get("dest") ?? "";
+        const via = stopsOf(q.get("stops"));
+        const mark = [href, aircraftKey(aircraft), load, showWaypoints, flightRules].join("|");
+        if (gone) return;
+        if (plannedAhead.current.has(mark) || !routeOf(dep, dest, via) || (dep === dest && via.length === 0)) continue;
+        if (dep === planned.dep && dest === planned.dest && sameStops(via, planned.stops)) continue;
+        plannedAhead.current.add(mark);
+        const plan: PlanParams = {
+          dep, dest, stops: via, altitudeFt: q.get("altitude_ft") ?? "", altitudeNearest: q.get("altitude_nearest") === "1",
+          altitudeChoice: altitudeChoiceOf(q.get("altitude_choice")), depart: q.get("depart") ?? "", aircraft, load,
+          classBClearance: q.get("class_b") !== "0", altitudes: altitudesParam(altitudesOf(q.get("altitudes"))),
+          checkpoints: showWaypoints, rules: flightRules,
+        };
+        // Kept half an hour unseen, where an answer no page shows goes in five.
+        const kept = { gcTime: 30 * 60_000, meta: { silent: true } };
+        await queryClient.prefetchQuery({ ...courseQuery(dep, dest, via), ...kept });
+        if (showWaypoints) await queryClient.prefetchQuery({ ...checkpointsQuery(dep, dest, via), ...kept });
+        if (gone) return;
+        await queryClient.prefetchQuery({ ...navlogQuery(plan, showWaypoints), ...kept });
+      }
+    });
+    return () => { gone = true; cancel(handle); };
+  }, [planSettled, aheadRoutes, aircraft, load, showWaypoints, flightRules, planned.dep, planned.dest, planned.stops]);
   // The stops flown through rather than landed at: the course's own word
   // for each, and before it answers, any ident too long for an airport.
   // An airway (V100) is flown through too, fix by fix, unless the course

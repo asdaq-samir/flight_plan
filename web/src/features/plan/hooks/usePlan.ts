@@ -303,13 +303,22 @@ export function usePlan(
   // arrival -- so it is asked again once the nav log's totals give the
   // ETE; the previous answer stays up meanwhile, so the map's chips do
   // not flash back to "checking".
-  const eteMin = (local ? localMin : totals?.ete_min) ?? undefined;
+  //
+  // Only the log the checkpoints' own make, not the route as entered's on
+  // the way to it: that one asked for the briefing again a second or two
+  // before the checkpoints' log asked once more, three briefings for every
+  // route where one waited on the chart's read (the requests of a route's
+  // load, 2026-10-28) -- the first, with the course, has the METARs the map
+  // wants at once. Unless the checkpoints' log failed: then the route as
+  // entered's is the log there is.
+  const finalLog = !pointToPoint || !!navlog.error;
+  const eteMin = (local ? localMin : finalLog ? totals?.ete_min : undefined) ?? undefined;
   // And with the nav log's legs once they are all in, for the planner to
   // place each hazard on the legs the pilot sees and time it by their
-  // ETEs (briefingLegs): the route as entered's until then.
+  // ETEs (briefingLegs): the planner's own legs of the route until then.
   const logLegs = useMemo(
-    () => (totals && !local ? briefingLegs(course.data ?? null, withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE, legs) : null),
-    [totals, local, course.data, withCheckpoints, pointToPoint, checkpoints.data, legs]);
+    () => (totals && !local && finalLog ? briefingLegs(course.data ?? null, withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE, legs) : null),
+    [totals, local, finalLog, course.data, withCheckpoints, pointToPoint, checkpoints.data, legs]);
   const briefing = useQuery({
     queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load, logLegs?.fixes ?? null, logLegs?.legMin ?? null, logLegs?.groundMin ?? null],
     // Given up when the route changes, as the checkpoints are (checkpointsQuery).

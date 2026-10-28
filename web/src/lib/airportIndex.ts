@@ -133,13 +133,33 @@ export function useAirportIndex(enabled = true, wanted = false): AirportIndex | 
   useWarmAirportIndex(enabled);
   const { data } = useQuery({
     queryKey: ["airportIndex"],
-    queryFn: async () => indexOf((await api.airportIndex()).airports as Entry[]),
+    queryFn: () => read(),
     enabled: enabled && (wanted || focused),
     staleTime: 24 * 60 * 60_000,
     gcTime: Infinity,
     meta: { silent: true },
   });
   return data ?? null;
+}
+
+// One download between the two: a route's figures now read the index at
+// once (PlanWorkspace's estimate), as the page warms it, and the two each
+// fetched the half megabyte, 2 to 5 s apiece on a busy planner (every
+// route's load, 2026-10-28). Whichever comes second waits on the first and
+// reads the browser's cache.
+let warming: Promise<unknown> | null = null;
+let reading: Promise<AirportIndex> | null = null;
+
+async function read(): Promise<AirportIndex> {
+  await warming?.catch(() => {});
+  reading = api.airportIndex().then(({ airports }) => indexOf(airports as Entry[]));
+  return reading;
+}
+
+function warm(): Promise<boolean> {
+  if (reading) return reading.then(() => true, () => true);
+  warming = api.warmAirportIndex();
+  return warming.then(() => true);
 }
 
 /** The index's bytes downloaded once the page is idle, by the page itself
@@ -149,7 +169,7 @@ export function useWarmAirportIndex(enabled = true) {
   const idle = useIdle();
   useQuery({
     queryKey: ["airportIndexWarm"],
-    queryFn: api.warmAirportIndex,
+    queryFn: warm,
     enabled: enabled && idle,
     staleTime: Infinity,
     gcTime: Infinity,

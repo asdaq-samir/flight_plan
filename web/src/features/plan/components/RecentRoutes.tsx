@@ -5,6 +5,7 @@ import { cn } from "cn";
 import { ListPageHead, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
+import { recentHrefOf } from "../../../lib/flightLink";
 import { placeOfPoint } from "../../../lib/identSchema";
 import { recentRouteKey, usePreferences, type RecentRoute } from "../../../lib/preferences";
 import { TEXT } from "../../../lib/text";
@@ -16,11 +17,7 @@ import { describeError } from "../../../lib/api/client";
 
 /** The plan's address for a route planned again: its ends, its stops and
  *  what was picked for it (its runways, procedures, holds, altitudes…). */
-function hrefOf(route: RecentRoute): string {
-  const params = new URLSearchParams({ dep: route.dep, dest: route.dest, ...(route.stops.length ? { stops: route.stops.join(",") } : {}) });
-  for (const [key, value] of new URLSearchParams(route.picks ?? "")) if (!params.has(key)) params.set(key, value);
-  return `/plan?${params}`;
-}
+const hrefOf = (route: RecentRoute) => recentHrefOf(route);
 
 /** The most the strip shows, as Saved's does. */
 const STRIP_MOST = 10;
