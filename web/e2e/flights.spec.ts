@@ -25,6 +25,20 @@ async function signedIn(page: Page, filed: Record<string, unknown>[], list: obje
   });
 }
 
+/** The plan settled: the runways picked into the wind as the route comes
+ *  in write the address and plan it again with their patterns flown, a
+ *  moment after Save is first offered -- a Save clicked before that saved
+ *  the plan before them, and the menu rightly offered Save again for the
+ *  one after (CI and locally, the first test of a fresh worker). The
+ *  address the same for two seconds is the plan the page keeps. */
+async function planSettled(page: Page) {
+  await expect.poll(async () => {
+    const was = page.url();
+    await page.waitForTimeout(2000);
+    return was === page.url();
+  }, { timeout: 30_000 }).toBe(true);
+}
+
 test("a flight is filed once, whole, and a new plan is offered for saving again", { tag: "@smoke" }, async ({ page }) => {
   test.setTimeout(120_000);
   const filed: Record<string, unknown>[] = [];
@@ -41,6 +55,8 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
+  await planSettled(page);
+  await expect(save).toBeEnabled();
   await save.click();
   await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Saved");
@@ -76,6 +92,8 @@ test("a flight from a present position is filed from that position", async ({ pa
   const save = page.getByTestId("save-flight-button");
   await page.getByTestId("share-route").click();
   await expect(save).toBeEnabled({ timeout: 90_000 });
+  await planSettled(page);
+  await expect(save).toBeEnabled();
   await save.click();
   await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Saved");
