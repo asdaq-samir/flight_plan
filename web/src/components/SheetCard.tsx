@@ -1,10 +1,11 @@
 import { isValidElement, useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
+import { Dialog as DialogPrimitive } from "radix-ui";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import TabKept from "./TabKept";
+import { Dialog, DialogPortal } from "./ui/dialog";
 import { holdOpenCard } from "../lib/openCards";
-import { closeSheetCards, SheetCardHead, useSheetCards } from "../lib/sheetCards";
+import { SheetCardHead, useSheetCards } from "../lib/sheetCards";
 import { TEXT } from "../lib/text";
 
 /**
@@ -28,21 +29,6 @@ import { TEXT } from "../lib/text";
 /** Where the panel's body takes the cards: under the panel's head, the
  *  body's whole room, while one is open. */
 export function SheetCardHost({ shown }: { shown: boolean }) {
-  // A tap on the chart puts them away, as a tap outside the sheets they
-  // were put away, and as Leaflet's own popup's is: what the tap opens --
-  // an airport's card, another point's -- is what shows, where it opened
-  // under them out of sight. Heard first (capture), so a card the tap
-  // opens comes after; not the map's own buttons. A pan or a pinch is no
-  // tap and leaves them.
-  useEffect(() => {
-    if (!shown) return;
-    const tap = (event: MouseEvent) => {
-      const at = event.target instanceof Element ? event.target : null;
-      if (at?.closest(".leaflet-container") && !at.closest("[data-map-controls], .leaflet-control")) closeSheetCards();
-    };
-    document.addEventListener("click", tap, true);
-    return () => document.removeEventListener("click", tap, true);
-  }, [shown]);
   return <div ref={hostRef} data-sheet-cards="" className={shown ? "flex min-h-0 flex-1 flex-col print:hidden" : "hidden"} />;
 }
 
@@ -105,8 +91,8 @@ export function SheetCard({
   // closes over the arrivals).
   const back = isValidElement<{ onClick?: () => void }>(action) && action.type === CloseButton ? action.props.onClick : undefined;
   // The caller's latest, for what is set up once as it opens.
-  const latest = useRef({ onClose, back, returnFocus, onOpenAutoFocus, onCloseAutoFocus, onEscapeKeyDown });
-  useEffect(() => { latest.current = { onClose, back, returnFocus, onOpenAutoFocus, onCloseAutoFocus, onEscapeKeyDown }; });
+  const latest = useRef({ onClose, back });
+  useEffect(() => { latest.current = { onClose, back }; });
 
   // Open while it is drawn: on the panel's stack (the panel up for it, the
   // tab bar's name), and the top of what the bar's close, a swipe back and
@@ -127,68 +113,72 @@ export function SheetCard({
     useSheetCards.setState(s => ({ stack: s.stack.map(entry => (entry.id === id && entry.title !== title ? { ...entry, title } : entry)) }));
   }, [id, title]);
 
-  // The focus to its name as it opens, which a screen reader then reads --
-  // after the frame, its name drawn in the head by then where the content
-  // draws it -- and back to what opened it as it is put away, unless the
-  // focus has gone somewhere of its own since.
-  useEffect(() => {
-    const opening = new Event("sheetCard.openAutoFocus", { cancelable: true });
-    latest.current.onOpenAutoFocus?.(opening);
-    const frame = requestAnimationFrame(() => {
-      if (!opening.defaultPrevented) card.current?.querySelector<HTMLElement>(`[id="${headingId}"]`)?.focus({ preventScroll: true });
-    });
-    const handlers = latest.current;
-    return () => {
-      cancelAnimationFrame(frame);
-      const closing = new Event("sheetCard.closeAutoFocus", { cancelable: true });
-      handlers.onCloseAutoFocus?.(closing);
-      if (closing.defaultPrevented) return;
-      const opener = handlers.returnFocus?.();
-      // Once what it covered is back: the control may have been under it.
-      window.setTimeout(() => {
-        const at = document.activeElement;
-        if (opener?.isConnected && (!at || at === document.body || !at.isConnected)) opener.focus({ preventScroll: true });
-      });
-    };
-  }, [headingId]);
-
-  // Escape puts the top one away: heard on it first, ahead of the panel's
-  // own Escape (which lowers it), and on the document for when a tap
-  // elsewhere has taken the focus out -- the card is no modal. A menu open
-  // in it has prevented the default by then, closing first.
-  useEffect(() => {
-    const node = card.current;
-    if (!node || !top) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      latest.current.onEscapeKeyDown?.(event);
-      if (event.defaultPrevented) return;
-      event.preventDefault();
-      (latest.current.back ?? latest.current.onClose)();
-    };
-    node.addEventListener("keydown", onKey);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      node.removeEventListener("keydown", onKey);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [top, host]);
-
   if (!host) return null;
   const end = (closeButton ?? (action === undefined && !leading))
     ? (barNamed ? null : <CloseButton onClick={onClose} data-testid="sheet-card-close" />)
     : barNamed && back ? null : action;
-  return createPortal(
-    // Under one opened over it, kept as it was and out of sight, for the
-    // close to come back to, as a tab is kept (TabKept).
+  return (
+    // Radix's dialog, not modal: Escape and a tap on the chart put it away,
+    // its focus in and out, and nothing else on the page put out of reach
+    // -- no trap, nothing hidden from VoiceOver, the map live under it.
+    // Open while it is drawn; the caller puts it away by drawing it no more.
+    <Dialog open modal={false} onOpenChange={open => { if (!open) onClose(); }}>
+    <DialogPortal container={host}>
+    {/* Under one opened over it, kept as it was and out of sight, for the
+        close to come back to, as a tab is kept (TabKept). */}
     <TabKept away={!top}>
     {/* A labelled region, as Setup's layer is, not a dialog: nothing else
         on the page is put out of reach while it is open. A card's own
         scroller as PanelCard's is: from the panel's corner (its close
         where every card's is), on up under the panel's head, no scroll
         bar, as iOS shows none. */}
+    <DialogPrimitive.Content asChild role="region" aria-labelledby={headingId} aria-describedby={undefined}
+      // The focus to its name as it opens, which a screen reader then reads
+      // -- after the frame, its name drawn in the head by then where the
+      // content draws it -- unless the caller takes it (a search's field).
+      onOpenAutoFocus={event => {
+        onOpenAutoFocus?.(event);
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        requestAnimationFrame(() => card.current?.querySelector<HTMLElement>(`[id="${headingId}"]`)?.focus({ preventScroll: true }));
+      }}
+      // And back to what opened it as it is put away, once what it covered
+      // is back (the control may have been under it), unless the focus has
+      // gone somewhere of its own since.
+      onCloseAutoFocus={event => {
+        onCloseAutoFocus?.(event);
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        const opener = returnFocus?.();
+        const at = document.activeElement;
+        if (opener?.isConnected && (!at || at === document.body || !at.isConnected)) opener.focus({ preventScroll: true });
+      }}
+      // Escape puts the top one away, Radix's only to the top layer, ahead
+      // of the panel's own Escape (which lowers it) as the default is then
+      // prevented: back a page of the card's first where it has one. A
+      // menu open in it is a layer over it and closes first.
+      onEscapeKeyDown={event => {
+        onEscapeKeyDown?.(event);
+        if (event.defaultPrevented || !back) return;
+        event.preventDefault();
+        back();
+      }}
+      // A tap on the chart puts them away, as a tap outside the sheets
+      // they were put away, and as Leaflet's own popup's is -- what the tap
+      // opens is what shows, where it opened under them out of sight. Not
+      // the map's own buttons, nor the panel, its tab bar or anything else
+      // on the page. Radix waits for the click, so a pan or a pinch, no
+      // tap, leaves them.
+      onPointerDownOutside={event => {
+        const at = event.target instanceof Element ? event.target : null;
+        if (!at?.closest(".leaflet-container") || at.closest("[data-map-controls], .leaflet-control")) event.preventDefault();
+      }}
+      // The focus going elsewhere -- the panel, the map -- leaves it open:
+      // the card is no modal.
+      onFocusOutside={event => event.preventDefault()}
+    >
     <section
-      ref={card} aria-labelledby={headingId} data-testid={testId} data-sheet-card=""
+      ref={card} data-testid={testId} data-sheet-card=""
       className="under-head relative min-h-0 flex-1 overflow-y-auto px-4 [--under-pad:var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none]"
     >
       {/* Its name at the left at a card's size and the close at the right
@@ -210,7 +200,9 @@ export function SheetCard({
         {children}
       </SheetCardHead.Provider>
     </section>
-    </TabKept>,
-    host,
+    </DialogPrimitive.Content>
+    </TabKept>
+    </DialogPortal>
+    </Dialog>
   );
 }

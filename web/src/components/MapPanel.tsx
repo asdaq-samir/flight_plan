@@ -780,8 +780,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useEffect(() => {
     if (!panel || !expanded) return;
     const onKey = (event: KeyboardEvent) => {
-      // Not under a card, whose own Escape puts it away (SheetCard).
-      if (event.key === "Escape" && !event.defaultPrevented && !useSheetCards.getState().stack.length) onStateChange("peek");
+      // Not under a card, whose own Escape puts it away (SheetCard) and
+      // prevents the default.
+      if (event.key === "Escape" && !event.defaultPrevented) onStateChange("peek");
     };
     panel.addEventListener("keydown", onKey);
     return () => panel.removeEventListener("keydown", onKey);
