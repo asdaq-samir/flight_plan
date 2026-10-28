@@ -5,6 +5,7 @@ import DirectToIcon from "../../../components/DirectToIcon";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
+import { Toggle as TogglePrimitive } from "radix-ui";
 import RoundButton from "../../../components/RoundButton";
 import { shareOrCopy } from "../../../lib/share";
 import { GLASS_BUTTON } from "../../../components/mapChrome";
@@ -805,16 +806,22 @@ function FavoriteButton({ ident, place }: { ident: string; place: AirportPlace |
   const kept = usePreferences(s => s.favoriteAirports.some(a => sameField(a.ident, mine)));
   const toggle = usePreferences(s => s.toggleFavoriteAirport);
   return (
-    // A round pane of glass, as the gear is.
-    <RoundButton
-      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept} disabled={!place}
-      // Filled in iOS's yellow while it is a favorite, as a starred thing
-      // is everywhere on iOS, at the pilot's ask (it was the tint).
-      className={cn(kept && "text-[#ffcc00] hover:text-[#ffcc00] dark:text-[#ffd60a] dark:hover:text-[#ffd60a]")}
-      onClick={() => { if (place) toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon }); }}
-      data-testid="place-favorite"
+    // A round pane of glass, as the gear is: the stock Toggle round it, so
+    // it is on or off as Radix's is (aria-pressed, data-state), the look
+    // of on taken from data-state.
+    <TogglePrimitive.Root
+      asChild pressed={kept} disabled={!place}
+      onPressedChange={() => { if (place) toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon }); }}
     >
-      <Star className={cn("size-5", kept && "fill-current")} strokeWidth={2} />
-    </RoundButton>
+      <RoundButton
+        label={kept ? "Remove from Favorites" : "Add to Favorites"}
+        // Filled in iOS's yellow while it is a favorite, as a starred thing
+        // is everywhere on iOS, at the pilot's ask (it was the tint).
+        className="data-[state=on]:text-[#ffcc00] data-[state=on]:hover:text-[#ffcc00] dark:data-[state=on]:text-[#ffd60a] dark:data-[state=on]:hover:text-[#ffd60a] data-[state=on]:[&_svg]:fill-current"
+        data-testid="place-favorite"
+      >
+        <Star className="size-5" strokeWidth={2} />
+      </RoundButton>
+    </TogglePrimitive.Root>
   );
 }
