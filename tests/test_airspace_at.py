@@ -142,3 +142,25 @@ def test_over_a_class_c_up_to_10000_ft_a_transponder_and_ads_b_are_needed():
     assert "91.215(b)(4)" in over["equipment"]
     high = next(b for b in bands if b["floor_ft"] >= 10000 and b["class"] != "A")
     assert "91.215(b)(4)" not in (high["equipment"] or "")
+
+
+def test_the_volumes_over_a_point_are_read_from_their_boxes_and_shapes(tmp_path):
+    # Two Class E squares and a Class G one: the point is in the first
+    # alone; the second's box misses it; the G is not asked for.
+    import shapefile
+    path = tmp_path / "Class_Airspace"
+    with shapefile.Writer(str(path), shapeType=shapefile.POLYGON) as w:
+        for field in ("CLASS", "LOCAL_TYPE", "NAME", "IDENT", "LOWER_CODE", "UPPER_VAL", "LOWER_VAL"):
+            w.field(field, "C")
+
+        def square(x, y):
+            return [[[x, y], [x, y + 1], [x + 1, y + 1], [x + 1, y], [x, y]]]
+        w.poly(square(-89, 42))
+        w.record("E", "CLASS_E5", "ROCKFORD", "", "SFC", "-9998", "700")
+        w.poly(square(-80, 42))
+        w.record("E", "CLASS_E5", "FAR", "", "SFC", "-9998", "700")
+        w.poly(square(-89, 42))
+        w.record("G", "", "G", "", "SFC", "", "0")
+    found = airspace_at.volumes_at(42.5, -88.5, path.with_suffix(".shp"))
+    assert [(v["class"], v["name"], v["floor_ft"], v["floor_ref"]) for v in found] == [("E", "ROCKFORD", 700.0, "AGL")]
+    assert airspace_at.volumes_at(10.0, 10.0, path.with_suffix(".shp")) == []

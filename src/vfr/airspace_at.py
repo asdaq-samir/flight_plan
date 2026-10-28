@@ -5,14 +5,18 @@ point on the chart in the oral exam, read from the same NASR shapefile
 the altitude planner uses (vfr.airspace).
 
 Every Class B, C, D and E volume whose shape holds the point is read
-from the file itself, the file's own index skipping the shapes whose
-box misses it: holding every Class E shape in memory was 8 million
-vertices and 200 MB for a question asked a tap at a time.
+from the file itself: holding every Class E shape in memory was 8 million
+vertices and 200 MB for a question asked a tap at a time. What is held is
+each volume's box and fields, read once (_volumes_index); a tap reads
+only the shapes whose box holds the point, by their number in the file.
+The file's own bbox filter read every shape's header from the top for
+each tap, 15 to 56 seconds on the live planner (2026-10-28).
 """
 from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import shapefile
 from shapely.geometry import Point
 from shapely.geometry import shape as shapely_shape
@@ -75,24 +79,48 @@ def _ceiling(record: dict) -> float:
     return CLASS_A_FLOOR_FT if value == _TO_CLASS_A or value <= 0 else value
 
 
+@once(maxsize=2)
+def _volumes_index(path: str, _mtime: float) -> tuple[np.ndarray, list[tuple[int, dict]]]:
+    """Each Class B, C, D and E volume's box, (min_lon, min_lat, max_lon,
+    max_lat) a row, and its number in the file with its fields."""
+    boxes, volumes = [], []
+    reader = shapefile.Reader(path)
+    try:
+        for i, record in enumerate(reader.iterRecords()):
+            klass = (record.as_dict().get("CLASS") or "").strip()
+            if klass not in ("B", "C", "D", "E"):
+                continue
+            boxes.append(tuple(reader.shape(i).bbox))
+            volumes.append((i, record.as_dict()))
+    finally:
+        reader.close()
+    return np.array(boxes, dtype=float).reshape(-1, 4), volumes
+
+
+def preload(shp_path) -> None:
+    """The volumes' boxes read now, at the planner's start, not at a tap."""
+    path = Path(shp_path)
+    _volumes_index(str(path), path.stat().st_mtime)
+
+
 def volumes_at(lat: float, lon: float, shp_path) -> list[dict]:
     """Every Class B, C, D and E volume holding the point: {"class",
     "local_type", "name", "ident", "floor_ft", "floor_ref", "ceiling_ft"}
     with the ceiling in feet MSL."""
+    path = Path(shp_path)
+    boxes, volumes = _volumes_index(str(path), path.stat().st_mtime)
+    near = np.flatnonzero((boxes[:, 0] <= lon) & (boxes[:, 2] >= lon) & (boxes[:, 1] <= lat) & (boxes[:, 3] >= lat))
     point = Point(lon, lat)
     found = []
-    reader = shapefile.Reader(str(Path(shp_path)))
+    reader = shapefile.Reader(str(path))
     try:
-        for record_and_shape in reader.iterShapeRecords(bbox=(lon - 1e-4, lat - 1e-4, lon + 1e-4, lat + 1e-4)):
-            record = record_and_shape.record.as_dict()
-            klass = (record.get("CLASS") or "").strip()
-            if klass not in ("B", "C", "D", "E"):
-                continue
-            if not shapely_shape(record_and_shape.shape.__geo_interface__).contains(point):
+        for k in near:
+            number, record = volumes[k]
+            if not shapely_shape(reader.shape(number).__geo_interface__).contains(point):
                 continue
             floor_ft, floor_ref = _floor(record)
             found.append({
-                "class": klass,
+                "class": (record.get("CLASS") or "").strip(),
                 "local_type": record.get("LOCAL_TYPE") or "",
                 "name": record.get("NAME") or "",
                 "ident": (record.get("IDENT") or "").strip().upper(),
