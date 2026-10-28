@@ -28,4 +28,15 @@ describe("toast, before and after the Toaster is mounted", () => {
     expect(calls.at(-1)).toBe("success Flight Saved");
     off();
   });
+
+  it("keeps only the newest calls when the Toaster never mounts", async () => {
+    vi.resetModules();
+    const fresh = await import("./toast");
+    const shown: string[] = [];
+    for (let i = 0; i < 80; i++) fresh.toast.loading(`n${i}`);
+    fresh.toasterMounted({ loading: (m: string) => { shown.push(m); } } as never);
+    expect(shown).toHaveLength(50);
+    expect(shown[0]).toBe("n30");
+    expect(shown.at(-1)).toBe("n79");
+  });
 });

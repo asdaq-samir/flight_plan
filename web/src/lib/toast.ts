@@ -13,11 +13,15 @@ type Call = (t: Sonner) => void;
 // the import alone.
 let ready: Sonner | null = null;
 const queue: Call[] = [];
+// If the chunk never loads, a repeated toast.loading would pile up for
+// good; the newest calls are the ones worth showing, so the oldest go.
+const QUEUE_LIMIT = 50;
 const wanting = new Set<() => void>();
 
 function run(call: Call) {
   if (ready) return call(ready);
   queue.push(call);
+  if (queue.length > QUEUE_LIMIT) queue.shift();
   wanting.forEach(want => want());
 }
 
