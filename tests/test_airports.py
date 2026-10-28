@@ -5,6 +5,8 @@ tmp_path and _load_table keys its cache on that exact path.
 """
 import gzip
 import json
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -399,3 +401,41 @@ def test_the_us_table_is_built_once_however_many_ask_at_once(tmp_path, monkeypat
     for t in threads:
         t.join()
     assert len(built) == 1
+
+
+def _place_as_before(ident: str, cache_path):
+    """find_place as it was before its idents were indexed: each column
+    upper-cased and compared whole, the first match's row -- the oracle."""
+    from vfr.airports import _us_airports
+
+    ident = ident.strip().upper()
+    if not ident:
+        return None
+    df = _us_airports(cache_path)
+    for column in ("_display_ident", "_ident_upper", "_local_upper"):
+        match = df[df[column].astype(str).str.upper() == ident]
+        if not match.empty:
+            return _place_of(match.iloc[0])
+    return None
+
+
+def test_the_indexed_place_is_the_one_each_column_scan_found(us_airports_csv):
+    # C81 is two rows' local code (the old record and its successor), and
+    # a missing local code reads "NAN" both ways.
+    asked = ["C81", "kc81", "KC81", " c81 ", "KDLH", "DLH", "PWK", "KPWK", "US-0043", "MN02", "MN01",
+             "CYQT", "NAN", "nan", "", "ZZZZ"]
+    for ident in asked:
+        assert find_place(ident, cache_path=us_airports_csv) == _place_as_before(ident, us_airports_csv), ident
+
+
+@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "data/raw/airports.csv").exists(),
+                    reason="needs OurAirports' table on disk")
+def test_the_indexed_place_matches_on_the_real_table():
+    from vfr.airports import DEFAULT_CACHE_PATH, _us_airports
+
+    df = _us_airports(DEFAULT_CACHE_PATH)
+    picked = df.sample(150, random_state=91)
+    asked = [*picked["_display_ident"].fillna(""), *picked["ident"].fillna("").str.lower(),
+             *picked["local_code"].fillna(""), "KORD", "C81", "KMKE", "NAN", "NOPE"]
+    for ident in asked:
+        assert find_place(ident) == _place_as_before(ident, DEFAULT_CACHE_PATH), ident

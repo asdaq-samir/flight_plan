@@ -124,9 +124,11 @@ def _airport_rows(path: str, _mtime: float) -> dict:
 
 def preload_lookup(cache_path: Path = DEFAULT_CACHE_PATH) -> None:
     """get_airport's index made now (the planner's warm-up), not by the
-    first route asked for after a restart: a quarter of a second."""
+    first route asked for after a restart: a quarter of a second. And
+    find_place's, the Stops' along a route."""
     path = _ensure_cached(OURAIRPORTS_URL, cache_path)
     _airport_rows(str(path), path.stat().st_mtime)
+    _place_index(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
 def wikipedia_link(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> str | None:
@@ -479,12 +481,35 @@ def find_place(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict | None
     ident = ident.strip().upper()
     if not ident:
         return None
-    df = _us_airports(cache_path)
-    for column in ("_display_ident", "_ident_upper", "_local_upper"):
-        match = df[df[column].astype(str).str.upper() == ident]
-        if not match.empty:
-            return _place_of(match.iloc[0])
+    path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+    df, index = _place_index(str(path), path.stat().st_mtime, *_faa_key(cache_path))
+    for first in index:
+        if ident in first:
+            return _place_of(df.iloc[first[ident]])
     return None
+
+
+#: The columns find_place looks an ident up in, the first that has it winning.
+_PLACE_IDENT_COLUMNS = ("_display_ident", "_ident_upper", "_local_upper")
+
+
+@once(maxsize=2)
+def _place_index(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> tuple:
+    """The US table and, for each of _PLACE_IDENT_COLUMNS, each ident's
+    first row in it, made once per table as the table is: three whole
+    columns upper-cased and compared, and the table taken by the answer,
+    for every field asked about was 1.7 s of a route's Stops along it, a
+    lookup apiece (py-spy on the live planner, 2026-10-28). Upper-cased
+    as that comparison did, so the same idents match."""
+    with _US_AIRPORTS_LOCK:
+        df = _us_airports_of(path, _mtime, faa_path, _faa_mtime)
+    index = []
+    for column in _PLACE_IDENT_COLUMNS:
+        first: dict[str, int] = {}
+        for row, key in enumerate(df[column].astype(str).str.upper().tolist()):
+            first.setdefault(key, row)
+        index.append(first)
+    return df, index
 
 
 def places_in(south: float, west: float, north: float, east: float, limit: int = 300,
