@@ -168,5 +168,5 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await controlsInSight(page);
   // Its typed part after the fixed N- (the owner, 2026-10-27).
-  await expect(page.getByTestId("aircraft-input")).toHaveValue(/^2/);
+  await expect(page.getByTestId("aircraft-input")).toHaveValue(/^N-2/);
 });

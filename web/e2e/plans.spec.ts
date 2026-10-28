@@ -25,7 +25,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   const input = page.getByTestId("altitude-input");
   await expect(why).toHaveAccessibleName(/\d,\d{3} feet|FL\d{3}/, { timeout: slow(60000) });
   // Hundreds of feet after "FL", at the owner's pick: FL045 for 4,500 ft.
-  await expect(input).toHaveValue(/^\d{3}$/);
+  await expect(input).toHaveValue(/^FL-\d{3}$/);
   await openProfile(page);
   // The Profile card: the route from the side with the wheel of legal
   // altitudes in its corner, the altitude's figures, the flight rules,
@@ -186,7 +186,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   // A fixed N before it and no placeholder (the owner, 2026-10-27).
   await expect(picker).toHaveAttribute("placeholder", "");
   await expect(page.getByTestId("aircraft-select")).toContainText("N");
-  await expect(picker).toHaveValue("");
+  await expect(picker).toHaveValue("N-");
   // An N-number typed is added at once, its type looked up behind it (the
   // owner's "You can do the lookup in the background") -- here a made-up
   // Archer, flown on its type's profile once the registry answers -- and
@@ -197,7 +197,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   } }));
   await picker.fill("N181PA");
   await picker.press("Enter");
-  await expect(picker).toHaveValue("181PA");
+  await expect(picker).toHaveValue("N-181PA");
   // No card button at its end since the owner's "we don't need the info
   // for n number" (2026-10-27).
   await expect(page.getByTestId("aircraft-card-button")).toHaveCount(0);
@@ -210,7 +210,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await settle(page);
   await expectDrawerOpen(page);
   await controlsInSight(page);
-  await expect(page.getByTestId("aircraft-input")).toHaveValue("181PA");
+  await expect(page.getByTestId("aircraft-input")).toHaveValue("N-181PA");
 });
 
 test("plan page: no legal altitude is the route's own problem: its chip says so at rest, and a mark beside the Nav Log opens to why and the two ways on", async ({ page }) => {
@@ -422,7 +422,7 @@ test("an altitude typed is the field's at once: with no route, kept for the rout
   await field.fill("55");
   await field.press("Enter");
   await expect(page).toHaveURL(/[?&]altitude_ft=5500/);
-  await expect(field).toHaveValue("055");
+  await expect(field).toHaveValue("FL-055");
 
   // A route planned, then another altitude: the planner held three seconds
   // over it, the field at it all the while, and nothing said to wait on.
@@ -436,7 +436,7 @@ test("an altitude typed is the field's at once: with no route, kept for the rout
   });
   await field.fill("75");
   await field.press("Enter");
-  await expect(field).toHaveValue("075", { timeout: 1000 });
+  await expect(field).toHaveValue("FL-075", { timeout: 1000 });
   await expect(page.locator("[data-sonner-toast][data-type=loading]")).toHaveCount(0);
   await expect(page.getByTestId("altitude-why")).toHaveAccessibleName(/7,500 feet/);
 });

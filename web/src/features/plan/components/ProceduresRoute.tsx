@@ -591,8 +591,11 @@ export default function ProceduresRoute({
                 after the glyph ("the arrow next to runway can be next to
                 the depart/arrive symbol"). The pull-downs follow the tray,
                 sliding with the runways (the owner's "Approach doesn't need
-                to go next line just let it slide with runways"). */}
-            <div className="flex min-w-0 flex-1 items-center">
+                to go next line just let it slide with runways"). Its head
+                level with the runways' line, not the middle of two where
+                the pull-downs wrap under it (the owner's screenshot,
+                2026-10-27, the head between "12" and "+ Arrival"). */}
+            <div className="flex min-w-0 flex-1 items-start">
               {foldable ? (
                 <button
                   type="button" data-testid="runway-line-toggle" data-disclosure="" aria-expanded={lineOpen}
