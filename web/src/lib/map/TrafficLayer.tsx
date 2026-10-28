@@ -311,9 +311,20 @@ function Traffic() {
             lon += target.shift.lon * left;
           }
         }
-        if (hex !== tracked && layer.hasLayer(target.marker) && !seen.contains([lat, lon])) continue;
+        // And only what is in sight is on the page at all: one out of it
+        // is taken off, and one not yet drawn waits until it comes in. All
+        // the planner sent were added at once as the traffic came in --
+        // 554 airplanes round Chicago, each a marker of the page's own,
+        // 2.5 s of the page's work at a phone's speed as the Aircraft tab
+        // opened (the owner's "the app hangs a bit", 2026-10-28).
+        const inSight = hex === tracked || seen.contains([lat, lon]);
+        const drawn = layer.hasLayer(target.marker);
+        if (!inSight) {
+          if (drawn) layer.removeLayer(target.marker);
+          continue;
+        }
         target.marker.setLatLng([lat, lon]);
-        if (!layer.hasLayer(target.marker) && target.icon) layer.addLayer(target.marker);
+        if (!drawn && target.icon) layer.addLayer(target.marker);
       }
       // The flight followed kept in the middle of what the panel leaves,
       // moved with it ten times a second.
