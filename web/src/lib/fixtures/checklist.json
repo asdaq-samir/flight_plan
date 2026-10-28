@@ -1,0 +1,145 @@
+{
+  "about": "An airplane's checklist as the pilot writes it in plain text, read into sections and items, and written back. Web: lib/checklist.ts. iOS: ChecklistText in PilotLogic.swift.",
+  "cases": [
+    {
+      "text": "Preflight inspection -- Complete\n\n# Before takeoff\nFuel selector -- Both\nMixture ..... Rich\nFlight controls\tFree and correct\nDoors – Closed and latched\nBeacon — On\nSeat belts\n#   Empty section",
+      "checklist": {
+        "sections": [
+          {
+            "title": "Checklist",
+            "items": [
+              {
+                "challenge": "Preflight inspection",
+                "response": "Complete"
+              }
+            ]
+          },
+          {
+            "title": "Before takeoff",
+            "items": [
+              {
+                "challenge": "Fuel selector",
+                "response": "Both"
+              },
+              {
+                "challenge": "Mixture",
+                "response": "Rich"
+              },
+              {
+                "challenge": "Flight controls",
+                "response": "Free and correct"
+              },
+              {
+                "challenge": "Doors",
+                "response": "Closed and latched"
+              },
+              {
+                "challenge": "Beacon",
+                "response": "On"
+              },
+              {
+                "challenge": "Seat belts",
+                "response": null
+              }
+            ]
+          }
+        ]
+      },
+      "written": "# Checklist\nPreflight inspection -- Complete\n\n# Before takeoff\nFuel selector -- Both\nMixture -- Rich\nFlight controls -- Free and correct\nDoors -- Closed and latched\nBeacon -- On\nSeat belts"
+    },
+    {
+      "text": "# Run-up\r\nThrottle .. 1700 RPM\r\nMixture.....Rich\r\nPitot-static heat -- On\r\nMags - Check -- 125 RPM drop\r\n",
+      "checklist": {
+        "sections": [
+          {
+            "title": "Run-up",
+            "items": [
+              {
+                "challenge": "Throttle",
+                "response": "1700 RPM"
+              },
+              {
+                "challenge": "Mixture",
+                "response": "Rich"
+              },
+              {
+                "challenge": "Pitot-static heat",
+                "response": "On"
+              },
+              {
+                "challenge": "Mags",
+                "response": "Check 125 RPM drop"
+              }
+            ]
+          }
+        ]
+      },
+      "written": "# Run-up\nThrottle -- 1700 RPM\nMixture -- Rich\nPitot-static heat -- On\nMags -- Check 125 RPM drop"
+    },
+    {
+      "text": "###  Engine fire in flight\nMixture -- Idle cutoff\nFuel --\nCabin heat ...\n#\nLanding light -- On",
+      "checklist": {
+        "sections": [
+          {
+            "title": "Engine fire in flight",
+            "items": [
+              {
+                "challenge": "Mixture",
+                "response": "Idle cutoff"
+              },
+              {
+                "challenge": "Fuel --",
+                "response": null
+              },
+              {
+                "challenge": "Cabin heat",
+                "response": null
+              }
+            ]
+          },
+          {
+            "title": "Checklist",
+            "items": [
+              {
+                "challenge": "Landing light",
+                "response": "On"
+              }
+            ]
+          }
+        ]
+      },
+      "written": "# Engine fire in flight\nMixture -- Idle cutoff\nFuel --\nCabin heat\n\n# Checklist\nLanding light -- On"
+    },
+    {
+      "text": "# SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\nCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC -- RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR",
+      "checklist": {
+        "sections": [
+          {
+            "title": "SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS",
+            "items": [
+              {
+                "challenge": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+                "response": "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR"
+              }
+            ]
+          }
+        ]
+      },
+      "written": "# SSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSSS\nCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC -- RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR"
+    },
+    {
+      "text": "",
+      "checklist": {
+        "sections": []
+      },
+      "written": ""
+    },
+    {
+      "text": "#\n# Only titles\n",
+      "checklist": {
+        "sections": []
+      },
+      "written": ""
+    }
+  ]
+}

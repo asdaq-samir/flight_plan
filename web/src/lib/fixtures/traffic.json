@@ -1,0 +1,173 @@
+{
+  "about": "Traffic's label under an airplane on the map, its height against own ship's in hundreds as TCAS writes it, and whether it is within 1,000 ft (the VFR cruising altitudes' spacing, 14 CFR 91.159). Half-hundred differences left out (see docs/NATIVE.md). Web: lib/map/traffic.ts. iOS: Traffic.label and Traffic.near.",
+  "cases": [
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": null,
+        "vertical_fpm": null
+      },
+      "ownFt": 4500,
+      "label": "",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": null,
+        "vertical_fpm": null
+      },
+      "ownFt": null,
+      "label": "",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 4520,
+        "vertical_fpm": null
+      },
+      "ownFt": null,
+      "label": "4,500",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 12449,
+        "vertical_fpm": null
+      },
+      "ownFt": null,
+      "label": "12,400",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 4550,
+        "vertical_fpm": 600
+      },
+      "ownFt": null,
+      "label": "4,600↑",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 5000,
+        "vertical_fpm": null
+      },
+      "ownFt": 4500,
+      "label": "+05",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 3300,
+        "vertical_fpm": null
+      },
+      "ownFt": 4500,
+      "label": "-12",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 4500,
+        "vertical_fpm": null
+      },
+      "ownFt": 4500,
+      "label": "+00",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 4549,
+        "vertical_fpm": null
+      },
+      "ownFt": 4500,
+      "label": "+00",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 5500,
+        "vertical_fpm": 500
+      },
+      "ownFt": 4500,
+      "label": "+10↑",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 5501,
+        "vertical_fpm": null
+      },
+      "ownFt": 4500,
+      "label": "+10",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 3499,
+        "vertical_fpm": -500
+      },
+      "ownFt": 4500,
+      "label": "-10↓",
+      "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 3500,
+        "vertical_fpm": -499
+      },
+      "ownFt": 4500,
+      "label": "-10",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "altitude_ft": 16200,
+        "vertical_fpm": 2000
+      },
+      "ownFt": 4500,
+      "label": "+117↑",
+      "near": false
+    }
+  ]
+}

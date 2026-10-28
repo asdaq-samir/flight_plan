@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { answered, DECKS, dueCards, INTERVAL_DAYS, nextDue } from "./drills";
+import { answered, DECKS, dueCards, INTERVAL_DAYS, nextDue, type DeckKey, type Progress } from "./drills";
+import drillsFixture from "./fixtures/drills.json";
 
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-10-05T12:00:00Z");
@@ -37,5 +38,28 @@ describe("the drills", () => {
     progress = Object.fromEntries(deck.cards.map(c => [c.id, { box: 2, due: NOW + DAY }]));
     expect(dueCards(deck, progress, NOW)).toEqual([]);
     expect(nextDue(deck, progress, NOW)).toBe(NOW + DAY);
+  });
+});
+
+// The shared fixture the iPhone app's Drills (PilotLogic.swift) is tested
+// against too (WingtipTests/SharedFixturesTests.swift): the cards in the
+// regulations' words and the boxes' arithmetic, the same on both
+// (docs/NATIVE.md).
+describe("the shared drills fixture", () => {
+  test("the decks, card by card", () => {
+    expect(INTERVAL_DAYS).toEqual(drillsFixture.intervalDays);
+    expect(drillsFixture.decks).toEqual(Object.values(DECKS).map(d => ({
+      key: d.key, title: d.title, source: d.source, url: d.url,
+      cards: d.cards.map(c => ({ id: c.id, prompt: c.prompt, answer: c.answer, detail: c.detail ?? null, colours: c.light?.colors ?? [], flashing: c.light?.flashing ?? false })),
+    })));
+  });
+
+  test.each(drillsFixture.answered)("$card answered, knew it: $knew", ({ progress, card, knew, now, result }) => {
+    expect(answered(progress as Progress, card, knew, now)).toEqual(result);
+  });
+
+  test.each(drillsFixture.due)("$deck's cards due", ({ deck, progress, now, ids, next }) => {
+    expect(dueCards(DECKS[deck as DeckKey], progress as Progress, now).map(c => c.id)).toEqual(ids);
+    expect(nextDue(DECKS[deck as DeckKey], progress as Progress, now)).toBe(next);
   });
 });

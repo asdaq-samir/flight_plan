@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { leaveLimit, segmentAltitudes } from "./lostComms";
+import { leaveLimit, ROUTES, segmentAltitudes } from "./lostComms";
+import lostCommsFixture from "./fixtures/lostComms.json";
 
 describe("two-way radio failure, 91.185", () => {
   test("each segment at the highest of assigned, minimum and expected -- expected only from where it applies", () => {
@@ -22,5 +23,18 @@ describe("two-way radio failure, 91.185", () => {
     expect(leaveLimit(true, "", "1435Z")).toContain("estimated time of arrival, 1435Z");
     expect(leaveLimit(false, "", "1435Z")).toMatch(/^Leave the clearance limit on arriving over it, proceed to a fix an approach begins from/);
     expect(leaveLimit(false, "1420Z", "")).toContain("Leave the clearance limit at the expect-further-clearance time, 1420Z");
+  });
+});
+
+// The shared fixture the iPhone app's LostComms (PilotLogic.swift) is
+// tested against too (WingtipTests/SharedFixturesTests.swift): 91.185's
+// words the same on both (docs/NATIVE.md).
+describe("the shared lost-comms fixture", () => {
+  test("the routes in 91.185(c)(1)'s order", () => {
+    expect(ROUTES).toEqual(lostCommsFixture.routes);
+  });
+
+  test.each(lostCommsFixture.leaveLimit)("approach fix $approachFix, EFC '$efc', ETA '$eta'", ({ approachFix, efc, eta, words }) => {
+    expect(leaveLimit(approachFix, efc, eta)).toBe(words);
   });
 });

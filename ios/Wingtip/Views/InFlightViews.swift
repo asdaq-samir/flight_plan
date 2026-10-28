@@ -167,11 +167,24 @@ enum FilingForm {
         String(format: "%@%03d", altitudeFt >= 18_000 ? "F" : "A", Int((altitudeFt / 100).rounded()))
     }
 
-    /// Item 15's route between the ends: DCT between two points flown
-    /// direct, and DCT alone for a flight direct from one to the other
-    /// (AIM Appendix 4: "FLACK DCT IRW").
-    static func route(_ stops: [String]) -> String {
-        stops.isEmpty ? "DCT" : stops.joined(separator: " DCT ")
+    /// An airway as a route names one: Victor, T, Jet or Q and its number
+    /// (the web app's identSchema isAirwayToken).
+    static func airwayToken(_ stop: String) -> Bool {
+        stop.range(of: "^[VTJQ][0-9]{1,4}$", options: .regularExpression) != nil
+    }
+
+    /// Item 15's route between the ends: an airway between the fixes it is
+    /// joined and left at, DCT between two points flown direct, and DCT
+    /// alone for a flight direct from one to the other (AIM Appendix 4:
+    /// "DALL3 EIC V18 MEI LGC4", "FLACK DCT IRW"), as the web app's
+    /// routeItem writes it; its procedures are not filed from here yet.
+    static func route(_ stops: [String], isAirway: (String) -> Bool = FilingForm.airwayToken) -> String {
+        var words: [String] = []
+        for (i, point) in stops.enumerated() {
+            if i > 0, !isAirway(point), !isAirway(stops[i - 1]) { words.append("DCT") }
+            words.append(point)
+        }
+        return words.isEmpty ? "DCT" : words.joined(separator: " ")
     }
 
     /// Hours and minutes in four figures, HHMM (items 16 and 19).
