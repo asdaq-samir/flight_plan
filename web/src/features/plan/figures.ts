@@ -1,6 +1,7 @@
 import type { Totals } from "../../lib/api/types";
 import type { Flown } from "./components/navlog/dryRun";
-import { decimalHours, etaAt, hhmm, one } from "./format";
+import { decimalHours, etaAt, one } from "./format";
+import { duration } from "../../lib/clock";
 
 /** One of the flight's figures: its name over it, its unit after it. */
 export interface Figure {
@@ -83,7 +84,7 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
   const left = flown ? (toDestination ? flown.last : flown.next) : null;
   const distance = left ? left.nm : leg?.distance_nm ?? null;
   const minutes = left ? left.min : leg?.ete_min ?? null;
-  const time = minutes === null ? "—" : whole ? decimalHours(minutes) : enRoute(minutes);
+  const time = minutes === null ? "—" : whole ? decimalHours(minutes) : duration(minutes);
   const planned = landing.totals?.fuel_required_gal ?? null;
   const required = planned === null ? null : flown ? Math.max(0, planned - flown.burntGal) : planned;
   const start = flown ? new Date(flown.now * 1000).toISOString() : from;
@@ -116,13 +117,6 @@ export function shortFlights(totals: Totals | null): { name: string; shortGal: n
   return flights.flatMap(f => (f.margin != null && f.margin < 0 ? [{ name: f.name, shortGal: -f.margin }] : []));
 }
 
-/** A time en route as the strip writes it: "15m" under an hour, where
- *  "0h 15m" took a column's room for its nought, and "2h 45m" from one;
- *  the dry run's time left too. */
-export function enRoute(minutes: number): string {
-  return Math.round(minutes) < 60 ? `${Math.round(minutes)}m` : hhmm(minutes);
-}
-
 /** The figures from the airplane's book alone (FlightLine's `estimate`):
  *  the distance as the course has it, and at cruise speed with no wind
  *  the time, and the fuel at the cruise burn over that time -- each
@@ -130,7 +124,7 @@ export function enRoute(minutes: number): string {
 function guess({ distanceNm, cruiseTasKt, fuelBurnGph }: { distanceNm: number; cruiseTasKt: number | null; fuelBurnGph: number | null }) {
   const minutes = cruiseTasKt ? (distanceNm / cruiseTasKt) * 60 : null;
   const fuelGal = minutes != null && fuelBurnGph ? (minutes / 60) * fuelBurnGph : null;
-  // Written as the nav log's own time is once it is in (enRoute): this
+  // Written as the nav log's own time is once it is in (lib/clock duration): this
   // one rounded its minutes on their own, and 119.6 read "1h 60m".
-  return { minutes, distanceNm, fuelGal, time: minutes == null ? "—" : enRoute(minutes) };
+  return { minutes, distanceNm, fuelGal, time: minutes == null ? "—" : duration(minutes) };
 }

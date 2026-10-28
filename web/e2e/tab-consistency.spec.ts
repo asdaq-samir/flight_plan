@@ -66,8 +66,10 @@ test("every tab's page is laid out as one: its sections' sides, headings and the
       if (name === "FPL" && size === "full") continue;
       await page.getByTestId(tab).click();
       await grabberTo(page, size);
+      // Setup's page is its own chunk: drawn a moment after its tab on a
+      // first visit, so waited for, not read at once.
+      await expect.poll(async () => (await layout(page)) !== null, { message: `${name} ${size}: a tab page` }).toBe(true);
       const seen = await layout(page);
-      expect(seen, `${name} ${size}: a tab page`).not.toBeNull();
       pages[`${name} ${size}`] = seen!.sections;
     }
   }

@@ -1,5 +1,5 @@
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { grabberTo, openPanel, settle, sideDrawer, stripShows, airportSearch } from "./helpers";
+import { clearTheRoute, grabberTo, settle, sideDrawer, stripShows, airportSearch } from "./helpers";
 
 /**
  * The Recents taken off one at a time, by a swipe to the left that
@@ -188,7 +188,10 @@ test("the airplanes' Recents: a long press or a right click offers the Delete to
   const recents = panel.getByTestId("aircraft-recents-list").getByTestId("aircraft-recent");
   await expect(recents).toHaveCount(2);
 
+  // A long press (a right click here) offers Share and Remove, as every
+  // list's row does.
   await panel.getByTestId("swipe-row").first().click({ button: "right" });
+  await expect(page.getByRole("menuitem")).toHaveText(["Share", "Remove"]);
   await page.getByTestId("swipe-menu-delete").click();
   await expect(recents).toHaveCount(1);
   await expect(recents.first()).toContainText("N200XY");
@@ -234,15 +237,26 @@ test("FPL's strip shows Saved or, from its filter, the latest routes planned as 
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.preferences")!).state.recentRoutes[0]?.dest), { timeout: 30_000 })
     .toBe("KMSN");
   // Cleared from the route's box, the sheet out where the box is.
-  await openPanel(page);
-  await panel.getByTestId("route-box-clear").click();
+  await clearTheRoute(page);
   await expect(panel.getByTestId("route-recent").first()).toContainText("C81→KMSN");
 
-  // Clear, asked first, from the Recents in full: the strip says none yet
-  // then, and Saved is back from its filter.
+  // Under their headings, as Maps' Recents are: KMSN planned just now
+  // under Today, the rest under This Month or Earlier.
   await panel.getByTestId("route-recents-more").click();
-  await panel.getByTestId("route-recents-clear").click();
-  await page.getByRole("button", { name: "Clear", exact: true }).last().click();
+  await expect(panel.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  // Its ••• offers Share and Remove; Remove takes that one off.
+  await panel.getByTestId("route-recent-more").first().click();
+  await expect(page.getByTestId("route-recent-share")).toBeVisible();
+  await expect(page.getByRole("menuitem")).toHaveText(["Share", "Remove"]);
+  await page.getByTestId("route-recent-remove").click();
+  await expect(panel.getByTestId("route-recent")).toHaveCount(3);
+  // Clear at each heading's right, asked first, until none is left: the
+  // strip says none yet then, and Saved is back from its filter.
+  for (let left = await panel.getByTestId("route-recents-clear").count(); left > 0; left--) {
+    await panel.getByTestId("route-recents-clear").first().click();
+    await page.getByRole("button", { name: "Clear", exact: true }).last().click();
+    await expect(panel.getByTestId("route-recents-clear")).toHaveCount(left - 1);
+  }
   await expect(panel.getByTestId("route-recent")).toHaveCount(0);
   await panel.getByTestId("route-recents-page-close").click();
   await expect(panel.getByTestId("route-recents")).toContainText("None yet");

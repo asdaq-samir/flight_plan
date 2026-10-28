@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Marker, Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import { usePreferences } from "../preferences";
+import { closeSheetCards } from "../sheetCards";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { AirportMarksLayer, type CanvasMark } from "./AirportCanvas";
@@ -231,6 +232,10 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
         if (px <= NEAR_MISS_PX && (!best || px < best.px)) best = { ident: a.ident, px };
       }
       if (!best) return;
+      // Ahead of the field's card, the cards over the panel put away
+      // (SheetCard), as any tap on the chart puts them away: this tap goes
+      // no further, so their own dismissal never hears it.
+      closeSheetCards();
       e.stopPropagation();
       selectRef.current(best.ident);
     };

@@ -1,4 +1,4 @@
-import { Plane } from "lucide-react";
+import { PlaneMark } from "../../../components/Favorites";
 import { ListRow } from "../../../components/GroupedList";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import type { LatLon } from "../../../lib/geo";
@@ -16,7 +16,7 @@ export default function AircraftRow({ plane, from, ownFt, onPick, testId = "airc
     : ownFt != null ? trafficLabel(plane, ownFt) : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`;
   return (
     <ListRow
-      media={<Plane className="size-5 text-muted-foreground" style={{ transform: `rotate(${(plane.track_deg ?? 45) - 45}deg)` }} />}
+      media={<PlaneMark small trackDeg={plane.track_deg ?? 45} />}
       title={<span className="font-semibold">{plane.callsign ?? plane.registration ?? plane.hex.toUpperCase()}</span>}
       description={[plane.type, height, plane.speed_kt != null ? `${Math.round(plane.speed_kt)} kt` : null].filter(Boolean).join(" · ")}
       value={where} chevron onClick={onPick} data-testid={testId}

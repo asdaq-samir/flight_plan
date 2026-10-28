@@ -1,7 +1,11 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import FieldHit from "../../components/FieldHit";
+import RowField from "../../components/RowField";
+import { invalidProps } from "../../lib/fieldError";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import QueryState from "../../components/QueryState";
 import TogglePill from "../../components/TogglePill";
@@ -11,6 +15,7 @@ import { Textarea } from "../../components/ui/textarea";
 import { api } from "../../lib/api/client";
 import type { Aircraft, Squawk, SquawkRequest } from "../../lib/api/types";
 import { localDay } from "../../lib/clock";
+import { requiredPastDay, z } from "../../lib/formSchema";
 
 const today = () => localDay();
 
@@ -22,6 +27,19 @@ const REACHES: { value: NonNullable<SquawkRequest["deferredFor"]> | "none"; labe
   { value: "VFR", label: "Deferred for VFR, day and night" },
   { value: "ALL", label: "Deferred for every kind" },
 ];
+
+// As the server checks a squawk (SquawkRequest.java): what was found said,
+// at most 500 characters, on a day not ahead of today; the fix's note at
+// most 500 too.
+const squawkSchema = z.object({
+  text: z.string().trim().min(1, "Say what was found").max(500, "At most 500 characters"),
+  reportedOn: requiredPastDay("The day is required"),
+  inoperative: z.boolean(),
+  deferredFor: z.enum(["none", "VFR_DAY", "VFR", "ALL"]),
+});
+type SquawkValues = z.infer<typeof squawkSchema>;
+const fixSchema = z.object({ note: z.string().trim().max(500, "At most 500 characters") });
+type FixValues = z.infer<typeof fixSchema>;
 
 const asRequest = (s: Squawk): SquawkRequest => ({
   reportedOn: s.reportedOn, text: s.text, inoperative: s.inoperative, deferredFor: s.deferredFor ?? null,
@@ -43,20 +61,40 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
   // Quiet: the page says in place what it could not fetch (QueryState).
   const asked = useQuery({ queryKey: ["squawks", aircraft.id], queryFn: () => api.aircraft.squawks(aircraft.id), meta: { silent: true } });
   const squawks = asked.data;
-  const [draft, setDraft] = useState<SquawkRequest>({ reportedOn: today(), text: "", inoperative: false, deferredFor: null, fixedOn: null, fixNote: null });
-  const [fixing, setFixing] = useState<{ squawk: Squawk; note: string } | null>(null);
+  const textId = useId();
+  const fixId = useId();
+  const { register, control, handleSubmit, reset, formState: { errors } } = useForm<SquawkValues>({
+    resolver: zodResolver(squawkSchema),
+    defaultValues: { text: "", reportedOn: today(), inoperative: false, deferredFor: "none" },
+  });
+  const inoperative = useWatch({ control, name: "inoperative" });
+  const fixForm = useForm<FixValues>({ resolver: zodResolver(fixSchema), defaultValues: { note: "" } });
+  const [fixing, setFixing] = useState<Squawk | null>(null);
+  const startFix = (squawk: Squawk) => { fixForm.reset({ note: "" }); setFixing(squawk); };
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ["squawks", aircraft.id] });
     // The airplane's open squawks ride with it, for the risk on the day.
     void queryClient.invalidateQueries({ queryKey: ["aircraft"] });
   };
   const add = useMutation({
-    mutationFn: () => api.aircraft.addSquawk(aircraft.id, { ...draft, text: draft.text.trim() }),
-    onSuccess: () => { toast.success("Squawk Saved"); setDraft({ ...draft, text: "", inoperative: false, deferredFor: null }); refresh(); },
+    mutationFn: (request: SquawkRequest) => api.aircraft.addSquawk(aircraft.id, request),
+    // Ready for the next, on the same day.
+    onSuccess: (_data, request) => {
+      toast.success("Squawk Saved");
+      reset({ text: "", reportedOn: request.reportedOn, inoperative: false, deferredFor: "none" });
+      refresh();
+    },
   });
+  const onAdd = handleSubmit(values => add.mutate({
+    reportedOn: values.reportedOn, text: values.text.trim(), inoperative: values.inoperative,
+    deferredFor: values.inoperative && values.deferredFor !== "none" ? values.deferredFor : null, fixedOn: null, fixNote: null,
+  }));
   const save = useMutation({
     mutationFn: ({ id, request }: { id: number; request: SquawkRequest }) => api.aircraft.updateSquawk(aircraft.id, id, request),
     onSuccess: () => { setFixing(null); refresh(); },
+  });
+  const onFix = fixForm.handleSubmit(values => {
+    if (fixing) save.mutate({ id: fixing.id, request: { ...asRequest(fixing), fixedOn: today(), fixNote: values.note.trim() || null } });
   });
   if (!squawks) return <QueryState query={asked} fetching="Fetching the squawks…" failed="The squawks could not be fetched." />;
   const open = squawks.filter(s => !s.fixedOn);
@@ -72,22 +110,24 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
             <ListRow
               key={s.id} title={s.text}
               description={[s.reportedOn, standing(s)].filter(Boolean).join(" · ")}
-              onClick={() => setFixing({ squawk: s, note: "" })}
+              onClick={() => startFix(s)}
               data-testid="squawk-open"
             />
           ))}
       </ListGroup>
       {fixing && (
-        <ListGroup title={`Fix: ${fixing.squawk.text}`}>
+        <ListGroup title={`Fix: ${fixing.text}`}>
           <div className="p-2">
-            <Textarea
-              value={fixing.note} onChange={e => setFixing({ ...fixing, note: e.target.value })} rows={3}
-              placeholder="What was done, and by whom" aria-label="The fix" data-testid="squawk-fix-note"
-            />
+            <RowField id={fixId} error={fixForm.formState.errors.note?.message} wide>
+              <Textarea
+                id={fixId} {...fixForm.register("note")} rows={3} {...invalidProps(fixId, fixForm.formState.errors.note?.message)}
+                placeholder="What was done, and by whom" aria-label="The fix" data-testid="squawk-fix-note"
+              />
+            </RowField>
           </div>
           <ListRow
             title={<span className="font-medium text-tint">Fixed today</span>} disabled={save.isPending} data-testid="squawk-fix"
-            onClick={() => save.mutate({ id: fixing.squawk.id, request: { ...asRequest(fixing.squawk), fixedOn: today(), fixNote: fixing.note || null } })}
+            onClick={() => void onFix()}
           />
           <ListRow title="Cancel" onClick={() => setFixing(null)} />
         </ListGroup>
@@ -99,32 +139,34 @@ export default function SquawksPage({ aircraft }: { aircraft: Aircraft }) {
           pilot or a mechanic who finds it no hazard (14 CFR 91.213(d)). */}
       <ListGroup title="Write a squawk">
         <div className="p-2">
-          <Textarea
-            value={draft.text} onChange={e => setDraft({ ...draft, text: e.target.value })} rows={2} maxLength={500}
-            placeholder="What was found" aria-label="What was found" data-testid="squawk-text"
-          />
+          <RowField id={textId} error={errors.text?.message} wide>
+            <Textarea
+              id={textId} {...register("text")} rows={2} maxLength={500} {...invalidProps(textId, errors.text?.message)}
+              placeholder="What was found" aria-label="What was found" data-testid="squawk-text"
+            />
+          </RowField>
         </div>
         <ListRow id={foundId} title="Found on">
-          <FieldHit htmlFor={foundId}><Input id={foundId} type="date" className="h-8 w-40" value={draft.reportedOn} max={today()} aria-label="Found on"
-            onChange={e => setDraft({ ...draft, reportedOn: e.target.value || today() })} /></FieldHit>
+          <RowField id={foundId} error={errors.reportedOn?.message}>
+            <FieldHit htmlFor={foundId}><Input id={foundId} type="date" className="h-8 w-40" max={today()} aria-label="Found on"
+              {...register("reportedOn")} {...invalidProps(foundId, errors.reportedOn?.message)} /></FieldHit>
+          </RowField>
         </ListRow>
         <ListRow title="Inoperative equipment">
-          <TogglePill
-            pressed={draft.inoperative} onPressedChange={on => setDraft({ ...draft, inoperative: on, deferredFor: on ? draft.deferredFor : null })}
-            label="Inoperative" testId="squawk-inoperative"
-          />
+          <Controller control={control} name="inoperative" render={({ field }) => (
+            <TogglePill pressed={field.value} onPressedChange={field.onChange} label="Inoperative" testId="squawk-inoperative" />
+          )} />
         </ListRow>
-        {draft.inoperative && (
+        {inoperative && (
           <ListRow title="91.213(d)">
-            <PullDown
-              label="Deferred for" value={draft.deferredFor ?? "none"} options={REACHES} testId="squawk-deferred"
-              onChange={v => setDraft({ ...draft, deferredFor: v === "none" ? null : v })}
-            />
+            <Controller control={control} name="deferredFor" render={({ field }) => (
+              <PullDown label="Deferred for" value={field.value} options={REACHES} testId="squawk-deferred" onChange={field.onChange} />
+            )} />
           </ListRow>
         )}
         <ListRow
-          title={<span className="font-medium text-tint">Write it</span>} onClick={() => add.mutate()}
-          disabled={!draft.text.trim() || add.isPending} data-testid="squawk-add"
+          title={<span className="font-medium text-tint">Write it</span>} onClick={() => void onAdd()}
+          disabled={add.isPending} data-testid="squawk-add"
         />
       </ListGroup>
       {fixed.length > 0 && (

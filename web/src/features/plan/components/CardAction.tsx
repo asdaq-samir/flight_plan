@@ -1,9 +1,9 @@
 import type { ComponentProps, ReactNode } from "react";
-import { Loader2 } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
 import { GLASS_BUTTON } from "../../../components/mapChrome";
 import { TEXT } from "../../../lib/text";
+import { Spinner } from "../../../components/ui/spinner";
 
 /**
  * One of a card's actions under its head -- the airport card's Fly Here,
@@ -44,7 +44,7 @@ export function CardAction({ icon, label, spoken, filled, busy, disabled, onClic
   const look = cn("h-auto min-w-0 flex-col gap-[2px] rounded-xl px-1 py-[6px] [&_svg:not([class*='size-'])]:size-[20px]", !filled && cn(GLASS_BUTTON, "text-tint hover:text-tint dark:text-[#8cc4ff] dark:hover:text-[#8cc4ff]"));
   const face = (
     <>
-      {busy ? <Loader2 className="size-[20px] animate-spin" aria-hidden="true" /> : icon}
+      {busy ? <Spinner className="size-[20px]" aria-hidden="true" /> : icon}
       {/* On one line, at the pilot's ask: "Fly Here" and "Add Stop" on
           two at a larger text size made every tile a line taller, and
           the card's tiles ran off the half sheet. Wrapped, not cut

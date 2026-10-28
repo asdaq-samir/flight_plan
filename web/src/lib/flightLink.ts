@@ -44,3 +44,20 @@ export function planHrefOf(
   for (const [key, value] of picks) if ((PICK_KEYS as readonly string[]).includes(key)) params.set(key, value);
   return `/plan?${params}`;
 }
+
+/** A recent route back on the planner, with what was picked for it (its
+ *  `picks`, which keep a point's own altitudes besides): FPL's Recents, and
+ *  the page planning them ahead (PlanWorkspace). */
+export function recentHrefOf(route: { dep: string; dest: string; stops: string[]; picks?: string }): string {
+  const params = new URLSearchParams({ dep: route.dep, dest: route.dest, ...(route.stops.length ? { stops: route.stops.join(",") } : {}) });
+  for (const [key, value] of new URLSearchParams(route.picks ?? "")) if (!params.has(key)) params.set(key, value);
+  return `/plan?${params}`;
+}
+
+/** A kept airport as a link to send (its card's own Share's). */
+export const placeLink = (airport: { ident: string; name?: string | null }) =>
+  ({ title: airport.name || airport.ident, url: `${location.origin}/app/plan?place=${airport.ident}` });
+
+/** A kept airplane as a link to send (its card's own Share's). */
+export const planeLink = (aircraft: { hex: string; name: string }) =>
+  ({ title: aircraft.name, url: `${location.origin}/app/plan?flight=${aircraft.hex}` });

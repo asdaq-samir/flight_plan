@@ -11,7 +11,7 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // two different airports.
   await page.goto("/app/plan?dep=C81&dest=C81");
   await grabberTo(page, "full");
-  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h 00m", { timeout: slow(30000) });
+  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h", { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').nth(1)).toHaveText("Aloft");
   // Its fuel required among the figures.
   await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(30000) });
@@ -19,9 +19,9 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   // Longer aloft: its chip in the pill, in the address, and more fuel.
   await controlsInSight(page);
   await page.getByTestId("local-duration").click();
-  await page.getByRole("menuitemradio", { name: "2 h", exact: true }).click();
+  await page.getByRole("menuitemradio", { name: "2h", exact: true }).click();
   await expect(page).toHaveURL(/[?&]local_min=120/);
-  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("2h 00m", { timeout: slow(30000) });
+  await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("2h", { timeout: slow(30000) });
 });
 
 test("plan page: every popup the map opens dismisses the same way", async ({ page }) => {

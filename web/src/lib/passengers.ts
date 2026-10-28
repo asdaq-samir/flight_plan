@@ -1,5 +1,5 @@
 import type { Where } from "./verdict";
-import { clockTime, zuluTime } from "./clock";
+import { clockTime, duration, zuluTime } from "./clock";
 import { placeOfPoint } from "./identSchema";
 
 /**
@@ -36,8 +36,7 @@ export function passengerMessage(f: {
   /** The destination's report now, in words ("VFR, 10 sm"). */
   weather: string | null;
 }): string {
-  const minutes = f.eteMin == null ? null : Math.round(f.eteMin);
-  const flying = minutes == null ? null : minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, "0")} min`;
+  const flying = f.eteMin == null ? null : duration(f.eteMin);
   // From the exact minutes, as the nav log's and the kneeboard's arrival
   // is (etaAt): from the rounded ones it said 10:00 where they said 09:59.
   const lands = f.depart && f.eteMin != null ? new Date(f.depart.getTime() + f.eteMin * 60_000) : null;

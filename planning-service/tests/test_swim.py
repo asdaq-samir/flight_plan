@@ -85,7 +85,7 @@ def test_the_tracks_read_are_those_round_a_view_and_the_followed_ones(monkeypatc
     monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: ([], {"a3c858"}))
     assert swim._radar(MESSAGE) == 1 and heard == ["a3c858"]
     # The map on Los Angeles, none followed in it: the message not parsed.
-    monkeypatch.setattr(swim, "tracks", lambda xml: (_ for _ in ()).throw(AssertionError("parsed")))
+    monkeypatch.setattr(swim.swim_reader, "tracks", lambda xml: (_ for _ in ()).throw(AssertionError("parsed")))
     monkeypatch.setattr(swim.traffic, "radar_wanted", lambda: ([(33.94, -118.41, 165)], {"abcdef"}))
     assert swim._radar(MESSAGE) == 0
 
@@ -111,3 +111,56 @@ def test_a_feed_on_another_broker_connects_there(monkeypatch):
     monkeypatch.setenv("SWIM_HOST_TFMS", "tcps://ems1.swim.faa.gov:55443")
     assert swim._host("TFMS") == "tcps://ems1.swim.faa.gov:55443"
     assert swim._host("FNS") == "tcps://ems2.swim.faa.gov:55443"
+
+
+def test_the_reader_picks_the_tracks_round_a_view_and_the_followed_ones():
+    # The same choice as _radar's, made in the reading process against
+    # the (views, followed) the planner last sent it.
+    pick = swim.swim_reader.select
+    assert [p["hex"] for p, _ in pick(MESSAGE, [(41.98, -87.9, 20)], set())] == ["a6ed61"]
+    assert [p["hex"] for p, _ in pick(MESSAGE, [], {"a3c858"})] == ["a3c858"]
+    assert pick(MESSAGE, [(33.94, -118.41, 165)], {"abcdef"}) == []
+    assert pick('<ns2:TAStatus xmlns:ns2="x"><src>HUF</src></ns2:TAStatus>', [(41.98, -87.9, 20)], set()) == []
+
+
+def test_what_the_reader_sends_is_handed_on_by_kind(monkeypatch):
+    heard, texts = [], []
+    monkeypatch.setattr(swim.traffic, "heard_elsewhere", lambda plane, at: heard.append((plane["hex"], at)))
+    monkeypatch.setitem(swim.HANDLERS, "FNS", lambda text: texts.append(text) or 1)
+    monkeypatch.setitem(swim.HANDLERS, "TFMS", lambda data: texts.append(data) or 2)
+    for feed in swim.FEEDS:
+        monkeypatch.setitem(swim.STATE, feed, {"connected": False, "messages": 0, "items": 0, "last_at": None, "error": None})
+    swim.dispatch("radar", "STDDS", swim.tracks(MESSAGE))
+    assert heard == [("a3c858", 1792461505.921), ("a6ed61", 1792461506.0)] and swim.STATE["STDDS"]["items"] == 2
+    swim.dispatch("text", "FNS", "!ORD 10/123 ORD RWY 10L/28R CLSD")
+    swim.dispatch("text", "TFMS", b"<flightPlan/>")
+    assert texts == ["!ORD 10/123 ORD RWY 10L/28R CLSD", b"<flightPlan/>"]
+    assert (swim.STATE["FNS"]["items"], swim.STATE["TFMS"]["items"]) == (1, 2)
+    swim.dispatch("state", "STDDS", {"connected": True, "error": None})
+    swim.dispatch("state", "STDDS", {"messages": 370, "last_at": 1792461507.0})
+    assert swim.STATE["STDDS"] | {} == {"connected": True, "messages": 370, "items": 2, "last_at": 1792461507.0, "error": None}
+
+
+def test_the_reader_imports_nothing_of_the_planners():
+    # A spawned process starts by importing it: none of vfr or pandas.
+    import subprocess
+    import sys
+    code = "import sys, app.swim_reader; print(sorted(m for m in sys.modules if m.split('.')[0] in ('vfr', 'pandas', 'numpy')))"
+    assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "[]"
+
+
+def test_the_reader_ends_when_the_planner_does():
+    import multiprocessing
+    context = multiprocessing.get_context("spawn")
+    wanted_in, wanted_out = context.Pipe(duplex=False)
+    # The queue held here while the process starts, as _serve holds it:
+    # one let go is gone before the process opens it.
+    out = context.Queue()
+    process = context.Process(target=swim.swim_reader.main, args=([], out, wanted_in), daemon=True)
+    process.start()
+    wanted_in.close()
+    wanted_out.send(([(41.98, -87.9, 20)], {"a3c858"}))
+    # The planner's end closed, as it is when the planner ends.
+    wanted_out.close()
+    process.join(timeout=30)
+    assert process.exitcode == 0

@@ -1,6 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { grabberTo, settle, settled, sideDrawer, slow } from "./helpers";
 
+// A route's handler still running as the test ends -- the Recents and
+// Saved planned ahead at idle ask the planner then -- found the page
+// closed and failed the test (navlog-fit.spec, CI, 2026-10-28): the
+// handlers taken off, their errors let go, as each test ends.
+test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: "ignoreErrors" }); });
+
 /**
  * An airport's diagram in its card, a row as the Chart Supplement's is
  * (PublicationRows), a tap away from full screen to pinch in on

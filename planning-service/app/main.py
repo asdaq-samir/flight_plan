@@ -36,7 +36,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, water, weather
-from vfr import congested
+from vfr import airspace_at, congested
 from vfr import traffic as traffic_data
 from vfr import airports as airport_table
 
@@ -128,6 +128,10 @@ def _warm_reference_data() -> None:
         # Every special-use area in the country (vfr.sua): asked for round
         # each route, a new route's were a request of 0.3 to 2.5 s.
         ("special-use airspace", sua.preload),
+        # Each Class B to E volume's box (vfr.airspace_at), for the
+        # airspace over a point held on the chart: the shapefile walked
+        # once here, not at the first tap.
+        ("airspace at a point", lambda: airspace_at.preload(airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR))),
         # The land and large lakes for Routes' way over land (vfr.water).
         ("water", water.preload),
         # The towns the terrain floor's clearances are set by (vfr.congested,
@@ -138,6 +142,9 @@ def _warm_reference_data() -> None:
         # its parse was 11.8 s of a cold KBOS to KSAN's plan (Session1's
         # profile, 2026-10-23).
         ("patterns", lambda: faa_data.pattern_agl_ft("KJFK", altitude.DEFAULT_FAA_CACHE_DIR)),
+        # And its charted, open fields, a route's checkpoint candidates.
+        ("route airports", lambda: faa_data.load_route_airports(
+            faa_data.ensure_nasr_file("APT_BASE.csv", altitude.DEFAULT_FAA_CACHE_DIR), (0.0, 0.0, 0.0, 0.0))),
         ("charts", _prepare_corridor_charts),
     ):
         try:

@@ -42,7 +42,12 @@ export function ListGroup({ title, badge, action, footer, children, className }:
           {action}
         </div>
       )}
-      <ItemGroup role="group" aria-labelledby={title ? id : undefined} className="gap-0 rounded-lg border border-border bg-card">
+      {/* No gaps between the rows, the stock group's ten for small rows
+          (has-data-[size=sm]) too, which its plain gap-0 did not reach: a
+          band above and below every row that a tap did nothing on (the
+          owner's screenshot, 2026-10-28). The rows' own padding is the
+          room between them instead (ListRow, 13 a side in a group). */}
+      <ItemGroup role="group" aria-labelledby={title ? id : undefined} className="gap-0 rounded-lg border border-border bg-card has-data-[size=sm]:gap-0 has-data-[size=xs]:gap-0">
         {rows.map((row, i) => (
           <Fragment key={i}>
             {i > 0 && <ItemSeparator className="my-0" />}
@@ -146,7 +151,7 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
   // is the control, so its own height is its hit area.
   if (to !== undefined) {
     return (
-      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 no-underline! hover:bg-muted/50 pointer-coarse:active:bg-muted">
+      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 in-data-[slot=item-group]:py-[13px] no-underline! hover:bg-muted/50 pointer-coarse:active:bg-muted">
         {/* What a wrapper hands a row (a sheet's Close, its click) goes
             on the link; a button's own attributes do not. */}
         <Link
@@ -163,7 +168,7 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
     return (
       // no-underline!: a section's own links are underlined (the
       // accordion's content styles every <a>), and a row is not prose.
-      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 no-underline!">
+      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 in-data-[slot=item-group]:py-[13px] no-underline!">
         {/* A click handler goes on the link too, run before it opens: a
             row that copies what the site it opens is to be given (the
             Brief's Open in 1800wxbrief), in the tap's own gesture. */}
@@ -178,14 +183,14 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
   if (checkbox) {
     // A label round the row, so a tap anywhere on it is a tap on the box.
     return (
-      <Item asChild size="sm" className="min-h-11 cursor-pointer rounded-none border-0 py-2 hover:bg-muted/50 pointer-coarse:active:bg-muted">
+      <Item asChild size="sm" className="min-h-11 cursor-pointer rounded-none border-0 py-2 in-data-[slot=item-group]:py-[13px] hover:bg-muted/50 pointer-coarse:active:bg-muted">
         <label className={buttonProps.className}>{body}</label>
       </Item>
     );
   }
   if (radio !== undefined) {
     return (
-      <Item asChild size="sm" className="group min-h-11 rounded-none border-0 py-2 text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:active:bg-muted">
+      <Item asChild size="sm" className="group min-h-11 rounded-none border-0 py-2 in-data-[slot=item-group]:py-[13px] text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:active:bg-muted">
         <RadioGroupPrimitive.Item value={radio} asChild disabled={buttonProps.disabled}>
           <button type="button" {...buttonProps}>{body}</button>
         </RadioGroupPrimitive.Item>
@@ -194,15 +199,18 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
   }
   if (buttonProps.onClick) {
     return (
-      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:active:bg-muted">
+      <Item asChild size="sm" className="min-h-11 rounded-none border-0 py-2 in-data-[slot=item-group]:py-[13px] text-left hover:bg-muted/50 disabled:pointer-events-none disabled:opacity-50 pointer-coarse:active:bg-muted">
         <button type="button" {...buttonProps}>{body}</button>
       </Item>
     );
   }
-  // A plain row keeps its test id, the one attribute of a button's it
-  // has a use for.
+  // A plain row keeps its test id, its class and whether it is the one
+  // picked (aria-current), the attributes of a button's it has a use for.
   return (
-    <Item size="sm" className="min-h-11 rounded-none border-0 py-2" data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}>
+    <Item
+      size="sm" className={cn("min-h-11 rounded-none border-0 py-2 in-data-[slot=item-group]:py-[13px]", buttonProps.className)} aria-current={buttonProps["aria-current"]}
+      data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}
+    >
       {body}
     </Item>
   );

@@ -16,7 +16,6 @@ made with the stop put in is the real check: this only chooses where.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -25,6 +24,7 @@ import pandas as pd
 from . import airports, faa_data
 from .geo import cross_track_distance_nm, distance_nm
 from .terrain import DEFAULT_FAA_CACHE_DIR
+from .once import once
 
 #: The fuel looked for: avgas, which every piston profile here burns. A
 #: field's FUEL_TYPES lists what it sells (the FAA's NASR APT_BASE).
@@ -77,7 +77,7 @@ class FuelStop:
         return asdict(self)
 
 
-@lru_cache(maxsize=4)
+@once(maxsize=4)
 def _fields_of(path: str, _mtime: float, fuel_only: bool = True) -> pd.DataFrame:
     """The public airports that sell FUEL, from APT_BASE -- or, not
     `fuel_only`, every public airport: ident (the ICAO one where there is
@@ -111,7 +111,7 @@ def public_fields(cache_dir=DEFAULT_FAA_CACHE_DIR) -> pd.DataFrame:
     return _fields_of(str(path), Path(path).stat().st_mtime, False)
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _paved_runways_of(path: str, _mtime: float) -> dict[str, int]:
     """Each field's longest open paved runway, feet, by ident (OurAirports'
     runways table: "ASPH", "CONC", "ASPH-G" and the like are paved)."""

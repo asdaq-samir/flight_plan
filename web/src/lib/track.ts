@@ -8,7 +8,7 @@
  * Nothing here leaves the device: a track is the pilot's, kept in this
  * browser (keepTrack) unless they save it to their account.
  */
-import { readKept, writeKept } from "./storage";
+import { keptStore, wasKept } from "./storage";
 
 export interface TrackPoint {
   /** When, ms since the epoch. */
@@ -85,16 +85,19 @@ export function thin(points: TrackPoint[], most = 4000): TrackPoint[] {
   return Array.from({ length: most }, (_, i) => points[Math.round(i * step)]!);
 }
 
+type KeptTrack = { source: string; points: TrackPoint[] } | null;
 const KEY = (flightId: number) => `wingtip.track.${flightId}`;
+const store = (flightId: number) => keptStore<KeptTrack>(KEY(flightId), null);
 
-/** A flight's track as kept in this browser, or null: none kept, or
- *  storage not to be had (a private window). */
-export function keptTrack(flightId: number): { source: string; points: TrackPoint[] } | null {
-  return readKept<{ source: string; points: TrackPoint[] } | null>(KEY(flightId), null);
+/** A flight's track as kept in this browser (lib/storage), or null: none
+ *  kept, or storage not to be had (a private window). */
+export function keptTrack(flightId: number): KeptTrack {
+  return store(flightId).getState().value;
 }
 
 /** Keeps a flight's track in this browser, or forgets it (null). False
  *  where storage cannot be had or is full. */
-export function keepTrack(flightId: number, track: { source: string; points: TrackPoint[] } | null): boolean {
-  return writeKept(KEY(flightId), track);
+export function keepTrack(flightId: number, track: KeptTrack): boolean {
+  store(flightId).setState({ value: track });
+  return wasKept(KEY(flightId));
 }

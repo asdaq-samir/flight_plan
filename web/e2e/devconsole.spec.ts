@@ -1,6 +1,12 @@
 import { test, expect, type Page } from "@playwright/test";
 import { consolePage, expandConsole, openConsole, showTabs } from "./helpers";
 
+// A route's handler still running as the test ends -- the Recents and
+// Saved planned ahead at idle ask the planner then -- found the page
+// closed and failed the test (navlog-fit.spec, CI, 2026-10-28): the
+// handlers taken off, their errors let go, as each test ends.
+test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: "ignoreErrors" }); });
+
 /**
  * The Dev console's System tab, for the answers that are not "up": a
  * service this deployment does not run, and a planner that did not
@@ -77,9 +83,9 @@ test("a snapshot from long ago -- the service worker's, with the planner out of 
   });
   await openSystemTab(page);
 
-  await expect(consoleSheet(page).getByTestId("stale-snapshot")).toContainText("has not answered since this snapshot, 40 min ago");
+  await expect(consoleSheet(page).getByTestId("stale-snapshot")).toContainText("has not answered since this snapshot, 40m ago");
   await openServices(page);
-  await expect(consoleSheet(page).getByText(/Checked 40 min ago — the planner has not answered since/)).toBeVisible();
+  await expect(consoleSheet(page).getByText(/Checked 40m ago — the planner has not answered since/)).toBeVisible();
 });
 
 test("the System tab's rows open a page each, as Settings does, and back returns to the row", async ({ page }) => {

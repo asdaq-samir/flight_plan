@@ -1,5 +1,8 @@
-import { ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plus } from "lucide-react";
-import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plane, Plus } from "lucide-react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { airportMarkSvg } from "../lib/map/airportMark";
@@ -8,7 +11,8 @@ import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
 import { holdOpenCard } from "../lib/openCards";
 import { SwipeToDelete } from "./SwipeToDelete";
-import { useSwipeRow } from "./swipeRow";
+import { SortItem, useSwipeRow } from "./swipeRow";
+import { placeLink } from "../lib/flightLink";
 import { useAway } from "../lib/useAway";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
@@ -96,8 +100,31 @@ export function Mark({ icon, className, style }: { icon: ReactNode; className?: 
   return <span className={cn("grid size-8 place-items-center rounded-full [&_svg]:size-4", className)} style={style} aria-hidden="true">{icon}</span>;
 }
 
-function KeptMark({ airport }: { airport: RecentAirport }) {
+/** A kept airport's mark in a list's row: its chart symbol, as Favorites'
+ *  and Nearest's rows draw it. */
+export function KeptMark({ airport }: { airport: RecentAirport }) {
   return <KeptChartMark airport={airport} size={26} />;
+}
+
+/** An airplane's mark, in a row (`small`, the Mark's 32) or a strip's tile
+ *  (SmallMark's 56): the Favorites' sky disc with a white airplane, turned
+ *  to its track where it is heard, red in an emergency -- one mark for
+ *  every list of airplanes, where the heard ones were a grey disc with a
+ *  sky airplane and Recents and the found ones a bare grey airplane (the
+ *  owner, 2026-10-28: "How come nearest airports and aircraft icons look
+ *  different than favorites"). */
+export function PlaneMark({ trackDeg, emergency = false, small = false }: { trackDeg?: number | null; emergency?: boolean; small?: boolean }) {
+  // lucide's airplane points north-east: turned to its track.
+  const icon = <Plane fill="currentColor" style={trackDeg != null ? { transform: `rotate(${trackDeg - 45}deg)` } : undefined} />;
+  const fill = emergency ? "bg-destructive text-white" : "bg-sky-600 text-white";
+  return small ? <Mark icon={icon} className={fill} /> : <SmallMark icon={icon} className={fill} />;
+}
+
+/** A field's chart symbol in a strip's tile: 44 in the tile's 56, as wide
+ *  as Home's disc reads (FavoriteStrip's, at the owner's "Airport icons
+ *  too big"), Nearest's as Favorites'. */
+export function TileChartMark({ children }: { children: ReactNode }) {
+  return <SmallMark icon={children} className="[&_svg]:size-11" />;
 }
 
 /** A list's Edit, Done while it is being edited (the Favorites' in full). */
@@ -128,41 +155,74 @@ export function RemoveMinus({ label, onClick, testId }: { label: string; onClick
   );
 }
 
-/** The handle after a row being edited: a drag moves its row a place
- *  each time the finger passes half a row, the list re-ordering under it
- *  as it goes, and the arrow keys a place at a time. */
+/** The rows a list's handles drag: dnd-kit's sortable (as the route's
+ *  stops are, RouteBox), round the ListGroup that draws them, each row a
+ *  `SortableRow` -- a drag by the handle, the list making room under it,
+ *  VoiceOver told where it is, and the move made once, at the drop. */
+export function SortableRows({ ids, onMove, children }: {
+  ids: string[];
+  onMove: (from: number, to: number) => void;
+  children: ReactNode;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  return (
+    <DndContext
+      sensors={sensors} collisionDetection={closestCenter}
+      onDragEnd={({ active, over }) => {
+        if (!over || active.id === over.id) return;
+        const from = ids.indexOf(`${active.id}`), to = ids.indexOf(`${over.id}`);
+        if (from >= 0 && to >= 0) onMove(from, to);
+      }}
+    >
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
+    </DndContext>
+  );
+}
+
+const SortHandle = createContext<{
+  ref: (node: HTMLElement | null) => void; attributes: DraggableAttributes; listeners: DraggableSyntheticListeners;
+} | null>(null);
+
+/** One of a `SortableRows`' rows, lifted over the others while dragged. */
+export function SortableRow({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
+  // The row's own box is what moves (SwipeToDelete's, by SortItem), not a
+  // box round it: wrapped, each row was the first and the last of its own,
+  // and lost the reach over the group's gaps that a list's rows have, a
+  // band above and below every Favorite that a tap did nothing on (the
+  // owner's screenshot, 2026-10-28).
+  const item = useMemo(() => ({
+    ref: setNodeRef, style: { transform: CSS.Translate.toString(transform), transition },
+    className: cn(isDragging && "relative z-10 bg-card shadow-lg"),
+  }), [setNodeRef, transform, transition, isDragging]);
+  return (
+    <SortItem.Provider value={item}>
+      <SortHandle.Provider value={{ ref: setActivatorNodeRef, attributes, listeners }}>{children}</SortHandle.Provider>
+    </SortItem.Provider>
+  );
+}
+
+/** The handle after a row being edited, in a `SortableRow`: dragged, its
+ *  row goes with it (dnd-kit); and the arrow keys a place at a time, as
+ *  they did, besides dnd-kit's own Space to lift and drop. */
 export function MoveHandle({ label, index, count, onMove }: {
   label: string;
   index: number;
   count: number;
   onMove: (from: number, to: number) => void;
 }) {
-  const drag = (start: ReactPointerEvent<HTMLButtonElement>) => {
-    const handle = start.currentTarget;
-    const row = handle.closest("[data-slot=item]") as HTMLElement | null;
-    const height = row?.offsetHeight ?? 52;
-    handle.setPointerCapture(start.pointerId);
-    let at = index, anchor = start.clientY;
-    const move = (event: PointerEvent) => {
-      const dy = event.clientY - anchor;
-      if (dy > height / 2 && at < count - 1) { onMove(at, at + 1); at += 1; anchor += height; }
-      else if (dy < -height / 2 && at > 0) { onMove(at, at - 1); at -= 1; anchor -= height; }
-    };
-    const end = () => {
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", end);
-      handle.removeEventListener("pointercancel", end);
-    };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", end);
-    handle.addEventListener("pointercancel", end);
-  };
+  const sort = useContext(SortHandle);
   return (
     <IconButton
-      label={label} className="touch-none" onPointerDown={drag}
+      label={label} className="touch-none"
+      {...sort?.attributes} {...sort?.listeners} ref={sort?.ref}
       onKeyDown={e => {
-        if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); }
-        if (e.key === "ArrowDown" && index < count - 1) { e.preventDefault(); onMove(index, index + 1); }
+        if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); return; }
+        if (e.key === "ArrowDown" && index < count - 1) { e.preventDefault(); onMove(index, index + 1); return; }
+        sort?.listeners?.onKeyDown?.(e);
       }}
     >
       <GripVertical className="size-5 text-muted-foreground" />
@@ -202,7 +262,7 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
         ) : (
           // Taken off as every kept list's rows are: a swipe to the left, or
           // Edit's minus bringing out the Delete (SwipeToDelete).
-          <SwipeToDelete label={`Remove ${home.ident} as Home`} onDelete={onRemoveHome}>
+          <SwipeToDelete label={`Remove ${home.ident} as Home`} onDelete={onRemoveHome} share={placeLink(home)}>
             {editing ? (
               <ListRow
                 media={<RemoveMinus label={`Remove ${home.ident} as Home…`} testId="favorites-home-remove" />}
@@ -219,10 +279,12 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
           </SwipeToDelete>
         )}
       </ListGroup>
+      <SortableRows ids={favorites.map(a => a.ident)} onMove={onMove}>
       <ListGroup title="Airports">
         {favorites.length === 0 && <ListRow muted title="A star on an airport's card adds it here" />}
         {favorites.map((a, index) => (
-          <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)}>
+          <SortableRow key={a.ident} id={a.ident}>
+          <SwipeToDelete label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)} share={placeLink(a)}>
             {editing ? (
               <ListRow
                 media={<RemoveMinus label={`Remove ${a.ident} from Favorites…`} />}
@@ -239,9 +301,11 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
               />
             )}
           </SwipeToDelete>
+          </SortableRow>
         ))}
         <ListRow media={<Plus className="size-5" />} title="Add a Favorite" onClick={onAdd} data-testid="favorites-add" />
       </ListGroup>
+      </SortableRows>
     </div>
   );
 }

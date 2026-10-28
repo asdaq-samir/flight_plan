@@ -1,5 +1,5 @@
 import type { PastFlightSummary } from "../../../lib/api/types";
-import { clockTime, minutesWords } from "../../../lib/clock";
+import { clockTime, duration } from "../../../lib/clock";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -10,9 +10,9 @@ export const dayOf = (at: Date) => `${DAYS[at.getDay()]} ${at.getDate()} ${MONTH
 /** A time from the planner, seconds since 1970, as a Date. */
 export const when = (s: number) => new Date(s * 1000);
 
-/** "2 h 13 min", "41 min". */
+/** "2h 13m", "41m". */
 export function lasted(seconds: number): string {
-  return minutesWords(seconds / 60);
+  return duration(seconds / 60);
 }
 
 /** "LCI → LWM", "LWM → in the air", "? → LCI": an end with no field

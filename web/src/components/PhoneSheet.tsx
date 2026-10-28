@@ -4,6 +4,7 @@ import { SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } f
 import { SHEET_CORNERS } from "./mapChrome";
 import type { NavEdge } from "../lib/preferences";
 import { TEXT } from "../lib/text";
+import { useKeyboardInset, useVisualHeight } from "../hooks/use-viewport";
 
 /** A swipe toward the sheet's edge, let go, puts it away past this share
  *  of its height, or faster than this many points a millisecond: a
@@ -38,6 +39,16 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
   const [swiped, setSwiped] = useState<number | null>(null);
   const [held, setHeld] = useState(false);
   const toward = edge === "bottom" ? 1 : -1;
+  // Over the keyboard while it is up, as an iOS sheet rides up on it: at
+  // the bottom, Safari leaves a fixed sheet where it was, under the
+  // keyboard, and the address to sign in with was typed into out of
+  // sight (the owner's screen recording, 2026-10-28). No taller than what
+  // the keyboard leaves of the screen, at either edge.
+  const keyboard = useKeyboardInset();
+  const room = useVisualHeight();
+  const lifted = keyboard > 0
+    ? { ...(edge === "bottom" ? { bottom: keyboard + 8 } : {}), maxHeight: room - 16 }
+    : null;
   // From its content too, as an iOS sheet's scrolling content hands a drag
   // to the sheet, at the owner's pick ("Ok 1-3"): a finger's first move
   // toward the sheet's edge, where everything that scrolls under it is
@@ -109,7 +120,7 @@ export function PhoneSheetContent({ edge, className, style, children, onPointerD
     <SheetContent
       ref={setSheet} side={edge} glass data-floating=""
       className={cn("max-h-[calc(85dvh-1rem)] gap-0 overflow-hidden", SHEET_CORNERS, className)}
-      style={swiped === null ? style : { ...style, transform: `translateY(${toward * swiped}px)`, transition: held ? "none" : BACK }}
+      style={swiped === null ? { ...style, ...lifted } : { ...style, ...lifted, transform: `translateY(${toward * swiped}px)`, transition: held ? "none" : BACK }}
       onPointerDown={event => {
         onPointerDown?.(event);
         // Its own, not the map's sheet's: a sheet opened from inside the

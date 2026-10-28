@@ -6,6 +6,7 @@ import { CardClose, CardTop, PanelCard } from "../../../components/PanelCard";
 import { useCardTitle } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { RowBadge } from "../../../components/RowBadge";
+import { Toggle as TogglePrimitive } from "radix-ui";
 import RoundButton from "../../../components/RoundButton";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { bearingDeg } from "../../../lib/geo";
@@ -225,13 +226,15 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
             <CardClose onClose={onClose} onShare={() => void shareFlight(name, hex)} testId="flight-close" />
             <FavoriteButton kept={kept} />
             {/* Nothing to follow where it is not heard now: greyed, not pressed. */}
-            <RoundButton
-              label={following ? `Stop following ${name}` : `Follow ${name} on the map`} aria-pressed={following} disabled={!plane}
-              className={cn(following && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground dark:bg-primary dark:hover:bg-primary")}
-              onClick={() => useTracking.setState({ follow: !follow })} data-testid="flight-follow"
-            >
-              <Crosshair className="size-5" strokeWidth={2.2} />
-            </RoundButton>
+            <TogglePrimitive.Root asChild pressed={following} disabled={!plane} onPressedChange={on => useTracking.setState({ follow: on })}>
+              <RoundButton
+                label={following ? `Stop following ${name}` : `Follow ${name} on the map`}
+                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary data-[state=on]:hover:text-primary-foreground dark:data-[state=on]:bg-primary dark:data-[state=on]:hover:bg-primary"
+                data-testid="flight-follow"
+              >
+                <Crosshair className="size-5" strokeWidth={2.2} />
+              </RoundButton>
+            </TogglePrimitive.Root>
             {!barShares && (
               <RoundButton label={`Share ${name}`} onClick={() => void shareFlight(name, hex)} data-testid="flight-share">
                 <Share className="size-5" strokeWidth={2} />
@@ -374,13 +377,16 @@ function FavoriteButton({ kept }: { kept: KeptAircraft | null }) {
   const starred = usePreferences(s => !!kept && s.favoriteAircraft.some(a => a.hex === kept.hex));
   const toggle = usePreferences(s => s.toggleFavoriteAircraft);
   return (
-    <RoundButton
-      label={starred ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={starred} disabled={!kept}
-      className={cn(starred && "text-[#ffcc00] hover:text-[#ffcc00] dark:text-[#ffd60a] dark:hover:text-[#ffd60a]")}
-      onClick={() => { if (kept) toggle(kept); }}
-      data-testid="flight-favorite"
-    >
-      <Star className={cn("size-5", starred && "fill-current")} strokeWidth={2} />
-    </RoundButton>
+    // The stock Toggle round the round button, on as Radix's is, the
+    // yellow and the filled star from its data-state.
+    <TogglePrimitive.Root asChild pressed={starred} disabled={!kept} onPressedChange={() => { if (kept) toggle(kept); }}>
+      <RoundButton
+        label={starred ? "Remove from Favorites" : "Add to Favorites"}
+        className="data-[state=on]:text-[#ffcc00] data-[state=on]:hover:text-[#ffcc00] dark:data-[state=on]:text-[#ffd60a] dark:data-[state=on]:hover:text-[#ffd60a] data-[state=on]:[&_svg]:fill-current"
+        data-testid="flight-favorite"
+      >
+        <Star className="size-5" strokeWidth={2} />
+      </RoundButton>
+    </TogglePrimitive.Root>
   );
 }

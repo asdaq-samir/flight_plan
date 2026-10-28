@@ -12,7 +12,7 @@ import { awayWords, fuelNames, glanceOf, type GlanceItem, type Glanceable } from
 import { servicesQuery } from "../../../lib/queryClient";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
-import { hhmm } from "../format";
+import { duration } from "../../../lib/clock";
 
 const GLANCE_ICONS: Record<GlanceItem["key"], ReactNode> = {
   fuel: <Fuel />, food: <Utensils />, bed: <BedDouble />, car: <CarFront />,
@@ -157,7 +157,7 @@ export function StopStrip({ ident, stop }: { ident: string; stop: SuggestedStop 
     <div className="pt-3" data-testid="place-stop">
       <PillSection title={stop.reason === "break" ? "Suggested break" : "Suggested fuel stop"}>
         <div className="grid grid-cols-3 gap-2">
-          {tile(`From ${pointName(stop.from)}`, hhmm(stop.minutes), "place-stop-after")}
+          {tile(`From ${pointName(stop.from)}`, duration(stop.minutes), "place-stop-after")}
           {tile("Lands with", `${Math.floor(stop.landsWithGal)} gal`, "place-stop-fuel")}
           {tile("Off the line", `+${Math.round(stop.addedNm)} nm`, "place-stop-added")}
         </div>

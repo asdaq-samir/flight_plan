@@ -14,11 +14,11 @@ this is not: the shapefile changes every 28 days, a METAR every hour.
 """
 from __future__ import annotations
 
-from functools import lru_cache
 from pathlib import Path
 
 from . import airports as airports_module
 from . import airspace
+from vfr.once import once
 
 
 def _lowest(values: list) -> float | None:
@@ -45,7 +45,7 @@ def class_b_airports(shp_path, cache_path=airports_module.DEFAULT_CACHE_PATH) ->
     return [dict(airport) for airport in found]
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _class_b_airports_of(shp_path: str, _shp_mtime, cache_path: str, _table_mtime) -> tuple:
     """One entry per Class B airport, in identifier order.
 

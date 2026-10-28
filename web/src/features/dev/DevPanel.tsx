@@ -19,6 +19,7 @@ import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
 import SpeedPage from "./SpeedPage";
 import { grouped } from "../../lib/units";
+import { ago } from "../../lib/clock";
 import Segmented from "../../components/Segmented";
 import { usePreferences, type NarrativeFramework } from "../../lib/preferences";
 
@@ -30,16 +31,12 @@ const DATE = new Intl.DateTimeFormat();
 /** A date and a time, for the registry's versions. */
 const WHEN = new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" });
 
-/** "just now", "12 min ago", "3 h ago", or the date -- for a timestamp
- *  that may be missing altogether. */
-function ago(iso: string | null | undefined): string {
+/** "just now", "12m ago", "3h 5m ago" (lib/clock ago), or the date past
+ *  two days -- for a timestamp that may be missing altogether. */
+function agoOrDate(iso: string | null | undefined): string {
   if (!iso) return "never";
-  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return "just now";
-  if (min < 60) return `${min} min ago`;
-  const h = Math.round(min / 60);
-  if (h < 48) return `${h} h ago`;
-  return DATE.format(new Date(iso));
+  const since = Date.now() - new Date(iso).getTime();
+  return since < 48 * 3600_000 ? ago(since) : DATE.format(new Date(iso));
 }
 
 const CHART_KIND_LABELS: Record<string, string> = {
@@ -203,7 +200,7 @@ function RoutesGroup({ status, failed }: { status: Status | undefined; failed: b
                 ? <span className="font-mono">{name}</span>
                 : <Link to={`/dev?${route}`} className="font-mono underline underline-offset-4">{name}</Link>}
               description={`${here ? "On the map · " : ""}${c.labels.total} of ${c.candidates ?? "—"} rated${pct !== null ? ` (${pct}%)` : ""} · ${
-                c.labels.added} added by hand · ${c.notes} notes · collected ${ago(c.features_built_at)}`}
+                c.labels.added} added by hand · ${c.notes} notes · collected ${agoOrDate(c.features_built_at)}`}
             >
               <Progress
                 value={pct ?? 0} className="h-1.5 w-12"
@@ -264,7 +261,7 @@ function ChartModelGroup({ chart }: { chart: NonNullable<Status["model"]>["chart
       badge={<StatusBadge tone={beats ? "up" : "checking"}>{beats ? "Beats the palette" : "Palette still better"}</StatusBadge>}
       footer={`Error on the ${chart.n_test ?? "—"} ratings it held out, lower is better. It scores the training page's points; the checkpoints move onto the chart once it beats the palette's constants.`}
     >
-      <ListRow title={chart.model_type ?? "Unknown model"} description={`Trained ${ago(chart.trained_at)} · ${chart.n_labeled ?? "—"} ratings`} />
+      <ListRow title={chart.model_type ?? "Unknown model"} description={`Trained ${agoOrDate(chart.trained_at)} · ${chart.n_labeled ?? "—"} ratings`} />
       <ListRow title="Held-out MAE" value={chart.held_out_mae == null ? "—" : mae(chart.held_out_mae)} />
       <ListRow title="Palette constants" value={chart.palette_held_out_mae == null ? "—" : mae(chart.palette_held_out_mae)} />
       <ListRow title="Predicting the mean" value={chart.dummy_held_out_mae == null ? "—" : mae(chart.dummy_held_out_mae)} />
@@ -307,7 +304,7 @@ function Versions({ model }: { model: NonNullable<Status["model"]> }) {
   return (
     <ListGroup
       title="Newest first"
-      footer={model.candidates.length > 0 && `Also trained, not promoted: ${model.candidates.map(c => `${c.name} (${ago(c.trained_at)})`).join(", ")}.`}
+      footer={model.candidates.length > 0 && `Also trained, not promoted: ${model.candidates.map(c => `${c.name} (${agoOrDate(c.trained_at)})`).join(", ")}.`}
     >
       {model.versions.map((v, i, all) => {
         const older = all[i + 1];
@@ -401,7 +398,7 @@ export function PerfHead() {
       <ListGroup>
         <ListRow
           title={current ? current.model_type ?? "Unknown model" : <span role="status" className="text-muted-foreground">{status ? "No model has been promoted yet." : waiting(isError)}</span>}
-          description={current ? `Trained ${ago(current.trained_at)} · ${current.n_features} features` : undefined}
+          description={current ? `Trained ${agoOrDate(current.trained_at)} · ${current.n_features} features` : undefined}
         >
           {current && <StatusBadge tone="up">Serving</StatusBadge>}
         </ListRow>
@@ -648,7 +645,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
     {
       name: "model-service", health: reported(modelService, failed),
       detail: modelService?.up
-        ? modelService.trained_at ? `serving the chart model trained ${ago(modelService.trained_at)}` : "no chart model promoted yet"
+        ? modelService.trained_at ? `serving the chart model trained ${agoOrDate(modelService.trained_at)}` : "no chart model promoted yet"
         : modelService?.detail ?? "scores the chart's detections",
     },
     { name: "nav-log-agent (LangGraph, MCP)", health: reported(services?.nav_log_agent, failed), detail: "the briefing narrative, with memory" },
@@ -717,7 +714,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
             // status at its end; when the snapshot was taken under them.
             <ListGroup
               className={cn(stale && "opacity-60")}
-              footer={status && <>Checked {ago(status.checked_at)}{stale && " — the planner has not answered since"}.</>}
+              footer={status && <>Checked {agoOrDate(status.checked_at)}{stale && " — the planner has not answered since"}.</>}
             >
               {rows.map(r => (
                 <ListRow key={r.name} title={r.name} description={r.detail}>
@@ -737,7 +734,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
                 <ListRow
                   key={d.file} title={d.name}
                   description={<><span className="font-mono">{d.file}</span> · {d.source}</>}
-                  value={d.updated ? ago(d.updated) : "not fetched yet"}
+                  value={d.updated ? agoOrDate(d.updated) : "not fetched yet"}
                 />
               ))}
               {datasets.length === 0 && (
@@ -763,7 +760,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
                   key={`${e.at}-${i}`}
                   title={<span className="font-mono break-all">{e.method} {e.path}</span>}
                   description={e.detail}
-                  value={<span className="whitespace-nowrap">{e.status} · {ago(new Date(e.at * 1000).toISOString())}</span>}
+                  value={<span className="whitespace-nowrap">{e.status} · {agoOrDate(new Date(e.at * 1000).toISOString())}</span>}
                   data-testid="recent-error"
                 />
               ))}
@@ -800,7 +797,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           // rows dimmed, rather than "up" in green for services that
           // may be anything by now.
           <p className={cn("px-1 text-caution-ink", TEXT.note)} data-testid="stale-snapshot">
-            The planner has not answered since this snapshot, {ago(status.checked_at)}: what follows is what was true then.
+            The planner has not answered since this snapshot, {agoOrDate(status.checked_at)}: what follows is what was true then.
           </p>
         )}
         <ListGroup>

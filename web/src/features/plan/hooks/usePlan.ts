@@ -126,6 +126,10 @@ export type BriefingState =
  *  read in a process of its own (app.chart_model). */
 const AS_ENTERED_AFTER_MS = 600;
 
+/** How long the nav log's legs hold before the briefing is asked for with
+ *  them: the ETE and the legs come a render or two apart. */
+const BRIEF_SETTLE_MS = 250;
+
 // No checkpoints, one array for good: a new [] at every render was a new
 // list to everything drawn from it, the nav log's rows and its profile
 // chart drawn again at every render of the page.
@@ -303,17 +307,45 @@ export function usePlan(
   // arrival -- so it is asked again once the nav log's totals give the
   // ETE; the previous answer stays up meanwhile, so the map's chips do
   // not flash back to "checking".
-  const eteMin = (local ? localMin : totals?.ete_min) ?? undefined;
+  //
+  // Only the log the checkpoints' own make, not the route as entered's on
+  // the way to it: that one asked for the briefing again a second or two
+  // before the checkpoints' log asked once more, three briefings for every
+  // route where one waited on the chart's read (the requests of a route's
+  // load, 2026-10-28) -- the first, with the course, has the METARs the map
+  // wants at once. Unless the checkpoints' log failed: then the route as
+  // entered's is the log there is.
+  const finalLog = !pointToPoint || !!navlog.error;
+  const eteMin = (local ? localMin : finalLog ? totals?.ete_min : undefined) ?? undefined;
   // And with the nav log's legs once they are all in, for the planner to
   // place each hazard on the legs the pilot sees and time it by their
-  // ETEs (briefingLegs): the route as entered's until then.
+  // ETEs (briefingLegs): the planner's own legs of the route until then.
   const logLegs = useMemo(
-    () => (totals && !local ? briefingLegs(course.data ?? null, withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE, legs) : null),
-    [totals, local, course.data, withCheckpoints, pointToPoint, checkpoints.data, legs]);
+    () => (totals && !local && finalLog ? briefingLegs(course.data ?? null, withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE, legs) : null),
+    [totals, local, finalLog, course.data, withCheckpoints, pointToPoint, checkpoints.data, legs]);
+  // Asked for with the legs once they have held a moment, and the last
+  // ones kept while the same route is planned again: the runway picked into
+  // the wind re-plans it as the first briefing lands, its log empty till
+  // the new one is in, and the briefing went back to the route alone, then
+  // on with the ETE alone, then with the legs -- four briefings for one
+  // route's load, one abandoned half way (KOSH-KGRB on the phone project,
+  // 2026-10-28).
+  const briefRoute = [dep, dest, via, depart, load].join("|");
+  const briefWanted = JSON.stringify([eteMin ?? null, logLegs]);
+  const [briefAsked, setBriefAsked] = useState<{ route: string; key: string; eteMin: number | undefined; legs: typeof logLegs } | null>(null);
+  const sameBriefRoute = briefAsked?.route === briefRoute;
+  useEffect(() => {
+    if (sameBriefRoute && (briefAsked?.key === briefWanted || eteMin === undefined)) return;
+    const timer = window.setTimeout(
+      () => setBriefAsked({ route: briefRoute, key: briefWanted, eteMin, legs: logLegs }), sameBriefRoute ? BRIEF_SETTLE_MS : 0);
+    return () => window.clearTimeout(timer);
+  }, [sameBriefRoute, briefAsked, briefWanted, briefRoute, eteMin, logLegs]);
+  const briefEte = sameBriefRoute ? briefAsked?.eteMin : undefined;
+  const briefLegs = sameBriefRoute ? briefAsked?.legs ?? null : null;
   const briefing = useQuery({
-    queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load, logLegs?.fixes ?? null, logLegs?.legMin ?? null, logLegs?.groundMin ?? null],
+    queryKey: ["briefing", dep, dest, via, depart, briefEte ?? null, load, briefLegs?.fixes ?? null, briefLegs?.legMin ?? null, briefLegs?.groundMin ?? null],
     // Given up when the route changes, as the checkpoints are (checkpointsQuery).
-    queryFn: ({ signal }) => api.briefing(dep, dest, depart || undefined, eteMin, stops, signal, logLegs),
+    queryFn: ({ signal }) => api.briefing(dep, dest, depart || undefined, briefEte, stops, signal, briefLegs),
     // Not on the previous route's placeholder course once the route is
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".

@@ -126,6 +126,12 @@ test("the pilot's number and home base are set in Setup's Pilot details, and a w
     const me = await (await page.request.get("/api/me")).json() as Record<string, unknown>;
     await route.fulfill({ json: { ...me, phone: body.phone || null, homeBase: body.homeBase.toUpperCase() || null } });
   });
+  // Neither set yet, whatever the shared developer account kept: with the
+  // same number and base already its own, nothing was sent at all.
+  await page.route(url => url.pathname === "/api/me", async route => {
+    const me = await (await route.fetch()).json() as Record<string, unknown>;
+    await route.fulfill({ json: { ...me, phone: null, homeBase: null } });
+  });
   await page.goto("/app/plan");
   await settle(page);
   await openConsole(page);

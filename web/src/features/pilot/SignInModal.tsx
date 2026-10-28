@@ -16,6 +16,7 @@ import { TEXT } from "../../lib/text";
 import { inNativeApp, nativeAppleIdentityToken, nativePlatform } from "../../lib/native";
 import { tvPlatform } from "../../lib/tv";
 import TvCode from "./TvCode";
+import { Separator } from "../../components/ui/separator";
 
 /**
  * Three ways in, the standard shape every "sign in" prompt (Auth.js,
@@ -136,8 +137,10 @@ export default function SignInModal({ plain = false }: {
               </Button>
             )}
           </div>
-          <div className={`flex items-center gap-3 text-muted-foreground ${TEXT.note} before:h-px before:flex-1 before:bg-border after:h-px after:flex-1 after:bg-border`}>
+          <div className={`flex items-center gap-3 text-muted-foreground ${TEXT.note}`}>
+            <Separator className="flex-1" />
             or
+            <Separator className="flex-1" />
           </div>
         </>
       )}

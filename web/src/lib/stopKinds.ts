@@ -83,10 +83,3 @@ export function whereWords(f: Pick<StopField, "distance_nm" | "bearing_deg" | "o
   }
   return `${Math.round(f.distance_nm)} nm ${compassPoint(f.bearing_deg)}`;
 }
-
-/** A field's phone as a tel: link -- the FAA's "334-585-6444" with its
- *  dashes and any words taken out -- or null where it lists none. */
-export function telOf(phone: string | null | undefined): string | null {
-  const digits = (phone ?? "").replace(/[^\d+]/g, "");
-  return digits.length >= 7 ? `tel:${digits}` : null;
-}

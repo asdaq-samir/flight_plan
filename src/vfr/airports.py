@@ -18,6 +18,7 @@ import requests
 from . import faa_data, geo
 from .config import REQUEST_HEADERS
 from .routecsv import locked
+from .once import once
 
 OURAIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
 RUNWAYS_URL = "https://davidmegginson.github.io/ourairports-data/runways.csv"
@@ -66,7 +67,7 @@ def _ensure_cached(url: str, cache_path: Path) -> Path:
     return cache_path
 
 
-@lru_cache(maxsize=8)
+@once(maxsize=8)
 def _read_table_of(path: str, _mtime: float) -> pd.DataFrame:
     """One read per file per process. `_mtime` is not used in the body:
     it is in the signature so a file replaced on disk is a different
@@ -101,7 +102,7 @@ def load_airports(cache_path: Path = DEFAULT_CACHE_PATH) -> pd.DataFrame:
     return _load_table(OURAIRPORTS_URL, cache_path)
 
 
-@lru_cache(maxsize=4)
+@once(maxsize=4)
 def _airport_rows(path: str, _mtime: float) -> dict:
     """Each ident and local code in the table, upper-cased, to its first
     row's position: the row a scan of both columns found first, in the
@@ -123,9 +124,11 @@ def _airport_rows(path: str, _mtime: float) -> dict:
 
 def preload_lookup(cache_path: Path = DEFAULT_CACHE_PATH) -> None:
     """get_airport's index made now (the planner's warm-up), not by the
-    first route asked for after a restart: a quarter of a second."""
+    first route asked for after a restart: a quarter of a second. And
+    find_place's, the Stops' along a route."""
     path = _ensure_cached(OURAIRPORTS_URL, cache_path)
     _airport_rows(str(path), path.stat().st_mtime)
+    _place_index(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
 def wikipedia_link(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> str | None:
@@ -204,7 +207,7 @@ def _us_airports(cache_path: Path) -> pd.DataFrame:
         return _us_airports_of(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
-@lru_cache(maxsize=1)
+@once(maxsize=1)
 def _faa_listed(faa_path: str, _faa_mtime: float) -> frozenset:
     """Every field the FAA lists (NASR APT_BASE.csv: airports, heliports,
     seaplane bases and the rest, open or private), by its FAA and its ICAO
@@ -341,7 +344,7 @@ def search_index(cache_path: Path = DEFAULT_CACHE_PATH) -> bytes:
     return _search_index_bytes(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _search_index_bytes(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> bytes:
     us = _us_airports_of(path, _mtime, faa_path, _faa_mtime)
     rows = []
@@ -374,7 +377,7 @@ def _rows(df: pd.DataFrame, positions: list[int]) -> list[dict]:
     ]
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _search_index_of(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> dict:
     """The US table's idents and words, sorted, for `search_airports` to
     find a prefix by bisection: an ident or local code whole (`exact`),
@@ -478,12 +481,35 @@ def find_place(ident: str, cache_path: Path = DEFAULT_CACHE_PATH) -> dict | None
     ident = ident.strip().upper()
     if not ident:
         return None
-    df = _us_airports(cache_path)
-    for column in ("_display_ident", "_ident_upper", "_local_upper"):
-        match = df[df[column].astype(str).str.upper() == ident]
-        if not match.empty:
-            return _place_of(match.iloc[0])
+    path = _ensure_cached(OURAIRPORTS_URL, cache_path)
+    df, index = _place_index(str(path), path.stat().st_mtime, *_faa_key(cache_path))
+    for first in index:
+        if ident in first:
+            return _place_of(df.iloc[first[ident]])
     return None
+
+
+#: The columns find_place looks an ident up in, the first that has it winning.
+_PLACE_IDENT_COLUMNS = ("_display_ident", "_ident_upper", "_local_upper")
+
+
+@once(maxsize=2)
+def _place_index(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> tuple:
+    """The US table and, for each of _PLACE_IDENT_COLUMNS, each ident's
+    first row in it, made once per table as the table is: three whole
+    columns upper-cased and compared, and the table taken by the answer,
+    for every field asked about was 1.7 s of a route's Stops along it, a
+    lookup apiece (py-spy on the live planner, 2026-10-28). Upper-cased
+    as that comparison did, so the same idents match."""
+    with _US_AIRPORTS_LOCK:
+        df = _us_airports_of(path, _mtime, faa_path, _faa_mtime)
+    index = []
+    for column in _PLACE_IDENT_COLUMNS:
+        first: dict[str, int] = {}
+        for row, key in enumerate(df[column].astype(str).str.upper().tolist()):
+            first.setdefault(key, row)
+        index.append(first)
+    return df, index
 
 
 def places_in(south: float, west: float, north: float, east: float, limit: int = 300,
@@ -544,7 +570,7 @@ def nearest(lat: float, lon: float, limit: int = 10, cache_path: Path = DEFAULT_
     ]
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _abroad_of(path: str, _mtime: float) -> pd.DataFrame:
     """The landing fields outside the US, for naming where a tracked
     airplane flew from and to abroad (vfr.traffic.history) -- never for

@@ -104,8 +104,10 @@ interface Props {
   /** The fuel stops the planner suggests (the totals' fuel_stops), pinned
    *  as Tesla pins its chargers on the way, a tap their field's card. */
   fuelStops?: StopPin[];
-  /** The map's Stops while their sheet is open, with a route or none. */
+  /** The map's Stops while their sheet is open, with a route or none, a
+   *  tap one's row picked in the sheet (StopsCard). */
   stopFields?: StopFieldPin[];
+  onPickStopField?: (ident: string) => void;
   /** The ways FPL's Routes offer beside the route (RouteWaysLayer), a tap one's pick. */
   ways?: RouteWay[];
   /** The one of them shown (FPL's Routes' card picked), drawn the stronger. */
@@ -653,7 +655,7 @@ export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, start = null, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
-  stopFields = NO_STOP_FIELDS, ways, wayShown = null, onPickWay,
+  stopFields = NO_STOP_FIELDS, onPickStopField, ways, wayShown = null, onPickWay,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
   const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
@@ -721,7 +723,7 @@ export default memo(function RouteMap({
       {!place && <FitTo points={nearest ?? []} fitKey={nearest?.length ? nearest.map(a => a.ident).join(",") : null} />}
       <HeldPoint point={heldPoint} onHold={onHoldPoint} />
       {/* The Stops' fields round the pilot as well as along a route. */}
-      {stopFields.map(field => <StopFieldMark key={field.ident} field={field} onSelect={onSelectPlace} />)}
+      {stopFields.map(field => <StopFieldMark key={field.ident} field={field} onSelect={onPickStopField ?? onSelectPlace} />)}
       {course && (
         <>
           {/* Under the course line, as Maps draws the routes not picked. */}

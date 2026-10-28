@@ -320,11 +320,18 @@ test("with an approach picked, the dry run flies it into the field: out to its f
   // CIRUS -- where straight in it was still south-east of the field.
   const panel = sideDrawer(page);
   await panel.getByTestId("dry-run-play").click();
+  // The chart's drag (shadcn's Slider over it): a tap at its right end
+  // takes the run there, within a pixel's tenths of a mile; End to the end.
   const scrub = panel.getByTestId("dry-run-scrub");
+  const thumb = scrub.getByRole("slider", { name: "Where the dry run is along the course" });
   const box = (await scrub.boundingBox())!;
-  await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
-  await expect(scrub).toHaveAttribute("aria-valuenow", (await scrub.getAttribute("aria-valuemax"))!);
-  await scrub.focus();
+  const end = Number(await thumb.getAttribute("aria-valuemax"));
+  await page.mouse.click(box.x + box.width - 0.5, box.y + box.height / 2);
+  await expect.poll(async () => Number(await thumb.getAttribute("aria-valuenow"))).toBeGreaterThan(end - 2);
+  await expect(thumb).toHaveAttribute("aria-valuetext", /^\d+ nm, [\d,]+ feet, (\d+ knots|no ground speed)$/);
+  await thumb.focus();
+  await page.keyboard.press("End");
+  await expect(thumb).toHaveAttribute("aria-valuenow", String(end));
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowLeft");
   const fixAt = async (ident: string) => {
@@ -357,7 +364,8 @@ test("with an approach picked, the dry run flies it into the field: out to its f
   await expect(missed).toBeVisible();
   await missed.click();
   await expect(missed).toHaveCount(0);
-  await page.mouse.click(box.x + box.width - 2, box.y + box.height / 2);
+  await thumb.focus();
+  await page.keyboard.press("End");
   await expect(async () => {
     const ship = await shipAt(page), udteg = await fixAt("UDTEG");
     expect(Math.hypot(ship.x - udteg.x, ship.y - udteg.y)).toBeLessThan(12);

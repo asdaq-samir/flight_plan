@@ -29,6 +29,13 @@ describe("detailOf", () => {
     expect(await detailOf(response(409, { error: "Conflict" }))).toBe("Conflict");
     expect(await detailOf(response(401, undefined, "Unauthorized"))).toBe("Unauthorized");
   });
+
+  test("nothing with it, as over HTTP/2: the status in words, never \"request failed\"", async () => {
+    expect(await detailOf(response(502, undefined))).toBe("The planner is not answering");
+    expect(await detailOf(response(504, undefined))).toBe("No answer in time");
+    expect(await detailOf(response(500, undefined))).toBe("The server hit an error (500)");
+    expect(await detailOf(response(418, undefined))).toBe("The server said no (418)");
+  });
 });
 
 describe("describeError", () => {

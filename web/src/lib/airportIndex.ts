@@ -133,13 +133,33 @@ export function useAirportIndex(enabled = true, wanted = false): AirportIndex | 
   useWarmAirportIndex(enabled);
   const { data } = useQuery({
     queryKey: ["airportIndex"],
-    queryFn: async () => indexOf((await api.airportIndex()).airports as Entry[]),
+    queryFn: () => read(),
     enabled: enabled && (wanted || focused),
     staleTime: 24 * 60 * 60_000,
     gcTime: Infinity,
     meta: { silent: true },
   });
   return data ?? null;
+}
+
+// One download between the two: a route's figures now read the index at
+// once (PlanWorkspace's estimate), as the page warms it, and the two each
+// fetched the half megabyte, 2 to 5 s apiece on a busy planner (every
+// route's load, 2026-10-28). Whichever comes second waits on the first and
+// reads the browser's cache.
+let warming: Promise<unknown> | null = null;
+let reading: Promise<AirportIndex> | null = null;
+
+async function read(): Promise<AirportIndex> {
+  await warming?.catch(() => {});
+  reading = api.airportIndex().then(({ airports }) => indexOf(airports as Entry[]));
+  return reading;
+}
+
+function warm(): Promise<boolean> {
+  if (reading) return reading.then(() => true, () => true);
+  warming = api.warmAirportIndex();
+  return warming.then(() => true);
 }
 
 /** The index's bytes downloaded once the page is idle, by the page itself
@@ -149,10 +169,34 @@ export function useWarmAirportIndex(enabled = true) {
   const idle = useIdle();
   useQuery({
     queryKey: ["airportIndexWarm"],
-    queryFn: api.warmAirportIndex,
+    queryFn: warm,
     enabled: enabled && idle,
     staleTime: Infinity,
     gcTime: Infinity,
     meta: { silent: true },
   });
+}
+
+/** Each index's rows by every ident they are found by, made at the first
+ *  lookup. */
+const byIdent = new WeakMap<AirportIndex, Map<string, number>>();
+
+/** Where an airport is, from the index the browser keeps (a present
+ *  position, "@lat,lon", from itself); null for what the index does not
+ *  place -- a waypoint, a pilot's own point. For the route's figures
+ *  before the planner's (PlanWorkspace's estimate). */
+export function placeOf(index: AirportIndex, ident: string): { lat: number; lon: number } | null {
+  if (ident.startsWith("@")) {
+    const [lat, lon] = ident.slice(1).split(",").map(Number);
+    return Number.isFinite(lat) && Number.isFinite(lon) ? { lat: lat!, lon: lon! } : null;
+  }
+  let rows = byIdent.get(index);
+  if (!rows) {
+    rows = new Map();
+    for (let i = 0; i < index.keys.length; i++) for (const key of index.keys[i]!) if (!rows.has(key)) rows.set(key, i);
+    byIdent.set(index, rows);
+  }
+  const row = rows.get(ident.toUpperCase());
+  if (row === undefined || Number.isNaN(index.lat[row]!)) return null;
+  return { lat: index.lat[row]!, lon: index.lon[row]! };
 }

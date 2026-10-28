@@ -78,7 +78,7 @@ describe("tripFigures", () => {
     // 199.33 nm at 100 kt is 119.6 minutes: two hours, where the minutes
     // rounded on their own read "1h 60m".
     const est = { totals: null, local: false, destination: "KDLH", estimate: { distanceNm: 199.33, cruiseTasKt: 100, fuelBurnGph: 10 } };
-    expect(tripFigures(est, false)[2]!.value).toBe("≈2h 00m");
+    expect(tripFigures(est, false)[2]!.value).toBe("≈2h");
   });
 });
 

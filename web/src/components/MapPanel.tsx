@@ -11,6 +11,7 @@ import {
 import { SheetCardHost } from "./SheetCard";
 import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
+import { prefersReducedMotion } from "../lib/motion";
 
 /** How far the half sheet is in from the screen's sides and its edge: on
  *  them, as Apple's Maps on the web has its sheet (the owner's screenshots
@@ -319,11 +320,24 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // And the figures' own height in it, what it holds past what gives way
   // there (FPL's side view, data-pill-hides) -- the same in the pill, where
   // that is put away, as out of it: the least the foot keeps (fromFoot).
-  const [footRow, setFootRow] = useState(0);
+  // Kept on the node, not in state, and read again as the figures change
+  // size: held at the full sheet's row as they shrank on the way down to
+  // half, the foot let go of the ten points over it only once at rest, the
+  // figures dropping them in one frame (sampled on the phone project under
+  // a finger: DIST at 783 through the settle, then 793), the snap the owner
+  // saw from full to half (2026-10-28).
+  const footRow = useRef(0);
+  const footHeld = useRef(false);
+  const holdFoot = useCallback((node: HTMLElement) => {
+    // The figures and the foot's own border and padding (pt-1, pb-2.5).
+    node.style.minHeight = footHeld.current && footRow.current > 0 ? `calc(${footRow.current}px + 1px + 0.875rem)` : "";
+  }, []);
   useEffect(() => {
     if (!footNode) return;
     const observer = new ResizeObserver(() => {
-      setFootMeasured(footNode.offsetHeight);
+      // Its height counted once at rest: following the figures through a
+      // settle, it drew the panel again at every frame.
+      if (!footHeld.current) setFootMeasured(footNode.offsetHeight);
       // Each part's own height, not its box's: squeezed in a short sheet,
       // the box measured less, and the foot's least with it, a dry run's
       // figures put under the sheet's foot as it came down. What gives way
@@ -336,11 +350,15 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           row += parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
         }
       }
-      setFootRow(row);
+      footRow.current = row;
+      holdFoot(footNode);
     });
     observer.observe(footNode);
+    // The figures themselves, which change size inside a foot held at its
+    // least.
+    for (const part of footNode.firstElementChild?.children ?? []) observer.observe(part);
     return () => observer.disconnect();
-  }, [footNode, state, capsule]);
+  }, [footNode, state, capsule, holdFoot]);
   // The figures pinned at the sheet's foot, out of the pill: its one row
   // says the route's (the capsule's own).
   const footShown = !!foot && (!capsule || !!bar) && !cardsUp;
@@ -529,6 +547,15 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // top, as anything it shows in place -- a route's problem under its
   // box -- grows it down, not up out of sight.
   const fromFoot = onPhone && fromBottom && !!bar && footShown && !pillShape && (turning || settling || dragged !== null);
+  useLayoutEffect(() => {
+    footHeld.current = fromFoot;
+    if (!footNode) return;
+    holdFoot(footNode);
+    if (fromFoot) return;
+    // Its height at rest, which the observer let pass while it was held.
+    const frame = requestAnimationFrame(() => setFootMeasured(footNode.offsetHeight));
+    return () => cancelAnimationFrame(frame);
+  }, [fromFoot, footNode, holdFoot]);
   if (morphing && morph < 1 && shape === "inset") {
     // From the pill's shape, in from the sides and every corner round, to
     // the sheet's on the sides and edge, its near corners square.
@@ -619,6 +646,42 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       { duration: settleOf.seconds * 1000, easing: "cubic-bezier(0, 0, 0.58, 1)", fill: "forwards" },
     );
   }, [barLaid, barRests, barUnder, dragged, fromBottom, onPhone, figuresPill, barShown, settleOf.seconds]);
+
+  // The figures carried from where they were to where the pill lays them,
+  // in the sheet's time, where the foot's change of layout put them there
+  // in one frame: 2.5 points up as the sheet turned from half to the pill,
+  // before it had moved (sampled on the phone project, DIST at 793 then
+  // 790.5), the snap the owner saw in "the calculations" (video,
+  // 2026-10-28). Where they sit above the foot's own edge -- the foot is on
+  // the sheet's -- read as they settle (a ResizeObserver, no layout forced
+  // in a commit), and again once, at the turn.
+  const footAbove = useRef<number | null>(null);
+  useEffect(() => {
+    const content = footNode?.firstElementChild;
+    if (!footNode || !content) return;
+    const read = () => { footAbove.current = footNode.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom; };
+    read();
+    const watch = new ResizeObserver(read);
+    watch.observe(footNode);
+    watch.observe(content);
+    return () => watch.disconnect();
+  }, [footNode]);
+  const footLaid = useRef(pillLaid);
+  useLayoutEffect(() => {
+    if (footLaid.current === pillLaid) return;
+    footLaid.current = pillLaid;
+    const content = footNode?.firstElementChild as HTMLElement | null;
+    const was = footAbove.current;
+    if (!footNode || !content || was == null) return;
+    const now = footNode.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom;
+    footAbove.current = now;
+    const by = now - was;
+    if (dragged !== null || prefersReducedMotion() || Math.abs(by) < 0.5 || Math.abs(by) > 24) return;
+    content.animate(
+      [{ transform: `translateY(${by}px)` }, { transform: "none" }],
+      { duration: settleOf.seconds * 1000, easing: "cubic-bezier(0, 0, 0.58, 1)" },
+    );
+  }, [pillLaid, footNode, dragged, settleOf.seconds]);
 
   // What it covers of the map where it has come to rest, for the map to
   // fit a route clear of it, as Maps' route sits above its sheet: on a
@@ -743,8 +806,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useEffect(() => {
     if (!panel || !expanded) return;
     const onKey = (event: KeyboardEvent) => {
-      // Not under a card, whose own Escape puts it away (SheetCard).
-      if (event.key === "Escape" && !event.defaultPrevented && !useSheetCards.getState().stack.length) onStateChange("peek");
+      // Not under a card, whose own Escape puts it away (SheetCard) and
+      // prevents the default.
+      if (event.key === "Escape" && !event.defaultPrevented) onStateChange("peek");
     };
     panel.addEventListener("keydown", onKey);
     return () => panel.removeEventListener("keydown", onKey);
@@ -1078,8 +1142,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           )}
           style={{
             ...(toEdge && fromBottom && !pillLaid ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
-            // The figures and the foot's own border and padding (pt-1, pb-2.5).
-            ...(fromFoot && footRow > 0 ? { minHeight: `calc(${footRow}px + 1px + 0.875rem)` } : {}),
             // How far up it is past half, for what grows with it (FlightLine's
             // figures, the side view folding away) -- set here, on the foot
             // where those are, not on the sheet: an inherited property

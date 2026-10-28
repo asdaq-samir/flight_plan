@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useState, type ReactNode } from "react";
 import { format } from "date-fns";
 import { useIsMutating, useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { Check, CloudOff, GraduationCap, Loader2, OctagonAlert, Save, TriangleAlert } from "lucide-react";
+import { Check, CloudOff, GraduationCap, OctagonAlert, Save, TriangleAlert } from "lucide-react";
 import { DropdownMenuItem } from "../../../../components/ui/dropdown-menu";
 import { ResponsivePopoverContent } from "../../../../components/ResponsivePopover";
 import { ReviewAskForm, type ReviewAsk } from "../../../pilot/ReviewAsk";
@@ -61,6 +61,7 @@ import { planFacts } from "../../../../lib/oral";
 import { assess, riskLine, useRisk } from "../../../../lib/frat";
 import { PLANNING_AID } from "../../../../lib/limits";
 import type { BriefingPart } from "./sections";
+import { Spinner } from "../../../../components/ui/spinner";
 
 interface Props {
   /** Which of the panel's tabs this is drawn in: its sections only; null,
@@ -320,7 +321,7 @@ export function SaveFlightButton(flight: FlightToSave) {
 
   return (
     <DropdownMenuItem onSelect={() => request && save.mutate(request)} disabled={!request || saving || saved} data-testid="save-flight-button">
-      {saving ? <Loader2 className="animate-spin" /> : saved ? <Check /> : <Save />}
+      {saving ? <Spinner aria-hidden /> : saved ? <Check /> : <Save />}
       {saving ? "Saving…" : saved ? "Saved" : "Save this flight"}
     </DropdownMenuItem>
   );

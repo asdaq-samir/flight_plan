@@ -4,6 +4,7 @@ import { Pause, Play } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "../../../components/CloseButton";
 import RoundButton from "../../../components/RoundButton";
+import { Slider } from "../../../components/ui/slider";
 import { REPLAY_SPEEDS, pausePastFlight, playPastFlight, positionAt, usePastFlight } from "../../../lib/map/pastFlight";
 import { routeProfileQuery } from "../../../lib/queryClient";
 import { TEXT } from "../../../lib/text";
@@ -55,31 +56,32 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
   // The chart dragged along, at the owner's ask ("can the trace be
   // drag-able in the dry run?"): a finger or a pointer on it puts the
   // airplane where it points along the course, the run held while it does
-  // and going on as it was once let go; the arrow keys step it five miles,
-  // as a slider's do. Across the chart's own width, inside its twelve
-  // points each side (PastFlightChart).
-  const box = useRef<HTMLDivElement>(null);
+  // and going on as it was once let go; the arrow keys step it five miles.
+  // shadcn's Slider (Radix's) over the chart, its track and thumb unseen:
+  // the chart's own marks say where the run is. Across the chart's own
+  // width, inside its twelve points each side (PastFlightChart), a tenth
+  // of a mile a step for the finger.
   const held = useRef<{ was: boolean } | null>(null);
   const first = run.alongNm[0] ?? 0, last = run.alongNm.at(-1) ?? 0;
-  const nowNm = second === null ? null : alongAt(run, second);
+  // In the run's last second, its end: read at the whole second before
+  // it, the airplane at the end read a tenth short of it, and End on the
+  // scrubber said 343.3 of 343.4 (dry-run.spec, CI on both projects).
+  const endSecond = Math.floor(timeAt(run, last));
+  const nowNm = second === null ? null : second >= endSecond ? last : alongAt(run, second);
   const seekNm = (nm: number) => usePastFlight.setState({ at: timeAt(run, Math.min(last, Math.max(first, nm))) });
-  const seek = (clientX: number) => {
-    const r = box.current?.getBoundingClientRect();
-    if (!r) return;
-    seekNm(first + Math.min(1, Math.max(0, (clientX - r.left - 12) / Math.max(1, r.width - 24))) * (last - first));
-  };
-  const grab = (event: PointerEvent<HTMLDivElement>) => {
+  // Before the slider's own: the run held, then put where the finger is.
+  const grab = (event: PointerEvent<HTMLSpanElement>) => {
     if (event.button !== 0) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
     held.current = { was: usePastFlight.getState().playing };
     pausePastFlight();
-    seek(event.clientX);
   };
   const letGo = () => {
     if (held.current?.was) playPastFlight();
     held.current = null;
   };
-  const step = (event: KeyboardEvent<HTMLDivElement>) => {
+  // Five miles an arrow, where the slider's own would step a tenth; Home
+  // and End are the slider's.
+  const step = (event: KeyboardEvent<HTMLSpanElement>) => {
     const by = event.key === "ArrowRight" || event.key === "ArrowUp" ? 5 : event.key === "ArrowLeft" || event.key === "ArrowDown" ? -5 : 0;
     if (!by) return;
     event.preventDefault();
@@ -138,20 +140,32 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
           </Suspense>
         </div>
         {/* Over the chart, its own drag: not the sheet's (touch-none) nor
-            the tabs' swipe (a slider). */}
-        <div
-          ref={box} role="slider" tabIndex={0} aria-label="Where the dry run is along the course"
-          aria-valuemin={Math.round(first)} aria-valuemax={Math.round(last)} aria-valuenow={nowNm === null ? undefined : Math.round(nowNm)}
-          aria-valuetext={nowNm === null ? undefined : `${Math.round(nowNm)} nm${here ? `, ${altFt(here.alt_ft)} feet, ${here.gs_kt != null ? `${Math.round(here.gs_kt)} knots` : "no ground speed"}` : ""}`}
-          className="absolute inset-0 cursor-ew-resize touch-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onPointerDown={grab} onPointerMove={event => { if (held.current) seek(event.clientX); }}
-          onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={step}
+            the tabs' swipe (a slider, TabBar). The ring round the chart
+            while its thumb has the keyboard's focus. */}
+        <Slider
+          min={tenth(first)} max={Math.max(tenth(last), tenth(first) + 0.1)} step={0.1}
+          value={[tenth(nowNm ?? first)]}
+          onValueChange={([nm]) => { if (nm !== undefined) seekNm(nm); }}
+          onPointerDown={grab} onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={step}
+          className={cn(
+            "absolute inset-y-0 right-3 left-3 w-auto cursor-ew-resize rounded-lg",
+            "has-[[data-slot=slider-thumb]:focus-visible]:ring-2 has-[[data-slot=slider-thumb]:focus-visible]:ring-ring",
+            "[&_[data-slot=slider-range]]:bg-transparent [&_[data-slot=slider-track]]:bg-transparent",
+          )}
+          thumb={{
+            "aria-label": "Where the dry run is along the course",
+            "aria-valuetext": nowNm === null ? undefined : `${Math.round(nowNm)} nm${here ? `, ${altFt(here.alt_ft)} feet, ${here.gs_kt != null ? `${Math.round(here.gs_kt)} knots` : "no ground speed"}` : ""}`,
+            className: "opacity-0",
+          }}
           data-testid="dry-run-scrub"
         />
       </div>
     </div>
   );
 }
+
+/** To the tenth of a mile, the scrubber's step. */
+const tenth = (nm: number) => Math.round(nm * 10) / 10;
 
 /** How far along the course the dry run is at `t`, nm. */
 function alongAt(run: DryRun, t: number): number {

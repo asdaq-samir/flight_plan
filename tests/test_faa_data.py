@@ -4,6 +4,7 @@ data cycle rebuilds it."""
 import io
 import os
 import zipfile
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -292,3 +293,63 @@ def test_a_fields_services_are_the_faas_as_the_chart_supplement_lists_them(tmp_p
     # A landing fee the FAA does not say of is not known, not none.
     assert faa_data.airport_services("0J1", tmp_path) == faa_data.NO_SERVICES
     assert faa_data.airport_services("ZZZ", tmp_path) == faa_data.NO_SERVICES
+
+
+def _route_airports_as_before(apt_csv_path, bbox, exclude_idents=()) -> pd.DataFrame:
+    """load_route_airports as it was before its charted, open fields were
+    kept once per file: the whole table filtered on every call -- the
+    oracle the kept one must match."""
+    df = faa_data._read_apt_base(apt_csv_path)
+    df = df[df["SITE_TYPE_CODE"].map(faa_data._SITE_TYPE_NAMES).isin(faa_data.CHARTED_FACILITY_TYPES)
+            & (df["ARPT_STATUS"] == "O")]
+    df["lat"] = df["LAT_DECIMAL"].astype(float)
+    df["lon"] = df["LONG_DECIMAL"].astype(float)
+    df = df[faa_data._in_bbox(df["lat"], df["lon"], bbox)]
+    excluded = {i.strip().upper() for i in exclude_idents}
+    if excluded:
+        df = df[~(df["ARPT_ID"].str.upper().isin(excluded) | df["ICAO_ID"].fillna("").str.upper().isin(excluded))]
+    return pd.DataFrame({
+        "osm_id": df["ARPT_ID"], "osm_type": "faa_airport", "category": "airport",
+        "name": df["ARPT_NAME"].str.title() + " (" + df["ARPT_ID"] + ")",
+        "lat": df["lat"], "lon": df["lon"], "bbox_area_m2": 0.0,
+        "tags": [{"arpt_id": a, "city": c if isinstance(c, str) else "", "use": u}
+                 for a, c, u in zip(df["ARPT_ID"], df["CITY"], df["FACILITY_USE_CODE"])],
+    }).reset_index(drop=True)
+
+
+def _apt_base(path, rows) -> None:
+    pd.DataFrame([
+        {"ARPT_ID": a, "ICAO_ID": icao, "ARPT_NAME": name, "CITY": city, "SITE_TYPE_CODE": kind,
+         "ARPT_STATUS": status, "LAT_DECIMAL": lat, "LONG_DECIMAL": lon, "FACILITY_USE_CODE": "PU"}
+        for a, icao, name, city, kind, status, lat, lon in rows
+    ]).to_csv(path, index=False)
+
+
+def test_the_route_airports_kept_per_file_are_those_filtered_on_every_call(tmp_path):
+    path = tmp_path / "APT_BASE.csv"
+    _apt_base(path, [
+        ("C81", None, "CAMPBELL", "GRAYSLAKE", "A", "O", 42.3246, -88.0741),
+        ("UGN", "KUGN", "WAUKEGAN NATL", "WAUKEGAN", "A", "O", 42.4222, -87.8679),
+        ("IL01", None, "SOME HELIPORT", None, "H", "O", 42.30, -88.00),
+        ("3CK", None, "LAKE IN THE HILLS", "LAKE IN THE HILLS", "A", "CI", 42.2068, -88.3230),
+        ("ENW", "KENW", "KENOSHA RGNL", "KENOSHA", "A", "O", 42.5957, -87.9278),
+        ("DLH", "KDLH", "DULUTH INTL", "DULUTH", "A", "O", 46.8421, -92.1936),
+    ])
+    for bbox, exclude in [((42.0, -88.5, 42.7, -87.5), ()), ((42.0, -88.5, 42.7, -87.5), ("kugn", " C81 ")),
+                          ((46.0, -93.0, 47.0, -92.0), ("DLH",)), ((0.0, 0.0, 1.0, 1.0), ())]:
+        pd.testing.assert_frame_equal(faa_data.load_route_airports(path, bbox, exclude),
+                                      _route_airports_as_before(path, bbox, exclude))
+    # A new file version is read again, not the one kept.
+    _apt_base(path, [("C81", None, "CAMPBELL", "GRAYSLAKE", "A", "CI", 42.3246, -88.0741)])
+    os.utime(path, (1, 1))
+    assert faa_data.load_route_airports(path, (42.0, -88.5, 42.7, -87.5)).empty
+
+
+@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "data/raw/faa_nasr/APT_BASE.csv").exists(),
+                    reason="needs the FAA's APT_BASE.csv on disk")
+def test_the_route_airports_kept_per_file_match_on_the_real_table():
+    path = Path(__file__).resolve().parents[1] / "data/raw/faa_nasr/APT_BASE.csv"
+    for bbox, exclude in [((41.5, -89.5, 43.3, -87.5), ("KORD", "KMKE")), ((38.5, -94.0, 41.8, -90.0), ("STL",)),
+                          ((60.0, -152.0, 65.0, -145.0), ()), ((24.0, -125.0, 50.0, -66.0), ("C81",))]:
+        pd.testing.assert_frame_equal(faa_data.load_route_airports(path, bbox, exclude),
+                                      _route_airports_as_before(path, bbox, exclude))

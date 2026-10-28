@@ -25,6 +25,20 @@ async function signedIn(page: Page, filed: Record<string, unknown>[], list: obje
   });
 }
 
+/** The plan settled: the runways picked into the wind as the route comes
+ *  in write the address and plan it again with their patterns flown, a
+ *  moment after Save is first offered -- a Save clicked before that saved
+ *  the plan before them, and the menu rightly offered Save again for the
+ *  one after (CI and locally, the first test of a fresh worker). The
+ *  address the same for two seconds is the plan the page keeps. */
+async function planSettled(page: Page) {
+  await expect.poll(async () => {
+    const was = page.url();
+    await page.waitForTimeout(2000);
+    return was === page.url();
+  }, { timeout: 30_000 }).toBe(true);
+}
+
 test("a flight is filed once, whole, and a new plan is offered for saving again", { tag: "@smoke" }, async ({ page }) => {
   test.setTimeout(120_000);
   const filed: Record<string, unknown>[] = [];
@@ -41,6 +55,8 @@ test("a flight is filed once, whole, and a new plan is offered for saving again"
   await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Save this flight", { timeout: 90_000 });
   await expect(save).toBeEnabled({ timeout: 90_000 });
+  await planSettled(page);
+  await expect(save).toBeEnabled();
   await save.click();
   await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Saved");
@@ -76,6 +92,8 @@ test("a flight from a present position is filed from that position", async ({ pa
   const save = page.getByTestId("save-flight-button");
   await page.getByTestId("share-route").click();
   await expect(save).toBeEnabled({ timeout: 90_000 });
+  await planSettled(page);
+  await expect(save).toBeEnabled();
   await save.click();
   await page.getByTestId("share-route").click();
   await expect(save).toHaveAccessibleName("Saved");
@@ -177,6 +195,45 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   await page.getByRole("button", { name: "Delete flight" }).click();
   await expect(page.locator("[data-sonner-toast]", { hasText: "Flight Deleted" })).toBeVisible();
   expect(removed).toEqual(["DELETE"]);
+});
+
+test("a saved flight's ••• and its long press offer Share and Remove alone, as every list's do; Remove asks first", async ({ page }) => {
+  const removed: string[] = [];
+  await signedIn(page, [], [{
+    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", stops: [], cruiseAltitudeFt: 5500, aircraftTailNumber: null,
+    createdAt: "2026-09-20T12:00:00Z", plannedFor: null, totalDistanceNm: 120, totalEteMin: 55, totalFuelGal: 8,
+  }]);
+  await page.route("**/api/flights/*", async route => {
+    removed.push(route.request().method());
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.goto("/app/plan");
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  await panel.getByTestId("pill-section-saved-more").click();
+  // A right click, as a long press on a phone, brings the same menu up.
+  await panel.getByRole("button", { name: /^KMSP → KDLH/ }).click({ button: "right" });
+  await expect(page.getByTestId("saved-flight-share")).toBeVisible();
+  // Share and Remove, each with its icon, and nothing else (the owner,
+  // 2026-10-28).
+  await expect(page.getByRole("menuitem")).toHaveText(["Share", "Remove"]);
+  await expect(page.getByRole("menuitem").locator("svg")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  // Delete picked from the keyboard, as VoiceOver picks it.
+  await panel.getByTestId("saved-flight-more").click();
+  // Picked again where the pick went unanswered: on the phone project, one
+  // run in ten, the menu stays open with Delete focused (Radix's menu in
+  // the sheet; not seen by hand).
+  const ask = page.getByRole("button", { name: "Delete flight" });
+  await expect(async () => {
+    if (await ask.isVisible()) return;
+    if (!(await page.getByTestId("saved-flight-delete").isVisible())) await panel.getByTestId("saved-flight-more").click();
+    await page.getByTestId("saved-flight-delete").focus();
+    await page.keyboard.press("Enter");
+    await expect(ask).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 30_000 });
+  await ask.click();
+  await expect.poll(() => removed).toEqual(["DELETE"]);
 });
 
 test("Print is in the Brief's Share menu; Keep Charts Offline is in the map's menu, which cannot be on over plain http", async ({ page }) => {
