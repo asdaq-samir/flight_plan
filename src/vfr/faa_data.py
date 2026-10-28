@@ -20,7 +20,6 @@ import tempfile
 import threading
 import zipfile
 from collections.abc import Iterable
-from functools import lru_cache
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -30,6 +29,7 @@ import requests
 # FAA's site 403s a bare python-requests User-Agent.
 from .config import FAA_HEADERS
 from .retry import with_retries
+from .once import once
 
 log = logging.getLogger(__name__)
 
@@ -290,7 +290,7 @@ def ensure_nasr_data(cache_dir) -> tuple:
 CHARTED_FACILITY_TYPES = {"AIRPORT"}
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _read_apt_base_cached(path: str, _mtime: float) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str, low_memory=False)
 
@@ -314,7 +314,7 @@ def _read_apt_base(apt_csv_path) -> pd.DataFrame:
 PATTERN_AGL_FT = 1000.0
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _patterns_of(path: str, _mtime: float) -> dict:
     df = _read_apt_base_cached(path, _mtime)
     df = df[df["TPA"].notna() & (df["TPA"].str.strip() != "")]
@@ -347,7 +347,7 @@ def published_pattern_agl_ft(ident: str, cache_dir) -> float | None:
 MILITARY_OWNERS = frozenset({"MA", "MN", "MR", "CG"})
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _military_of(path: str, _mtime: float) -> dict:
     df = _read_apt_base_cached(path, _mtime)
     df = df[df["OWNERSHIP_TYPE_CODE"].isin(MILITARY_OWNERS)]
@@ -378,7 +378,7 @@ def military_fields(cache_dir) -> dict:
         return {}
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _private_of(path: str, _mtime: float) -> frozenset:
     df = _read_apt_base_cached(path, _mtime)
     df = df[(df["FACILITY_USE_CODE"] == "PR") & ~df["OWNERSHIP_TYPE_CODE"].isin(MILITARY_OWNERS)]
@@ -425,7 +425,7 @@ def _address_of(row) -> str | None:
     return ", ".join(p for p in (_street_case(street), town, place) if p)
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _contacts_of(path: str, _mtime: float, base: str, _base_mtime: float) -> dict:
     con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
     # The manager's first, the airport's own office as a rule, and the
@@ -471,7 +471,7 @@ NO_SERVICES = {"fuel_types": [], "landing_fee": None, "tie_down": False, "hangar
                "airframe_repair": None, "powerplant_repair": None, "oxygen": False}
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _services_of(base: str, _mtime: float) -> dict:
     apt = _read_apt_base_cached(base, _mtime).fillna("")
     by_id: dict = {}
@@ -541,7 +541,7 @@ def _sector_case(text: str, idents: frozenset = frozenset()) -> str:
     return re.sub(r"[A-Z]{4,}", lambda m: m.group(0) if m.group(0) in idents else m.group(0).lower(), text.strip())
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _frequencies_of(path: str, _mtime: float, base: str, _base_mtime: float) -> tuple[dict, frozenset]:
     """FRQ.csv's frequencies by the field they serve, by its FAA and its
     ICAO identifier: [{"type", "description", "frequency_mhz"}]; and the
@@ -740,7 +740,7 @@ def _in_bbox(lat: pd.Series, lon: pd.Series, bbox: tuple) -> pd.Series:
     return lat.between(min_lat, max_lat) & lon.between(min_lon, max_lon)
 
 
-@lru_cache(maxsize=4)
+@once(maxsize=4)
 def _read_nav_base_cached(path: str, _mtime: float) -> pd.DataFrame:
     return pd.read_csv(path, dtype=str)
 

@@ -15,11 +15,11 @@ from __future__ import annotations
 import csv
 import re
 import threading
-from functools import lru_cache
 from pathlib import Path
 
 from . import faa_data
 from .config import DATA_DIR
+from .once import once
 
 FAA_CACHE_DIR = DATA_DIR / "raw" / "faa_nasr"
 
@@ -60,7 +60,7 @@ _EXPLICIT_CLICKS = re.compile(r"\b(\d+|THREE|FOUR|FIVE|SEVEN)[ -]CLICKS?\b")
 _LOCK = threading.Lock()
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _remarks_of(path: str, _mtime: float) -> dict:
     """Every airport's remarks, by its FAA identifier: (column, text,
     element) in the file's order, the element what the remark is on -- a

@@ -17,13 +17,13 @@ from __future__ import annotations
 import csv
 import re
 import threading
-from functools import lru_cache
 from pathlib import Path
 
 from . import faa_data, geo
 from .config import DATA_DIR
 from .magnetic import magnetic_variation_deg
 from .runway_wind import end_heading_true_deg
+from .once import once
 
 FAA_CACHE_DIR = DATA_DIR / "raw" / "faa_nasr"
 
@@ -44,7 +44,7 @@ def faa_ids(ident: str) -> list[str]:
     return [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _ends_of(path: str, _mtime: float) -> tuple[dict, dict]:
     """Every airport's runway ends flown with right-hand traffic, and
     where each of its ends is (NASR's LAT_DECIMAL and LONG_DECIMAL, the

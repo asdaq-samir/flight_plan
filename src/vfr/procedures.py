@@ -26,13 +26,13 @@ import shutil
 import threading
 from dataclasses import dataclass, field
 from datetime import date
-from functools import lru_cache
 from pathlib import Path
 
 from . import geo
 from .config import DATA_DIR
 from .faa_data import download_and_extract
 from .publications import AIRAC_DAYS, AIRAC_EPOCH, _cycle_start
+from .once import once
 
 log = logging.getLogger(__name__)
 
@@ -293,7 +293,7 @@ class _Index:
     terminal_ndbs: dict[str, dict[str, tuple[float, float]]] = field(default_factory=dict)
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _index(path: Path) -> _Index:
     """One read of the national file: each airport's run of records, and
     the fixes no airport owns (measured at about 1.5 s)."""
@@ -372,7 +372,7 @@ class _Airport:
     elevation_ft: float | None = None
 
 
-@lru_cache(maxsize=64)
+@once(maxsize=64)
 def _airport(ident: str, path: Path) -> _Airport | None:
     found = _records(ident, path)
     if not found:

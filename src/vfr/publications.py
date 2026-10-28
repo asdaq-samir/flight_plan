@@ -26,7 +26,6 @@ import re
 import threading
 import xml.etree.ElementTree as ET
 from datetime import date, timedelta
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
@@ -37,6 +36,7 @@ from scipy import ndimage
 
 from .config import DATA_DIR
 from .config import FAA_HEADERS as HEADERS
+from .once import once
 
 log = logging.getLogger(__name__)
 
@@ -321,7 +321,7 @@ def _is_booklet(source: str, name: str) -> bool:
     return source == "dtpp" and not re.match(r"\d{5}", name)
 
 
-@lru_cache(maxsize=512)
+@once(maxsize=512)
 def _pages_of(source: str, edition: str, pdf: str, ident: str | None) -> tuple | None:
     """The pages of one PDF to show, as their sizes -- a booklet's pages
     naming the field (none where it has no entry: the FAA lists takeoff
