@@ -19,6 +19,7 @@ import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 import { prefersReducedMotion } from "../motion";
+import { slideMap } from "./sheetSlide";
 import { BUTTONS_CLEAR, centreClearFor, hideLinesWhileZooming } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
@@ -62,18 +63,6 @@ const COUNTRY: [number, number] = [39.5, -98.35];
 
 /** The least the map is fitted to round a route: about 10 nm across. */
 const MIN_FIT_M = 18_520;
-
-/** The map slid by `by` in the sheet's own time, the chart where it comes
- *  to rest asked for first: a phone's tiles load only once a move ends
- *  (Leaflet's updateWhenIdle), and the strip a slide brings in came blank
- *  until they did. GridLayer's `_update` takes the centre to load for. */
-function slide(map: L.Map, by: L.Point) {
-  const to = map.unproject(map.project(map.getCenter()).add(by));
-  map.eachLayer(layer => {
-    if (layer instanceof L.GridLayer) (layer as unknown as { _update(center: L.LatLng): void })._update(to);
-  });
-  map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS, easeLinearity: 0.5 });
-}
 
 export function MapShell({ course, onReady, children, onSelectPlace, held: heldAsked = false }: Props) {
   // And while a card from the chart or a control is open in the sheet
@@ -313,6 +302,14 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     let what = settling;
     const size = map.getSize();
     const middle = (i: { top: number; bottom: number; left: number }) => L.point((i.left + size.x) / 2, (i.top + size.y - i.bottom) / 2);
+    // A phone's sheet up from the bottom, its edge going to the top of the
+    // strip it now covers: the map slid with it, frame by frame
+    // (sheetSlide). Not a desktop's card, out at the side.
+    const withSheet = () => {
+      const el = map.getContainer().ownerDocument.querySelector<HTMLElement>('[data-slot="map-panel"]');
+      if (!el || insets.left !== was.left || insets.bottom === was.bottom) return undefined;
+      return { el, to: map.getContainer().getBoundingClientRect().top + size.y - insets.bottom };
+    };
     if (turned) {
       // In sight: on the map and out from under the panel where it was.
       const sight = L.bounds(L.point(was.left, was.top), L.point(size.x, size.y - was.bottom));
@@ -375,7 +372,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       // panBy, not panTo: panTo snaps the zoom to a whole level, and the
       // route is fitted at a quarter one.
       const by = map.latLngToContainerPoint(following.current.focus).subtract(middle(insets)).round();
-      if (by.x || by.y) slide(map, by);
+      if (by.x || by.y) slideMap(map, by, withSheet());
     }
     else if (what === "ship" && turned) {
       // Once, as the sheet turns, to the middle of the room it is going
@@ -389,7 +386,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const ship = useOwnShip.getState().fix;
       if (ship) {
         const by = map.latLngToContainerPoint([ship.lat, ship.lon]).subtract(middle(insets)).round();
-        if (by.x || by.y) slide(map, by);
+        if (by.x || by.y) slideMap(map, by, withSheet());
       }
     }
   }, [insets, map, course, bounds, routeKey, held, fit]);
