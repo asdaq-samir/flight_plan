@@ -1,5 +1,5 @@
 {
-  "about": "Traffic's label under an airplane on the map, its height against own ship's in hundreds as TCAS writes it, and whether it is within 1,000 ft (the VFR cruising altitudes' spacing, 14 CFR 91.159). Half-hundred differences left out (see docs/NATIVE.md). Web: lib/map/traffic.ts. iOS: Traffic.label and Traffic.near.",
+  "about": "Traffic's label under an airplane on the map, its height against own ship's in hundreds as TCAS writes it, and whether it is within 1,000 ft (the VFR cruising altitudes' spacing, 14 CFR 91.159). The hundreds cut toward own ship, never away (the owner's conservative pick, 2026-10-28). Web: lib/map/traffic.ts. iOS: Traffic.label and Traffic.near.",
   "cases": [
     {
       "plane": {
@@ -168,6 +168,78 @@
       "ownFt": 4500,
       "label": "+117↑",
       "near": false
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "vertical_fpm": null,
+        "altitude_ft": 4250
+      },
+      "ownFt": 4500,
+      "label": "-02",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "vertical_fpm": null,
+        "altitude_ft": 4210
+      },
+      "ownFt": 4500,
+      "label": "-02",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "vertical_fpm": null,
+        "altitude_ft": 4450
+      },
+      "ownFt": 4500,
+      "label": "-00",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "vertical_fpm": null,
+        "altitude_ft": 4750
+      },
+      "ownFt": 4500,
+      "label": "+02",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "vertical_fpm": null,
+        "altitude_ft": 4500
+      },
+      "ownFt": 4500,
+      "label": "+00",
+      "near": true
+    },
+    {
+      "plane": {
+        "hex": "a1b2c3",
+        "lat": 42,
+        "lon": -88,
+        "vertical_fpm": null,
+        "altitude_ft": 4790
+      },
+      "ownFt": 4500,
+      "label": "+02",
+      "near": true
     }
   ]
 }
