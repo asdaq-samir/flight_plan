@@ -270,7 +270,19 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
   const heldRef = useRef(held);
   useEffect(() => { heldRef.current = held; }, [held]);
   const pressed = useRef(false);
-  const edgeOf = useCallback((bottom: number) => !map ? 0 : map.getContainer().getBoundingClientRect().top + map.getSize().y - bottom, [map]);
+  // The map's top on the page, read once and again only as the map is
+  // resized: read at the turn, it made the browser work out the sheet's
+  // new shape there and then, 150-230 ms at 4x throttle in the turn's
+  // first task (traced, phone project, 2026-10-27).
+  const mapTop = useRef<number | null>(null);
+  useEffect(() => {
+    if (!map) return;
+    const read = () => { mapTop.current = map.getContainer().getBoundingClientRect().top; };
+    read();
+    map.on("resize", read);
+    return () => { map.off("resize", read); };
+  }, [map]);
+  const edgeOf = useCallback((bottom: number) => !map ? 0 : (mapTop.current ?? 0) + map.getSize().y - bottom, [map]);
   const sheetRoom = useCallback((bottom: number, el: HTMLElement) => ({
     el, from: edgeOf(bottom), halfEdge: edgeOf(halfBottom.current ?? (map ? map.getSize().y / 2 : 0)),
     pressed: () => pressed.current, free: () => !heldRef.current,
