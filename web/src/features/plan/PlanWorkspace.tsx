@@ -76,6 +76,7 @@ import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
 import { useDryRunButton } from "../../lib/dryRunButton";
+import { useWindPicks } from "../../lib/windPicks";
 import { useStopsAlong } from "../../lib/stopsAlong";
 import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
@@ -2521,8 +2522,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Fly Here's Direct-To in the air starts. Not the route as entered,
   // whose checkpoints' log comes in its place: saved then, it filed a
   // flight with none, and Save was offered again as the log changed under it.
+  // Offered once the plan has settled: no stage still being planned, and
+  // the runways into the wind picked -- they plan the route again with
+  // their patterns flown, and a Save before them filed the plan before
+  // them (the owner's yes, 2026-10-28; lib/windPicks).
+  const windPending = useWindPicks(w => w.pending);
+  const settledPlan = s.stage === null && !windPending;
   const flightToSave = {
-    course: routed ? course : null, totals: s.pointToPoint ? null : s.totals, nav: s.nav, legs: s.legs, selected: s.logSelected,
+    course: routed && settledPlan ? course : null, totals: s.pointToPoint ? null : s.totals, nav: s.nav, legs: s.legs, selected: s.logSelected,
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: picksOf(searchParams),
   };
   // Share and everything else the route's row had (ShareMenu).

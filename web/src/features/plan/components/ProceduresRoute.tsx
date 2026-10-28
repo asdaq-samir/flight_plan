@@ -1,5 +1,6 @@
 import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { create } from "zustand";
+import { useWindPicks } from "../../../lib/windPicks";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Check, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
 import { cn } from "cn";
@@ -437,6 +438,11 @@ export default function ProceduresRoute({
         || !free("takeoff", takeoffs.get(a.ident)) ? [] : [`takeoff:${a.ident}:${wind.ident}`]),
     ];
   }).join(",");
+  // Save waits while a field's wind is still coming (lib/windPicks): its
+  // runway is picked into it as it comes, and the route planned again.
+  const windComing = airports.some((_, i) => (forecastFor[i] != null ? forecasts[i]?.isPending : cards[i]?.isPending) ?? false);
+  useEffect(() => { useWindPicks.setState({ pending: windComing }); }, [windComing]);
+  useEffect(() => () => useWindPicks.setState({ pending: false }), []);
   useEffect(() => {
     for (const pick of intoWind ? intoWind.split(",") : []) {
       const [which, ident, end] = pick.split(":") as [string, string, string];
