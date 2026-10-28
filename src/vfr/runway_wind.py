@@ -89,3 +89,32 @@ def with_winds(runways: list, metar: dict | None, lat: float, lon: float, recent
     if best is not None and out[best]["wind"]:
         out[best] = {**out[best], "wind": favoured_end(out[best].get("end_headings", []), metar, variation, recent)}
     return out
+
+
+def _paved(runway: dict) -> bool:
+    return bool(re.search(r"asp|con|bit|pem|paved", runway.get("surface") or "", re.I))
+
+
+def runway_in_use(runways: list) -> str | None:
+    """The end a pilot would take off from and land on at a field, by its
+    own report: of the ends the wind favours on each runway (with_winds),
+    the one with the most headwind -- AC 90-66C 11.5, the runway most
+    nearly into the wind -- a calm field's runway in use first, ties to
+    the runway used most (paved, then the longer). The web's runwayInUse
+    (lib/pattern), the same rule, which the page's own pick goes by: the
+    planner picks with it for a first plan (app.routers.plan wind_picks),
+    the page's pick then the same. None with no wind on any runway -- no
+    report, or a variable one -- where the page goes by a nearby report's.
+    Over pattern.with_traffic's runways: open, with an end that has a
+    heading."""
+    open_ = [r for r in runways if not r.get("closed")
+             and any(e.get("heading_true_deg") is not None for e in r.get("runway_ends") or [])]
+    winded = sorted((r for r in open_ if r.get("wind")),
+                    key=lambda r: (not r["wind"].get("in_use"), -r["wind"]["headwind_kt"],
+                                   not _paved(r), -(r.get("length_ft") or 0)))
+    for runway in winded:
+        end = next((e for e in runway.get("runway_ends") or []
+                    if e.get("ident") == runway["wind"]["end"] and e.get("heading_true_deg") is not None), None)
+        if end:
+            return end["ident"].lstrip("0") or end["ident"]
+    return None

@@ -17176,6 +17176,16 @@
           },
           {
             "in": "query",
+            "name": "wind_runways",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Wind Runways",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
             "name": "crossings",
             "required": false,
             "schema": {
@@ -17630,6 +17640,16 @@
               "default": "",
               "title": "Patterns",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wind_runways",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Wind Runways",
+              "type": "boolean"
             }
           },
           {
@@ -18211,6 +18231,16 @@
               "default": "",
               "title": "Patterns",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "wind_runways",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Wind Runways",
+              "type": "boolean"
             }
           },
           {
