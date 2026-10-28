@@ -11,254 +11,121 @@ given to vfr.notams to keep. TFMS's flight data -- the NAS's flight plans
 and their amendments, each flight's route of flight -- given to
 vfr.filed_routes, which counts the routes pilots file between two fields.
 
-One connection a feed, on a thread of its own, to its subscription's
-durable queue: each message read, handed on, then acknowledged. A feed is
-off where its SWIM_* settings are not all set; a dropped connection is
-made again after a pause, growing to a few minutes.
+The reading is done in a process of its own (app.swim_reader): one
+connection a feed to its subscription's durable queue, each message read,
+the radar's tracks picked out, then acknowledged. Here a thread of the
+planner's sends that process what the map looks at and who is followed,
+hands what comes back to vfr, and starts the process again after a pause
+where it ends. A feed is off where its SWIM_* settings are not all set;
+a dropped connection is made again after a pause, growing to a few
+minutes.
 """
 import logging
-import math
-import os
-import re
+import multiprocessing
+import queue
 import threading
 import time
-import xml.etree.ElementTree as ET
-from datetime import datetime
 
 from vfr import filed_routes, notams, traffic
 
+from . import swim_reader
+# The reading's pure parts, here as well for the planner's own use and its tests.
+from .swim_reader import (  # noqa: F401
+    FACILITY_SPAN_NM, FEEDS, RETRY_FIRST_S, RETRY_MOST_S, SETTINGS, VIEW_MARGIN_NM,
+    _host, _in_view, _nm, body, configured, raw, tracks,
+)
+
 log = logging.getLogger(__name__)
 
-#: What every connection needs, and each feed's own (its VPN and queue),
-#: from the subscription's Details page.
-SETTINGS = ("SWIM_HOST", "SWIM_USERNAME", "SWIM_PASSWORD")
-FEEDS = ("STDDS", "FNS", "TFMS")
-#: The CA certificates the FAA's broker's certificate is checked against:
-#: the image's own (python:3.13-slim's ca-certificates).
-TRUST_STORE = os.environ.get("SWIM_TRUST_STORE", "/etc/ssl/certs")
-#: How long to wait before connecting again, s, doubling to the most.
-RETRY_FIRST_S, RETRY_MOST_S = 10.0, 300.0
 #: Each feed's messages read so far, what they gave (tracks, NOTAMs) and
 #: when the last came: the Dev console's and a test's view of it.
 STATE = {feed: {"connected": False, "messages": 0, "items": 0, "last_at": None, "error": None} for feed in FEEDS}
-
-
-def _settings(feed: str) -> tuple[str, ...]:
-    return (*SETTINGS, f"SWIM_VPN_{feed}", f"SWIM_QUEUE_{feed}")
-
-
-def _host(feed: str) -> str:
-    """The broker a feed's subscription is on: its own where SCDS put it
-    on another (TFMS's on ems1, the others' on ems2), else the shared one."""
-    return os.environ.get(f"SWIM_HOST_{feed}") or os.environ["SWIM_HOST"]
-
-
-def configured(feed: str) -> bool:
-    return all(os.environ.get(name) for name in _settings(feed))
-
-
-def _number(element, tag: str) -> float | None:
-    text = element.findtext(tag)
-    try:
-        return float(text) if text not in (None, "") else None
-    except ValueError:
-        return None
-
-
-def _when(text: str | None) -> float | None:
-    """An ISO time as the feed writes it ("2026-10-20T01:58:25.921Z"), s."""
-    if not text:
-        return None
-    try:
-        return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
-    except ValueError:
-        return None
-
-
-def body(message) -> str:
-    """A message's text, read from its bytes first: the client raises on
-    some of the feed's messages when asked for a string, and one message
-    it can't read must not drop the connection. Empty where neither reads."""
-    for read in (message.get_payload_as_bytes, message.get_payload_as_string):
-        try:
-            payload = read()
-        except Exception:  # noqa: BLE001 -- the client's error for a payload of the other kind
-            continue
-        if payload:
-            return payload.decode("utf-8", "replace") if isinstance(payload, (bytes, bytearray)) else payload
-    return ""
-
-
-def tracks(xml: str) -> list[tuple[dict, float]]:
-    """A TATrackAndFlightPlan message's airborne tracks, each as vfr.traffic's
-    `_aircraft` gives an airplane, and when it was where it is (s): the
-    track's Mode S address (`acAddress`), its place, its altitude as the
-    transponder reports it (pressure altitude, to the hundred feet), its
-    speed and track from its ground velocity (vx, vy, knots east and north;
-    STARS's TAIS interface), its climb (vVert, ft/min) and its beacon code;
-    the flight plan's ident and type where the track has one. None for a
-    track with no address, one coasting or dropped, or on the surface."""
-    try:
-        root = ET.fromstring(xml)
-    except ET.ParseError:
-        return []
-    if not root.tag.endswith("TATrackAndFlightPlan"):
-        return []
-    out = []
-    for record in root.iter("record"):
-        track = record.find("track")
-        if track is None or track.findtext("status") != "active":
-            continue
-        address = (track.findtext("acAddress") or "").strip().lower()
-        lat, lon = _number(track, "lat"), _number(track, "lon")
-        at = _when(track.findtext("mrtTime"))
-        # "000000" is no address: a target with no Mode S transponder.
-        if len(address) != 6 or address == "000000" or lat is None or lon is None or at is None:
-            continue
-        vx, vy = _number(track, "vx"), _number(track, "vy")
-        plan = record.find("flightPlan")
-        ident = (plan.findtext("acid") or "").strip() if plan is not None else ""
-        kind = (plan.findtext("acType") or "").strip() if plan is not None else ""
-        squawk = (track.findtext("reportedBeaconCode") or "").strip()
-        out.append(({
-            "hex": address,
-            "callsign": ident or None,
-            "registration": ident if ident.startswith("N") else None,
-            "type": kind or None,
-            "lat": round(lat, 5), "lon": round(lon, 5),
-            "altitude_ft": _number(track, "reportedAltitude"),
-            "pressure_altitude": True,
-            "track_deg": round(math.degrees(math.atan2(vx, vy)) % 360, 1) if vx is not None and vy is not None else None,
-            "speed_kt": round(math.hypot(vx, vy), 1) if vx is not None and vy is not None else None,
-            "vertical_fpm": _number(track, "vVert"),
-            "seen_s": None,
-            "squawk": squawk or None,
-            # 7500 unlawful interference (AIM 6-3-4), 7600 radio failure
-            # (AIM 6-4-2), 7700 emergency (AIM 6-2-2).
-            "emergency": {"7500": "unlawful", "7600": "nordo", "7700": "general"}.get(squawk),
-            "category": None,
-        }, at))
-    return out
-
-
-#: How far a facility's tracks can lie from one another, nm: one STARS
-#: facility's message holds the tracks of its own radars, 60 nm round each
-#: terminal radar (the ASR-9's and ASR-11's instrumented range, FAA
-#: surveillance radar fact sheets) and the long-range ARSR some facilities
-#: fuse in, so its first track is taken to say where all of them are to
-#: within this much.
-FACILITY_SPAN_NM = 200.0
-#: How far past a view's edge its airplanes are still kept, nm: about a
-#: minute of a fast airplane's flying, so one about to come in is there.
-VIEW_MARGIN_NM = 10.0
-_FIRST_PLACE = re.compile(r"<lat>(-?[\d.]+)</lat><lon>(-?[\d.]+)</lon>")
-
-
-def _nm(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """About how far apart two places are, nm, on a flat chart a minute of
-    latitude to the mile: near enough to say a facility is out of sight
-    with hundreds of miles to spare, and cheap enough for every message."""
-    return 60.0 * math.hypot(lat2 - lat1, (lon2 - lon1) * math.cos(math.radians((lat1 + lat2) / 2)))
-
-
-def _in_view(lat: float, lon: float, views, margin: float) -> bool:
-    return any(_nm(lat, lon, v_lat, v_lon) <= radius + margin for v_lat, v_lon, radius in views)
+#: How often the reading process is sent what the map looks at, s: the
+#: map asks for traffic every few seconds, so a second behind is in time.
+WANTED_EVERY_S = 1.0
 
 
 def _radar(text: str) -> int:
-    """A radar message's tracks handed to vfr.traffic: the airplanes round
-    the places the map shows traffic, and the followed ones wherever they
-    are. A message from a facility far from every view and naming no
-    followed airplane (its addresses in either case) is not parsed at all,
-    which is most of them: the country's tracks, parsed as they come, took
-    the planner's time from the planning a pilot waits on."""
-    if "TATrackAndFlightPlan" not in text[:300]:
-        return 0
-    views, followed = traffic.radar_wanted()
-    first = _FIRST_PLACE.search(text)
-    near = first is not None and _in_view(float(first[1]), float(first[2]), views, FACILITY_SPAN_NM)
-    if not near and not any(a in text or a.upper() in text for a in followed):
-        return 0
-    found = [
-        (plane, at) for plane, at in tracks(text)
-        if plane["hex"] in followed or _in_view(plane["lat"], plane["lon"], views, VIEW_MARGIN_NM)
-    ]
+    """A radar message's tracks handed to vfr.traffic, in this process: the
+    airplanes round the places the map shows traffic, and the followed ones
+    wherever they are (swim_reader.select)."""
+    found = swim_reader.select(text, *traffic.radar_wanted())
     for plane, at in found:
         traffic.heard_elsewhere(plane, at)
     return len(found)
 
 
-def raw(message) -> bytes | str:
-    """A message's bytes as they came, for a handler that looks in them
-    before it decodes them (RAW); its text where the client has no bytes."""
-    try:
-        payload = message.get_payload_as_bytes()
-    except Exception:  # noqa: BLE001 -- the client's error for a payload of the other kind
-        payload = None
-    return payload if payload else body(message)
-
-
-#: The feeds whose handler takes the message's bytes (filed_routes.heard).
-RAW = {"TFMS"}
 #: What each feed's messages are handed to; each gives how many items it read.
 HANDLERS = {"STDDS": _radar, "FNS": notams.heard, "TFMS": filed_routes.heard}
 
 
-def _run(feed: str) -> None:
-    """Connect, read and hand on until the process ends, connecting again
-    after a pause where the connection drops or cannot be made."""
-    from solace.messaging.config.retry_strategy import RetryStrategy
-    from solace.messaging.config.transport_security_strategy import TLS
-    from solace.messaging.messaging_service import MessagingService
-    from solace.messaging.resources.queue import Queue
+def dispatch(kind: str, feed: str, value) -> None:
+    """One thing the reading process sent, handed on: a radar message's
+    kept tracks to vfr.traffic, a NOTAM or flight plan message to its
+    feed's handler, and a feed's connection and counts into STATE."""
+    state = STATE[feed]
+    if kind == "radar":
+        for plane, at in value:
+            traffic.heard_elsewhere(plane, at)
+        state["items"] += len(value)
+    elif kind == "text":
+        state["items"] += HANDLERS[feed](value)
+    elif kind == "state":
+        # The reading process logs its own failures; its connecting is told here.
+        if value.get("connected") and not state["connected"]:
+            log.info("SWIM %s connected", feed)
+        state.update(value)
 
+
+def _serve(feeds: list[str]) -> None:
+    """The reading process kept going: started, sent what is wanted as it
+    changes, what it sends handed on, and started again after a pause
+    where it ends (the pause growing as a connection's does). Spawned, not
+    forked: a fork of the planner would copy its threads' locks mid-use."""
+    context = multiprocessing.get_context("spawn")
     pause = RETRY_FIRST_S
     while True:
-        service = receiver = None
-        try:
-            service = (MessagingService.builder().from_properties({
-                "solace.messaging.transport.host": _host(feed),
-                "solace.messaging.service.vpn-name": os.environ[f"SWIM_VPN_{feed}"],
-                "solace.messaging.authentication.scheme.basic.username": os.environ["SWIM_USERNAME"],
-                "solace.messaging.authentication.scheme.basic.password": os.environ["SWIM_PASSWORD"],
-            }).with_transport_security_strategy(
-                # The FAA's certificate checked against the image's own CAs.
-                TLS.create().with_certificate_validation(True, validate_server_name=True, trust_store_file_path=TRUST_STORE))
-                .with_reconnection_retry_strategy(RetryStrategy.parametrized_retry(5, 3000)).build())
-            service.connect()
-            receiver = service.create_persistent_message_receiver_builder().build(
-                Queue.durable_exclusive_queue(os.environ[f"SWIM_QUEUE_{feed}"]))
-            receiver.start()
-            state = STATE[feed]
-            state.update(connected=True, error=None)
+        out = context.Queue()
+        wanted_in, wanted_out = context.Pipe(duplex=False)
+        process = context.Process(target=swim_reader.main, args=(feeds, out, wanted_in), name="swim-reader", daemon=True)
+        process.start()
+        # Only the process holds the reading end, so it sees this one close.
+        wanted_in.close()
+        started = time.monotonic()
+        log.info("SWIM reader started (pid %d) for %s", process.pid, ", ".join(feeds))
+        sent, sent_at = None, 0.0
+        while process.is_alive():
+            if time.monotonic() - sent_at >= WANTED_EVERY_S:
+                sent_at = time.monotonic()
+                wanted = traffic.radar_wanted()
+                if wanted != sent:
+                    try:
+                        wanted_out.send(wanted)
+                        sent = wanted
+                    except OSError:
+                        break
+            try:
+                kind, feed, value = out.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            try:
+                dispatch(kind, feed, value)
+            except Exception:  # noqa: BLE001 -- one message must not end the reading
+                log.warning("SWIM %s: %s not handed on", feed, kind, exc_info=True)
+        log.warning("SWIM reader ended (exit code %s); starting it again in %.0f s", process.exitcode, pause)
+        for feed in feeds:
+            STATE[feed].update(connected=False, error=f"reader process ended (exit code {process.exitcode})")
+        wanted_out.close()
+        out.close()
+        # A process that ran a while ended by chance: the next starts soon.
+        if time.monotonic() - started > RETRY_MOST_S:
             pause = RETRY_FIRST_S
-            log.info("SWIM %s connected", feed)
-            while True:
-                message = receiver.receive_message(timeout=5000)
-                if message is None:
-                    continue
-                state["items"] += HANDLERS[feed](raw(message) if feed in RAW else body(message))
-                state["messages"] += 1
-                state["last_at"] = time.time()
-                receiver.ack(message)
-        except Exception as err:  # noqa: BLE001 -- any failure: connect again after the pause
-            STATE[feed].update(connected=False, error=f"{type(err).__name__}: {str(err)[:200]}")
-            log.warning("SWIM %s: %s; connecting again in %.0f s", feed, STATE[feed]["error"], pause)
-        finally:
-            for closing in (receiver, service):
-                try:
-                    if closing is receiver and closing is not None:
-                        closing.terminate()
-                    elif closing is not None:
-                        closing.disconnect()
-                except Exception:  # noqa: BLE001 -- already gone
-                    pass
         time.sleep(pause)
         pause = min(RETRY_MOST_S, pause * 2)
 
 
 def start() -> None:
-    """Each feed's reader started on its own thread, where it is set up."""
-    for feed in FEEDS:
-        if configured(feed):
-            threading.Thread(target=_run, args=(feed,), name=f"swim-{feed.lower()}", daemon=True).start()
+    """The reading process started, for the feeds that are set up."""
+    feeds = [feed for feed in FEEDS if configured(feed)]
+    if feeds:
+        threading.Thread(target=_serve, args=(feeds,), name="swim", daemon=True).start()
