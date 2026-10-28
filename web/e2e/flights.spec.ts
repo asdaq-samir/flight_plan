@@ -179,6 +179,31 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
+test("a saved flight's ••• and its long press offer Open on the Map, Share and Delete, as Maps' Recents do; Delete asks first", async ({ page }) => {
+  const removed: string[] = [];
+  await signedIn(page, [], [{
+    id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", stops: [], cruiseAltitudeFt: 5500, aircraftTailNumber: null,
+    createdAt: "2026-09-20T12:00:00Z", plannedFor: null, totalDistanceNm: 120, totalEteMin: 55, totalFuelGal: 8,
+  }]);
+  await page.route("**/api/flights/*", async route => {
+    removed.push(route.request().method());
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.goto("/app/plan");
+  await grabberTo(page, "half");
+  const panel = sideDrawer(page);
+  await panel.getByTestId("pill-section-saved-more").click();
+  // A right click, as a long press on a phone, brings the same menu up.
+  await panel.getByRole("button", { name: /^KMSP → KDLH/ }).click({ button: "right" });
+  await expect(page.getByTestId("saved-flight-share")).toBeVisible();
+  await expect(page.getByTestId("saved-flight-open")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await panel.getByTestId("saved-flight-more").click();
+  await page.getByTestId("saved-flight-delete").click();
+  await page.getByRole("button", { name: "Delete flight" }).click();
+  await expect.poll(() => removed).toEqual(["DELETE"]);
+});
+
 test("Print is in the Brief's Share menu; Keep Charts Offline is in the map's menu, which cannot be on over plain http", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await controlsInSight(page);

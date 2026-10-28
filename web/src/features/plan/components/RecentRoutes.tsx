@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { CircleMinus, Ellipsis, History, Share } from "lucide-react";
+import { CircleMinus, History, Share } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "cn";
 import { ListPageHead, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
@@ -9,9 +9,7 @@ import { placeOfPoint } from "../../../lib/identSchema";
 import { recentRouteKey, usePreferences, type RecentRoute } from "../../../lib/preferences";
 import { TEXT } from "../../../lib/text";
 import { whenGroups } from "../../../lib/whenGroups";
-import RoundButton from "../../../components/RoundButton";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from "../../../components/ui/context-menu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
+import RowMenu from "../../../components/RowMenu";
 import { cancelled, shareOrCopy } from "../../../lib/share";
 import { showError } from "../../../lib/problems";
 import { describeError } from "../../../lib/api/client";
@@ -92,11 +90,9 @@ export function RecentRoutesPage({ onBack }: { onBack: () => void }) {
 
 /**
  * Each route as a row of Maps' Recents: its round mark, its ends, its
- * stops and the day under them, a tap planning it again; at its end •••,
- * the stock DropdownMenu, with Share and Clear, and the same two from a
- * long press (or a right click) on the row, the stock ContextMenu, the
- * row lifted white over the list while it is open as Maps lifts it. A
- * swipe to the left still takes it off.
+ * stops and the day under them, a tap planning it again; Share and Clear
+ * from its ••• or a long press (RowMenu). A swipe to the left still takes
+ * it off.
  */
 function RecentRouteRows({ title, routes, onPick, action }: { title: string; routes: RecentRoute[]; onPick?: () => void; action?: ReactNode }) {
   const navigate = useNavigate();
@@ -114,41 +110,20 @@ function RecentRouteRows({ title, routes, onPick, action }: { title: string; rou
           shareOrCopy({ title: `${dep} → ${dest}`, url: new URL(`/app${hrefOf(route)}`, location.origin).toString() })
             .catch(err => { if (!cancelled(err)) showError("Not shared", describeError(err)); });
         };
-        const items = (Item: typeof DropdownMenuItem | typeof ContextMenuItem) => (
-          <>
-            <Item onSelect={share} data-testid="route-recent-share"><Share /> Share</Item>
-            <Item onSelect={() => remove(key)} data-testid="route-recent-remove"><CircleMinus /> Clear</Item>
-          </>
-        );
         return (
           <SwipeToDelete key={key} label={`Remove ${name} from Recents`} onDelete={() => remove(key)}>
-            <ContextMenu>
-              <ContextMenuTrigger asChild>
-                <div className={cn(
-                  "flex items-center gap-1 pr-2 transition-[background-color,box-shadow,transform] [-webkit-touch-callout:none]",
-                  "data-[state=open]:relative data-[state=open]:z-10 data-[state=open]:scale-[1.02] data-[state=open]:rounded-2xl data-[state=open]:bg-card data-[state=open]:shadow-xl",
-                )}>
-                  <div className="min-w-0 flex-1">
-                    <ListRow
-                      media={<SmallMark icon={<History />} className="size-9 bg-foreground/70 text-background [&_svg]:size-5" />}
-                      title={<span className="font-mono font-semibold">{dep} → {dest}</span>}
-                      description={[route.stops.length ? `By ${route.stops.map(placeOfPoint).join(", ")}` : null, day].filter(Boolean).join(" · ")}
-                      aria-label={`${name}${route.stops.length ? ` by ${route.stops.map(placeOfPoint).join(", ")}` : ""}, planned ${day}`}
-                      onClick={() => { onPick?.(); navigate(hrefOf(route)); }} data-testid="route-recent"
-                    />
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <RoundButton label={`${name}: more`} data-testid="route-recent-more">
-                        <Ellipsis className="size-5" aria-hidden="true" />
-                      </RoundButton>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-48">{items(DropdownMenuItem)}</DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </ContextMenuTrigger>
-              <ContextMenuContent className="min-w-48">{items(ContextMenuItem)}</ContextMenuContent>
-            </ContextMenu>
+            <RowMenu label={`${name}: more`} testId="route-recent-more" actions={[
+              { label: "Share", icon: <Share />, onSelect: share, testId: "route-recent-share" },
+              { label: "Clear", icon: <CircleMinus />, onSelect: () => remove(key), testId: "route-recent-remove" },
+            ]}>
+              <ListRow
+                media={<SmallMark icon={<History />} className="size-9 bg-foreground/70 text-background [&_svg]:size-5" />}
+                title={<span className="font-mono font-semibold">{dep} → {dest}</span>}
+                description={[route.stops.length ? `By ${route.stops.map(placeOfPoint).join(", ")}` : null, day].filter(Boolean).join(" · ")}
+                aria-label={`${name}${route.stops.length ? ` by ${route.stops.map(placeOfPoint).join(", ")}` : ""}, planned ${day}`}
+                onClick={() => { onPick?.(); navigate(hrefOf(route)); }} data-testid="route-recent"
+              />
+            </RowMenu>
           </SwipeToDelete>
         );
       })}

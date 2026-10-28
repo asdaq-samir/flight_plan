@@ -4,7 +4,8 @@ import { Controller, useForm, type UseFormRegisterReturn } from "react-hook-form
 import { zodResolver } from "@hookform/resolvers/zod";
 import { numberOrNull, optionalHours, pastDay, requiredPastDay, textOrNull, z } from "../../lib/formSchema";
 import { toast } from "sonner";
-import { Info, Plus, Route } from "lucide-react";
+import { Info, Map as MapIcon, Plus, Route, Share, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import EmptyState from "../../components/EmptyState";
 import FieldHit from "../../components/FieldHit";
 import RowField from "../../components/RowField";
@@ -26,7 +27,10 @@ import FlightPage from "./FlightPage";
 import ChecklistPage from "./ChecklistPage";
 import SquawksPage from "./SquawksPage";
 import { aircraftKey, choiceOf } from "../../lib/aircraftChoice";
-import { api } from "../../lib/api/client";
+import { api, describeError } from "../../lib/api/client";
+import { cancelled, shareOrCopy } from "../../lib/share";
+import { showError } from "../../lib/problems";
+import RowMenu from "../../components/RowMenu";
 import type { Aircraft, AircraftRequest, FlightSummary, InspectionsRequest, VorCheckRequest } from "../../lib/api/types";
 import { CRUISE_REFERENCE_FT } from "../../lib/performance";
 import { usePreferences } from "../../lib/preferences";
@@ -684,6 +688,7 @@ export function FlightsPanel({ onBack }: {
   onBack?: () => void;
 } = {}) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
   const [editing, setEditing] = useState(false);
   const asked = useQuery(flightsQuery);
@@ -754,8 +759,22 @@ export function FlightsPanel({ onBack }: {
                     <ListRow {...row} media={<RemoveMinus label={`Delete ${name}…`} />} />
                   ) : (
                     // Its own page: what was filed, the way back onto the
-                    // map, and its debrief.
-                    <PageRow page={`flight-${f.id}`} {...row} />
+                    // map, and its debrief; at its end, as Maps' Recents
+                    // set a row (the owner, 2026-10-28), ••• or a long
+                    // press with Open on the map, Share and Delete.
+                    <RowMenu label={`${name}: more`} testId="saved-flight-more" actions={[
+                      { label: "Open on the Map", icon: <MapIcon />, onSelect: () => navigate(planHrefOf(f)), testId: "saved-flight-open" },
+                      {
+                        label: "Share", icon: <Share />, testId: "saved-flight-share",
+                        onSelect: () => {
+                          shareOrCopy({ title: name, url: new URL(`/app${planHrefOf(f)}`, location.origin).toString() })
+                            .catch(err => { if (!cancelled(err)) showError("Not shared", describeError(err)); });
+                        },
+                      },
+                      { label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => { setFlightToDelete(f); askDelete(); }, testId: "saved-flight-delete" },
+                    ]}>
+                      <PageRow page={`flight-${f.id}`} {...row} />
+                    </RowMenu>
                   )}
                 </SwipeToDelete>
               );
