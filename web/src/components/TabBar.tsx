@@ -280,7 +280,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
       for (let el = target as HTMLElement | null; el && el !== panel; el = el.parentElement) {
         // A route's point is dragged as a finger slides it (RouteBox's
         // dnd-kit sortables say so with aria-roledescription).
-        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [aria-roledescription], [data-point], [data-lens], .leaflet-container")) return true;
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], [aria-roledescription], [data-point], [data-lens], .leaflet-container")) return true;
         const overflow = getComputedStyle(el).overflowX;
         if ((overflow === "auto" || overflow === "scroll") && el.scrollWidth > el.clientWidth + 1) return true;
       }
@@ -337,7 +337,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
     const g = WHEEL;
     const scrolls = (target: EventTarget | null, dx: number, dy: number) => {
       for (let el = target as HTMLElement | null; el && el !== panel; el = el.parentElement) {
-        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], .leaflet-container")) return true;
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], .leaflet-container")) return true;
         const style = getComputedStyle(el);
         if (dy !== 0 && (style.overflowY === "auto" || style.overflowY === "scroll")
           && (dy > 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0)) return true;
