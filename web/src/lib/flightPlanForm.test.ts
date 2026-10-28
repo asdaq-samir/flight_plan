@@ -3,6 +3,7 @@ import type { Leg, Totals } from "./api/types";
 import {
   cruisingLevel, cruisingSpeed, flightPlanForms, formText, hhmmForm, personsOnBoard, routeItem, withPersonsOnBoard, type FormInput,
 } from "./flightPlanForm";
+import filingFormFixture from "./fixtures/filingForm.json";
 
 const airway = (stop: string) => /^[VTJQ]\d{1,4}$/.test(stop);
 
@@ -186,5 +187,17 @@ describe("the FAA flight plan form, filled in from a plan", () => {
     expect(value(blank, "persons")).toBeNull();
     expect(blank.filing!.personsOnBoard).toBeNull();
     expect(formText(blank)).toContain("Item 19  Persons on board: —");
+  });
+});
+
+// The shared fixture the iPhone app's FilingForm (InFlightViews.swift) is
+// tested against too (WingtipTests/SharedFixturesTests.swift), so a plan
+// filed from either is written alike (docs/NATIVE.md).
+describe("the shared filing form fixture", () => {
+  it.each(filingFormFixture.cruisingSpeed)("$tasKt kt: $item", ({ tasKt, item }) => expect(cruisingSpeed(tasKt)).toBe(item));
+  it.each(filingFormFixture.cruisingLevel)("$altitudeFt ft: $item", ({ altitudeFt, item }) => expect(cruisingLevel(altitudeFt)).toBe(item));
+  it.each(filingFormFixture.hhmm)("$minutes min: $item", ({ minutes, item }) => expect(hhmmForm(minutes)).toBe(item));
+  it.each(filingFormFixture.route)("$stops: $item", ({ stops, airways, item }) => {
+    expect(routeItem(stops, stop => airways.includes(stop))).toBe(item);
   });
 });

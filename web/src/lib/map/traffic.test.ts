@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { TrafficAircraft } from "../api/types";
 import { agedBy, carriedOn, closestApproach, colourRuns, heightColour, ownShipHex, nearOwnHeight, trafficLabel, trendPx } from "./traffic";
 import type { Fix } from "./ownShip";
+import trafficFixture from "../fixtures/traffic.json";
 
 const plane = (over: Partial<TrafficAircraft> = {}): TrafficAircraft => ({
   hex: "a128b9", callsign: "N174HA", lat: 42.3246, lon: -88.0741, altitude_ft: 3520, pressure_altitude: false,
@@ -134,5 +135,16 @@ describe("closestApproach", () => {
   it("is nothing without a track or speed", () => {
     expect(closestApproach(fix({ headingDeg: null }), plane())).toBeNull();
     expect(closestApproach(own, plane({ speed_kt: null }))).toBeNull();
+  });
+});
+
+// The shared fixture the iPhone app's Traffic.label and Traffic.near are
+// tested against too (WingtipTests/SharedFixturesTests.swift): the same
+// label under the same airplane on both (docs/NATIVE.md).
+describe("the shared traffic fixture", () => {
+  it.each(trafficFixture.cases)("$plane.altitude_ft ft against $ownFt: '$label'", ({ plane: p, ownFt, label, near }) => {
+    const heard = plane({ altitude_ft: p.altitude_ft, vertical_fpm: p.vertical_fpm });
+    expect(trafficLabel(heard, ownFt)).toBe(label);
+    expect(nearOwnHeight(heard, ownFt)).toBe(near);
   });
 });

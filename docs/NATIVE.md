@@ -27,13 +27,50 @@ last gate.
 
 ## Rules
 
-- No aviation figure is computed on the phone. Every rule stays in the
-  planner; the app shows the server's answer, with its date when offline.
+- A rule the pilot needs offline in flight is computed on the phone too,
+  in the app's own Swift copy of the web app's, and each such copy is
+  checked against a shared fixture: one JSON file of example inputs and
+  the outputs the web's implementation gives, in `web/src/lib/fixtures`,
+  read both by the web's vitest test beside the module and by
+  `ios/WingtipTests/SharedFixturesTests.swift` (project.yml bundles the
+  folder into the test target by its path, not a copy), so a copy that
+  drifts fails CI. A change to the rule changes the web, the fixture and
+  the Swift together. Every other figure comes from the planner; the app
+  shows the server's answer, with its date when offline.
+- The ACS table (`AcsTable`) is the web's own `web/src/lib/acs.json`,
+  bundled by project.yml as `acs.json`.
 - Judge every screen on the phone against Apple's Human Interface
   Guidelines first, as CLAUDE.md says for the web app; here the system's
   own controls give the 44-point hit areas, the type scale and the glass.
 - The app's words are the web app's words ("airplane", the FAA's
   sentence-cased text with its codes kept).
+
+## The rules on the phone, and their fixtures
+
+| Rule | Web (the reference) | Swift copy | Fixture |
+|---|---|---|---|
+| A pilot's hold as the planner reads it, its legs' minutes by altitude (vfr.holds; AIM 5-3-8 j.4(a)) | `lib/holds.ts`, `lib/holding.ts` `legMinutes` | `Hold` in `RouteEdits.swift` | `holds.json` |
+| The airplane's checklist written as text | `lib/checklist.ts` | `ChecklistText` in `PilotLogic.swift` | `checklist.json` |
+| Flash-card drills: light gun signals (14 CFR 91.125), VFR weather minimums (91.155), Leitner's boxes | `lib/drills.ts` | `Drills` in `PilotLogic.swift` | `drills.json` |
+| Two-way radio failure, the route and when to leave the clearance limit (14 CFR 91.185(c)(1), (c)(3)) | `lib/lostComms.ts` | `LostComms` in `PilotLogic.swift` | `lostComms.json` |
+| Flight plan items 15 and 16 (AIM Appendix 4; 14 CFR 91.121(a)(2)) | `lib/flightPlanForm.ts` | `FilingForm` in `Views/InFlightViews.swift` | `filingForm.json` |
+| Traffic's label and the 1,000 ft "near" (14 CFR 91.159's spacing) | `lib/map/traffic.ts` | `Traffic.label`, `Traffic.near` | `traffic.json` |
+| The logbook as CSV, out and in (ForeFlight Logbook Guide v14.0; 61.57(a), (b)) | `lib/logbookCsv.ts` | `LogbookCSV` in `PilotLogic.swift` | `logbookCsv.json` |
+
+Where the copies still differ, the fixtures leave the case out:
+
+- Traffic's label rounds a difference of a half hundred feet the other
+  way below own ship (JavaScript's `Math.round` takes -2.5 to -2, Swift's
+  `rounded()` to -3: 250 ft below is "-02" on the web and "-03" on the
+  phone), and an airplane under 50 ft below sea level with own ship's
+  height unknown.
+- The logbook's CSV writes a solo, dual, towered-landings or longest-leg
+  field the gateway left empty as empty on the web and as 0 on the
+  phone, and quotes a field with a space at either end only on the web
+  (papaparse).
+- `FilingForm.hhmm` takes whole minutes, where the web's `hhmmForm`
+  rounds a fraction first; the route item files no departure or arrival
+  procedure from the phone yet.
 
 ## Building
 
@@ -42,7 +79,8 @@ The owner's Mac cannot run a current Xcode, so everything happens in
 public repository):
 
 - a pull request, a push to `main` or to a `claude/native-*` branch that
-  touches `ios/` or the workflow: XcodeGen, then `xcodebuild test` on
+  touches `ios/`, the web files the app bundles (`web/src/lib/fixtures`,
+  `web/src/lib/acs.json`) or the workflow: XcodeGen, then `xcodebuild test` on
   the newest iPhone simulator the runner has and on an iPad (a Pro
   where there is one), for the iPad's own layout, with a picture of
   each one's first screen kept with the run (`native-ios-screens`);

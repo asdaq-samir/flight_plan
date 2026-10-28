@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { LogbookEntry } from "./api/types";
 import { importLogbook, logbookCsv, parseCsv } from "./logbookCsv";
+import logbookFixture from "./fixtures/logbookCsv.json";
 
 /** ForeFlight's export as its guide lays the template out (ForeFlight
  *  Logbook Guide v14.0): a line it asks be kept, the Aircraft Table and
@@ -66,5 +67,18 @@ describe("the logbook as CSV", () => {
 
   it("says so when there is no flights' header", () => {
     expect(importLogbook("a,b\n1,2").skipped[0]!.reason).toContain("Date, AircraftID and TotalTime");
+  });
+});
+
+// The shared fixture the iPhone app's LogbookCSV (PilotLogic.swift) is
+// tested against too (WingtipTests/SharedFixturesTests.swift): a logbook
+// written or read on either comes out the same (docs/NATIVE.md).
+describe("the shared logbook CSV fixture", () => {
+  it.each(logbookFixture.export.map((c, i) => ({ ...c, i })))("written out, case $i", ({ entries, csv }) => {
+    expect(logbookCsv(entries as unknown as LogbookEntry[])).toBe(csv);
+  });
+
+  it.each(logbookFixture.import)("$name", ({ text, entries, skipped }) => {
+    expect(importLogbook(text)).toEqual({ entries, skipped });
   });
 });

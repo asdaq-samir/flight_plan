@@ -1,0 +1,287 @@
+{
+  "about": "The logbook as a CSV file, out in ForeFlight's column names and in from ForeFlight's export or this logbook's own (ForeFlight Logbook Guide v14.0; landings as 61.57(a) and (b) count them). Entries with every field given (a null field is written differently: see docs/NATIVE.md). Web: lib/logbookCsv.ts. iOS: LogbookCSV in PilotLogic.swift.",
+  "export": [
+    {
+      "entries": [
+        {
+          "id": 1,
+          "flownOn": "2026-10-01",
+          "aircraft": "N3429J",
+          "aircraftType": "P28A",
+          "route": "KUGN KRFD",
+          "remarks": null,
+          "totalHours": 1.5,
+          "nightHours": 0,
+          "crossCountryHours": 1.5,
+          "instrumentHours": 0,
+          "dayLandings": 2,
+          "nightLandings": 0,
+          "approaches": 0,
+          "distanceNm": 48,
+          "dualHours": 0,
+          "soloHours": 1.5,
+          "toweredLandings": 1,
+          "longestLegNm": 48,
+          "holding": false,
+          "tracking": false
+        },
+        {
+          "id": 2,
+          "flownOn": "2026-09-12",
+          "aircraft": "N12345",
+          "aircraftType": "C172",
+          "route": "KUGN",
+          "remarks": "Pattern work, \"short field\"",
+          "totalHours": 1.2,
+          "nightHours": 1.2,
+          "crossCountryHours": 0,
+          "instrumentHours": 0.4,
+          "dayLandings": 1,
+          "nightLandings": 3,
+          "approaches": 2,
+          "distanceNm": 0,
+          "dualHours": 1.2,
+          "soloHours": 0,
+          "toweredLandings": 1,
+          "longestLegNm": 0,
+          "holding": true,
+          "tracking": true
+        },
+        {
+          "id": 3,
+          "flownOn": "2026-10-20",
+          "aircraft": "N3429J",
+          "aircraftType": null,
+          "route": null,
+          "remarks": "Line one\nline two",
+          "totalHours": 1.5,
+          "nightHours": 0,
+          "crossCountryHours": 1.5,
+          "instrumentHours": 0,
+          "dayLandings": 2,
+          "nightLandings": 0,
+          "approaches": 0,
+          "distanceNm": 48,
+          "dualHours": 0,
+          "soloHours": 1.5,
+          "toweredLandings": 1,
+          "longestLegNm": 48,
+          "holding": false,
+          "tracking": false
+        }
+      ],
+      "csv": "Date,AircraftID,TypeCode,Route,TotalTime,Night,CrossCountry,Solo,DualReceived,Instrument,AllLandings,NightLandingsFullStop,ToweredLandings,Distance,LongestLeg,Approaches,Holds,Tracking,PilotComments\r\n2026-09-12,N12345,C172,KUGN,1.2,1.2,0,0,1.2,0.4,4,3,1,0,0,2,1,x,\"Pattern work, \"\"short field\"\"\"\r\n2026-10-01,N3429J,P28A,KUGN KRFD,1.5,0,1.5,1.5,0,0,2,0,1,48,48,0,0,,\r\n2026-10-20,N3429J,,,1.5,0,1.5,1.5,0,0,2,0,1,48,48,0,0,,\"Line one\nline two\"\r\n"
+    }
+  ],
+  "import": [
+    {
+      "name": "this logbook's own file, read back",
+      "text": "Date,AircraftID,TypeCode,Route,TotalTime,Night,CrossCountry,Solo,DualReceived,Instrument,AllLandings,NightLandingsFullStop,ToweredLandings,Distance,LongestLeg,Approaches,Holds,Tracking,PilotComments\r\n2026-09-12,N12345,C172,KUGN,1.2,1.2,0,0,1.2,0.4,4,3,1,0,0,2,1,x,\"Pattern work, \"\"short field\"\"\"\r\n2026-10-01,N3429J,P28A,KUGN KRFD,1.5,0,1.5,1.5,0,0,2,0,1,48,48,0,0,,\r\n2026-10-20,N3429J,,,1.5,0,1.5,1.5,0,0,2,0,1,48,48,0,0,,\"Line one\nline two\"\r\n",
+      "entries": [
+        {
+          "flownOn": "2026-09-12",
+          "aircraft": "N12345",
+          "aircraftType": "C172",
+          "route": "KUGN",
+          "totalHours": 1.2,
+          "nightHours": 1.2,
+          "crossCountryHours": 0,
+          "dayLandings": 1,
+          "nightLandings": 3,
+          "remarks": "Pattern work, \"short field\"",
+          "dualHours": 1.2,
+          "soloHours": 0,
+          "instrumentHours": 0.4,
+          "toweredLandings": 1,
+          "distanceNm": 0,
+          "longestLegNm": 0,
+          "approaches": 2,
+          "holding": true,
+          "tracking": true
+        },
+        {
+          "flownOn": "2026-10-01",
+          "aircraft": "N3429J",
+          "aircraftType": "P28A",
+          "route": "KUGN KRFD",
+          "totalHours": 1.5,
+          "nightHours": 0,
+          "crossCountryHours": 1.5,
+          "dayLandings": 2,
+          "nightLandings": 0,
+          "remarks": null,
+          "dualHours": 0,
+          "soloHours": 1.5,
+          "instrumentHours": 0,
+          "toweredLandings": 1,
+          "distanceNm": 48,
+          "longestLegNm": 48,
+          "approaches": 0,
+          "holding": false,
+          "tracking": false
+        },
+        {
+          "flownOn": "2026-10-20",
+          "aircraft": "N3429J",
+          "aircraftType": null,
+          "route": null,
+          "totalHours": 1.5,
+          "nightHours": 0,
+          "crossCountryHours": 1.5,
+          "dayLandings": 2,
+          "nightLandings": 0,
+          "remarks": "Line one\nline two",
+          "dualHours": 0,
+          "soloHours": 1.5,
+          "instrumentHours": 0,
+          "toweredLandings": 1,
+          "distanceNm": 48,
+          "longestLegNm": 48,
+          "approaches": 0,
+          "holding": false,
+          "tracking": false
+        }
+      ],
+      "skipped": []
+    },
+    {
+      "name": "ForeFlight's export, its aircraft table giving the type",
+      "text": "ForeFlight Logbook Import,,,,,,,,,\r\nAircraft Table,,,,,,,,,\r\nText,Text,Text,YYYY,Text,Text,Text,Text,Text,Boolean\r\nAircraftID,EquipmentType,TypeCode,Year,Make,Model,Category,Class,GearType,Complex\r\nN3429J,aircraft,P28A,1977,Piper,PA-28-181,airplane,airplane_single_engine_land,fixed_tricycle,\r\n,,,,,,,,,\r\nFlights Table,,,,,,,,,\r\nDate,AircraftID,From,To,Route,Total Time,Night,Cross Country,Actual Instrument,Simulated Instrument,Day Landings Full Stop,Night Landings Full Stop,Approach1,Approach2,Holds,Pilot Comments,Dual Received,Solo\r\n2026-08-02,N3429J,KUGN,KMSN,,2.1,0.5,2.1,0.3,0.45,1,2,1;ILS;18;KMSN;,2;RNAV (GPS);36;KMSN;,1,\"Hood, then actual\",2.1,0\r\n8/9/2026,N3429J,KMSN,KUGN,BAE,1.94,0,1.94,,,3,,,,0,,,1.94\r\n,N3429J,,,,1,,,,,,,,,,,,\r\n2026-08-10,N3429J,,,,31.5,,,,,,,,,,,,\r\n,,,,,,,,,,,,,,,,,\r\n2026-08-11,N9,,,,abc,,,,,1.7,,,,,,,\r\n",
+      "entries": [
+        {
+          "flownOn": "2026-08-02",
+          "aircraft": "N3429J",
+          "aircraftType": "P28A",
+          "route": "KUGN KMSN",
+          "totalHours": 2.1,
+          "nightHours": 0.5,
+          "crossCountryHours": 2.1,
+          "dayLandings": 1,
+          "nightLandings": 2,
+          "remarks": "Hood, then actual",
+          "dualHours": 2.1,
+          "soloHours": 0,
+          "instrumentHours": 0.8,
+          "toweredLandings": 0,
+          "distanceNm": 0,
+          "longestLegNm": 0,
+          "approaches": 3,
+          "holding": true,
+          "tracking": false
+        },
+        {
+          "flownOn": "2026-08-09",
+          "aircraft": "N3429J",
+          "aircraftType": "P28A",
+          "route": "KMSN BAE KUGN",
+          "totalHours": 1.9,
+          "nightHours": 0,
+          "crossCountryHours": 1.9,
+          "dayLandings": 3,
+          "nightLandings": 0,
+          "remarks": null,
+          "dualHours": 0,
+          "soloHours": 1.9,
+          "instrumentHours": 0,
+          "toweredLandings": 0,
+          "distanceNm": 0,
+          "longestLegNm": 0,
+          "approaches": 0,
+          "holding": false,
+          "tracking": false
+        },
+        {
+          "flownOn": "2026-08-11",
+          "aircraft": "N9",
+          "aircraftType": null,
+          "route": null,
+          "totalHours": 0,
+          "nightHours": 0,
+          "crossCountryHours": 0,
+          "dayLandings": 1,
+          "nightLandings": 0,
+          "remarks": null,
+          "dualHours": 0,
+          "soloHours": 0,
+          "instrumentHours": 0,
+          "toweredLandings": 0,
+          "distanceNm": 0,
+          "longestLegNm": 0,
+          "approaches": 0,
+          "holding": false,
+          "tracking": false
+        }
+      ],
+      "skipped": [
+        {
+          "line": 11,
+          "reason": "No date (\"\")"
+        },
+        {
+          "line": 12,
+          "reason": "31.5 hours is more than a day: a summary entry, to log as its flights"
+        }
+      ]
+    },
+    {
+      "name": "a byte-order mark, quoted commas and doubled quotes, a US date",
+      "text": "﻿Date,AircraftID,TypeCode,TotalTime,AllLandings,NightLandingsFullStop,Tracking,PilotComments,ToweredLandings,Approaches\n01/02/2026,N1,C152,1.25,4,1,yes,\"Wind 270, \"\"gusty\"\"\",2,1\n2026-01-03,N1,C152,0.04,0,0,no,,,\n",
+      "entries": [
+        {
+          "flownOn": "2026-01-02",
+          "aircraft": "N1",
+          "aircraftType": "C152",
+          "route": null,
+          "totalHours": 1.3,
+          "nightHours": 0,
+          "crossCountryHours": 0,
+          "dayLandings": 3,
+          "nightLandings": 1,
+          "remarks": "Wind 270, \"gusty\"",
+          "dualHours": 0,
+          "soloHours": 0,
+          "instrumentHours": 0,
+          "toweredLandings": 2,
+          "distanceNm": 0,
+          "longestLegNm": 0,
+          "approaches": 1,
+          "holding": false,
+          "tracking": true
+        },
+        {
+          "flownOn": "2026-01-03",
+          "aircraft": "N1",
+          "aircraftType": "C152",
+          "route": null,
+          "totalHours": 0,
+          "nightHours": 0,
+          "crossCountryHours": 0,
+          "dayLandings": 0,
+          "nightLandings": 0,
+          "remarks": null,
+          "dualHours": 0,
+          "soloHours": 0,
+          "instrumentHours": 0,
+          "toweredLandings": 0,
+          "distanceNm": 0,
+          "longestLegNm": 0,
+          "approaches": 0,
+          "holding": false,
+          "tracking": false
+        }
+      ],
+      "skipped": []
+    },
+    {
+      "name": "no row of field names",
+      "text": "a,b,c\n1,2,3\n",
+      "entries": [],
+      "skipped": [
+        {
+          "line": 1,
+          "reason": "No row of field names with Date, AircraftID and TotalTime"
+        }
+      ]
+    }
+  ]
+}

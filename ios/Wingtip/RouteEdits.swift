@@ -43,24 +43,25 @@ struct Hold: Codable, Hashable, Sendable, Identifiable {
         return "\(right ? "Right" : "Left") turns · \(String(format: "%03d", course))° inbound · \(leg) · \(length)"
     }
 
+    /// The planner's own pattern for one (vfr.holds _HOLD, the web app's
+    /// lib/holds HOLD): a point of letters, figures, "/" and ".", a course
+    /// of one to three figures, R or L, legs under 100 to a tenth, and a
+    /// length of one to three figures. One the planner would not read is
+    /// not read here either (web/src/lib/fixtures/holds.json).
+    private static let pattern = try! NSRegularExpression(
+        pattern: "^([A-Z0-9/.]+):([0-9]{1,3}):([RL]):([0-9]{1,2}(?:\\.[0-9])?)([MN]):([0-9]{1,3})([TM])$")
+
     /// One read back from its text, or nil for one that is not.
     static func parse(_ text: String) -> Hold? {
-        let parts = text.trimmingCharacters(in: .whitespaces).uppercased().split(separator: ":").map(String.init)
-        guard parts.count == 5, let course = Int(parts[1]), parts[1].count <= 3, course <= 360,
-              parts[2] == "R" || parts[2] == "L" else { return nil }
-        var hold = Hold(fix: parts[0], inbound: course % 360, right: parts[2] == "R")
-        guard let legUnit = parts[3].last, let leg = Double(parts[3].dropLast()), leg > 0,
-              let lengthUnit = parts[4].last, let length = Int(parts[4].dropLast()), length > 0 else { return nil }
-        switch legUnit {
-        case "M": hold.legMin = leg
-        case "N": hold.legNm = leg
-        default: return nil
-        }
-        switch lengthUnit {
-        case "T": hold.turns = length
-        case "M": hold.minutes = length
-        default: return nil
-        }
+        let s = text.trimmingCharacters(in: .whitespaces).uppercased()
+        let ns = s as NSString
+        guard let m = pattern.firstMatch(in: s, range: NSRange(location: 0, length: ns.length)) else { return nil }
+        func group(_ i: Int) -> String { ns.substring(with: m.range(at: i)) }
+        guard let course = Int(group(2)), course <= 360, let leg = Double(group(4)), leg > 0,
+              let length = Int(group(6)), length > 0 else { return nil }
+        var hold = Hold(fix: group(1), inbound: course % 360, right: group(3) == "R")
+        if group(5) == "M" { hold.legMin = leg } else { hold.legNm = leg }
+        if group(7) == "T" { hold.turns = length } else { hold.minutes = length }
         return hold
     }
 }

@@ -1,0 +1,163 @@
+{
+  "about": "A pilot's hold as the route's address and the planner (vfr.holds) write it; the legs' minutes by altitude, AIM 5-3-8 j.4(a). Web: lib/holds.ts, lib/holding.ts legMinutes. iOS: Hold in RouteEdits.swift.",
+  "parse": [
+    {
+      "text": "VPBNG/090/30:270:R:1M:2T",
+      "hold": {
+        "fix": "VPBNG/090/30",
+        "inbound": 270,
+        "right": true,
+        "legMin": 1,
+        "legNm": null,
+        "turns": 2,
+        "minutes": null
+      },
+      "written": "VPBNG/090/30:270:R:1M:2T",
+      "words": "Right turns · 270° inbound · 1 min legs · 2 turns"
+    },
+    {
+      "text": "KUGN:360:L:4N:10M",
+      "hold": {
+        "fix": "KUGN",
+        "inbound": 0,
+        "right": false,
+        "legMin": null,
+        "legNm": 4,
+        "turns": null,
+        "minutes": 10
+      },
+      "written": "KUGN:000:L:4N:10M",
+      "words": "Left turns · 360° inbound · 4 nm legs · 10 min"
+    },
+    {
+      "text": " kugn:000:r:1.5m:1t ",
+      "hold": {
+        "fix": "KUGN",
+        "inbound": 0,
+        "right": true,
+        "legMin": 1.5,
+        "legNm": null,
+        "turns": 1,
+        "minutes": null
+      },
+      "written": "KUGN:000:R:1.5M:1T",
+      "words": "Right turns · 360° inbound · 1.5 min legs · 1 turn"
+    },
+    {
+      "text": "BXCMB:5:R:2.5N:3T",
+      "hold": {
+        "fix": "BXCMB",
+        "inbound": 5,
+        "right": true,
+        "legMin": null,
+        "legNm": 2.5,
+        "turns": 3,
+        "minutes": null
+      },
+      "written": "BXCMB:005:R:2.5N:3T",
+      "words": "Right turns · 005° inbound · 2.5 nm legs · 3 turns"
+    },
+    {
+      "text": "KELD:359:L:10N:120M",
+      "hold": {
+        "fix": "KELD",
+        "inbound": 359,
+        "right": false,
+        "legMin": null,
+        "legNm": 10,
+        "turns": null,
+        "minutes": 120
+      },
+      "written": "KELD:359:L:10N:120M",
+      "words": "Left turns · 359° inbound · 10 nm legs · 120 min"
+    },
+    {
+      "text": "X:361:R:1M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:090:R:1.25M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:090:R:100M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:090:R:1M:1000T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:090:R:0M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:090:R:1M:0T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:090:X:1M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:090:R:1M",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "X:+90:R:1M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "K-1:090:R:1M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    },
+    {
+      "text": "@42.3,-88.0:090:R:1M:2T",
+      "hold": null,
+      "written": null,
+      "words": null
+    }
+  ],
+  "legMinutes": [
+    {
+      "altitudeFt": 0,
+      "minutes": 1
+    },
+    {
+      "altitudeFt": 5000,
+      "minutes": 1
+    },
+    {
+      "altitudeFt": 14000,
+      "minutes": 1
+    },
+    {
+      "altitudeFt": 14001,
+      "minutes": 1.5
+    },
+    {
+      "altitudeFt": 17500,
+      "minutes": 1.5
+    }
+  ]
+}
