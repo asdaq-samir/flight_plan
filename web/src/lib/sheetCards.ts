@@ -30,7 +30,8 @@ export const raisedFor = (stack: Entry[]): "half" | "full" | null =>
   stack.length === 0 ? null : stack.some(entry => entry.raise === "full") ? "full" : "half";
 
 /** Every card put away, the top first: another tab picked (TabBar), whose
- *  page is not what they were opened over. */
+ *  page is not what they were opened over; a field tapped on the chart
+ *  (AirportsLayer), whose tap goes no further for the cards to hear. */
 export function closeSheetCards() {
   for (const entry of [...useSheetCards.getState().stack].reverse()) entry.close();
 }
