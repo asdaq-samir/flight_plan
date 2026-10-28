@@ -133,8 +133,8 @@ export function OwnShipLayer() {
     // Nor under the pan the sheet's turn started (MapShell), to the middle
     // of the room the sheet is going to: a pan to the room it was in, from
     // a fix mid-way, cut it short and jumped (the owner's "slide down more
-    // smoothly", 2026-10-27), and the slide locked to the sheet
-    // (sheetSlide) likewise, the map going with the sheet. The next fix keeps the map on it.
+    // smoothly", 2026-10-27); nor while the map goes with the sheet
+    // (sheetSlide). The next fix keeps the map on it.
     if ((map as unknown as { _panAnim?: { _inProgress?: boolean } })._panAnim?._inProgress) return;
     if (followingSheet(map)) return;
     // A dry run's fixes come four a second and own ship glides between
