@@ -24,7 +24,7 @@ function ToggleGroup({
   variant,
   size,
   spacing = 2,
-  orientation = "horizontal",
+  orientation: arrows,
   children,
   ...props
 }: React.ComponentProps<typeof ToggleGroupPrimitive.Root> &
@@ -32,12 +32,18 @@ function ToggleGroup({
     spacing?: number
     orientation?: "horizontal" | "vertical"
   }) {
+  // Drawn across unless said otherwise; the arrow keys keep to that axis
+  // only where the caller says so, as a group whose Up and Down belong to
+  // the page round it (the training page's walk, RatingCard) does. Left
+  // unsaid, Radix moves along it with all four, as a radio group does.
+  const orientation = arrows ?? "horizontal"
   return (
     <ToggleGroupPrimitive.Root
       data-slot="toggle-group"
       data-variant={variant}
       data-size={size}
       data-spacing={spacing}
+      orientation={arrows}
       data-orientation={orientation}
       style={{ "--gap": spacing } as React.CSSProperties}
       className={cn(
