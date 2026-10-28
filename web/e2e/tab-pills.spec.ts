@@ -357,11 +357,20 @@ test("Aircraft's Favorites' title opens the airplanes kept in full, Edit letting
   // Exactly: "Remove N400XY…" holds "move N400XY" too.
   await list.getByRole("button", { name: "Move N400XY", exact: true }).focus();
   await page.keyboard.press("ArrowUp");
-  await list.getByTestId("aircraft-favorites-edit").click();
   await expect(list.getByTestId("aircraft-favorites-row")).toHaveText([/N400XY/, /N200XY/]);
+  // And dragged by its handle (dnd-kit's sortable): N400XY back below.
+  const handle = (await list.getByRole("button", { name: "Move N400XY", exact: true }).boundingBox())!;
+  const below = (await list.getByTestId("aircraft-favorites-row").nth(1).boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2 + 10, { steps: 2 });
+  await page.mouse.move(handle.x + handle.width / 2, below.y + below.height * 0.9, { steps: 8 });
+  await page.mouse.up();
+  await expect(list.getByTestId("aircraft-favorites-row")).toHaveText([/N200XY/, /N400XY/]);
+  await list.getByTestId("aircraft-favorites-edit").click();
   // Back: the strip as the list left it.
   await panel.getByTestId("aircraft-favorites-page-close").click();
-  await expect(panel.getByTestId("pill-aircraft-favorite")).toHaveText([/N400XY/, /N200XY/]);
+  await expect(panel.getByTestId("pill-aircraft-favorite")).toHaveText([/N200XY/, /N400XY/]);
 });
 
 test("on a phone, all the way up, Setup's page starts where Airport's search bar does", async ({ page }) => {
