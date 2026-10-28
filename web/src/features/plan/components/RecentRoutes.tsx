@@ -112,7 +112,7 @@ function RecentRouteRows({ title, routes, onPick, action }: { title: string; rou
         };
         return (
           <SwipeToDelete key={key} label={`Remove ${name} from Recents`} onDelete={() => remove(key)}>
-            <RowMenu label={`${name}: more`} testId="route-recent-more" actions={[
+            <RowMenu label={`More for ${name}`} testId="route-recent-more" actions={[
               { label: "Share", icon: <Share />, onSelect: share, testId: "route-recent-share" },
               { label: "Clear", icon: <CircleMinus />, onSelect: () => remove(key), testId: "route-recent-remove" },
             ]}>

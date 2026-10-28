@@ -24,7 +24,7 @@ export interface RowAction {
  * open, as Maps lifts it.
  */
 export default function RowMenu({ label, actions, testId, children }: {
-  /** The •••'s name to a screen reader: "C81 to KDLH: more". */
+  /** The •••'s name to a screen reader, "More for C81 to KDLH": not the row's own name first, which a search for the row by its name also found. */
   label: string;
   actions: RowAction[];
   testId?: string;

@@ -762,7 +762,7 @@ export function FlightsPanel({ onBack }: {
                     // map, and its debrief; at its end, as Maps' Recents
                     // set a row (the owner, 2026-10-28), ••• or a long
                     // press with Open on the map, Share and Delete.
-                    <RowMenu label={`${name}: more`} testId="saved-flight-more" actions={[
+                    <RowMenu label={`More for ${name}`} testId="saved-flight-more" actions={[
                       { label: "Open on the Map", icon: <MapIcon />, onSelect: () => navigate(planHrefOf(f)), testId: "saved-flight-open" },
                       {
                         label: "Share", icon: <Share />, testId: "saved-flight-share",
