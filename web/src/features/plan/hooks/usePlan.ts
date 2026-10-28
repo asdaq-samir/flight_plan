@@ -126,6 +126,10 @@ export type BriefingState =
  *  read in a process of its own (app.chart_model). */
 const AS_ENTERED_AFTER_MS = 600;
 
+/** How long the nav log's legs hold before the briefing is asked for with
+ *  them: the ETE and the legs come a render or two apart. */
+const BRIEF_SETTLE_MS = 250;
+
 // No checkpoints, one array for good: a new [] at every render was a new
 // list to everything drawn from it, the nav log's rows and its profile
 // chart drawn again at every render of the page.
@@ -319,10 +323,29 @@ export function usePlan(
   const logLegs = useMemo(
     () => (totals && !local && finalLog ? briefingLegs(course.data ?? null, withCheckpoints && !pointToPoint ? checkpoints.data?.selected ?? NONE : NONE, legs) : null),
     [totals, local, finalLog, course.data, withCheckpoints, pointToPoint, checkpoints.data, legs]);
+  // Asked for with the legs once they have held a moment, and the last
+  // ones kept while the same route is planned again: the runway picked into
+  // the wind re-plans it as the first briefing lands, its log empty till
+  // the new one is in, and the briefing went back to the route alone, then
+  // on with the ETE alone, then with the legs -- four briefings for one
+  // route's load, one abandoned half way (KOSH-KGRB on the phone project,
+  // 2026-10-28).
+  const briefRoute = [dep, dest, via, depart, load].join("|");
+  const briefWanted = JSON.stringify([eteMin ?? null, logLegs]);
+  const [briefAsked, setBriefAsked] = useState<{ route: string; key: string; eteMin: number | undefined; legs: typeof logLegs } | null>(null);
+  const sameBriefRoute = briefAsked?.route === briefRoute;
+  useEffect(() => {
+    if (sameBriefRoute && (briefAsked?.key === briefWanted || eteMin === undefined)) return;
+    const timer = window.setTimeout(
+      () => setBriefAsked({ route: briefRoute, key: briefWanted, eteMin, legs: logLegs }), sameBriefRoute ? BRIEF_SETTLE_MS : 0);
+    return () => window.clearTimeout(timer);
+  }, [sameBriefRoute, briefAsked, briefWanted, briefRoute, eteMin, logLegs]);
+  const briefEte = sameBriefRoute ? briefAsked?.eteMin : undefined;
+  const briefLegs = sameBriefRoute ? briefAsked?.legs ?? null : null;
   const briefing = useQuery({
-    queryKey: ["briefing", dep, dest, via, depart, eteMin ?? null, load, logLegs?.fixes ?? null, logLegs?.legMin ?? null, logLegs?.groundMin ?? null],
+    queryKey: ["briefing", dep, dest, via, depart, briefEte ?? null, load, briefLegs?.fixes ?? null, briefLegs?.legMin ?? null, briefLegs?.groundMin ?? null],
     // Given up when the route changes, as the checkpoints are (checkpointsQuery).
-    queryFn: ({ signal }) => api.briefing(dep, dest, depart || undefined, eteMin, stops, signal, logLegs),
+    queryFn: ({ signal }) => api.briefing(dep, dest, depart || undefined, briefEte, stops, signal, briefLegs),
     // Not on the previous route's placeholder course once the route is
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".
