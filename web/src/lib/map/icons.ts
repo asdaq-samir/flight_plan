@@ -285,6 +285,12 @@ export const airportMarkIcon = made(function airportMarkIcon(
   });
 });
 
+/** How big a traffic airplane's mark is drawn, points: 16, where it was
+ *  22, at the owner's ask ("Can traffic arrows be smaller?", 2026-10-28)
+ *  -- the chevron drawn in its 22-unit box, scaled, its white casing and
+ *  trend line kept their width on screen. */
+const TRAFFIC_MARK = 16;
+
 /** An airplane of the traffic (TrafficLayer): a chevron turned to its
  *  track in its colour with a white casing, a line out ahead of it to
  *  where it will be in a minute (`trendPx` long, as ForeFlight's
@@ -296,31 +302,36 @@ export const airportMarkIcon = made(function airportMarkIcon(
  *  a few hundred. */
 export const trafficIcon = made((
   trackDeg: number | null, colour: string, label: string, callsign: string | null, trendPx: number, tracked: boolean,
-) => L.divIcon({
-  className: "",
-  iconSize: [22, 22],
-  iconAnchor: [11, 11],
-  html:
-    // The hit area: 44 points round the 22 of the mark, as every tap
-    // target's (index.css), the mark not grown for it.
-    `<span class="absolute -inset-[11px] rounded-full" data-traffic-hit=""></span>` +
-    (tracked ? `<span class="pointer-events-none absolute -inset-[7px] rounded-full border-[2.5px] border-[var(--tint)] bg-white/70 shadow-[0_1px_4px_rgba(0,0,0,.4)]" data-traffic-tracked=""></span>` : "") +
-    `<svg viewBox="0 0 22 22" width="22" height="22" aria-hidden="true" data-traffic="" overflow="visible"` +
-    ` class="pointer-events-none absolute left-0 top-0 overflow-visible drop-shadow-[0_1px_2px_rgba(0,0,0,.5)]"` +
-    ` style="transform:rotate(${trackDeg == null ? 0 : Math.round(trackDeg / 5) * 5}deg)">` +
-    (trackDeg != null && trendPx > 0
-      ? `<line x1="11" y1="4" x2="11" y2="${4 - Math.round(trendPx / 4) * 4}" stroke="${text(colour)}" stroke-width="2" stroke-linecap="round" data-trend=""/>`
-      : "") +
-    (trackDeg == null
-      ? `<circle cx="11" cy="11" r="5" fill="${text(colour)}" stroke="#ffffff" stroke-width="2"/>`
-      : `<path d="M11 2 L18 19 L11 14.5 L4 19 Z" fill="${text(colour)}" stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>`) +
-    `</svg>` +
-    (label || callsign
-      ? `<span class="pointer-events-none absolute left-1/2 ${tracked ? "top-[28px]" : "top-[22px]"} -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2933]/80 px-1 text-center text-[11px] font-bold leading-[14px] text-white tabular-nums"` +
-        ` style="color:${text(colour === TRAFFIC_COLOURS.near ? "#fcd34d" : "#ffffff")}">` +
-        `${text(label)}${callsign ? `${label ? "<br>" : ""}<span class="font-semibold text-white/85">${text(callsign)}</span>` : ""}</span>`
-      : ""),
-}));
+) => {
+  const half = TRAFFIC_MARK / 2;
+  // The trend's screen points in the box's own units.
+  const trend = (Math.round(trendPx / 4) * 4 * 22) / TRAFFIC_MARK;
+  return L.divIcon({
+    className: "",
+    iconSize: [TRAFFIC_MARK, TRAFFIC_MARK],
+    iconAnchor: [half, half],
+    html:
+      // The hit area: 44 points round the mark, as every tap target's
+      // (index.css), the mark not grown for it.
+      `<span class="absolute rounded-full" style="inset:-${(44 - TRAFFIC_MARK) / 2}px" data-traffic-hit=""></span>` +
+      (tracked ? `<span class="pointer-events-none absolute -inset-[7px] rounded-full border-[2.5px] border-[var(--tint)] bg-white/70 shadow-[0_1px_4px_rgba(0,0,0,.4)]" data-traffic-tracked=""></span>` : "") +
+      `<svg viewBox="0 0 22 22" width="${TRAFFIC_MARK}" height="${TRAFFIC_MARK}" aria-hidden="true" data-traffic="" overflow="visible"` +
+      ` class="pointer-events-none absolute left-0 top-0 overflow-visible drop-shadow-[0_1px_2px_rgba(0,0,0,.5)]"` +
+      ` style="transform:rotate(${trackDeg == null ? 0 : Math.round(trackDeg / 5) * 5}deg)">` +
+      (trackDeg != null && trendPx > 0
+        ? `<line x1="11" y1="4" x2="11" y2="${Math.round((4 - trend) * 10) / 10}" stroke="${text(colour)}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linecap="round" data-trend=""/>`
+        : "") +
+      (trackDeg == null
+        ? `<circle cx="11" cy="11" r="5" fill="${text(colour)}" stroke="#ffffff" stroke-width="2" vector-effect="non-scaling-stroke"/>`
+        : `<path d="M11 2 L18 19 L11 14.5 L4 19 Z" fill="${text(colour)}" stroke="#ffffff" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`) +
+      `</svg>` +
+      (label || callsign
+        ? `<span class="pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-[#1f2933]/80 px-1 text-center text-[11px] font-bold leading-[14px] text-white tabular-nums"` +
+          ` style="top:${tracked ? TRAFFIC_MARK + 6 : TRAFFIC_MARK}px;color:${text(colour === TRAFFIC_COLOURS.near ? "#fcd34d" : "#ffffff")}">` +
+          `${text(label)}${callsign ? `${label ? "<br>" : ""}<span class="font-semibold text-white/85">${text(callsign)}</span>` : ""}</span>`
+        : ""),
+  });
+});
 
 /** Traffic's colours: within 1,000 ft of own ship's height amber, the
  *  rest the ADS-B displays' cyan. */
