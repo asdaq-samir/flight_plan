@@ -28,7 +28,7 @@ def worst_of(findings: list[str]) -> str:
 
 def _reserve_words(minutes: float | None) -> str:
     """The reserve as the planner set it: 30 minutes by day, 45 at night
-    (14 CFR 91.151) or under IFR (91.167). Unsaid where it did not send
+    (14 CFR 91.151(a)(1), (a)(2)) or under IFR (91.167(a)(3)). Unsaid where it did not send
     one, rather than a guess at 30, which is short at night."""
     return "reserve" if minutes is None else f"{num(minutes)} min reserve"
 

@@ -23,6 +23,8 @@ from pygeomag import GeoMag
 
 # One instance for the process: constructing it reads the model's
 # coefficients, and every leg of every route asks for a declination.
+# pygeomag's bundled World Magnetic Model (WMM-2025, NOAA NCEI and BGS,
+# valid 2025.0 to 2030.0).
 _MODEL = GeoMag()
 
 

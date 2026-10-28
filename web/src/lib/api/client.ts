@@ -247,7 +247,7 @@ export const api = {
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
     checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "", procedures = "", crossings = "", ground = "", holds = "",
-    altitudeNearest = false, runways = "",
+    altitudeNearest = false, runways = "", patterns = "",
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -278,6 +278,8 @@ export const api = {
           procedures: procedures || undefined,
           // The runway each departure picked is left from.
           runways: runways || undefined,
+          // The runway each field is landed on, its pattern flown in.
+          patterns: patterns || undefined,
           // The altitudes given to cross their fixes at.
           crossings: crossings || undefined,
           ground: ground || undefined,

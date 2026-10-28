@@ -220,21 +220,6 @@ export const GLASS_BUTTON =
 export const GLASS_PICKED =
   "data-[state=on]:bg-primary data-[state=on]:font-semibold data-[state=on]:text-primary-foreground hover:data-[state=on]:bg-primary hover:data-[state=on]:text-primary-foreground";
 
-/** A button inside a capsule of the glass (CAPSULE): no glass of its own,
- *  the capsule's round it, a tint of the text's colour when pressed. */
-export const IN_CAPSULE = "bg-transparent bg-none shadow-none hover:bg-[var(--glass-pressed)]";
-
-/** A row of buttons in one capsule of the glass, as iOS 26 groups a
- *  toolbar's, at the owner's ask ("Let's try it and if not then go back
- *  to round"): the buttons inside it IN_CAPSULE, their centres 44 apart
- *  as the round ones' were, so each keeps its 44-point tap area. */
-export const CAPSULE = `rounded-full ${GLASS_BUTTON}`;
-
-/** A hairline before a button in a capsule but the first, at the owner's
- *  ask ("No separater in the capsule?"): in the middle of the 12 between
- *  the two, so their centres stay 44 apart. */
-export const CAPSULE_SEPARATOR = "before:pointer-events-none before:absolute before:top-1/2 before:-left-[6.5px] before:h-4 before:w-px before:-translate-y-1/2 before:bg-foreground/15 before:content-['']";
-
 /** A chip's words on the panel's row (the airplane, the cruising altitude,
  *  the time): a note's 13 to a finger, as Maps' route options are, growing
  *  with the reader's text size only to 14, so the row stays one line at

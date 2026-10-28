@@ -109,8 +109,8 @@ def test_each_g_airmet_is_the_snapshot_nearest_when_the_airplane_is_in_it():
     told = exposure.gairmets(legs(), snaps, ["Icing"])
     assert [g["valid_at"] for g in told] == ["2026-10-04T15:00:00Z"]
     on = told[0]["on_route"]
-    # A snapshot stands for the hour and a half either side of it.
-    assert (on["valid_from"], on["valid_to"], on["when"]) == ("2026-10-04T13:30:00Z", "2026-10-04T16:30:00Z", "during")
+    # A snapshot stands for up to three hours either side of it (AIM 7-1-6).
+    assert (on["valid_from"], on["valid_to"], on["when"]) == ("2026-10-04T12:00:00Z", "2026-10-04T18:00:00Z", "during")
     assert on["legs"] == [1] and "coords" not in told[0]
 
 

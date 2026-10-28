@@ -8,7 +8,7 @@ please", 2026-10-23).
 A grid of cells round the route is read once:
 
 - the ground, as vfr.terrain_detour reads it, a cell closed where its
-  highest ground and 14 CFR 91.119's 1,000 ft (with the coarse read's
+  highest ground and the planner's 1,000 ft, at or above 14 CFR 91.119's (with the coarse read's
   margin) is over the highest VFR cruising altitude the airplane reaches;
 - the weather over the flight's time: a TAF's worst in the window, and a
   METAR for a flight leaving soon, under the pilot's minimums -- never
@@ -54,7 +54,7 @@ import logging
 
 import numpy as np
 
-from . import fixes, fuelstops, geo, navlog, sun, terrain_detour, water, weather
+from . import fixes, fuelstops, geo, magnetic, navlog, sun, terrain_detour, water, weather
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,8 @@ MARGINAL_NM = 30.0
 #: minimums here come to, whatever the pilot's own.
 LEGAL_CEILING_FT = 1000.0
 LEGAL_VISIBILITY_SM = 3.0
-#: AC 00-45H's flight categories: under these, MVFR.
+#: AIM 7-1-7's flight categories: at or under these, MVFR (VFR is above
+#: 3,000 ft and 5 sm).
 MVFR_CEILING_FT = 3000.0
 MVFR_VISIBILITY_SM = 5.0
 #: A METAR is read for a flight leaving within this long, s; later, the
@@ -316,6 +317,7 @@ def _sigmets(grid: _Grid, window: tuple) -> None:
     STORM_NM round it closed, any other reaching under SIGMET_BELOW_FT its
     own area."""
     import shapely
+    import shapely.affinity
     from shapely.geometry import Polygon
 
     start, end = window
@@ -336,8 +338,13 @@ def _sigmets(grid: _Grid, window: tuple) -> None:
             area = area.buffer(0)
         convective = hazard.startswith("CONVECTIVE")
         if convective:
-            # Degrees of latitude: a cell's own size is the read's limit.
-            area = area.buffer(STORM_NM / 60.0)
+            # AIM 7-1-27's 20 nm every way: buffered with longitude scaled
+            # to miles, where degrees alone gave 15 nm east and west at 40 N
+            # (the aviation check, 2026-10-27).
+            k = max(0.05, math.cos(math.radians(area.centroid.y)))
+            at = area.centroid
+            area = shapely.affinity.scale(
+                shapely.affinity.scale(area, xfact=k, yfact=1.0, origin=at).buffer(STORM_NM / 60.0), xfact=1 / k, yfact=1.0, origin=at)
         mask = shapely.contains_xy(area, grid.lon_grid, grid.lat_grid)
         raw = (advisory.get("raw") or "").split("\n")[0][:60].strip()
         if convective:
@@ -435,9 +442,11 @@ def _cruising_altitudes(top_ft: float) -> np.ndarray:
 def _groundspeeds(grid: _Grid, floor: np.ndarray, top_ft: float, tas_kt: float, fcst_hr: str) -> np.ndarray:
     """Each cell's best groundspeed, kt, out each of the eight ways
     (_STEPS), at the legal cruising altitudes over its floor -- the
-    direction's own thousands (91.159, by the true course here: the plan
-    picks the altitudes by the magnetic one) -- in the nearest FD station's
-    winds. TAS where there are no winds."""
+    direction's own thousands (91.159, by the magnetic course, the grid's
+    middle's variation taken off the true; it was the true course, a
+    westbound altitude on a magnetic 175 with 10 east, the aviation check,
+    2026-10-27) -- in the nearest FD station's winds. TAS where there are
+    no winds."""
     altitudes = _cruising_altitudes(top_ft)
     out = np.full((grid.rows, grid.cols, len(_STEPS)), float(tas_kt))
     if len(altitudes) == 0:
@@ -464,9 +473,12 @@ def _groundspeeds(grid: _Grid, floor: np.ndarray, top_ft: float, tas_kt: float, 
     nearest = nearest.reshape(grid.rows, grid.cols)
     cell_wd, cell_ws = wd[nearest], ws[nearest]          # rows x cols x altitudes
     allowed = altitudes[None, None, :] >= np.maximum(floor, LOWEST_CRUISE_FT)[:, :, None]
+    # East is least: magnetic = true - variation east (vfr.magnetic).
+    variation = magnetic.magnetic_variation_deg(float(grid.lat_grid.mean()), float(grid.lon_grid.mean()))
     for k, (dr, dc) in enumerate(_STEPS):
         course = np.degrees(np.arctan2(dc * np.cos(np.radians(grid.lat_grid)), dr)) % 360.0
-        east = (course < 180.0)[:, :, None]
+        # 91.159's halves, as vfr.altitude.is_eastbound draws them.
+        east = ((course - variation) % 360.0 < 180.0)[:, :, None]
         odd = ((altitudes // 1000) % 2 == 1)[None, None, :]
         legal = allowed & (east == odd)
         angle = np.radians(cell_wd - course[:, :, None])

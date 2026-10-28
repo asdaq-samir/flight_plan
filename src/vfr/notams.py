@@ -44,8 +44,9 @@ NS = {
 }
 #: The ICAO location prefixes of the United States and its territories
 #: (ICAO Doc 7910): the contiguous states K, Alaska PA-PP, Hawaii PH,
-#: the Pacific islands PG/PK/PW..., Puerto Rico TJ and the Virgin Islands TI.
-US_PREFIXES = ("K", "P", "TJ", "TI")
+#: the Pacific islands PG/PK/PW..., Puerto Rico TJ, the Virgin Islands TI
+#: and American Samoa NS (NSTU).
+US_PREFIXES = ("K", "P", "TJ", "TI", "NS")
 #: The ICAO form's number ("A1643/26"), and the one a NOTAMR or NOTAMC names.
 _ICAO_ID = re.compile(r"\b([A-Z]\d{4}/\d{2})\s+NOTAM[NRC]\b(?:\s+([A-Z]\d{4}/\d{2}))?")
 #: The domestic form's location and number ("!BJC 10/060").

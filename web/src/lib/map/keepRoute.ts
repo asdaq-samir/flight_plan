@@ -131,7 +131,9 @@ async function routeDiagrams(course: Course): Promise<string[]> {
        diagramRunwaysPicture(card.value.ident, card.value.airport_diagram_cycle)] : []));
 }
 
-/** The route's Stops (api.routeStops) and, for each of its fields and the
+/** The route's Stops (api.stopsAlong, the same address the Stops card
+ *  asks, so the worker has the one it reads offline; it kept
+ *  /api/route-stops, which nothing on the page reads) and, for each of its fields and the
  *  route's own airports, the field's services, its pictures' list and the
  *  pictures themselves: what the Stops card and a field's Info and
  *  pictures ask for, so the worker has them (airport-extras,
@@ -139,7 +141,7 @@ async function routeDiagrams(course: Course): Promise<string[]> {
  *  fetch with the tiles. None where the planner cannot be asked. */
 export async function routeStopsKept(course: Course): Promise<string[]> {
   const own = [course.departure, ...(course.stops ?? []), course.destination].filter(a => a.kind !== "fix").map(a => a.ident);
-  const stops = await api.routeStops(course.departure.ident, course.destination.ident, (course.stops ?? []).map(s => s.ident).join(","))
+  const stops = await api.stopsAlong(course.departure.ident, course.destination.ident, (course.stops ?? []).map(s => s.ident).join(","))
     .catch(() => null);
   const idents = [...new Set([...own, ...(stops?.fields ?? []).map(f => f.ident)])];
   const pictures = await Promise.allSettled(idents.map(ident => api.airportPhotos(ident)));

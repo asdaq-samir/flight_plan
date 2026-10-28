@@ -293,8 +293,13 @@ export default function ProceduresRoute({
   // Each stop's minutes flown to it, kept while the plan is made again:
   // its time to leave picked (DepartPicker), the stop's time on the ground
   // changes, the nav log is asked for again and its legs stream back in --
-  // the picker taken out meanwhile closed under the pilot's finger.
-  const landsFresh = rows.flatMap(r => (r.kind === "stop" && r.minutesFlown != null ? [`${r.airport.ident}:${r.minutesFlown}`] : [])).join(",");
+  // the picker taken out meanwhile closed under the pilot's finger. The
+  // destination's too, for its forecast wind: a runway picked into the
+  // wind plans the route again with its pattern flown, and while the legs
+  // came back the field's time was gone, its wind the one reported now,
+  // and the runway into the forecast was turned to the one into that, and
+  // stayed (forecast-wind.spec, KDLH's 9 to 21, 2026-10-28).
+  const landsFresh = rows.flatMap(r => ((r.kind === "stop" || r.kind === "destination") && r.minutesFlown != null ? [`${r.airport.ident}:${r.minutesFlown}`] : [])).join(",");
   const [landed, setLanded] = useState<{ fresh: string; at: Record<string, number> }>({ fresh: "", at: {} });
   if (landsFresh && landsFresh !== landed.fresh) {
     setLanded({
@@ -309,7 +314,8 @@ export default function ProceduresRoute({
   const forecastFor = airports.map(a => {
     const row = a.role === "Departure" ? null
       : rows.find(r => (r.kind === "stop" || r.kind === "destination") && sameField(r.airport.ident, a.ident));
-    const ms = a.role === "Departure" ? startMs : row?.minutesFlown == null ? null : startMs + row.minutesFlown * 60_000;
+    const flownTo = a.role === "Departure" ? null : row?.minutesFlown ?? landedAt(a.ident);
+    const ms = a.role === "Departure" ? startMs : flownTo == null ? null : startMs + flownTo * 60_000;
     return ms !== null && ms - now > FORECAST_AFTER_MS ? Math.round(ms / TEN_MIN_MS) * TEN_MIN_MS : null;
   });
   const forecasts = useQueries({

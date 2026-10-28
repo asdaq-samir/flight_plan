@@ -29,7 +29,10 @@ def segment_altitudes(segments: list[dict], assigned_ft: float | None, expected_
     """91.185(c)(2): on each segment, the highest of the altitude assigned,
     the minimum for IFR operations, and the altitude ATC said to expect --
     and which it was. None where none is known. Each segment is a `name`
-    and its `minimum_ft` (the MEA, or an OROCA or MOCA off airways); the
+    and its `minimum_ft`, the minimum altitude for IFR operations (14 CFR
+    91.177: the MEA, or the MOCA within 22 nm of the VOR, 91.177(a)(1); off
+    airways 1,000 ft, 2,000 ft over designated mountainous terrain, above
+    the highest obstacle within 4 nm of the course, 91.177(a)(2)); the
     expected altitude applies from segment `expected_from` on ("expect
     6,000 ten minutes after departure" is from where the airplane is
     then), before it only the assigned and the minimum count. A tie goes

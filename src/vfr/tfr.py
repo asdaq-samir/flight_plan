@@ -48,7 +48,7 @@ _NM_PER_DEG = 60.0
 RULES = {
     "91.137(a)(1)": "disaster or hazard (91.137(a)(1))",
     "91.137(a)(2)": "relief aircraft operations (91.137(a)(2))",
-    "91.137(a)(3)": "disaster or hazard (91.137(a)(3))",
+    "91.137(a)(3)": "sightseeing congestion over an incident or event (91.137(a)(3))",
     "91.138": "national disaster in Hawaii (91.138)",
     "91.139": "emergency air traffic rules (91.139)",
     "91.141": "VIP movement (91.141)",

@@ -253,7 +253,7 @@ function arrival(input: RadioInput, i: number): RadioPhase {
         : `${facilityName(tower, field)} Tower, ${cs}, ten miles ${from}, ${altitude}${atis}, landing.`,
       note: busy && radar
         ? "When approach hands you over."
-        : `Well before the Class D, about 4 miles round the field: the tower answering with your call sign is two-way communication (91.129). Fly the entry it gives.${whenClosed(f)}`,
+        : `Well before the Class D's boundary on the chart, each drawn to its field (AIM 3-2-5): the tower answering with your call sign is two-way communication (91.129(c)). Fly the entry it gives.${whenClosed(f)}`,
     });
     const ground = frequencyOf(f, "GND");
     if (ground) {

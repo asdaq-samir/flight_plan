@@ -55,10 +55,14 @@ export function endFit({ aircraft, runway, end, wind, elevationFt, altimeterInHg
   kind: "takeoff" | "landing";
 }): EndFit {
   // Along and across the end (vfr.runway_wind.components_kt): none with no
-  // wind, or a variable one, to go by.
+  // wind. A variable one (VRB, reported with no direction, AIM 7-1-28) may
+  // blow straight across, so all of it, gusts included, is crosswind, as
+  // lib/minimums' bestCrosswind takes it: a VRB15G25 showed 0 kt across
+  // and never passed the demonstrated crosswind (the aviation check,
+  // 2026-10-27). It gives no headwind.
   const heading = end.heading_true_deg;
   const dir = heading == null ? null : wind?.dirTrueDeg ?? null;
-  const across = (kt: number | null | undefined) => (dir == null || !kt ? 0 : crosswindOf(dir, kt, heading!));
+  const across = (kt: number | null | undefined) => (!kt || heading == null ? 0 : dir == null ? Math.abs(kt) : crosswindOf(dir, kt, heading));
   const headwind = dir == null || !wind?.speedKt ? 0 : headwindOf(dir, wind.speedKt, heading!);
   const crosswindKt = Math.round(steadyOrGustKt(across(wind?.speedKt), across(wind?.gustKt)));
   const demonstrated = aircraft?.crosswind?.demonstrated_kt ?? null;

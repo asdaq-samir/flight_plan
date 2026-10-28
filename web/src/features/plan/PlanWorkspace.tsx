@@ -46,7 +46,7 @@ import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import type { FitInputs, ProcedureAirport, ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
-import { patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
+import { departurePattern, patternsOf, patternsParam, trafficPattern, type TrafficPattern } from "../../lib/trafficPattern";
 import { approachRunway, proceduresOf, proceduresParam, sameField, transitionWords, typedProcedure, type PickedProcedure, type TypedProcedure } from "../../lib/procedures";
 import { holdsOf, holdsParam, type Hold } from "../../lib/holds";
 import { FIELD_LIST_KEYS, fieldListParams, fieldListsOf, prunedFieldLists, renamedFieldLists } from "../../lib/fieldLists";
@@ -457,17 +457,36 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // departure field's runway picked, a stop's to leave from -- flown by its
   // runway transition for it (vfr.procedure_paths), where St. Louis's
   // BERYY6 went out by its first, runway 11's, off 30R (the audit of
-  // 2026-10-21). Only where a departure is picked, so a runway picked into
-  // the wind as the route comes in plans nothing again.
+  // 2026-10-21). A runway picked into the wind as the route comes in asks
+  // for the log again, which the planner answers from its cache: the legs
+  // are planned without the runways, their paths laid on after
+  // (with_procedures).
   const patternText = searchParams.get("pattern"), takeoffText = searchParams.get("takeoff");
+  // Every field the airplane leaves is left by its runway (a departure
+  // picked there by its transition for it, else along it and out of its
+  // pattern), and every one it lands at is landed on its runway by its
+  // pattern where no approach is picked (`patterns`): the pattern was drawn
+  // round the field and flown straight through its middle (the owner,
+  // 2026-10-27: "is it not flying that and landing?"). The departure's own
+  // runway is the one in `pattern` (ProceduresRoute's departChips), a
+  // round trip's in `takeoff`.
   const runwaysText = useMemo(() => {
     const landing = patternsOf(patternText), takeoff = patternsOf(takeoffText);
-    return drawnPickList.filter(d => d.kind === "departure").flatMap(d => {
-      const ident = routeFields.split(",").find(f => f && sameField(f, d.airport));
-      const end = ident ? takeoff.get(ident) ?? landing.get(ident) : undefined;
-      return ident && end && /^\d/.test(end) ? [`${ident}:${end}`] : [];
+    const fields = routeFields.split(",").filter(Boolean);
+    return [...new Set(fields.slice(0, -1))].flatMap(ident => {
+      const end = takeoff.get(ident) ?? landing.get(ident);
+      return end && /^\d/.test(end) ? [`${ident}:${end}`] : [];
     }).join(",");
-  }, [drawnPickList, patternText, takeoffText, routeFields]);
+  }, [patternText, takeoffText, routeFields]);
+  const landingsText = useMemo(() => {
+    const landing = patternsOf(patternText);
+    const fields = routeFields.split(",").filter(Boolean);
+    const roundTrip = fields.length > 1 && fields[0] === fields.at(-1);
+    return [...new Set(fields.slice(1))].flatMap(ident => {
+      const end = ident !== fields[0] || roundTrip ? landing.get(ident) : undefined;
+      return end && /^\d/.test(end) ? [`${ident}:${end}`] : [];
+    }).join(",");
+  }, [patternText, routeFields]);
   // FPL's Routes: the ways round storms, weather under the minimums the
   // settings name, prohibited areas, TFRs and high ground (lib/routeOptions
   // in the planner), for a VFR route with both ends; one picked is the
@@ -529,7 +548,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     : null), [own]);
   const planParams = {
     dep: planned.dep, dest: planned.dest, stops: planned.stops, altitudeFt, altitudeNearest, altitudeChoice, depart, aircraft, load, classBClearance,
-    altitudes, procedures, runways: runwaysText, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
+    altitudes, procedures, runways: runwaysText, patterns: landingsText, crossings: crossingsText, ground: groundText, holds: holdsText, localMin, rules: flightRules,
     // Under IFR, the alternate filed in the Weather tab (AlternateSection).
     alternate: searchParams.get("alternate") ?? "",
     // Checkpoints as the map shows them: the settings' Waypoints off, the
@@ -828,15 +847,29 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const takeoffLb = fitLoad?.takeoff.weightLb ?? null, landingLb = fitLoad?.landing.weightLb ?? null;
   const runwayFitInputs = useMemo<FitInputs | null>(() => (fitAircraft ? { aircraft: fitAircraft, takeoffLb, landingLb } : null),
     [fitAircraft, takeoffLb, landingLb]);
-  // Their patterns as the map draws them.
-  const patterns = useMemo<TrafficPattern[]>(() => procedureAirports.filter((a, i, all) => all.findIndex(b => b.ident === a.ident) === i).flatMap(a => {
-    const end = pickedPatterns.get(a.ident);
-    if (!end) return [];
-    const runway = a.runways?.find(r => (r.runway_ends ?? []).some(e => runwayNumber(e.ident) === end));
-    const ident = runway?.runway_ends?.find(e => runwayNumber(e.ident) === end)?.ident;
-    const drawn = runway && ident ? trafficPattern(a.ident, runway, ident, a.patternAltitudeFt) : null;
-    return drawn ? [drawn] : [];
-  }), [procedureAirports, pickedPatterns]);
+  // Their patterns as the map draws them: round the runway landed on, and
+  // at the field left from, off its runway and out of the pattern toward
+  // the next field (departurePattern) -- a round trip's both.
+  const nextField = course ? course.stops?.find(f => f.kind !== "fix") ?? course.destination : null;
+  const towardLat = nextField?.lat ?? null, towardLon = nextField?.lon ?? null;
+  const patterns = useMemo<TrafficPattern[]>(() => {
+    const toward = towardLat != null && towardLon != null ? { lat: towardLat, lon: towardLon } : null;
+    const draw = (a: ProcedureAirport, end: string | undefined, leaving: boolean) => {
+      const runway = end ? a.runways?.find(r => (r.runway_ends ?? []).some(e => runwayNumber(e.ident) === end)) : undefined;
+      const ident = runway?.runway_ends?.find(e => runwayNumber(e.ident) === end)?.ident;
+      const drawn = runway && ident
+        ? leaving ? departurePattern(a.ident, runway, ident, a.patternAltitudeFt, toward) : trafficPattern(a.ident, runway, ident, a.patternAltitudeFt)
+        : null;
+      return drawn ? [drawn] : [];
+    };
+    return procedureAirports.filter((a, i, all) => all.findIndex(b => b.ident === a.ident) === i).flatMap(a => {
+      if (a.role !== "Departure") return draw(a, pickedPatterns.get(a.ident), false);
+      const roundTrip = procedureAirports.some(b => b !== a && b.role === "Destination" && b.ident === a.ident);
+      return roundTrip
+        ? [...draw(a, pickedTakeoffs.get(a.ident), true), ...draw(a, pickedPatterns.get(a.ident), false)]
+        : draw(a, pickedPatterns.get(a.ident), true);
+    });
+  }, [procedureAirports, pickedPatterns, pickedTakeoffs, towardLat, towardLon]);
   // Theirs as the planner draws them (vfr.procedures), for the route's
   // fields alone: a pick kept from a route since changed is not drawn.
   const procedureDrawings = useQueries({

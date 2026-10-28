@@ -88,7 +88,7 @@ def inspection_factors(i: dict, day: str, ifr: bool) -> list[dict]:
     due, now = i.get("hundred_hour_due_at_hours"), i.get("hours_now")
     if due is not None and now is not None and now >= due:
         factors.append(_factor("hundredHour", "The 100-hour inspection is due",
-                               "91.409(b): for hire, or instruction in an airplane you provide", 2))
+                               "91.409(b): carrying anyone for hire, or flight instruction for hire in an airplane you provide", 2))
     return factors
 
 
@@ -165,12 +165,13 @@ def _found(f: dict) -> list[dict]:
                 "Instrument currency lapsed: a proficiency check is needed" if ipc else "Not instrument current",
                 "61.57(d)" if ipc else "61.57(c): 6 approaches, holding, tracking", 0, True))
         if not c.get("day_passengers_until") or c["day_passengers_until"] < day:
-            factors.append(_factor("recent", "Not three landings in the last 90 days", "61.57(a): no passengers, and rusty", 3))
+            factors.append(_factor("recent", "Not three takeoffs and landings in the last 90 days",
+                                   "61.57(a)(1): same category and class; no passengers, and rusty", 3))
         if f.get("night") and (not c.get("night_passengers_until") or c["night_passengers_until"] < day):
             # `night` is 14 CFR 1.1's, from the end of civil twilight; 61.57(b)
             # binds from an hour after sunset to an hour before sunrise, a
             # little later, so this errs toward the caution and says the window.
-            factors.append(_factor("recent-night", "Not three night landings in the last 90 days",
+            factors.append(_factor("recent-night", "Not three night takeoffs and landings to a full stop in the last 90 days",
                                    "61.57(b): needed from 1 h after sunset to 1 h before sunrise", 3))
         if (c.get("total_hours") or 0) < 100:
             factors.append(_factor("low-time", "Under 100 hours in your logbook", "PAVE: pilot", 2))

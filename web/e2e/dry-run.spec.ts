@@ -128,7 +128,16 @@ test("the dry run keeps the flight's own figures at the foot, counting down from
   const line = sideDrawer(page).getByTestId("flight-line");
   const planned = await line.locator("dt").allTextContents();
   expect(planned).toEqual(["To", "Dist", "ETE", "Fuel"]);
-  const plannedNm = parseFloat(await line.locator("dd").nth(1).innerText());
+  // The figures once the plan has settled: the runways picked into the
+  // wind as the route comes in plan it again with their patterns flown
+  // (with_procedures), a few miles more.
+  const distNow = async () => line.locator("dd").nth(1).innerText();
+  await expect.poll(async () => {
+    const was = await distNow();
+    await page.waitForTimeout(1500);
+    return was === await distNow();
+  }, { timeout: slow(30_000) }).toBe(true);
+  const plannedNm = parseFloat(await distNow());
 
   await start.click();
   const figures = sideDrawer(page).getByTestId("dry-run-figures");

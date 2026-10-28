@@ -2,7 +2,7 @@
 shapefile and both feeds stubbed."""
 import requests
 from fastapi.testclient import TestClient
-from vfr import airspace, airspace_at, classb, elevation, fixes, sua, tfr
+from vfr import airspace, airspace_at, elevation, fixes, sua, tfr
 
 from app.main import app
 
@@ -18,7 +18,7 @@ def _point(monkeypatch, sua_at=lambda lat, lon: [], tfr_at=lambda lat, lon: [], 
          "floor_ft": 3600.0, "floor_ref": "MSL", "ceiling_ft": 10000.0},
     ])
     monkeypatch.setattr(elevation, "ground_m", ground)
-    monkeypatch.setattr(classb, "class_b_airports", lambda shp: [{"ident": "KORD", "name": "O'Hare", "lat": 41.9786, "lon": -87.9048}])
+    monkeypatch.setattr(airspace_at, "mode_c_airports", lambda: ({"ident": "KORD", "name": "O'Hare", "lat": 41.9786, "lon": -87.9048},))
     monkeypatch.setattr(sua, "at_point", sua_at)
     monkeypatch.setattr(tfr, "at_point", tfr_at)
     monkeypatch.setattr(fixes, "frd_near", lambda lat, lon: {

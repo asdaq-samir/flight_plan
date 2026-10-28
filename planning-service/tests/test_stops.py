@@ -763,3 +763,37 @@ def test_where_the_ceiling_stops_it_over_high_ground_the_way_round_is_offered(mo
     assert way["added_nm"] > 0
     # Clouds, not the ceiling, stopping it: no way round offered.
     assert terrain_way({"segments": [{"candidates_ft": []}]}, hop) is None
+
+
+def test_the_runways_picked_are_flown_off_the_runway_and_into_the_pattern(monkeypatch):
+    """The owner's "is it not flying that and landing?" (2026-10-27): with a
+    runway picked at each end and no procedure, the first leg leaves along
+    the runway and its upwind, and the last comes in by the traffic pattern
+    to the threshold, its miles in its time and fuel."""
+    from app.routers import plan as plan_router
+
+    def runway(ident, airport_, end):
+        lat, lon = airport_["lat"], airport_["lon"]
+        return {"runway_ends": [
+            {"ident": "09", "heading_true_deg": 90.0, "traffic": "left", "lat": lat, "lon": lon - 0.01},
+            {"ident": "27", "heading_true_deg": 270.0, "traffic": "right", "lat": lat, "lon": lon + 0.01},
+        ]}
+    monkeypatch.setattr(plan_router, "_field_runway", runway)
+    plain = client.get("/api/plan", params=VIA_MADISON).json()
+    flown = client.get("/api/plan", params={**VIA_MADISON, "runways": "C81:9,KMSN:27", "patterns": "KMSN:27,KDLH:9"}).json()
+    first, last = flown["legs"][0], flown["legs"][-1]
+    c81, dlh = airport("C81"), airport("KDLH")
+    assert first["procedure"]["path"][0] == [round(c81["lat"], 6), round(c81["lon"] - 0.01, 6)]
+    assert first["procedure"]["landing"] is False
+    assert last["procedure"]["landing"] is True
+    assert last["procedure"]["path"][-1] == [round(dlh["lat"], 6), round(dlh["lon"] - 0.01, 6)]
+    assert last["ete_min"] == pytest.approx(plain["legs"][-1]["ete_min"] + last["procedure"]["more_min"], abs=0.2)
+    # Into Madison by its pattern, out of it by its runway: each its own leg.
+    into_madison = [leg for leg in flown["legs"] if leg["to"] == "KMSN"][-1]
+    assert into_madison["procedure"]["landing"] is True
+
+
+def test_a_runway_landed_on_is_read_from_the_address():
+    from app.routers import plan as plan_router
+
+    assert plan_router.PlanQuery(dep="C81", dest="KDLH", patterns="KDLH:9,UGN:23R").landing_runways() == {"DLH": "9", "UGN": "23R"}

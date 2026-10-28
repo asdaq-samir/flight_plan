@@ -44,8 +44,9 @@ ALTITUDE_BUFFER_FT = 200.0
 TERRAIN_LOOK_AHEAD_S = 60
 TERRAIN_WARNING_S = 30
 TERRAIN_STEP_S = 2
-#: 14 CFR 91.119(c): 500 ft above the surface away from congested areas,
-#: and no closer than 500 ft to any structure. That is a rule about how
+#: 14 CFR 91.119(c): 500 ft above the surface away from congested areas;
+#: over open water or sparsely populated areas instead, no closer than 500
+#: ft to any person, vessel, vehicle or structure. That is a rule about how
 #: close one may operate, not a TAWS alert threshold (TSO-C151's required
 #: terrain clearance differs, and is not read here); 500 ft is a design
 #: choice borrowed from it, so that the alert comes before the rule is

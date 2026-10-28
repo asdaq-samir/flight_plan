@@ -25,11 +25,15 @@ from vfr import geo
 
 from .gonogo.pass_times import PASS_MARGIN_MIN, instant
 
-#: A G-AIRMET is "issued at discrete times 3 hours apart" and is "only
-#: valid at specific time snapshots", the nearest of which a user is
-#: shown (aviationweather.gov, Graphical Forecasts for Aviation help):
-#: so a snapshot stands for the hour and a half either side of it.
-GAIRMET_HALF_INTERVAL = timedelta(minutes=90)
+#: G-AIRMETs are valid "at discrete times no more than 3 hours apart"
+#: (AIM 7-1-6), and between two of them "the user should assume the
+#: hazardous weather condition is occurring between the snap shots unless
+#: informed otherwise" -- a hazard at 03 and none at 00 or 06 is taken to
+#: exist from 0001 to 0559 (AIM 7-1-6, interpolation of time periods): so a
+#: snapshot stands for up to 3 hours either side of it. It stood for an
+#: hour and a half, and an airplane there at 0020Z or 0540Z was told the
+#: hazard was before or after it (the aviation check, 2026-10-27).
+GAIRMET_HALF_INTERVAL = timedelta(hours=3)
 
 
 def iso(t: float | None) -> str | None:
@@ -235,7 +239,7 @@ def sigmets(legs: Legs, hazards: list[dict]) -> list[dict]:
 
 def gairmets(legs: Legs, snapshots: list[dict], order: list[str]) -> list[dict]:
     """One G-AIRMET per hazard -- the snapshot valid nearest the time the
-    airplane is in its area, since each stands for the hour and a half
+    airplane is in its area, since each stands for up to three hours
     either side of it (GAIRMET_HALF_INTERVAL) -- with its `on_route`."""
     best: dict = {}
     for snap in snapshots:

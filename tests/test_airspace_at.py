@@ -121,3 +121,24 @@ def test_the_volumes_over_a_point_are_read_from_the_shapefile(tmp_path):
     assert sorted((v["class"], v["floor_ft"], v["floor_ref"], v["ceiling_ft"]) for v in found) == [
         ("B", 3600.0, "MSL", 10000.0), ("E", 700.0, "AGL", 18000.0),
     ]
+
+
+def test_the_mode_c_veils_are_appendix_ds_airports_dulles_and_newark_among_them():
+    """14 CFR part 91 appendix D section 1: 37 airports, Dulles, BWI,
+    Andrews, Hobby, LaGuardia, Newark and Miramar with veils of their own."""
+    assert len(airspace_at.MODE_C_VEIL_AIRPORTS) == 37
+    for ident in ("KIAD", "KBWI", "KADW", "KHOU", "KLGA", "KEWR", "KNKX"):
+        assert ident in airspace_at.MODE_C_VEIL_AIRPORTS
+    # Leesburg, 10 nm from Dulles and 30 from Reagan's centre.
+    dulles = [{"ident": "KIAD", "name": "Dulles", "lat": 38.9445, "lon": -77.4558}]
+    assert airspace_at.mode_c_veil(39.0778, -77.5575, dulles)["ident"] == "KIAD"
+
+
+def test_over_a_class_c_up_to_10000_ft_a_transponder_and_ads_b_are_needed():
+    """91.215(b)(4), 91.225(d)(3): above its ceiling, within its lateral limits."""
+    c = _volume("C", 0, "SFC", 4900.0, "Madison")
+    bands = airspace_at.column(43.14, -89.34, 887.0, [c])
+    over = next(b for b in bands if b["floor_ft"] >= 4900 and b["ceiling_ft"] <= 10000)
+    assert "91.215(b)(4)" in over["equipment"]
+    high = next(b for b in bands if b["floor_ft"] >= 10000 and b["class"] != "A")
+    assert "91.215(b)(4)" not in (high["equipment"] or "")

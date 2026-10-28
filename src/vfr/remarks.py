@@ -101,7 +101,7 @@ def airport_notes(faa_id: str, cache_dir=FAA_CACHE_DIR) -> dict:
     the CTAF, a radio check); `pilot_controlled`, whether a light is
     turned on from the cockpit; and `explicit_clicks`, whether the
     remarks say how many clicks -- where they do not, the standard
-    keying (AIM 4-1-9) is what applies."""
+    keying (AIM 2-1-9, Pilot Control of Airport Lighting) is what applies."""
     remarks = _all_remarks(cache_dir).get(faa_id.strip().upper(), [])
     lighting = [text for column, text, _ in remarks if column in LIGHTING]
     radio = [text for column, text, _ in remarks if column not in LIGHTING and _CLICKS.search(text.upper())]

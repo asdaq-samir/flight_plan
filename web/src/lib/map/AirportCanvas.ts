@@ -65,6 +65,8 @@ export class AirportMarksLayer extends L.Layer {
   private marks: CanvasMark[] = [];
   private frame = 0;
   private topLeft: L.LatLng | null = null;
+  /** The zoom the drawing is for. */
+  private drawnZoom = 0;
   /** What the last drawing covers, in the map's layer points. */
   private drawn: L.Bounds | null = null;
   private font = "";
@@ -85,7 +87,8 @@ export class AirportMarksLayer extends L.Layer {
     this.font = `700 ${LABEL_PX}px ${getComputedStyle(map.getContainer()).fontFamily || "system-ui, sans-serif"}`;
     // Drawn again through a pan too, a frame at a time: past the canvas's
     // edge a long pan's fields came in only as it ended.
-    map.on("moveend zoom resize viewreset", this.schedule, this);
+    map.on("moveend resize viewreset", this.schedule, this);
+    map.on("zoom", this.zoomed, this);
     map.on("move", this.moved, this);
     map.on("zoomanim", this.animate, this);
     this.draw();
@@ -93,7 +96,8 @@ export class AirportMarksLayer extends L.Layer {
   }
 
   onRemove(map: L.Map): this {
-    map.off("moveend zoom resize viewreset", this.schedule, this);
+    map.off("moveend resize viewreset", this.schedule, this);
+    map.off("zoom", this.zoomed, this);
     map.off("move", this.moved, this);
     map.off("zoomanim", this.animate, this);
     cancelAnimationFrame(this.frame);
@@ -132,6 +136,24 @@ export class AirportMarksLayer extends L.Layer {
     });
   }
 
+  /** At each step of a pinch (or a flight's zoom), the drawing kept on
+   *  the chart at once -- moved and scaled to where the map now puts it,
+   *  as Leaflet keeps its own canvas -- and drawn again at the next frame.
+   *  Drawn again only, the marks were a step behind the chart in every
+   *  other frame and back with it in the next, and shook through a pinch:
+   *  the owner, 2026-10-27, "When I zoom in they seem to be vibrating"
+   *  (phone project, a pinch in over KATW: the mark 3-4 chart pixels off
+   *  and back, frame after frame; the route's own markers 0.3). */
+  private zoomed(): void {
+    const map = this._map;
+    if (map && this.canvas && this.topLeft) {
+      const zoom = map.getZoom();
+      const at = map.project(this.topLeft, zoom).subtract(map.getPixelOrigin());
+      L.DomUtil.setTransform(this.canvas, at, map.getZoomScale(zoom, this.drawnZoom));
+    }
+    this.schedule();
+  }
+
   /** Through a zoom's animation the canvas scaled and moved where the map
    *  will be, as Leaflet's own layers are; drawn again as it ends. */
   private animate(e: L.ZoomAnimEvent): void {
@@ -150,6 +172,7 @@ export class AirportMarksLayer extends L.Layer {
     const from = L.point(-pad.x, -pad.y);
     const width = size.x + 2 * pad.x, height = size.y + 2 * pad.y;
     this.topLeft = map.containerPointToLatLng(from);
+    this.drawnZoom = map.getZoom();
     const origin = map.containerPointToLayerPoint(from);
     L.DomUtil.setPosition(canvas, origin);
     this.drawn = L.bounds(origin, origin.add(L.point(width, height)));
