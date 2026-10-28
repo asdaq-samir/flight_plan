@@ -4,7 +4,7 @@ import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Check, Info, Plus, Route } from "lucide-react";
+import { Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import FieldHit from "../../components/FieldHit";
 import IconButton from "../../components/IconButton";
@@ -16,7 +16,7 @@ import { Input } from "../../components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "../../components/ui/input-group";
 import { Spinner } from "../../components/ui/spinner";
 import PullDown from "../../components/PullDown";
-import { ListGroup, ListRow } from "../../components/GroupedList";
+import { ListChoices, ListGroup, ListRow } from "../../components/GroupedList";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../components/ResponsivePopover";
 import { useConfirm } from "../../components/useConfirm";
 import { ConsolePages, PageRow } from "../../components/ConsolePages";
@@ -394,6 +394,15 @@ export function AircraftPanel() {
         // to add one; then a row that opened the form, and which one the
         // nav log flew was said only under the route.
         <ResponsivePopover open={formOpen} onOpenChange={open => (open ? setAdding(true) : cancelEdit())}>
+          {/* The one flown a radio group's choice (ListChoices): arrow keys
+              between the airplanes, VoiceOver's "selected", and iOS's tick. */}
+          <ListChoices
+            label="Your airplanes" value={aircraftKey(flying)}
+            onChange={key => {
+              const a = list?.find(x => `mine:${x.id}` === key);
+              if (a) fly(choiceOf(a, profiles ?? []));
+            }}
+          >
           <ListGroup title="Your airplanes">
             {/* Which the nav log flies where it is none of these, said in its
                 place as a row: the one ticked otherwise. */}
@@ -401,19 +410,15 @@ export function AircraftPanel() {
               <ListRow muted title={<>Flying the stock {flying.label}</>} data-testid="aircraft-stock" />
             )}
             {(list ?? []).map(a => {
-              const chosen = aircraftKey(flying) === `mine:${a.id}`;
               return (
                 <div key={a.id} className="flex items-center" data-aircraft-row>
                   {/* The tick before the name, its place kept when it is
                       elsewhere so the names line up, as Wi-Fi's are. */}
                   <ListRow
-                    className="min-w-0 flex-1"
-                    media={<Check className={cn("size-5 text-tint", !chosen && "invisible")} aria-hidden />}
+                    className="min-w-0 flex-1" radio={`mine:${a.id}`}
                     title={<><span className="font-mono font-semibold">{a.tailNumber}</span> <span className="text-muted-foreground">{a.typeDesignator}</span></>}
                     description={`Cruise ${a.cruiseTasKt} kt, ${a.fuelBurnGph} gph${a.cruisePowerPct != null ? ` at ${a.cruisePowerPct}%` : ""}${
                       a.usableFuelGal != null ? ` · ${a.usableFuelGal} gal usable` : ""}`}
-                    aria-pressed={chosen}
-                    onClick={() => { if (!chosen) fly(choiceOf(a, profiles ?? [])); }}
                   />
                   <IconButton
                     label={`Edit ${a.tailNumber}`} onClick={() => edit(a)} className="mr-1.5 shrink-0 text-tint"
@@ -433,6 +438,7 @@ export function AircraftPanel() {
               />
             </ResponsivePopoverTrigger>
           </ListGroup>
+          </ListChoices>
           {/* On a phone a sheet from the navigation bar's edge, over the
               console's own; from md up a popover by the rows. Cancel and
               Add (or Save) in its title row, as an iOS form sheet has

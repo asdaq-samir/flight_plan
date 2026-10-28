@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react";
 import { cn } from "cn";
-import { Loader2, WandSparkles } from "lucide-react";
+import { WandSparkles } from "lucide-react";
 import {
   type CellData, type ColumnDef, type RowData, type TableFeatures,
   flexRender, tableFeatures, useTable,
@@ -33,6 +33,7 @@ import { dryRunRow, type DryRun } from "./dryRun";
 import { DRY_RUN, usePastFlight } from "../../../../lib/map/pastFlight";
 import { PointMark } from "./PointMark";
 import { NavLogList } from "./NavLogList";
+import { Spinner } from "../../../../components/ui/spinner";
 
 
 // TanStack Table's own extension point for arbitrary per-column data --
@@ -424,7 +425,7 @@ export default function NavLogView({
     >
       {/* The icon buttons' one size, 20 in 36 (it was 20 in 24, crowded). */}
       {descriptionsLoading
-        ? <Loader2 className="size-5 animate-spin" />
+        ? <Spinner className="size-5" aria-hidden />
         : <WandSparkles className="size-5" />}
     </IconButton>
   );
