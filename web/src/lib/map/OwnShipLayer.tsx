@@ -10,7 +10,7 @@ import { centreClear, hideLinesWhileZooming, panClear } from "./clear";
 import { glideLabelIcon, ownShipIcon } from "./icons";
 import { COUNTRY_ZOOM, DRY_RUN_ZOOM, OPEN_ZOOM, SIMULATED_FIX_MS, useOwnShip } from "./ownShip";
 import { usePreferences } from "../preferences";
-import { slidingWithSheet } from "./sheetSlide";
+import { followingSheet } from "./sheetSlide";
 
 /**
  * Own ship on the chart, from the position store: the arrow turned to
@@ -134,9 +134,9 @@ export function OwnShipLayer() {
     // of the room the sheet is going to: a pan to the room it was in, from
     // a fix mid-way, cut it short and jumped (the owner's "slide down more
     // smoothly", 2026-10-27), and the slide locked to the sheet
-    // (sheetSlide) likewise. The next fix keeps the map on it.
+    // (sheetSlide) likewise, the map going with the sheet. The next fix keeps the map on it.
     if ((map as unknown as { _panAnim?: { _inProgress?: boolean } })._panAnim?._inProgress) return;
-    if (slidingWithSheet(map)) return;
+    if (followingSheet(map)) return;
     // A dry run's fixes come four a second and own ship glides between
     // them (below): the map goes with it, evenly over the same quarter
     // second, where half a second eased out and cut short by the next fix
