@@ -134,6 +134,7 @@ const BRIEF_SETTLE_MS = 250;
 // list to everything drawn from it, the nav log's rows and its profile
 // chart drawn again at every render of the page.
 const NONE: Candidate[] = [];
+const NO_MESSAGES: NavLogMessage[] = [];
 
 /** Everything the nav log is computed from -- the narratives are keyed
  *  on the same, so a narrative is always about the log on screen. */
@@ -260,7 +261,22 @@ export function usePlan(
     setHeld({ key: holdKey, planKey, messages: streamed });
   }
   const holding = !whole && !navlog.error && navlog.isFetching && held?.key === holdKey;
-  const messages = holding ? held.messages : streamed;
+  // A route opened with its log already in (planned ahead from Recents or
+  // Saved, or opened before) is drawn a frame after the route itself: the
+  // route's figures, worked out in the browser, first, and the log's rows,
+  // profile and figures after -- drawn in the one go, nothing showed for
+  // two seconds at 4x a phone's (the route opened, the log in the cache,
+  // 2026-10-28), where a route still to plan showed its figures in half
+  // of one.
+  const routeOnly = [dep, dest, stops.join(",")].join("|");
+  const [drawnRoute, setDrawnRoute] = useState(routeOnly);
+  useEffect(() => {
+    if (drawnRoute === routeOnly) return;
+    let timer = 0;
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => setDrawnRoute(routeOnly), 0); });
+    return () => { cancelAnimationFrame(frame); window.clearTimeout(timer); };
+  }, [drawnRoute, routeOnly]);
+  const messages = drawnRoute !== routeOnly ? NO_MESSAGES : holding ? held.messages : streamed;
   // Each message narrowed by its own `type`, not cast: the "altitude"
   // line was cast to a hand-written copy of its shape, whose comments had
   // gone stale while the cast kept compiling.
