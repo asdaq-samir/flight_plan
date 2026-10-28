@@ -32,6 +32,10 @@ const LOCAL_ZOOM = 11;
  *  the country, not a place the pilot is looking at. */
 const COUNTRY_VIEW = COUNTRY_ZOOM + 1;
 
+/** How long the map rests before own ship, followed, is checked to be in
+ *  the middle: past the sheet's turn (0.22-0.35 s) and its settling. */
+const SETTLE_MS = 400;
+
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object, and own ship draws at every fix.
 // The glide ring in orange over a white halo, at the owner's ask ("Can
@@ -69,14 +73,34 @@ export function OwnShipLayer() {
   // browser, and a pan at the desk with own ship off would otherwise
   // leave it off in the air, with the checkbox disabled and nothing
   // saying why the map no longer keeps up.
+  // And once the map has come to rest while following, own ship put back
+  // in the middle if it is not: the move to it can be cut short (the
+  // route arriving, the sheet settling) and nothing else brings it back
+  // while the GPS gives the same position -- on the ground, or the
+  // suite's fixed one, where the arrow's tap left own ship 111 points off
+  // the middle (route-fit.spec, CI on b63dcd13). After a quiet moment, so
+  // a turn of the sheet, whose pan goes to the room it is going to, has
+  // landed and its insets with it.
+  const settle = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(settle.current), []);
   useMapEvents(useMemo(
     () => ({
       dragstart: () => {
         const { enabled, follow } = useOwnShip.getState();
         if (enabled && follow) setFollow(false);
       },
+      movestart: () => clearTimeout(settle.current),
+      moveend: () => {
+        clearTimeout(settle.current);
+        settle.current = setTimeout(() => {
+          const { enabled, follow, fix, simulated } = useOwnShip.getState();
+          if (!enabled || !follow || !fix || simulated || followingSheet(map)) return;
+          if ((map as unknown as { _animatingZoom?: boolean })._animatingZoom) return;
+          panClear(map, [fix.lat, fix.lon], { animate: !prefersReducedMotion(), duration: 0.3 });
+        }, SETTLE_MS);
+      },
     }),
-    [setFollow],
+    [map, setFollow],
   ));
   // Kept in the middle of what the panel leaves of the map, not of the
   // whole container under it (centreClear).
