@@ -1,5 +1,5 @@
 {
-  "about": "The logbook as a CSV file, out in ForeFlight's column names and in from ForeFlight's export or this logbook's own (ForeFlight Logbook Guide v14.0; landings as 61.57(a) and (b) count them). Entries with every field given (a null field is written differently: see docs/NATIVE.md). Web: lib/logbookCsv.ts. iOS: LogbookCSV in PilotLogic.swift.",
+  "about": "The logbook as a CSV file, out in ForeFlight's column names and in from ForeFlight's export or this logbook's own (ForeFlight Logbook Guide v14.0; landings as 61.57(a) and (b) count them). A field with no value is written empty, and a field with a space at either end is quoted, on both. Web: lib/logbookCsv.ts. iOS: LogbookCSV in PilotLogic.swift.",
   "export": [
     {
       "entries": [
@@ -71,6 +71,33 @@
         }
       ],
       "csv": "Date,AircraftID,TypeCode,Route,TotalTime,Night,CrossCountry,Solo,DualReceived,Instrument,AllLandings,NightLandingsFullStop,ToweredLandings,Distance,LongestLeg,Approaches,Holds,Tracking,PilotComments\r\n2026-09-12,N12345,C172,KUGN,1.2,1.2,0,0,1.2,0.4,4,3,1,0,0,2,1,x,\"Pattern work, \"\"short field\"\"\"\r\n2026-10-01,N3429J,P28A,KUGN KRFD,1.5,0,1.5,1.5,0,0,2,0,1,48,48,0,0,,\r\n2026-10-20,N3429J,,,1.5,0,1.5,1.5,0,0,2,0,1,48,48,0,0,,\"Line one\nline two\"\r\n"
+    },
+    {
+      "entries": [
+        {
+          "id": 9,
+          "flownOn": "2026-10-25",
+          "aircraft": "N3429J",
+          "aircraftType": "P28A",
+          "route": "C81 KUGN",
+          "remarks": " Gusty crosswind ",
+          "totalHours": 0.8,
+          "nightHours": 0,
+          "crossCountryHours": 0,
+          "instrumentHours": 0,
+          "dayLandings": 1,
+          "nightLandings": 0,
+          "approaches": 0,
+          "distanceNm": 11,
+          "dualHours": null,
+          "soloHours": null,
+          "toweredLandings": null,
+          "longestLegNm": null,
+          "holding": null,
+          "tracking": null
+        }
+      ],
+      "csv": "Date,AircraftID,TypeCode,Route,TotalTime,Night,CrossCountry,Solo,DualReceived,Instrument,AllLandings,NightLandingsFullStop,ToweredLandings,Distance,LongestLeg,Approaches,Holds,Tracking,PilotComments\r\n2026-10-25,N3429J,P28A,C81 KUGN,0.8,0,0,,,0,1,0,,11,,0,0,,\" Gusty crosswind \"\r\n"
     }
   ],
   "import": [

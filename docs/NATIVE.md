@@ -62,10 +62,6 @@ Where the copies still differ, the fixtures leave the case out:
 - Traffic's label with own ship's height unknown, for an airplane under
   50 ft below sea level. (Against own ship both now cut the hundreds
   toward it, the owner's conservative pick, 2026-10-28.)
-- The logbook's CSV writes a solo, dual, towered-landings or longest-leg
-  field the gateway left empty as empty on the web and as 0 on the
-  phone, and quotes a field with a space at either end only on the web
-  (papaparse).
 - `FilingForm.hhmm` takes whole minutes, where the web's `hhmmForm`
   rounds a fraction first -- whole minutes are fine, the owner said
   (2026-10-28); the route item files no departure or arrival
