@@ -92,7 +92,7 @@ test("dev page: the waypoint drawer is a worklist -- every candidate in flight o
   // the route (RatingCard).
   await rows.nth(2).click();
   await expect(rows.nth(2)).toHaveAttribute("data-selected", "true");
-  await expect(drawer.getByTestId("rating-card").getByRole("button", { name: "Rate 5" })).toBeVisible();
+  await expect(drawer.getByTestId("rating-card").getByRole("radio", { name: "Rate 5" })).toBeVisible();
 
   // Down, with focus in the list, walks the list top to bottom.
   await page.keyboard.press("ArrowDown");

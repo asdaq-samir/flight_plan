@@ -87,7 +87,7 @@ test("with a course drawn, the map's Stops button opens the fields along it, eac
 
   // A kind picked: only the fields that have it, and on the map its pin only.
   await card.getByTestId("stops-kind-food").click();
-  await expect(card.getByTestId("stops-kind-food")).toHaveAttribute("aria-pressed", "true");
+  await expect(card.getByTestId("stops-kind-food")).toHaveAttribute("aria-checked", "true");
   await expect(rows).toHaveCount(1);
   await expect(page.getByTitle("KAAA: Food")).toHaveCount(1);
   await card.getByTestId("stops-kind-all").click();
@@ -148,7 +148,7 @@ test("the Airport tab's Find Nearby tiles open the Stops round the pilot with th
   await tile.click();
   const card = sideDrawer(page).getByTestId("stops-card");
   await expect(card).toBeVisible();
-  await expect(card.getByTestId("stops-kind-repair")).toHaveAttribute("aria-pressed", "true");
+  await expect(card.getByTestId("stops-kind-repair")).toHaveAttribute("aria-checked", "true");
   await expect(card.getByTestId("stops-distance")).toHaveText("Within 25 nm");
   await expect(card.getByTestId("stops-field")).toHaveCount(1, { timeout: slow(30_000) });
   await expect(card.getByTestId("stops-field").first().getByTestId("stops-line-repair")).toBeVisible();

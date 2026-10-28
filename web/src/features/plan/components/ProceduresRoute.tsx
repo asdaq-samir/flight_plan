@@ -8,6 +8,7 @@ import CloseButton from "../../../components/CloseButton";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { Skeleton } from "../../../components/ui/skeleton";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
@@ -600,24 +601,34 @@ export default function ProceduresRoute({
                 to go next line just let it slide with runways"). Its head
                 level with the runways' line, not the middle of two where
                 the pull-downs wrap under it (the owner's screenshot,
-                2026-10-27, the head between "12" and "+ Arrival"). */}
-            <div className="flex min-w-0 flex-1 items-start">
-              {foldable ? (
-                <button
-                  type="button" data-testid="runway-line-toggle" data-disclosure="" aria-expanded={lineOpen}
-                  aria-label={lineOpen ? `${a.ident}: fold the runways` : `${a.ident}: all the runways`}
-                  onClick={() => useOpenRunwayLines.setState(st => ({ open: lineOpen ? st.open.filter(k => k !== part.line.key) : [...st.open, part.line.key] }))}
-                  className={cn(TRAY_HEAD, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
-                >
-                  <Glyph className="size-5" aria-hidden />
-                </button>
-              ) : (
-                <span className={TRAY_HEAD}>
-                  <Glyph className="size-5" aria-label={part.role === "Arrive" ? "landing" : "takeoff"} role="img" />
-                </span>
-              )}
-              <div className="min-w-0 flex-1">{part.chips(adds.length > 0 ? adds : null)}</div>
-            </div>
+                2026-10-27, the head between "12" and "+ Arrival"). The tray
+                a stock Collapsible, open while its runways are out: the head
+                its trigger, and the line of runways (PatternChips) its
+                content. Its open state stays the page's (useOpenRunwayLines),
+                as the list is drawn again as the sheet moves. */}
+            <Collapsible
+              asChild open={foldable && lineOpen}
+              onOpenChange={next => useOpenRunwayLines.setState(st => ({ open: next ? [...st.open, part.line.key] : st.open.filter(k => k !== part.line.key) }))}
+            >
+              <div className="flex min-w-0 flex-1 items-start">
+                {foldable ? (
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button" data-testid="runway-line-toggle" data-disclosure=""
+                      aria-label={lineOpen ? `${a.ident}: fold the runways` : `${a.ident}: all the runways`}
+                      className={cn(TRAY_HEAD, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
+                    >
+                      <Glyph className="size-5" aria-hidden />
+                    </button>
+                  </CollapsibleTrigger>
+                ) : (
+                  <span className={TRAY_HEAD}>
+                    <Glyph className="size-5" aria-label={part.role === "Arrive" ? "landing" : "takeoff"} role="img" />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">{part.chips(adds.length > 0 ? adds : null)}</div>
+              </div>
+            </Collapsible>
             {part.leaves && <span className="shrink-0">{part.leaves}</span>}
           </div>
           {picked.map(branch)}
@@ -637,84 +648,93 @@ export default function ProceduresRoute({
       const wind = reported === "calm" ? "Calm" : reported ? `${reported.dir.replace(/T$/, "")} ${reported.speed} kt` : null;
       const tank = row ? tanks.get(row.key) : a.role === "Departure" ? tanks.get("departure") : undefined;
       return (
-        <li key={key} className="relative" data-testid="route-field" data-ident={a.ident}>
-          {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
-          <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && "pb-5")}>
-            {/* The airport's lines: a tap anywhere on them -- its symbol, its
-                ident, its fuel, its wind, its time -- opens it, at the
-                owner's ask ("it should expand when tapped anywhere on the
-                airport information next to the symbol or the symbol
-                itself"): the arrow by the symbol is the button, its area
-                stretched over the lines (before:inset-0); the menu and a
-                time to pick lie over it, their own. */}
-            <div className="relative flex gap-2.5">
-              {/* A fuel stop's pump on top of its symbol, at the owner's ask
-                  ("instead of fuel symbol next to airport id, can we put it
-                  on top of the airport symbol?"). */}
-              {/* The symbol is the field's menu, over the lines' tap that
-                  opens them (z-10), at the owner's ask ("Use the airport
-                  icon as the more button"). */}
-              {/* Centred on the two lines, at the owner's ask ("Center it
-                  on the two lines"): the column as tall as they are. */}
-              <div className="relative z-10 flex w-7 shrink-0 items-center justify-center">
-                {end.menu(
-                  <span className="relative">
-                    {mark}
-                    {a.role === "Stop" && isFuelStop(a.ident) && (
-                      <span className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-caution text-white ring-2 ring-background">
-                        <Fuel className="size-2.5" strokeWidth={2.6} aria-label="fuel stop" role="img" />
-                      </span>
-                    )}
-                  </span>,
-                )}
-              </div>
-              {/* Two lines, as a waypoint's row and the list before had them,
-                  at the owner's ask ("line up the time with airport id and
-                  elevation with wind like before"): the ident and the time,
-                  then the wind and the elevation. */}
-              <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
-                <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
-                  {/* The disclosure, iOS's small chevron by the symbol, not
-                      an icon button (data-disclosure). */}
-                  <button
-                    type="button" onClick={() => toggleField(key)} aria-expanded={opened} data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
-                    aria-label={`${a.ident}: runways and procedures`}
-                    // Its area over the lines a ::before: on a touch screen
-                    // index.css gives every button's ::after its 44 points,
-                    // which overrode an ::after stretched here, and on the
-                    // owner's phone only the arrow opened the field ("make
-                    // the whole line tapable for unfolding"). Static, where
-                    // index.css positions every button on a touch screen:
-                    // its areas reach out to the lines' box, not its own; and
-                    // twelve over it, into the room above the field, where the
-                    // arrow's 44 points, round its line, reach (the iOS
-                    // audit's P1).
-                    className="static -ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none before:absolute before:inset-x-0 before:-top-3 before:bottom-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <ChevronRight className={cn("size-4 transition-transform", opened && "rotate-90")} aria-hidden />
-                  </button>
-                  {/* The size the list's names were ("the font size is bigger
-                      than it used to be for airport id"). */}
-                  <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
-                  {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
-                </div>
-                <div className="relative z-10 col-start-2 row-start-1 justify-self-end">{end.time}</div>
-                <p className={cn("col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold text-tint tabular-nums", TEXT.note)} data-testid="field-wind">
-                  {end.direct ? "Direct to" : wind && (
-                    <>
-                      <Wind className="size-3.5 shrink-0" aria-hidden />
-                      <span aria-hidden="true">{wind}</span>
-                      <span className="sr-only">{`Wind ${reported === "calm" ? "calm" : reported ? reported.spoken : ""}`}</span>
-                    </>
+        // The field a stock Collapsible, its arrow the trigger: aria-expanded
+        // and aria-controls Radix's, and the landing's or the takeoff's body
+        // its content. A stop's second part, in a section of its own, is
+        // shown with it (a Collapsible has one content).
+        <Collapsible key={key} asChild open={opened} onOpenChange={() => toggleField(key)}>
+          <li className="relative" data-testid="route-field" data-ident={a.ident}>
+            {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
+            <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && "pb-5")}>
+              {/* The airport's lines: a tap anywhere on them -- its symbol, its
+                  ident, its fuel, its wind, its time -- opens it, at the
+                  owner's ask ("it should expand when tapped anywhere on the
+                  airport information next to the symbol or the symbol
+                  itself"): the arrow by the symbol is the button, its area
+                  stretched over the lines (before:inset-0); the menu and a
+                  time to pick lie over it, their own. */}
+              <div className="relative flex gap-2.5">
+                {/* A fuel stop's pump on top of its symbol, at the owner's ask
+                    ("instead of fuel symbol next to airport id, can we put it
+                    on top of the airport symbol?"). */}
+                {/* The symbol is the field's menu, over the lines' tap that
+                    opens them (z-10), at the owner's ask ("Use the airport
+                    icon as the more button"). */}
+                {/* Centred on the two lines, at the owner's ask ("Center it
+                    on the two lines"): the column as tall as they are. */}
+                <div className="relative z-10 flex w-7 shrink-0 items-center justify-center">
+                  {end.menu(
+                    <span className="relative">
+                      {mark}
+                      {a.role === "Stop" && isFuelStop(a.ident) && (
+                        <span className="absolute -top-1.5 -right-1.5 grid size-4 place-items-center rounded-full bg-caution text-white ring-2 ring-background">
+                          <Fuel className="size-2.5" strokeWidth={2.6} aria-label="fuel stop" role="img" />
+                        </span>
+                      )}
+                    </span>,
                   )}
-                </p>
-                <div className="col-start-2 row-start-2 justify-self-end">{end.elevation}</div>
+                </div>
+                {/* Two lines, as a waypoint's row and the list before had them,
+                    at the owner's ask ("line up the time with airport id and
+                    elevation with wind like before"): the ident and the time,
+                    then the wind and the elevation. */}
+                <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+                  <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
+                    {/* The disclosure, iOS's small chevron by the symbol, not
+                        an icon button (data-disclosure): the Collapsible's
+                        trigger, the arrow turned by its open state. */}
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button" data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
+                        aria-label={`${a.ident}: runways and procedures`}
+                        // Its area over the lines a ::before: on a touch screen
+                        // index.css gives every button's ::after its 44 points,
+                        // which overrode an ::after stretched here, and on the
+                        // owner's phone only the arrow opened the field ("make
+                        // the whole line tapable for unfolding"). Static, where
+                        // index.css positions every button on a touch screen:
+                        // its areas reach out to the lines' box, not its own; and
+                        // twelve over it, into the room above the field, where the
+                        // arrow's 44 points, round its line, reach (the iOS
+                        // audit's P1).
+                        className="group static -ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none before:absolute before:inset-x-0 before:-top-3 before:bottom-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+                      </button>
+                    </CollapsibleTrigger>
+                    {/* The size the list's names were ("the font size is bigger
+                        than it used to be for airport id"). */}
+                    <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
+                    {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
+                  </div>
+                  <div className="relative z-10 col-start-2 row-start-1 justify-self-end">{end.time}</div>
+                  <p className={cn("col-start-1 row-start-2 flex min-w-0 items-center gap-1 font-semibold text-tint tabular-nums", TEXT.note)} data-testid="field-wind">
+                    {end.direct ? "Direct to" : wind && (
+                      <>
+                        <Wind className="size-3.5 shrink-0" aria-hidden />
+                        <span aria-hidden="true">{wind}</span>
+                        <span className="sr-only">{`Wind ${reported === "calm" ? "calm" : reported ? reported.spoken : ""}`}</span>
+                      </>
+                    )}
+                  </p>
+                  <div className="col-start-2 row-start-2 justify-self-end">{end.elevation}</div>
+                </div>
               </div>
-            </div>
-            {opened && <div className="pl-[2.375rem]">{partBody(first)}</div>}
-          </section>
-          {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className="pb-5 pl-[2.375rem]">{partBody(parts[1])}</section>}
-        </li>
+              <CollapsibleContent className="pl-[2.375rem]">{partBody(first)}</CollapsibleContent>
+            </section>
+            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className="pb-5 pl-[2.375rem]">{partBody(parts[1])}</section>}
+          </li>
+        </Collapsible>
       );
     };
     // Each runway end's fit today (lib/runwayFit): its crosswind against the
@@ -1033,45 +1053,54 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
       <div className="w-7 shrink-0" />
       {/* Twenty under the chips, not sixteen: the next field's toggle's
           44 points came up into the picked chip's (the iOS audit, P1). */}
-      <div className="flex min-w-0 flex-1 items-center pb-5">
-        {/* The route's glyph and its ways one tray, as a runway line's
-            (G2, the owner's pick): the glyph its head and the line's
-            button, the way picked after it with its arrow. */}
-        <button
-          type="button" data-testid="route-line-toggle" data-disclosure="" aria-expanded={open}
-          aria-label={open ? "Route options: fold" : "Route options: all the routes"}
-          onClick={() => useRouteLineOpen.setState({ open: !open })}
-          className={cn(TRAY_HEAD, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
-        >
-          <Route className="size-5" aria-hidden />
-        </button>
-        {!open ? (
-          <div role="radiogroup" aria-label="Route options" className={TRAY_BODY}>
+      <Collapsible asChild open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })}>
+        <div className="flex min-w-0 flex-1 items-center pb-5">
+          {/* The route's glyph and its ways one tray, as a runway line's
+              (G2, the owner's pick): the glyph its head and the line's
+              button, the way picked after it with its arrow. A stock
+              Collapsible, as a runway line's tray is: the head its trigger,
+              the ways its content. */}
+          <CollapsibleTrigger asChild>
             <button
-              type="button" role="radio" aria-checked="true" data-state="on" onClick={() => useRouteLineOpen.setState({ open: true })}
-              className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", ring(picked))}
-              aria-label={`${words(picked)}, picked: tap for the other routes`} data-testid="route-line-picked" data-key={picked.key}
+              type="button" data-testid="route-line-toggle" data-disclosure=""
+              aria-label={open ? "Route options: fold" : "Route options: all the routes"}
+              className={cn(TRAY_HEAD, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
             >
-              {picked.label}
-              {FOLDED_ARROW}
+              <Route className="size-5" aria-hidden />
             </button>
-          </div>
-        ) : (
-          <div className="flex min-w-0 flex-1" onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}>
-            <Chips
-              label="Route options" value={line.picked} flushStart tray
-              onChange={v => { setTouched(t => t + 1); line.onPick(v); }}
-              enter="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300"
-            >
-              {line.chips.map(c => (
-                <ToggleGroupItem key={c.key} value={c.key} className={cn(CHIP, "whitespace-nowrap", ring(c))} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}>
-                  {c.label}
-                </ToggleGroupItem>
-              ))}
-            </Chips>
-          </div>
-        )}
-      </div>
+          </CollapsibleTrigger>
+          {!open ? (
+            // The way picked, the same stock ToggleGroup as the open
+            // line's with the one way in it; a tap on it opens the line.
+            <ToggleGroup type="single" value={picked.key} aria-label="Route options" className={cn(TRAY_BODY, "rounded-l-none")}>
+              <ToggleGroupItem
+                value={picked.key} onClick={() => useRouteLineOpen.setState({ open: true })}
+                className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", ring(picked))}
+                aria-label={`${words(picked)}, picked: tap for the other routes`} data-testid="route-line-picked" data-key={picked.key}
+              >
+                {picked.label}
+                {FOLDED_ARROW}
+              </ToggleGroupItem>
+            </ToggleGroup>
+          ) : (
+            <CollapsibleContent asChild>
+              <div className="flex min-w-0 flex-1" onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}>
+                <Chips
+                  label="Route options" value={line.picked} flushStart tray
+                  onChange={v => { setTouched(t => t + 1); line.onPick(v); }}
+                  enter="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300"
+                >
+                  {line.chips.map(c => (
+                    <ToggleGroupItem key={c.key} value={c.key} className={cn(CHIP, "whitespace-nowrap", ring(c))} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}>
+                      {c.label}
+                    </ToggleGroupItem>
+                  ))}
+                </Chips>
+              </div>
+            </CollapsibleContent>
+          )}
+        </div>
+      </Collapsible>
     </li>
   );
 }
@@ -1378,23 +1407,30 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
       // 41 points past a phone's width (the iOS audit's "no sideways
       // scroll in a panel").
       <div ref={line} className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="procedure-patterns">
-        {/* Still the group's choice to a screen reader, picked; a tap on it
-            opens the line. */}
-        <div role="radiogroup" aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} className={TRAY_BODY}>
-          {/* The tray's body, its head the glyph (the block's
-              runway-line-toggle); a tap on the chip opens it too. */}
-          <button
-            type="button" role="radio" aria-checked="true" data-state="on" onClick={() => setOpen(true)}
-            // One line, the wind's mark, the runway and the arrow side by side:
-            // a plain button, not the group's items, it stacked them, the
-            // arrow out under the chip (the owner's screenshot, 2026-10-20).
+        {/* Still the group's choice to a screen reader, picked: the same
+            stock ToggleGroup as the open line's, with the one runway in it,
+            so VoiceOver says the same group and choice folded or open. A
+            tap on it, the one already picked, opens the line rather than
+            unpicking it. The tray's body, its head the glyph (the block's
+            runway-line-toggle). */}
+        <ToggleGroup
+          type="single" value={c.id} aria-label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`}
+          // Square where it meets the head, as the open line's body is.
+          className={cn(TRAY_BODY, "rounded-l-none")}
+        >
+          <ToggleGroupItem
+            value={c.id} onClick={() => setOpen(true)}
+            // One line, the wind's mark, the runway and the arrow side by
+            // side, the arrow never out under the chip (the owner's
+            // screenshot, 2026-10-20): laid out in a row here, not left to
+            // the chip's own.
             className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
             aria-label={`${c.words}${note ? `, ${note}` : ""}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}
             {FOLDED_ARROW}
-          </button>
-        </div>
+          </ToggleGroupItem>
+        </ToggleGroup>
         {trailing && <div ref={after} className="flex shrink-0 items-center gap-2">{trailing}</div>}
       </div>
     );
@@ -1417,41 +1453,53 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
       ) : (
         // Opened from its fold, the line slides out to the right of the
         // runway picked, at the owner's ask ("smoothly expand to the
-        // right"); a touch or a scroll on it holds it open (touched).
-        <div
-          className="flex min-w-0 flex-1"
-          onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}
-        >
-          {/* A runway each: no None, at the owner's ask ("Why is none even
-              an option?"), as every takeoff and landing is on one -- and
-              the chip picked tapped again is no way to unpick it either. */}
-          <Chips
-            label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE}
-            onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart tray
-            trailingRef={after} enter={chosen !== null ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300" : undefined}
+        // right"); a touch or a scroll on it holds it open (touched). With a
+        // runway picked to fold to, the line is the content of its tray's
+        // Collapsible (the block's runway-line-toggle), so the head's
+        // aria-controls names it.
+        <LineContent folds={!!picked}>
+          <div
+            className="flex min-w-0 flex-1"
+            onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}
           >
-            {ends.map(({ runway, end }) => {
-              const c = chip(runway, end);
-              // An end with no surveyed threshold has no pattern to draw;
-              // with an approach, none is drawn, and the end is the approach's
-              // own or one it may circle to.
-              const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
-              const circleNa = !allowed(c.id);
-              return (
-                <ToggleGroupItem
-                  key={end.ident} value={c.id} disabled={circleNa || (!landing && !drawn)} className={cn(CHIP, c.ring)}
-                  aria-label={`${c.words}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
-                  data-testid="procedure-pattern" data-fit={c.fit}
-                >
-                  {c.face}
-                </ToggleGroupItem>
-              );
-            })}
-          </Chips>
-        </div>
+            {/* A runway each: no None, at the owner's ask ("Why is none even
+                an option?"), as every takeoff and landing is on one -- and
+                the chip picked tapped again is no way to unpick it either. */}
+            <Chips
+              label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE}
+              onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart tray
+              trailingRef={after} enter={chosen !== null ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300" : undefined}
+            >
+              {ends.map(({ runway, end }) => {
+                const c = chip(runway, end);
+                // An end with no surveyed threshold has no pattern to draw;
+                // with an approach, none is drawn, and the end is the approach's
+                // own or one it may circle to.
+                const drawn = trafficPattern(a.ident, runway, end.ident, a.patternAltitudeFt) !== null;
+                const circleNa = !allowed(c.id);
+                return (
+                  <ToggleGroupItem
+                    key={end.ident} value={c.id} disabled={circleNa || (!landing && !drawn)} className={cn(CHIP, c.ring)}
+                    aria-label={`${c.words}${circleNa ? `, no circling on the ${landing!.name}` : !landing && !drawn ? ", not surveyed" : ""}`}
+                    data-testid="procedure-pattern" data-fit={c.fit}
+                  >
+                    {c.face}
+                  </ToggleGroupItem>
+                );
+              })}
+            </Chips>
+          </div>
+        </LineContent>
       )}
     </div>
   );
+}
+
+/** A runway line's open chips, the content of its tray's Collapsible
+ *  where the line folds to a runway picked (`folds`); where it does not
+ *  (none picked yet) it is the line itself, with nothing to open it. */
+function LineContent({ folds, children }: { folds: boolean; children: ReactNode }) {
+  return folds ? <CollapsibleContent asChild>{children}</CollapsibleContent> : children;
 }
 
 /** The runway picked, as its field's info says it: the pattern's side and
