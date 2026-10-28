@@ -591,9 +591,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const pickRunway = useCallback((which: "pattern" | "takeoff", ident: string, end: string | null, byWind: boolean) => {
     setSearchParams(prev => {
       const picked = patternsOf(prev.get(which));
-      if (end) picked.set(ident, end); else picked.delete(ident);
       const auto = autoOf(prev.get("auto"), prev.get("pattern"), prev.get("takeoff"));
       const key = `${which === "pattern" ? "land" : "takeoff"}:${ident}`;
+      // A pick into the wind worked out before the pilot's own landed is
+      // dropped: the pilot's stands. KMSN's takeoff runway 36, picked as the
+      // wind came in, was turned to 18 a moment later and marked as the
+      // wind's (stops.spec, 2 runs of 7 on desktop, 2026-10-28).
+      if (byWind && picked.has(ident) && !auto.has(key)) return prev;
+      if (end) picked.set(ident, end); else picked.delete(ident);
       if (byWind && end) auto.add(key); else auto.delete(key);
       return patched(prev, { [which]: picked.size ? patternsParam(picked) : null, auto: auto.size ? [...auto].join(",") : NO_AUTO });
     }, { replace: true });

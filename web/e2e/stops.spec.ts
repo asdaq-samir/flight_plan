@@ -79,8 +79,15 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   await expect(takeoff).toBeVisible();
   const runway = takeoff.getByTestId("procedure-pattern").and(page.locator(":not([disabled])")).last();
   const name = (await runway.innerText()).trim();
-  await runway.click();
-  await expect(page).toHaveURL(new RegExp(`[?&]takeoff=[^&]*KMSN(%3A|:)${name}(%2C|,|&|$)`));
+  // The runway into the wind may be picked for the pilot as the wind comes
+  // in, folding the line to it under the finger (ProceduresRoute's
+  // intoWind): opened again and the runway picked until it is the one.
+  const folded = leave.locator("[data-folded]");
+  await expect(async () => {
+    if (await folded.count()) await folded.click();
+    await takeoff.getByTestId("procedure-pattern").filter({ hasText: new RegExp(`^${name}$`) }).first().click({ timeout: 2000 });
+    await expect(page).toHaveURL(new RegExp(`[?&]takeoff=[^&]*KMSN(%3A|:)${name}(%2C|,|&|$)`), { timeout: 2000 });
+  }).toPass({ timeout: slow(20000) });
   // The figures to the next landing, KMSN, its fuel the tanks' for that
   // flight; a tap on To, the destination and the whole route's distance.
   await expect(sideDrawer(page).getByTestId("navlog-to")).toHaveText("KMSN", { timeout: slow(30000) });
