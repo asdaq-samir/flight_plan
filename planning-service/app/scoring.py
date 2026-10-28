@@ -87,16 +87,28 @@ def score(dep: str, dest: str) -> list:
     return checkpoints
 
 
-def scored_and_selected(dep: str, dest: str) -> tuple:
+def scored_and_selected(dep: str, dest: str, length_nm: float | None = None) -> tuple:
     """Every scored candidate, each flagged "selected" or not, and the
     subset worth flying, in along-track order. Each named as the chart
     labels the place where the place names know it (vfr.places
     checkpoint_name: "Lake Zurich", "River near Springfield") -- here, not
-    in the cached scores, as the names load after the service starts."""
+    in the cached scores, as the names load after the service starts.
+
+    Picked only from those between the ends (`length_nm`, the hop's own
+    great circle), NEAR_A_STOP_NM in from each: the corridor runs past
+    them, and a route of one hop took a checkpoint behind its departure
+    or beyond its destination, its nav log flying out to it and back --
+    KLSE-KCMY 34.5 nm of legs for a 22.9 nm course, a lake 2.6 nm behind
+    La Crosse first and a landing site 3.1 nm past Camp Douglas last, its
+    time and fuel half again what the flight takes (2026-10-28). A route
+    with stops cut its hops so already, after the pick, which lost the one
+    a checkpoint off the end had kept out."""
     scored = score(dep, dest)
     for c in scored:
         c["name"] = places.checkpoint_name(c["category"], c["lat"], c["lon"]) or c["name"]
-    selected = checkpoint_selection.select_checkpoints(scored)
+    between = scored if length_nm is None else [
+        c for c in scored if NEAR_A_STOP_NM <= c["along_track_nm"] <= length_nm - NEAR_A_STOP_NM]
+    selected = checkpoint_selection.select_checkpoints(between)
     keys = {c["id"] for c in selected}
     for c in scored:
         c["selected"] = c["id"] in keys
@@ -118,7 +130,7 @@ def route_checkpoints(r) -> tuple[list, list, list]:
     of it. Along-track distances run on through each stop."""
     hops = r.hops
     if len(hops) == 1:
-        scored, selected = scored_and_selected(r.dep_ident, r.dest_ident)
+        scored, selected = scored_and_selected(r.dep_ident, r.dest_ident, hops[0].length_nm)
         return scored, selected, [selected]
     # Every hop's chart asked for at once: each read is a job of its own
     # (app.detection), and one after another they would add up.
@@ -132,7 +144,7 @@ def route_checkpoints(r) -> tuple[list, list, list]:
     seen: set = set()
     for index, hop in enumerate(hops):
         length = hop.length_nm
-        scored, selected = scored_and_selected(hop.dep_ident, hop.dest_ident)
+        scored, selected = scored_and_selected(hop.dep_ident, hop.dest_ident, length)
         earlier = set(seen)
 
         def on_hop(c, length=length, earlier=earlier):
