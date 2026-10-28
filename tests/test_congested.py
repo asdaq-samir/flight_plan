@@ -85,3 +85,77 @@ def test_without_the_census_data_nothing_is_ruled_out(monkeypatch, tmp_path):
 
     monkeypatch.setattr(congested.requests, "get", offline)
     assert congested.congested(np.array([LAT]), np.array([LON])) is None
+
+
+def _one_at_a_time(tree, lats, lons) -> np.ndarray:
+    """vfr.congested.congested as it was before its 2,000 ft test took
+    every pair at once: each point near a town clipped, scaled and
+    measured on its own -- the oracle the vectorised one must match to
+    the bit (14 CFR 91.119(b)'s 2,000 ft, RADIUS_FT)."""
+    lats, lons = np.asarray(lats, dtype=float), np.asarray(lons, dtype=float)
+    points = shapely.points(lons, lats)
+    found = np.zeros(lats.size, dtype=bool)
+    by_box, area = tree.query(points)
+    for j in np.unique(area).tolist():
+        mine = by_box[area == j]
+        found[mine[shapely.contains_xy(tree.geometries[j], lons[mine], lats[mine])]] = True
+    widest = max(0.2, math.cos(math.radians(min(89.0, float(np.abs(lats).max())))))
+    reach = congested.RADIUS_FT / congested.FT_PER_DEG_LAT / widest
+
+    def within(shape, lat, lon):
+        piece = shapely.clip_by_rect(shape, lon - reach, lat - reach, lon + reach, lat + reach)
+        if piece.is_empty:
+            return False
+        scale = max(0.2, math.cos(math.radians(lat)))
+        flat = shapely.transform(piece, lambda xy: (xy - np.array([lon, lat])) * np.array([scale, 1.0]))
+        return shapely.distance(flat, shapely.Point(0.0, 0.0)) * congested.FT_PER_DEG_LAT <= congested.RADIUS_FT
+
+    rest = np.flatnonzero(~found)
+    if rest.size:
+        near_point, near_area = tree.query(points[rest], predicate="dwithin", distance=reach)
+        for i, j in zip(rest[near_point].tolist(), near_area.tolist()):
+            if not found[i]:
+                found[i] = within(tree.geometries[j], float(lats[i]), float(lons[i]))
+    return found
+
+
+@pytest.mark.parametrize("lat", [LAT, 64.84, 71.29])
+def test_every_pair_at_once_matches_one_at_a_time_at_the_2000_ft_edge(monkeypatch, lat):
+    # A town a mile on a side at 45 N, Fairbanks's and Utqiagvik's
+    # latitudes, with points 1,990 and 2,010 ft off each side and corner
+    # and a scatter round it: the same answer as each measured on its own.
+    ft_lon = FT_LAT / math.cos(math.radians(lat))
+    town = shapely.box(LON, lat, LON + 5280 * ft_lon, lat + 5280 * FT_LAT)
+    tree = shapely.STRtree([town, shapely.buffer(shapely.Point(LON + 0.1, lat + 0.05), 0.01)])
+    monkeypatch.setattr(congested, "_tree", lambda: tree)
+    north, east = [], []
+    for off in (1990, 2010):
+        for n, e in ((-off, 2640), (5280 + off, 2640), (2640, -off), (2640, 5280 + off),
+                     (-off / math.sqrt(2), -off / math.sqrt(2)), (5280 + off / math.sqrt(2), 5280 + off / math.sqrt(2))):
+            north.append(n)
+            east.append(e)
+    rng = np.random.default_rng(91119)
+    north += rng.uniform(-8000, 13000, 3000).tolist()
+    east += rng.uniform(-8000, 60000, 3000).tolist()
+    lats = lat + np.array(north) * FT_LAT
+    lons = LON + np.array(east) * ft_lon
+    got = congested.congested(lats, lons)
+    assert got.tolist() == _one_at_a_time(tree, lats, lons).tolist()
+    # The edge points themselves: 1,990 ft in, 2,010 ft out, each side.
+    assert got[:12].tolist() == [True] * 6 + [False] * 6
+
+
+@pytest.mark.skipif(not (congested.URBAN_AREAS_PATH.exists() and (congested.DIR.parents[0] / "faa_nasr" / "DOF.DAT").exists()),
+                    reason="needs the Census urban areas and the FAA's DOF.DAT on disk")
+def test_every_pair_at_once_matches_one_at_a_time_on_the_real_obstacles_round_chicago_and_milwaukee():
+    from vfr import faa_data
+
+    tree = congested._tree()
+    if tree is None:
+        pytest.skip("no Census gazetteer")
+    dof = faa_data.load_obstacles(congested.DIR.parents[0] / "faa_nasr" / "DOF.DAT", (41.4, -88.6, 43.3, -87.5), min_agl_ft=0)
+    lats, lons = dof["lat"].to_numpy(dtype=float), dof["lon"].to_numpy(dtype=float)
+    assert lats.size > 1000
+    got = congested.congested(lats, lons)
+    assert got.tolist() == _one_at_a_time(tree, lats, lons).tolist()
+    assert 0 < got.sum() < lats.size
