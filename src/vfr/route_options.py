@@ -44,7 +44,6 @@ the coarse read here can be wrong, and the plan says so where it is.
 """
 from __future__ import annotations
 
-import heapq
 import math
 import re
 import time
@@ -53,6 +52,8 @@ from datetime import datetime, timezone
 import logging
 
 import numpy as np
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import dijkstra
 
 from . import fixes, fuelstops, geo, magnetic, navlog, sun, terrain_detour, water, weather
 
@@ -497,65 +498,55 @@ def _step_index(dr: int, dc: int) -> int:
     return _STEPS.index((dr, dc))
 
 
-#: The earth's radius for the search's guess, nm: the mean radius
-#: (3,440.07 nm) less 1 %, under the WGS 84 geodesic everywhere (the
-#: sphere's error is under 0.6 %), so the guess never overestimates.
-HAVERSINE_NM = 3440.07 * 0.99
-
-
 def _way(grid: _Grid, gs: np.ndarray, start: tuple, end: tuple, marginal_cost: float,
          closed_cost: float | None = None, water_cost: float = 0.0) -> list[tuple[int, int]] | None:
-    """The quickest way over open cells from start's cell to end's (A*,
-    minutes), marginal cells costing `marginal_cost` more of theirs and
+    """The quickest way over open cells from start's cell to end's
+    (minutes), marginal cells costing `marginal_cost` more of theirs and
     special-use airspace its own; with `closed_cost`, over closed cells
-    too, each that much the dearer."""
+    too, each that much the dearer. SciPy's Dijkstra over the grid's eight
+    ways out of each cell, at the owner's yes to the stock search
+    (2026-10-28): it was an A* of our own, a Python loop over a heap,
+    where this is the graph's every step built at once and searched in
+    compiled code -- the same quickest ways."""
     s, e = grid.cell(start), grid.cell(end)
-    fastest = float(gs.max())
+    rows, cols = grid.rows, grid.cols
     # A step's miles hang on its row and its way alone: worked out once,
     # eight calls in all, where each step asked the geodesic again -- 50,000
     # of them for a 900 nm route, most of its seconds (measured 2026-10-25).
-    lats = grid.lat0 + (np.arange(grid.rows) + 0.5) * CELL_DEG
+    lats = grid.lat0 + (np.arange(rows) + 0.5) * CELL_DEG
     step_nm = np.stack([np.asarray(geo.distance_nm(lats, 0.0, lats + dr * CELL_DEG, dc * CELL_DEG), dtype=float)
                         for dr, dc in _STEPS], axis=1)
-    end_lat, end_lon = grid.centre(e)
-    cos_end = math.cos(math.radians(end_lat))
     weight = 1.0 + grid.dear + np.where(grid.marginal >= 0, marginal_cost, 0.0) + water_cost * grid.offshore
     if closed_cost is not None:
         weight = weight + np.where(grid.closed >= 0, closed_cost, 0.0)
-
-    def minutes(a, b) -> float:
-        k = _step_index(b[0] - a[0], b[1] - a[1])
-        return float(step_nm[a[0], k]) / gs[a[0], a[1], k] * 60.0 * weight[b]
-
-    def guess(a) -> float:
-        # The great circle on a sphere a little small (HAVERSINE_NM): never
-        # more than the way's geodesic miles, so the search stays exact.
-        la, lo = grid.centre(a)
-        dlat, dlon = math.radians(end_lat - la), math.radians(end_lon - lo)
-        h = math.sin(dlat / 2) ** 2 + math.cos(math.radians(la)) * cos_end * math.sin(dlon / 2) ** 2
-        return 2.0 * HAVERSINE_NM * math.asin(min(1.0, math.sqrt(h))) / fastest * 60.0
-
-    frontier = [(0.0, s)]
-    came: dict = {s: None}
-    spent = {s: 0.0}
-    while frontier:
-        _, here = heapq.heappop(frontier)
-        if here == e:
-            path = [here]
-            while came[path[-1]] is not None:
-                path.append(came[path[-1]])
-            return path[::-1]
-        for dr, dc in _STEPS:
-            nxt = (here[0] + dr, here[1] + dc)
-            if not (0 <= nxt[0] < grid.rows and 0 <= nxt[1] < grid.cols):
-                continue
-            if closed_cost is None and not grid.open(nxt):
-                continue
-            g = spent[here] + minutes(here, nxt)
-            if g < spent.get(nxt, math.inf):
-                spent[nxt], came[nxt] = g, here
-                heapq.heappush(frontier, (g + guess(nxt), nxt))
-    return None
+    # Which cells may be entered or left: all of them over closed cells,
+    # else the open ones and the route's own ends (_Grid.open).
+    if closed_cost is None:
+        usable = grid.closed < 0
+        for cell in grid.ends:
+            usable[cell] = True
+    else:
+        usable = np.ones((rows, cols), dtype=bool)
+    r, c = np.meshgrid(np.arange(rows), np.arange(cols), indexing="ij")
+    tails, heads, costs = [], [], []
+    for k, (dr, dc) in enumerate(_STEPS):
+        r2, c2 = r + dr, c + dc
+        inside = (r2 >= 0) & (r2 < rows) & (c2 >= 0) & (c2 < cols)
+        a_r, a_c, b_r, b_c = r[inside], c[inside], r2[inside], c2[inside]
+        keep = usable[a_r, a_c] & usable[b_r, b_c]
+        a_r, a_c, b_r, b_c = a_r[keep], a_c[keep], b_r[keep], b_c[keep]
+        tails.append(a_r * cols + a_c)
+        heads.append(b_r * cols + b_c)
+        costs.append(step_nm[a_r, k] / gs[a_r, a_c, k] * 60.0 * weight[b_r, b_c])
+    graph = csr_matrix((np.concatenate(costs), (np.concatenate(tails), np.concatenate(heads))), shape=(rows * cols, rows * cols))
+    source, target = s[0] * cols + s[1], e[0] * cols + e[1]
+    spent, came = dijkstra(graph, indices=source, return_predecessors=True)
+    if not np.isfinite(spent[target]):
+        return None
+    path = [target]
+    while path[-1] != source:
+        path.append(int(came[path[-1]]))
+    return [(int(n // cols), int(n % cols)) for n in reversed(path)]
 
 
 def _line_minutes(grid: _Grid, gs: np.ndarray, a: tuple, b: tuple, marginal_cost: float = 0.0,
