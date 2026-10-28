@@ -56,7 +56,22 @@ export async function detailOf(response: Response): Promise<string> {
   const detail = Array.isArray(body.detail)
     ? body.detail.map(d => (d && typeof d === "object" && "msg" in d ? String(d.msg) : String(d))).join("; ")
     : typeof body.detail === "string" ? body.detail : undefined;
-  return detail || body.error || response.statusText || "request failed";
+  return detail || body.error || response.statusText || statusWords(response.status);
+}
+
+/** A status in words, where nothing came with it: over HTTP/2 -- the
+ *  phone's https address -- a response has no status text at all, and a
+ *  502 from the gateway with an empty body read "request failed" on the
+ *  map (the owner's screen recording, 2026-10-28). */
+export function statusWords(status: number): string {
+  if (status === 401) return "Signed out";
+  if (status === 403) return "Not allowed";
+  if (status === 404) return "Not found";
+  if (status === 408 || status === 504) return "No answer in time";
+  if (status === 429) return "Too many requests: try again in a minute";
+  if (status === 502 || status === 503) return "The planner is not answering";
+  if (status >= 500) return `The server hit an error (${status})`;
+  return `The server said no (${status})`;
 }
 
 /** A response that is not OK, as the `ApiError` every caller expects --
