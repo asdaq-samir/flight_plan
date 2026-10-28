@@ -156,3 +156,27 @@ export function useWarmAirportIndex(enabled = true) {
     meta: { silent: true },
   });
 }
+
+/** Each index's rows by every ident they are found by, made at the first
+ *  lookup. */
+const byIdent = new WeakMap<AirportIndex, Map<string, number>>();
+
+/** Where an airport is, from the index the browser keeps (a present
+ *  position, "@lat,lon", from itself); null for what the index does not
+ *  place -- a waypoint, a pilot's own point. For the route's figures
+ *  before the planner's (PlanWorkspace's estimate). */
+export function placeOf(index: AirportIndex, ident: string): { lat: number; lon: number } | null {
+  if (ident.startsWith("@")) {
+    const [lat, lon] = ident.slice(1).split(",").map(Number);
+    return Number.isFinite(lat) && Number.isFinite(lon) ? { lat: lat!, lon: lon! } : null;
+  }
+  let rows = byIdent.get(index);
+  if (!rows) {
+    rows = new Map();
+    for (let i = 0; i < index.keys.length; i++) for (const key of index.keys[i]!) if (!rows.has(key)) rows.set(key, i);
+    byIdent.set(index, rows);
+  }
+  const row = rows.get(ident.toUpperCase());
+  if (row === undefined || Number.isNaN(index.lat[row]!)) return null;
+  return { lat: index.lat[row]!, lon: index.lon[row]! };
+}

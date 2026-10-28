@@ -14,7 +14,8 @@ import { clockTime, useMinuteClock, minutesWords } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
-import { bestStopIndex, type LatLon } from "../../lib/geo";
+import { bestStopIndex, distanceNm, type LatLon } from "../../lib/geo";
+import { placeOf, useAirportIndex } from "../../lib/airportIndex";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
 import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
@@ -1952,10 +1953,26 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const profile = profiles?.find(p => p.name === aircraft.profile);
   const cruiseTasKt = aircraft.cruiseTasKt ?? profile?.cruise_tas_kt ?? null;
   const fuelBurnGph = aircraft.fuelBurnGph ?? profile?.fuel_burn_gph ?? null;
+  // Before the course comes, at the tap: the great circles between the
+  // route's points, placed from the airport index the browser keeps
+  // (placeOf) -- the figures at once, where they waited a second or more
+  // on the planner's course line (the owner, 2026-10-28: "Why isn't
+  // planning instant?"). None where a point is not an airport the index
+  // places (a waypoint, a pilot's own point): the course's then.
+  const index = useAirportIndex(true, routed);
+  const straightNm = useMemo(() => {
+    if (!routed || !index || !planned.dest) return null;
+    const points = [planned.dep, ...planned.stops, `${planned.dest}`].map(p => placeOf(index, p));
+    if (points.some(p => !p)) return null;
+    let nm = 0;
+    for (let i = 1; i < points.length; i++) nm += distanceNm(points[i - 1]!, points[i]!);
+    return nm;
+  }, [routed, index, planned.dep, planned.stops, planned.dest]);
   const estimate = useMemo(
     () => (routed && course && course.destination.ident === planned.dest && course.departure.ident === planned.dep
-      ? { distanceNm: course.distance_nm, cruiseTasKt, fuelBurnGph } : null),
-    [routed, course, planned.dep, planned.dest, cruiseTasKt, fuelBurnGph]);
+      ? { distanceNm: course.distance_nm, cruiseTasKt, fuelBurnGph }
+      : straightNm != null ? { distanceNm: straightNm, cruiseTasKt, fuelBurnGph } : null),
+    [routed, course, planned.dep, planned.dest, cruiseTasKt, fuelBurnGph, straightNm]);
   // A toast however far out the panel is, at the pilot's ask, where the
   // flight's line said it with the panel out: that line keeps the
   // figures (FlightLine). A toast takes no tap but its own controls'

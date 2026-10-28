@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { indexOf, searchIndex } from "./airportIndex";
+import { indexOf, placeOf, searchIndex } from "./airportIndex";
 
 // The planner's own tests' fields (tests/test_airports.py), as its index
 // sends them: ident, name, town, state, size rank, other idents.
@@ -53,5 +53,18 @@ describe("the phone's own airport search", () => {
     expect(searchIndex(placed, "campbell", 8, [{ lat: 42.3, lon: -88.0 }]).map(r => r.ident)).toEqual(["C81", "06XS", "1A3"]);
     // Still found by its other ident, after the place.
     expect(searchIndex(placed, "KC81")[0]!.ident).toBe("C81");
+  });
+});
+
+describe("placeOf", () => {
+  test("places an airport by any of its idents, a present position by itself, and nothing else", () => {
+    const index = indexOf([
+      ["KDLH", "Duluth International", "Duluth", "MN", 1, 46.8421, -92.1936, "DLH"],
+      ["C81", "Campbell", "Grayslake", "IL", 3, 42.3246, -88.0741],
+    ]);
+    expect(placeOf(index, "dlh")).toEqual({ lat: 46.8421, lon: -92.1936 });
+    expect(placeOf(index, "C81")).toEqual({ lat: 42.3246, lon: -88.0741 });
+    expect(placeOf(index, "@42.3,-88.1")).toEqual({ lat: 42.3, lon: -88.1 });
+    expect(placeOf(index, "VPBNG")).toBeNull();
   });
 });
