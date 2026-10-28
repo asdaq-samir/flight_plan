@@ -7,6 +7,7 @@ import gzip
 import json
 import math
 import os
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -66,12 +67,22 @@ def _ensure_cached(url: str, cache_path: Path) -> Path:
 
 
 @lru_cache(maxsize=8)
-def _read_table(path: str, _mtime: float) -> pd.DataFrame:
+def _read_table_of(path: str, _mtime: float) -> pd.DataFrame:
     """One read per file per process. `_mtime` is not used in the body:
     it is in the signature so a file replaced on disk is a different
     cache entry, which is what the hand-rolled dict this replaced used
     its key for."""
     return pd.read_csv(path, low_memory=False)
+
+
+_READ_TABLE_LOCK = threading.Lock()
+
+
+def _read_table(path: str, _mtime: float) -> pd.DataFrame:
+    """_read_table_of, one read at a time: each caller that came while a
+    table was being read read it too (as _US_AIRPORTS_LOCK says)."""
+    with _READ_TABLE_LOCK:
+        return _read_table_of(path, _mtime)
 
 
 def _load_table(url: str, cache_path: Path) -> pd.DataFrame:
@@ -175,9 +186,22 @@ def _faa_key(cache_path: Path) -> tuple[str, float]:
         return "", 0.0
 
 
+#: One build of the US table at a time. lru_cache keeps a built one, but
+#: every caller that comes while it is being built builds it too: after a
+#: restart the warm-up's build and some twenty requests' (the map's
+#: airports in view, each card's place, the Stops along a route) were
+#: building it at once, each its own copy of the 80,000-row table and a
+#: pandas isin over it, and the planner answered nothing -- not even its
+#: health check -- for twelve minutes (py-spy, 2026-10-28: every request
+#: thread in _us_airports_of's isin). Held for a cache hit too, which is a
+#: dictionary lookup.
+_US_AIRPORTS_LOCK = threading.Lock()
+
+
 def _us_airports(cache_path: Path) -> pd.DataFrame:
     path = _ensure_cached(OURAIRPORTS_URL, cache_path)
-    return _us_airports_of(str(path), path.stat().st_mtime, *_faa_key(cache_path))
+    with _US_AIRPORTS_LOCK:
+        return _us_airports_of(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
 @lru_cache(maxsize=1)

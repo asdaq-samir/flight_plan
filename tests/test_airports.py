@@ -372,3 +372,30 @@ def test_only_the_fields_the_faa_lists_are_drawn_searched_and_nearest(us_airport
 
 def test_with_no_faa_file_every_field_is_kept(us_airports_csv):
     assert "KMSP" in [p["ident"] for p in places_in(40, -95, 48, -87, cache_path=us_airports_csv)]
+
+
+def test_the_us_table_is_built_once_however_many_ask_at_once(tmp_path, monkeypatch):
+    """After a restart some twenty requests asked for it while it was being
+    built, and each built its own: the planner answered nothing for twelve
+    minutes (2026-10-28)."""
+    import functools
+    import threading
+    import time
+
+    built = []
+
+    def slow(*args):
+        built.append(1)
+        time.sleep(0.2)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(airports, "_us_airports_of", functools.lru_cache(maxsize=2)(slow))
+    path = tmp_path / "airports.csv"
+    path.write_text("ident\n")
+    monkeypatch.setattr(airports, "_ensure_cached", lambda url, p: path)
+    threads = [threading.Thread(target=airports._us_airports, args=(path,)) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(built) == 1
