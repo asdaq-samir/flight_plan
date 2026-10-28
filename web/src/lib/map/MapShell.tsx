@@ -19,6 +19,7 @@ import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
 import { prefersReducedMotion } from "../motion";
+import { followSheet, slideMap, stopFollowingSheet } from "./sheetSlide";
 import { BUTTONS_CLEAR, centreClearFor, hideLinesWhileZooming } from "./clear";
 // The marks held to the chart under a pinch: a patch to Leaflet's markers.
 import "./pinch";
@@ -62,18 +63,6 @@ const COUNTRY: [number, number] = [39.5, -98.35];
 
 /** The least the map is fitted to round a route: about 10 nm across. */
 const MIN_FIT_M = 18_520;
-
-/** The map slid by `by` in the sheet's own time, the chart where it comes
- *  to rest asked for first: a phone's tiles load only once a move ends
- *  (Leaflet's updateWhenIdle), and the strip a slide brings in came blank
- *  until they did. GridLayer's `_update` takes the centre to load for. */
-function slide(map: L.Map, by: L.Point) {
-  const to = map.unproject(map.project(map.getCenter()).add(by));
-  map.eachLayer(layer => {
-    if (layer instanceof L.GridLayer) (layer as unknown as { _update(center: L.LatLng): void })._update(to);
-  });
-  map.panBy(by, { animate: !prefersReducedMotion(), duration: SHEET_SECONDS, easeLinearity: 0.5 });
-}
 
 export function MapShell({ course, onReady, children, onSelectPlace, held: heldAsked = false }: Props) {
   // And while a card from the chart or a control is open in the sheet
@@ -273,6 +262,41 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
   // capsule): not on a size changed later -- a notice under the route as
   // the plan streams in -- which would take the map from under the
   // pilot's finger.
+  // The sheet's room on a phone, for the map going with it (sheetSlide):
+  // the edge of the strip a bottom inset leaves, and the half sheet's edge,
+  // above which the map stays put (half way to all the way up).
+  const halfBottom = useRef<number | null>(null);
+  useEffect(() => { if (insets.out && !insets.up && !insets.left && insets.bottom) halfBottom.current = insets.bottom; }, [insets]);
+  const heldRef = useRef(held);
+  useEffect(() => { heldRef.current = held; }, [held]);
+  const pressed = useRef(false);
+  const edgeOf = useCallback((bottom: number) => !map ? 0 : map.getContainer().getBoundingClientRect().top + map.getSize().y - bottom, [map]);
+  const sheetRoom = useCallback((bottom: number, el: HTMLElement) => ({
+    el, from: edgeOf(bottom), halfEdge: edgeOf(halfBottom.current ?? (map ? map.getSize().y / 2 : 0)),
+    pressed: () => pressed.current, free: () => !heldRef.current,
+  }), [edgeOf, map]);
+  // Under a finger on the sheet the map goes with it as it is dragged, not
+  // once it has landed.
+  useEffect(() => {
+    if (!map) return;
+    const doc = map.getContainer().ownerDocument;
+    const down = (event: PointerEvent) => {
+      const el = (event.target as Element | null)?.closest?.<HTMLElement>('[data-slot="map-panel"]');
+      const { left, bottom } = insetsRef.current;
+      if (!el || left || !bottom || heldRef.current) return;
+      pressed.current = true;
+      followSheet(map, sheetRoom(bottom, el));
+    };
+    const up = () => { pressed.current = false; };
+    doc.addEventListener("pointerdown", down, true);
+    doc.addEventListener("pointerup", up, true);
+    doc.addEventListener("pointercancel", up, true);
+    return () => {
+      doc.removeEventListener("pointerdown", down, true);
+      doc.removeEventListener("pointerup", up, true);
+      doc.removeEventListener("pointercancel", up, true);
+    };
+  }, [map, sheetRoom]);
   const settledInsets = useRef(insets);
   // The map made before the panel had measured what it covers, its
   // opening view the whole screen's (or the panel's as it was then): once
@@ -313,6 +337,16 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     let what = settling;
     const size = map.getSize();
     const middle = (i: { top: number; bottom: number; left: number }) => L.point((i.left + size.x) / 2, (i.top + size.y - i.bottom) / 2);
+    // A phone's sheet up from the bottom, its edge going from the top of
+    // the strip it covered to the top of the strip it covers now: the map
+    // goes with it frame by frame (sheetSlide). Not a desktop's card, out
+    // at the side.
+    const phoneTurn = insets.left === was.left && insets.bottom !== was.bottom;
+    const withSheet = () => {
+      const el = map.getContainer().ownerDocument.querySelector<HTMLElement>('[data-slot="map-panel"]');
+      if (el) followSheet(map, { ...sheetRoom(was.bottom, el), to: edgeOf(insets.bottom) });
+    };
+    if (!turned && phoneTurn && what !== "route") return;
     if (turned) {
       // In sight: on the map and out from under the panel where it was.
       const sight = L.bounds(L.point(was.left, was.top), L.point(size.x, size.y - was.bottom));
@@ -370,12 +404,16 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
         ? { until: performance.now() + SHEET_SECONDS * 1000 + 300, what, focus: map.containerPointToLatLng(middle(was)) }
         : null;
     }
-    if (what === "route") fit(true);
+    if (what === "route") {
+      stopFollowingSheet(map);
+      fit(true);
+    }
+    else if (phoneTurn && (what === "slide" || what === "ship") && turned) withSheet();
     else if (what === "slide" && following.current?.focus) {
       // panBy, not panTo: panTo snaps the zoom to a whole level, and the
       // route is fitted at a quarter one.
       const by = map.latLngToContainerPoint(following.current.focus).subtract(middle(insets)).round();
-      if (by.x || by.y) slide(map, by);
+      if (by.x || by.y) slideMap(map, by);
     }
     else if (what === "ship" && turned) {
       // Once, as the sheet turns, to the middle of the room it is going
@@ -389,10 +427,10 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const ship = useOwnShip.getState().fix;
       if (ship) {
         const by = map.latLngToContainerPoint([ship.lat, ship.lon]).subtract(middle(insets)).round();
-        if (by.x || by.y) slide(map, by);
+        if (by.x || by.y) slideMap(map, by);
       }
     }
-  }, [insets, map, course, bounds, routeKey, held, fit]);
+  }, [insets, map, course, bounds, routeKey, held, fit, edgeOf, sheetRoom]);
 
   // bg-slate-100: purely cosmetic, so the gap before the course loads
   // reads as "a map is about to be here" rather than a blank white
