@@ -29,7 +29,7 @@ const WAYS = {
   current_along: { bands: [{ kind: "vfr", min: 60 }, { kind: "storm", min: 30 }, { kind: "vfr", min: 82 }], tail_kt: 6, floor_ft: 2100 },
   chips: [
     { key: "none", label: "None", stops: [], fuel: [], crosses: [0] },
-    { key: "weather", label: "Avoid Weather · KEAU", stops: ["KEAU"], fuel: ["KEAU"], crosses: [] },
+    { key: "weather", label: "Avoid Weather", stops: ["KEAU"], fuel: ["KEAU"], crosses: [] },
     { key: "fastest", label: "Fastest", stops: ["DLH/180/40.0"], fuel: [], crosses: [] },
   ],
   hazards: [
@@ -49,8 +49,6 @@ test.afterEach(async ({ page }) => {
 
 test("FPL's route line folds to the way picked, None at first, and a chip tapped is the route at once", async ({ page }) => {
   await ways(page);
-  // Held open while it is picked from (a loaded runner's two seconds).
-  await page.addInitScript(() => { try { localStorage.setItem("vfr.runwayFoldMs", "600000"); } catch { /* no storage */ } });
   const planned: string[] = [];
   page.on("request", request => {
     if (new URL(request.url()).pathname.endsWith("/navlog")) planned.push(new URL(request.url()).searchParams.get("stops") ?? "");
@@ -70,7 +68,7 @@ test("FPL's route line folds to the way picked, None at first, and a chip tapped
   // Opened: every way a chip, and drawn on the chart beside the course.
   await picked.click();
   const chips = line.getByTestId("route-line-chip");
-  await expect(chips).toHaveText(["None", "Avoid Weather · KEAU", "Fastest"]);
+  await expect(chips).toHaveText(["None", "Avoid Weather", "Fastest"]);
   await expect(page.locator("[data-route-way]")).toHaveCount(2);
 
   // A chip tapped: the route at once, its fuel stop named, and planned.
@@ -86,17 +84,22 @@ test("FPL's route line folds to the way picked, None at first, and a chip tapped
   await expect(chips.filter({ hasText: "None" })).toHaveAttribute("data-state", "on");
 });
 
-test("the route line folds back to the chip picked when left alone", async ({ page }) => {
+test("the route line stays open until its glyph folds it, to the chip picked", async ({ page }) => {
   await ways(page);
-  // The runway line's own wait, short for the test.
-  await page.addInitScript(() => { try { localStorage.setItem("vfr.runwayFoldMs", "1500"); } catch { /* no storage */ } });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await openPanel(page);
   const line = sideDrawer(page).getByTestId("route-line");
   await line.getByTestId("route-line-picked").click({ timeout: slow(30_000) });
   await line.getByTestId("route-line-chip").filter({ hasText: "Fastest" }).click();
-  await expect(line.getByTestId("route-line-picked")).toHaveText("Fastest", { timeout: 5_000 });
+  // Left alone, it stays open, its ways on the chart (the owner,
+  // 2026-10-28: "Keep the routes and runway opened until folded"); it
+  // folded after two seconds.
+  await page.waitForTimeout(3000);
+  await expect(line.getByTestId("route-line-chip")).toHaveCount(3);
+  await expect(page.locator("[data-route-way]")).not.toHaveCount(0);
+  await line.getByTestId("route-line-toggle").click();
+  await expect(line.getByTestId("route-line-picked")).toHaveText("Fastest");
   await expect(line.getByTestId("route-line-chip")).toHaveCount(0);
   await expect(page.locator("[data-route-way]")).toHaveCount(0);
 });

@@ -1,13 +1,6 @@
 import { test, expect, type Locator } from "@playwright/test";
 import { cardClose, grabberTo, openTab, settle, settled, sideDrawer, slow } from "./helpers";
 
-// A runway line opened stays open while the spec picks from it: the app
-// folds it after two seconds untouched, which a loaded runner can spend
-// between opening it and the pick (ProceduresRoute's runwayLineFoldMs).
-test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => { try { localStorage.setItem("vfr.runwayFoldMs", "600000"); } catch { /* no storage */ } });
-});
-
 /**
  * The route's Procedures (ProceduresRoute), FPL's list, at the pilot's ask: a field's
  * traffic pattern picked by its runway, kept in the address, and drawn on
@@ -57,6 +50,30 @@ test("a field's traffic pattern is picked by its runway, kept in the address and
   await expect(destination.getByRole("radio", { name: /None/ })).toHaveCount(0);
   await destination.getByRole("radio", { name: new RegExp(`^Runway ${name}\\b`) }).click();
   await expect(page).toHaveURL(new RegExp(`[?&]pattern=[^&]*KDLH(%3A|:)${name}(%2C|,|&|$)`));
+});
+
+test("a runway line opened stays open until folded, and folds with its field", async ({ page }) => {
+  // The owner, 2026-10-28: "Keep the routes and runway opened until
+  // folded … for runways also fold them when the whole airport is
+  // collapsed". It folded after two seconds untouched.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await openTab(page, "Nav Log");
+  const procedures = page.getByTestId("procedures");
+  const destination = procedures.getByRole("region", { name: "KDLH · Arrive" });
+  // A runway picked first, the pilot's own, which a pick into the wind
+  // landing late leaves be: then opened from its fold, and left alone.
+  await openRunways(destination);
+  await destination.getByRole("radio", { name: /^Runway / }).and(page.locator(':not([disabled]):not([aria-checked="true"])')).first().click();
+  await destination.locator("[data-folded]").click();
+  await page.waitForTimeout(3000);
+  await expect(destination.locator("[data-folded]")).toHaveCount(0);
+  await expect(destination.getByRole("radio", { name: /^Runway / }).nth(1)).toBeVisible();
+  // The field folded and opened again: its runways folded to the one picked.
+  const toggle = procedures.locator('[data-testid="field-toggle"][data-ident="KDLH"]');
+  await toggle.click();
+  await toggle.click();
+  await expect(destination.locator("[data-folded]")).toHaveCount(1);
 });
 
 test("the field left from is drawn off its runway and out of the pattern, not round it, and both runways are sent to the planner", async ({ page }) => {
