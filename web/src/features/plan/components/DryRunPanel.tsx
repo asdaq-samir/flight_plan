@@ -63,7 +63,11 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
   // of a mile a step for the finger.
   const held = useRef<{ was: boolean } | null>(null);
   const first = run.alongNm[0] ?? 0, last = run.alongNm.at(-1) ?? 0;
-  const nowNm = second === null ? null : alongAt(run, second);
+  // In the run's last second, its end: read at the whole second before
+  // it, the airplane at the end read a tenth short of it, and End on the
+  // scrubber said 343.3 of 343.4 (dry-run.spec, CI on both projects).
+  const endSecond = Math.floor(timeAt(run, last));
+  const nowNm = second === null ? null : second >= endSecond ? last : alongAt(run, second);
   const seekNm = (nm: number) => usePastFlight.setState({ at: timeAt(run, Math.min(last, Math.max(first, nm))) });
   // Before the slider's own: the run held, then put where the finger is.
   const grab = (event: PointerEvent<HTMLSpanElement>) => {
@@ -141,11 +145,7 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
         <Slider
           min={tenth(first)} max={Math.max(tenth(last), tenth(first) + 0.1)} step={0.1}
           value={[tenth(nowNm ?? first)]}
-          // The scrubber's end is the run's end: its last tenth of a mile,
-          // sought as such, came back a hundredth short through the run's
-          // own time and read a tenth under the end (End pressed:
-          // dry-run.spec, CI on both projects).
-          onValueChange={([nm]) => { if (nm !== undefined) seekNm(nm >= tenth(last) ? last : nm); }}
+          onValueChange={([nm]) => { if (nm !== undefined) seekNm(nm); }}
           onPointerDown={grab} onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={step}
           className={cn(
             "absolute inset-y-0 right-3 left-3 w-auto cursor-ew-resize rounded-lg",
