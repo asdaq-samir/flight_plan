@@ -61,7 +61,11 @@ test("a runway line opened stays open until folded, and folds with its field", a
   await openTab(page, "Nav Log");
   const procedures = page.getByTestId("procedures");
   const destination = procedures.getByRole("region", { name: "KDLH · Arrive" });
+  // A runway picked first, the pilot's own, which a pick into the wind
+  // landing late leaves be: then opened from its fold, and left alone.
   await openRunways(destination);
+  await destination.getByRole("radio", { name: /^Runway / }).and(page.locator(':not([disabled]):not([aria-checked="true"])')).first().click();
+  await destination.locator("[data-folded]").click();
   await page.waitForTimeout(3000);
   await expect(destination.locator("[data-folded]")).toHaveCount(0);
   await expect(destination.getByRole("radio", { name: /^Runway / }).nth(1)).toBeVisible();
