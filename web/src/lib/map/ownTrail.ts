@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { distanceNm } from "../geo";
-import { readKept, writeKept } from "../storage";
+import { keptStore } from "../storage";
 import { underway } from "./glide";
 import { useOwnShip } from "./ownShip";
 import type { PathPoint } from "./tracking";
@@ -20,10 +20,14 @@ const STEP_MS = 10_000;
 const NEW_FLIGHT_MS = 10 * 60_000;
 const MOST = 5000;
 
+/** The path as written down (lib/storage), apart from the path drawn: that
+ *  is set at each point, this at most every half minute. */
+const keptPath = keptStore<PathPoint[] | null>(KEY, null);
+
 function kept(): PathPoint[] {
-  const held = readKept<PathPoint[]>(KEY, []);
+  const held = keptPath.getState().value;
   const last = Array.isArray(held) ? held.at(-1) : undefined;
-  return last && Date.now() - last.t < NEW_FLIGHT_MS ? held : [];
+  return held && last && Date.now() - last.t < NEW_FLIGHT_MS ? held : [];
 }
 
 export const useOwnTrail = create<{ path: PathPoint[] }>(() => ({ path: kept() }));
@@ -42,12 +46,12 @@ useOwnShip.subscribe(s => {
   // Written down at most every half minute: a phone's storage is slow.
   if (fix.at - saved > 30_000) {
     saved = fix.at;
-    writeKept(KEY, next);   // a private window: this page's alone
+    keptPath.setState({ value: next });   // a private window: this page's alone
   }
 });
 
 /** The path put away, as its button in the map's settings asks. */
 export function clearOwnTrail() {
   useOwnTrail.setState({ path: [] });
-  writeKept(KEY, null);
+  keptPath.setState({ value: null });
 }

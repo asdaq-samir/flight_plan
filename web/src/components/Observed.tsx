@@ -1,5 +1,5 @@
 import { cn } from "cn";
-import { minutesWords, useMinuteClock, zuluTime } from "../lib/clock";
+import { ago, useMinuteClock, zuluTime } from "../lib/clock";
 
 /** Past this a METAR is older than the hourly cycle should ever leave
  *  it (routine reports are made each hour, FAA Order JO 7900.5), and the
@@ -14,11 +14,10 @@ export default function Observed({ at, className }: { at: string; className?: st
   const observed = new Date(at);
   if (Number.isNaN(observed.getTime())) return null;
   const minutes = Math.max(0, Math.round((now - observed.getTime()) / 60_000));
-  const ago = `${minutesWords(minutes)} ago`;
   const old = minutes > OLD_REPORT_MIN;
   return (
     <span className={cn(old ? "font-semibold text-caution-ink" : "text-muted-foreground", className)} data-testid="observed">
-      Observed {zuluTime(observed)}, {ago}{old ? " — an old report" : ""}
+      Observed {zuluTime(observed)}, {ago(now - observed.getTime())}{old ? " — an old report" : ""}
     </span>
   );
 }

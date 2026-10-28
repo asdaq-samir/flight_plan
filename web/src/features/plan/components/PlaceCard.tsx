@@ -35,7 +35,7 @@ import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
 import { useHeardMetar } from "../../../lib/map/receiver";
-import { zuluTime } from "../../../lib/clock";
+import { ago, zuluTime } from "../../../lib/clock";
 import { sameField } from "../../../lib/procedures";
 import { airportQuery, photosQuery, servicesQuery } from "../../../lib/queryClient";
 import { StopServices, StopStrip, type SuggestedStop } from "./StopServices";
@@ -85,14 +85,11 @@ function zuluOf(at: string): string {
   return Number.isNaN(when.getTime()) ? "" : zuluTime(when);
 }
 
-/** When the report was made: "Observed 1255Z, 14 minutes ago". */
+/** When the report was made: "1255Z · 14m ago". */
 function observedLine(at: string): string {
   const when = new Date(at);
   if (Number.isNaN(when.getTime())) return "";
-  const zulu = zuluOf(at);
-  const minutes = Math.max(0, Math.round((Date.now() - when.getTime()) / 60_000));
-  const ago = minutes < 1 ? "just now" : minutes < 90 ? `${minutes} min ago` : `${Math.round(minutes / 60)} h ago`;
-  return `${zulu} · ${ago}`;
+  return `${zuluOf(at)} · ${ago(Date.now() - when.getTime())}`;
 }
 
 /** The field's name alone, at the pilot's ask, its ident taken off to

@@ -1,5 +1,5 @@
 import type { RouteOption, RouteOptions } from "./api/types";
-import { minutesWords } from "./clock";
+import { duration } from "./clock";
 import { sameField } from "./procedures";
 
 /** How the planner's grid times the route itself against its nav log
@@ -17,7 +17,7 @@ export function gridScale(found: RouteOptions | undefined, ownMinutes: number | 
 /** "3 h 10 min", "45 min": a way's whole time, its stops' too, its air
  *  time on the route's clock (`scale`, gridScale). */
 export function wayTime(option: RouteOption, scale = 1): string {
-  return minutesWords(option.air_min * scale + option.ground_min);
+  return duration(option.air_min * scale + option.ground_min);
 }
 
 /** Whether two routes' stops are the same points in order. */

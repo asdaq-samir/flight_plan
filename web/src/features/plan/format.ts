@@ -1,7 +1,7 @@
 import type { AltitudeOption, Leg, Runway, Totals } from "../../lib/api/types";
 import { SCORE_STEPS } from "../../lib/scoreScale";
 import { altFt, bearing, flightLevel, one } from "../../lib/units";
-import { clockTime, hoursMinutes, zuluTime } from "../../lib/clock";
+import { clockTime, duration, zuluTime } from "../../lib/clock";
 import { calmOnRunway, isCalm } from "../../lib/wind";
 
 export { altFt, bearing, one };
@@ -26,19 +26,10 @@ export function scoreColor(s: number): string {
 }
 
 
-/** Total time as hours and minutes. Minutes are padded so the width does
- *  not jump as the number crosses ten. Rounded to whole minutes first:
- *  rounding the remainder on its own turned 179.6 minutes into "2h 60m". */
-export function hhmm(minutes: number | null): string {
-  if (minutes === null) return "ETE n/a";
-  const t = hoursMinutes(minutes);
-  return `${t.hours}h ${String(t.minutes).padStart(2, "0")}m`;
-}
-
 /** Total time in decimal hours, as a logbook keeps it: "19.9h", where
  *  the flight's line has no room for "19h 50m" (FlightLine). Up to the
  *  next tenth, so the time is never said short of what it is; whole
- *  minutes first, as hhmm's are. */
+ *  minutes first, as lib/clock's duration's are. */
 export function decimalHours(minutes: number): string {
   return `${(Math.ceil(Math.round(minutes) / 6) / 10).toFixed(1)}h`;
 }
@@ -90,7 +81,7 @@ export function describeSteps(option: AltitudeOption): string {
 /** One altitude plan's time: the flying time plus what its climbs
  *  cost, which is what the fastest is chosen on. */
 export function describeTime(option: AltitudeOption): string {
-  return option.ete_min === null ? "unflyable" : hhmm(option.ete_min);
+  return option.ete_min === null ? "unflyable" : duration(option.ete_min);
 }
 
 /** One altitude plan's fuel, its climbs' included -- what the

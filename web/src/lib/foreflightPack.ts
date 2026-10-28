@@ -9,7 +9,7 @@
  * share sheet, which does not offer ForeFlight for a ZIP. The route itself
  * goes by ForeFlight's maps link (lib/flightPlanFiles foreflightRoute).
  */
-import { readKept, writeKept } from "./storage";
+import { keptStore } from "./storage";
 
 /** The pack's address on this server: the route, its idents dash-joined,
  *  then the pack's name -- KORD-KDLH/KORD-KDLH-checkpoints.zip -- the
@@ -41,16 +41,16 @@ export function openInForeFlight(packUrl: string): string {
  *  the names the pack carried. */
 const SENT_KEY = "wingtip.foreflightPacks";
 
-const sentPacks = () => readKept<Record<string, string>>(SENT_KEY, {});
+const sentPacks = () => keptStore<Record<string, string>>(SENT_KEY, {});
 
 /** Whether this device sent ForeFlight the route's pack with these
  *  waypoint names: a new chart or another selection is another pack. */
 export function packSent(route: string, names: string[]): boolean {
-  return names.length > 0 && sentPacks()[route] === names.join(" ");
+  return names.length > 0 && sentPacks().getState().value[route] === names.join(" ");
 }
 
 /** That it has, kept for the next time the route goes to ForeFlight. */
 export function markPackSent(route: string, names: string[]): void {
   // A private window keeps none: the pack goes again next time.
-  writeKept(SENT_KEY, { ...sentPacks(), [route]: names.join(" ") });
+  sentPacks().setState(s => ({ value: { ...s.value, [route]: names.join(" ") } }));
 }

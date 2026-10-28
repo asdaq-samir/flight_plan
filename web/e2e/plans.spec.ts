@@ -36,7 +36,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(wheel).toBeVisible();
   await expect(wheel).toHaveAttribute("aria-valuetext", /feet, .*Fastest/);
   await expect(popover.getByTestId("mini-profile")).toBeVisible();
-  await expect(popover.getByTestId("altitude-figures")).toContainText(/\d+h \d{2}m/);
+  await expect(popover.getByTestId("altitude-figures")).toContainText(/\d+[hm]\b/);
   await expect(popover).toContainText("Floor");
   await expect(popover).toContainText("Ceiling");
   await expect(popover).toContainText("14 CFR 91.159");
@@ -94,7 +94,7 @@ test("plan page: the nav log's altitude opens the planner's own reasoning, and t
   await expect(cruise).toBeVisible();
   await expect(drawer.getByText("14 CFR 91.159")).toBeVisible();
   const steps = cruise.getByTestId("altitude-steps").locator('[data-slot="accordion-trigger"]');
-  await expect(steps.first()).toContainText(/^Fastest plan.+\d+h \d{2}m · [\d.]+ gal$/);
+  await expect(steps.first()).toContainText(/^Fastest plan.+(\d+h( \d+m)?|\d+m) · [\d.]+ gal$/);
   await expect(steps.nth(1)).toContainText(/^FloorTerrain and obstacles, with margin[\d,]+ ft$/);
   await expect(cruise.getByText(/^(Floor|Ceiling)\b/)).toHaveCount(2);
   await expect(cruise).not.toContainText("How it was chosen");
@@ -142,7 +142,7 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   // fuel required (the owner's "To, Dist, ETE, Fuel").
   await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(60000) });
   await expect(page.getByTestId("navlog-to")).toHaveText("KDLH");
-  await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
+  await expect(page.getByTestId("navlog-ete")).toHaveText(/^(\d+h( \d+m)?|\d+m)$/);
   // Every later row has a time once its leg is in.
   await expect.poll(async () => (await times.last().textContent())?.trim(), { timeout: slow(60000) }).toMatch(/^\d\d:\d\d$/);
   await closeNavLog(page);
@@ -150,7 +150,7 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   await page.getByTestId("ete-eta-toggle").click();
   await expect(page.getByTestId("navlog-eta")).toHaveText(/^\d\d:\d\d$/);
   await page.getByTestId("ete-eta-toggle").click();
-  await expect(page.getByTestId("navlog-ete")).toHaveText(/^\d+h \d\dm$/);
+  await expect(page.getByTestId("navlog-ete")).toHaveText(/^(\d+h( \d+m)?|\d+m)$/);
   // The fuel tapped, what it is made of, summing to it.
   await page.getByTestId("fuel-breakdown-open").click();
   const breakdown = page.getByTestId("fuel-breakdown");

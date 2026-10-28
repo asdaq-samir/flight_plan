@@ -1,15 +1,12 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
 import type { Traffic } from "../api/types";
-import { minutesWords, useMinuteClock } from "../clock";
+import { ago, useMinuteClock } from "../clock";
 
 /** How long ago `at` (ms) was, in a few words: "just now" under a
- *  minute, "4 min ago", "2 h 5 min ago"; null for no time. */
+ *  minute, "4m ago", "2h 5m ago" (lib/clock ago); null for no time. */
 export function ageWords(at: number | null, now: number): string | null {
-  if (at == null || Number.isNaN(at)) return null;
-  const minutes = Math.max(0, Math.floor((now - at) / 60_000));
-  if (minutes < 1) return "just now";
-  return `${minutesWords(minutes)} ago`;
+  return at == null || Number.isNaN(at) ? null : ago(now - at);
 }
 
 /** The newest traffic answer the map holds: when its airplanes were

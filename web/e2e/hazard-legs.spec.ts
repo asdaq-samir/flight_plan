@@ -56,7 +56,7 @@ test("the map's settings say when the METARs and TFRs were fetched", async ({ pa
   await page.goto("/app/plan");
   await settle(page);
   await openMapSettings(page);
-  await expect(page.getByTestId("metars-age")).toHaveText(/^METARs\s*aviationweather\.gov · \d min ago$/);
+  await expect(page.getByTestId("metars-age")).toHaveText(/^METARs\s*aviationweather\.gov · \d+m ago$/);
   // Not fetched yet: the source alone, no age made up.
   await expect(page.getByTestId("tfrs-age")).toHaveText(/TFRs\s*tfr\.faa\.gov$/);
   await page.unrouteAll({ behavior: "ignoreErrors" });

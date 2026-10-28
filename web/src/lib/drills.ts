@@ -11,7 +11,7 @@
  * again before the session ends. Kept in this browser: a student's own
  * progress, nobody else's to read.
  */
-import { readKept, writeKept } from "./storage";
+import { keptStore } from "./storage";
 
 export type Light = "green" | "red" | "white";
 
@@ -115,14 +115,14 @@ export function nextDue(deck: Deck, progress: Progress, now: number): number | n
 
 const KEY = (deck: DeckKey) => `wingtip.drill.${deck}`;
 
-/** A deck's progress as kept in this browser; none where storage cannot
- *  be had. */
+/** A deck's progress as kept in this browser (lib/storage); none where
+ *  storage cannot be had. */
 export function keptProgress(deck: DeckKey): Progress {
-  return readKept<Progress>(KEY(deck), {});
+  return keptStore<Progress>(KEY(deck), {}).getState().value;
 }
 
 /** A private window keeps none: the session still runs, and starts afresh
  *  next time. */
 export function keepProgress(deck: DeckKey, progress: Progress): void {
-  writeKept(KEY(deck), progress);
+  keptStore<Progress>(KEY(deck), {}).setState({ value: progress });
 }
