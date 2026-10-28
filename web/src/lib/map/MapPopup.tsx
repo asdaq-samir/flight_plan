@@ -90,8 +90,6 @@ export function MapPopup(props: Props) {
 }
 
 function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = true, children, ...props }: Props) {
-  const map = useMap();
-  const insets = useContext(MapInsetsContext);
   const popup = useRef<L.Popup>(null);
   // Open, and where its thing is.
   const [open, setOpen] = useState(false);
@@ -115,7 +113,27 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = tr
   // what it covers -- where it went under the sheet coming up. Not where
   // the caller moves the map itself (autoPan off: the training pass).
   const pans = ring && panCard && props.autoPan !== false;
-  const lat = at?.lat, lon = at?.lon;
+  return (
+    <>
+      {/* Leaflet's, for when the card is open; never in sight. */}
+      <Popup ref={popup} {...props} className="hidden" autoPan={false} closeButton={false} eventHandlers={handlers} />
+      {open && at && pans && <PanClear at={at} />}
+      {open && at && ring && <Halo at={at} />}
+      {open && <SheetCard onClose={() => popup.current?.close()}>{children}</SheetCard>}
+    </>
+  );
+}
+
+/** An open card's point kept in sight above the sheet as the sheet
+ *  changes: its own part, so only an open card hears the sheet's room
+ *  (MapInsetsContext). In every card, the 211 closed ones of a route's
+ *  checkpoints and candidates drew again at every turn of the sheet,
+ *  their marks with them (profiled on the phone project, half to the
+ *  pill, 2026-10-27: 1,433 components in that commit). */
+function PanClear({ at }: { at: { lat: number; lon: number } }) {
+  const map = useMap();
+  const insets = useContext(MapInsetsContext);
+  const { lat, lon } = at;
   // After the map has stopped, where the same tap set it moving -- a
   // checkpoint's flies in to it (RouteMap's FocusOn): panInside's setView
   // stopped that flight at once at the old zoom, and the checkpoint was
@@ -130,7 +148,6 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = tr
     return () => { map.off("movestart", start); map.off("moveend", end); };
   }, [map]);
   useEffect(() => {
-    if (!pans || lat === undefined || lon === undefined) return;
     const pan = () => map.panInside([lat, lon], {
       paddingTopLeft: [insets.left + 24, insets.top + 24],
       paddingBottomRight: [24, insets.bottom + 24],
@@ -141,15 +158,8 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = tr
     }
     map.once("moveend", pan);
     return () => { map.off("moveend", pan); };
-  }, [map, pans, lat, lon, insets.left, insets.top, insets.bottom]);
-  return (
-    <>
-      {/* Leaflet's, for when the card is open; never in sight. */}
-      <Popup ref={popup} {...props} className="hidden" autoPan={false} closeButton={false} eventHandlers={handlers} />
-      {open && at && ring && <Halo at={at} />}
-      {open && <SheetCard onClose={() => popup.current?.close()}>{children}</SheetCard>}
-    </>
-  );
+  }, [map, lat, lon, insets.left, insets.top, insets.bottom]);
+  return null;
 }
 
 function PopupOver({ eventHandlers, panOnce = false, ring: _ring, panCard: _panCard, ...props }: Props) {
