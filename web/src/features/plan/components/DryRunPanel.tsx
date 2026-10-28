@@ -141,7 +141,11 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
         <Slider
           min={tenth(first)} max={Math.max(tenth(last), tenth(first) + 0.1)} step={0.1}
           value={[tenth(nowNm ?? first)]}
-          onValueChange={([nm]) => { if (nm !== undefined) seekNm(nm); }}
+          // The scrubber's end is the run's end: its last tenth of a mile,
+          // sought as such, came back a hundredth short through the run's
+          // own time and read a tenth under the end (End pressed:
+          // dry-run.spec, CI on both projects).
+          onValueChange={([nm]) => { if (nm !== undefined) seekNm(nm >= tenth(last) ? last : nm); }}
           onPointerDown={grab} onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={step}
           className={cn(
             "absolute inset-y-0 right-3 left-3 w-auto cursor-ew-resize rounded-lg",
