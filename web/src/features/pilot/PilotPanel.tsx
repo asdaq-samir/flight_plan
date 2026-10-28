@@ -5,6 +5,7 @@ import { cn } from "cn";
 import type { ReactNode } from "react";
 import AboutPanel from "../../components/AboutPanel";
 import { ConsolePages, PageButton, PageLink, PageRow } from "../../components/ConsolePages";
+import { PillSection } from "../../components/Favorites";
 import EmptyState from "../../components/EmptyState";
 import { ListGroup } from "../../components/GroupedList";
 import { RowBadge } from "../../components/RowBadge";
@@ -94,7 +95,7 @@ function Personal({ pilot, dev }: {
           {account}
           {/* A section as the page's others are, so the room between them
               is the one room every tab's sections keep (tab-consistency). */}
-          <section><AccountCard pilot={signedIn ? pilot : null} /></section>
+          <AccountCard pilot={signedIn ? pilot : null} />
           {/* The pilot's things, a row each with where it stands, as iOS's
               Settings lists its parts: the account's three greyed until
               there is one; the minimums are this device's. */}
@@ -142,23 +143,27 @@ function minimumsWords(m: Minimums): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
-/** Who is signed in, as iOS's Settings opens on its account: their
- *  initials, their name and address, the role's menu at its end (sign
- *  out, delete). A tap on it opens their details, for their flight plans.
- *  Signed out, the way in. */
+/** Who is signed in, under an Account heading as the Controls have theirs
+ *  (the owner, 2026-10-28): their initials, their name and address, the
+ *  role's menu at its end (sign out, delete). A tap on it opens their
+ *  details, for their flight plans. Signed out, the heading alone with
+ *  Sign in at its right, no words under it, at the owner's ask ("no need
+ *  to have the description, just simple sign in right aligned"). */
 function AccountCard({ pilot }: { pilot: Pilot | null }) {
   if (!pilot) {
     return (
-      <div role="group" aria-label="Account" className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2.5" data-testid="setup-pill-account">
-        <span className={cn("flex-1 text-muted-foreground", TEXT.detail)}>Sign in to keep your airplanes, flights and logbook.</span>
-        <Suspense fallback={null}><SignInModal plain /></Suspense>
-        <AccountMenu />
-      </div>
+      <PillSection
+        title="Account" testId="setup-pill-account"
+        right={<><Suspense fallback={null}><SignInModal plain /></Suspense><AccountMenu /></>}
+      >
+        {null}
+      </PillSection>
     );
   }
   const name = pilot.fullName || pilot.displayName;
   const initials = name.split(/\s+/).filter(Boolean).map(w => w[0]!).slice(0, 2).join("").toUpperCase();
   return (
+    <PillSection title="Account">
     <div role="group" aria-label="Account" className="flex items-center gap-3 rounded-lg border border-border bg-card pr-3" data-testid="setup-pill-account">
       <PageButton page="pilot" testId="pilot-row" label={`${name}: pilot details`}>
         <span aria-hidden="true" className={cn("grid size-10 shrink-0 place-items-center rounded-full bg-primary font-semibold text-primary-foreground", TEXT.row)}>{initials}</span>
@@ -171,6 +176,7 @@ function AccountCard({ pilot }: { pilot: Pilot | null }) {
       </PageButton>
       <AccountMenu />
     </div>
+    </PillSection>
   );
 }
 
