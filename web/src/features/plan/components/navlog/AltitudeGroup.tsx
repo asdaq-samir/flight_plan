@@ -32,7 +32,7 @@ const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round
 // Dashes, not an example figure: grey "080" after FL- read as an
 // altitude planned (the owner's screenshot, 2026-10-27, while the
 // altitudes were still being planned).
-const PLACEHOLDER = "FL----";
+const PLACEHOLDER = flightLevel(null);
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they

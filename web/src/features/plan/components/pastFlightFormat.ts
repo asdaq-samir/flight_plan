@@ -1,5 +1,5 @@
 import type { PastFlightSummary } from "../../../lib/api/types";
-import { clockTime } from "../../../lib/clock";
+import { clockTime, minutesWords } from "../../../lib/clock";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -12,8 +12,7 @@ export const when = (s: number) => new Date(s * 1000);
 
 /** "2 h 13 min", "41 min". */
 export function lasted(seconds: number): string {
-  const minutes = Math.round(seconds / 60);
-  return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+  return minutesWords(seconds / 60);
 }
 
 /** "LCI → LWM", "LWM → in the air", "? → LCI": an end with no field

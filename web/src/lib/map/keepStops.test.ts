@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../api/client", () => ({
   api: {
-    routeStops: vi.fn(async () => ({ pending: 0, fields: [{ ident: "KIOW" }, { ident: "C81" }] })),
+    stopsAlong: vi.fn(async () => ({ pending: 0, fields: [{ ident: "KIOW" }, { ident: "C81" }] })),
     airportPhotos: vi.fn(async (ident: string) => ident === "KIOW"
       ? { aerial_url: "/api/planner/airport-aerial/KIOW.jpg", photo: { url: "/api/planner/airport-photo/KIOW.jpg" } }
       : { aerial_url: `/api/planner/airport-aerial/${ident}.jpg`, photo: null }),

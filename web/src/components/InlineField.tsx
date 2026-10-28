@@ -2,12 +2,6 @@ import type { InputHTMLAttributes, ReactNode } from "react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
 
-/** A field's button at its end: 22 inside the field's 28, three in from
- *  its end, at the owner's ask ("buttons for n number and altitude should
- *  be smaller to fit in its input group"); its 44 a pseudo-element round it. */
-export const INLINE_FIELD_BUTTON =
-  "relative mr-[3px] flex size-[1.375rem] shrink-0 items-center justify-center rounded-full outline-none after:absolute after:-inset-[11px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring";
-
 /**
  * A short field in the route box's row with a glass button at its end --
  * the airplane's N-number (FlightInputs) and the cruise altitude
@@ -43,7 +37,7 @@ export function InlineField({ label, testId, widest, tabular = false, placeholde
   shrink?: boolean;
   input: Omit<InputHTMLAttributes<HTMLInputElement>, "className" | "placeholder"> & { "data-testid"?: string };
   inputClassName?: string;
-  /** At its end, shown when it has something to open (INLINE_FIELD_BUTTON). */
+  /** At its end, shown when it has something to open. */
   button?: ReactNode;
 }) {
   return (
