@@ -49,6 +49,39 @@ test("shown in the map's settings, the airplanes about are drawn on their tracks
   await expect.poll(() => asks.length, { timeout: slow(12_000) }).toBeGreaterThan(first);
 });
 
+test.describe("on a touch screen", () => {
+  test.use({ hasTouch: true });
+test("on a phone the credit rides on the sheet's top, under a finger and at rest", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "the phone's sheet");
+  await showTraffic(page, true);
+  await page.goto("/app/plan?place=C81");
+  await settle(page);
+  const credit = page.locator(".leaflet-control-attribution", { hasText: "adsb.lol" });
+  await expect(credit).toBeVisible({ timeout: slow(15_000) });
+  const panel = page.locator('[data-slot="map-panel"]');
+  // The credit's foot against the sheet's top.
+  const gap = async () => {
+    const [c, p] = [(await credit.boundingBox())!, (await panel.boundingBox())!];
+    return Math.abs(c.y + c.height - p.y);
+  };
+  for (const size of ["half", "peek"] as const) {
+    await grabberTo(page, size);
+    await expect.poll(gap).toBeLessThan(3);
+  }
+  // Dragged up from its tabs and held: the credit goes with it, where it
+  // stayed at the inset the sheet had at rest (the owner, 2026-10-28).
+  const tabs = (await panel.getByTestId("tab-bar").boundingBox())!;
+  const at = { x: tabs.x + tabs.width / 2, y: tabs.y + tabs.height / 2 };
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: string, q?: { x: number; y: number }) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: q ? [{ ...q, id: 1 }] : [] });
+  await touch("touchStart", at);
+  for (let i = 1; i <= 6; i++) await touch("touchMove", { x: at.x, y: at.y - 25 * i });
+  await expect.poll(gap).toBeLessThan(3);
+  await touch("touchEnd");
+});
+});
+
 test("between reports each airplane is carried on along its track, as ForeFlight's and FlightAware's are", async ({ page }) => {
   await page.addInitScript(() => {
     const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');

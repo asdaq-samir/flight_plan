@@ -115,6 +115,15 @@ body .leaflet-container {
   bottom: max(var(--map-inset-bottom, 0px), env(safe-area-inset-bottom));
   transition: bottom 0.3s cubic-bezier(0, 0, 0.58, 1);
 }
+/* On a phone the credits ride on the sheet's top, as the map's buttons
+   do (--sheet-cover, eased with the sheet): kept on the inset, which
+   moves only once the sheet has turned, the traffic credit was left
+   half way up the map over a sheet down at its tabs (the owner's
+   screenshot, 2026-10-28). */
+body[data-map-sheet] .leaflet-container .leaflet-bottom {
+  bottom: max(var(--sheet-cover, var(--map-inset-bottom, 0px)), env(safe-area-inset-bottom));
+  transition: bottom var(--sheet-cover-ease, 0s);
+}
 .leaflet-container .leaflet-top {
   top: max(var(--map-inset-top, 0px), env(safe-area-inset-top));
   transition: top 0.3s cubic-bezier(0, 0, 0.58, 1);
