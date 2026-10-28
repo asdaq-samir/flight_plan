@@ -59,17 +59,12 @@ last gate.
 
 Where the copies still differ, the fixtures leave the case out:
 
-- Traffic's label rounds a difference of a half hundred feet the other
-  way below own ship (JavaScript's `Math.round` takes -2.5 to -2, Swift's
-  `rounded()` to -3: 250 ft below is "-02" on the web and "-03" on the
-  phone), and an airplane under 50 ft below sea level with own ship's
-  height unknown.
-- The logbook's CSV writes a solo, dual, towered-landings or longest-leg
-  field the gateway left empty as empty on the web and as 0 on the
-  phone, and quotes a field with a space at either end only on the web
-  (papaparse).
+- Traffic's label with own ship's height unknown, for an airplane under
+  50 ft below sea level. (Against own ship both now cut the hundreds
+  toward it, the owner's conservative pick, 2026-10-28.)
 - `FilingForm.hhmm` takes whole minutes, where the web's `hhmmForm`
-  rounds a fraction first; the route item files no departure or arrival
+  rounds a fraction first -- whole minutes are fine, the owner said
+  (2026-10-28); the route item files no departure or arrival
   procedure from the phone yet.
 
 ## Building

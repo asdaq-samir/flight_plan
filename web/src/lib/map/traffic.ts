@@ -16,14 +16,20 @@ const ARROW_FPM = 500;
 /** Under the airplane: its height against own ship's in hundreds of
  *  feet, "+05" above and "-12" below, as TCAS writes it, with an arrow
  *  climbing or descending; with own ship's height not known, its own
- *  height in feet, "4,500". Nothing where it sends none. */
+ *  height in feet, "4,500". Nothing where it sends none. The hundreds cut
+ *  toward own ship, never rounded away from it, so an airplane is never
+ *  shown further off than it is: 250 ft below is "-02", 290 ft "-02",
+ *  50 ft below "-00" -- the owner's "conservative approach ... to show
+ *  how close traffic are" (2026-10-28), where a rounding gave "+00" for
+ *  one 50 ft below and the phone "-03" for one 250 ft below. */
 export function trafficLabel(plane: TrafficAircraft, ownFt: number | null): string {
   if (plane.altitude_ft == null) return "";
   const rate = plane.vertical_fpm ?? 0;
   const arrow = rate >= ARROW_FPM ? "↑" : rate <= -ARROW_FPM ? "↓" : "";
   if (ownFt == null) return `${grouped(Math.round(plane.altitude_ft / 100) * 100)}${arrow}`;
-  const hundreds = Math.round((plane.altitude_ft - ownFt) / 100);
-  return `${hundreds >= 0 ? "+" : "-"}${String(Math.abs(hundreds)).padStart(2, "0")}${arrow}`;
+  const apart = plane.altitude_ft - ownFt;
+  const hundreds = Math.trunc(Math.abs(apart) / 100);
+  return `${apart < 0 ? "-" : "+"}${String(hundreds).padStart(2, "0")}${arrow}`;
 }
 
 /** Whether two heights are within NEAR_FT of each other: the map's

@@ -56,15 +56,18 @@ final class Traffic {
     /// Under the airplane: its height against own ship's in hundreds of
     /// feet, "+05" above and "-12" below, as TCAS writes it, with an arrow
     /// climbing or descending; with own ship's height not known, its own
-    /// height in feet, "4,500". Nothing where it sends none. The web app's
-    /// trafficLabel, kept the same.
+    /// height in feet, "4,500". Nothing where it sends none. The hundreds
+    /// cut toward own ship, never rounded away from it, so an airplane is
+    /// never shown further off than it is (the owner, 2026-10-28). The web
+    /// app's trafficLabel, kept the same (traffic.json).
     static func label(_ plane: TrafficAircraft, ownFt: Double?) -> String {
         guard let ft = plane.altitudeFt else { return "" }
         let rate = plane.verticalFpm ?? 0
         let arrow = rate >= arrowFpm ? "↑" : rate <= -arrowFpm ? "↓" : ""
         guard let ownFt else { return "\((Int((ft / 100).rounded()) * 100).formatted())\(arrow)" }
-        let hundreds = Int(((ft - ownFt) / 100).rounded())
-        return "\(hundreds >= 0 ? "+" : "-")\(String(format: "%02d", abs(hundreds)))\(arrow)"
+        let apart = ft - ownFt
+        let hundreds = Int((abs(apart) / 100).rounded(.towardZero))
+        return "\(apart < 0 ? "-" : "+")\(String(format: "%02d", hundreds))\(arrow)"
     }
 
     static func near(_ plane: TrafficAircraft, ownFt: Double?) -> Bool {

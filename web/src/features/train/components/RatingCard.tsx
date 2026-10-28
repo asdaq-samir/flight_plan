@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { Button } from "../../../components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
 import { isEndpoint, type Point, type Rating } from "../../../lib/api/types";
 import { inkOn } from "../../../lib/scoreScale";
 import { TEXT } from "../../../lib/text";
@@ -11,6 +12,15 @@ import { capitalised } from "../../../lib/advisories";
  *  the line wraps. */
 const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
   .map(term => term.replaceAll(" ", " ")).join(" · ");
+
+/** A rating's button as the stock Button drew it -- 40 tall in the
+ *  card's grid, the figure bold at 17 to a finger, a clear border its
+ *  fill kept inside -- its colour the scale's (inline), the one given
+ *  ringed. */
+const RATING = cn(
+  "h-10 w-full cursor-pointer rounded-md border border-transparent bg-clip-padding px-0 text-base font-bold select-none pointer-coarse:text-[1.0625rem]",
+  "data-[state=on]:ring-2 data-[state=on]:ring-foreground data-[state=on]:ring-offset-2 data-[state=on]:ring-offset-background",
+);
 
 /**
  * The point to rate, in the training page's pill and all the way up under
@@ -48,19 +58,30 @@ export default function RatingCard({ point, number, onRate, onStart }: {
         <span className={cn("min-w-0 truncate text-muted-foreground", TEXT.detail)}>{where}</span>
       </div>
       {/* Six across the card, eight apart: each 40 tall, its 44-point hit
-          area its own (index.css), not grown to it. */}
-      <div className="grid grid-cols-6 gap-2" role="group" aria-label="Rate this waypoint">
+          area its own (index.css), not grown to it. One rating of six, so
+          the stock ToggleGroup: to VoiceOver a radio group with the one
+          given checked, Left and Right moving along it (Up and Down are
+          the page's, walking the points). A tap on the one
+          already given rates it again, as before, and moves on. */}
+      <ToggleGroup
+        type="single" value={rating === null ? "" : `${rating}`} aria-label="Rate this waypoint" orientation="horizontal"
+        onValueChange={v => onRate(v ? (Number(v) as Rating) : rating!)}
+        // The group's own 44 a pseudo-element behind it, as Segmented's
+        // track has: Radix makes it a radio group, a control of its own
+        // to the iOS audit, and its row is 40 (isolate keeps the area over
+        // the card). The row does not grow.
+        className="relative isolate grid w-full grid-cols-6 gap-2 rounded-none after:absolute after:inset-x-0 after:-inset-y-0.5 after:-z-10 after:content-['']"
+      >
         {RATINGS.map(r => (
-          <Button
-            key={r} type="button" onClick={() => onRate(r)}
-            aria-label={`Rate ${r}`} aria-pressed={rating === r}
-            className={cn("h-10 px-0 text-base font-bold", rating === r && "ring-2 ring-foreground ring-offset-2 ring-offset-background")}
+          <ToggleGroupItem
+            key={r} value={`${r}`} aria-label={`Rate ${r}`}
+            className={RATING}
             style={{ backgroundColor: COLORS[r], color: inkOn(COLORS[r]) }}
           >
             {r}
-          </Button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
       {/* All the way up, under the buttons; in the pill the room is theirs
           (MapPanel's data-pill-hides). */}
       <p className={cn("text-foreground/70 in-data-capsule:hidden", TEXT.note)}>{SCALE_KEY}</p>

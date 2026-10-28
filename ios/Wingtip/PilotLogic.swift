@@ -88,7 +88,10 @@ enum LogbookCSV {
     }
 
     private static func cell(_ s: String) -> String {
-        s.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" || $0 == "\r" }) ? "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\"" : s
+        // Quoted where a reader would read it otherwise: a comma, a quote,
+        // a line break, or a space at either end (as the web's papaparse
+        // writes it, logbookCsv.json).
+        s.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" || $0 == "\r" }) || s.first == " " || s.last == " " ? "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\"" : s
     }
 
 
@@ -99,9 +102,9 @@ enum LogbookCSV {
                      "PilotComments"]
         let lines = entries.sorted { $0.flownOn < $1.flownOn }.map { e -> String in
             [e.flownOn, e.aircraft ?? "", e.aircraftType ?? "", e.route ?? "", AirportWords.plain(e.totalHours), AirportWords.plain(e.nightHours),
-             AirportWords.plain(e.crossCountryHours), AirportWords.plain(e.soloHours ?? 0), AirportWords.plain(e.dualHours ?? 0), AirportWords.plain(e.instrumentHours),
-             String(e.dayLandings + e.nightLandings), String(e.nightLandings), String(e.toweredLandings ?? 0), AirportWords.plain(e.distanceNm),
-             AirportWords.plain(e.longestLegNm ?? 0), String(e.approaches), (e.holding ?? false) ? "1" : "0", (e.tracking ?? false) ? "x" : "",
+             AirportWords.plain(e.crossCountryHours), e.soloHours.map(AirportWords.plain) ?? "", e.dualHours.map(AirportWords.plain) ?? "", AirportWords.plain(e.instrumentHours),
+             String(e.dayLandings + e.nightLandings), String(e.nightLandings), e.toweredLandings.map { String($0) } ?? "", AirportWords.plain(e.distanceNm),
+             e.longestLegNm.map(AirportWords.plain) ?? "", String(e.approaches), (e.holding ?? false) ? "1" : "0", (e.tracking ?? false) ? "x" : "",
              e.remarks ?? ""].map(cell).joined(separator: ",")
         }
         return ([names.joined(separator: ",")] + lines).joined(separator: "\r\n") + "\r\n"

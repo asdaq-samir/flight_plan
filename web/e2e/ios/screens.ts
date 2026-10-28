@@ -106,7 +106,7 @@ export const SCREENS: Screen[] = [
       const rows = sideDrawer(page).locator("[data-waypoint-row]");
       await expect.poll(() => rows.count(), { timeout: slow(60000) }).toBeGreaterThan(10);
       await rows.nth(2).click();
-      await expect(sideDrawer(page).getByTestId("rating-card").getByRole("button", { name: "Rate 5" })).toBeVisible();
+      await expect(sideDrawer(page).getByTestId("rating-card").getByRole("radio", { name: "Rate 5" })).toBeVisible();
     },
   },
   {
