@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { googleMapsQuery } from "../queryClient";
-import { readKept, writeKept } from "../storage";
+import { keptStore } from "../storage";
 
 /** Google's Map Tiles API: a session for a kind of map, then its tiles. */
 export const GOOGLE = "https://tile.googleapis.com";
@@ -16,9 +16,9 @@ interface Session { session: string; expiry: number; key: string }
  * Google's roads and names over it, as its Satellite view does.
  */
 async function googleSession(key: string, kind: "map" | "satellite"): Promise<Session> {
-  const kept = `vfr.googleSession.${kind}`;
+  const kept = keptStore<Session | null>(`vfr.googleSession.${kind}`, null);
   // No storage: a new session.
-  const held = readKept<Session | null>(kept, null);
+  const held = kept.getState().value;
   if (held && held.key === key && held.expiry * 1000 - Date.now() > 24 * 3600_000) return held;
   const resp = await fetch(`${GOOGLE}/v1/createSession?key=${encodeURIComponent(key)}`, {
     method: "POST", headers: { "Content-Type": "application/json" },
@@ -30,7 +30,7 @@ async function googleSession(key: string, kind: "map" | "satellite"): Promise<Se
   const answer = await resp.json() as { session: string; expiry: string };
   const session = { session: answer.session, expiry: Number(answer.expiry), key };
   // Kept for this page only where storage is refused.
-  writeKept(kept, session);
+  kept.setState({ value: session });
   return session;
 }
 
