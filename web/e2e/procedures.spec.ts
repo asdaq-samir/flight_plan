@@ -254,6 +254,14 @@ test("an approach puts its field's runway on its own, and another is let only wh
   await openTab(page, "Nav Log");
   // The plate switched off from the approach's pull-down, and on again.
   await kdlh.locator("[data-testid=procedure-kind][data-kind=approach]").click();
+  // The one picked is the stock radio list's checked choice, as a reader
+  // hears it; the arrow keys move between the choices without picking.
+  const ils = page.getByTestId("procedure-menu").getByRole("radio", { name: /^ILS/ }).first();
+  await expect(ils).toHaveAttribute("aria-checked", "true");
+  await ils.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByTestId("procedure-menu")).toBeVisible();
+  await expect(page).toHaveURL(/KDLH(%3A|:)I09(%3A|:)DLH/);
   const plate = page.getByTestId("procedure-menu-plate");
   await expect(plate).toHaveAttribute("aria-checked", "true");
   await plate.click();
