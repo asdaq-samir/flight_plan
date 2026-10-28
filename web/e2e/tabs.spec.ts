@@ -14,10 +14,16 @@ import { settle, sideDrawer, slow, openTab, openSection, panelTabs, openBrief, c
 /** The briefing's answer, changed by `change` on its way in. */
 async function briefingAs(page: Page, change: (json: Record<string, unknown>) => void) {
   await page.route("**/api/planner/briefing?*", async route => {
-    const response = await route.fetch();
+    // A briefing asked for again as the test ends -- the runways picked
+    // into the wind plan the route again with their patterns, and the
+    // briefing follows the plan's new times -- finds the page gone: not a
+    // failure of the test (CI, 2026-10-28, all three tries of the Brief's
+    // cards passing their checks and failing here).
+    const response = await route.fetch().catch(() => null);
+    if (!response) return;
     const json = await response.json();
     change(json);
-    await route.fulfill({ response, json });
+    await route.fulfill({ response, json }).catch(() => {});
   });
 }
 
