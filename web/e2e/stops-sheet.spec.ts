@@ -8,9 +8,9 @@ const origin = new URL(process.env.BASE_URL ?? "http://localhost:8080").origin;
  * owner's pick of the Stops canvas (2026-10-27), where Fly-in Food was:
  * the map-pin button among the map's own, a sheet over FPL with how far to
  * look beside its title, the kinds as pills (All, Food, Fuel, Repair,
- * Training), and a row for each field with a line for each kind it has,
- * Call and Direct To or Add Stop; the Airport tab's Find Nearby tiles open
- * it with a kind picked.
+ * Training), and a row for each field with a line for each kind it has
+ * and Add Stop along a route, its pin's tap picking it; the Airport tab's
+ * Find Nearby tiles open it with a kind picked.
  *
  * The fields are the planner's (/api/stops/near and /api/stops/along,
  * tested there); here they are answered with two, so the page is tried
@@ -53,7 +53,7 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("with a course drawn, the map's Stops button opens the fields along it, each with a line for each kind it has, Call and Add Stop", async ({ page }) => {
+test("with a course drawn, the map's Stops button opens the fields along it, each with a line for each kind it has, its pin's tap picking it, and Add Stop", async ({ page }) => {
   const asked: string[] = [];
   await stops(page, asked);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -81,9 +81,8 @@ test("with a course drawn, the map's Stops button opens the fields along it, eac
   await expect(rows.nth(0).getByTestId("stops-line-training")).toHaveText("Training: Citywings Flight School");
   // Only the lines for what the field has.
   await expect(rows.nth(1).getByTestId("stops-line-food")).toHaveCount(0);
-  // Call: the FAA's number for the field, none where it lists none.
-  await expect(rows.nth(0).getByTestId("stops-call")).toHaveAttribute("href", "tel:8475550100");
-  await expect(rows.nth(1).getByTestId("stops-call")).toHaveCount(0);
+  // No Call: a tap away on the field's card (the owner, 2026-10-28).
+  await expect(card.getByTestId("stops-call")).toHaveCount(0);
 
   // A kind picked: only the fields that have it, and on the map its pin only.
   await card.getByTestId("stops-kind-food").click();
@@ -93,6 +92,16 @@ test("with a course drawn, the map's Stops button opens the fields along it, eac
   await card.getByTestId("stops-kind-all").click();
   await expect(rows).toHaveCount(2);
   await expect(page.getByTitle("KAAA: Fuel, Food, Repair, Training")).toHaveCount(1);
+
+  // A field's pin tapped with the sheet at its pill: its row picked, the
+  // sheet half way up to show it, and no card opened over the list.
+  await grabberTo(page, "peek");
+  await page.getByTitle("KBBB: Fuel").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
+  await expect(rows.nth(0)).not.toHaveAttribute("aria-current", "true");
+  await expect(rows.nth(1)).toBeInViewport();
+  await expect(page).not.toHaveURL(/[?&]place=/);
 
   // Add Stop puts the field in the route (the owner's "On course, have a
   // button to add stop", 2026-10-26).
@@ -125,10 +134,10 @@ test("with no route the Stops look round the pilot, 25 nm at first, the distance
   await card.getByTestId("stops-kind-training").click();
   await expect(card.getByTestId("stops-field")).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.preferences") ?? "{}").state?.stopKind)).toBe("training");
-  // Round the pilot, Direct To: a flight from here to the field.
-  await card.getByTestId("stops-field").first().getByTestId("stops-direct").click();
-  await expect(page).toHaveURL(/[?&]dest=KAAA(&|$)/);
-  await expect(page).toHaveURL(/[?&]dep=%4042\.3/);
+  // Round the pilot no Direct To or Add Stop: a flight there is a tap
+  // away on the field's card (the owner, 2026-10-28).
+  await expect(card.getByTestId("stops-direct")).toHaveCount(0);
+  await expect(card.getByTestId("stops-add-stop")).toHaveCount(0);
   await button.click();
   await expect(card).toHaveCount(0);
 });

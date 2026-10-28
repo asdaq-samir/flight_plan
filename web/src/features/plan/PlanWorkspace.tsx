@@ -1667,6 +1667,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => (prev.get("brief") || prev.get("place") ? patched(prev, { brief: null, place: null }) : prev), { replace: true });
     if (panelNow.current !== "full") setPanel("half");
   }, [setStopsOpen, setTabPick, setSearchParams, setPanel]);
+  // A field's pin tapped on the chart: its row picked in the sheet, the
+  // sheet half way up from the pill so the row is in sight, where the tap
+  // opened the field's card (the owner, 2026-10-28: the card is a tap on
+  // the row's ident away).
+  const setStopPicked = useStopsAlong(st => st.setPicked);
+  const pickStopField = useCallback((ident: string) => {
+    setStopPicked(ident);
+    if (panelNow.current === "peek") setPanel("half");
+  }, [setStopPicked, setPanel]);
   const setStopsOpener = useStopsAlong(st => st.setOpener);
   useEffect(() => {
     setStopsOpener(openStops);
@@ -2663,7 +2672,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           crossings={crossings}
           directs={mapDirects}
           onProcedureFix={showFix}
-          fuelStops={fuelStopPins} stopFields={stopFieldPins}
+          fuelStops={fuelStopPins} stopFields={stopFieldPins} onPickStopField={pickStopField}
           ways={wayLines} wayShown={lineKey === "none" ? "own" : lineKey} onPickWay={pickWay}
         />
         </Suspense>
@@ -2808,7 +2817,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           <StopsCard
             at={stopsAt} route={stopsRoute} scope={stopsScope} onScope={setStopsScope} onClose={closeStops} onOpenField={selectPlace}
             onAddStop={addStopField}
-            onDirect={ident => void flyHere({ ident })}
           />
         )}
         <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (savedOpen || briefHere || profileHere || stopsHere || !hasPoints) && "hidden")}>{navLog}</div>

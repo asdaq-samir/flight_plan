@@ -199,10 +199,13 @@ export function ListRow({ id, media, title, description, value, href, to, chevro
       </Item>
     );
   }
-  // A plain row keeps its test id, the one attribute of a button's it
-  // has a use for.
+  // A plain row keeps its test id, its class and whether it is the one
+  // picked (aria-current), the attributes of a button's it has a use for.
   return (
-    <Item size="sm" className="min-h-11 rounded-none border-0 py-2" data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}>
+    <Item
+      size="sm" className={cn("min-h-11 rounded-none border-0 py-2", buttonProps.className)} aria-current={buttonProps["aria-current"]}
+      data-testid={(buttonProps as { "data-testid"?: string })["data-testid"]}
+    >
       {body}
     </Item>
   );

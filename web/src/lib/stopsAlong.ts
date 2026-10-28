@@ -20,13 +20,20 @@ export const useStopsAlong = create<{
    *  the route has it (along it where there is one). */
   scope: "route" | "near" | null;
   setScope: (scope: "route" | "near") => void;
+  /** The field whose pin was tapped on the chart: its row picked in the
+   *  card and brought into sight (the owner, 2026-10-28); none once the
+   *  card is put away. */
+  picked: string | null;
+  setPicked: (ident: string | null) => void;
 }>(set => ({
   available: false,
   open: false,
   opener: null,
   setOpener: opener => set({ opener }),
   setAvailable: available => set(available ? { available } : { available, open: false }),
-  setOpen: open => set({ open }),
+  setOpen: open => set(open ? { open } : { open, picked: null }),
   scope: null,
   setScope: scope => set({ scope }),
+  picked: null,
+  setPicked: picked => set({ picked }),
 }));
