@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checklistOf, textOf } from "./checklist";
+import checklistFixture from "./fixtures/checklist.json";
 
 describe("a checklist written as text", () => {
   it("reads sections and items, each split as a printed checklist sets it", () => {
@@ -32,5 +33,15 @@ describe("a checklist written as text", () => {
     expect(checklistOf("Pitot-static heat -- On").sections[0]!.items[0]).toEqual({ challenge: "Pitot-static heat", response: "On" });
     const long = checklistOf(`# ${"S".repeat(60)}\n${"C".repeat(100)} -- ${"R".repeat(100)}`).sections[0]!;
     expect([long.title.length, long.items[0]!.challenge.length, long.items[0]!.response!.length]).toEqual([40, 80, 80]);
+  });
+});
+
+// The shared fixture the iPhone app's ChecklistText (PilotLogic.swift) is
+// tested against too (WingtipTests/SharedFixturesTests.swift), so the two
+// read a checklist alike (docs/NATIVE.md).
+describe("the shared checklist fixture", () => {
+  it.each(checklistFixture.cases.map((c, i) => ({ ...c, i })))("case $i", ({ text, checklist, written }) => {
+    expect(checklistOf(text)).toEqual(checklist);
+    expect(textOf(checklistOf(text))).toBe(written);
   });
 });

@@ -1,0 +1,588 @@
+{
+  "about": "Flash-card drills: the light gun signals (14 CFR 91.125) and the basic VFR weather minimums (91.155) in the regulation's words, and Leitner's boxes. Times in ms since 1970. Web: lib/drills.ts. iOS: Drills in PilotLogic.swift.",
+  "intervalDays": [
+    0,
+    1,
+    3,
+    7,
+    16
+  ],
+  "decks": [
+    {
+      "key": "light-gun",
+      "title": "Light gun signals",
+      "source": "14 CFR 91.125",
+      "url": "https://www.ecfr.gov/current/title-14/part-91/section-91.125",
+      "cards": [
+        {
+          "id": "steady-green-surface",
+          "prompt": "Steady green, on the ground",
+          "answer": "Cleared for takeoff",
+          "detail": null,
+          "colours": [
+            "green"
+          ],
+          "flashing": false
+        },
+        {
+          "id": "steady-green-flight",
+          "prompt": "Steady green, in flight",
+          "answer": "Cleared to land",
+          "detail": null,
+          "colours": [
+            "green"
+          ],
+          "flashing": false
+        },
+        {
+          "id": "flashing-green-surface",
+          "prompt": "Flashing green, on the ground",
+          "answer": "Cleared to taxi",
+          "detail": null,
+          "colours": [
+            "green"
+          ],
+          "flashing": true
+        },
+        {
+          "id": "flashing-green-flight",
+          "prompt": "Flashing green, in flight",
+          "answer": "Return for landing",
+          "detail": "To be followed by steady green at the proper time.",
+          "colours": [
+            "green"
+          ],
+          "flashing": true
+        },
+        {
+          "id": "steady-red-surface",
+          "prompt": "Steady red, on the ground",
+          "answer": "Stop",
+          "detail": null,
+          "colours": [
+            "red"
+          ],
+          "flashing": false
+        },
+        {
+          "id": "steady-red-flight",
+          "prompt": "Steady red, in flight",
+          "answer": "Give way to other aircraft and continue circling",
+          "detail": null,
+          "colours": [
+            "red"
+          ],
+          "flashing": false
+        },
+        {
+          "id": "flashing-red-surface",
+          "prompt": "Flashing red, on the ground",
+          "answer": "Taxi clear of the runway in use",
+          "detail": null,
+          "colours": [
+            "red"
+          ],
+          "flashing": true
+        },
+        {
+          "id": "flashing-red-flight",
+          "prompt": "Flashing red, in flight",
+          "answer": "Airport unsafe: do not land",
+          "detail": null,
+          "colours": [
+            "red"
+          ],
+          "flashing": true
+        },
+        {
+          "id": "flashing-white-surface",
+          "prompt": "Flashing white, on the ground",
+          "answer": "Return to starting point on airport",
+          "detail": null,
+          "colours": [
+            "white"
+          ],
+          "flashing": true
+        },
+        {
+          "id": "flashing-white-flight",
+          "prompt": "Flashing white, in flight",
+          "answer": "Not applicable",
+          "detail": "Flashing white means nothing to an aircraft in flight.",
+          "colours": [
+            "white"
+          ],
+          "flashing": true
+        },
+        {
+          "id": "alternating-surface",
+          "prompt": "Alternating red and green, on the ground",
+          "answer": "Exercise extreme caution",
+          "detail": null,
+          "colours": [
+            "red",
+            "green"
+          ],
+          "flashing": true
+        },
+        {
+          "id": "alternating-flight",
+          "prompt": "Alternating red and green, in flight",
+          "answer": "Exercise extreme caution",
+          "detail": null,
+          "colours": [
+            "red",
+            "green"
+          ],
+          "flashing": true
+        }
+      ]
+    },
+    {
+      "key": "vfr-minimums",
+      "title": "VFR weather minimums",
+      "source": "14 CFR 91.155",
+      "url": "https://www.ecfr.gov/current/title-14/part-91/section-91.155",
+      "cards": [
+        {
+          "id": "a",
+          "prompt": "Class A",
+          "answer": "Not applicable",
+          "detail": "Class A is flown under IFR (91.135).",
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "b",
+          "prompt": "Class B",
+          "answer": "3 sm; clear of clouds",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "c",
+          "prompt": "Class C",
+          "answer": "3 sm; 500 ft below, 1,000 ft above, 2,000 ft horizontal",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "d",
+          "prompt": "Class D",
+          "answer": "3 sm; 500 ft below, 1,000 ft above, 2,000 ft horizontal",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "e-low",
+          "prompt": "Class E, below 10,000 ft MSL",
+          "answer": "3 sm; 500 ft below, 1,000 ft above, 2,000 ft horizontal",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "e-high",
+          "prompt": "Class E, at or above 10,000 ft MSL",
+          "answer": "5 sm; 1,000 ft below, 1,000 ft above, 1 sm horizontal",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "g-low-day",
+          "prompt": "Class G, 1,200 ft or less above the surface, by day",
+          "answer": "1 sm; clear of clouds",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "g-low-night",
+          "prompt": "Class G, 1,200 ft or less above the surface, at night",
+          "answer": "3 sm; 500 ft below, 1,000 ft above, 2,000 ft horizontal",
+          "detail": "Under 3 sm but not under 1 sm at night, an airplane in the traffic pattern within 1/2 mile of the runway may fly clear of clouds (91.155(b)(2)).",
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "g-mid-day",
+          "prompt": "Class G, more than 1,200 ft above the surface but below 10,000 ft MSL, by day",
+          "answer": "1 sm; 500 ft below, 1,000 ft above, 2,000 ft horizontal",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "g-mid-night",
+          "prompt": "Class G, more than 1,200 ft above the surface but below 10,000 ft MSL, at night",
+          "answer": "3 sm; 500 ft below, 1,000 ft above, 2,000 ft horizontal",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        },
+        {
+          "id": "g-high",
+          "prompt": "Class G, more than 1,200 ft above the surface and at or above 10,000 ft MSL",
+          "answer": "5 sm; 1,000 ft below, 1,000 ft above, 1 sm horizontal",
+          "detail": null,
+          "colours": [],
+          "flashing": false
+        }
+      ]
+    }
+  ],
+  "answered": [
+    {
+      "progress": {},
+      "card": "steady-green-surface",
+      "knew": true,
+      "now": 1790000000000,
+      "result": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1790086400000
+        }
+      }
+    },
+    {
+      "progress": {},
+      "card": "steady-green-surface",
+      "knew": false,
+      "now": 1790000000000,
+      "result": {
+        "steady-green-surface": {
+          "box": 1,
+          "due": 1790000000000
+        }
+      }
+    },
+    {
+      "progress": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1789999999999
+        },
+        "steady-green-flight": {
+          "box": 5,
+          "due": 1790259200000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      },
+      "card": "steady-green-surface",
+      "knew": true,
+      "now": 1790000000000,
+      "result": {
+        "steady-green-surface": {
+          "box": 3,
+          "due": 1790259200000
+        },
+        "steady-green-flight": {
+          "box": 5,
+          "due": 1790259200000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      }
+    },
+    {
+      "progress": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1789999999999
+        },
+        "steady-green-flight": {
+          "box": 5,
+          "due": 1790259200000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      },
+      "card": "steady-green-flight",
+      "knew": true,
+      "now": 1790000000000,
+      "result": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1789999999999
+        },
+        "steady-green-flight": {
+          "box": 5,
+          "due": 1791382400000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      }
+    },
+    {
+      "progress": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1789999999999
+        },
+        "steady-green-flight": {
+          "box": 5,
+          "due": 1790259200000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      },
+      "card": "steady-green-flight",
+      "knew": false,
+      "now": 1790000000000,
+      "result": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1789999999999
+        },
+        "steady-green-flight": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      }
+    },
+    {
+      "progress": {
+        "a": {
+          "box": 4,
+          "due": 1790000000000
+        }
+      },
+      "card": "a",
+      "knew": true,
+      "now": 1790000000000,
+      "result": {
+        "a": {
+          "box": 5,
+          "due": 1791382400000
+        }
+      }
+    }
+  ],
+  "due": [
+    {
+      "deck": "light-gun",
+      "progress": {},
+      "now": 1790000000000,
+      "ids": [
+        "steady-green-surface",
+        "steady-green-flight",
+        "flashing-green-surface",
+        "flashing-green-flight",
+        "steady-red-surface",
+        "steady-red-flight",
+        "flashing-red-surface",
+        "flashing-red-flight",
+        "flashing-white-surface",
+        "flashing-white-flight",
+        "alternating-surface",
+        "alternating-flight"
+      ],
+      "next": null
+    },
+    {
+      "deck": "vfr-minimums",
+      "progress": {},
+      "now": 1790000000000,
+      "ids": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e-low",
+        "e-high",
+        "g-low-day",
+        "g-low-night",
+        "g-mid-day",
+        "g-mid-night",
+        "g-high"
+      ],
+      "next": null
+    },
+    {
+      "deck": "light-gun",
+      "progress": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1789999999999
+        },
+        "steady-green-flight": {
+          "box": 5,
+          "due": 1790259200000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      },
+      "now": 1790000000000,
+      "ids": [
+        "flashing-green-surface",
+        "flashing-green-flight",
+        "steady-red-flight",
+        "flashing-red-surface",
+        "flashing-white-surface",
+        "flashing-white-flight",
+        "alternating-surface",
+        "alternating-flight",
+        "steady-red-surface",
+        "steady-green-surface"
+      ],
+      "next": 1790086400000
+    },
+    {
+      "deck": "vfr-minimums",
+      "progress": {
+        "steady-green-surface": {
+          "box": 2,
+          "due": 1789999999999
+        },
+        "steady-green-flight": {
+          "box": 5,
+          "due": 1790259200000
+        },
+        "steady-red-surface": {
+          "box": 1,
+          "due": 1790000000000
+        },
+        "flashing-red-flight": {
+          "box": 3,
+          "due": 1790086400000
+        }
+      },
+      "now": 1790000000000,
+      "ids": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e-low",
+        "e-high",
+        "g-low-day",
+        "g-low-night",
+        "g-mid-day",
+        "g-mid-night",
+        "g-high"
+      ],
+      "next": null
+    },
+    {
+      "deck": "light-gun",
+      "progress": {
+        "b": {
+          "box": 1,
+          "due": 1790000000001
+        },
+        "c": {
+          "box": 2,
+          "due": 1789913600000
+        },
+        "a": {
+          "box": 3,
+          "due": 1789913600000
+        },
+        "d": {
+          "box": 1,
+          "due": 1790000000000
+        }
+      },
+      "now": 1790000000000,
+      "ids": [
+        "steady-green-surface",
+        "steady-green-flight",
+        "flashing-green-surface",
+        "flashing-green-flight",
+        "steady-red-surface",
+        "steady-red-flight",
+        "flashing-red-surface",
+        "flashing-red-flight",
+        "flashing-white-surface",
+        "flashing-white-flight",
+        "alternating-surface",
+        "alternating-flight"
+      ],
+      "next": null
+    },
+    {
+      "deck": "vfr-minimums",
+      "progress": {
+        "b": {
+          "box": 1,
+          "due": 1790000000001
+        },
+        "c": {
+          "box": 2,
+          "due": 1789913600000
+        },
+        "a": {
+          "box": 3,
+          "due": 1789913600000
+        },
+        "d": {
+          "box": 1,
+          "due": 1790000000000
+        }
+      },
+      "now": 1790000000000,
+      "ids": [
+        "e-low",
+        "e-high",
+        "g-low-day",
+        "g-low-night",
+        "g-mid-day",
+        "g-mid-night",
+        "g-high",
+        "d",
+        "c",
+        "a"
+      ],
+      "next": 1790000000001
+    }
+  ]
+}

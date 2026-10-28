@@ -11,8 +11,12 @@ name: Native iOS
 # Actions are pinned as in ci.yml (its opening comment says why).
 on:
   pull_request:
+    # And the web's files the app bundles (project.yml): the ACS table and
+    # the shared fixtures its rules are tested against (docs/NATIVE.md).
     paths:
       - ios/**
+      - web/src/lib/fixtures/**
+      - web/src/lib/acs.json
       - .github/workflows/native-ios.yml
   push:
     # And a native-app branch of Claude's: its builds run from the branch
@@ -20,6 +24,8 @@ on:
     branches: [main, "claude/native-*"]
     paths:
       - ios/**
+      - web/src/lib/fixtures/**
+      - web/src/lib/acs.json
       - .github/workflows/native-ios.yml
   workflow_dispatch:
 

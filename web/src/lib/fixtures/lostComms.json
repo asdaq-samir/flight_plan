@@ -1,0 +1,75 @@
+{
+  "about": "Two-way radio failure under IFR, 14 CFR 91.185: the route in the rule's order (c)(1), and when to leave the clearance limit (c)(3). Web: lib/lostComms.ts. iOS: LostComms in PilotLogic.swift.",
+  "routes": [
+    {
+      "key": "assigned",
+      "label": "Assigned",
+      "rule": "The route assigned in the last ATC clearance received."
+    },
+    {
+      "key": "vectored",
+      "label": "Vectored",
+      "rule": "Being radar vectored: direct from the point of radio failure to the fix, route or airway specified in the vector clearance."
+    },
+    {
+      "key": "expected",
+      "label": "Expected",
+      "rule": "No route assigned: the route ATC has advised may be expected in a further clearance."
+    },
+    {
+      "key": "filed",
+      "label": "Filed",
+      "rule": "Neither assigned nor expected: the route filed in the flight plan."
+    }
+  ],
+  "leaveLimit": [
+    {
+      "approachFix": true,
+      "efc": "",
+      "eta": "",
+      "words": "Begin the descent or the approach as close as possible to your estimated time of arrival, from the filed or amended time en route."
+    },
+    {
+      "approachFix": true,
+      "efc": "",
+      "eta": "1452Z",
+      "words": "Begin the descent or the approach as close as possible to your estimated time of arrival, 1452Z, from the filed or amended time en route."
+    },
+    {
+      "approachFix": true,
+      "efc": "1430Z",
+      "eta": "",
+      "words": "Hold at the clearance limit, and begin the descent or the approach as close as possible to the expect-further-clearance time, 1430Z."
+    },
+    {
+      "approachFix": true,
+      "efc": "1430Z",
+      "eta": "1452Z",
+      "words": "Hold at the clearance limit, and begin the descent or the approach as close as possible to the expect-further-clearance time, 1430Z."
+    },
+    {
+      "approachFix": false,
+      "efc": "",
+      "eta": "",
+      "words": "Leave the clearance limit on arriving over it, proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival."
+    },
+    {
+      "approachFix": false,
+      "efc": "",
+      "eta": "1452Z",
+      "words": "Leave the clearance limit on arriving over it, proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival, 1452Z."
+    },
+    {
+      "approachFix": false,
+      "efc": "1430Z",
+      "eta": "",
+      "words": "Leave the clearance limit at the expect-further-clearance time, 1430Z, proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival."
+    },
+    {
+      "approachFix": false,
+      "efc": "1430Z",
+      "eta": "1452Z",
+      "words": "Leave the clearance limit at the expect-further-clearance time, 1430Z, proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival, 1452Z."
+    }
+  ]
+}

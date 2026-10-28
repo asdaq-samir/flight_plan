@@ -1,5 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { holdOf, holdText, holdWords, holdsOf, holdsParam, lengthCode, lengthOfCode, lengthWords } from "./holds";
+import { legMinutes } from "./holding";
+import holdsFixture from "./fixtures/holds.json";
 
 describe("the pilot's holds in the address", () => {
   test("are read and written as the planner's vfr.holds reads them", () => {
@@ -34,5 +36,27 @@ describe("a hold's course and length", () => {
     expect(lengthOfCode("2X")).toBeNull();
     expect(lengthWords({ turns: 1 })).toBe("1 turn");
     expect(lengthWords({ minutes: 15 })).toBe("15 min");
+  });
+});
+
+// The shared fixture the iPhone app's Hold (RouteEdits.swift) is tested
+// against too (WingtipTests/SharedFixturesTests.swift): a copy that reads
+// or writes a hold otherwise fails CI (docs/NATIVE.md).
+describe("the shared holds fixture", () => {
+  const flat = (h: ReturnType<typeof holdOf>) => h && {
+    fix: h.fix, inbound: h.inbound, right: h.right,
+    legMin: "min" in h.leg ? h.leg.min : null, legNm: "nm" in h.leg ? h.leg.nm : null,
+    turns: "turns" in h.length ? h.length.turns : null, minutes: "minutes" in h.length ? h.length.minutes : null,
+  };
+
+  test.each(holdsFixture.parse)("$text", ({ text, hold, written, words }) => {
+    const read = holdOf(text);
+    expect(flat(read)).toEqual(hold);
+    expect(read && holdText(read)).toBe(written);
+    expect(read && holdWords(read)).toBe(words);
+  });
+
+  test.each(holdsFixture.legMinutes)("legs at $altitudeFt ft: $minutes min", ({ altitudeFt, minutes }) => {
+    expect(legMinutes(altitudeFt)).toBe(minutes);
   });
 });

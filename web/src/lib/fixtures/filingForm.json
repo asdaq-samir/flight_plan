@@ -1,0 +1,150 @@
+{
+  "about": "A flight plan's item 15 and 16 as FAA Form 7233-4 writes them (AIM Appendix 4; FL at and above 18,000 ft, 14 CFR 91.121(a)(2)). Route cases name which stops are airways; no procedures. Web: lib/flightPlanForm.ts. iOS: FilingForm in InFlightViews.swift.",
+  "cruisingSpeed": [
+    {
+      "tasKt": 0,
+      "item": "N0000"
+    },
+    {
+      "tasKt": 95,
+      "item": "N0095"
+    },
+    {
+      "tasKt": 99.5,
+      "item": "N0100"
+    },
+    {
+      "tasKt": 110.4,
+      "item": "N0110"
+    },
+    {
+      "tasKt": 450,
+      "item": "N0450"
+    },
+    {
+      "tasKt": 1000,
+      "item": "N1000"
+    }
+  ],
+  "cruisingLevel": [
+    {
+      "altitudeFt": 0,
+      "item": "A000"
+    },
+    {
+      "altitudeFt": 800,
+      "item": "A008"
+    },
+    {
+      "altitudeFt": 4500,
+      "item": "A045"
+    },
+    {
+      "altitudeFt": 5550,
+      "item": "A056"
+    },
+    {
+      "altitudeFt": 17999,
+      "item": "A180"
+    },
+    {
+      "altitudeFt": 18000,
+      "item": "F180"
+    },
+    {
+      "altitudeFt": 35000,
+      "item": "F350"
+    }
+  ],
+  "hhmm": [
+    {
+      "minutes": 0,
+      "item": "0000"
+    },
+    {
+      "minutes": 5,
+      "item": "0005"
+    },
+    {
+      "minutes": 59,
+      "item": "0059"
+    },
+    {
+      "minutes": 60,
+      "item": "0100"
+    },
+    {
+      "minutes": 119,
+      "item": "0159"
+    },
+    {
+      "minutes": 125,
+      "item": "0205"
+    },
+    {
+      "minutes": 600,
+      "item": "1000"
+    },
+    {
+      "minutes": 1439,
+      "item": "2359"
+    }
+  ],
+  "route": [
+    {
+      "stops": [],
+      "airways": [],
+      "item": "DCT"
+    },
+    {
+      "stops": [
+        "FLACK",
+        "IRW"
+      ],
+      "airways": [],
+      "item": "FLACK DCT IRW"
+    },
+    {
+      "stops": [
+        "KUGN"
+      ],
+      "airways": [],
+      "item": "KUGN"
+    },
+    {
+      "stops": [
+        "EIC",
+        "V18",
+        "MEI"
+      ],
+      "airways": [
+        "V18"
+      ],
+      "item": "EIC V18 MEI"
+    },
+    {
+      "stops": [
+        "EIC",
+        "V18",
+        "MEI",
+        "J34",
+        "LGC"
+      ],
+      "airways": [
+        "V18",
+        "J34"
+      ],
+      "item": "EIC V18 MEI J34 LGC"
+    },
+    {
+      "stops": [
+        "V18",
+        "MEI"
+      ],
+      "airways": [
+        "V18"
+      ],
+      "item": "V18 MEI"
+    }
+  ]
+}

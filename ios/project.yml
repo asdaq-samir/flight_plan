@@ -28,6 +28,10 @@ targets:
     sources:
       - path: Wingtip
         excludes: ["Info.plist", "Wingtip.entitlements"]
+      # The FAA's words for each ACS code: the web app's own file, bundled
+      # as acs.json (AcsTable.bundled), not a copy kept beside it.
+      - path: ../web/src/lib/acs.json
+        buildPhase: resources
     info:
       path: Wingtip/Info.plist
       properties:
@@ -65,7 +69,14 @@ targets:
   WingtipTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [WingtipTests]
+    sources:
+      - path: WingtipTests
+      # The shared fixtures of the rules the app keeps its own copy of for
+      # flight with no signal (docs/NATIVE.md): the web's own files, read
+      # by its vitest tests and by SharedFixturesTests, so a copy that
+      # drifts from the other fails CI.
+      - path: ../web/src/lib/fixtures
+        buildPhase: resources
     dependencies:
       - target: Wingtip
     settings:
