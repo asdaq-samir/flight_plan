@@ -320,11 +320,24 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // And the figures' own height in it, what it holds past what gives way
   // there (FPL's side view, data-pill-hides) -- the same in the pill, where
   // that is put away, as out of it: the least the foot keeps (fromFoot).
-  const [footRow, setFootRow] = useState(0);
+  // Kept on the node, not in state, and read again as the figures change
+  // size: held at the full sheet's row as they shrank on the way down to
+  // half, the foot let go of the ten points over it only once at rest, the
+  // figures dropping them in one frame (sampled on the phone project under
+  // a finger: DIST at 783 through the settle, then 793), the snap the owner
+  // saw from full to half (2026-10-28).
+  const footRow = useRef(0);
+  const footHeld = useRef(false);
+  const holdFoot = useCallback((node: HTMLElement) => {
+    // The figures and the foot's own border and padding (pt-1, pb-2.5).
+    node.style.minHeight = footHeld.current && footRow.current > 0 ? `calc(${footRow.current}px + 1px + 0.875rem)` : "";
+  }, []);
   useEffect(() => {
     if (!footNode) return;
     const observer = new ResizeObserver(() => {
-      setFootMeasured(footNode.offsetHeight);
+      // Its height counted once at rest: following the figures through a
+      // settle, it drew the panel again at every frame.
+      if (!footHeld.current) setFootMeasured(footNode.offsetHeight);
       // Each part's own height, not its box's: squeezed in a short sheet,
       // the box measured less, and the foot's least with it, a dry run's
       // figures put under the sheet's foot as it came down. What gives way
@@ -337,11 +350,15 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           row += parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
         }
       }
-      setFootRow(row);
+      footRow.current = row;
+      holdFoot(footNode);
     });
     observer.observe(footNode);
+    // The figures themselves, which change size inside a foot held at its
+    // least.
+    for (const part of footNode.firstElementChild?.children ?? []) observer.observe(part);
     return () => observer.disconnect();
-  }, [footNode, state, capsule]);
+  }, [footNode, state, capsule, holdFoot]);
   // The figures pinned at the sheet's foot, out of the pill: its one row
   // says the route's (the capsule's own).
   const footShown = !!foot && (!capsule || !!bar) && !cardsUp;
@@ -530,6 +547,15 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // top, as anything it shows in place -- a route's problem under its
   // box -- grows it down, not up out of sight.
   const fromFoot = onPhone && fromBottom && !!bar && footShown && !pillShape && (turning || settling || dragged !== null);
+  useLayoutEffect(() => {
+    footHeld.current = fromFoot;
+    if (!footNode) return;
+    holdFoot(footNode);
+    if (fromFoot) return;
+    // Its height at rest, which the observer let pass while it was held.
+    const frame = requestAnimationFrame(() => setFootMeasured(footNode.offsetHeight));
+    return () => cancelAnimationFrame(frame);
+  }, [fromFoot, footNode, holdFoot]);
   if (morphing && morph < 1 && shape === "inset") {
     // From the pill's shape, in from the sides and every corner round, to
     // the sheet's on the sides and edge, its near corners square.
@@ -1116,8 +1142,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           )}
           style={{
             ...(toEdge && fromBottom && !pillLaid ? { paddingBottom: Math.max(10, edgeRoom) } : {}),
-            // The figures and the foot's own border and padding (pt-1, pb-2.5).
-            ...(fromFoot && footRow > 0 ? { minHeight: `calc(${footRow}px + 1px + 0.875rem)` } : {}),
             // How far up it is past half, for what grows with it (FlightLine's
             // figures, the side view folding away) -- set here, on the foot
             // where those are, not on the sheet: an inherited property
