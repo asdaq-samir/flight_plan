@@ -311,6 +311,11 @@ function approximateOf(key: string, ident: string): string | null {
   return found ? found.slice(ident.length + 1) || null : null;
 }
 
+/** The panel's size as of now (PlanWorkspace): one workspace is open at a
+ *  time. A holder, not a ref, as the handlers that read it go out through
+ *  the workspace's render prop. */
+const panelNow: { current: PanelState } = { current: "peek" };
+
 export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
     const later = window.setTimeout(prefetchPilotPanel, 2000);
@@ -319,6 +324,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The panel out at all: the nav log is in sight, and a checkpoint
   // picked on the map opens its section.
   const panelOpen = panel !== "peek";
+  // The panel's size as of now, for what a tap does with it: read when
+  // tapped, not a dependency, so a turn of the sheet does not make every
+  // handler new and with them the route's list, the nav log and the
+  // briefing drawn again -- 37 ms of the nav log alone at a quarter of a
+  // laptop's speed, at the turn's first frame (profiled on the phone
+  // project, half to the pill, 2026-10-27: the owner's "the non smooth map
+  // and sheet").
+  useEffect(() => { panelNow.current = panel; }, [panel]);
   const [searchParams, setSearchParams] = useSearchParamsNow();
   // Every change of the plan can be taken back (Undo, Cmd-Z), whichever
   // button made it, in place of asking first.
@@ -715,9 +728,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // another -- not at the height before any card, which closeCard keeps.
   const panelUnderAirport = useRef<PanelState | null>(null);
   const openAirportOverFlight = useCallback((ident: string) => {
-    panelUnderAirport.current = panel;
+    panelUnderAirport.current = panelNow.current;
     selectPlace(ident);
-  }, [panel, selectPlace]);
+  }, [selectPlace]);
   useEffect(() => {
     if (!place) panelUnderAirport.current = null;
   }, [place]);
@@ -972,14 +985,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setProceduresAt(at);
     if (!open) setProcedurePreview(null);
     if (!isMobile) return;
-    if (open && panel === "full") {
-      panelBeforeProcedures.current = panel;
+    if (open && panelNow.current === "full") {
+      panelBeforeProcedures.current = panelNow.current;
       setPanel("half");
     } else if (!open && panelBeforeProcedures.current) {
       setPanel(panelBeforeProcedures.current);
       panelBeforeProcedures.current = null;
     }
-  }, [isMobile, panel, setPanel]);
+  }, [isMobile, setPanel]);
   const openProcedures = useCallback((p: RouteProcedure) => setProceduresShown({ ident: p.ident, kind: p.kind }), [setProceduresShown]);
   // What the sheet covers of the screen, from the navigation bar's edge
   // it comes from, for the map to bring the procedure in clear of it: its
@@ -1121,7 +1134,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // The route a layer over the card, at the height the card was, as
     // Maps' directions are over a place's card: its close, the route
     // cleared, goes back to the card (clearRoute).
-    if (panel === "full") next.view = "briefing";
+    if (panelNow.current === "full") next.view = "briefing";
     // The route's own questions asked now, at the tap, not once the page
     // has drawn it: the draw is a second of a phone's (at 4x), and the
     // planner's chart read and terrain for a new position are the slow part
@@ -1157,10 +1170,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       setLoad(n => n + 1);
       setUnder(to.ident);
       // The route half way, its profile and figures in sight.
-      if (panel !== "full") setPanel("half");
+      if (panelNow.current !== "full") setPanel("half");
       setSearchParams(next, { replace: true, flushSync: true });
     });
-  }, [fromFor, depart, panel, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules, setLoad]);
+  }, [fromFor, depart, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules, setLoad]);
 
   const submit = useCallback(() => {
     const route = routeOf(dep, dest, planned.stops);
@@ -1178,10 +1191,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       next.class_b = "0";
       if (classBVia && planned.stops.includes(classBVia)) next.class_b_via = classBVia;
     }
-    if (panel === "full") next.view = "briefing";
+    if (panelNow.current === "full") next.view = "briefing";
     setSearchParams(next, { replace: true });
     setLoad(n => n + 1);
-  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeFt, altitudeNearest, altitudeChoice, altitudes, depart, classBClearance, classBVia, panel, setSearchParams, setLoad]);
+  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeFt, altitudeNearest, altitudeChoice, altitudes, depart, classBClearance, classBVia, setSearchParams, setLoad]);
 
   // The route, changed in its box (RouteBox): in the address at once,
   // which re-plans, as the airplane and the time do -- the departure,
@@ -1581,8 +1594,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => {
       return patched(prev, { brief: "1" });
     }, { replace: true });
-    if (panel !== "full") setPanel("half");
-  }, [setSearchParams, setPanel, panel, setStopsOpen]);
+    if (panelNow.current !== "full") setPanel("half");
+  }, [setSearchParams, setPanel, setStopsOpen]);
   const closeBrief = useCallback(() => {
     closeCard(() => setSearchParams(prev => {
       return patched(prev, { brief: null });
@@ -1595,8 +1608,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setStopsOpen(false);
     setNavLogOpen(true);
     setProfileOpen(false);
-    if (panel !== "full") setPanel("half");
-  }, [panel, setPanel, setStopsOpen]);
+    if (panelNow.current !== "full") setPanel("half");
+  }, [setPanel, setStopsOpen]);
   const closeNavLogCard = useCallback(() => closeCard(() => setNavLogOpen(false)), [closeCard]);
   // The side view the same way, from its button beside the nav log's, at
   // the owner's ask ("profile view can move next to the navlog button and
@@ -1605,8 +1618,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setStopsOpen(false);
     setProfileOpen(true);
     setNavLogOpen(false);
-    if (panel !== "full") setPanel("half");
-  }, [panel, setPanel, setStopsOpen]);
+    if (panelNow.current !== "full") setPanel("half");
+  }, [setPanel, setStopsOpen]);
   const closeProfileCard = useCallback(() => closeCard(() => setProfileOpen(false)), [closeCard]);
   // The map's Stops, put away to the height FPL had (closeCard).
   const closeStops = useCallback(() => closeCard(() => setStopsOpen(false)), [closeCard, setStopsOpen]);
@@ -1619,8 +1632,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setNavLogOpen(false);
     setProfileOpen(false);
     setSearchParams(prev => (prev.get("brief") || prev.get("place") ? patched(prev, { brief: null, place: null }) : prev), { replace: true });
-    if (panel !== "full") setPanel("half");
-  }, [setStopsOpen, setTabPick, setSearchParams, panel, setPanel]);
+    if (panelNow.current !== "full") setPanel("half");
+  }, [setStopsOpen, setTabPick, setSearchParams, setPanel]);
   const setStopsOpener = useStopsAlong(st => st.setOpener);
   useEffect(() => {
     setStopsOpener(openStops);
@@ -1964,7 +1977,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, narrative]);
   // A tab tapped takes the panel all the way up to show it; the tab up
   // tapped again there takes it back to half, at the pilot's ask.
-  const tabTap = useCallback((again: boolean) => setPanel(again && panel === "full" ? "half" : "full"), [panel, setPanel]);
+  const tabTap = useCallback((again: boolean) => setPanel(again && panelNow.current === "full" ? "half" : "full"), [setPanel]);
   // In sight all the way up: half way the panel ends at the tabs, so a
   // checkpoint picked then is brought into view as it comes up.
   const drawerOpen = panel === "full";

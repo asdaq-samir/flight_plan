@@ -10,11 +10,17 @@ import ProblemBanner from "./ProblemBanner";
  * airplane the pilot asked to be told of (AircraftAlerts), then what the
  * app could not do (ProblemBanner). Each its own glass, eight apart; the
  * column takes no taps of its own.
+ *
+ * Centred, as the toasts are (AppToaster), where they sat at the left:
+ * the owner asked why an alert was not centred like "Planning Altitudes…"
+ * (2026-10-27). At the foot it stands between the map's buttons on both
+ * sides, the food button at the left and the column at the right, so it
+ * no longer runs over the food button.
  */
 export default function MapBanners() {
   return (
     <div
-      className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[max(1rem,env(safe-area-inset-left))] z-[1000] flex flex-col items-start gap-2 nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:right-[max(1rem,env(safe-area-inset-right))] nav-bottom:bottom-auto"
+      className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+3.25rem)] z-[1000] flex flex-col items-center gap-2 nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:right-[max(1rem,env(safe-area-inset-right))] nav-bottom:left-[max(1rem,env(safe-area-inset-left))] nav-bottom:bottom-auto"
     >
       <AlertsBanner />
       <AircraftAlerts />

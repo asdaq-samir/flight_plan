@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { cn } from "cn";
 import { N_NUMBER, profileOfRegistered, shortName } from "../../../../lib/aircraftChoice";
 import { api } from "../../../../lib/api/client";
 import { InlineField } from "../../../../components/InlineField";
@@ -67,14 +66,16 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           look similar to altitude"), the same field (InlineField): typed
           in, its card's button at its end once there is one. */}
       <InlineField
-        label="Airplane" testId="aircraft-select" widest="N-888MM" placeholder="" prefix="N-" endRoom="w-0" shrink
+        label="Airplane" testId="aircraft-select" widest="N-888MM" placeholder="" endRoom="w-0" shrink
         placeholderClassName={TEXT.detail}
         input={{
           // The N fixed before it, the rest typed, at the owner's ask
           // (2026-10-27: "N- can stay static while the rest of the number
           // can be entered", "add a - after N"): a US registration always
-          // starts with it.
-          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: shown.replace(/^N-?/, ""), "aria-label": "Airplane, N-number",
+          // starts with it. In the field's own text, not a label beside it:
+          // iOS keeps a few points inside an input's edge, which set the
+          // number apart from it ("N- 654FL" on the owner's phone).
+          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: `N-${shown.replace(/^N-?/, "")}`, "aria-label": "Airplane, N-number",
           onChange: e => {
             const rest = e.target.value.toUpperCase().replace(/^N-?/, "").replace(/[^A-Z0-9]/g, "").slice(0, 5);
             setTyped(rest ? `N${rest}` : "");
@@ -82,7 +83,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },
           onBlur: commit, "data-testid": "aircraft-input",
         }}
-        inputClassName={cn("text-foreground", !shown && TEXT.detail)}
+        inputClassName="text-foreground"
       />
       {altitude}
       {onDepartChange && <DepartPicker value={depart} onChange={onDepartChange} />}
