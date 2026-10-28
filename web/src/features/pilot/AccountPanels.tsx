@@ -771,7 +771,7 @@ export function FlightsPanel({ onBack }: {
                             .catch(err => { if (!cancelled(err)) showError("Not shared", describeError(err)); });
                         },
                       },
-                      { label: "Delete", icon: <Trash2 />, destructive: true, onSelect: () => { setFlightToDelete(f); askDelete(); }, testId: "saved-flight-delete" },
+                      { label: "Delete", icon: <Trash2 />, destructive: true, asks: true, onSelect: () => { setFlightToDelete(f); askDelete(); }, testId: "saved-flight-delete" },
                     ]}>
                       <PageRow page={`flight-${f.id}`} {...row} />
                     </RowMenu>

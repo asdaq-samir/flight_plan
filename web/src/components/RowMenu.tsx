@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { Ellipsis } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "./RoundButton";
@@ -12,6 +12,8 @@ export interface RowAction {
   onSelect: () => void;
   /** Red, for what cannot be walked back. */
   destructive?: boolean;
+  /** It opens a question of its own (Delete's), which keeps the focus. */
+  asks?: boolean;
   testId?: string;
 }
 
@@ -30,8 +32,19 @@ export default function RowMenu({ label, actions, testId, children }: {
   testId?: string;
   children: ReactNode;
 }) {
+  // An action picked opens what it opens -- Delete's question -- with the
+  // focus left where that put it: given back to the ••• as the menu
+  // closed, it was outside the question's dialog, which a desktop's
+  // Dialog takes as a click away and closes at once (flights.spec, CI on
+  // desktop, 2026-10-28).
+  const chose = useRef(false);
+  const keepFocus = (event: Event) => {
+    if (!chose.current) return;
+    chose.current = false;
+    event.preventDefault();
+  };
   const items = (Item: typeof DropdownMenuItem | typeof ContextMenuItem) => actions.map(a => (
-    <Item key={a.label} onSelect={a.onSelect} variant={a.destructive ? "destructive" : "default"} data-testid={a.testId}>
+    <Item key={a.label} onSelect={() => { chose.current = !!a.asks; a.onSelect(); }} variant={a.destructive ? "destructive" : "default"} data-testid={a.testId}>
       {a.icon} {a.label}
     </Item>
   ));
@@ -50,11 +63,11 @@ export default function RowMenu({ label, actions, testId, children }: {
                 <Ellipsis className="size-5" aria-hidden="true" />
               </RoundButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">{items(DropdownMenuItem)}</DropdownMenuContent>
+            <DropdownMenuContent align="end" className="min-w-48" onCloseAutoFocus={keepFocus}>{items(DropdownMenuItem)}</DropdownMenuContent>
           </DropdownMenu>
         </div>
       </ContextMenuTrigger>
-      <ContextMenuContent className="min-w-48">{items(ContextMenuItem)}</ContextMenuContent>
+      <ContextMenuContent className="min-w-48" onCloseAutoFocus={keepFocus}>{items(ContextMenuItem)}</ContextMenuContent>
     </ContextMenu>
   );
 }
