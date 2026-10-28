@@ -11,6 +11,7 @@ import {
 import { SheetCardHost } from "./SheetCard";
 import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
+import { prefersReducedMotion } from "../lib/motion";
 
 /** How far the half sheet is in from the screen's sides and its edge: on
  *  them, as Apple's Maps on the web has its sheet (the owner's screenshots
@@ -619,6 +620,42 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       { duration: settleOf.seconds * 1000, easing: "cubic-bezier(0, 0, 0.58, 1)", fill: "forwards" },
     );
   }, [barLaid, barRests, barUnder, dragged, fromBottom, onPhone, figuresPill, barShown, settleOf.seconds]);
+
+  // The figures carried from where they were to where the pill lays them,
+  // in the sheet's time, where the foot's change of layout put them there
+  // in one frame: 2.5 points up as the sheet turned from half to the pill,
+  // before it had moved (sampled on the phone project, DIST at 793 then
+  // 790.5), the snap the owner saw in "the calculations" (video,
+  // 2026-10-28). Where they sit above the foot's own edge -- the foot is on
+  // the sheet's -- read as they settle (a ResizeObserver, no layout forced
+  // in a commit), and again once, at the turn.
+  const footAbove = useRef<number | null>(null);
+  useEffect(() => {
+    const content = footNode?.firstElementChild;
+    if (!footNode || !content) return;
+    const read = () => { footAbove.current = footNode.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom; };
+    read();
+    const watch = new ResizeObserver(read);
+    watch.observe(footNode);
+    watch.observe(content);
+    return () => watch.disconnect();
+  }, [footNode]);
+  const footLaid = useRef(pillLaid);
+  useLayoutEffect(() => {
+    if (footLaid.current === pillLaid) return;
+    footLaid.current = pillLaid;
+    const content = footNode?.firstElementChild as HTMLElement | null;
+    const was = footAbove.current;
+    if (!footNode || !content || was == null) return;
+    const now = footNode.getBoundingClientRect().bottom - content.getBoundingClientRect().bottom;
+    footAbove.current = now;
+    const by = now - was;
+    if (dragged !== null || prefersReducedMotion() || Math.abs(by) < 0.5 || Math.abs(by) > 24) return;
+    content.animate(
+      [{ transform: `translateY(${by}px)` }, { transform: "none" }],
+      { duration: settleOf.seconds * 1000, easing: "cubic-bezier(0, 0, 0.58, 1)" },
+    );
+  }, [pillLaid, footNode, dragged, settleOf.seconds]);
 
   // What it covers of the map where it has come to rest, for the map to
   // fit a route clear of it, as Maps' route sits above its sheet: on a
