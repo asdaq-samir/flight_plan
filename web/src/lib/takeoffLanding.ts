@@ -1,10 +1,12 @@
 import type { ShortField } from "./api/types";
 
-/** A standard day's temperature at an altitude, as vfr.performance has it. */
+/** A standard day's temperature at an altitude: 15 °C at sea level, less
+ *  1.98 °C a thousand feet (ICAO Doc 7488), as vfr.performance has it. */
 export const isaTempC = (altitudeFt: number) => 15 - 0.0019812 * altitudeFt;
 
 /** The field's pressure altitude from its elevation and the altimeter
- *  setting reported: a thousand feet for every inch under 29.92. */
+ *  setting reported: a thousand feet for every inch under 29.92 (ICAO
+ *  Doc 7488's standard atmosphere, near enough low down). */
 export const pressureAltitudeFt = (elevationFt: number, altimeterInHg: number | null | undefined) =>
   elevationFt + (altimeterInHg ? (29.92 - altimeterInHg) * 1000 : 0);
 
@@ -62,6 +64,11 @@ export function shortField(table: ShortField, pressureAltFt: number, tempC: numb
   };
   let roll = read("ground_roll_ft");
   let total = read("total_50ft_ft");
+  // The Cessna 172S POH's notes to its takeoff and landing charts (figures
+  // 5-5 and 5-11): "Decrease distances 10% for each 9 knots headwind. For
+  // operation with tail winds up to 10 knots, increase distances by 10% for
+  // each 2 knots." The one table set in data/aircraft is the 172S's; another
+  // handbook's notes differ, and are to come with its tables.
   const factor = headwindKt >= 0 ? 1 - 0.1 * (headwindKt / 9) : 1 + 0.1 * (-headwindKt / 2);
   if (headwindKt < -10) caveats.push("the POH gives no figures for a tailwind over 10 kt");
   roll *= factor;

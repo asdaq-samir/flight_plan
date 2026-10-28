@@ -4,7 +4,8 @@
  * airspace on the route, the altitude, the fuel, the runways, the loading
  * and the risk -- and one line over them saying what they come to. What
  * the pilot reads first on opening the Brief, as a flight service
- * briefer starts with whether VFR is recommended (AIM 7-1-5(b)(2)).
+ * briefer opens with adverse conditions and whether VFR is recommended
+ * (AIM 7-1-5(b)(1), (b)(2)).
  * The findings are the planner's; the decision is the pilot in command's
  * (14 CFR 91.3), and the line says so.
  *

@@ -2,9 +2,12 @@
 (web/src/lib/icing.ts): a leg flown at or above the freezing level, where
 the moisture icing needs is forecast -- cloud along the route, or an icing
 AIRMET or SIGMET over it (the planner's `icing_possible`, vfr.altitude) --
-with the pilot reports of icing near the route. Under VFR the flight
-stays clear of cloud (14 CFR 91.155), and the freezing level is the
-altitude reasoning's line alone."""
+with the pilot reports of icing near the route (structural icing needs
+visible moisture at or below 0 °C, the Aviation Weather Handbook,
+FAA-H-8083-28A, Icing). Under VFR the flight stays clear of cloud (14 CFR
+91.155), and the freezing level is the altitude reasoning's line alone --
+though freezing rain or drizzle (FZRA, FZDZ) ices an airplane out of
+cloud, which this does not read."""
 from .words import grouped
 
 

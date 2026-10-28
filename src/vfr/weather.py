@@ -107,8 +107,9 @@ def _parse_fd_station_row(row: str, alt_positions: list) -> tuple:
 
 def _decode_temp_c(group: str) -> float | None:
     """Extract the temperature from a wind/temp group. The 3000ft column
-    is wind-only (4 chars, e.g. "3220") when the station itself is near
-    that altitude -- no temp to extract. 6000-24000ft groups are 7 chars
+    never carries a temperature (none is forecast at 3,000 ft, nor within
+    2,500 ft of the station: the Aviation Weather Handbook, FAA-H-8083-28A,
+    Winds and Temperatures Aloft Forecast), so it is 4 chars, e.g. "3220". 6000-24000ft groups are 7 chars
     with an explicit sign (e.g. "3028+18"). 30000ft+ groups are 6 chars,
     unsigned, and always negative (the product's own header states
     "TEMPS NEG ABV 24000" -- the sign is omitted because it's implied).
@@ -1045,7 +1046,8 @@ def tafs_over(windows: dict) -> dict:
 
 # --- Go/no-go: the basic VFR weather minimums ---
 
-# 14 CFR 91.155: below a 1,000 ft ceiling or 3 statute miles' visibility,
+# 14 CFR 91.155(c) and (d): below a 1,000 ft ceiling or 3 statute miles'
+# visibility in a surface area of controlled airspace,
 # VFR flight is not the default answer. The one place these numbers
 # live -- vfr.altitude's go/no-go flag and the briefing's "VFR flight not
 # recommended" both read them, and the page shows what they decided.

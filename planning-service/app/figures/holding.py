@@ -44,9 +44,9 @@ def holding_entry(inbound_deg: float, heading_deg: float, turns: str) -> dict:
     to 70 left of it, teardrop beyond 110 right to the reciprocal, parallel
     beyond the reciprocal to 70 left; left turns their mirror. `either`
     where it is within 5 degrees of a sector's edge, where the AIM lets a
-    pilot use either entry ("A maximum of 5 degrees in heading is
-    considered to be within allowable good operating limits for
-    determining entry", AIM 5-3-8 j.2)."""
+    pilot use either entry ("+/- 5 degrees in heading is considered to be
+    within allowable good operating limits for determining entry", AIM
+    5-3-8 j.8(d))."""
     off = _norm(heading_deg - inbound_deg if turns == "right" else inbound_deg - heading_deg)
     entry = holds.entry(heading_deg, inbound_deg, turns == "right")
     edges = [(110, "direct", "teardrop"), (180, "teardrop", "parallel"), (290, "parallel", "direct")]
@@ -67,10 +67,11 @@ def holding_wind(inbound_deg: float, tas_kt: float, wind_from_deg: float, wind_k
     a clearance gives the course). None where the wind is stronger than
     the airplane. The outbound heading by the rule of three: three times
     the inbound correction, the other way ("When outbound, triple the
-    inbound drift correction", AIM 5-3-8 j.2); the outbound time, seconds,
+    inbound drift correction", AIM 5-3-8 j.8(c)); the outbound time, seconds,
     for the inbound leg to take its minute at the legs' ground speeds, the
-    turns left out; and the rule of thumb's, a second a knot of the wind
-    along the course."""
+    turns left out; and a rule of thumb with no FAA figure behind it, a
+    second a knot of the wind along the course (the AIM asks only that the
+    outbound time be set to make the inbound leg's, 5-3-8 j.4(a))."""
     leg_min = leg_minutes(altitude_ft)
     outbound_deg = _norm(inbound_deg + 180)
     inbound = wind_triangle(inbound_deg, tas_kt, wind_from_deg, wind_kt)

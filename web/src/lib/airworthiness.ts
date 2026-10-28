@@ -44,7 +44,7 @@ export function inspectionFactors(i: Inspections, day: string, ifr: boolean): Ri
     });
   }
   if (i.hundredHourDueAtHours != null && i.hoursNow != null && i.hoursNow >= i.hundredHourDueAtHours) {
-    factors.push({ key: "hundredHour", label: "The 100-hour inspection is due", why: "91.409(b): for hire, or instruction in an airplane you provide", points: 2 });
+    factors.push({ key: "hundredHour", label: "The 100-hour inspection is due", why: "91.409(b): carrying anyone for hire, or flight instruction for hire in an airplane you provide", points: 2 });
   }
   return factors;
 }

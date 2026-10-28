@@ -31,7 +31,7 @@ export function legMinutes(altitudeFt: number): number {
  * left of it, teardrop beyond 110° right to the reciprocal, parallel
  * beyond the reciprocal to 70° left; left turns their mirror. `either`
  * where it is within 5° of a sector's edge, where the AIM lets a pilot
- * use either entry.
+ * use either entry ("+/- 5 degrees in heading", AIM 5-3-8 j.8(d)).
  */
 export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turns): { entry: Entry; either: Entry | null } {
   const off = normalizeDeg(turns === "right" ? headingDeg - inboundDeg : inboundDeg - headingDeg);
@@ -51,13 +51,15 @@ export interface HoldingWind {
   /** The inbound leg's time, minutes: 1, or 1.5 above 14,000 ft MSL. */
   legMin: number;
   inbound: { heading: number; wca: number; gs: number };
-  /** The outbound heading by the rule of three: three times the inbound
-   *  correction, the other way, so the turns' drift is taken up too. */
+  /** The outbound heading: triple the inbound drift correction, the other
+   *  way (AIM 5-3-8 j.8(c)), so the turns' drift is taken up too. */
   outbound: { heading: number; wca: number; gs: number };
   /** The outbound time, seconds, for the inbound leg to take legMin: the
    *  legs' ground speeds, the turns left out. */
   outboundSec: number;
-  /** The rule of thumb's: a second a knot of the wind along the course. */
+  /** A rule of thumb with no FAA figure behind it -- a second a knot of
+   *  the wind along the course; the AIM asks only that the outbound time be
+   *  set to make the inbound leg's (5-3-8 j.4(a)). */
   ruleSec: number;
 }
 

@@ -48,6 +48,8 @@ def balance(loading: dict, load: dict, trip_fuel_gal: float | None) -> dict:
     start and taxi fuel -- and at landing, less the trip's fuel, each
     against the loading's limits: the most it may weigh, the envelope,
     and each station's and the baggage's own most."""
+    # Avgas's standard 6 lb a gallon (FAA-H-8083-1B, Aircraft Weight and
+    # Balance Handbook), where the airplane's handbook gives none.
     lb_per_gal = loading.get("fuel_lb_per_gal", 6.0)
     taxi_lb = loading.get("start_taxi_fuel_lb", 0.0)
     stations = loading["stations"]

@@ -63,8 +63,9 @@ CORRIDOR_HALF_WIDTH_NM = 5.0  # how far off the direct line an obstacle still co
 #: 14 CFR 91.119(b): 1,000 ft above the highest obstacle within 2,000 ft,
 #: over a congested area.
 CONGESTED_CLEARANCE_FT = 1000
-#: 14 CFR 91.119(c): 500 ft above the surface, and no closer than 500 ft to
-#: any structure, elsewhere.
+#: 14 CFR 91.119(c): 500 ft above the surface elsewhere; over open water or
+#: sparsely populated areas instead, no closer than 500 ft to any person,
+#: vessel, vehicle or structure.
 OTHER_CLEARANCE_FT = 500
 #: The floor's own margin over the ground, everywhere: the owner's for the
 #: altitude plans (a floor 1,000 ft above the ground), over 91.119(c)'s 500.

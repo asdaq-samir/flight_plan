@@ -12,7 +12,7 @@ cruise table. From there, at any altitude in any air:
 
 - Power is the cruise power, or what full throttle makes where the air
   is too thin for it: a normally aspirated engine's fraction of its
-  sea-level power, 1.132 sigma - 0.132 (Gagg and Ferrar), sigma being
+  sea-level power, 1.132 sigma - 0.132 (Gagg and Farrar), sigma being
   the air's density over a standard day's at sea level.
 - True airspeed goes as the cube root of power over density: the power
   level flight takes goes as density times TAS cubed, the parasite drag

@@ -133,6 +133,8 @@ def tracks(xml: str) -> list[tuple[dict, float]]:
             "vertical_fpm": _number(track, "vVert"),
             "seen_s": None,
             "squawk": squawk or None,
+            # 7500 unlawful interference (AIM 6-3-4), 7600 radio failure
+            # (AIM 6-4-2), 7700 emergency (AIM 6-2-2).
             "emergency": {"7500": "unlawful", "7600": "nordo", "7700": "general"}.get(squawk),
             "category": None,
         }, at))

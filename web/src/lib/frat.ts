@@ -116,12 +116,12 @@ function found(input: FratInput): RiskFactor[] {
         why: c.ipcNeededAfter && c.ipcNeededAfter < input.day ? "61.57(d)" : "61.57(c): 6 approaches, holding, tracking",
       });
     }
-    if (!c.dayPassengersUntil || c.dayPassengersUntil < input.day) factors.push({ key: "recent", label: "Not three landings in the last 90 days", why: "61.57(a): no passengers, and rusty", points: 3 });
+    if (!c.dayPassengersUntil || c.dayPassengersUntil < input.day) factors.push({ key: "recent", label: "Not three takeoffs and landings in the last 90 days", why: "61.57(a)(1): same category and class; no passengers, and rusty", points: 3 });
     if (input.night && (!c.nightPassengersUntil || c.nightPassengersUntil < input.day)) {
       // `night` is 14 CFR 1.1's, from the end of civil twilight; 61.57(b)
       // binds from an hour after sunset to an hour before sunrise, a
       // little later, so this errs toward the caution and says the window.
-      factors.push({ key: "recent-night", label: "Not three night landings in the last 90 days", why: "61.57(b): needed from 1 h after sunset to 1 h before sunrise", points: 3 });
+      factors.push({ key: "recent-night", label: "Not three night takeoffs and landings to a full stop in the last 90 days", why: "61.57(b): needed from 1 h after sunset to 1 h before sunrise", points: 3 });
     }
     if (c.totalHours < 100) factors.push({ key: "low-time", label: "Under 100 hours in your logbook", why: "PAVE: pilot", points: 2 });
   }

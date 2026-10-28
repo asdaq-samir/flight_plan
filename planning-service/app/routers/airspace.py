@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from fastapi import APIRouter, Query
-from vfr import airports, airspace, airspace_at, alerts, altitude, classb, elevation, fixes, sua, tfr
+from vfr import airports, airspace, airspace_at, alerts, altitude, elevation, fixes, sua, tfr
 from vfr.units import M_TO_FT
 
 from ..schemas import AirspaceAt, AlertsAhead, PointOffFix
@@ -50,7 +50,7 @@ def airspace_at_point(
         areas = pool.submit(sua.at_point, lat, lon)
         restrictions = pool.submit(tfr.at_point, lat, lon)
         ground_ft = ground.result()
-        veil = airspace_at.mode_c_veil(lat, lon, classb.class_b_airports(shp_path))
+        veil = airspace_at.mode_c_veil(lat, lon, airspace_at.mode_c_airports())
         bands = airspace_at.column(lat, lon, ground_ft or 0.0, volumes.result(), in_veil=veil is not None)
         try:
             special_use, special_use_unavailable = areas.result(), False

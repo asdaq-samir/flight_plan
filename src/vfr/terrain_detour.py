@@ -11,8 +11,8 @@ goes round, by the passes and the low country. This finds such a way:
 - The ground is read off the terrain tiles (vfr.elevation's terrarium
   tiles, at a coarse zoom) as the highest point in each cell of a grid
   round the route.
-- A cell can be flown over where its highest ground, plus 14 CFR 91.119's
-  1,000 ft and a margin for the coarse read (COARSE_MARGIN_FT), is under
+- A cell can be flown over where its highest ground, plus the planner's
+  1,000 ft (at or above 14 CFR 91.119(b) and (c)) and a margin for the coarse read (COARSE_MARGIN_FT), is under
   the highest VFR cruising altitude the airplane can reach either way
   (91.159's thousands plus 500 under its ceiling, the lower of the
   eastbound and westbound).
@@ -36,7 +36,8 @@ from . import elevation, fixes, fuelstops, geo
 
 M_TO_FT = 3.28084
 
-#: 14 CFR 91.119(b)'s 1,000 ft over the ground, as vfr.terrain keeps it.
+#: The planner's 1,000 ft over the ground (vfr.terrain), at or above 14 CFR
+#: 91.119(b)'s 1,000 ft over a congested area and (c)'s 500 ft elsewhere.
 TERRAIN_MARGIN_FT = 1000
 #: The tiles at this zoom are an average of the ground they cover; the
 #: peaks in a cell stand higher than its pixels say.

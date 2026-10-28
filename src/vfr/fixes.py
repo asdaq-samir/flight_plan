@@ -247,7 +247,7 @@ def preload() -> None:
 #: A point off a fix, as a flight plan writes one -- its fix, the
 #: magnetic course or radial from it and the distance, nm: "VPBNG/090/30"
 #: as ForeFlight's route takes it, or packed, "DLH090030", the FAA flight
-#: plan's fix/radial/distance (FAA Form 7233-4, item 10; AIM 5-1-8). The
+#: plan's fix/radial/distance (FAA Form 7233-4, item 15, route; AIM 5-1-6). The
 #: pilot's own point, at the owner's ask ("30 miles 090 radial of vpbng").
 _FRD = re.compile(r"^([A-Z0-9]{2,5})/(\d{3})/(\d{1,3}(?:\.\d)?)$")
 _FRD_PACKED = re.compile(r"^([A-Z]{2,5})(\d{3})(\d{3})$")

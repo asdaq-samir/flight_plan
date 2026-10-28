@@ -11,6 +11,7 @@ vertices and 200 MB for a question asked a tap at a time.
 """
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 
 import shapefile
@@ -21,14 +22,27 @@ from .geo import distance_nm
 
 #: Class A, from here to FL600 (71.33): IFR only.
 CLASS_A_FLOOR_FT = 18000.0
-#: Class E from here up wherever nothing lower is designated (71.71).
+#: Class E from here up wherever nothing lower is designated, but not within
+#: 1,500 ft of the surface (71.71(b)): over ground above 13,000 ft the band
+#: under that is Class G.
 CLASS_E_EVERYWHERE_FT = 14500.0
 #: Where 91.155's minimums, 91.117's speed and 91.215's transponder rule change.
 TEN_THOUSAND_FT = 10000.0
 #: Class G's minimums differ at and below this height (91.155(a)).
 G_LOW_AGL_FT = 1200.0
-#: The Mode C veil's radius round a Class B primary airport (91.215(b)(2)).
+#: The Mode C veil's radius round each airport of 14 CFR part 91 appendix D
+#: section 1 (91.215(b)(2), 91.225(d)(2)), surface to 10,000 ft MSL.
 MODE_C_VEIL_NM = 30.0
+#: Those airports (14 CFR part 91, appendix D, section 1). Not the Class B
+#: shapefile's primary airports: it names 30, and BWI, Andrews, Dulles,
+#: Hobby, LaGuardia, Newark and Miramar have veils of their own beyond
+#: the ones they sit under -- a pilot by Leesburg or Galveston was told no
+#: transponder was needed (the aviation check, 2026-10-27).
+MODE_C_VEIL_AIRPORTS = (
+    "KATL", "KBWI", "KBOS", "KADW", "KIAD", "KCLT", "KORD", "KCLE", "KCVG", "KDFW", "KDEN", "KDTW", "PHNL",
+    "KIAH", "KHOU", "KMCI", "KLAS", "KLAX", "KMEM", "KMIA", "KMSP", "KEWR", "KMSY", "KJFK", "KLGA", "KMCO",
+    "KPHL", "KPHX", "KPIT", "KSTL", "KSLC", "KNKX", "KSAN", "KSFO", "KSEA", "KTPA", "KDCA",
+)
 #: Above 10,000 ft MSL a transponder and ADS-B Out are asked for, but not
 #: at or below this height above the ground (91.215(b)(5), 91.225(d)(4)).
 TRANSPONDER_EXEMPT_AGL_FT = 2500.0
@@ -129,9 +143,10 @@ ENTRY = {
 }
 
 
-def equipment(klass: str, floor_msl: float, agl: float, in_veil: bool) -> str | None:
+def equipment(klass: str, floor_msl: float, agl: float, in_veil: bool, above_bc: bool = False) -> str | None:
     """What the aeroplane must carry to be there (91.215, 91.225), or
-    None where nothing is asked beyond the basics."""
+    None where nothing is asked beyond the basics. `above_bc`: over a Class
+    B's or C's ceiling, inside its lateral limits."""
     transponder = "A transponder with altitude reporting and ADS-B Out (91.215, 91.225)."
     if klass == "A":
         # IFR only: the instrument flight asks for far more than this.
@@ -144,12 +159,18 @@ def equipment(klass: str, floor_msl: float, agl: float, in_veil: bool) -> str | 
         # (Addison or Arlington under DFW's veil) included.
         if in_veil and floor_msl < TEN_THOUSAND_FT:
             return ("A two-way radio, and a transponder with altitude reporting and ADS-B Out: "
-                    "inside a Class B's 30 nm Mode C veil (91.215, 91.225).")
+                    "inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).")
         return "A two-way radio."
     if floor_msl >= TEN_THOUSAND_FT and agl >= TRANSPONDER_EXEMPT_AGL_FT:
         return transponder
+    # Above a Class B or C, within its lateral limits, up to 10,000 ft MSL
+    # (91.215(b)(4), 91.225(d)(3)): a Class E band over a Class C was
+    # said to need nothing (the aviation check, 2026-10-27).
+    if above_bc and floor_msl < TEN_THOUSAND_FT:
+        return ("A transponder with altitude reporting and ADS-B Out: above a Class B or C, "
+                "within its lateral limits, to 10,000 ft MSL (91.215(b)(4), 91.225(d)(3)).")
     if in_veil and floor_msl < TEN_THOUSAND_FT:
-        return "A transponder with altitude reporting and ADS-B Out: inside a Class B's 30 nm Mode C veil (91.215, 91.225)."
+        return "A transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2))."
     return None
 
 
@@ -203,7 +224,7 @@ def column(lat: float, lon: float, ground_ft: float, volumes: list[dict], in_vei
         if holding:
             _, _, volume = min(holding, key=lambda h: _RESTRICTIVENESS[h[2]["class"]])
             klass, name = volume["class"], volume["name"]
-        elif any(f <= middle < c for f, c, _ in class_e) or middle >= CLASS_E_EVERYWHERE_FT:
+        elif any(f <= middle < c for f, c, _ in class_e) or (middle >= CLASS_E_EVERYWHERE_FT and middle >= ground_ft + 1500):
             klass, name = "E", None
         else:
             klass, name = "G", None
@@ -212,7 +233,8 @@ def column(lat: float, lon: float, ground_ft: float, volumes: list[dict], in_vei
         band = {
             "floor_ft": bottom, "ceiling_ft": top, "class": klass, "name": name,
             "minimums": minimums(klass, bottom, agl), "entry": ENTRY[klass],
-            "equipment": equipment(klass, bottom, agl, in_veil), "speed_kt": speed_kt(klass, bottom, under_b, agl),
+            "equipment": equipment(klass, bottom, agl, in_veil, above_bc=any(
+                v["class"] in ("B", "C") and c <= bottom for _, c, v in controlled)), "speed_kt": speed_kt(klass, bottom, under_b, agl),
         }
         previous = bands[-1] if bands else None
         if previous and all(previous[k] == band[k] for k in ("class", "name", "minimums", "equipment", "speed_kt")):
@@ -227,9 +249,26 @@ def column(lat: float, lon: float, ground_ft: float, volumes: list[dict], in_vei
     return bands
 
 
-def mode_c_veil(lat: float, lon: float, class_b_airports: list[dict]) -> dict | None:
-    """The nearest Class B primary airport within MODE_C_VEIL_NM of the
-    point, as {"ident", "name", "distance_nm"}; None outside every veil."""
+@lru_cache(maxsize=1)
+def mode_c_airports() -> tuple[dict, ...]:
+    """MODE_C_VEIL_AIRPORTS where they are (vfr.airports), as
+    {"ident", "name", "lat", "lon"}; one the table does not have left out."""
+    from . import airports
+
+    found = []
+    for ident in MODE_C_VEIL_AIRPORTS:
+        try:
+            a = airports.get_airport(ident)
+        except ValueError:
+            continue
+        found.append({"ident": ident, "name": a.get("name"), "lat": a["lat"], "lon": a["lon"]})
+    return tuple(found)
+
+
+def mode_c_veil(lat: float, lon: float, class_b_airports) -> dict | None:
+    """The nearest Mode C veil airport (mode_c_airports) within
+    MODE_C_VEIL_NM of the point, as {"ident", "name", "distance_nm"}; None
+    outside every veil."""
     near = [
         (distance_nm(lat, lon, a["lat"], a["lon"]), a) for a in class_b_airports
         if a.get("lat") is not None and a.get("lon") is not None

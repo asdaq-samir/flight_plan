@@ -32,6 +32,8 @@ service image.
 Sign convention for cross-track: positive is right of course, negative
 is left. Along-track is negative behind the route start.
 """
+import math
+
 import numpy as np
 from pyproj import Geod
 from scipy.sparse import coo_matrix
@@ -189,8 +191,15 @@ def corridor_bbox(route_start: tuple, route_end: tuple, buffer_nm: float) -> tup
     """
     lats = [route_start[0], route_end[0]]
     lons = [route_start[1], route_end[1]]
-    pad_deg = buffer_nm / 60.0  # ~1 nm per minute of latitude
-    return (min(lats) - pad_deg, min(lons) - pad_deg, max(lats) + pad_deg, max(lons) + pad_deg)
+    pad_lat = buffer_nm / 60.0  # a nautical mile a minute of latitude
+    # A minute of longitude is cos(latitude) of a mile: the same degrees
+    # east and west were 4.95 nm of a 7 nm pad at 45 N, and the obstacles
+    # 4.7-5 nm abeam a north-south leg fell out of the terrain floor's 5 nm
+    # corridor (the aviation check, 2026-10-27). Widened at the box's
+    # poleward edge, where a degree is shortest.
+    widest = min(89.0, max(abs(route_start[0]), abs(route_end[0])) + pad_lat)
+    pad_lon = pad_lat / max(0.05, math.cos(math.radians(widest)))
+    return (min(lats) - pad_lat, min(lons) - pad_lon, max(lats) + pad_lat, max(lons) + pad_lon)
 
 
 # --- Web Mercator tiles ---

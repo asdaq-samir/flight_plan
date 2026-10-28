@@ -181,7 +181,8 @@ class PlanQuery:
         """`altitudes` by ident; a 422 for one that is not "IDENT:FEET",
         or not a VFR altitude: under 18,000 ft MSL, the floor of Class A
         (14 CFR 71.33), where no flight is VFR (14 CFR 91.135). Under IFR,
-        up to FL410, the highest 91.179(b)(4) names."""
+        up to FL410, the top of RVSM airspace (14 CFR part 91, Appendix G,
+        section 1; 91.179(b)(4))."""
         top = 41_000 if self.rules == "ifr" else 17_999
         out = {}
         for part in filter(None, (p.strip() for p in self.altitudes.split(","))):

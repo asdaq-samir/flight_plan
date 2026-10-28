@@ -315,7 +315,11 @@ def floor_profile(fixes: list, faa_cache_dir=DEFAULT_FAA_CACHE_DIR) -> list[LegF
 
     lats = [p[0] for p in fixes]
     lons = [p[1] for p in fixes]
-    bbox = (min(lats) - reach_deg, min(lons) - 2 * reach_deg, max(lats) + reach_deg, max(lons) + 2 * reach_deg)
+    # A degree of longitude is cos(latitude) of a degree of latitude: twice
+    # the reach fell short of 91.177(a)(2)'s 4 nm above about 66 N (the
+    # aviation check, 2026-10-27), so it is scaled at the box's poleward edge.
+    lon_reach = reach_deg / max(0.05, math.cos(math.radians(min(89.0, max(abs(v) for v in lats) + reach_deg))))
+    bbox = (min(lats) - reach_deg, min(lons) - lon_reach, max(lats) + reach_deg, max(lons) + lon_reach)
     obstacles = faa_data.load_obstacles(faa_data.ensure_nasr_file("DOF.DAT", faa_cache_dir), bbox, min_agl_ft=0)
     obstacle_lat = obstacles["lat"].to_numpy(dtype=float)
     obstacle_lon = obstacles["lon"].to_numpy(dtype=float)
