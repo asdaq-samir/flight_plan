@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "sonner";
+import { toast } from "../../lib/toast";
 import { Check, Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import FieldHit from "../../components/FieldHit";

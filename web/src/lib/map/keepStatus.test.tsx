@@ -10,11 +10,11 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { api } from "../api/client";
 import type { AirportPlace, ChartLayer, Course } from "../api/types";
 import { WORKER_WAIT_MS, keep, keepKey, keptAlready, stopKeeping, useKeepJob, useKeptCharts } from "./keepRoute";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { useKeepRouteToast } from "./keepStatus";
 import { useSystemProblems } from "../problems";
 
-vi.mock("sonner", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
+vi.mock("../toast", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
 
 const layer = (kind: string): ChartLayer =>
   ({ kind, label: kind === "sec" ? "Sectional" : "IFR low", min_zoom: 3, max_zoom: 9, base: true, over: [], sheets: [] }) as ChartLayer;
