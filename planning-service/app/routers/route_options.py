@@ -37,10 +37,6 @@ CHIP_WORDS = {"weather": "Avoid Weather", "fastest": "Fastest", "land": "Over La
 #: (vfr.filed_routes; the owner, 2026-10-27: "Most filed is how you get
 #: most flown").
 FILED_WORDS = "Most Filed"
-#: The most stops a chip names before "+2".
-CHIP_MOST_IDENTS = 3
-
-
 def _same(ident: str) -> str:
     """An ident as the route's box may spell it: KUES and UES alike."""
     s = ident.strip().upper()
@@ -49,11 +45,12 @@ def _same(ident: str) -> str:
 
 def _chips(found: dict, typed: list[str]) -> list[dict]:
     """FPL's route line: "None", the route as typed; "Your Route" with the
-    fuel stops it needs; then the ways, each named by what it is and the
-    stops it adds over the typed route (a present position's turn, an
-    "@lat,lon", is not named). One chip a set of stops; none at all where
-    only the route itself is left."""
-    typed_same = {_same(t) for t in typed}
+    fuel stops it needs; then the ways, each named by what it is alone --
+    "Fastest", "Avoid Weather" -- not the stops it adds, at the owner's ask
+    (2026-10-28: "for routes, don't include stops in its label"), its
+    stops drawn on the map and put in the route's box as it is picked.
+    One chip a set of stops; none at all where only the route itself is
+    left."""
     chips = [{"key": "none", "label": "None", "stops": typed, "fuel": [],
               "crosses": found.get("current", []) if typed else found.get("direct", [])}]
     seen = [[_same(t) for t in typed]]
@@ -63,10 +60,7 @@ def _chips(found: dict, typed: list[str]) -> list[dict]:
         if same in seen:
             return
         seen.append(same)
-        added = [s for s in way["stops"] if _same(s) not in typed_same and not s.startswith("@")]
-        shown = added[:CHIP_MOST_IDENTS]
-        more = f" +{len(added) - len(shown)}" if len(added) > len(shown) else ""
-        chips.append({"key": key, "label": f"{words} · {' '.join(shown)}{more}" if shown else words,
+        chips.append({"key": key, "label": words,
                       "stops": way["stops"], "fuel": way["fuel"], "crosses": way.get("crosses", [])})
 
     own = found.get("own")

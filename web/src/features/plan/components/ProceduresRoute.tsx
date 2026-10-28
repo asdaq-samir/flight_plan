@@ -652,7 +652,7 @@ export default function ProceduresRoute({
         // and aria-controls Radix's, and the landing's or the takeoff's body
         // its content. A stop's second part, in a section of its own, is
         // shown with it (a Collapsible has one content).
-        <Collapsible key={key} asChild open={opened} onOpenChange={() => toggleField(key)}>
+        <Collapsible key={key} asChild open={opened} onOpenChange={next => toggleField(key, a.ident, next)}>
           <li className="relative" data-testid="route-field" data-ident={a.ident}>
             {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
             <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && "pb-5")}>
@@ -1017,32 +1017,14 @@ export interface RouteLineChoices {
  * You can simply have none in the beginning", 2026-10-26): the route's
  * glyph and, folded, the chip picked; a tap on it the planner's ways
  * slide out as chips, as a runway line's do, a tap on one the route at
- * once. "None" is the route as typed. Folded again after the runway
- * line's wait untouched. A way that meets something is ringed in amber,
- * said in its name: the planner warns, never refuses.
+ * once. "None" is the route as typed. Open until it is folded by its
+ * glyph, at the owner's ask ("Keep the routes and runway opened until
+ * folded", 2026-10-28), where it folded after the runway line's two
+ * seconds untouched. A way that meets something is ringed in amber, said
+ * in its name: the planner warns, never refuses.
  */
-/** The fold timed for a route line put away with the list (RouteLine),
- *  which the next one drawn takes over. */
-let foldAfterAway = 0;
-
 function RouteLine({ line }: { line: RouteLineChoices }) {
   const open = useRouteLineOpen(s => s.open);
-  const [touched, setTouched] = useState(0);
-  useEffect(() => {
-    // A fold left from a line put away with the list (below) is this
-    // line's to time now.
-    window.clearTimeout(foldAfterAway);
-    if (!open) return;
-    const id = setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs());
-    return () => clearTimeout(id);
-  }, [open, touched]);
-  // Put away with the list, it folds after the same wait, so the map's
-  // ways go with it: not at once, as the list is drawn anew as the sheet
-  // moves and as the route comes in, and the line closed under a finger.
-  useEffect(() => () => {
-    window.clearTimeout(foldAfterAway);
-    foldAfterAway = window.setTimeout(() => useRouteLineOpen.setState({ open: false }), runwayLineFoldMs());
-  }, []);
   const picked = line.chips.find(c => c.key === line.picked) ?? line.chips[0]!;
   const ring = (c: RouteLineChoices["chips"][number]) => (c.warning ? "ring-2 ring-amber-500" : undefined);
   const words = (c: RouteLineChoices["chips"][number]) =>
@@ -1084,10 +1066,10 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
             </ToggleGroup>
           ) : (
             <CollapsibleContent asChild>
-              <div className="flex min-w-0 flex-1" onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}>
+              <div className="flex min-w-0 flex-1">
                 <Chips
                   label="Route options" value={line.picked} flushStart tray
-                  onChange={v => { setTouched(t => t + 1); line.onPick(v); }}
+                  onChange={v => line.onPick(v)}
                   enter="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300"
                 >
                   {line.chips.map(c => (
@@ -1227,30 +1209,23 @@ function Chips({ label, value, onChange, trailing, trailingRef, enter, flushStar
  *  opens or folds (PatternChips). */
 const trailingStood = new Map<string, { open: boolean; x: number }>();
 
-/** How long an opened runway line waits, untouched, before it slides back
- *  to the runway picked, ms: two seconds, at the owner's ask ("Runways can
- *  collapse in 2 seconds"; it was four, then three). */
-const RUNWAY_LINE_FOLD_MS = 2000;
-/** The fold's wait, or a test's longer one (the browser specs keep a line
- *  open while they pick from it: two seconds of a loaded test runner were
- *  gone before the pick). */
-function runwayLineFoldMs(): number {
-  try {
-    return Number(globalThis.localStorage?.getItem("vfr.runwayFoldMs")) || RUNWAY_LINE_FOLD_MS;
-  } catch {
-    return RUNWAY_LINE_FOLD_MS;
-  }
-}
-
-/** The runway lines opened from their fold (PatternChips), by field. */
+/** The runway lines opened from their fold (PatternChips), by field
+ *  ("KMSN:" and the line's label): open until folded, by their head or a
+ *  runway picked, or with their field (toggleField), at the owner's ask
+ *  ("Keep the routes and runway opened until folded … fold them when the
+ *  whole airport is collapsed", 2026-10-28), where they folded after two
+ *  seconds untouched. */
 const useOpenRunwayLines = create<{ open: string[] }>(() => ({ open: [] }));
 
 /** The route's fields toggled from how they start -- folded to one row --
  *  by their part and field ("Stop:KMSN"): kept while the page is, as the
- *  list is drawn again. */
+ *  list is drawn again. A field folded folds its runway lines with it
+ *  (`ident`), so it opens again with its runway picked showing. */
 const useToggledFields = create<{ toggled: string[] }>(() => ({ toggled: [] }));
-const toggleField = (key: string) =>
+const toggleField = (key: string, ident: string, opening: boolean) => {
   useToggledFields.setState(s => ({ toggled: s.toggled.includes(key) ? s.toggled.filter(k => k !== key) : [...s.toggled, key] }));
+  if (!opening) useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => !k.startsWith(`${ident}:`)) }));
+};
 
 /** Whether the fields start opened: the browser specs' (localStorage
  *  "vfr.fieldsOpen", as the signed-in session they share keeps it), which
@@ -1358,25 +1333,16 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
     return { id, ring, words, fit, face: <>{windward && <Wind className="size-4" strokeWidth={2.2} aria-hidden />}{id}</> };
   };
   const picked = chosen !== null ? ends.find(e => runwayNumber(e.end.ident) === chosen) : undefined;
-  // Open with a runway picked and nothing touched for RUNWAY_LINE_FOLD_MS,
-  // it slides back to the runway picked, at the owner's ask ("back left
-  // after a few seconds"); a touch or a scroll on it starts the wait again.
-  const [touched, setTouched] = useState(0);
-  const folds = open && chosen !== null && a.runways !== null;
-  useEffect(() => {
-    if (!folds) return;
-    const id = setTimeout(() => useOpenRunwayLines.setState(s => ({ open: s.open.filter(k => k !== key) })), runwayLineFoldMs());
-    return () => clearTimeout(id);
-  }, [folds, key, touched]);
   // The pull-downs after the runways ("+ Arrival", "+ Approach") glide to
   // where the line puts them as it opens and folds, as the runways slide
   // in, where they jumped there -- and faded and slid in with the runways
   // -- once they came up beside them (the owner's "not as smooth as it
   // used to be before the procedures got moved up"). Where they stood is
-  // taken at every render (a scroll of the line is one, `touched`), by
+  // taken at every render (a scroll of the line is one, `scrolled`), by
   // the line's key, as the line is drawn anew as it opens (its block's
   // runway-line-toggle), and they start from it, by a CSS transition:
   // WebKit's headless WAAPI can stall at its first frame.
+  const [, setScrolled] = useState(0);
   const line = useRef<HTMLDivElement>(null);
   const after = useRef<HTMLDivElement>(null);
   const shown = !!picked && !open && a.runways !== null ? "folded" : "open";
@@ -1453,14 +1419,15 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
       ) : (
         // Opened from its fold, the line slides out to the right of the
         // runway picked, at the owner's ask ("smoothly expand to the
-        // right"); a touch or a scroll on it holds it open (touched). With a
+        // right"); a scroll on it draws it again (`scrolled`), for its
+        // pull-downs to glide from where they stand as it folds. With a
         // runway picked to fold to, the line is the content of its tray's
         // Collapsible (the block's runway-line-toggle), so the head's
         // aria-controls names it.
         <LineContent folds={!!picked}>
           <div
             className="flex min-w-0 flex-1"
-            onPointerDown={() => setTouched(t => t + 1)} onScrollCapture={() => setTouched(t => t + 1)}
+            onScrollCapture={() => setScrolled(t => t + 1)}
           >
             {/* A runway each: no None, at the owner's ask ("Why is none even
                 an option?"), as every takeoff and landing is on one -- and

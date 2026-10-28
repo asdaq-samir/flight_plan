@@ -37,9 +37,9 @@ def test_the_ways_with_the_airplanes_figures_and_the_pilots_minimums(monkeypatch
     answer = first.json()
     assert {k: v for k, v in answer.items() if k != "chips"} == ANSWER
     # The route line's chips: None, the route as typed, and the way named
-    # by what it is and the stop it adds.
+    # by what it is, its stops not in its name (the owner, 2026-10-28).
     assert [(c["key"], c["label"], c["stops"], c["crosses"]) for c in answer["chips"]] == [
-        ("none", "None", [], [0]), ("weather", "Avoid Weather & Fastest · KDSM", ["KDSM"], [])]
+        ("none", "None", [], [0]), ("weather", "Avoid Weather & Fastest", ["KDSM"], [])]
     dep, dest, profile, given = asked[0]
     assert dep == {"ident": "C81", "lat": 1.0, "lon": 2.0} and dest["ident"] == "KOMA"
     assert profile["cruise_tas_kt"] == 110
@@ -90,7 +90,7 @@ def test_the_route_lines_chips_one_a_set_of_stops_in_the_owners_order():
     }
     chips = route_options._chips(found, ["COU", "@42.1,-88.2"])
     assert [(c["key"], c["label"]) for c in chips] == [
-        ("none", "None"), ("fuel", "Your Route · KMVN"), ("weather", "Avoid Weather · KMVN KJLN KABC +1"), ("fastest", "Fastest · TBN")]
+        ("none", "None"), ("fuel", "Your Route"), ("weather", "Avoid Weather"), ("fastest", "Fastest")]
     assert chips[0]["crosses"] == [2] and chips[2]["crosses"] == [1]
     # Nothing but the route itself: no line.
     assert route_options._chips({**ANSWER, "options": []}, []) == []
@@ -126,6 +126,6 @@ def test_the_most_filed_route_is_the_last_chip_its_airway_named(monkeypatch):
     answer = TestClient(app).get("/api/route-options?dep=kfiled&dest=klwd").json()
     # The first the planner can fly, flown fix by fix for the ways' read.
     assert asked[0]["filed"] == ([(2.0, 2.0), (3.0, 2.0), (4.0, 2.0), (5.0, 2.0)], ["BAE", "P1", "P2", "OBH"])
-    assert answer["chips"][-1] == {"key": "filed", "label": "Most Filed · BAE P1 P2 +1", "stops": ["BAE", "V100", "OBH"],
+    assert answer["chips"][-1] == {"key": "filed", "label": "Most Filed", "stops": ["BAE", "V100", "OBH"],
                                    "fuel": [], "crosses": []}
     assert "filed" not in answer
