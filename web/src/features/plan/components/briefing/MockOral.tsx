@@ -1,6 +1,6 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Loader2, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import StatusBadge from "../../../../components/StatusBadge";
@@ -13,6 +13,7 @@ import { pilotQuery, trainingQuery } from "../../../../lib/queryClient";
 import { TEXT } from "../../../../lib/text";
 import { useAcsTable } from "../../../../lib/useAcsTable";
 import { FINDING_TONE } from "../../../../lib/status";
+import { Spinner } from "../../../../components/ui/spinner";
 
 const VERDICT: Record<OralGrade["verdict"], { words: string; tone: "up" | "checking" | "down" }> = {
   satisfactory: { words: "Satisfactory", tone: "up" },
@@ -102,7 +103,7 @@ export default function MockOral({ plan }: { plan: string }) {
                   Another question
                 </Button>
                 <Button type="submit" size="sm" disabled={!answer.trim() || grade.isPending} data-testid="oral-check">
-                  {grade.isPending && <Loader2 className="animate-spin" aria-hidden />}
+                  {grade.isPending && <Spinner aria-hidden />}
                   {grade.isPending ? "Checking…" : "Check my answer"}
                 </Button>
               </div>
@@ -133,7 +134,7 @@ export default function MockOral({ plan }: { plan: string }) {
           type="button" className="w-full" disabled={!table || question.isPending} onClick={() => question.mutate()}
           data-testid="oral-ask"
         >
-          {question.isPending && <Loader2 className="animate-spin" aria-hidden />}
+          {question.isPending && <Spinner aria-hidden />}
           {question.isPending ? "The examiner is thinking…" : q ? "Next question" : "Ask me a question"}
         </Button>
       )}

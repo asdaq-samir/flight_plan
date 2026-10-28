@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Plane, Plus } from "lucide-react";
-import { EditToggle, HomePlane, ListPageHead, Mark, MoveHandle, RemoveMinus } from "../../../components/Favorites";
+import { EditToggle, HomePlane, ListPageHead, Mark, MoveHandle, RemoveMinus, SortableRow, SortableRows } from "../../../components/Favorites";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { SwipeToDelete } from "../../../components/SwipeToDelete";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
@@ -54,10 +54,12 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
           </SwipeToDelete>
         )}
       </ListGroup>
+      <SortableRows ids={favorites.map(a => a.hex)} onMove={move}>
       <ListGroup title="Airplanes">
         {favorites.length === 0 && <ListRow muted title="A star on an airplane's card adds it here" />}
         {favorites.map((a, index) => (
-          <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Favorites`} onDelete={() => remove(a)}>
+          <SortableRow key={a.hex} id={a.hex}>
+          <SwipeToDelete label={`Remove ${a.name} from Favorites`} onDelete={() => remove(a)}>
             {editing ? (
               <ListRow
                 media={<RemoveMinus label={`Remove ${a.name} from Favorites…`} />}
@@ -72,9 +74,11 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
               />
             )}
           </SwipeToDelete>
+          </SortableRow>
         ))}
         <ListRow media={<Plus className="size-5" />} title="Add a Favorite" onClick={onAdd} data-testid="aircraft-favorites-add" />
       </ListGroup>
+      </SortableRows>
     </div>
   );
 }

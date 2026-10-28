@@ -147,21 +147,21 @@ test("the airplane the nav log flies is ticked, and a tap on another flies that 
   }));
   const console = await openPlannerConsole(page);
   await library(console, "Airplanes");
-  // The row's own button, which says whether it is the one flown.
-  const pick = (tail: string) => console.locator("[data-aircraft-row]", { hasText: tail }).locator("button[aria-pressed]");
+  // The row's own radio, which says whether it is the one flown.
+  const pick = (tail: string) => console.locator("[data-aircraft-row]", { hasText: tail }).getByRole("radio");
   // A stock profile to start with: neither of these is ticked.
-  await expect(console.locator('button[aria-pressed="true"]')).toHaveCount(0);
+  await expect(console.locator('[data-aircraft-row] [role="radio"][aria-checked="true"]')).toHaveCount(0);
   await expect(console.getByTestId("aircraft-stock")).toContainText("Flying the stock C172");
 
   await pick("N2").click();
-  await expect(pick("N2")).toHaveAttribute("aria-pressed", "true");
-  await expect(pick("N1")).toHaveAttribute("aria-pressed", "false");
+  await expect(pick("N2")).toHaveAttribute("aria-checked", "true");
+  await expect(pick("N1")).toHaveAttribute("aria-checked", "false");
   // The ⓘ still opens its figures, and the tick stays where it is.
   await console.getByRole("button", { name: "Edit N1" }).click();
   await expect(page.getByLabel("Tail number")).toHaveValue("N1");
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByLabel("Tail number")).toHaveCount(0);
-  await expect(pick("N2")).toHaveAttribute("aria-pressed", "true");
+  await expect(pick("N2")).toHaveAttribute("aria-checked", "true");
 
   // The picker under the route flies it too, with the panel out.
   await closeConsole(page);

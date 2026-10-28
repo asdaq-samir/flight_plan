@@ -1,5 +1,8 @@
 import { ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plus } from "lucide-react";
-import { useEffect, useId, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { airportMarkSvg } from "../lib/map/airportMark";
@@ -128,41 +131,68 @@ export function RemoveMinus({ label, onClick, testId }: { label: string; onClick
   );
 }
 
-/** The handle after a row being edited: a drag moves its row a place
- *  each time the finger passes half a row, the list re-ordering under it
- *  as it goes, and the arrow keys a place at a time. */
+/** The rows a list's handles drag: dnd-kit's sortable (as the route's
+ *  stops are, RouteBox), round the ListGroup that draws them, each row a
+ *  `SortableRow` -- a drag by the handle, the list making room under it,
+ *  VoiceOver told where it is, and the move made once, at the drop. */
+export function SortableRows({ ids, onMove, children }: {
+  ids: string[];
+  onMove: (from: number, to: number) => void;
+  children: ReactNode;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  return (
+    <DndContext
+      sensors={sensors} collisionDetection={closestCenter}
+      onDragEnd={({ active, over }) => {
+        if (!over || active.id === over.id) return;
+        const from = ids.indexOf(`${active.id}`), to = ids.indexOf(`${over.id}`);
+        if (from >= 0 && to >= 0) onMove(from, to);
+      }}
+    >
+      <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
+    </DndContext>
+  );
+}
+
+const SortHandle = createContext<{
+  ref: (node: HTMLElement | null) => void; attributes: DraggableAttributes; listeners: DraggableSyntheticListeners;
+} | null>(null);
+
+/** One of a `SortableRows`' rows, lifted over the others while dragged. */
+export function SortableRow({ id, children }: { id: string; children: ReactNode }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef} style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(isDragging && "relative z-10 bg-card shadow-lg")}
+    >
+      <SortHandle.Provider value={{ ref: setActivatorNodeRef, attributes, listeners }}>{children}</SortHandle.Provider>
+    </div>
+  );
+}
+
+/** The handle after a row being edited, in a `SortableRow`: dragged, its
+ *  row goes with it (dnd-kit); and the arrow keys a place at a time, as
+ *  they did, besides dnd-kit's own Space to lift and drop. */
 export function MoveHandle({ label, index, count, onMove }: {
   label: string;
   index: number;
   count: number;
   onMove: (from: number, to: number) => void;
 }) {
-  const drag = (start: ReactPointerEvent<HTMLButtonElement>) => {
-    const handle = start.currentTarget;
-    const row = handle.closest("[data-slot=item]") as HTMLElement | null;
-    const height = row?.offsetHeight ?? 52;
-    handle.setPointerCapture(start.pointerId);
-    let at = index, anchor = start.clientY;
-    const move = (event: PointerEvent) => {
-      const dy = event.clientY - anchor;
-      if (dy > height / 2 && at < count - 1) { onMove(at, at + 1); at += 1; anchor += height; }
-      else if (dy < -height / 2 && at > 0) { onMove(at, at - 1); at -= 1; anchor -= height; }
-    };
-    const end = () => {
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", end);
-      handle.removeEventListener("pointercancel", end);
-    };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", end);
-    handle.addEventListener("pointercancel", end);
-  };
+  const sort = useContext(SortHandle);
   return (
     <IconButton
-      label={label} className="touch-none" onPointerDown={drag}
+      label={label} className="touch-none"
+      {...sort?.attributes} {...sort?.listeners} ref={sort?.ref}
       onKeyDown={e => {
-        if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); }
-        if (e.key === "ArrowDown" && index < count - 1) { e.preventDefault(); onMove(index, index + 1); }
+        if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); return; }
+        if (e.key === "ArrowDown" && index < count - 1) { e.preventDefault(); onMove(index, index + 1); return; }
+        sort?.listeners?.onKeyDown?.(e);
       }}
     >
       <GripVertical className="size-5 text-muted-foreground" />
@@ -219,10 +249,12 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
           </SwipeToDelete>
         )}
       </ListGroup>
+      <SortableRows ids={favorites.map(a => a.ident)} onMove={onMove}>
       <ListGroup title="Airports">
         {favorites.length === 0 && <ListRow muted title="A star on an airport's card adds it here" />}
         {favorites.map((a, index) => (
-          <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)}>
+          <SortableRow key={a.ident} id={a.ident}>
+          <SwipeToDelete label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)}>
             {editing ? (
               <ListRow
                 media={<RemoveMinus label={`Remove ${a.ident} from Favorites…`} />}
@@ -239,9 +271,11 @@ export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, o
               />
             )}
           </SwipeToDelete>
+          </SortableRow>
         ))}
         <ListRow media={<Plus className="size-5" />} title="Add a Favorite" onClick={onAdd} data-testid="favorites-add" />
       </ListGroup>
+      </SortableRows>
     </div>
   );
 }

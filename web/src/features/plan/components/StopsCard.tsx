@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { Loader2 } from "lucide-react";
 import { cn } from "cn";
 import { CardClose } from "../../../components/PanelCard";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -17,6 +16,7 @@ import { kindLines, kindsOf, PICK_ORDER, STOP_KINDS, STOP_RADII, whereWords, typ
 import { prefersReducedMotion } from "../../../lib/motion";
 import { useStopsAlong } from "../../../lib/stopsAlong";
 import { TEXT } from "../../../lib/text";
+import { Spinner } from "../../../components/ui/spinner";
 
 /** A kind's pill as iOS sets a filter: its round glyph and its name,
  *  filled in the tint when picked; 32 points with a 44-point area round
@@ -189,7 +189,7 @@ export default function StopsCard({ at, route, scope, onScope, onClose, onOpenFi
             )}
             {pending > 0 && (
               <ListRow
-                media={<Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />}
+                media={<Spinner className="text-muted-foreground" aria-hidden />}
                 muted title={<>Looking at {pending} more {pending === 1 ? "airport" : "airports"}…</>}
                 data-testid="stops-pending"
               />
