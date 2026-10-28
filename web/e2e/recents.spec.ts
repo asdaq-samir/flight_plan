@@ -237,11 +237,22 @@ test("FPL's strip shows Saved or, from its filter, the latest routes planned as 
   await clearTheRoute(page);
   await expect(panel.getByTestId("route-recent").first()).toContainText("C81→KMSN");
 
-  // Clear, asked first, from the Recents in full: the strip says none yet
-  // then, and Saved is back from its filter.
+  // Under their headings, as Maps' Recents are: KMSN planned just now
+  // under Today, the rest under This Month or Earlier.
   await panel.getByTestId("route-recents-more").click();
-  await panel.getByTestId("route-recents-clear").click();
-  await page.getByRole("button", { name: "Clear", exact: true }).last().click();
+  await expect(panel.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  // Its ••• offers Share and Clear; Clear takes that one off.
+  await panel.getByTestId("route-recent-more").first().click();
+  await expect(page.getByTestId("route-recent-share")).toBeVisible();
+  await page.getByTestId("route-recent-remove").click();
+  await expect(panel.getByTestId("route-recent")).toHaveCount(3);
+  // Clear at each heading's right, asked first, until none is left: the
+  // strip says none yet then, and Saved is back from its filter.
+  for (let left = await panel.getByTestId("route-recents-clear").count(); left > 0; left--) {
+    await panel.getByTestId("route-recents-clear").first().click();
+    await page.getByRole("button", { name: "Clear", exact: true }).last().click();
+    await expect(panel.getByTestId("route-recents-clear")).toHaveCount(left - 1);
+  }
   await expect(panel.getByTestId("route-recent")).toHaveCount(0);
   await panel.getByTestId("route-recents-page-close").click();
   await expect(panel.getByTestId("route-recents")).toContainText("None yet");
