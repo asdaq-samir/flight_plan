@@ -1,4 +1,4 @@
-import { History, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import { useRef, type ReactNode, type RefObject } from "react";
 import { cn } from "cn";
 import { TEXT } from "../lib/text";
@@ -6,7 +6,8 @@ import { useAirportSearch } from "../lib/useAirportSearch";
 import { usePreferences, type RecentAirport } from "../lib/preferences";
 import { ListGroup, ListRow } from "./GroupedList";
 import { ClearList, SwipeToDelete } from "./SwipeToDelete";
-import { ListPageHead, PillSection, PillStrip, SmallAirportTile, StripNote } from "./Favorites";
+import { KeptMark, ListPageHead, PillSection, PillStrip, SmallAirportTile, StripNote } from "./Favorites";
+import { placeLink } from "../lib/flightLink";
 import { useAway } from "../lib/useAway";
 import ClearButton from "./ClearButton";
 import { PANEL_FIELD } from "./panelField";
@@ -163,9 +164,9 @@ function RecentAirportRows({ recents, onPick }: { recents: RecentAirport[]; onPi
   return (
     <ListGroup>
       {recents.map(a => (
-        <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Recents`} onDelete={() => remove(a.ident)}>
+        <SwipeToDelete key={a.ident} label={`Remove ${a.ident} from Recents`} onDelete={() => remove(a.ident)} share={placeLink(a)}>
           <ListRow
-            media={<History className="size-5 text-muted-foreground" />}
+            media={<KeptMark airport={a} />}
             title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
             description={a.municipality ?? undefined}
             onClick={() => onPick(a)} data-testid="airport-recent"

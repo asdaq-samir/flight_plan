@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { CircleMinus, History, Share } from "lucide-react";
+import { History, Share, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "cn";
 import { ListPageHead, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
@@ -103,15 +103,15 @@ function RecentRouteRows({ title, routes, onPick, action }: { title: string; rou
         const dep = placeOfPoint(route.dep), dest = placeOfPoint(route.dest);
         const day = new Date(route.at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
         const name = `${dep} to ${dest}`;
+        const shareLink = { title: `${dep} → ${dest}`, url: new URL(`/app${hrefOf(route)}`, location.origin).toString() };
         const share = () => {
-          shareOrCopy({ title: `${dep} → ${dest}`, url: new URL(`/app${hrefOf(route)}`, location.origin).toString() })
-            .catch(err => { if (!cancelled(err)) showError("Not shared", describeError(err)); });
+          shareOrCopy(shareLink).catch(err => { if (!cancelled(err)) showError("Not shared", describeError(err)); });
         };
         return (
-          <SwipeToDelete key={key} label={`Remove ${name} from Recents`} onDelete={() => remove(key)}>
+          <SwipeToDelete key={key} label={`Remove ${name} from Recents`} onDelete={() => remove(key)} share={shareLink}>
             <RowMenu label={`More for ${name}`} testId="route-recent-more" actions={[
               { label: "Share", icon: <Share />, onSelect: share, testId: "route-recent-share" },
-              { label: "Clear", icon: <CircleMinus />, onSelect: () => remove(key), testId: "route-recent-remove" },
+              { label: "Remove", icon: <Trash2 />, destructive: true, onSelect: () => remove(key), testId: "route-recent-remove" },
             ]}>
               <ListRow
                 media={<SmallMark icon={<History />} className="size-9 bg-foreground/70 text-background [&_svg]:size-5" />}

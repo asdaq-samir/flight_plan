@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plane, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { api } from "../../../lib/api/client";
@@ -8,7 +8,8 @@ import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/typ
 import { useOwnFix } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { pickKeptAircraft, useTabSearch } from "../../../lib/tabSearch";
-import { HomePlane, ListPageHead, PillSection, PillStrip, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
+import { HomePlane, ListPageHead, PillSection, PillStrip, PlaneMark, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
+import { planeLink } from "../../../lib/flightLink";
 import TabPage from "../../../components/TabPage";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
 import AircraftRow from "./AircraftRow";
@@ -147,7 +148,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
             ))}
             {registered && (
               <ListRow
-                media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-registered"
+                media={<PlaneMark small />} data-testid="aircraft-registered"
                 title={<span className="font-semibold">{registered.n_number}</span>}
                 description={[[registered.manufacturer, registered.model].filter(Boolean).join(" "),
                   unchecked ? "not yet known whether it is flying" : "not in the air now"].filter(Boolean).join(" · ")}
@@ -230,7 +231,7 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
 function KeptAircraftTile({ aircraft, onClick, testId }: { aircraft: KeptAircraft; onClick: () => void; testId: string }) {
   return (
     <SmallTile
-      mark={<SmallMark icon={<Plane />} className="bg-sky-600 text-white" />} title={aircraft.name} detail={aircraft.type ?? undefined}
+      mark={<PlaneMark />} title={aircraft.name} detail={aircraft.type ?? undefined}
       label={`${aircraft.name}${aircraft.type ? `, ${aircraft.type}` : ""}`} onClick={onClick} testId={testId}
     />
   );
@@ -279,9 +280,9 @@ export function AircraftRecentsPage({ onBack, onPick }: { onBack: () => void; on
       {recents.length > 0 ? (
         <ListGroup>
           {recents.map(a => (
-            <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)}>
+            <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)} share={planeLink(a)}>
               <ListRow
-                media={<Plane className="size-5 text-muted-foreground" />} data-testid="aircraft-recent"
+                media={<PlaneMark small />} data-testid="aircraft-recent"
                 title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
                 chevron onClick={() => onPick(a)}
               />

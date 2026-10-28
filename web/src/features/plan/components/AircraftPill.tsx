@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Plane } from "lucide-react";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
-import { PillStrip, SmallTile, StripNote, StripSection } from "../../../components/Favorites";
+import { PillStrip, PlaneMark, SmallTile, StripNote, StripSection } from "../../../components/Favorites";
 import { DropdownMenuCheckboxItem } from "../../../components/ui/dropdown-menu";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { inEmergency } from "../../../lib/fbo";
@@ -131,12 +130,7 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
                 <SmallTile
                   key={plane.hex} onClick={() => onPick(plane)} testId="aircraft-strip-plane" title={name} detail={detail}
                   label={`${name}${detail ? `, ${detail}` : ""}`}
-                  mark={(
-                    <span className={cn("grid size-14 place-items-center rounded-full bg-foreground/8", inEmergency(plane) ? "text-destructive-ink" : "text-sky-600")} aria-hidden="true">
-                      {/* lucide's airplane points north-east: turned to its track. */}
-                      <Plane className="size-6" fill="currentColor" style={{ transform: `rotate(${(plane.track_deg ?? 45) - 45}deg)` }} />
-                    </span>
-                  )}
+                  mark={<PlaneMark trackDeg={plane.track_deg ?? 45} emergency={inEmergency(plane)} />}
                 />
               );
             })}

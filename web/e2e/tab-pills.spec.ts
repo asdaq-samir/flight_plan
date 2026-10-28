@@ -349,6 +349,15 @@ test("Aircraft's Favorites' title opens the airplanes kept in full, Edit letting
   const list = panel.getByTestId("aircraft-favorites-list");
   await expect(list.getByTestId("aircraft-favorites-mine")).toContainText("N14511");
   await expect(list.getByTestId("aircraft-favorites-row")).toHaveCount(3);
+  // Each row's own box meets the next, no band between them a tap does
+  // nothing on: the sortable rows are the swipe rows themselves (the
+  // owner's screenshot, 2026-10-28, a dead band above and below each).
+  const boxes = await list.getByTestId("swipe-row").evaluateAll(rows => rows.map(r => r.getBoundingClientRect()).map(b => [b.top, b.bottom]));
+  for (let i = 1; i < boxes.length; i++) expect(Math.abs(boxes[i]![0]! - boxes[i - 1]![1]!)).toBeLessThan(1.5);
+  const second = (await list.getByTestId("aircraft-favorites-row").nth(1).boundingBox())!;
+  const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest("[data-testid=aircraft-favorites-row]")?.textContent ?? null,
+    [second.x + 40, second.y - 3]);
+  expect(hit).toMatch(/N200XY|N300XY/);
   // Edit: one let go, another moved up a place with the keyboard.
   await list.getByTestId("aircraft-favorites-edit").click();
   // Its minus brings out the row's Delete, as iOS's does (SwipeToDelete).

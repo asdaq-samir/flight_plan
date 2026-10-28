@@ -197,7 +197,7 @@ test("Edit over the saved flights puts a minus before each, and the minus delete
   expect(removed).toEqual(["DELETE"]);
 });
 
-test("a saved flight's ••• and its long press offer Open on the Map, Share and Delete, as Maps' Recents do; Delete asks first", async ({ page }) => {
+test("a saved flight's ••• and its long press offer Share and Remove alone, as every list's do; Remove asks first", async ({ page }) => {
   const removed: string[] = [];
   await signedIn(page, [], [{
     id: 9, departureIdent: "KMSP", destinationIdent: "KDLH", stops: [], cruiseAltitudeFt: 5500, aircraftTailNumber: null,
@@ -214,7 +214,10 @@ test("a saved flight's ••• and its long press offer Open on the Map, Share
   // A right click, as a long press on a phone, brings the same menu up.
   await panel.getByRole("button", { name: /^KMSP → KDLH/ }).click({ button: "right" });
   await expect(page.getByTestId("saved-flight-share")).toBeVisible();
-  await expect(page.getByTestId("saved-flight-open")).toBeVisible();
+  // Share and Remove, each with its icon, and nothing else (the owner,
+  // 2026-10-28).
+  await expect(page.getByRole("menuitem")).toHaveText(["Share", "Remove"]);
+  await expect(page.getByRole("menuitem").locator("svg")).toHaveCount(2);
   await page.keyboard.press("Escape");
   // Delete picked from the keyboard, as VoiceOver picks it.
   await panel.getByTestId("saved-flight-more").click();

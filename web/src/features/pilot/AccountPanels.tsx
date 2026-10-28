@@ -4,8 +4,7 @@ import { Controller, useForm, type UseFormRegisterReturn } from "react-hook-form
 import { zodResolver } from "@hookform/resolvers/zod";
 import { numberOrNull, optionalHours, pastDay, requiredPastDay, textOrNull, z } from "../../lib/formSchema";
 import { toast } from "sonner";
-import { Info, Map as MapIcon, Plus, Route, Share, Trash2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Info, Plus, Route, Share, Trash2 } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import FieldHit from "../../components/FieldHit";
 import RowField from "../../components/RowField";
@@ -688,7 +687,6 @@ export function FlightsPanel({ onBack }: {
   onBack?: () => void;
 } = {}) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [flightToDelete, setFlightToDelete] = useState<FlightSummary | null>(null);
   const [editing, setEditing] = useState(false);
   const asked = useQuery(flightsQuery);
@@ -754,16 +752,16 @@ export function FlightsPanel({ onBack }: {
               // left, or Edit's minus bringing out the Delete -- asked first,
               // the flight being the server's (SwipeToDelete, useConfirm).
               return (
-                <SwipeToDelete key={f.id} label={`Delete ${name}`} onDelete={() => { setFlightToDelete(f); askDelete(); }}>
+                <SwipeToDelete key={f.id} label={`Delete ${name}`} onDelete={() => { setFlightToDelete(f); askDelete(); }} share={{ title: name, url: new URL(`/app${planHrefOf(f)}`, location.origin).toString() }}>
                   {editing ? (
                     <ListRow {...row} media={<RemoveMinus label={`Delete ${name}…`} />} />
                   ) : (
                     // Its own page: what was filed, the way back onto the
                     // map, and its debrief; at its end, as Maps' Recents
                     // set a row (the owner, 2026-10-28), ••• or a long
-                    // press with Open on the map, Share and Delete.
+                    // press with Share and Remove alone, as every list's (the
+                    // owner, 2026-10-28).
                     <RowMenu label={`More for ${name}`} testId="saved-flight-more" actions={[
-                      { label: "Open on the Map", icon: <MapIcon />, onSelect: () => navigate(planHrefOf(f)), testId: "saved-flight-open" },
                       {
                         label: "Share", icon: <Share />, testId: "saved-flight-share",
                         onSelect: () => {
@@ -771,7 +769,7 @@ export function FlightsPanel({ onBack }: {
                             .catch(err => { if (!cancelled(err)) showError("Not shared", describeError(err)); });
                         },
                       },
-                      { label: "Delete", icon: <Trash2 />, destructive: true, asks: true, onSelect: () => { setFlightToDelete(f); askDelete(); }, testId: "saved-flight-delete" },
+                      { label: "Remove", icon: <Trash2 />, destructive: true, asks: true, onSelect: () => { setFlightToDelete(f); askDelete(); }, testId: "saved-flight-delete" },
                     ]}>
                       <PageRow page={`flight-${f.id}`} {...row} />
                     </RowMenu>

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { LocateFixed, MapPin, Navigation2 } from "lucide-react";
 import { cn } from "cn";
-import { ChartMark, ListPageHead, PillStrip, SmallMark, SmallTile } from "../../../components/Favorites";
+import { ChartMark, ListPageHead, PillStrip, SmallTile, TileChartMark } from "../../../components/Favorites";
 import { PanelCard } from "../../../components/PanelCard";
 import QueryState from "../../../components/QueryState";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
@@ -213,7 +213,7 @@ export function NearestStrip({ fields, located, onOpen }: {
           <SmallTile
             key={field.ident} onClick={() => onOpen(field.ident)} testId="nearest-strip-field"
             label={`${field.ident}, ${field.name}, ${nmAway(field.distance_nm)} ${compassPoint(field.bearing_deg)}`}
-            mark={<SmallMark icon={<ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} size={56} />} className="[&_svg]:size-14" />}
+            mark={<TileChartMark><ChartMark space={field.airspace_class ?? null} category={field.flight_category} use={use} size={44} /></TileChartMark>}
             title={field.ident} detail={nmAway(field.distance_nm)}
           />
         );

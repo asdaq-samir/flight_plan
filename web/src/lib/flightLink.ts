@@ -53,3 +53,11 @@ export function recentHrefOf(route: { dep: string; dest: string; stops: string[]
   for (const [key, value] of new URLSearchParams(route.picks ?? "")) if (!params.has(key)) params.set(key, value);
   return `/plan?${params}`;
 }
+
+/** A kept airport as a link to send (its card's own Share's). */
+export const placeLink = (airport: { ident: string; name?: string | null }) =>
+  ({ title: airport.name || airport.ident, url: `${location.origin}/app/plan?place=${airport.ident}` });
+
+/** A kept airplane as a link to send (its card's own Share's). */
+export const planeLink = (aircraft: { hex: string; name: string }) =>
+  ({ title: aircraft.name, url: `${location.origin}/app/plan?flight=${aircraft.hex}` });

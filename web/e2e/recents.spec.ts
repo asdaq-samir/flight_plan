@@ -188,7 +188,10 @@ test("the airplanes' Recents: a long press or a right click offers the Delete to
   const recents = panel.getByTestId("aircraft-recents-list").getByTestId("aircraft-recent");
   await expect(recents).toHaveCount(2);
 
+  // A long press (a right click here) offers Share and Remove, as every
+  // list's row does.
   await panel.getByTestId("swipe-row").first().click({ button: "right" });
+  await expect(page.getByRole("menuitem")).toHaveText(["Share", "Remove"]);
   await page.getByTestId("swipe-menu-delete").click();
   await expect(recents).toHaveCount(1);
   await expect(recents.first()).toContainText("N200XY");
@@ -241,9 +244,10 @@ test("FPL's strip shows Saved or, from its filter, the latest routes planned as 
   // under Today, the rest under This Month or Earlier.
   await panel.getByTestId("route-recents-more").click();
   await expect(panel.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
-  // Its ••• offers Share and Clear; Clear takes that one off.
+  // Its ••• offers Share and Remove; Remove takes that one off.
   await panel.getByTestId("route-recent-more").first().click();
   await expect(page.getByTestId("route-recent-share")).toBeVisible();
+  await expect(page.getByRole("menuitem")).toHaveText(["Share", "Remove"]);
   await page.getByTestId("route-recent-remove").click();
   await expect(panel.getByTestId("route-recent")).toHaveCount(3);
   // Clear at each heading's right, asked first, until none is left: the
