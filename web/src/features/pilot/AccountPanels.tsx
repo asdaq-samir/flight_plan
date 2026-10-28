@@ -1,12 +1,14 @@
 import { useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm, type UseFormRegisterReturn } from "react-hook-form";
+import { Controller, useForm, type UseFormRegisterReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { numberOrNull, optionalHours, pastDay, requiredPastDay, textOrNull, z } from "../../lib/formSchema";
 import { toast } from "sonner";
 import { Check, Info, Plus, Route } from "lucide-react";
 import EmptyState from "../../components/EmptyState";
 import FieldHit from "../../components/FieldHit";
+import RowField from "../../components/RowField";
+import { invalidProps } from "../../lib/fieldError";
 import IconButton from "../../components/IconButton";
 import { cn } from "cn";
 import { planHrefOf } from "../../lib/flightLink";
@@ -63,13 +65,6 @@ const optionalPercent = (label: string) => z.string().trim().refine(
 /** A form field as the request carries it: blank is null. */
 const orNull = (value: string) => (value.trim() ? Number(value) : null);
 
-// Zod checks once whether it may compile its parsers with Function(),
-// which the page's Content-Security-Policy (script-src 'self', no eval)
-// refuses -- and the refusal is a violation the browser reports, which
-// Lighthouse's best practices count. Its parsers without that work the
-// same, a little slower on schemas far bigger than these.
-z.config({ jitless: true });
-
 const aircraftSchema = z.object({
   // The server's limits, which are the columns': longer was refused there
   // as though it were a tail number already on file.
@@ -114,6 +109,19 @@ const VOR_CHECKS: { value: VorCheckRequest["kind"]; label: string; limit: number
   { value: "DUAL", label: "Dual receivers", limit: 4 },
 ];
 
+// The server's own limits on a VOR check (VorCheckRequest.java): the day
+// not ahead, the place at most 80 characters, and an error within 30° --
+// a typing slip past that, not a reading; 91.171's own 4° and 6° are
+// the check's standing, said once it is recorded, never refused.
+const vorCheckSchema = z.object({
+  checkedOn: requiredPastDay("The day is required"),
+  kind: z.enum(["VOT", "REPAIR_STATION", "GROUND", "AIRBORNE", "RADIAL", "DUAL"]),
+  place: z.string().trim().max(80, "At most 80 characters"),
+  errorDeg: z.string().trim().min(1, "The error is required")
+    .refine(value => Number.isFinite(Number(value)) && Math.abs(Number(value)) <= 30, "Within 30° either way"),
+});
+type VorCheckValues = z.infer<typeof vorCheckSchema>;
+
 /**
  * The airplane's VOR check for IFR (14 CFR 91.171): the last one and how
  * long it is good for -- 30 days, its error within its kind's limit (4
@@ -125,13 +133,20 @@ const VOR_CHECKS: { value: VorCheckRequest["kind"]; label: string; limit: number
 function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
   const queryClient = useQueryClient();
   const id = useId();
-  const [check, setCheck] = useState<VorCheckRequest>({
-    checkedOn: localDay(), kind: "VOT", place: "", errorDeg: 0,
+  const { register, control, handleSubmit, formState: { errors } } = useForm<VorCheckValues>({
+    resolver: zodResolver(vorCheckSchema),
+    defaultValues: { checkedOn: localDay(), kind: "VOT", place: "", errorDeg: "0" },
   });
   const record = useMutation({
-    mutationFn: () => api.aircraft.vorCheck(aircraft.id, { ...check, place: check.place || null }),
+    mutationFn: (request: VorCheckRequest) => api.aircraft.vorCheck(aircraft.id, request),
     onSuccess: () => { toast.success("VOR Check Saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
   });
+  // Inside the airplane's own form, so its Record is a button, not a
+  // second <form>: handleSubmit checks the fields, then sends them, or
+  // focuses the first one wrong.
+  const onRecord = handleSubmit(values => record.mutate({
+    checkedOn: values.checkedOn, kind: values.kind, place: values.place.trim() || null, errorDeg: Number(values.errorDeg),
+  }));
   const last = aircraft.vorCheck;
   const today = localDay();
   const good = !!last && last.withinLimit && last.goodThrough >= today;
@@ -150,27 +165,35 @@ function VorCheckGroup({ aircraft }: { aircraft: Aircraft }) {
         )}
       />
       <ListRow id={`${id}-on`} title="Checked on">
-        <FieldHit htmlFor={`${id}-on`}><Input id={`${id}-on`} type="date" className="h-8 w-40" value={check.checkedOn} max={today}
-          onChange={e => setCheck({ ...check, checkedOn: e.target.value })} aria-label="VOR check date" data-testid="vor-check-date" /></FieldHit>
+        <RowField id={`${id}-on`} error={errors.checkedOn?.message}>
+          <FieldHit htmlFor={`${id}-on`}><Input id={`${id}-on`} type="date" className="h-8 w-40" max={today} {...register("checkedOn")}
+            {...invalidProps(`${id}-on`, errors.checkedOn?.message)} aria-label="VOR check date" data-testid="vor-check-date" /></FieldHit>
+        </RowField>
       </ListRow>
       <ListRow title="How">
-        <PullDown
-          label="How the VOR was checked" value={check.kind} testId="vor-check-kind"
-          options={VOR_CHECKS.map(k => ({ value: k.value, label: `${k.label} (±${k.limit}°)` }))}
-          onChange={kind => setCheck({ ...check, kind })}
-        />
+        <Controller control={control} name="kind" render={({ field }) => (
+          <PullDown
+            label="How the VOR was checked" value={field.value} testId="vor-check-kind"
+            options={VOR_CHECKS.map(k => ({ value: k.value, label: `${k.label} (±${k.limit}°)` }))}
+            onChange={field.onChange}
+          />
+        )} />
       </ListRow>
       <ListRow id={`${id}-place`} title="Where">
-        <FieldHit htmlFor={`${id}-place`}><Input id={`${id}-place`} className="h-8 w-40 text-right" placeholder="KDLH VOT" value={check.place ?? ""}
-          onChange={e => setCheck({ ...check, place: e.target.value })} aria-label="Where the VOR was checked" /></FieldHit>
+        <RowField id={`${id}-place`} error={errors.place?.message}>
+          <FieldHit htmlFor={`${id}-place`}><Input id={`${id}-place`} className="h-8 w-40 text-right" placeholder="KDLH VOT" {...register("place")}
+            {...invalidProps(`${id}-place`, errors.place?.message)} aria-label="Where the VOR was checked" /></FieldHit>
+        </RowField>
       </ListRow>
       <ListRow id={`${id}-error`} title="Bearing error">
-        <FieldHit htmlFor={`${id}-error`}><Input id={`${id}-error`} type="number" inputMode="decimal" step="any" className="h-8 w-24 text-right" value={String(check.errorDeg)}
-          onChange={e => setCheck({ ...check, errorDeg: Number(e.target.value || 0) })} aria-label="Bearing error in degrees" data-testid="vor-check-error" /></FieldHit>
+        <RowField id={`${id}-error`} error={errors.errorDeg?.message}>
+          <FieldHit htmlFor={`${id}-error`}><Input id={`${id}-error`} type="number" inputMode="decimal" step="any" className="h-8 w-24 text-right" {...register("errorDeg")}
+            {...invalidProps(`${id}-error`, errors.errorDeg?.message)} aria-label="Bearing error in degrees" data-testid="vor-check-error" /></FieldHit>
+        </RowField>
       </ListRow>
       <ListRow
         title={<span className="font-medium text-tint">Record check</span>}
-        onClick={() => record.mutate()} disabled={record.isPending || !check.checkedOn} data-testid="vor-check-record"
+        onClick={() => void onRecord()} disabled={record.isPending} data-testid="vor-check-record"
       />
     </ListGroup>
   );
@@ -183,6 +206,16 @@ const DATED: { key: "annualOn" | "staticCheckOn" | "transponderCheckOn" | "eltIn
   { key: "transponderCheckOn", through: "transponderCheckGoodThrough", title: "Transponder", rule: "24 calendar months, 91.413" },
   { key: "eltInspectedOn", through: "eltInspectionGoodThrough", title: "ELT inspection", rule: "12 calendar months, 91.207(d)" },
 ];
+
+// As the server checks them (InspectionsRequest.java): each may be left
+// blank; the days done not ahead of today, and the hours not negative.
+// The ELT battery's day is the one marked on it (91.207(c)), so may be.
+const inspectionsSchema = z.object({
+  annualOn: pastDay, staticCheckOn: pastDay, transponderCheckOn: pastDay, eltInspectedOn: pastDay,
+  eltBatteryDueOn: z.string(),
+  hundredHourAtHours: optionalHours, hoursNow: optionalHours,
+});
+type InspectionsValues = z.infer<typeof inspectionsSchema>;
 
 /** How a last good day stands today: in green to it, red past it. */
 function Standing({ through, testId }: { through: string | null | undefined; testId: string }) {
@@ -206,17 +239,28 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
   const queryClient = useQueryClient();
   const id = useId();
   const recorded = aircraft.inspections;
-  const [form, setForm] = useState<InspectionsRequest>({
-    annualOn: recorded?.annualOn ?? null, hundredHourAtHours: recorded?.hundredHourAtHours ?? null, hoursNow: recorded?.hoursNow ?? null,
-    staticCheckOn: recorded?.staticCheckOn ?? null, transponderCheckOn: recorded?.transponderCheckOn ?? null,
-    eltInspectedOn: recorded?.eltInspectedOn ?? null, eltBatteryDueOn: recorded?.eltBatteryDueOn ?? null,
+  const { register, handleSubmit, formState: { errors } } = useForm<InspectionsValues>({
+    resolver: zodResolver(inspectionsSchema),
+    defaultValues: {
+      annualOn: recorded?.annualOn ?? "", staticCheckOn: recorded?.staticCheckOn ?? "",
+      transponderCheckOn: recorded?.transponderCheckOn ?? "", eltInspectedOn: recorded?.eltInspectedOn ?? "",
+      eltBatteryDueOn: recorded?.eltBatteryDueOn ?? "",
+      hundredHourAtHours: recorded?.hundredHourAtHours == null ? "" : String(recorded.hundredHourAtHours),
+      hoursNow: recorded?.hoursNow == null ? "" : String(recorded.hoursNow),
+    },
   });
   const save = useMutation({
-    mutationFn: () => api.aircraft.inspections(aircraft.id, form),
+    mutationFn: (request: InspectionsRequest) => api.aircraft.inspections(aircraft.id, request),
     onSuccess: () => { toast.success("Inspections Saved"); void queryClient.invalidateQueries({ queryKey: ["aircraft"] }); },
   });
+  // A button inside the airplane's form, as the VOR check's Record is.
+  const onSave = handleSubmit(values => save.mutate({
+    annualOn: textOrNull(values.annualOn), staticCheckOn: textOrNull(values.staticCheckOn),
+    transponderCheckOn: textOrNull(values.transponderCheckOn), eltInspectedOn: textOrNull(values.eltInspectedOn),
+    eltBatteryDueOn: textOrNull(values.eltBatteryDueOn),
+    hundredHourAtHours: numberOrNull(values.hundredHourAtHours), hoursNow: numberOrNull(values.hoursNow),
+  }));
   const today = localDay();
-  const hours = (value: string) => (value === "" ? null : Number(value));
   const due = recorded?.hundredHourDueAtHours;
   return (
     // From the airplane's maintenance records. The 100-hour is owed only when
@@ -229,10 +273,12 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
           key={d.key} id={`${id}-${d.key}`} title={d.title}
           description={<>{d.rule}{recorded?.[d.through] && <> · <Standing through={recorded[d.through]} testId={`inspection-${d.key}`} /></>}</>}
         >
-          <FieldHit htmlFor={`${id}-${d.key}`}><Input
-            id={`${id}-${d.key}`} type="date" className="h-8 w-40" value={form[d.key] ?? ""} max={today}
-            onChange={e => setForm({ ...form, [d.key]: e.target.value || null })} data-testid={`inspection-${d.key}-date`}
-          /></FieldHit>
+          <RowField id={`${id}-${d.key}`} error={errors[d.key]?.message}>
+            <FieldHit htmlFor={`${id}-${d.key}`}><Input
+              id={`${id}-${d.key}`} type="date" className="h-8 w-40" max={today} {...register(d.key)}
+              {...invalidProps(`${id}-${d.key}`, errors[d.key]?.message)} data-testid={`inspection-${d.key}-date`}
+            /></FieldHit>
+          </RowField>
         </ListRow>
       ))}
       <ListRow
@@ -244,8 +290,7 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
         )}</>}
       >
         <FieldHit htmlFor={`${id}-battery`}><Input
-          id={`${id}-battery`} type="date" className="h-8 w-40" value={form.eltBatteryDueOn ?? ""}
-          onChange={e => setForm({ ...form, eltBatteryDueOn: e.target.value || null })} data-testid="inspection-eltBattery-date"
+          id={`${id}-battery`} type="date" className="h-8 w-40" {...register("eltBatteryDueOn")} data-testid="inspection-eltBattery-date"
         /></FieldHit>
       </ListRow>
       <ListRow
@@ -256,22 +301,26 @@ function InspectionsGroup({ aircraft }: { aircraft: Aircraft }) {
           </span>
         )}</> : "Time in service, at the last annual or 100-hour"}
       >
-        <FieldHit htmlFor={`${id}-at`}><Input
-          id={`${id}-at`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
-          value={form.hundredHourAtHours ?? ""} onChange={e => setForm({ ...form, hundredHourAtHours: hours(e.target.value) })}
-          data-testid="inspection-hundredHourAt"
-        /></FieldHit>
+        <RowField id={`${id}-at`} error={errors.hundredHourAtHours?.message}>
+          <FieldHit htmlFor={`${id}-at`}><Input
+            id={`${id}-at`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
+            {...register("hundredHourAtHours")} {...invalidProps(`${id}-at`, errors.hundredHourAtHours?.message)}
+            data-testid="inspection-hundredHourAt"
+          /></FieldHit>
+        </RowField>
       </ListRow>
       <ListRow id={`${id}-now`} title="Hours now">
-        <FieldHit htmlFor={`${id}-now`}><Input
-          id={`${id}-now`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
-          value={form.hoursNow ?? ""} onChange={e => setForm({ ...form, hoursNow: hours(e.target.value) })}
-          data-testid="inspection-hoursNow"
-        /></FieldHit>
+        <RowField id={`${id}-now`} error={errors.hoursNow?.message}>
+          <FieldHit htmlFor={`${id}-now`}><Input
+            id={`${id}-now`} type="number" inputMode="decimal" step="any" min={0} className="h-8 w-28 text-right"
+            {...register("hoursNow")} {...invalidProps(`${id}-now`, errors.hoursNow?.message)}
+            data-testid="inspection-hoursNow"
+          /></FieldHit>
+        </RowField>
       </ListRow>
       <ListRow
         title={<span className="font-medium text-tint">Save inspections</span>}
-        onClick={() => save.mutate()} disabled={save.isPending} data-testid="inspections-save"
+        onClick={() => void onSave()} disabled={save.isPending} data-testid="inspections-save"
       />
     </ListGroup>
   );
