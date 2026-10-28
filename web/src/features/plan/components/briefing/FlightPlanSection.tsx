@@ -1,4 +1,5 @@
 import { useId, useState } from "react";
+import { create } from "zustand";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import AccordionSection from "../../../../components/AccordionSection";
 import FieldHit from "../../../../components/FieldHit";
@@ -18,11 +19,20 @@ import { pilotQuery } from "../../../../lib/queryClient";
  * 1800wxbrief.com and Flight Service are the FAA's, at no charge, and
  * ForeFlight and Garmin Pilot file through them: Open in 1800wxbrief
  * copies a form, an item to a line, and opens the site to paste it in.
- * The persons on board are typed here, a flight's own and kept only while
- * the Brief is open. Where the app has Flight Service connected
+ * The persons on board are typed here, a flight's own, kept for the
+ * session (not on the device) by route. Where the app has Flight Service connected
  * (FlightServiceController, the owner's agreement with its provider),
  * each form is filed from here too, in the pilot's name.
  */
+/** Item 19's persons on board as typed, by route: outside the section, so
+ *  the Brief drawn again as the briefing streams in keeps them -- in the
+ *  section's own state, the "2" typed was gone from the copied form once
+ *  in the full suite (flight-plan.spec, 2026-10-28). */
+const usePersons = create<{ typed: Record<string, string>; set: (key: string, value: string) => void }>(put => ({
+  typed: {},
+  set: (key, value) => put(s => ({ typed: { ...s.typed, [key]: value } })),
+}));
+
 export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanForm[]; ifr: boolean }) {
   // "Copied" on the row tapped, for a moment, where it was tapped.
   const [copied, setCopied] = useCopied();
@@ -33,7 +43,8 @@ export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanFor
   const [filed, setFiled] = useState<Record<number, string>>({});
   // Item 19's persons on board as typed, a flight's own: blank until the
   // pilot says, and blank on the form.
-  const [persons, setPersons] = useState<Record<string, string>>({});
+  const persons = usePersons(s => s.typed);
+  const setPersons = usePersons(s => s.set);
   const personsId = useId();
   const file = useMutation({
     mutationFn: ({ plan }: { i: number; plan: FlightPlanFilingRequest }) => api.flightService.file(plan),
@@ -70,7 +81,7 @@ export default function FlightPlanSection({ forms, ifr }: { forms: FlightPlanFor
                     id={`${personsId}-${i}`} value={persons[key] ?? ""} placeholder="—" maxLength={3}
                     inputMode="numeric" pattern="[0-9]*" autoComplete="off" className="h-8 w-16 text-right"
                     aria-invalid={!!persons[key]?.trim() && f.value == null}
-                    onChange={e => setPersons(p => ({ ...p, [key]: e.target.value }))}
+                    onChange={e => setPersons(key, e.target.value)}
                     data-testid="flight-plan-persons"
                   /></FieldHit>
                 </ListRow>
