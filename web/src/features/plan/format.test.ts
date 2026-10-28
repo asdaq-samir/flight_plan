@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Leg, Totals } from "../../lib/api/types";
 import { inkOn, SCORE_STEPS } from "../../lib/scoreScale";
 import {
-  bearing, clockTime, cruiseByAltitude, decimalHours, hhmm, legsWithoutWind, one, plannedWords, reportedWind, runwayWind, scoreColor,
+  bearing, clockTime, cruiseByAltitude, decimalHours, legsWithoutWind, one, plannedWords, reportedWind, runwayWind, scoreColor,
   windAloft, windLine, windsOutOfDate,
 } from "./format";
 
@@ -48,16 +48,6 @@ describe("one", () => {
     expect(one(undefined)).toBe("—");
   });
   it("keeps a zero as a number", () => expect(one(0)).toBe("0.0"));
-});
-
-describe("hhmm", () => {
-  it("pads the minutes", () => expect(hhmm(65)).toBe("1h 05m"));
-  it("handles under an hour", () => expect(hhmm(20)).toBe("0h 20m"));
-  it("carries a rounded-up minute into the hour", () => {
-    expect(hhmm(179.6)).toBe("3h 00m");
-    expect(hhmm(59.6)).toBe("1h 00m");
-  });
-  it("says so when there is no time", () => expect(hhmm(null)).toBe("ETE n/a"));
 });
 
 describe("decimalHours", () => {

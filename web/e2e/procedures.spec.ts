@@ -460,8 +460,8 @@ test("a procedure picked lengthens the plan by its path: the fuel and the time t
     return { fuel: parseFloat((await page.getByTestId("navlog-fuel").textContent())!), ete: (await page.getByTestId("navlog-ete").textContent())! };
   };
   const minutes = (ete: string) => {
-    const [, h, m] = /^(?:(\d+)h )?(\d+)m$/.exec(ete.trim())!;
-    return Number(h ?? 0) * 60 + Number(m);
+    const [, h, m] = /^(?:(\d+)h)? ?(?:(\d+)m)?$/.exec(ete.trim())!;
+    return Number(h ?? 0) * 60 + Number(m ?? 0);
   };
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);

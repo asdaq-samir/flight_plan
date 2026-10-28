@@ -40,18 +40,52 @@ export function localDay(at: Date = new Date()): string {
 /** A duration's hours and minutes, the minutes rounded first: rounding
  *  the remainder on its own turned 119.6 minutes into "1h 60m" on the
  *  strip's estimate, "1:60" on the kneeboard and "1 h 60 min" in the mock
- *  oral's facts. Each writes them its own way; this is how they are
- *  counted. */
+ *  oral's facts. This is how they are counted; duration and hm write
+ *  them. */
 export function hoursMinutes(minutes: number): { hours: number; minutes: number } {
   const whole = Math.round(minutes);
   return { hours: Math.floor(whole / 60), minutes: whole % 60 };
 }
 
-/** A duration in words, "3 h 10 min", "45 min": FPL's Routes' cards and
- *  the ways' chips on the map, which each wrote their own. */
-export function minutesWords(minutes: number): string {
+/** The browser's own duration formatter, made once and only when first
+ *  asked for (an Intl formatter is costly to make, as above), or null
+ *  where the browser has none: Intl.DurationFormat is in Safari since 16.4
+ *  (the iOS app asks for iOS 18), Chrome since 129, Firefox since 136.
+ *  English, as every other word the app writes is. */
+type DurationFormat = { format(d: { hours: number; minutes: number }): string };
+let narrow: DurationFormat | null | undefined;
+function narrowFormat(): DurationFormat | null {
+  if (narrow === undefined) {
+    const Format = (Intl as unknown as { DurationFormat?: new (locale: string, options: object) => DurationFormat }).DurationFormat;
+    narrow = Format ? new Format("en-US", { style: "narrow" }) : null;
+  }
+  return narrow;
+}
+
+/** The same words written by hand, where the browser has no formatter. */
+export function durationByHand(t: { hours: number; minutes: number }): string {
+  return t.hours && t.minutes ? `${t.hours}h ${t.minutes}m` : t.hours ? `${t.hours}h` : `${t.minutes}m`;
+}
+
+/** A duration, "1h 5m", "45m", "3h": every time aloft, time left and
+ *  age the app writes, in Intl.DurationFormat's narrow style (the owner's
+ *  pick, 2026-10-28: the nav log's columns narrowest). It was four ways
+ *  ("1h 05m", "1 h 05 m", "1 h 05 min", "1 h 5 min") and a few more of
+ *  each screen's own. The FAA's forms are not durations and stay as they
+ *  are: a clock time (1430Z), a nav log's "0:18" (hm). */
+export function duration(minutes: number): string {
   const t = hoursMinutes(minutes);
-  return t.hours ? `${t.hours} h ${t.minutes} min` : `${t.minutes} min`;
+  // No time at all is written "0m": the formatter leaves out every unit
+  // that is nought, and wrote nothing.
+  if (!t.hours && !t.minutes) return "0m";
+  return narrowFormat()?.format(t) ?? durationByHand(t);
+}
+
+/** How long ago something was, from the milliseconds since: "just now"
+ *  under a minute, "23m ago", "2h 5m ago". */
+export function ago(sinceMs: number): string {
+  const minutes = Math.floor(Math.max(0, sinceMs) / 60_000);
+  return minutes < 1 ? "just now" : `${duration(minutes)} ago`;
 }
 
 /** A time en route as a paper nav log writes it, "0:18", "1:35": the
@@ -63,7 +97,7 @@ export function hm(minutes: number): string {
 }
 
 /** The time now, a minute at a time, for what says an age or goes out of
- *  date while it stays open: a report's "40 min ago" (Observed), a nav
+ *  date while it stays open: a report's "40m ago" (Observed), a nav
  *  log's winds (NavLogView). */
 export function useMinuteClock(): number {
   const [now, setNow] = useState(() => Date.now());

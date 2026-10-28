@@ -284,7 +284,7 @@ test("an airplane's past flights are listed on its card, and one is drawn on the
   await expect(rows).toHaveCount(2, { timeout: slow(15_000) });
   // FlightAware's row: how it ended and how long, then each end's field,
   // its town and when.
-  await expect(rows.first()).toContainText("Landed · 1 h 19 min");
+  await expect(rows.first()).toContainText("Landed · 1h 19m");
   await expect(rows.first()).toContainText(/LCI\s*Laconia, NH/);
   await expect(rows.first()).toContainText(/LWM\s*Lawrence, MA/);
   await rows.first().click();

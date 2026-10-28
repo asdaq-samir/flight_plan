@@ -14,7 +14,8 @@ import type { FlightRules } from "../../../../lib/preferences";
 import { routeProfileQuery } from "../../../../lib/queryClient";
 import { GROUP_HEADING, TEXT } from "../../../../lib/text";
 import { altFt, flightLevel, one } from "../../../../lib/units";
-import { hhmm, PLAN_NAME } from "../../format";
+import { PLAN_NAME } from "../../format";
+import { duration } from "../../../../lib/clock";
 import AltitudeReasoning from "../AltitudeReasoning";
 import type { RouteEnds } from "./rows";
 
@@ -461,7 +462,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
               {names[shownAt] && <span className={cn("truncate font-semibold text-muted-foreground", TEXT.detail)}>{names[shownAt]}</span>}
             </div>
             <span className={cn("shrink-0 tabular-nums", TEXT.detail)} data-testid="altitude-figures">
-              {figure?.ete_min != null ? hhmm(figure.ete_min) : "—"} · {figure?.fuel_gal != null ? `${one(figure.fuel_gal)} gal` : "—"}
+              {figure?.ete_min != null ? duration(figure.ete_min) : "—"} · {figure?.fuel_gal != null ? `${one(figure.fuel_gal)} gal` : "—"}
               {figure?.tailwind_kt != null && ` · ${figure.tailwind_kt >= 0 ? "+" : "−"}${Math.abs(Math.round(figure.tailwind_kt))} kt`}
             </span>
           </div>

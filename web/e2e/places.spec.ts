@@ -82,7 +82,7 @@ test("a field with no report wears the nearest station's category as \"≈\" wit
   await expect(from).toContainText("KUGN 102152Z");
   // When it was observed on its row, where a footnote said it was not
   // this field's own (the title says it is the nearest's).
-  await expect(from).toContainText(/\d{4}Z · (just now|\d+ (min|h) ago)/);
+  await expect(from).toContainText(/\d{4}Z · (just now|(\d+h )?\d+[hm] ago)/);
 
   // Twelve miles off: the report still said, no chip.
   await page.unrouteAll({ behavior: "ignoreErrors" });

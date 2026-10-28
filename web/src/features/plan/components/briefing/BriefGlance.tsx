@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { cn } from "cn";
 import FindingIcon from "../../../../components/FindingIcon";
-import { clockTime, hoursMinutes } from "../../../../lib/clock";
+import { clockTime, duration } from "../../../../lib/clock";
 import { useGlance, type FieldGlance } from "../../../../lib/glance";
 import { FINDING_TONE, type Finding } from "../../../../lib/status";
 import { TEXT } from "../../../../lib/text";
@@ -100,7 +100,6 @@ export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => voi
   const verdict = items.length ? verdictLine(items) : null;
   const before = glance?.before;
   const enroute = glance?.enroute;
-  const ete = enroute?.eteMin != null ? hoursMinutes(enroute.eteMin) : null;
   return (
     <div className="flex flex-col gap-2.5 pt-1 pb-4" data-testid="brief-glance">
       {verdict && (
@@ -127,7 +126,7 @@ export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => voi
       {glance?.depart && <FieldCard tab="depart" label="Depart" field={glance.depart} landing={false} onOpen={onOpen} />}
       <Card
         tab="enroute" label="En route" finding={enroute?.finding ?? "pending"} onOpen={onOpen}
-        at={ete ? `${ete.hours} h ${String(ete.minutes).padStart(2, "0")} m` : null}
+        at={enroute?.eteMin != null ? duration(enroute.eteMin) : null}
         stats={(
           <>
             <Stat label="Ceiling" value={enroute?.ceilingFt != null ? `${grouped(enroute.ceilingFt)} ft` : "None"} finding={enroute?.finding === "stop" && enroute.ceilingFt != null ? "stop" : undefined} />

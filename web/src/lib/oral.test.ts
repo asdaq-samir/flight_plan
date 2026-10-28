@@ -28,7 +28,7 @@ describe("the mock oral's material", () => {
     });
     expect(text).toContain("Route: C81 (Campbell) to KDLH (Duluth).");
     expect(text).toContain("C81: Class G at the surface, pattern altitude 1,588 ft.");
-    expect(text).toContain("cruise 5,500 ft, 323 nm, 2 h 50 min en route, 29.0 gal planned, 45-minute reserve.");
+    expect(text).toContain("cruise 5,500 ft, 323 nm, 2h 50m en route, 29.0 gal planned, 45-minute reserve.");
     expect(text).toContain("part of the flight at night");
     expect(text).toContain("Special-use airspace crossed: VOLK EAST MOA");
     expect(text).not.toContain("TFR");
