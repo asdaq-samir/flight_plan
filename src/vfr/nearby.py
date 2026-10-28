@@ -33,6 +33,7 @@ from . import remarks
 from .config import DATA_DIR
 from .geo import distance_nm
 from .units import M_PER_NM
+from .once import once
 
 log = logging.getLogger(__name__)
 
@@ -134,7 +135,7 @@ def latest_release(timeout_s: float = 10.0) -> str:
     return release
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _infrastructure(release: str):
     import pyarrow.dataset as ds
     import pyarrow.fs as pfs
@@ -164,7 +165,7 @@ def _outline(lat: float, lon: float, release: str):
     return min(shapes, key=lambda g: g.distance(here))
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _dataset(release: str):
     # Imported here: only a card or a stop asks, and pyarrow's S3 is a
     # second of the planner's start otherwise.

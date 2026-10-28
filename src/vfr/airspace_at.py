@@ -11,7 +11,6 @@ vertices and 200 MB for a question asked a tap at a time.
 """
 from __future__ import annotations
 
-from functools import lru_cache
 from pathlib import Path
 
 import shapefile
@@ -19,6 +18,7 @@ from shapely.geometry import Point
 from shapely.geometry import shape as shapely_shape
 
 from .geo import distance_nm
+from .once import once
 
 #: Class A, from here to FL600 (71.33): IFR only.
 CLASS_A_FLOOR_FT = 18000.0
@@ -249,7 +249,7 @@ def column(lat: float, lon: float, ground_ft: float, volumes: list[dict], in_vei
     return bands
 
 
-@lru_cache(maxsize=1)
+@once(maxsize=1)
 def mode_c_airports() -> tuple[dict, ...]:
     """MODE_C_VEIL_AIRPORTS where they are (vfr.airports), as
     {"ident", "name", "lat", "lon"}; one the table does not have left out."""

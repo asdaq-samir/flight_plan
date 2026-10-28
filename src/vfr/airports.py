@@ -18,6 +18,7 @@ import requests
 from . import faa_data, geo
 from .config import REQUEST_HEADERS
 from .routecsv import locked
+from .once import once
 
 OURAIRPORTS_URL = "https://davidmegginson.github.io/ourairports-data/airports.csv"
 RUNWAYS_URL = "https://davidmegginson.github.io/ourairports-data/runways.csv"
@@ -66,7 +67,7 @@ def _ensure_cached(url: str, cache_path: Path) -> Path:
     return cache_path
 
 
-@lru_cache(maxsize=8)
+@once(maxsize=8)
 def _read_table_of(path: str, _mtime: float) -> pd.DataFrame:
     """One read per file per process. `_mtime` is not used in the body:
     it is in the signature so a file replaced on disk is a different
@@ -101,7 +102,7 @@ def load_airports(cache_path: Path = DEFAULT_CACHE_PATH) -> pd.DataFrame:
     return _load_table(OURAIRPORTS_URL, cache_path)
 
 
-@lru_cache(maxsize=4)
+@once(maxsize=4)
 def _airport_rows(path: str, _mtime: float) -> dict:
     """Each ident and local code in the table, upper-cased, to its first
     row's position: the row a scan of both columns found first, in the
@@ -204,7 +205,7 @@ def _us_airports(cache_path: Path) -> pd.DataFrame:
         return _us_airports_of(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
-@lru_cache(maxsize=1)
+@once(maxsize=1)
 def _faa_listed(faa_path: str, _faa_mtime: float) -> frozenset:
     """Every field the FAA lists (NASR APT_BASE.csv: airports, heliports,
     seaplane bases and the rest, open or private), by its FAA and its ICAO
@@ -341,7 +342,7 @@ def search_index(cache_path: Path = DEFAULT_CACHE_PATH) -> bytes:
     return _search_index_bytes(str(path), path.stat().st_mtime, *_faa_key(cache_path))
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _search_index_bytes(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> bytes:
     us = _us_airports_of(path, _mtime, faa_path, _faa_mtime)
     rows = []
@@ -374,7 +375,7 @@ def _rows(df: pd.DataFrame, positions: list[int]) -> list[dict]:
     ]
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _search_index_of(path: str, _mtime: float, faa_path: str = "", _faa_mtime: float = 0.0) -> dict:
     """The US table's idents and words, sorted, for `search_airports` to
     find a prefix by bisection: an ident or local code whole (`exact`),
@@ -544,7 +545,7 @@ def nearest(lat: float, lon: float, limit: int = 10, cache_path: Path = DEFAULT_
     ]
 
 
-@lru_cache(maxsize=2)
+@once(maxsize=2)
 def _abroad_of(path: str, _mtime: float) -> pd.DataFrame:
     """The landing fields outside the US, for naming where a tracked
     airplane flew from and to abroad (vfr.traffic.history) -- never for
