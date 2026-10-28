@@ -5,7 +5,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { chartQuery, courseQuery, queryClient } from "./lib/queryClient";
 import { routeOf, stopsOf } from "./lib/identSchema";
-import AppToaster from "./components/AppToaster";
+import ToasterHost from "./components/ToasterHost";
 import { BrandLook } from "./lib/brand";
 import ErrorAlert from "./components/ErrorAlert";
 import PageError from "./components/PageError";
@@ -182,7 +182,7 @@ ReactDOM.createRoot(document.getElementById("root")!, {
           default-delay timer independently. */}
       <TooltipProvider>
         <RouterProvider router={router} />
-        <AppToaster />
+        <ToasterHost />
         {/* Inside the provider too: its close is the app's CloseButton,
             whose Tooltip outside one threw and blanked the page the
             first time an alert opened on a phone. */}

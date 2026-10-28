@@ -1,6 +1,9 @@
 import type { CSSProperties } from "react";
 import { Check } from "lucide-react";
+import { useEffect } from "react";
+import { toast } from "sonner";
 import { Toaster } from "./ui/sonner";
+import { toasterMounted } from "../lib/toast";
 import { useNavEdge } from "../hooks/use-nav-edge";
 
 /**
@@ -25,6 +28,8 @@ import { useNavEdge } from "../hooks/use-nav-edge";
  */
 export default function AppToaster() {
   const edge = useNavEdge();
+  // After the Toaster below has subscribed (children's effects run first).
+  useEffect(() => toasterMounted(toast), []);
   return (
     <Toaster
       position={edge === "bottom" ? "top-center" : "bottom-center"}

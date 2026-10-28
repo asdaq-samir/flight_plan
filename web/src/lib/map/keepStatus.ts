@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toast } from "../toast";
 import { clearProblem, raiseProblem } from "../problems";
 import type { Course } from "../api/types";
 import { usePreferences } from "../preferences";
