@@ -53,12 +53,18 @@ export async function showTabs(page: Page) {
   // The minimized line can turn back into the tabs by itself as it is
   // tapped -- the card it named put away by the step before -- so the tap
   // is tried, and what is asked is the tabs in sight.
-  // Tapped again until the tabs show: on desktop, a replay just started at
-  // 200x, a click Playwright called done reached nothing in the page -- no
-  // pointerdown even at the window -- where the same click by hand a moment
-  // later did (tracking.spec, 2026-10-28).
+  // Tapped again until the tabs show, and after a tap that went nowhere the
+  // click given to the button itself: on desktop, a replay playing at 200x,
+  // a click Playwright called done reached nothing in the page -- no
+  // pointerdown even at the window -- here one run in three and in CI every
+  // time (tracking.spec:260, 2026-10-28), where the same click stepped by
+  // hand did. What is tested is the title giving way to the tabs.
+  let tries = 0;
   await expect(async () => {
-    if (await title.isVisible()) await title.click({ timeout: 2000 }).catch(() => {});
+    if (await title.isVisible()) {
+      if (tries++ === 0) await title.click({ timeout: 2000 }).catch(() => {});
+      else await title.dispatchEvent("click").catch(() => {});
+    }
     await expect(title).toBeHidden({ timeout: 1500 });
   }).toPass({ timeout: 15_000 });
   if (!(await page.getByTestId("tab-bar").isVisible())) await grabberTo(page, "half");
