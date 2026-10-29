@@ -67,6 +67,24 @@ def test_one_facility_filed_as_two_kinds_is_one_and_two_places_are_two(tmp_path)
     assert [(n["kind"], n["name"]) for n in table["AB"]] == [("VORTAC", "Able"), ("NDB", "Beacon")]
 
 
+def test_the_map_has_the_vors_and_the_enroute_charts_fixes(monkeypatch, tmp_path):
+    navaids = _navaids(
+        tmp_path,
+        ("OBK", "VOR/DME", "NORTHBROOK", "OPERATIONAL RESTRICTED", 42.2214, -87.9517, "113"),
+        ("RFD", "DME", "ROCKFORD", "OPERATIONAL IFR", 42.2256, -89.1993, "110.8"),
+    )
+    found = _table(
+        tmp_path,
+        ("KUBBS", 42.1, -88.2, "RP   ", "CONTROLLER LOW,ENROUTE LOW"),
+        ("BEPKE", 41.8, -88.04, "WP   ", "IAP"),
+        ("VPBNG", 42.27, -88.13, "VFR  ", "SECTIONAL,ENROUTE LOW"),
+    )
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table(found, navaids))
+    assert [v["ident"] for v in fixes.vors_within(41.5, -89.5, 42.5, -87.5)] == ["OBK"]
+    # Not an approach's fix, nor a VFR waypoint, which has its diamond.
+    assert [f["ident"] for f in fixes.enroute_fixes_within(41.5, -89.5, 42.5, -87.5)] == ["KUBBS"]
+
+
 @pytest.fixture
 def two_abs(monkeypatch, tmp_path):
     """"AB", a VORTAC in Iowa and a beacon in Georgia; VPBNG and VPBNH."""

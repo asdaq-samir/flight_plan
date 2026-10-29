@@ -2,7 +2,7 @@
 shapefile and both feeds stubbed."""
 import requests
 from fastapi.testclient import TestClient
-from vfr import airspace, airspace_at, elevation, fixes, sua, tfr
+from vfr import airspace, airspace_at, airspace_map, elevation, fixes, sua, tfr
 
 from app.main import app
 
@@ -88,3 +88,25 @@ def test_nothing_is_ahead_on_the_ground(monkeypatch):
     _point(monkeypatch)
     body = client.get("/api/airspace/ahead", params={"lat": 42.0, "lon": -88.0, "track": 90, "gs": 10}).json()
     assert body == {"alerts": [], "unavailable": []}
+
+
+def test_the_airspace_in_view_is_each_volumes_lines_and_altitudes(monkeypatch):
+    monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", lambda cache_dir: "Class_Airspace.shp")
+    monkeypatch.setattr(airspace_map, "volumes_in", lambda shp, south, west, north, east: ({
+        "id": "PWK-12", "ident": "PWK", "name": "WHEELING CLASS D", "airspace_class": "D",
+        "floor_ft": 0.0, "floor_sfc": True, "ceiling_ft": 3000.0, "ceiling_excluded": True,
+        "label_lat": 42.11, "label_lon": -87.9, "lines": [[[42.1, -87.95], [42.15, -87.9]]],
+    },))
+    body = client.get("/api/airspace/in-view", params={"south": 41.5, "west": -88.5, "north": 42.5, "east": -87.5}).json()
+    assert [(v["ident"], v["ceiling_ft"], v["ceiling_excluded"]) for v in body["volumes"]] == [("PWK", 3000.0, True)]
+    assert body["volumes"][0]["lines"] == [[[42.1, -87.95], [42.15, -87.9]]]
+
+
+def test_the_airspace_in_view_without_the_file_is_none(monkeypatch):
+    def missing(cache_dir):
+        raise RuntimeError("no shapefile")
+
+    monkeypatch.setattr(airspace, "ensure_class_airspace_shapefile", missing)
+    body = client.get("/api/airspace/in-view", params={"south": 41.5, "west": -88.5, "north": 42.5, "east": -87.5}).json()
+    assert body == {"volumes": []}
+    assert client.get("/api/airspace/in-view", params={"south": 43, "west": -88.5, "north": 42.5, "east": -87.5}).status_code == 422

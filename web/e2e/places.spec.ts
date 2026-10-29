@@ -11,8 +11,9 @@ import { airportMark, airportMarks, clearTheRoute, closeCard, consoleSheet, expe
 const card = (page: Page) => sideDrawer(page).getByTestId("place-card");
 
 /** The card's answer for `ident` with its weather as given: its own
- *  report, or none and the nearest station's. */
-async function cardWeather(page: Page, ident: string, weather: { metar?: object | null; nearby_metar?: object | null; modelled_weather?: object | null }) {
+ *  report, or none and the nearest station's; its TAF too where the test
+ *  gives one, none where it gives null. */
+async function cardWeather(page: Page, ident: string, weather: { metar?: object | null; nearby_metar?: object | null; modelled_weather?: object | null; taf?: string | null }) {
   await page.route(url => url.pathname.endsWith(`/api/planner/airport/${ident}`), async route => {
     const answer = await route.fetch();
     // Nothing modelled unless the test says: NOMADS' hour is not the suite's.
@@ -21,7 +22,7 @@ async function cardWeather(page: Page, ident: string, weather: { metar?: object 
 }
 
 test("an airport's card has the field's pictures across its top, its ident over them, how far it is, its actions and the weather there", async ({ page }) => {
-  await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR" } });
+  await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR", ceiling_ft: null }, taf: null });
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   // Half way, as every card opens (the owner's ask).
@@ -40,12 +41,14 @@ test("an airport's card has the field's pictures across its top, its ident over 
   for (const id of ["place-share", "place-close"]) await expect(card(page).getByTestId(id)).toBeInViewport();
   await expect(page.getByTestId("tab-close")).toBeHidden();
   // Its actions in a row under them at half -- no Add Stop for the
-  // route's own destination -- and the weather in a line, its category in
-  // the FAA's colour.
+  // route's own destination -- and the weather's card, its category in
+  // the FAA's colour: with no TAF, a sentence from the report and Now alone.
   for (const id of ["fly-here", "place-call", "place-favorite"]) await expect(card(page).getByTestId(id)).toBeInViewport({ ratio: 1 });
   await expect(card(page).getByTestId("place-add-stop")).toHaveCount(0);
   await expect(card(page).getByTestId("place-category")).toBeVisible();
-  await expect(card(page).getByTestId("place-weather-summary")).toContainText("No ceiling");
+  await expect(card(page).getByTestId("place-forecast-sentence")).toHaveText("VFR now, no forecast for this field.");
+  await expect(card(page).getByTestId("place-hour")).toHaveCount(1);
+  await expect(card(page).getByTestId("place-hour").first()).toContainText("Now");
 
   // All the way up, the rest one scroll of sections, where it was four
   // tabs: the field's elevation and airspace in its details.
@@ -70,6 +73,60 @@ test("an airport's card has the field's pictures across its top, its ident over 
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 });
 
+
+/** A TAF for KDLH issued this hour, for a day: fair until an FM group in
+ *  three hours brings a broken layer at 2,500 ft, 5 sm in rain and gusts
+ *  to 22 kt (MVFR), and another three hours on fair again. Its times are
+ *  day and hour in UTC, as a TAF's are. */
+function tafFromNow(now = new Date()): string {
+  const two = (n: number) => String(n).padStart(2, "0");
+  const hour = Math.floor(now.getTime() / 3_600_000) * 3_600_000;
+  const at = (h: number) => { const d = new Date(hour + h * 3_600_000); return `${two(d.getUTCDate())}${two(d.getUTCHours())}`; };
+  return `TAF KDLH ${at(0)}00Z ${at(0)}/${at(24)} 27010KT P6SM SCT050 FM${at(3)}00 29015G22KT 5SM -RA BKN025 FM${at(6)}00 31010KT P6SM SCT040`;
+}
+
+test("the pictures open on the runways, and the weather's card is the forecast in a sentence over the hours, Now first, the flight's landing marked", async ({ page }) => {
+  await cardWeather(page, "KDLH", {
+    metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR", ceiling_ft: null, wind_dir_true_deg: 270, wind_speed_kt: 8 },
+    taf: tafFromNow(),
+  });
+  // Its aerial too, so the order is the card's and not the photos' absence.
+  await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH/photos"), route => route.fulfill({
+    json: { aerial_url: "/api/planner/airport-aerial/KDLH.jpg", photo: null },
+  }));
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  // The runways the first page of the pictures (the owner's ask,
+  // 2026-10-29), the aerial after them.
+  const pages = card(page).getByTestId("place-head").locator('[data-slot="carousel-item"]');
+  await expect(pages).toHaveCount(2, { timeout: slow(15000) });
+  await expect(pages.nth(0).getByTestId("place-runway-sketch")).toBeVisible();
+  await expect(pages.nth(1).getByTestId("place-aerial")).toHaveCount(1);
+
+  // The sentence, written from the TAF: when it goes MVFR and what does
+  // it, until when, and the gust (lib/hourly).
+  await expect(card(page).getByTestId("place-forecast-sentence"))
+    .toHaveText(/^Ceilings lowering to 2,500 ft around \d\d:00, MVFR until \d\d:00\. Gusts up to 22 kt\.$/);
+  // Under it the hours, Now first from the report, then each hour of the
+  // TAF, its ceiling and its wind as FPL writes a field's.
+  const hours = card(page).getByTestId("place-hour");
+  await expect(hours.first()).toContainText("Now");
+  await expect(hours.first()).toContainText("270°T");
+  expect(await hours.count()).toBeGreaterThan(12);
+  await expect(hours.nth(1)).toContainText(/\d\d:00/);
+  await expect(hours.filter({ hasText: "2,500" }).first()).toContainText("15G22");
+  // Only the row scrolls sideways, not the card.
+  const row = card(page).getByTestId("place-hours");
+  expect(await row.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+  expect(await card(page).evaluate(el => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  // The route's destination: the hour the flight lands in outlined, once
+  // its nav log has the time.
+  await expect(card(page).locator("[data-testid=place-hour][data-arrival]")).toContainText(/You\s*\d\d:\d\d/, { timeout: slow(30000) });
+  // A tap on the sentence still goes up to the reports as sent.
+  await card(page).getByTestId("place-weather-summary").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+  await expect(card(page).locator('[data-section="weather"]')).toBeInViewport();
+});
 
 test("a field with no report wears the nearest station's category as \"≈\" within ten statute miles, and none farther; its Weather tab says whose", async ({ page }) => {
   const nearby = {

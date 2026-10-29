@@ -2597,6 +2597,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined
           : suggestedAt ? () => keepFuelStops(suggestedAt.after, [place]) : addStop}
         stop={suggestedAt?.stop}
+        // The route's destination: when the flight lands there -- the time
+        // en route and on the ground at its stops (Totals.ground_min) after
+        // it leaves, as the figures' ETA -- for the hour its forecast marks.
+        arrival={!s.local && sameField(place, `${planned.dest}`) && s.totals?.ete_min != null
+          ? { depart: depart || null, minutes: s.totals.ete_min + (s.totals.ground_min ?? 0) } : undefined}
         startOn={approachesOf === place ? "approaches" : undefined} onStarted={() => setApproachesOf(null)}
       />
     </Suspense>

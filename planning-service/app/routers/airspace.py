@@ -6,11 +6,11 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
-from fastapi import APIRouter, Query
-from vfr import airports, airspace, airspace_at, alerts, altitude, elevation, fixes, sua, tfr
+from fastapi import APIRouter, HTTPException, Query
+from vfr import airports, airspace, airspace_at, airspace_map, alerts, altitude, elevation, fixes, sua, tfr
 from vfr.units import M_TO_FT
 
-from ..schemas import AirspaceAt, AlertsAhead, PointOffFix
+from ..schemas import AirspaceAt, AirspaceInView, AlertsAhead, PointOffFix
 
 log = logging.getLogger(__name__)
 
@@ -94,3 +94,24 @@ def airspace_ahead(
         faa_cache_dir=altitude.DEFAULT_FAA_CACHE_DIR,
     )
     return AlertsAhead(**found)
+
+
+@router.get("/api/airspace/in-view", response_model=AirspaceInView)
+def airspace_in_view(
+    south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
+    north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
+) -> AirspaceInView:
+    """The Class B, C and D inside the map's view (vfr.airspace_map), for
+    the map to draw over the chart: each volume's lines from the FAA's own
+    shapefile, so they lie on the chart's printed ones, with its floor and
+    top for the label the chart prints. None where the FAA's airspace
+    cannot be had: the chart's own lines are still under the map."""
+    if south > north or west > east:
+        raise HTTPException(422, "The box's south is above its north, or its west east of its east.")
+    try:
+        shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
+        volumes = airspace_map.volumes_in(shp_path, south, west, north, east)
+    except (OSError, RuntimeError) as err:
+        log.warning("airspace in (%s, %s, %s, %s) not read: %s", south, west, north, east, err)
+        volumes = ()
+    return {"volumes": list(volumes)}
