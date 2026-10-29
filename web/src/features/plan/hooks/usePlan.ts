@@ -135,6 +135,9 @@ const BRIEF_SETTLE_MS = 250;
 // chart drawn again at every render of the page.
 const NONE: Candidate[] = [];
 
+/** Where the runways left from are in a plan's key (planKeyOf). */
+const PLAN_KEY_RUNWAYS = 21;
+
 /** Everything the nav log is computed from -- the narratives are keyed
  *  on the same, so a narrative is always about the log on screen. */
 function planKeyOf(
@@ -252,8 +255,13 @@ export function usePlan(
   // altitudes…" over them, for the half second to seconds a re-plan takes.
   // Only over the same flight with another altitude (typed, picked on the
   // wheel, or one of the four plans): a new route, airplane or time is a
-  // log of its own; nor once the planner says no altitude is legal.
-  const holdKey = [...planKey.slice(0, 3), ...planKey.slice(5, -1)].join("|");
+  // log of its own; nor once the planner says no altitude is legal. And
+  // over another runway, left from (`runways`) as landed on (`patterns`,
+  // the key's last): the runways picked into the wind as the field's report
+  // comes in are the ones the first plan already flew (the planner's
+  // wind_picks), and the figures went to ≈ and back to the same for the
+  // re-plan's second or so.
+  const holdKey = planKey.filter((_, i) => i < 3 || (i >= 5 && i !== PLAN_KEY_RUNWAYS && i < planKey.length - 1)).join("|");
   const whole = streamed.some(m => m.type === "done");
   const [held, setHeld] = useState<{ key: string; planKey: ReturnType<typeof planKeyOf>; messages: NavLogMessage[] } | null>(null);
   if (whole && !pointToPoint && (held?.messages !== streamed || held.key !== holdKey)) {

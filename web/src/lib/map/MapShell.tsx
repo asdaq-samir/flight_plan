@@ -15,6 +15,7 @@ import { useSheetCards } from "../sheetCards";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
 import { ChartTiles } from "./ChartTiles";
+import { LandWaterTiles } from "./LandWaterTiles";
 import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
 import { ResizeAware } from "./MapEffects";
@@ -470,6 +471,10 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
           {onTv && <TvMapKeys />}
           <ResizeAware />
           <ChartTiles chart={chart} previewing={previewing} />
+          {/* Land and water under the charts where they end; after them
+              in the page, so the chart's layers keep their places in the
+              tile pane, under them by its zIndex. */}
+          <LandWaterTiles />
           <OverlayTiles />
           {/* Both maps get it: a Class B is worth seeing whether
               planning a route past it or rating chart detections

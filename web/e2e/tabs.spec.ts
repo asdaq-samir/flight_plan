@@ -195,6 +195,11 @@ test("the Brief opens on whether to go and a card for each part of the flight, a
   await expect(glance.getByTestId("brief-verdict")).toContainText(/^No-go as planned: Weather/, { timeout: slow(30_000) });
   await expect(glance.getByTestId("brief-glance-enroute")).toHaveAttribute("data-finding", "stop");
   await expect(glance.getByTestId("brief-glance-enroute")).toContainText("VFR not recommended: KDLH currently reporting IFR");
+  // The verdict the one red wash: a no-go card as plain as the others, its
+  // red in its icon and figures alone (the design review, 2026-10-28).
+  const fill = (id: string) => glance.getByTestId(id).evaluate(el => getComputedStyle(el).backgroundColor);
+  expect(await fill("brief-glance-enroute")).toBe(await fill("brief-glance-depart"));
+  expect(await fill("brief-verdict")).not.toBe(await fill("brief-glance-depart"));
   await expect(glance.getByTestId("brief-glance-depart")).toContainText("C81");
   await expect(glance.getByTestId("brief-glance-arrive")).toContainText("KDLH");
   await expect(glance.getByTestId("brief-glance-arrive")).toContainText(/Runway/);

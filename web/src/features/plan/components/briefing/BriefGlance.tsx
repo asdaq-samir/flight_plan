@@ -28,11 +28,16 @@ const DASH = "—";
 const radioLabel = (to: string) => (/traffic$/i.test(to) ? "CTAF" : to.split(" ").at(-1) ?? to);
 const ft = (n: number | null) => (n == null ? DASH : `${grouped(n)}`);
 const time = (iso: string | null) => (iso ? clockTime(new Date(iso)) : null);
+/** The verdict's wash: the Brief's one alarm. */
 const MARK_TINT: Partial<Record<Finding, string>> = { stop: "bg-destructive/10", caution: "bg-caution-wash" };
 
 /** A card: its part's name, the field and its category, its time at the
  *  right with the way in, its figures under, a line of note. The whole
- *  card is the button that opens its page. */
+ *  card is the button that opens its page. A no-go or a caution is in its
+ *  icon and the figures that make it alone, the card itself plain: with
+ *  the verdict, the cards and their figures all red the Brief had three
+ *  reds for one finding, and the banner, the one to act on, no longer
+ *  stood out (the design review, 2026-10-28, the owner's "I want all"). */
 function Card({ tab, label, ident, category, at, finding, stats, note, onOpen }: {
   tab: PanelTab;
   label: string;
@@ -50,7 +55,6 @@ function Card({ tab, label, ident, category, at, finding, stats, note, onOpen }:
       type="button" onClick={() => onOpen(tab)} data-testid={`brief-glance-${tab}`} data-finding={finding}
       className={cn(
         "flex w-full flex-col gap-1.5 rounded-xl bg-card px-3.5 py-2.5 text-left shadow-[0_0_0_0.5px_var(--border)] outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        MARK_TINT[finding],
       )}
     >
       <span className="flex w-full items-center gap-2">
@@ -62,7 +66,7 @@ function Card({ tab, label, ident, category, at, finding, stats, note, onOpen }:
         <ChevronRight className="size-5 shrink-0 text-tint" aria-hidden />
       </span>
       <span className="flex w-full gap-2.5">{stats}</span>
-      {note && <span className={cn("text-muted-foreground", TEXT.note, marked && FINDING_TONE[finding])}>{note}</span>}
+      {note && <span className={cn("text-muted-foreground", TEXT.note)}>{note}</span>}
     </button>
   );
 }

@@ -293,6 +293,11 @@ export const api = {
           procedures: procedures || undefined,
           // The runway each departure picked is left from.
           runways: runways || undefined,
+          // With none picked at a field, its runway into the wind, the one
+          // the page picks a moment later (the planner's wind_picks): the
+          // first plan flies its patterns, where its time jumped as the
+          // picks came and the route was planned again.
+          wind_runways: true,
           // The runway each field is landed on, its pattern flown in.
           patterns: patterns || undefined,
           // The altitudes given to cross their fixes at.

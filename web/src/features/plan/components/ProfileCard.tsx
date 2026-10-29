@@ -31,8 +31,9 @@ export default function ProfileCard({ name, line, corner, onClose, children }: {
       {/* As tall as the card has room for over the route's figures, no
           taller: held at 160, it ran under them where the name took two
           lines at the owner's larger text, the graph's foot behind the
-          figures (the owner's screenshot); what it holds scrolls. */}
-      <div className="mt-3 flex min-h-0 flex-1 flex-col [&_[data-testid=mini-profile]]:h-full">{children}</div>
+          figures (the owner's screenshot); what it holds scrolls. Its
+          skeleton as tall while the ground is fetched (MiniProfile). */}
+      <div className="mt-3 flex min-h-0 flex-1 flex-col [&_[data-testid=mini-profile-skeleton]]:h-full [&_[data-testid=mini-profile]]:h-full">{children}</div>
     </div>
   );
 }
