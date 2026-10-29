@@ -515,12 +515,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   data-testid="place-weather-summary"
                 />
                 {place && hourly.hours.length > 0 && (
-                  // No width of its own to give (w-0), the group's all the
-                  // same (min-w-full): the row's two dozen hours are wider
-                  // than the card, and as min-w-0 alone they widened every
-                  // box over it, so the whole card scrolled sideways by
-                  // 908 px (places.spec).
-                  <div className="w-0 min-w-full">
+                  <div className="min-w-0">
                     <HourlyForecast
                       hours={hourly.hours}
                       arrival={landsIn != null && landsAt != null ? { index: landsIn, at: landsAt } : null}

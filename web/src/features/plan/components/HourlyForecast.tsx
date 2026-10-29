@@ -54,8 +54,11 @@ export function HourlyForecast({ hours, arrival }: {
           <div
             key={hour.now ? "now" : hour.at} role="listitem"
             data-testid="place-hour" data-now={hour.now || undefined} data-arrival={landing ? "" : undefined}
-            // About 52 points a column, in rem so it grows with the text.
-            className={cn("flex w-13 shrink-0 snap-start flex-col items-center gap-1.5 rounded-lg py-1.5 tabular-nums", landing && "ring-1 ring-foreground/40 ring-inset")}
+            // About 52 points a column, in rem so it grows with the text;
+            // relative, so its sr-only words (absolute) are placed in it and
+            // clipped with the row: placed by the card, the last hour's sat
+            // 648 px past its edge and the whole card scrolled sideways.
+            className={cn("relative flex w-13 shrink-0 snap-start flex-col items-center gap-1.5 rounded-lg py-1.5 tabular-nums", landing && "ring-1 ring-foreground/40 ring-inset")}
           >
             {/* The column in words for VoiceOver, its figures hidden from it. */}
             <span className="sr-only">{spokenOf(hour, label, wind, landing)}</span>
