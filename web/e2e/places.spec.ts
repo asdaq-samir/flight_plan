@@ -21,7 +21,7 @@ async function cardWeather(page: Page, ident: string, weather: { metar?: object 
   });
 }
 
-test("an airport's card has the field's pictures across its top, its ident over them, how far it is, its actions and the weather there", async ({ page }) => {
+test("an airport's card has the field's pictures across its top, its ident over them, how far it is, its actions, its tabs right under them and the weather there", async ({ page }) => {
   await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR", ceiling_ft: null }, taf: null });
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
@@ -41,20 +41,28 @@ test("an airport's card has the field's pictures across its top, its ident over 
   for (const id of ["place-share", "place-close"]) await expect(card(page).getByTestId(id)).toBeInViewport();
   await expect(page.getByTestId("tab-close")).toBeHidden();
   // Its actions in a row under them at half -- no Add Stop for the
-  // route's own destination -- and the weather's card, its category in
-  // the FAA's colour: with no TAF, a sentence from the report and Now alone.
+  // route's own destination -- and its tabs right under them, Info open.
   for (const id of ["fly-here", "place-call", "place-favorite"]) await expect(card(page).getByTestId(id)).toBeInViewport({ ratio: 1 });
   await expect(card(page).getByTestId("place-add-stop")).toHaveCount(0);
+  await expect(card(page).getByRole("tab")).toHaveText(["Info", "Weather", "Runways", "Charts"]);
+  await expect(card(page).getByTestId("place-tab-radio")).toHaveAttribute("aria-selected", "true");
+  const [actions, bar] = await Promise.all([card(page).getByTestId("place-actions"), card(page).getByRole("tablist")].map(async l => (await l.boundingBox())!));
+  expect(bar.y).toBeGreaterThanOrEqual(actions.y + actions.height);
+  expect(bar.y - (actions.y + actions.height)).toBeLessThanOrEqual(16);
+
+  // Weather: the panel all the way up, the weather's card at the tab's
+  // top, its category in the FAA's colour: with no TAF, a sentence from
+  // the report and Now alone.
+  await card(page).getByTestId("place-tab-weather").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await expect(card(page).getByTestId("place-category")).toBeVisible();
   await expect(card(page).getByTestId("place-forecast-sentence")).toHaveText("VFR now, no forecast for this field.");
   await expect(card(page).getByTestId("place-hour")).toHaveCount(1);
   await expect(card(page).getByTestId("place-hour").first()).toContainText("Now");
 
-  // All the way up, the rest one scroll of sections, where it was four
-  // tabs: the field's elevation and airspace in its details.
-  await grabberTo(page, "full");
-  await expect(card(page).getByRole("tablist")).toHaveCount(0);
-  await expect(card(page).locator("[data-section]")).toHaveCount(5);
+  // Info: the field's elevation and airspace in its details.
+  await card(page).getByTestId("place-tab-radio").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   await expect(card(page).getByTestId("place-elevation")).toContainText(/[\d,]+ ft$/);
   await expect(card(page).getByTestId("place-airspace")).toHaveText(/^AirspaceClass D · Tower 118\.3$/);
   // The tower's, named in words, its frequency as pilots write it.
@@ -85,7 +93,7 @@ function tafFromNow(now = new Date()): string {
   return `TAF KDLH ${at(0)}00Z ${at(0)}/${at(24)} 27010KT P6SM SCT050 FM${at(3)}00 29015G22KT 5SM -RA BKN025 FM${at(6)}00 31010KT P6SM SCT040`;
 }
 
-test("the pictures open on the runways, and the weather's card is the forecast in a sentence over the hours, Now first, the flight's landing marked", async ({ page }) => {
+test("the pictures open on the runways, and the Weather tab opens on the forecast in a sentence over the hours, Now first, the flight's landing marked, the reports under them", async ({ page }) => {
   await cardWeather(page, "KDLH", {
     metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR", ceiling_ft: null, wind_dir_true_deg: 270, wind_speed_kt: 8 },
     taf: tafFromNow(),
@@ -103,6 +111,9 @@ test("the pictures open on the runways, and the weather's card is the forecast i
   await expect(pages.nth(0).getByTestId("place-runway-sketch")).toBeVisible();
   await expect(pages.nth(1).getByTestId("place-aerial")).toHaveCount(1);
 
+  // The weather's card at the top of the Weather tab.
+  await card(page).getByTestId("place-tab-weather").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   // The sentence, written from the TAF: when it goes MVFR and what does
   // it, until when, and the gust (lib/hourly).
   await expect(card(page).getByTestId("place-forecast-sentence"))
@@ -122,10 +133,9 @@ test("the pictures open on the runways, and the weather's card is the forecast i
   // The route's destination: the hour the flight lands in outlined, once
   // its nav log has the time.
   await expect(card(page).locator("[data-testid=place-hour][data-arrival]")).toContainText(/You\s*\d\d:\d\d/, { timeout: slow(30000) });
-  // A tap on the sentence still goes up to the reports as sent.
-  await card(page).getByTestId("place-weather-summary").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
-  await expect(card(page).locator('[data-section="weather"]')).toBeInViewport();
+  // The reports as sent right under it, so the sentence is not a button.
+  await expect(card(page).getByTestId("place-weather-summary").getByRole("button")).toHaveCount(0);
+  await expect(card(page).getByTestId("place-weather")).toContainText("KDLH 102155Z 27008KT");
 });
 
 test("a field with no report wears the nearest station's category as \"≈\" within ten statute miles, and none farther; its Weather tab says whose", async ({ page }) => {
@@ -136,14 +146,15 @@ test("a field with no report wears the nearest station's category as \"≈\" wit
   await cardWeather(page, "C81", { metar: null, nearby_metar: nearby });
   await page.goto("/app/plan?place=C81");
   await settle(page);
+  // On the Weather tab, the panel all the way up.
+  await card(page).getByTestId("place-tab-weather").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   const chip = card(page).getByTestId("place-category");
   await expect(chip).toContainText("≈ MVFR",{ timeout: slow(15000) });
   // In words to a reader: a role-less span has no name of its own.
   await expect(chip.locator(".sr-only")).toHaveText("About MVFR, from the report of KUGN, another station, not this field's own");
-  // The weather's line says whose, and takes the card up to it.
+  // The weather's line says whose, and the report is under it.
   await expect(card(page).getByTestId("place-weather-summary")).toContainText("Nearest report KUGN, 6.2 nm E");
-  await card(page).getByTestId("place-weather-summary").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   const from = card(page).getByTestId("place-nearby-metar");
   await expect(from).toBeInViewport();
   await expect(from).toContainText("Nearest report, 6.2 nm E");
@@ -159,6 +170,8 @@ test("a field with no report wears the nearest station's category as \"≈\" wit
   await settle(page);
   await expect(card(page).getByTestId("place-name")).toBeVisible({ timeout: slow(15000) });
   await expect(card(page).getByTestId("place-runway-sketch")).toBeVisible();
+  await card(page).getByTestId("place-tab-weather").click();
+  await expect(card(page).getByTestId("place-weather-summary")).toContainText("Nearest report KUGN, 12 nm E");
   await expect(card(page).getByTestId("place-category")).toHaveCount(0);
 });
 test("a field with no report wears the category modelled there, before a near station's, and its Weather tab says it is a model's", async ({ page }) => {
@@ -170,11 +183,11 @@ test("a field with no report wears the category modelled there, before a near st
   await cardWeather(page, "C81", { metar: null, nearby_metar: nearby, modelled_weather: modelled });
   await page.goto("/app/plan?place=C81");
   await settle(page);
+  await card(page).getByTestId("place-tab-weather").click();
   const chip = card(page).getByTestId("place-category");
   await expect(chip).toContainText("≈ IFR", { timeout: slow(15000) });
   await expect(chip.locator(".sr-only")).toHaveText("About IFR, modelled for this field by the National Weather Service, not a report");
   await expect(card(page).getByTestId("place-weather-summary")).toContainText("Modelled: 4 sm · ceiling 900 ft");
-  await card(page).getByTestId("place-weather-summary").click();
   const model = card(page).getByTestId("place-modelled-weather");
   // Its hour in its title, where a footnote named the model.
   await expect(model).toContainText("Modelled for 2200Z");
@@ -266,7 +279,7 @@ test("the card's scroll runs down to the sheet's foot, over the home indicator's
   }).toPass({ timeout: slow(10_000) });
 });
 
-test("an airport's card is one scroll of sections all the way up -- details, frequencies, runways, weather, charts -- the weather's line the way to its report", async ({ page }) => {
+test("an airport's card has four tabs right under its actions, in sight at half, Info first; a tab takes the panel up, and the open one again, down", async ({ page }) => {
   // C81 has no airport diagram, and an approach.
   await page.route(url => url.pathname.endsWith("/api/planner/airport/C81"), async route => {
     const answer = await route.fetch();
@@ -277,41 +290,47 @@ test("an airport's card is one scroll of sections all the way up -- details, fre
   });
   await page.goto("/app/plan?place=C81");
   await settle(page);
-  // Opened half way: the pictures and the actions whole in it.
+  // Opened half way: the pictures, the actions and the tabs' bar whole in
+  // it, at the owner's ask ("bring back the tabs after the buttons").
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
   await expect(card(page).getByTestId("fly-here")).toBeEnabled({ timeout: slow(15000) });
   await expect(card(page).getByTestId("place-actions")).toBeInViewport({ ratio: 1 });
-  // The weather's line takes the panel all the way up, to the report.
-  await card(page).getByTestId("place-weather-summary").click();
+  const tabs = card(page).getByRole("tab");
+  await expect(tabs).toHaveText(["Info", "Weather", "Runways", "Charts"]);
+  await expect(card(page).getByTestId("place-tab-radio")).toHaveAttribute("aria-selected", "true");
+  await expect(card(page).getByRole("tablist")).toBeInViewport({ ratio: 1 });
+  // Nothing between the actions and the bar: the weather is its tab's.
+  await expect(card(page).getByTestId("place-weather-summary")).toHaveCount(0);
+
+  // Runways: the panel all the way up, the pattern and the runways.
+  await card(page).getByTestId("place-tab-runways").click();
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
-  await expect(card(page).locator('[data-section="weather"]')).toBeInViewport();
-  // Its sections in the pilot's order, where they were tabs.
-  const sections = card(page).locator("[data-section]");
-  expect(await sections.evaluateAll(all => all.map(el => el.getAttribute("data-section")))).toEqual(["details", "frequencies", "runways", "weather", "charts"]);
-  const runways = card(page).getByTestId("place-runways");
-  await runways.scrollIntoViewIfNeeded();
+  const runways = card(page).getByRole("tabpanel").getByTestId("place-runways");
   await expect(runways).toContainText("Pattern altitude");
   await expect(runways).toContainText(/Runway \d/);
+
   // Charts: the airport's (none from the FAA: the card's sketch instead),
   // and its approach as the FAA prints its title.
-  const charts = card(page).getByTestId("place-charts");
-  await charts.scrollIntoViewIfNeeded();
+  await card(page).getByTestId("place-tab-diagrams").click();
+  const charts = card(page).getByRole("tabpanel").getByTestId("place-charts");
   await expect(charts.getByTestId("airport-diagram-sketch")).toContainText("A sketch of the runways");
   const approach = charts.getByTestId("terminal-chart");
   await expect(approach).toHaveText(/RNAV \(GPS\) RWY 24/);
   // Shown in the app (airport-diagram.spec), not a link out of it.
   await expect(approach).not.toHaveAttribute("href", /.*/);
-  // Scrolled past the pictures, a bar with the ident over the card, its
-  // close still in sight.
-  await expect(card(page).getByTestId("place-head-bar")).toHaveCSS("opacity", "1");
-  await expect(card(page).getByTestId("place-head-bar")).toHaveText("C81");
-  await expect(card(page).getByTestId("place-close")).toBeInViewport();
+
+  // The open tab tapped again up there: down half way, as the route's
+  // pages do, the bar still under the actions.
+  await card(page).getByTestId("place-tab-diagrams").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(card(page).getByRole("tablist")).toBeVisible();
 });
 
-test("an airport's card lists its first frequencies, and its title the way to every one", async ({ page }) => {
+test("an airport's Info lists its first frequencies, and its title the way to every one; scrolled past the pictures, a bar with the ident keeps the close in sight", async ({ page }) => {
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
-  await grabberTo(page, "full");
+  await card(page).getByTestId("place-tab-radio").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
   const rows = card(page).getByTestId("place-frequency");
   await expect(rows).toHaveCount(3, { timeout: slow(15000) });
   const more = card(page).getByTestId("place-frequencies-more");
@@ -319,6 +338,11 @@ test("an airport's card lists its first frequencies, and its title the way to ev
   await more.click();
   expect(await rows.count()).toBeGreaterThan(3);
   await expect(more).toHaveCount(0);
+  // Down to the last of them, the pictures scrolled up out of sight.
+  await rows.last().scrollIntoViewIfNeeded();
+  await expect(card(page).getByTestId("place-head-bar")).toHaveCSS("opacity", "1");
+  await expect(card(page).getByTestId("place-head-bar")).toHaveText("KDLH");
+  await expect(card(page).getByTestId("place-close")).toBeInViewport();
 });
 
 /** A field's procedures' list, not one procedure's drawing. */
@@ -364,6 +388,8 @@ test("the route's Procedures open its destination's card on its approaches, and 
   await page.getByTestId("procedure-chart").click();
   await expect(card(page).getByTestId("place-name")).toHaveText("KDLH", { timeout: slow(15000) });
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+  // On its Charts tab.
+  await expect(card(page).getByTestId("place-tab-diagrams")).toHaveAttribute("aria-selected", "true");
   const approaches = card(page).locator('[data-chart-group="Approaches"]');
   await expect(approaches.getByTestId("terminal-chart")).toHaveText([/ILS OR LOC RWY 09/, /RNAV \(GPS\) RWY 27/]);
   await expect(approaches).toBeInViewport();
@@ -868,7 +894,7 @@ test("an airport's card says which lights a pilot turns on with the mic, and the
   // own airport data, in plain English.
   await page.goto("/app/plan?place=3CK");
   await expect(card(page).getByTestId("place-name")).not.toBeEmpty({ timeout: slow(15000) });
-  // All the way up.
+  // On Info, all the way up.
   await grabberTo(page, "full");
   // With the radio, under the frequencies: it is the mic that turns
   // them on.
