@@ -87,7 +87,8 @@ export class AirportMarksLayer extends L.Layer {
     this.font = `700 ${LABEL_PX}px ${getComputedStyle(map.getContainer()).fontFamily || "system-ui, sans-serif"}`;
     // Drawn again through a pan too, a frame at a time: past the canvas's
     // edge a long pan's fields came in only as it ended.
-    map.on("moveend resize viewreset", this.schedule, this);
+    map.on("resize viewreset", this.schedule, this);
+    map.on("moveend", this.ended, this);
     map.on("zoom", this.zoomed, this);
     map.on("move", this.moved, this);
     map.on("zoomanim", this.animate, this);
@@ -96,7 +97,8 @@ export class AirportMarksLayer extends L.Layer {
   }
 
   onRemove(map: L.Map): this {
-    map.off("moveend resize viewreset", this.schedule, this);
+    map.off("resize viewreset", this.schedule, this);
+    map.off("moveend", this.ended, this);
     map.off("zoom", this.zoomed, this);
     map.off("move", this.moved, this);
     map.off("zoomanim", this.animate, this);
@@ -126,6 +128,16 @@ export class AirportMarksLayer extends L.Layer {
     const tl = map.containerPointToLayerPoint(L.point(0, 0)).subtract(margin);
     const br = map.containerPointToLayerPoint(size).add(margin);
     if (!this.drawn.contains(tl) || !this.drawn.contains(br)) this.schedule();
+  }
+
+  /** A move ended: drawn again only where it left what was drawn, or the
+   *  zoom changed. A map following an airplane -- own ship, a dry run's --
+   *  ends a small move several times a second, and the whole canvas was
+   *  drawn again at each: 56 to 250 ms of three seconds of a dry run at
+   *  200x, 4x a phone's (2026-10-29). */
+  private ended(): void {
+    if (this._map?.getZoom() !== this.drawnZoom) return this.schedule();
+    this.moved();
   }
 
   private schedule(): void {
