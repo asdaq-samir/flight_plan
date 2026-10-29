@@ -124,6 +124,9 @@ test("the airport's card says its fuel in its details, and what is on the field 
   await expect(card).toBeVisible({ timeout: slow(30_000) });
   const details = card.getByTestId("place-details");
   await expect(details.getByTestId("services-fuel")).toContainText("100LL, Jet A");
+  // Its remarks folded under their own row, opened by a tap.
+  await expect(details).not.toContainText("24 hour self serve fuel.");
+  await details.getByTestId("services-fuel-remarks").click();
   await expect(details).toContainText("24 hour self serve fuel.");
   const services = card.getByTestId("place-services");
   await expect(services.getByTestId("services-courtesy-car")).toBeVisible();
