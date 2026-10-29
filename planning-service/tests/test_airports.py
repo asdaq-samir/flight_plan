@@ -275,6 +275,31 @@ def test_the_vfr_waypoints_in_view_are_the_sectionals_magenta_flags_only(monkeyp
     assert resp.json() == {"waypoints": [{"ident": "VPBNG", "lat": 42.0, "lon": -88.0, "description": None}]}
 
 
+def test_the_navaids_in_view_are_the_vors_and_close_in_the_enroute_fixes(monkeypatch):
+    from vfr import fixes
+
+    monkeypatch.setattr(fixes, "_TABLE", fixes._Table({
+        "BEPKE": {"ident": "BEPKE", "lat": 42.0, "lon": -88.1, "vfr": False, "kind": "GPS waypoint", "enroute_low": False},
+        "KUBBS": {"ident": "KUBBS", "lat": 42.1, "lon": -88.2, "vfr": False, "kind": "Reporting point", "enroute_low": True},
+        "VPBNG": {"ident": "VPBNG", "lat": 42.0, "lon": -88.0, "vfr": True, "kind": "VFR waypoint", "enroute_low": True},
+    }, {
+        "OBK": [{"ident": "OBK", "lat": 42.22, "lon": -87.95, "kind": "VOR/DME", "navaid": True, "vfr": False,
+                 "name": "Northbrook", "freq": "113", "state": "IL", "mag_var": -2.0}],
+        "RFD": [{"ident": "RFD", "lat": 42.23, "lon": -89.2, "kind": "DME", "navaid": True, "vfr": False,
+                 "name": "Rockford", "freq": "110.8", "state": "IL", "mag_var": None}],
+    }))
+    box = {"south": 41.5, "west": -89.5, "north": 42.5, "east": -87.5}
+
+    without = TestClient(app).get("/api/navaids/in-view", params=box).json()
+    # A DME is no VOR, and the fixes only when asked for.
+    assert without == {"vors": [{"ident": "OBK", "name": "Northbrook", "kind": "VOR/DME", "freq": "113", "lat": 42.22, "lon": -87.95}],
+                       "fixes": []}
+    with_fixes = TestClient(app).get("/api/navaids/in-view", params={**box, "fixes": True}).json()
+    # Only the enroute chart's, and not a VFR waypoint, the map's diamond.
+    assert with_fixes["fixes"] == [{"ident": "KUBBS", "lat": 42.1, "lon": -88.2}]
+    assert TestClient(app).get("/api/navaids/in-view", params={**box, "south": 43}).status_code == 422
+
+
 def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monkeypatch):
     monkeypatch.setattr(airports, "nearest", lambda lat, lon, limit: [
         {"ident": "C81", "source_ident": "KC81", "name": "Campbell", "municipality": "Grayslake", "region": "US-IL",

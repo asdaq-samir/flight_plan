@@ -1937,6 +1937,61 @@ class WaypointsInView(BaseModel):
     waypoints: list[WaypointPin]
 
 
+class AirspaceVolume(BaseModel):
+    """One Class B, C or D volume in the map's view (vfr.airspace_map):
+    one shelf of a Class B, the surface area or a shelf of a Class C, or
+    a Class D, with its altitudes as the FAA's Class Airspace file has
+    them and its boundary as lines of [lat, lon] clipped to the box."""
+
+    #: The volume's own, the same from one box to the next.
+    id: str
+    #: The primary airport's identifier (ORD, MDW, PWK), where it has one.
+    ident: str | None = None
+    name: str
+    airspace_class: Literal["B", "C", "D"]
+    #: The floor in feet MSL; 0 at the surface (`floor_sfc`).
+    floor_ft: float
+    floor_sfc: bool
+    #: The top in feet MSL; None where the file gives no number.
+    ceiling_ft: float | None = None
+    #: The top is "to but not including" `ceiling_ft` (the file's TNI): a
+    #: Class D under a Class B shelf, which the chart prints as "-30".
+    ceiling_excluded: bool
+    #: Where the volume's label goes: on the volume, in the box.
+    label_lat: float
+    label_lon: float
+    lines: list[list[list[float]]]
+
+
+class AirspaceInView(BaseModel):
+    volumes: list[AirspaceVolume]
+
+
+class VorPin(BaseModel):
+    """A VOR, VOR/DME or VORTAC in the map's view (NASR's NAV_BASE)."""
+
+    ident: str
+    name: str | None = None
+    kind: Literal["VORTAC", "VOR/DME", "VOR"]
+    freq: str | None = None
+    lat: float
+    lon: float
+
+
+class FixPin(BaseModel):
+    """A fix on the low-altitude enroute chart (NASR's FIX_BASE)."""
+
+    ident: str
+    lat: float
+    lon: float
+
+
+class NavaidsInView(BaseModel):
+    vors: list[VorPin]
+    #: Empty unless the map asked for them (`fixes`): it asks only close in.
+    fixes: list[FixPin]
+
+
 class TerminalChart(BaseModel):
     """One of a field's charts in the d-TPP (vfr.publications): `kind` the
     FAA's chart code -- APD the airport diagram, HOT its hot spots, LAH

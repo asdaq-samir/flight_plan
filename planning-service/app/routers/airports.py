@@ -25,7 +25,8 @@ from vfr import (
 
 from ..common import DIAGRAM_CACHE, load_route
 from ..schemas import (
-    AirportPhotos, AirportPlace, AirportServices, ForecastWind, AirportsInView, ChartPages, NearestAirports, PlacesFound,
+    AirportPhotos, AirportPlace, AirportServices, ForecastWind, AirportsInView, ChartPages, NavaidsInView, NearestAirports,
+    PlacesFound,
     PlateOverlay,
     ProcedureDrawing, ProcedureList, StopFields, WaypointsInView,
 )
@@ -312,6 +313,28 @@ def waypoints_in_view(
         {"ident": f["ident"], "lat": f["lat"], "lon": f["lon"], "description": places.describe(f["lat"], f["lon"])}
         for f in found[:limit]
     ]}
+
+
+@router.get("/api/navaids/in-view", response_model=NavaidsInView)
+def navaids_in_view(
+    south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
+    north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
+    with_fixes: bool = Query(default=False, alias="fixes"),
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> NavaidsInView:
+    """The VORs inside the map's view, and with `fixes` the fixes of the
+    low-altitude enroute chart there too (vfr.fixes), at most `limit` of
+    each: the hexagons and the triangles the map draws over the chart.
+    The map asks for the fixes only close in, where they do not scatter
+    over the whole chart."""
+    if south > north or west > east:
+        raise HTTPException(422, "The box's south is above its north, or its west east of its east.")
+    vors = fixes.vors_within(south, west, north, east)[:limit]
+    found = fixes.enroute_fixes_within(south, west, north, east)[:limit] if with_fixes else []
+    return {
+        "vors": [{k: v[k] for k in ("ident", "name", "kind", "freq", "lat", "lon")} for v in vors],
+        "fixes": [{"ident": f["ident"], "lat": f["lat"], "lon": f["lon"]} for f in found],
+    }
 
 
 def _notes(ident: str) -> dict:

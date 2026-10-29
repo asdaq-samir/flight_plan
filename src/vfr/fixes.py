@@ -36,6 +36,15 @@ KINDS = {
 #: NASR's CHARTS column.
 VFR_CHARTS = {"SECTIONAL", "VFR TERMINAL AREA"}
 
+#: NASR's CHARTS name for the IFR Enroute Low Altitude chart.
+ENROUTE_LOW_CHART = "ENROUTE LOW"
+
+#: The navaids the sectional draws as a VOR, by NAV_BASE's NAV_TYPE:
+#: the VOR's hexagon, the VOR/DME's in its box and the VORTAC's (FAA
+#: Aeronautical Chart User's Guide, VFR Terms and Symbols, Radio Aids to
+#: Navigation).
+VOR_KINDS = ("VORTAC", "VOR/DME", "VOR")
+
 #: The navaids a route may fly over, by NAV_BASE's NAV_TYPE, in the order
 #: one is kept over another of the same ident: not the VOR test facilities
 #: (VOT), the fan markers or a marine beacon, which no route flies to.
@@ -70,6 +79,11 @@ def _read(path: Path) -> dict[str, dict]:
             table[ident] = {
                 "ident": ident, "lat": lat, "lon": lon, "kind": kind,
                 "vfr": vfr, "state": (row.get("STATE_CODE") or "").strip() or None,
+                # On the IFR low-altitude enroute chart: the intersections
+                # of the airways below 18,000 ft that the map shows close
+                # in (enroute_fixes_within), not the approaches' and
+                # procedures' thousands no pilot sees on a route chart.
+                "enroute_low": ENROUTE_LOW_CHART in charts,
             }
     return table
 
@@ -236,6 +250,25 @@ def within(south: float, west: float, north: float, east: float) -> list[dict]:
         for fix in cells.get((lat_cell, lon_cell), ())
         if south <= fix["lat"] <= north and west <= fix["lon"] <= east
     ]
+
+
+def vors_within(south: float, west: float, north: float, east: float) -> list[dict]:
+    """The VORs, VOR/DMEs and VORTACs in service inside the box, by
+    ident, for the map's VOR marks."""
+    return sorted(
+        (f for f in within(south, west, north, east) if f.get("navaid") and f["kind"] in VOR_KINDS),
+        key=lambda f: f["ident"],
+    )
+
+
+def enroute_fixes_within(south: float, west: float, north: float, east: float) -> list[dict]:
+    """The fixes on the low-altitude enroute chart inside the box, by
+    ident, for the map's fix marks. Not the VFR waypoints, which the map
+    draws as the sectional's diamonds of their own."""
+    return sorted(
+        (f for f in within(south, west, north, east) if f.get("enroute_low") and not f["vfr"]),
+        key=lambda f: f["ident"],
+    )
 
 
 def preload() -> None:

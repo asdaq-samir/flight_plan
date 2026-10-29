@@ -145,6 +145,8 @@ public class PlannerProxyController {
             route("GET", "/api/class-b"),
             route("GET", "/api/airspace/at"),
             route("GET", "/api/airspace/ahead"),
+            // The map's Class B, C and D lines and labels, over the chart.
+            route("GET", "/api/airspace/in-view"),
             route("GET", "/api/traffic"),
             route("GET", "/api/traffic/find"),
             route("GET", "/api/traffic/based"),
@@ -158,6 +160,8 @@ public class PlannerProxyController {
             route("GET", INDEX_PATH),
             route("GET", "/api/airports/in-view"),
             route("GET", "/api/waypoints/in-view"),
+            // The map's VORs, and close in the enroute chart's fixes.
+            route("GET", "/api/navaids/in-view"),
             route("GET", "/api/airports/nearest"),
             // The map's Stops: fields with fuel, food, repair or a flight school, round the pilot or along the route.
             route("GET", "/api/stops/near"),

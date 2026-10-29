@@ -231,6 +231,8 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KDLH")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airports/in-view")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/waypoints/in-view")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/airspace/in-view")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/navaids/in-view")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/local-flight")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/tfrs")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/route-profile")).isTrue();
