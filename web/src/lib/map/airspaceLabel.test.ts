@@ -19,6 +19,9 @@ describe("an airspace's label, as the sectional prints it", () => {
     // Midway's outer shelf: the file's top, not the chart's "T".
     expect(airspaceLabel(volume({ airspace_class: "C", ceiling_ft: 3600, floor_ft: 1900, floor_sfc: false })))
       .toEqual({ kind: "shelf", top: "36", floor: "19" });
+    // A Class C up to but not including its top.
+    expect(airspaceLabel(volume({ airspace_class: "C", ceiling_ft: 4000, ceiling_excluded: true })))
+      .toEqual({ kind: "shelf", top: "-40", floor: "SFC" });
   });
 
   it("is a Class D's ceiling, with a minus where it is up to but not including it", () => {

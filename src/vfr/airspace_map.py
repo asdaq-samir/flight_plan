@@ -25,16 +25,20 @@ from shapely.geometry import box as shapely_box
 from . import airspace
 from .once import once
 
-#: The finest a line is simplified to, in degrees: about 30 m north to
-#: south, a pixel and a half at zoom 12 -- close in, the line stays on
-#: the chart's own ring. A box further out is simplified further
-#: (tolerance_for), as its pixels are bigger.
-MIN_TOLERANCE_DEG = 0.0003
+#: The finest a line is simplified to, in degrees: about 5.5 m north to
+#: south, under half a pixel at zoom 15 -- close in, as far as the map
+#: zooms, the line stays on the chart's own ring. At 0.0003 (33 m) it
+#: was 9 px off at zoom 15, as the box asked for carries no zoom. A box
+#: further out is simplified further (tolerance_for), as its pixels are
+#: bigger.
+MIN_TOLERANCE_DEG = 0.00005
 
 #: A box is the view and as much again round it (the web's aheadOf),
-#: about three screens tall, and a screen is under a thousand pixels: a
-#: six-thousandth of the box is under a pixel at any zoom.
-TOLERANCE_PER_BOX = 1 / 6000
+#: about three screens tall, and a screen is under a thousand pixels; but
+#: it is rounded out to half degrees, so close in a box is far taller than
+#: the view. A twelve-thousandth: the half-degree box asked for close in
+#: comes to the floor above, and a box further out stays under a pixel.
+TOLERANCE_PER_BOX = 1 / 12000
 
 
 def tolerance_for(south: float, north: float) -> float:

@@ -68,4 +68,4 @@ def test_a_volume_cut_by_the_box_has_no_line_along_the_boxs_edge(chicago):
 
 def test_a_box_far_out_is_simplified_further_than_one_close_in():
     assert airspace_map.tolerance_for(42.0, 42.5) == airspace_map.MIN_TOLERANCE_DEG
-    assert airspace_map.tolerance_for(36.0, 48.0) == pytest.approx(0.002)
+    assert airspace_map.tolerance_for(36.0, 48.0) == pytest.approx(0.001)

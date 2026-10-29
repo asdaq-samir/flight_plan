@@ -9,7 +9,8 @@ import type { AirspaceVolume } from "../api/types";
  * including" it (the file's TNI, a Class D under a Class B shelf: "-30").
  * A Class C's top is the file's number, where the chart prints "T" for a
  * shelf that ends at the Class B over it: the owner's pick ("36"), as the
- * number says how high.
+ * number says how high. A Class B or C top the file marks TNI wears the
+ * same minus as a Class D's ("-40"): the airspace stops under it.
  */
 export type AirspaceLabel =
   | { kind: "shelf"; top: string; floor: string }
@@ -28,5 +29,5 @@ export function airspaceLabel(
   if (volume.airspace_class === "D") {
     return { kind: "ceiling", ceiling: `${volume.ceiling_excluded ? "-" : ""}${hundreds(volume.ceiling_ft)}` };
   }
-  return { kind: "shelf", top: hundreds(volume.ceiling_ft), floor: volume.floor_sfc ? "SFC" : hundreds(volume.floor_ft) };
+  return { kind: "shelf", top: `${volume.ceiling_excluded ? "-" : ""}${hundreds(volume.ceiling_ft)}`, floor: volume.floor_sfc ? "SFC" : hundreds(volume.floor_ft) };
 }
