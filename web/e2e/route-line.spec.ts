@@ -60,15 +60,20 @@ test("FPL's route line folds to the way picked, None at first, and a chip tapped
   await expect(sideDrawer(page).getByTestId("route-routes")).toHaveCount(0);
   const line = sideDrawer(page).getByTestId("route-line");
   const picked = line.getByTestId("route-line-picked");
-  // Folded to None, the route as typed, planned at once; what it meets said.
-  await expect(picked).toHaveText("None", { timeout: slow(30_000) });
-  await expect(picked).toHaveAccessibleName(/None, the route as typed, crosses storms/);
+  // Folded to one row over the fields (the owner's K1, 2026-10-29): None,
+  // the route as typed, planned at once, with its time; what it meets said.
+  await expect(picked).toHaveText(/^None/, { timeout: slow(30_000) });
+  await expect(line.getByTestId("route-line-toggle")).toHaveAccessibleName(/None, the route as typed, .*crosses storms, 2 more/);
+  // Over the route's fields, not among them.
+  const lineBox = (await line.boundingBox())!, fields = (await sideDrawer(page).getByTestId("procedures").boundingBox())!;
+  expect(lineBox.y + lineBox.height).toBeLessThanOrEqual(fields.y + 1);
   await expect.poll(() => planned.length, { timeout: slow(15_000) }).toBeGreaterThan(0);
 
-  // Opened: every way a chip, and drawn on the chart beside the course.
+  // Opened: every way a card, its time over its name, and drawn on the
+  // chart beside the course.
   await picked.click();
   const chips = line.getByTestId("route-line-chip");
-  await expect(chips).toHaveText(["None", "Avoid Weather", "Fastest"]);
+  await expect(chips).toHaveText([/None$/, /Avoid Weather$/, /Fastest$/]);
   await expect(page.locator("[data-route-way]")).toHaveCount(2);
 
   // A chip tapped: the route at once, its fuel stop named, and planned.
@@ -84,7 +89,7 @@ test("FPL's route line folds to the way picked, None at first, and a chip tapped
   await expect(chips.filter({ hasText: "None" })).toHaveAttribute("data-state", "on");
 });
 
-test("the route line stays open until its glyph folds it, to the chip picked", async ({ page }) => {
+test("the routes stay open until their row folds them, to the way picked", async ({ page }) => {
   await ways(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
@@ -99,7 +104,7 @@ test("the route line stays open until its glyph folds it, to the chip picked", a
   await expect(line.getByTestId("route-line-chip")).toHaveCount(3);
   await expect(page.locator("[data-route-way]")).not.toHaveCount(0);
   await line.getByTestId("route-line-toggle").click();
-  await expect(line.getByTestId("route-line-picked")).toHaveText("Fastest");
+  await expect(line.getByTestId("route-line-picked")).toHaveText(/^Fastest/);
   await expect(line.getByTestId("route-line-chip")).toHaveCount(0);
   await expect(page.locator("[data-route-way]")).toHaveCount(0);
 });

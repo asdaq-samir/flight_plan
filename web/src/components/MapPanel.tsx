@@ -6,8 +6,9 @@ import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
   GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
-  sheetSettle, type MapInsets, type PanelState,
+  sheetSettle, useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
+import { useOpenCards } from "../lib/openCards";
 import { SheetCardHost } from "./SheetCard";
 import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
@@ -401,6 +402,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The bar shown: the sheet's first row out of the pill, over its head or
   // the console's layer with no head of its own.
   const barShown = !!bar && !(onPhone && keyboard);
+  // The card up draws its own head over a picture (lib/openCards), and
+  // the tabs asked for over it (TabBar): for `ownHead`, below.
+  const pictureCard = useOpenCards(s => s.picture);
+  const tabsShown = useTabsShown(s => s.shown);
   // A card from another tab over this one, on a phone held upright: the
   // tab bar minimized to the card's kind, Back at its left, as iOS's
   // navigation bar is; else the tabs, at the owner's ask. Wider, a card
@@ -570,6 +575,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // the frame before, 786.7, 112.3 after), the "snap at the end" the owner
   // felt (2026-10-27).
   const pillLaid = pillShape || settling;
+  // An airport's or an airplane's card draws its own head over its
+  // picture out of the pill, its share and its close on it (PhotoHead), at
+  // the owner's pick of the cards' redesign (A2, 2026-10-29): the
+  // minimized bar left out over it there, and the grabber laid over the
+  // picture's top, as Maps lays its own over a place's photos. In the pill
+  // the bar as ever, and with the tabs asked for there, the tabs.
+  const ownHead = pictureCard && layer === "card" && !cardsUp && !pillLaid && !tabsShown;
+  const barHere = barShown && !ownHead;
   // The head's row: in the pill only without a tab bar (whose pill is the
   // bar), out of it wherever there is a top row or no bar shown.
   const headerShown = pillShape ? !bar : top != null || !barShown;
@@ -753,7 +766,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const put = (offset: number) => { row.style.transform = Math.abs(offset) < 0.5 ? "" : `translateY(${offset}px)`; };
     const stop = () => { barMove.current?.cancel(); barMove.current = null; };
     // Its own row only: put away in the figures' pill, or with the keyboard.
-    if (!fromBottom || !onPhone || figuresPill || !barShown) {
+    if (!fromBottom || !onPhone || figuresPill || !barHere) {
       barWas.current = null;
       stop();
       put(0);
@@ -778,7 +791,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       [{ transform: `translateY(${from}px)` }, { transform: `translateY(${to}px)` }],
       { duration: settleOf.seconds * 1000, easing: "cubic-bezier(0, 0, 0.58, 1)", fill: "forwards" },
     );
-  }, [barLaid, barRests, barUnder, dragged, fromBottom, onPhone, figuresPill, barShown, settleOf.seconds]);
+  }, [barLaid, barRests, barUnder, dragged, fromBottom, onPhone, figuresPill, barHere, settleOf.seconds]);
 
   // The figures carried from where they were to where the pill lays them,
   // in the sheet's time, where the foot's change of layout put them there
@@ -1025,15 +1038,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // sheet five, as iOS's.
         fromBottom ? (pillLaid ? "items-start pt-[2px]" : "items-start pt-[5px]") : (pillLaid ? "items-end pb-[2px]" : "items-end pb-[5px]"),
         pillLaid && cn("absolute inset-x-0 z-10 after:hidden!", fromBottom ? "top-0" : "bottom-0"),
-        fromFoot && "absolute inset-x-0 top-0 z-10",
+        (fromFoot || ownHead) && "absolute inset-x-0 top-0 z-10",
         // Its hit area (index.css) wide but no further into the head than
         // four points: the route's box starts four under it. Over the head
         // on the sheet's edge (fromFoot), its own box only: drawn over the
         // tabs there, it took the top of their 44 points (the iOS audit's P1).
-        !pillLaid && (fromBottom ? (fromFoot ? "after:bottom-0! after:top-0!" : "after:bottom-[-4px]! after:top-0!") : "after:top-[-4px]! after:bottom-0!"),
+        !pillLaid && (fromBottom ? (fromFoot || ownHead ? "after:bottom-0! after:top-0!" : "after:bottom-[-4px]! after:top-0!") : "after:top-[-4px]! after:bottom-0!"),
       )}
     >
-      <span className="h-[5px] w-9 rounded-full bg-muted-foreground/40" aria-hidden="true" />
+      {/* Over a card's picture (ownHead), white with a shade, as Maps'
+          is over a place's photos: the grey was lost on a dark one. */}
+      <span className={cn("h-[5px] w-9 rounded-full", ownHead ? "bg-white/75 shadow-[0_0_3px_rgba(0,0,0,.5)]" : "bg-muted-foreground/40")} aria-hidden="true" />
     </button>
   );
 
@@ -1127,7 +1142,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // under a sheet's first row, set them high in the pill, the room
               // under them twice that over (the owner's "Not centered in the
               // bottom pill").
-              "flex shrink-0 px-2", pillLaid ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barShown && "hidden",
+              "flex shrink-0 px-2", pillLaid ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barHere && "hidden",
               // In the pill the pill's whole, round its grabber; out of it,
               // under a card's name, the line under the sheet's first row --
               // under the tabs, the tabs' own line of glass (TabGlass).
@@ -1146,7 +1161,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         {/* Under the tab bar, the route's box and its buttons a shade
             darker too (SHEET_BELOW), for the clear glass to stand off it
             (the owner's "So clear buttons can pop out more"). */}
-        <div className={cn("relative flex flex-col", bar && barShown && !pillShape && SHEET_BELOW)}>
+        <div className={cn("relative flex flex-col", bar && barHere && !pillShape && SHEET_BELOW)}>
         {crossFade && (
           <div aria-hidden="true" inert className="pointer-events-none absolute inset-x-0 top-0 z-10 p-[9px]" style={{ opacity: 1 - morph }}>
             {compact}
@@ -1211,7 +1226,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // content is not scrolling (useDetentDrag).
         ref={setBodyRef}
         className={cn(
-          "flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn("border-t", !fromBottom && "pb-4"),
+          "flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn(!ownHead && "border-t", !fromBottom && "pb-4"),
           // A shade darker than the head over it, at the owner's ask ("Can
           // we try a bit darker color for sheet below the top frosty
           // bar?"), as iOS's grouped lists sit a shade under their bar:

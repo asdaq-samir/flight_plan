@@ -49,6 +49,10 @@ export async function showTabs(page: Page) {
   // layout, tabs and all, until it lands (MapPanel), and tabs seen then
   // were gone a moment later under the route's figures.
   await settled(sideDrawer(page));
+  // An airport's or an airplane's card over its pictures has its own
+  // share and close out of the pill, the minimized bar left out over it
+  // (MapPanel's ownHead): its bar is the pill's.
+  if (await sideDrawer(page).locator("[data-picture-head]").isVisible()) await grabberTo(page, "peek");
   const title = page.getByTestId("tab-title");
   // The minimized line can turn back into the tabs by itself as it is
   // tapped -- the card it named put away by the step before -- so the tap

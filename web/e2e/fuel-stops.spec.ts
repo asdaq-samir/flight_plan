@@ -117,16 +117,15 @@ test("a suggested stop's pin opens its card with its figures", async ({ page }) 
   await expect(page).toHaveURL(/[?&]fuel=KRPD(&|$)/);
 });
 
-test("the airport's Info says its fuel, what is on the field and the places near it", async ({ page }) => {
+test("the airport's card says its fuel in its details, and what is on the field and the places near it at its foot", async ({ page }) => {
   await page.route(url => url.pathname.endsWith("/airport/KRPD/services"), route => route.fulfill({ json: SERVICES }));
   await page.goto("/app/plan?place=KRPD");
   const card = page.getByTestId("place-card");
   await expect(card).toBeVisible({ timeout: slow(30_000) });
-  const info = card.getByTestId("place-tab-radio");
-  if (await info.isVisible()) await info.click();
+  const details = card.getByTestId("place-details");
+  await expect(details.getByTestId("services-fuel")).toContainText("100LL, Jet A");
+  await expect(details).toContainText("24 hour self serve fuel.");
   const services = card.getByTestId("place-services");
-  await expect(services.getByTestId("services-fuel")).toContainText("100LL, Jet A");
-  await expect(services).toContainText("24 hour self serve fuel.");
   await expect(services.getByTestId("services-courtesy-car")).toBeVisible();
   await expect(services.getByTestId("services-food")).toContainText(/Runway Diner.*4 min walk/);
   await expect(services.getByTestId("services-food")).toHaveAttribute("href", "tel:+17155550100");

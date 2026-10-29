@@ -235,11 +235,6 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // The close button should behave like the back button", 2026-10-20).
   const share = useOpenCards(s => s.share);
   const shareInstead = back && (typeof share === "function" || (typeof share === "string" && !!routeShare));
-  useEffect(() => {
-    const barMinimized = minimized && !consoleOpen;
-    useOpenCards.setState({ barMinimized });
-    return () => useOpenCards.setState({ barMinimized: false });
-  }, [minimized, consoleOpen]);
   // A swipe across the panel goes back only, at the owner's ask ("let's
   // not support swipe to switch tabs... Swipe should only support going
   // back"): to the right, as iOS's swipe back goes, what the bar's close
@@ -280,7 +275,8 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
       for (let el = target as HTMLElement | null; el && el !== panel; el = el.parentElement) {
         // A route's point is dragged as a finger slides it (RouteBox's
         // dnd-kit sortables say so with aria-roledescription).
-        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], [aria-roledescription], [data-point], [data-lens], .leaflet-container")) return true;
+        // A card's pictures (PhotoHead) swipe to their next page.
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], [aria-roledescription], [data-point], [data-lens], [data-slot=carousel], .leaflet-container")) return true;
         const overflow = getComputedStyle(el).overflowX;
         if ((overflow === "auto" || overflow === "scroll") && el.scrollWidth > el.clientWidth + 1) return true;
       }

@@ -244,7 +244,7 @@ test("a Favorite is taken off as a Recent is: a swipe to the left uncovers its D
   await expect(list).toContainText("A star on an airport's card adds it here");
 });
 
-test("on a phone, an airport's card opened from another tab has Share at the top left of the tabs' line, and its close goes back", async ({ page }) => {
+test("on a phone, an airport's card opened from another tab has Share at the top left of the pill's line and on its pictures, and its close goes back", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize on a phone only");
   // An airport's card over FPL (a route's field): the bar its kind, Share
   // where Back was and the close going back as Back did, at the owner's
@@ -254,6 +254,13 @@ test("on a phone, an airport's card opened from another tab has Share at the top
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
+  // Half way its share and close on its pictures, the owner's pick of the
+  // redesign (A2): the bar left out over them.
+  await expect(panel.getByTestId("place-share")).toHaveAccessibleName("Share KDLH");
+  await expect(panel.getByTestId("place-close")).toBeInViewport();
+  await expect(page.getByTestId("tab-share")).toBeHidden();
+  // In the pill, the bar's.
+  await grabberTo(page, "peek");
   const share = page.getByTestId("tab-share");
   await expect(share).toHaveAccessibleName("Share KDLH");
   await expect(page.getByTestId("tab-back")).toHaveCount(0);
@@ -262,8 +269,6 @@ test("on a phone, an airport's card opened from another tab has Share at the top
   // At the left, on the tab label's line; the card's own close gone.
   expect(shareBox.x + shareBox.width).toBeLessThan(title.x);
   expect(Math.abs(shareBox.y + shareBox.height / 2 - (title.y + title.height / 2))).toBeLessThanOrEqual(2);
-  // Out of sight, kept for a keyboard and a screen reader (CardClose).
-  expect(await panel.getByTestId("place-close").evaluate(el => !!el.closest(".sr-only"))).toBe(true);
   const close = page.getByTestId("tab-close");
   expect((await close.boundingBox())!.x).toBeGreaterThan(title.x + title.width);
   // Shared: the field's card on the planner, by its address.
@@ -287,6 +292,8 @@ test("on a phone, a tap anywhere on the tabs' minimized line shows the tabs, but
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
+  // The line the pill's: half way the card's pictures have its own (A2).
+  await grabberTo(page, "peek");
   const title = page.getByTestId("tab-title");
   const back = (await page.getByTestId("tab-share").boundingBox())!;
   const close = (await page.getByTestId("tab-close").boundingBox())!;
@@ -299,6 +306,7 @@ test("on a phone, a tap anywhere on the tabs' minimized line shows the tabs, but
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
+  await grabberTo(page, "peek");
   expect(close.x).toBeGreaterThan(line.x);
   await page.getByTestId("tab-close").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
@@ -442,11 +450,15 @@ test("with Back showing, a swipe across the panel goes back, not to the tab besi
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
+  // On the pill's line: half way the card's pictures take a swipe across
+  // to their next page (PhotoHead).
+  await grabberTo(page, "peek");
   await expect(page.getByTestId("tab-share")).toBeVisible();
   // To the left, nothing: no tab beside, and nothing forward.
   await swipeAcross(page, -130);
   await page.waitForTimeout(300);
-  await expect(panel.getByTestId("place-card")).toBeVisible();
+  // Still open, under the pill's line.
+  await expect(panel.getByTestId("place-card")).toBeAttached();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
   // To the right, back: the card put away, FPL as it was.
   await swipeAcross(page, 130);

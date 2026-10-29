@@ -18,6 +18,7 @@ def _empty_queue(monkeypatch):
     monkeypatch.setattr(chart_model, "_AHEAD", deque())
     monkeypatch.setattr(chart_model, "_RUNNING", 0)
     monkeypatch.setattr(chart_model, "_RUNNING_AHEAD", 0)
+    monkeypatch.setattr(chart_model, "_AWAITED", set())
 
 
 class _Pool:
@@ -169,8 +170,8 @@ def _held(monkeypatch, tmp_path):
     return pool
 
 
-def _ask(route, ahead=False):
-    return chart_model._reading((route, 4.0), (42.0, -88.0), (43.0, -89.0), ahead=ahead)
+def _ask(route, ahead=False, waited=False):
+    return chart_model._reading((route, 4.0), (42.0, -88.0), (43.0, -89.0), ahead=ahead, waited=waited)
 
 
 def test_a_read_waited_on_goes_before_the_reads_ahead_and_those_newest_first(monkeypatch, tmp_path):
@@ -213,3 +214,85 @@ def test_past_a_few_reads_ahead_the_oldest_are_dropped(monkeypatch, tmp_path):
     # Asked for again, by a route that waits on it: read.
     again = _ask(routes[1])
     assert again is not futures[1] and not again.done() and pool.asked == [routes[0], routes[1]]
+
+
+def test_reads_a_request_ahead_waits_on_leave_a_process_for_the_pilots_route(monkeypatch, tmp_path):
+    """The web app planning Recents and Saved routes while the page is
+    idle waits on its reads, but they are reads ahead: one at a time,
+    behind the route the pilot is planning, which reads at once -- asked
+    as waited-on reads, two of them took both processes (3.9 s for
+    KFOD-KMCW's checkpoints, 0.7 to 1.1 alone)."""
+    pool = _held(monkeypatch, tmp_path)
+    recent, saved = _ask("KBMI->KSPI", ahead=True, waited=True), _ask("KMKT->KRST", ahead=True, waited=True)
+    assert pool.asked == ["KBMI->KSPI"]
+    pilots = _ask("KFOD->KMCW")
+    assert pool.asked == ["KBMI->KSPI", "KFOD->KMCW"]
+    pool.reads["KFOD->KMCW"].set_result(None)
+    assert pilots.done() and pool.asked == ["KBMI->KSPI", "KFOD->KMCW"]
+    pool.reads["KBMI->KSPI"].set_result(None)
+    assert recent.done() and pool.asked[-1] == "KMKT->KRST"
+    pool.reads["KMKT->KRST"].set_result("no tiles")
+    assert saved.result() == "no tiles"
+
+
+def test_a_read_ahead_that_a_request_waits_on_is_never_dropped(monkeypatch, tmp_path):
+    pool = _held(monkeypatch, tmp_path)
+    _ask("A->B", ahead=True)
+    waited = _ask("W->X", ahead=True, waited=True)
+    # A read ahead nobody waits on yet, then waited on by a request ahead.
+    typed = _ask("T->U", ahead=True)
+    assert _ask("T->U", ahead=True, waited=True) is typed
+    routes = [f"R{i}->S{i}" for i in range(chart_model.AHEAD_KEPT + 3)]
+    dropped = [_ask(route, ahead=True) for route in routes]
+    assert not waited.cancelled() and not typed.cancelled()
+    # Past AHEAD_KEPT of those nobody waits on, the oldest go.
+    assert [f.cancelled() for f in dropped] == [True] * 3 + [False] * chart_model.AHEAD_KEPT
+    pool.reads["A->B"].set_result(None)
+    for route in reversed(routes[3:]):
+        assert pool.asked[-1] == route
+        pool.reads[route].set_result(None)
+    assert pool.asked[-1] == "T->U"
+    pool.reads["T->U"].set_result(None)
+    assert pool.asked[-1] == "W->X"
+    pool.reads["W->X"].set_result(None)
+    assert waited.done() and not waited.cancelled() and chart_model._AWAITED == set()
+
+
+def test_a_request_ahead_gets_the_same_corridor_as_the_pilots(monkeypatch, tmp_path):
+    pool = _hop_stubs(monkeypatch, tmp_path, [None, None])
+    landmark = {"name": "Lake Koshkonong"}
+    monkeypatch.setattr(chart_model, "detect_job", lambda *a: {
+        "cond": threading.Condition(), "done": True, "error": None, "blocks": [{"landmarks": [landmark]}]})
+    pilots = chart_model.corridor("KORD->KNEW", wait=True)
+    monkeypatch.setattr(chart_model, "_READING", {})
+    token = chart_model.READ_AHEAD.set(True)
+    try:
+        ahead = chart_model.corridor("KORD->KNEW", wait=True)
+    finally:
+        chart_model.READ_AHEAD.reset(token)
+    assert ahead == pilots == [landmark] and len(pool.asked) == 2
+
+
+def test_ahead_in_the_address_makes_the_requests_reads_ahead_in_its_stream_too(monkeypatch):
+    """Set by an async dependency, so the endpoint's thread and the nav
+    log's streamed body, each run in a copy of the request's context, see
+    it; and only for that request."""
+    from fastapi import HTTPException
+    from fastapi.testclient import TestClient
+
+    from app import scoring
+    from app.main import app
+
+    seen = []
+
+    def score(dep, dest):
+        seen.append(chart_model.READ_AHEAD.get())
+        raise HTTPException(502, "stubbed")
+
+    monkeypatch.setattr(scoring, "score", score)
+    client = TestClient(app)
+    params = {"dep": "C81", "dest": "KDLH"}
+    for path in ("/api/checkpoints", "/api/navlog"):
+        client.get(path, params={**params, "ahead": "true"})
+        client.get(path, params=params)
+    assert seen == [True, False, True, False]

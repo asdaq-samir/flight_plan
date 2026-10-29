@@ -782,7 +782,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         if (from) backToTab.current(from);
       })}
       onOpenAirport={openAirportOverFlight}
-      onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
     /></Suspense> : null;
   // The ident as a string of its own (`${…}`): the route's object's field
   // handed straight to a function counted, to the React Compiler, as the
@@ -1514,7 +1513,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           checkpoints: showWaypoints, rules: flightRules,
         };
         // Asked for and let go, the page's cache as it was.
-        const ask = async (query: { queryKey: readonly unknown[] }) => {
+        const ask = async (query: { queryKey: readonly unknown[]; queryFn?: unknown }) => {
           if (gone || queryClient.getQueryState(query.queryKey)) return;
           await queryClient.fetchQuery({ ...query, meta: { silent: true } } as Parameters<typeof queryClient.fetchQuery>[0]).catch(() => {});
           if (!queryClient.getQueryCache().find({ queryKey: query.queryKey, exact: true })?.getObserversCount()) {
@@ -1522,8 +1521,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           }
         };
         await ask(courseQuery(dep, dest, via));
-        if (showWaypoints) await ask(checkpointsQuery(dep, dest, via));
-        await ask(navlogQuery(plan, showWaypoints));
+        // Marked ahead, the planner's chart reads for them queued behind
+        // the pilot's own (the planner's chart_model.READ_AHEAD): unmarked,
+        // two took both its readers and a route just typed waited 3.85 s
+        // for one (the planner's measurement, 2026-10-29).
+        if (showWaypoints) {
+          await ask({ queryKey: ["checkpoints-ahead", dep, dest, via.join(",")], queryFn: () => api.checkpoints(dep, dest, via, undefined, true) });
+        }
+        await ask(navlogQuery(plan, showWaypoints, true));
       }
     });
     return () => { gone = true; cancel(handle); };
@@ -2331,8 +2336,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       };
       return words[h.kind] ?? "Crosses weather";
     };
-    return { chips: chips.map(c => ({ key: c.key, label: c.label, warning: warning(c.crosses ?? []) })), picked: lineKey, onPick: applyChip };
-  }, [vfrRoute, chips, routeWays, lineKey, applyChip]);
+    // Each way's whole time, as its line on the chart says it: the route as
+    // typed by its own nav log's, the planner's ways on the route's clock
+    // (gridScale), their stops' times in them.
+    const minutes = browsing ? browsing.ownMinutes : ownMinutes;
+    const ground = browsing ? browsing.ownGround : ownGround;
+    const scale = gridScale(routeWays, minutes);
+    const timeOf = (chip: (typeof chips)[number]): string | null => {
+      if (chip.key === "none") return minutes === null ? null : duration(minutes + ground);
+      const way = chip.key === "fuel" ? routeWays?.own : routeWays?.options.find(o => sameStops(o.stops, chip.stops));
+      return way ? wayTime(way, scale) : null;
+    };
+    return {
+      chips: chips.map(c => ({ key: c.key, label: c.label, warning: warning(c.crosses ?? []), time: timeOf(c) })), picked: lineKey, onPick: applyChip,
+    };
+  }, [vfrRoute, chips, routeWays, lineKey, applyChip, browsing, ownMinutes, ownGround]);
 
   // The chips' ways on the chart beside the course while the line is open,
   // each its time on its chip, the one picked solid (the owner's "I want
@@ -2569,14 +2587,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
   const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Stops" : undefined);
-  // The airport's card: all the way up in the panel's body; at the pill's
-  // size its summary, the pill's own (`summary`), as a tap on the map opens
-  // it, at the owner's pick of the redesign.
-  const placeCard = (summary: boolean) => place && (
+  // The airport's card, in the panel's body.
+  const placeCard = place && (
     <Suspense fallback={null}>
       <PlaceCard
-        key={place} ident={place} from={measuredFrom} summary={summary}
-        onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
+        key={place} ident={place} from={measuredFrom}
+        onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
         // None for a point of the route, or past the planner's most stops.
         onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined
           : suggestedAt ? () => keepFuelStops(suggestedAt.after, [place]) : addStop}
@@ -2786,7 +2802,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {place ? (
           // Mounted at the pill as well, out of sight, so the minimized
           // tabs' Back there has a card to close.
-          placeCard(false)
+          placeCard
         ) : heldPoint ? (
           <Suspense fallback={null}>
             <AirspaceCard
