@@ -3202,6 +3202,17 @@
             "title": "Base",
             "type": "boolean"
           },
+          "cycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cycle"
+          },
           "kind": {
             "title": "Kind",
             "type": "string"
@@ -3225,6 +3236,11 @@
             },
             "title": "Over",
             "type": "array"
+          },
+          "revision": {
+            "default": 0,
+            "title": "Revision",
+            "type": "integer"
           },
           "sheets": {
             "default": [],
