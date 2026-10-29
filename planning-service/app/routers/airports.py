@@ -373,6 +373,14 @@ def airport_place(ident: str) -> AirportPlace:
         metar = weather.metar_for_idents([source]).get(source)
     except weather.WeatherServiceError:
         metar, unavailable = None, True
+    # Its own forecast, the TAF as issued, for the card's hours: none for
+    # most fields, and none asked for where the weather service is out.
+    taf = None
+    if not unavailable:
+        try:
+            taf = (weather.taf_for_idents([source]).get(source) or {}).get("raw")
+        except weather.WeatherServiceError:
+            taf = None
     military, private = _owners([place])[0]
     # No report of its own: the nearest station's, close enough to say
     # its weather approximately (vfr.weather.nearest_report).
@@ -407,6 +415,7 @@ def airport_place(ident: str) -> AirportPlace:
         "metar": metar,
         "nearby_metar": nearby,
         "modelled_weather": modelled,
+        "taf": taf,
         "weather_unavailable": unavailable,
         # Its phone and street address, for the card's Call and Address.
         **faa_data.airport_contact(place["ident"], altitude.DEFAULT_FAA_CACHE_DIR),

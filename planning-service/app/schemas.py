@@ -2123,6 +2123,10 @@ class AirportPlace(BaseModel):
     #: field for the hour (vfr.glmp): the card's category, marked
     #: modelled, before a near station's.
     modelled_weather: ModelledWeather | None = None
+    #: Its own TAF as issued, where it has one -- most fields have none:
+    #: the card's hour-by-hour forecast is read from it (web lib/hourly),
+    #: and the text is the pilot's to read as sent.
+    taf: str | None = None
     weather_unavailable: bool = False
     # Its phone and one-line street address, from the FAA's airport file
     # (vfr.faa_data.airport_contact): the manager's, else the owner's; None
