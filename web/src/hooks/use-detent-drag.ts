@@ -39,6 +39,21 @@ function speedAt(track: Track, now: number) {
   return (last.y - first.y) / Math.max(last.t - first.t, 1);
 }
 
+/** Where each phone sheet says its edge is on the screen, read from the
+ *  look it is painted at (MapPanel), for the map going with it frame by
+ *  frame (sheetSlide): read from the page, its box was laid out afresh at
+ *  every frame of a move. Kept here, with the drag, so that neither has to
+ *  load the other's module. */
+export const sheetEdges = new WeakMap<Element, SheetSays>();
+
+/** What a phone's sheet says of where it is: its edge on the screen now,
+ *  and, while it moves by itself, the animation moving it and its edge at
+ *  either end -- for the map to go in step with it on the compositor. */
+export interface SheetSays {
+  edge: () => number;
+  move: () => { run: Animation; from: number; to: number } | null;
+}
+
 interface Latest<S extends string> {
   detents: Record<S, number>;
   shown: number;

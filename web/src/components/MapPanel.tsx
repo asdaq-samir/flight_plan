@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { cn } from "cn";
-import { useDetentDrag } from "../hooks/use-detent-drag";
+import { sheetEdges, useDetentDrag, type SheetSays } from "../hooks/use-detent-drag";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
@@ -121,6 +121,22 @@ if (typeof window !== "undefined") {
 }
 const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
 
+/** Where the map's buttons and its credits ride on the sheet's top
+ *  (--sheet-cover, index.css): a rule of their own, set on them alone.
+ *  Set on <body>, an inherited property, every change of it restyled the
+ *  whole page -- 666 elements, 177 to 260 ms of a phone's (4x) in the
+ *  first frame of every turn, before the sheet had moved (traced on the
+ *  phone project, half to the pill, 2026-10-28). */
+let coverDeclaration: CSSStyleDeclaration | null = null;
+const coverRule = () => {
+  if (!coverDeclaration) {
+    const sheet = document.head.appendChild(document.createElement("style")).sheet!;
+    sheet.insertRule("[data-map-controls], [data-map-food], .leaflet-bottom {}", 0);
+    coverDeclaration = (sheet.cssRules[0] as CSSStyleRule).style;
+  }
+  return coverDeclaration;
+};
+
 /** A card's width from `md` up: 24rem. */
 const CARD = 384;
 
@@ -173,7 +189,26 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  *  dark's grey as it was, set again here as the light's is set. */
 const SHEET_BELOW = "[--muted-foreground:oklch(0.5_0_0)] [--tint:var(--tint-shade)] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
 
-export default function MapPanel({ label, top, kept, controls, compact, children, state, onStateChange, onInsetsChange, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
+export default function MapPanel({ label, top, kept, controls, compact, children, state: pageState, onStateChange: tellPage, onInsetsChange: tellInsets, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
+  // A size asked for in the panel itself -- its grabber, a key, a finger
+  // let go, the tab bar's taps -- shown at once, and the page told once the
+  // sheet has landed (below): told at once, the page drew the whole
+  // workspace again for the new size before the sheet could move, 140 ms
+  // of a phone's (4x) in the key's own task (traced on the phone project,
+  // half to the pill, 2026-10-28). What the page sets itself comes as it
+  // always did.
+  // Kept until the page is at it, through the page's own commits of the
+  // sizes asked before it on the way (a tap after a tap): let go at the
+  // first, the sheet went back a size for a frame and the grabber's next
+  // tap the wrong way. A size the page sets of its own lets it go.
+  const [askedHere, setAskedHere] = useState<{ to: PanelState; sent: PanelState[]; seen: PanelState } | null>(null);
+  if (askedHere && askedHere.seen !== pageState) {
+    setAskedHere(pageState === askedHere.to || !askedHere.sent.includes(pageState) ? null : { ...askedHere, seen: pageState });
+  }
+  const state = askedHere && (pageState === askedHere.seen) ? askedHere.to : pageState;
+  const onStateChange = useCallback((to: PanelState) => {
+    setAskedHere(was => ({ to, sent: [...(was?.sent ?? []), to], seen: pageState }));
+  }, [pageState]);
   // A tab's options for a tab, a card's for a card: what each layer takes.
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
@@ -458,6 +493,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     "--corner-inset": `calc(${headPad} - ${bodyPad} + (2.5625rem - 36px) / 2)`,
   } as CSSProperties;
 
+  // A phone's sheet from the bottom moved by the compositor
+  // (useSheetMotion), the page's style keeping its box only elsewhere: a
+  // card from `md` up, a sheet from the top, and with the keyboard up.
+  const slides = onPhone && fromBottom && !keyboard && measured;
   // A drag on the grabber or the head follows the finger, and lets go to
   // the detent it was heading for (useDetentDrag).
   const shown = dragged ?? detents[state];
@@ -468,11 +507,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // left it.
   const target = detents[state];
   const draggingNow = dragged !== null;
-  const [settleOf, setSettleOf] = useState({ target, dragging: draggingNow, seconds: SHEET_SECONDS });
+  // Whether it is on its way there (`moving`), on a phone moved by the
+  // compositor until it has landed (useSheetMotion).
+  const [settleOf, setSettleOf] = useState({ target, dragging: draggingNow, seconds: SHEET_SECONDS, moving: false });
   if (settleOf.target !== target || settleOf.dragging !== draggingNow) {
     const from = settleOf.dragging && !draggingNow ? lastDragged ?? settleOf.target : settleOf.target;
     const seconds = Math.min(SETTLE_MOST, Math.max(SETTLE_LEAST, (SHEET_SECONDS * Math.abs(target - from)) / SETTLE_POINTS));
-    setSettleOf({ target, dragging: draggingNow, seconds: draggingNow ? settleOf.seconds : Math.round(seconds * 100) / 100 });
+    setSettleOf({ target, dragging: draggingNow, seconds: draggingNow ? settleOf.seconds : Math.round(seconds * 100) / 100, moving: !draggingNow && slides });
   }
   const settle = useMemo(() => sheetSettle(settleOf.seconds), [settleOf.seconds]);
   // A phone's panel takes Maps' three shapes: the capsule at rest; in
@@ -491,16 +532,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // and then becomes a floating tabs").
   const shape: "capsule" | "inset" | "edge" = capsule || settling ? "capsule" : nearFull ? "edge" : "inset";
   const edgeRadius = fromBottom ? `${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px 0 0` : `0 0 ${SHEET_INSET_RADIUS}px ${SHEET_INSET_RADIUS}px`;
+  const pillCorner = Math.min(PILL_RADIUS, (headHeight + footHeight) / 2);
   const geometry = {
     // As wide as the sheet in from the edges, at the owner's ask ("let's
     // make the width of minimal to half card layout").
-    capsule: { side: SHEET_INSET, gap: capsuleGap, radius: `${Math.min(PILL_RADIUS, (headHeight + footHeight) / 2)}px` },
+    capsule: { side: SHEET_INSET, gap: capsuleGap, radius: `${pillCorner}px`, far: pillCorner, near: pillCorner },
     // Half way as all the way up: on the screen's sides and its edge, the
     // far corners round, at the owner's ask (2026-10-25, "the extra space
     // on the sides": the route box's buttons fit on the airplane's line).
     // It floated in from them by SHEET_INSET, as iOS 26's Maps does.
-    inset: { side: HALF_INSET, gap: HALF_INSET, radius: HALF_INSET > 0 ? `${SHEET_INSET_RADIUS}px` : edgeRadius },
-    edge: { side: 0, gap: 0, radius: edgeRadius },
+    inset: { side: HALF_INSET, gap: HALF_INSET, radius: HALF_INSET > 0 ? `${SHEET_INSET_RADIUS}px` : edgeRadius, far: SHEET_INSET_RADIUS, near: HALF_INSET > 0 ? SHEET_INSET_RADIUS : 0 },
+    edge: { side: 0, gap: 0, radius: edgeRadius, far: SHEET_INSET_RADIUS, near: 0 },
   }[shape];
   // A drag from the capsule turns it into the sheet as the finger goes
   // (MORPH), as Maps' does: it jumped to the sheet's shape and head at a
@@ -564,6 +606,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     geometry.side = between(SHEET_INSET, HALF_INSET, morph);
     geometry.gap = between(capsuleGap, HALF_INSET, morph);
     geometry.radius = fromBottom ? `${far}px ${far}px ${near}px ${near}px` : `${near}px ${near}px ${far}px ${far}px`;
+    geometry.far = far;
+    geometry.near = near;
   }
   // The way on from the body to the screen's edge, under the home
   // indicator: kept clear below the body, or the body's own (toEdge).
@@ -582,9 +626,18 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // lowest detent: its head alone, no controls.
     floor: hasPill ? capsuleHeight : undefined,
   });
+  // The body, for the motion to cut it off over the figures, and for the
+  // drag to hear a finger on it.
+  const [bodyNode, setBodyNode] = useState<HTMLDivElement | null>(null);
+  const setBodyRef = useCallback((node: HTMLDivElement | null) => {
+    dragBody(node);
+    setBodyNode(node);
+  }, [dragBody]);
   // Under a finger, or easing down to the pill: the body is drawn as all
-  // the way up while it is.
-  const isDragged = dragged !== null || settling;
+  // the way up while it is. On a phone for the whole of a move, which the
+  // page hears of only once it is over: what the workspace shows only out
+  // of the pill (FPL's strips) is in it from the start of the way up.
+  const isDragged = dragged !== null || settling || settleOf.moving;
   useEffect(() => {
     usePanelDragging.setState({ dragging: isDragged });
   }, [isDragged]);
@@ -593,6 +646,86 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     drag(event);
   };
 
+  // What it covers of the map where it has come to rest, for the map to
+  // fit a route clear of it, as Maps' route sits above its sheet: on a
+  // phone the capsule's strip at rest, and the half sheet out -- all the
+  // way up as well, where the map is hidden and what counts is what shows
+  // once it comes down; from `md` up the column at the left while it is
+  // out, or the corner it rests in while it is not. Not while dragged:
+  // the map refits once the panel settles (MapShell).
+  const expanded = state !== "peek";
+  // Half way and all the way up, what counts is the half sheet.
+  // Down at the pill, its strip at rest from the turn on, not the room
+  // the sheet takes on its way down: the map, sent to the middle of what
+  // the sheet left on the way (174 points, then 160), was slid on again
+  // once it landed (70), the map settling a second after the tabs had
+  // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
+  // settle down").
+  const pillRest = bar ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
+  const coveredOnPhone = expanded ? detents.half + HALF_INSET : hasPill ? pillRest + capsuleGap : peek;
+  const out = expanded;
+  const insetsNow = useMemo<MapInsets>(() => {
+    const up = state === "full";
+    if (!onPhone && state !== "peek") return { top: 0, bottom: 0, left: 16 + CARD, out: true, up };
+    const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
+    return fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up };
+  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone]);
+  // The panel, its head's band (below) and the body, as the page has them.
+  const [panel, setPanel] = useState<HTMLElement | null>(null);
+  const [headBand, setHeadBand] = useState<HTMLDivElement | null>(null);
+  const pageBox: CSSProperties = slides ? {} : {
+    height: shown,
+    ...(onPhone ? {
+      left: geometry.side, right: geometry.side,
+      ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
+      borderRadius: geometry.radius,
+    } : capsule ? { borderRadius: Math.min(PILL_RADIUS, (headHeight + footHeight) / 2) } : {}),
+  };
+  const spacerShown = !toEdge && (edgeRoom > 0 || (fromBottom && onPhone && !!bar && footShown));
+  const landed = useCallback(() => {
+    setSettling(false);
+    setTurning(false);
+    setSettleOf(was => (was.moving ? { ...was, moving: false } : was));
+  }, []);
+  const edges = useCallback((edge: SheetSays | null) => {
+    if (!panel) return;
+    if (edge) sheetEdges.set(panel, edge);
+    else sheetEdges.delete(panel);
+  }, [panel]);
+  const sheetParts = useCallback(() => ({ panel, head: headBand, body: bodyNode, foot: footNode }), [panel, headBand, bodyNode, footNode]);
+  useSheetMotion({
+    on: slides, parts: sheetParts,
+    look: {
+      h: shown, gap: geometry.gap, side: geometry.side, far: geometry.far, near: geometry.near,
+      foot: geometry.gap + (spacerShown ? (pillLaid ? 0 : edgeRoom) : 0),
+    },
+    dragging: dragged !== null,
+    // Under a finger laid out at half, and all the way up once past it.
+    dragRoom: h => (h > detents.half + 1 ? detents.full : detents.half),
+    sheetSide: HALF_INSET, seconds: settleOf.seconds, pinned: fromFoot, landed, edges,
+    pageKeys: Object.keys(pageBox), waiting: settleOf.moving || settling || turning, insets: insetsNow,
+  });
+  // The room it leaves the map told in a transition as a phone's sheet sets
+  // off, for the map's own moves at a turn (a point kept clear of the
+  // panel, Nearest's fit), which go in the sheet's time from its start;
+  // MapShell's turn has started already, on the sheet's event. Elsewhere
+  // (a card from `md` up, the page opening) told at once, as before: the
+  // map is placed for the room before it is first drawn.
+  const moving = slides && settleOf.moving;
+  useEffect(() => {
+    if (moving) startTransition(() => tellInsets(insetsNow));
+    else tellInsets(insetsNow);
+  }, [moving, insetsNow, tellInsets]);
+  // The size once the sheet is at rest, and never in a transition: the
+  // page's own setter puts all the way up in the address at once
+  // (flushSync), and with its size still to come in the transition it read
+  // all the way up out of the address as the pill, and the sheet went from
+  // all the way up to the pill and on to half for a frame (tab-bar.spec's
+  // grabber, route-fit.spec's map sliding with it).
+  const asking = askedHere && askedHere.to !== pageState ? askedHere.to : null;
+  useEffect(() => {
+    if (asking && !moving) tellPage(asking);
+  }, [asking, moving, tellPage]);
   // The tabs' row moves between its two places as the sheet does, not at
   // the turn: in the pill at its own margin (mt-1.5) from the top, in the
   // sheet under the grabber -- ten points apart, where it jumped as the
@@ -683,37 +816,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     );
   }, [pillLaid, footNode, dragged, settleOf.seconds]);
 
-  // What it covers of the map where it has come to rest, for the map to
-  // fit a route clear of it, as Maps' route sits above its sheet: on a
-  // phone the capsule's strip at rest, and the half sheet out -- all the
-  // way up as well, where the map is hidden and what counts is what shows
-  // once it comes down; from `md` up the column at the left while it is
-  // out, or the corner it rests in while it is not. Not while dragged:
-  // the map refits once the panel settles (MapShell).
-  const expanded = state !== "peek";
-  // Half way and all the way up, what counts is the half sheet.
-  // Down at the pill, its strip at rest from the turn on, not the room
-  // the sheet takes on its way down: the map, sent to the middle of what
-  // the sheet left on the way (174 points, then 160), was slid on again
-  // once it landed (70), the map settling a second after the tabs had
-  // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
-  // settle down").
-  const pillRest = bar ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
-  const coveredOnPhone = expanded ? detents.half + HALF_INSET : hasPill ? pillRest + capsuleGap : peek;
-  const out = expanded;
-  useEffect(() => {
-    const up = state === "full";
-    if (!onPhone && state !== "peek") {
-      onInsetsChange({ top: 0, bottom: 0, left: 16 + CARD, out: true, up });
-      return;
-    }
-    const strip = onPhone ? coveredOnPhone : peek + SHEET_MARGIN;
-    onInsetsChange(fromBottom ? { top: 0, bottom: strip, left: 0, out, up } : { top: strip, bottom: 0, left: 0, out, up });
-  }, [peek, onPhone, out, state, fromBottom, coveredOnPhone, onInsetsChange]);
 
   // Escape lowers it, pressed anywhere in it -- but not in a menu or a
   // list it opened, which is a portal outside it and closes first.
-  const [panel, setPanel] = useState<HTMLElement | null>(null);
 
   // What the sheet covers of the map, for the map's buttons to ride on its
   // top (--sheet-cover, MapControls), as Maps' do: worked out from the
@@ -732,7 +837,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const map = document.getElementById("content");
     if (!map) return;
     const take = () => {
-      if (usePanelDragging.getState().dragging) return;
+      if (usePanelDragging.getState().dragging || panel.style.transform) return;
       beyond.current = Math.round(map.getBoundingClientRect().bottom - (panel.getBoundingClientRect().bottom + geometryGap.current));
     };
     take();
@@ -745,10 +850,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useLayoutEffect(() => {
     geometryGap.current = gapNow;
     const cover = !onPhone || !fromBottom || keyboard ? 0 : Math.max(0, Math.round(beyond.current + gapNow + shown));
-    document.body.style.setProperty("--sheet-cover", `${cover}px`);
-    document.body.style.setProperty("--sheet-cover-ease", easeNow);
+    const rule = coverRule();
+    rule.setProperty("--sheet-cover", `${cover}px`);
+    rule.setProperty("--sheet-cover-ease", easeNow);
   }, [onPhone, fromBottom, keyboard, gapNow, shown, easeNow]);
-  useEffect(() => () => { document.body.style.removeProperty("--sheet-cover"); document.body.style.removeProperty("--sheet-cover-ease"); }, []);
+  useEffect(() => () => { coverRule().removeProperty("--sheet-cover"); coverRule().removeProperty("--sheet-cover-ease"); }, []);
   // Scrolled up, a page's content runs on under the head and is seen
   // through it, at the owner's ask with a sheet of iOS's ("look at this for
   // the see-through under the top bar"): the scroller at the top of the
@@ -757,7 +863,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // content under the head, the head is frosted over it, a line under it
   // (data-under) -- at rest, nothing scrolled, it is the sheet's own glass.
   const under = !pillShape;
-  const [headBand, setHeadBand] = useState<HTMLDivElement | null>(null);
+  // The sizes the body's content is laid out to (--half-body and the
+  // rest), held while the sheet moves on a phone and set once it is at
+  // rest: an inherited property, each change restyled all the body holds,
+  // and its head two points taller as the tabs went to the pill's row laid
+  // the nav log out again in the middle of the turn (traced on the phone
+  // project, 55 ms at 4x).
+  const bodySizes = { half: halfBody, full: fullBody, foot: toEdge && fromBottom ? halfChrome : 0, head: under ? headHeight : 0 };
+  const [heldSizes, setHeldSizes] = useState(bodySizes);
+  const holdSizes = slides && (settleOf.moving || dragged !== null || turning || settling);
+  if (!holdSizes && (Object.keys(bodySizes) as (keyof typeof bodySizes)[]).some(k => bodySizes[k] !== heldSizes[k])) setHeldSizes(bodySizes);
+  const sizes = holdSizes ? heldSizes : bodySizes;
   useEffect(() => {
     if (!headBand || !panel || !under) return;
     // "local" where a card's own head (its title, its tabs) is under the
@@ -789,20 +905,20 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const done = (event: TransitionEvent) => {
       if (event.target === panel && event.propertyName === "height") setSettling(false);
     };
-    const late = window.setTimeout(() => setSettling(false), SETTLE_MOST * 1000 + 100);
+    const late = window.setTimeout(() => setSettling(false), slides ? LANDED_LATE : SETTLE_MOST * 1000 + 100);
     panel.addEventListener("transitionend", done);
     return () => { panel.removeEventListener("transitionend", done); window.clearTimeout(late); };
-  }, [settling, panel]);
+  }, [settling, panel, slides]);
   // And the turn over the same way.
   useEffect(() => {
     if (!turning || !panel) return;
     const done = (event: TransitionEvent) => {
       if (event.target === panel && event.propertyName === "height") setTurning(false);
     };
-    const late = window.setTimeout(() => setTurning(false), SETTLE_MOST * 1000 + 100);
+    const late = window.setTimeout(() => setTurning(false), slides ? LANDED_LATE : SETTLE_MOST * 1000 + 100);
     panel.addEventListener("transitionend", done);
     return () => { panel.removeEventListener("transitionend", done); window.clearTimeout(late); };
-  }, [turning, panel]);
+  }, [turning, panel, slides]);
   useEffect(() => {
     if (!panel || !expanded) return;
     const onKey = (event: KeyboardEvent) => {
@@ -846,15 +962,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // data-state among them, which every stock component sets as it opens
   // or closes: 56 ms a time on a laptop, four times that on a phone, at
   // each tab picked (measured 2026-10-07).
+  // Each set on its own: put back and set again together at every turn,
+  // the sheet's attribute restyled what it names for nothing.
   useLayoutEffect(() => {
-    const body = document.body;
-    body.dataset.mapPanel = state;
-    body.toggleAttribute("data-map-sheet", onPhone);
-    return () => {
-      delete body.dataset.mapPanel;
-      body.removeAttribute("data-map-sheet");
-    };
-  }, [state, onPhone]);
+    document.body.dataset.mapPanel = state;
+    return () => { delete document.body.dataset.mapPanel; };
+  }, [state]);
+  useLayoutEffect(() => {
+    document.body.toggleAttribute("data-map-sheet", onPhone);
+    return () => document.body.removeAttribute("data-map-sheet");
+  }, [onPhone]);
 
   // The panel's three sizes, as a tap asks for them (PanelSize, for the
   // tab bar too).
@@ -931,19 +1048,19 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       data-shape={onPhone ? shape : undefined}
       style={{
         ...corner,
+        ...pageBox,
         // The height follows a finger without lag, and the capsule's turn
         // into the sheet with it; the shape eases in and out as a drag
-        // crosses half way up, to the screen's edges and back.
-        height: shown, transition: !measured || (morphing && morph < 1) ? "none" : dragged === null ? `${settle.height}, background-color ${settle.curve}, box-shadow ${settle.curve}` : SHEET_RESHAPE,
+        // crosses half way up, to the screen's edges and back. On a phone
+        // the move is the compositor's (useSheetMotion), its colour and
+        // shadow eased here.
+        transition: !measured || (morphing && morph < 1) ? "none"
+          : slides ? (dragged === null ? `background-color ${settle.curve}, box-shadow ${settle.curve}` : "none")
+            : dragged === null ? `${settle.height}, background-color ${settle.curve}, box-shadow ${settle.curve}` : SHEET_RESHAPE,
         // In steps of four: an inherited property, every change of it
         // restyles all the sheet holds, and changed at every frame of a drag
         // above half it cost that drag a frame in three.
         ...(onPhone && dragged !== null ? { "--glass-fill": `${Math.round(fill / 4) * 4}%` } : {}),
-        ...(onPhone ? {
-          left: geometry.side, right: geometry.side,
-          ...(fromBottom ? { bottom: keyboard && !capsule ? keyboard + geometry.gap : geometry.gap } : { top: geometry.gap }),
-          borderRadius: geometry.radius,
-        } : capsule ? { borderRadius: Math.min(PILL_RADIUS, (headHeight + footHeight) / 2) } : {}),
       }}
       className={cn(
         // Clipped rather than hidden: a hidden overflow can still be
@@ -1092,7 +1209,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       <div
         // Dragged from anywhere under a finger, as the head is, where its
         // content is not scrolling (useDetentDrag).
-        ref={dragBody}
+        ref={setBodyRef}
         className={cn(
           "flex min-h-0 flex-1 flex-col border-border/60", expanded && shown > detents.half + 1 && cn("border-t", !fromBottom && "pb-4"),
           // A shade darker than the head over it, at the owner's ask ("Can
@@ -1108,7 +1225,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         )}
         // The foot as it is at half, whatever the height now: a card laid
         // out to it keeps one layout all the way up.
-        style={{ "--half-body": `${halfBody}px`, "--full-body": `${fullBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
+        style={{ "--half-body": `${sizes.half}px`, "--full-body": `${sizes.full}px`, "--half-foot": `${sizes.foot}px`, "--head-room": `${sizes.head}px`, "--panel-head": `${sizes.head}px` } as CSSProperties}
         data-panel-body=""
       >
         {/* Under a card opened over it, kept as it was (TabKept). */}
@@ -1132,7 +1249,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // buttons").
             // Giving way where the half is short of it, after the body: FPL's
             // side view shrinks first (PlanWorkspace), its figures kept whole.
-            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillLaid && SHEET_BELOW, !footShown && "hidden",
+            // The sheet's shade until it is the pill, not from the start of
+            // the settle down to it: its colours changed there restyled all
+            // the figures and the side view, in the frame the sheet was to
+            // start moving in.
+            "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillShape && SHEET_BELOW, !footShown && "hidden",
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
@@ -1180,10 +1301,276 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       {!toEdge && (edgeRoom > 0 || (fromBottom && onPhone && !!bar && footShown)) && (
         <div
           className="shrink-0" aria-hidden="true"
-          style={{ height: pillLaid ? 0 : edgeRoom, transition: dragged === null && measured ? `height ${settle.curve}` : "none" }}
+          style={{ height: pillLaid ? 0 : edgeRoom, transition: !slides && dragged === null && measured ? `height ${settle.curve}` : "none" }}
         />
       )}
     </section>
     </>
   );
+}
+
+/** What a phone's sheet looks like at a moment, wherever it is laid out:
+ *  its height and how far its foot is off the screen's edge (`gap`), how
+ *  far in from the sides it is, its far and near corners, and how far the
+ *  foot's figures sit off the screen's edge. */
+interface Look { h: number; gap: number; side: number; far: number; near: number; foot: number }
+const LOOK_KEYS = ["h", "gap", "side", "far", "near", "foot"] as const;
+const sameLook = (a: Look, b: Look) => LOOK_KEYS.every(k => Math.abs(a[k] - b[k]) < 0.5);
+const lookBetween = (a: Look, b: Look, t: number) =>
+  Object.fromEntries(LOOK_KEYS.map(k => [k, between(a[k], b[k], t)])) as unknown as Look;
+
+/** Where what it holds is laid out in it, read once a layout: its width,
+ *  the screen's edge, the head's and the body's foot from its top, the
+ *  foot's own height and the room under it. */
+interface Laid { width: number; edge: number; headFoot: number; bodyFoot: number; footHeight: number; under: number }
+
+/** How much of the sheet's shadow over the map stays in sight above it
+ *  while it is cut to its height (clip-path), in px: more than the 12 of
+ *  its blur. */
+const SHADOW_ROOM = 24;
+
+/** The sheet at `look`, laid out `height` tall on the screen's edge and
+ *  `side` in from its sides: moved down and narrowed by transforms, cut
+ *  to its height at its foot, the figures held where the look has them,
+ *  and -- where the figures are pinned at its foot (`pinned`) -- the head
+ *  pushed up out of its top and the body cut off over them, as the sheet
+ *  laid out from its foot up had them: the body moved up by what it would
+ *  run over them and what it holds moved down as much, the body clipping
+ *  it (overflow: clip), so that each is a transform the compositor runs.
+ *  The cut at the foot is a clip-path, the browser's own frames: it moves
+ *  only the few points of the pill's gap over the screen's edge. */
+function paintOf(look: Look, height: number, side: number, laid: Laid, pinned: boolean) {
+  const down = height - (look.gap + look.h);
+  const wide = (laid.width + 2 * (side - look.side)) / laid.width;
+  const footTop = look.foot + laid.footHeight;
+  const over = pinned ? Math.max(0, footTop - (height - laid.bodyFoot - down)) : 0;
+  return {
+    sheet: { transform: `translateY(${down}px) scaleX(${wide})` },
+    cut: {
+      clipPath: `inset(-${SHADOW_ROOM}px -1px ${height - look.h}px -1px round 0px 0px ${look.near}px ${look.near}px)`,
+      borderRadius: `${look.far}px ${look.far}px 0px 0px`,
+    },
+    foot: { transform: `translateY(${laid.under - down - look.foot}px)` },
+    head: { transform: `translateY(${-(pinned ? Math.max(0, footTop - (height - laid.headFoot - down)) : 0)}px)` },
+    body: { transform: `translateY(${-over}px)` },
+    held: { transform: `translateY(${over}px)` },
+  };
+}
+
+/** Where between `from` and `to` the head starts to be pushed or the body
+ *  cut (each a most of nothing and a straight line): keyframes there as
+ *  well as at the two ends make the pieces exact. */
+function bends(from: Look, to: Look, height: number, laid: Laid) {
+  const at = new Set([0, 1]);
+  for (const foot of [laid.headFoot, laid.bodyFoot]) {
+    const over = (look: Look) => look.foot + laid.footHeight - (height - foot - (height - (look.gap + look.h)));
+    const a = over(from), b = over(to);
+    if (a * b < 0) at.add(a / (a - b));
+  }
+  return [...at].sort((x, y) => x - y);
+}
+
+const SHEET_EASE = "cubic-bezier(0, 0, 0.58, 1)";
+
+
+/** What a phone's sheet says as it sets off for another size, on its
+ *  "sheetturn" event: the room it will leave the map (MapShell). */
+export interface SheetTurn { insets: MapInsets }
+
+/** How long the panel waits to hear the sheet has landed before taking it
+ *  as landed all the same, in ms: well past the longest move. */
+const LANDED_LATE = 2000;
+
+/**
+ * A phone's sheet moved by the compositor, as Maps' is: laid out once at
+ * the larger of where it was and where it is going, and moved, narrowed
+ * and cut to its height by transforms and a clip in the sheet's own time
+ * (Web Animations), so no frame of the move waits on laying out what it
+ * holds. Under a finger the look follows the finger the same way, laid out
+ * at half (all the way up once past it). At rest it is laid out as it is.
+ * Its height eased (a CSS transition) laid the panel's content out at
+ * every frame, and with a route four frames came of 0.3 s at 4x, the
+ * first 460 ms after the key (traced on the phone project, 2026-10-28).
+ */
+function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, sheetSide, seconds, pinned, landed, edges, pageKeys, waiting, insets }: {
+  on: boolean;
+  /** The sheet, its head's band, its body and its foot, as the page has
+   *  them now. */
+  parts: () => { panel: HTMLElement | null; head: HTMLElement | null; body: HTMLElement | null; foot: HTMLElement | null };
+  look: Look;
+  dragging: boolean;
+  /** The height it is laid out at under a finger at `h`. */
+  dragRoom: (h: number) => number;
+  /** How far in from the sides it is laid out under a finger. */
+  sheetSide: number;
+  seconds: number;
+  pinned: boolean;
+  /** Come to rest where it was going. */
+  landed: () => void;
+  /** Where to say the sheet's edge is (sheetSlide). */
+  edges: (edge: SheetSays | null) => void;
+  /** The box's properties the page's own style sets while this is off. */
+  pageKeys: readonly string[];
+  /** The panel waiting to hear it has landed. */
+  waiting: boolean;
+  /** The room it leaves the map where it is going, for the map's own
+   *  move as it sets off (the turn's event, MapShell). */
+  insets: MapInsets;
+}) {
+  type Part = keyof ReturnType<typeof paintOf>;
+  type Move = {
+    from: Look; to: Look; height: number; side: number; laid: Laid; pinned: boolean;
+    runs: { part: Part; run: Animation }[]; turn: number;
+  };
+  const move = useRef<Move | null>(null);
+  const was = useRef<Look | null>(null);
+  const turns = useRef(0);
+  // Whether its transforms and clips are on what it moves, to take off at
+  // rest -- only then, so a style of the parts' own is left as it is.
+  const painted = useRef(false);
+  const said = useRef(landed);
+  useEffect(() => { said.current = landed; });
+  useLayoutEffect(() => {
+    const { panel, head, body, foot } = partsOf();
+    if (!panel) return;
+    const held = body ? [...body.children].filter((el): el is HTMLElement => el instanceof HTMLElement) : [];
+    const parts: [HTMLElement, Part][] = ([[panel, "sheet"], [panel, "cut"], [foot, "foot"], [head, "head"], [body, "body"], ...held.map(el => [el, "held"])] as [HTMLElement | null, Part][])
+      .filter((part): part is [HTMLElement, Part] => !!part[0]);
+    const stop = () => { for (const { run } of move.current?.runs ?? []) run.cancel(); };
+    const clear = () => {
+      if (!painted.current) return;
+      painted.current = false;
+      for (const el of [panel, foot, head, body, ...held]) if (el) { el.style.transform = ""; el.style.clipPath = ""; }
+      if (body) body.style.overflow = "";
+    };
+    const BOX = ["height", "bottom", "left", "right", "borderRadius"] as const;
+    const box = (values: Record<(typeof BOX)[number], string>) => {
+      for (const key of BOX) if (panel.style[key] !== values[key]) panel.style[key] = values[key];
+    };
+    const rest = (at: Look) => {
+      stop();
+      move.current = null;
+      clear();
+      box({ height: `${at.h}px`, bottom: `${at.gap}px`, left: `${at.side}px`, right: `${at.side}px`, borderRadius: `${at.far}px ${at.far}px ${at.near}px ${at.near}px` });
+      was.current = at;
+    };
+    // Laid out on the screen's edge, `height` tall, its far corners round.
+    const lay = (height: number, side: number, far: number) => {
+      box({ height: `${height}px`, bottom: "0px", left: `${side}px`, right: `${side}px`, borderRadius: `${far}px ${far}px 0px 0px` });
+    };
+    const measure = (): Laid => {
+      const headFoot = head ? head.offsetTop + head.offsetHeight : 0;
+      const footShown = !!foot && foot.offsetParent !== null;
+      return {
+        width: panel.offsetWidth, edge: panel.offsetTop + panel.offsetHeight, headFoot,
+        bodyFoot: body ? body.offsetTop + body.offsetHeight : headFoot,
+        footHeight: footShown ? foot.offsetHeight : 0,
+        under: footShown ? panel.offsetHeight - (foot.offsetTop + foot.offsetHeight) : 0,
+      };
+    };
+    const sameLaid = (a: Laid, b: Laid) => (Object.keys(a) as (keyof Laid)[]).every(k => Math.abs(a[k] - b[k]) < 0.5);
+    const lookNow = () => {
+      const m = move.current;
+      if (!m) return was.current;
+      const t = m.runs[0]?.run.effect?.getComputedTiming().progress;
+      return lookBetween(m.from, m.to, m.runs.length ? (t ?? 1) : 1);
+    };
+    const paint = (m: Move, at: Look) => {
+      const p = paintOf(at, m.height, m.side, m.laid, m.pinned);
+      for (const [el, part] of parts) Object.assign(el.style, p[part]);
+      painted.current = true;
+    };
+    // The body clips what it holds where it is cut off over the figures.
+    const clip = (pinnedNow: boolean) => {
+      const overflow = pinnedNow ? "clip" : "";
+      if (body && body.style.overflow !== overflow) body.style.overflow = overflow;
+    };
+    const keyframes = (m: Move) => {
+      const at = bends(m.from, m.to, m.height, m.laid);
+      const paints = at.map(t => paintOf(lookBetween(m.from, m.to, t), m.height, m.side, m.laid, m.pinned));
+      return (part: Part) => paints.map((p, i) => ({ offset: at[i], ...p[part] })) as Keyframe[];
+    };
+    // The sheet's edge for the map, where its look has it now, and the
+    // move it is on by itself.
+    const edgeOf = (m: Move, at: Look) => m.laid.edge - at.gap - at.h;
+    edges({
+      edge: () => {
+        const at = lookNow();
+        if (!at || !on) return panel.getBoundingClientRect().top;
+        return move.current ? edgeOf(move.current, at) : panel.offsetTop + panel.offsetHeight - at.h;
+      },
+      move: () => {
+        const m = move.current, run = m?.runs[0]?.run;
+        return m && run ? { run, from: edgeOf(m, m.from), to: edgeOf(m, m.to) } : null;
+      },
+    });
+    if (!on) {
+      // The page's style has the box again: what it does not set, put away.
+      if (move.current || was.current) {
+        stop();
+        move.current = null;
+        clear();
+        for (const key of BOX) if (!pageKeys.includes(key)) panel.style[key] = "";
+      }
+      was.current = null;
+      return;
+    }
+    const now = lookNow();
+    const m = move.current;
+    if (dragging) {
+      // Under a finger: laid out once for where it can go, and the look
+      // painted as it comes, frame by frame.
+      stop();
+      const height = Math.max(m?.height ?? 0, dragRoom(look.h), look.gap + look.h);
+      lay(height, sheetSide, look.far);
+      clip(pinned);
+      move.current = { from: look, to: look, height, side: sheetSide, laid: measure(), pinned, runs: [], turn: ++turns.current };
+      paint(move.current, look);
+      was.current = look;
+      return;
+    }
+    if (m && m.runs.length && sameLook(m.to, look)) {
+      // On its way where it was going: the keyframes again only should
+      // what it holds have been laid out afresh since (a commit mid-way).
+      const laid = measure();
+      if (!sameLaid(laid, m.laid) || m.pinned !== pinned) {
+        m.laid = laid;
+        m.pinned = pinned;
+        clip(pinned);
+        const frames = keyframes(m);
+        for (const { part, run } of m.runs) (run.effect as KeyframeEffect | null)?.setKeyframes(frames(part));
+      }
+      return;
+    }
+    if (!now || sameLook(now, look) || prefersReducedMotion() || seconds <= 0) {
+      rest(look);
+      if (m || waiting) said.current();
+      return;
+    }
+    // A move: laid out as big as both ends, the look eased from where it
+    // is now to where it is going.
+    stop();
+    const height = Math.max(m?.height ?? 0, now.gap + now.h, look.gap + look.h);
+    lay(height, look.side, look.far);
+    clip(pinned);
+    const next: Move = { from: now, to: look, height, side: look.side, laid: measure(), pinned, runs: [], turn: ++turns.current };
+    move.current = next;
+    const frames = keyframes(next);
+    const timing = { duration: seconds * 1000, easing: SHEET_EASE, fill: "forwards" as const };
+    // No cut where nothing of it shows: on the screen's edge with square
+    // near corners at both ends (half way and all the way up), what it
+    // cuts off is under the screen's edge, and its frames would be the
+    // browser's for nothing.
+    const cutting = !(now.gap < 0.5 && look.gap < 0.5 && now.near < 0.5 && look.near < 0.5 && Math.abs(now.far - look.far) < 0.5);
+    if (!cutting) panel.style.clipPath = "";
+    painted.current = true;
+    next.runs = parts.filter(([, part]) => cutting || part !== "cut").map(([el, part]) => ({ part, run: el.animate(frames(part), timing) }));
+    next.runs[0]!.run.finished.then(() => {
+      if (move.current?.turn !== next.turn) return;
+      rest(look);
+      said.current();
+    }, () => {});
+    panel.dispatchEvent(new CustomEvent<SheetTurn>("sheetturn", { bubbles: true, detail: { insets } }));
+  });
+  useEffect(() => () => edges(null), [edges]);
 }
