@@ -2337,8 +2337,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       };
       return words[h.kind] ?? "Crosses weather";
     };
-    return { chips: chips.map(c => ({ key: c.key, label: c.label, warning: warning(c.crosses ?? []) })), picked: lineKey, onPick: applyChip };
-  }, [vfrRoute, chips, routeWays, lineKey, applyChip]);
+    // Each way's whole time, as its line on the chart says it: the route as
+    // typed by its own nav log's, the planner's ways on the route's clock
+    // (gridScale), their stops' times in them.
+    const minutes = browsing ? browsing.ownMinutes : ownMinutes;
+    const ground = browsing ? browsing.ownGround : ownGround;
+    const scale = gridScale(routeWays, minutes);
+    const timeOf = (chip: (typeof chips)[number]): string | null => {
+      if (chip.key === "none") return minutes === null ? null : duration(minutes + ground);
+      const way = chip.key === "fuel" ? routeWays?.own : routeWays?.options.find(o => sameStops(o.stops, chip.stops));
+      return way ? wayTime(way, scale) : null;
+    };
+    return {
+      chips: chips.map(c => ({ key: c.key, label: c.label, warning: warning(c.crosses ?? []), time: timeOf(c) })), picked: lineKey, onPick: applyChip,
+    };
+  }, [vfrRoute, chips, routeWays, lineKey, applyChip, browsing, ownMinutes, ownGround]);
 
   // The chips' ways on the chart beside the course while the line is open,
   // each its time on its chip, the one picked solid (the owner's "I want

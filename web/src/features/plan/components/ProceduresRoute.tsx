@@ -2,7 +2,7 @@ import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState,
 import { create } from "zustand";
 import { useWindPicks } from "../../../lib/windPicks";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
@@ -837,10 +837,8 @@ export default function ProceduresRoute({
   }
   const steps: ReactNode[] = [];
   const shown = new Set<ProcedureAirport>();
-  // The route line, right under the departure's row, before any stop's
-  // (the owner's redesign, 2026-10-26): in place of the fuel stop cards
-  // and the Routes button, whose jobs its chips do.
-  const lineRow = routeLine ? <RouteLine key="route-line" line={routeLine} /> : null;
+  // Routes, over the route's fields (RouteLine).
+  const lineRow = routeLine ? <RouteLine line={routeLine} /> : null;
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   points.forEach((row, i) => {
     const last = i === points.length - 1;
@@ -863,7 +861,6 @@ export default function ProceduresRoute({
       shown.add(field);
       steps.push(fieldStep(field, row, last));
       if (field.role === "Destination") steps.push(holdRow(field.ident));
-      else if (i === 0) steps.push(lineRow);
       return;
     }
     // A waypoint the route flies over (VPBNG), or ends at: its altitude
@@ -885,10 +882,9 @@ export default function ProceduresRoute({
       />,
     );
     if (to) steps.push(holdRow(row.airport.ident));
-    else if (i === 0) steps.push(lineRow);
   });
   const fieldsAlone = rows.length === 0
-    ? airports.flatMap((a, i) => [fieldStep(a, undefined, i === airports.length - 1), i === 0 ? lineRow : null])
+    ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1))
     : null;
 
   const field = on ? airports.find(a => sameField(a.ident, on.ident)) : undefined;
@@ -904,6 +900,7 @@ export default function ProceduresRoute({
         <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet?.(fix, hold); setHoldAt(null); }} />
       </Suspense>
     )}
+    {lineRow}
     <ResponsivePopover open={!!at} onOpenChange={open => { if (!open) close(); }}>
       <ResponsivePopoverAnchor asChild>
         <ol className="pt-2 pb-1" aria-label="The route" data-testid="procedures">{fieldsAlone ?? steps}</ol>
@@ -1008,84 +1005,69 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
 /** FPL's route line's choices (PlanWorkspace's routeLine): each chip's
  *  key and words, and what its way meets, in amber; the one picked. */
 export interface RouteLineChoices {
-  chips: { key: string; label: string; warning: string | null }[];
+  /** Each way: its key, name, what it meets and its whole time ("2h 59m"). */
+  chips: { key: string; label: string; warning: string | null; time: string | null }[];
   picked: string;
   onPick: (key: string) => void;
 }
 
 /**
- * FPL's route line, at the owner's ask ("make it more like the runway
- * folding with the route symbol, and no need for accept or not buttons.
- * You can simply have none in the beginning", 2026-10-26): the route's
- * glyph and, folded, the chip picked; a tap on it the planner's ways
- * slide out as chips, as a runway line's do, a tap on one the route at
- * once. "None" is the route as typed. Open until it is folded by its
- * glyph, at the owner's ask ("Keep the routes and runway opened until
- * folded", 2026-10-28), where it folded after the runway line's two
- * seconds untouched. A way that meets something is ringed in amber, said
- * in its name: the planner warns, never refuses.
+ * FPL's Routes, over the route's fields, at the owner's pick of the
+ * canvas's K1 (2026-10-29): folded, one row -- the route's glyph, the way
+ * flown and its time, how many more there are; open, its heading and the
+ * planner's ways as cards, each its time over its name, a tap on one the
+ * route at once ("None" is the route as typed). It was a tray under the
+ * departure's row, folded to the way picked, as a runway line is. Open
+ * until its row folds it (the owner, 2026-10-28: "Keep the routes and
+ * runway opened until folded"). A way that meets something says so in
+ * amber, in its name too: the planner warns, never refuses.
  */
 function RouteLine({ line }: { line: RouteLineChoices }) {
   const open = useRouteLineOpen(s => s.open);
   const picked = line.chips.find(c => c.key === line.picked) ?? line.chips[0]!;
-  const ring = (c: RouteLineChoices["chips"][number]) => (c.warning ? "ring-2 ring-amber-500" : undefined);
   const words = (c: RouteLineChoices["chips"][number]) =>
-    `${c.key === "none" ? "None, the route as typed" : c.label}${c.warning ? `, ${c.warning.toLowerCase()}` : ""}`;
+    `${c.key === "none" ? "None, the route as typed" : c.label}${c.time ? `, ${c.time}` : ""}${c.warning ? `, ${c.warning.toLowerCase()}` : ""}`;
+  const others = line.chips.length - 1;
   return (
-    <li className="relative flex gap-2.5" data-testid="route-line">
-      <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />
-      <div className="w-7 shrink-0" />
-      {/* Twenty under the chips, not sixteen: the next field's toggle's
-          44 points came up into the picked chip's (the iOS audit, P1). */}
-      <Collapsible asChild open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })}>
-        <div className="flex min-w-0 flex-1 items-center pb-5">
-          {/* The route's glyph and its ways one tray, as a runway line's
-              (G2, the owner's pick): the glyph its head and the line's
-              button, the way picked after it with its arrow. A stock
-              Collapsible, as a runway line's tray is: the head its trigger,
-              the ways its content. */}
-          <CollapsibleTrigger asChild>
-            <button
-              type="button" data-testid="route-line-toggle" data-disclosure=""
-              aria-label={open ? "Route options: fold" : "Route options: all the routes"}
-              className={cn(TRAY_HEAD, "outline-none focus-visible:ring-2 focus-visible:ring-ring")}
-            >
-              <Route className="size-5" aria-hidden />
-            </button>
-          </CollapsibleTrigger>
-          {!open ? (
-            // The way picked, the same stock ToggleGroup as the open
-            // line's with the one way in it; a tap on it opens the line.
-            <ToggleGroup type="single" value={picked.key} aria-label="Route options" className={cn(TRAY_BODY, "rounded-l-none")}>
-              <ToggleGroupItem
-                value={picked.key} onClick={() => useRouteLineOpen.setState({ open: true })}
-                className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", ring(picked))}
-                aria-label={`${words(picked)}, picked: tap for the other routes`} data-testid="route-line-picked" data-key={picked.key}
-              >
-                {picked.label}
-                {FOLDED_ARROW}
-              </ToggleGroupItem>
-            </ToggleGroup>
+    <Collapsible open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })} className="mx-4 mt-2 rounded-xl bg-card" data-testid="route-line">
+      <CollapsibleTrigger asChild>
+        <button
+          type="button" data-testid="route-line-toggle" data-disclosure=""
+          aria-label={open ? "Routes: fold" : `Routes: ${words(picked)}, ${others} more`}
+          className={cn("flex min-h-11 w-full items-center gap-2.5 px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.row)}
+        >
+          <Route className="size-5 shrink-0 text-tint" aria-hidden />
+          {open ? (
+            <span className="flex-1 font-semibold">Routes</span>
           ) : (
-            <CollapsibleContent asChild>
-              <div className="flex min-w-0 flex-1">
-                <Chips
-                  label="Route options" value={line.picked} flushStart tray
-                  onChange={v => line.onPick(v)}
-                  enter="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300"
-                >
-                  {line.chips.map(c => (
-                    <ToggleGroupItem key={c.key} value={c.key} className={cn(CHIP, "whitespace-nowrap", ring(c))} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}>
-                      {c.label}
-                    </ToggleGroupItem>
-                  ))}
-                </Chips>
-              </div>
-            </CollapsibleContent>
+            <span className="min-w-0 flex-1 truncate" data-testid="route-line-picked" data-key={picked.key}>
+              {picked.label}{picked.time && <span className="font-semibold"> {picked.time}</span>}
+            </span>
           )}
-        </div>
-      </Collapsible>
-    </li>
+          {!open && others > 0 && <span className={cn("shrink-0 text-muted-foreground", TEXT.detail)}>{others} more</span>}
+          <ChevronDown className={cn("size-4 shrink-0 text-tint transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ToggleGroup
+          type="single" value={line.picked} onValueChange={v => { if (v) line.onPick(v); }} aria-label="Routes"
+          className="flex w-full justify-start gap-2 overflow-x-auto px-3 pb-3 [scrollbar-width:none]"
+        >
+          {line.chips.map(c => (
+            <ToggleGroupItem
+              key={c.key} value={c.key} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}
+              className={cn(
+                "h-auto min-w-24 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-2.5 py-2 text-left",
+                "data-[state=on]:border-2 data-[state=on]:border-tint data-[state=on]:bg-tint/12",
+              )}
+            >
+              <span className={cn("font-semibold", TEXT.row, c.key === line.picked && "text-tint")}>{c.time ?? "—"}</span>
+              <span className={cn("whitespace-nowrap", TEXT.note, c.warning ? "text-amber-700 dark:text-amber-400" : "text-foreground")}>{c.label}</span>
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
