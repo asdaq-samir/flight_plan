@@ -5,6 +5,7 @@
  * or its Back does, before the panel is lowered. A card over a list (an
  * airport's over Nearest's) is closed first, then the list.
  */
+import { useEffect, useRef } from "react";
 import { create } from "zustand";
 
 /** The cards of the route whose Share is a menu of the route's things,
@@ -15,7 +16,10 @@ export type RouteCard = "brief" | "navlog" | "profile";
  *  is the route's things that card has (the Brief's Print the briefing). */
 export type CardShare = (() => void) | RouteCard;
 
-type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare };
+/** `picture`: the card draws its own head over a picture, its share and
+ *  its close on it (an airport's, an airplane's), so out of the pill the
+ *  panel leaves the minimized bar out over it (MapPanel). */
+type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare; picture?: boolean };
 
 const open: OpenCard[] = [];
 
@@ -23,17 +27,16 @@ const open: OpenCard[] = [];
  *  (TabBar): a list's is its own head's, so it is not counted. The top
  *  one's share, where it has one (an airport's, an airplane's, the Brief's
  *  and the nav log's): the bar's Share in place of its Back, at the
- *  owner's ask. And whether the bar is minimized now, so drawing it: a
- *  card with a share of its own in its body (FlightCard's) leaves it to
- *  the bar there. */
-export const useOpenCards = create<{ count: number; total: number; share: CardShare | null; barMinimized: boolean }>(
-  () => ({ count: 0, total: 0, share: null, barMinimized: false }));
+ *  owner's ask. And whether the top card draws its own head over a
+ *  picture (`picture`). */
+export const useOpenCards = create<{ count: number; total: number; share: CardShare | null; picture: boolean }>(
+  () => ({ count: 0, total: 0, share: null, picture: false }));
 
 /** And `total`: every one open, lists and Setup's pages too, for the bar's
  *  close to say it goes back. */
 function counted() {
   const inBar = open.filter(entry => entry.inBar !== false);
-  return { count: inBar.length, total: open.length, share: inBar.at(-1)?.share ?? null };
+  return { count: inBar.length, total: open.length, share: inBar.at(-1)?.share ?? null, picture: !!open.at(-1)?.picture };
 }
 
 /** A card's close -- or a list's Back, `inBar` false, its way back drawn
@@ -55,4 +58,23 @@ export function closeTopCard(): boolean {
   if (!top) return false;
   top.close();
   return true;
+}
+
+/**
+ * A card kept open while it is drawn: its close for a
+ * device's Back and the bar's, and its share for the bar's Share. A card
+ * whose head is a picture with its own share and close on it says so
+ * (`picture`), and the panel leaves the minimized bar out over it out of
+ * the pill (PhotoHead).
+ */
+export function useHeldCard(onClose: () => void, onShare?: CardShare, picture = false) {
+  const close = useRef(onClose);
+  const share = useRef(onShare);
+  useEffect(() => { close.current = onClose; share.current = onShare; });
+  const shares = typeof onShare === "string" ? onShare : !!onShare;
+  useEffect(() => holdOpenCard({
+    close: () => close.current(),
+    share: typeof shares === "string" ? shares : shares ? () => { if (typeof share.current === "function") share.current(); } : undefined,
+    picture,
+  }), [shares, picture]);
 }

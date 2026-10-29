@@ -782,7 +782,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         if (from) backToTab.current(from);
       })}
       onOpenAirport={openAirportOverFlight}
-      onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
     /></Suspense> : null;
   // The ident as a string of its own (`${…}`): the route's object's field
   // handed straight to a function counted, to the React Compiler, as the
@@ -2588,14 +2587,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
   const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Stops" : undefined);
-  // The airport's card: all the way up in the panel's body; at the pill's
-  // size its summary, the pill's own (`summary`), as a tap on the map opens
-  // it, at the owner's pick of the redesign.
-  const placeCard = (summary: boolean) => place && (
+  // The airport's card, in the panel's body.
+  const placeCard = place && (
     <Suspense fallback={null}>
       <PlaceCard
-        key={place} ident={place} from={measuredFrom} summary={summary}
-        onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
+        key={place} ident={place} from={measuredFrom}
+        onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
         // None for a point of the route, or past the planner's most stops.
         onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined
           : suggestedAt ? () => keepFuelStops(suggestedAt.after, [place]) : addStop}
@@ -2805,7 +2802,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {place ? (
           // Mounted at the pill as well, out of sight, so the minimized
           // tabs' Back there has a card to close.
-          placeCard(false)
+          placeCard
         ) : heldPoint ? (
           <Suspense fallback={null}>
             <AirspaceCard

@@ -90,13 +90,20 @@ export const SCREENS: Screen[] = [
       }
     },
   })),
-  {
-    name: "airport card",
-    ready: async page => {
+  // An airport's card half way, its pictures across the top, its actions
+  // and the weather's line (A2); and all the way up, its one scroll.
+  ...["", ", all the way up"].map(part => ({
+    name: `airport card${part}`,
+    ready: async (page: Page) => {
       await page.goto(`/app/plan?${ROUTE}&place=KDLH`);
-      await expect(page.getByTestId("place-name")).toHaveText("Duluth International Airport KDLH", { timeout: slow(30000) });
+      await expect(page.getByTestId("place-name")).toHaveText("KDLH", { timeout: slow(30000) });
+      await expect(page.getByTestId("fly-here")).toBeEnabled({ timeout: slow(30000) });
+      if (part) {
+        await grabberTo(page, "full");
+        await expect(sideDrawer(page).getByTestId("place-details")).toBeVisible();
+      }
     },
-  },
+  })),
   {
     name: "training drawer, a waypoint open",
     ready: async page => {
@@ -234,11 +241,11 @@ export const SCREENS: Screen[] = [
       await expect(sideDrawer(page).getByTestId("aircraft-search")).toBeVisible();
     },
   },
-  // An airplane's card in the air, half way as it opens: its column of three,
-  // its sketch, Alert, Debrief and its airport, the flight it is on and
-  // the one before (adsb.lol and Planespotters stubbed); then its Alert's
-  // menu open.
-  ...["card", "Alert menu"].map(part => ({
+  // An airplane's card in the air, half way as it opens: its pictures
+  // across the top (no photo: the stand-in), Follow, Alert, Debrief and
+  // the star, the flight it is on (adsb.lol and Planespotters stubbed);
+  // then its Alert's menu open; and all the way up, its one scroll.
+  ...["card", "Alert menu", "card all the way up"].map(part => ({
     name: `an airplane's ${part}`,
     ready: async (page: Page) => {
       const now = Date.now() / 1000;
@@ -265,6 +272,10 @@ export const SCREENS: Screen[] = [
       if (part === "Alert menu") {
         await sideDrawer(page).getByTestId("flight-alert").click();
         await expect(page.getByTestId("flight-alert-menu")).toBeVisible();
+      }
+      if (part === "card all the way up") {
+        await grabberTo(page, "full");
+        await expect(sideDrawer(page).getByTestId("flight-details")).toBeVisible();
       }
     },
   })),

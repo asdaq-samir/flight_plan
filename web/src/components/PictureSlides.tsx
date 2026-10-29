@@ -12,12 +12,16 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "./ui/
  * similar"), on shadcn's Carousel (Embla). The dots over its foot say which
  * page is in sight, as iOS's page control does; with one page, none.
  */
-export function PictureSlides({ slides, className, testId, label }: {
+export function PictureSlides({ slides, className, testId, label, flush = false }: {
   slides: ReactNode[];
   className?: string;
   testId?: string;
   /** What the pictures are of, for VoiceOver. */
   label: string;
+  /** Across a card's top (PhotoHead): square, the sheet's corners its
+   *  own, and the dots in its bottom right corner, clear of the name set
+   *  over its foot. */
+  flush?: boolean;
 }) {
   const [api, setApi] = useState<CarouselApi>();
   const [page, setPage] = useState(0);
@@ -30,7 +34,7 @@ export function PictureSlides({ slides, className, testId, label }: {
   }, [api]);
   const shown = slides.filter(Boolean);
   return (
-    <Carousel setApi={setApi} aria-label={label} className={cn("relative min-h-0 overflow-hidden rounded-xl", className)} data-testid={testId}>
+    <Carousel setApi={setApi} aria-label={label} className={cn("relative min-h-0 overflow-hidden", !flush && "rounded-xl", className)} data-testid={testId}>
       {/* The stock content and items, the page's own height, no gutter
           between pages: a picture box, not a row of cards. */}
       <CarouselContent className="ml-0 h-full" wrapperClassName="h-full">
@@ -39,7 +43,7 @@ export function PictureSlides({ slides, className, testId, label }: {
         ))}
       </CarouselContent>
       {shown.length > 1 && (
-        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-center gap-1">
+        <div aria-hidden="true" className={cn("pointer-events-none absolute flex gap-1", flush ? "right-4 bottom-[1.125rem]" : "inset-x-0 bottom-1 justify-center")} data-testid={testId && `${testId}-dots`}>
           {shown.map((_, i) => (
             <span key={i} className={cn("size-1.5 rounded-full shadow-[0_0_2px_rgba(0,0,0,.6)]", i === page ? "bg-white" : "bg-white/45")} />
           ))}
@@ -54,7 +58,7 @@ export function PictureSlides({ slides, className, testId, label }: {
  * licence asks: a tap opens it full screen (`onOpen`), or its source's page
  * (`href`), as each card's does.
  */
-export function PhotoSlide({ src, alt, credit, href, onOpen, label, testId, creditTestId }: {
+export function PhotoSlide({ src, alt, credit, href, onOpen, label, testId, creditTestId, flush = false }: {
   src: string;
   alt: string;
   /** Where its licence asks for one; none for the USGS's public domain. */
@@ -65,9 +69,13 @@ export function PhotoSlide({ src, alt, credit, href, onOpen, label, testId, cred
   label: string;
   testId?: string;
   creditTestId?: string;
+  /** Across a card's top (PictureSlides' `flush`): square, its credit in
+   *  the top left, out of the way of the name over its foot and of the
+   *  share and close in the top right. */
+  flush?: boolean;
 }) {
-  const picture = <img src={src} alt={alt} loading="lazy" className="size-full rounded-xl object-cover" />;
-  const tap = "absolute inset-0 block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+  const picture = <img src={src} alt={alt} loading="lazy" className={cn("size-full object-cover", !flush && "rounded-xl")} />;
+  const tap = cn("absolute inset-0 block outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", !flush && "rounded-xl");
   return (
     <>
       {href ? (
@@ -76,7 +84,7 @@ export function PhotoSlide({ src, alt, credit, href, onOpen, label, testId, cred
         <button type="button" onClick={onOpen} aria-label={label} className={tap} data-testid={testId}>{picture}</button>
       )}
       {credit && <span
-        className={cn("pointer-events-none absolute right-1 bottom-3.5 max-w-[90%] truncate rounded bg-black/55 px-1 text-white", TEXT.caption)}
+        className={cn("pointer-events-none absolute max-w-[90%] truncate rounded bg-black/55 px-1 text-white", flush ? "top-3 left-3 max-w-[55%]" : "right-1 bottom-3.5", TEXT.caption)}
         data-testid={creditTestId}
       >
         {credit}

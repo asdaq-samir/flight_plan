@@ -16,6 +16,9 @@
  * knows each for a font size and keeps it beside a colour.
  */
 export const TEXT = {
+  /** A name set over a card's picture (PhotoHead), with font-bold: iOS's
+   *  Title 1, 28 on 34, as Maps sets a place's over its photos. */
+  hero: "text-[1.75rem] leading-[2.125rem]",
   /** A card's name -- an airport's, the airspace's, Nearest's, a console
    *  page's -- with font-bold: 22 on 28 (iOS Title 2), the same with a
    *  mouse. */
@@ -56,15 +59,6 @@ export const GROUP_HEADING = `font-semibold uppercase tracking-wide text-muted-f
  *  sketch's numbers in an SVG): TEXT.caption's 11 and TEXT.row's 17 as
  *  a touch screen sets them. */
 export const TEXT_POINTS = { caption: 11, row: 17 } as const;
-
-/** iOS's text styles from Title 2 down to Footnote, each size on its own
- *  leading, in rem (points at the default text size): 22 on 28, 20 on
- *  25, 17 on 22, 16 on 21, 15 on 20, 13 on 18 -- the steps a card's name
- *  is brought down by to fit its box (FitText), from its own style (an
- *  airport's from Title 1's 28 on 34). */
-export const TITLE_DOWN_TO_FOOTNOTE: [number, number][] = [
-  [1.375, 1.75], [1.25, 1.5625], [1.0625, 1.375], [1, 1.3125], [0.9375, 1.25], [0.8125, 1.125],
-];
 
 /** A figure pinned at the map panel's foot (FlightLine, FigureStrip), its
  *  value, unit and name growing from the pill's size to their own as the

@@ -1,8 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
-import { FitText } from "./FitText";
-import { closeTopCard, holdOpenCard, type CardShare } from "../lib/openCards";
+import { closeTopCard, useHeldCard, type CardShare } from "../lib/openCards";
 import { TEXT } from "../lib/text";
 
 /**
@@ -14,7 +13,13 @@ import { TEXT } from "../lib/text";
  * is, at the pilot's ask; no scroll bar, as iOS shows none, to move that
  * in from the side.
  */
-export function PanelCard({ testId, children }: { testId: string; children: ReactNode }) {
+export function PanelCard({ testId, flush = false, children }: {
+  testId: string;
+  /** Its head a picture from the sheet's very top (PhotoHead), with no
+   *  room over it. */
+  flush?: boolean;
+  children: ReactNode;
+}) {
   // Opened from a marker on the chart with the keys (Enter on it), the
   // focus goes to the card's name, which a screen reader then reads, and
   // back to the marker as the card is put away -- where it stayed on the
@@ -39,7 +44,10 @@ export function PanelCard({ testId, children }: { testId: string; children: Reac
   return (
     <div
       ref={card}
-      className="under-head relative min-h-0 flex-1 overflow-y-auto px-4 [--under-pad:var(--corner-inset,0.75rem)] pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] print:hidden"
+      className={cn(
+        "under-head relative min-h-0 flex-1 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] [scrollbar-width:none] print:hidden",
+        flush ? "[--under-pad:0px]" : "[--under-pad:var(--corner-inset,0.75rem)]",
+      )}
       data-testid={testId}
     >
       {children}
@@ -81,62 +89,6 @@ export function CardHead({ name, line, nameTestId, lineClassName, lineTestId, on
 }
 
 /**
- * A card's top, the airport card's (PlaceCard), which the airplane's
- * (FlightCard) is laid out as too, at the owner's ask ("Do airport and
- * aircraft cards have same layouts?"; the airplane's buttons sat 6 points
- * lower and its tabs 12 further under them, and its name was cut where its
- * thumbnail began): three columns -- the name, the lines under it, a
- * picture beside them (an airport's runways, an airplane's trace), and at
- * the right the close, the star and a chip one over another -- and the
- * actions under them, all one height at every size, so the card keeps its
- * layout whatever it shows. A long name is set smaller to fit its column
- * (FitText) rather than pushing the actions down.
- */
-export function CardTop({ name, nameTestId, nameFitTestId, lines, picture, side, actions, columns, tall = false, children }: {
-  name: ReactNode;
-  nameTestId: string;
-  nameFitTestId?: string;
-  /** Under the name, a note's grey. */
-  lines?: ReactNode;
-  /** Beside the name, its own box (min-w-0 flex-1). */
-  picture: ReactNode;
-  /** The right's column: the close, the star, a chip. */
-  side: ReactNode;
-  actions: ReactNode;
-  /** The actions' columns. */
-  columns: 3 | 4;
-  /** A head a line taller, for a column of three round buttons (the
-   *  airplane card's star, Follow and Share), which at the airport card's
-   *  height met the actions under them. */
-  tall?: boolean;
-  /** In the top's row besides, out of its flow: a full-screen viewer. */
-  children?: ReactNode;
-}) {
-  return (
-    <div className={cn("flex flex-col", tall ? "h-[11.5rem]" : "h-[10.5rem]")} data-to-edge="">
-      <div className="flex min-h-0 flex-1 gap-2">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <h2
-            tabIndex={-1} data-testid={nameTestId}
-            className={cn("min-h-0 flex-1 font-bold tracking-tight break-words text-foreground outline-none", TEXT.card)}
-          >
-            {/* From iOS's Title 1, 28 on 34, where the name fits its box at
-                that, as Maps sets a place's. */}
-            <FitText className="h-full text-[1.75rem] leading-[2.125rem]" data-testid={nameFitTestId}>{name}</FitText>
-          </h2>
-          {lines}
-        </div>
-        {picture}
-        {/* Eight apart, so the buttons' 44-point hit areas (index.css) meet. */}
-        <div className="-mr-1 flex w-9 shrink-0 flex-col items-center gap-2">{side}</div>
-        {children}
-      </div>
-      <div className={cn("mt-1.5 grid gap-2", columns === 4 ? "grid-cols-4" : "grid-cols-3")}>{actions}</div>
-    </div>
-  );
-}
-
-/**
  * A card's close, kept for a device's Back (lib/openCards, lib/back) and
  * the minimized tab bar's Back (TabBar) while the card is open -- and never
  * drawn, at the owner's ask: "Close should not be anywhere except the top
@@ -156,14 +108,7 @@ export function CardClose({ onClose, onShare, testId }: {
   testId: string;
   className?: string;
 }) {
-  const close = useRef(onClose);
-  const share = useRef(onShare);
-  useEffect(() => { close.current = onClose; share.current = onShare; });
-  const shares = typeof onShare === "string" ? onShare : !!onShare;
-  useEffect(() => holdOpenCard({
-    close: () => close.current(),
-    share: typeof shares === "string" ? shares : shares ? () => { if (typeof share.current === "function") share.current(); } : undefined,
-  }), [shares]);
+  useHeldCard(onClose, onShare);
   return (
     <span className="sr-only focus-within:not-sr-only">
       {/* Back one: a page opened in the card first (the Brief's), else the
@@ -172,3 +117,4 @@ export function CardClose({ onClose, onShare, testId }: {
     </span>
   );
 }
+

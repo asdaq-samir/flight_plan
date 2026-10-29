@@ -34,13 +34,16 @@ const isoDay = (d: Date) => format(d, "yyyy-MM-dd");
  * fetch more by date"), as far back as adsb.lol's archive goes, about six
  * weeks. A tap opens the flight's own card over this one (PastFlightCard).
  */
-export default function PastFlights({ hex, onOpen, nowShown = false, type = null }: {
+export default function PastFlights({ hex, onOpen, nowShown = false, untitled = false, type = null }: {
   hex: string;
   /** Opens a flight's own card (PastFlightCard), over this one. */
   onOpen: (id: number) => void;
-  /** The flight it is on is the Now entry over the list (NowFlight): the
+  /** The flight it is on is the summary over the list (FlightCard): the
    *  list is the ones before it, and leaves that one out. */
   nowShown?: boolean;
+  /** Under a section's own title (the airplane card's Earlier flights):
+   *  its list untitled but for a day picked. */
+  untitled?: boolean;
   /** Its type, on each row as FlightAware's list has it. */
   type?: string | null;
 }) {
@@ -78,7 +81,7 @@ export default function PastFlights({ hex, onOpen, nowShown = false, type = null
       <ListGroup
         // No footnote under it, at the owner's ask ("Avoid putting so many
         // footnotes for pilots experience"): the rows say it.
-        title={from ? `On and before ${dayOf(new Date(`${from}T12:00:00Z`))}` : nowShown ? "Earlier" : "Last flights"}
+        title={from ? `On and before ${dayOf(new Date(`${from}T12:00:00Z`))}` : untitled ? undefined : nowShown ? "Earlier" : "Last flights"}
       >
         {(!data || looking) && !isError && <ListRow title={<span role="status" className="text-muted-foreground">{data ? "Fetching earlier flights…" : "Fetching its flights…"}</span>} />}
         {isError && !data && <ListRow title={<span className={cn("text-destructive", TEXT.detail)}>Its past flights could not be had. Try again in a moment.</span>} />}
@@ -167,7 +170,7 @@ export interface FlightEnd {
  * A flight's two ends side by side, the way between them an arrow, or a
  * loop for one that came back to where it left (a local flight), at the
  * owner's ask, with FlightAware's list as the example: the airplane's
- * flight now on its card (NowFlight) and each one before it.
+ * past flights on an airplane's card, and a past flight's own card.
  */
 export function FlightEnds({ from, to, local = false, testIds }: {
   from: FlightEnd;
