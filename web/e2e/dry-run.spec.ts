@@ -230,6 +230,29 @@ test("half way a dry run started from the profile's card plays in the card, in o
   await expect.poll(level, { timeout: slow(10_000) }).toBe(10);
 });
 
+test("the side view is a skeleton of the ground and the climb while its ground is fetched, not an empty box", async ({ page }) => {
+  // The design review, 2026-10-28: a blank white box under the Dry run.
+  let answer: (() => void) | null = null;
+  await page.route(url => url.pathname.endsWith("/route-profile"), async route => {
+    await new Promise<void>(resolve => { answer = resolve; });
+    await route.continue().catch(() => {});
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  await grabberTo(page, "half");
+  const card = await openProfile(page);
+  const skeleton = card.getByTestId("mini-profile-skeleton");
+  await expect(skeleton).toBeVisible({ timeout: slow(60_000) });
+  await expect(skeleton).toHaveRole("status");
+  await expect(skeleton).toContainText("Fetching the side view");
+  // As tall as the chart will be: the card's height, not a strip.
+  expect((await skeleton.boundingBox())!.height).toBeGreaterThan(96);
+  await expect.poll(() => answer !== null, { timeout: slow(30_000) }).toBe(true);
+  answer!();
+  await expect(card.getByTestId("mini-profile")).toBeVisible({ timeout: slow(30_000) });
+  await expect(skeleton).toHaveCount(0);
+});
+
 test("the profile is a card from its button beside the nav log's, no swipe at the foot; a dry run started there plays over the route, and stopped, the card is back", async ({ page }) => {
   // The owner's ask (2026-10-20): "profile view can move next to the
   // navlog button and open like brief and navlog opens instead of the
