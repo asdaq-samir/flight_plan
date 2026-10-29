@@ -15925,6 +15925,18 @@
               "title": "Stops",
               "type": "string"
             }
+          },
+          {
+            "description": "Asked ahead of the pilot -- a Recent or Saved route planned while the page is idle: its chart reads wait behind the route on screen's",
+            "in": "query",
+            "name": "ahead",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Asked ahead of the pilot -- a Recent or Saved route planned while the page is idle: its chart reads wait behind the route on screen's",
+              "title": "Ahead",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -17351,6 +17363,18 @@
         "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, the altitude plans), an\n\"altitude\" line the moment those are decided -- the four plans and\nthe one chosen (altitude_choice, see /api/plan) with it -- one \"leg\"\nline per leg, then one \"done\" line with the totals, which need\nevery leg in before they mean anything. Its own implementation, not\na wrapper over /api/plan: that one commits to a single synchronous\nJSON response, and mixing a streaming and a non-streaming contract\ninto one function would compromise both. The overlap is the same\nhandful of calls into app.planning and vfr.navlog either way.\n\nAn unflyable route (some leg with no legal cruising altitude at all)\nis reported as an \"error\" line, not an HTTP error status -- by the\ntime that's known, a 200 and a stream of NDJSON have already gone\nout, and an HTTP status can't change after that.",
         "operationId": "navlog_stream_api_navlog_get",
         "parameters": [
+          {
+            "description": "Asked ahead of the pilot -- a Recent or Saved route planned while the page is idle: its chart reads wait behind the route on screen's",
+            "in": "query",
+            "name": "ahead",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Asked ahead of the pilot -- a Recent or Saved route planned while the page is idle: its chart reads wait behind the route on screen's",
+              "title": "Ahead",
+              "type": "boolean"
+            }
+          },
           {
             "in": "query",
             "name": "dep",
