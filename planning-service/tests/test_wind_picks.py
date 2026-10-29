@@ -15,14 +15,17 @@ def _flight(dep, dest, lands=True):
                            dep_airport={"ident": dep, "lat": 1.0, "lon": 2.0}, dest_airport={"ident": dest, "lat": 3.0, "lon": 4.0})
 
 
-def _stubbed(monkeypatch, favoured, forecast=()):
+def _stubbed(monkeypatch, favoured, forecast=(), nearby=()):
     monkeypatch.setattr(planning, "now", lambda: NOW)
     monkeypatch.setattr(plan_router.weather, "metar_for_idents", lambda idents: {i: {"wind_speed_kt": 10} for i in idents if i in favoured})
     monkeypatch.setattr(plan_router.airports, "get_runways", lambda ident: [ident])
     monkeypatch.setattr(plan_router.runway_wind, "with_winds", lambda runways, metar, lat, lon: runways)
     monkeypatch.setattr(plan_router.pattern, "with_traffic", lambda ways, ident, lat, lon: ways)
     monkeypatch.setattr(plan_router.runway_wind, "runway_in_use", lambda ways: favoured.get(ways[0]))
-    monkeypatch.setattr(plan_router.runway_wind, "forecast_pick", lambda ways, wind: wind and f"{ways[0]}@{wind['at']}")
+    def picked(ways, wind):
+        return wind and (f"{ways[0]}@{wind['at']}" if "at" in wind else f"{ways[0]} by {wind['by']}")
+    monkeypatch.setattr(plan_router.runway_wind, "wind_pick", picked)
+    monkeypatch.setattr(plan_router, "_wind_of", lambda report, airport, source: {"by": "KUGN"} if source in nearby else None)
     monkeypatch.setattr(plan_router.weather, "forecast_wind", lambda lat, lon, at, ident: {"at": at} if ident in forecast else None)
 
 
@@ -52,7 +55,15 @@ def test_a_field_reached_after_the_hour_by_its_forecast_then_and_none_with_no_re
     picks = plan_router.wind_picks(r, SimpleNamespace(hop_legs=[[{"ete_min": 30}]]), q)
     assert picks == ({"MSN": f"KMSN@{datetime(2026, 10, 28, 20, 0, tzinfo=timezone.utc).timestamp():.0f}"},
                      {"DSM": f"KDSM@{datetime(2026, 10, 28, 20, 30, tzinfo=timezone.utc).timestamp():.0f}"})
-    # C81 reports nothing: the page goes by a nearby report's.
+    # C81 reports nothing, nor anything near it: none, the page's.
     r = SimpleNamespace(flights=[_flight("C81", "KMSN")])
     q = plan_router.PlanQuery(dep="C81", dest="KMSN", wind_runways=True)
     assert plan_router.wind_picks(r, SimpleNamespace(hop_legs=[[{"ete_min": 40}]]), q) == ({}, {"MSN": "18"})
+
+
+def test_a_field_with_no_report_of_its_own_by_the_nearest_reports_wind(monkeypatch):
+    # C81 by KUGN's wind, as its card says it.
+    _stubbed(monkeypatch, {"KMSN": "18"}, nearby=("C81",))
+    r = SimpleNamespace(flights=[_flight("C81", "KMSN")])
+    q = plan_router.PlanQuery(dep="C81", dest="KMSN", wind_runways=True)
+    assert plan_router.wind_picks(r, SimpleNamespace(hop_legs=[[{"ete_min": 40}]]), q) == ({"C81": "C81 by KUGN"}, {"MSN": "18"})

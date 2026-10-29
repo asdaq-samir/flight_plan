@@ -125,14 +125,16 @@ def runway_in_use(runways: list, most_used: bool = False) -> str | None:
     return end["ident"].lstrip("0") or end["ident"]
 
 
-def forecast_pick(runways: list, wind: dict | None) -> str | None:
-    """The end into a forecast's wind at a field ({"dir_true_deg" (None for
-    VRB), "speed_kt"}, vfr.weather.forecast_wind), the field's report now
-    set aside: of every open end, the most headwind, the longer runway on a
-    tie; calm or variable, the runway in use (runway_in_use, most used
-    with none). The web's windPick with a forecast (lib/pattern), the
-    owner's pick of 2026-10-20 for a field the flight reaches later than an
-    hour from now. None with no forecast wind."""
+def wind_pick(runways: list, wind: dict | None) -> str | None:
+    """The end into a wind the field's own report did not give ({"dir_true_deg"
+    (None for VRB), "speed_kt"}): a forecast's for the time the flight is
+    there (vfr.weather.forecast_wind, the owner's pick of 2026-10-20 for a
+    field reached later than an hour from now), the nearest report's for a
+    field with none of its own (vfr.weather.nearest_report), or the field's
+    own variable one. Of every open end, the most headwind, the longer
+    runway on a tie; calm or variable, the runway in use (runway_in_use,
+    most used with none). The web's windPick with a forecast or a nearby
+    report (lib/pattern). None with no wind."""
     if not wind or wind.get("speed_kt") is None:
         return None
     direction, speed = wind.get("dir_true_deg"), wind["speed_kt"]
