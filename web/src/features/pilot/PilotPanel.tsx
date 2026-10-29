@@ -95,7 +95,7 @@ function Personal({ pilot, dev }: {
           {account}
           {/* A section as the page's others are, so the room between them
               is the one room every tab's sections keep (tab-consistency). */}
-          <AccountCard pilot={signedIn ? pilot : null} />
+          <AccountCard pilot={signedIn ? pilot : null}>
           {/* The pilot's things, a row each with where it stands, as iOS's
               Settings lists its parts: the account's three greyed until
               there is one; the minimums are this device's. */}
@@ -119,6 +119,7 @@ function Personal({ pilot, dev }: {
               />
           </ListGroup>
           </div>
+          </AccountCard>
           {signedIn && sold && <ListGroup><SubscriptionRow /></ListGroup>}
           {/* The guide (its tips with it) and about, links at the foot, at
               the owner's pick: a developer's status first. */}
@@ -146,17 +147,20 @@ function minimumsWords(m: Minimums): string | null {
 /** Who is signed in, under an Account heading as the Controls have theirs
  *  (the owner, 2026-10-28): their initials, their name and address, the
  *  role's menu at its end (sign out, delete). A tap on it opens their
- *  details, for their flight plans. Signed out, the heading alone with
- *  Sign in at its right, no words under it, at the owner's ask ("no need
- *  to have the description, just simple sign in right aligned"). */
-function AccountCard({ pilot }: { pilot: Pilot | null }) {
+ *  details, for their flight plans. Signed out, the heading with Sign in at
+ *  its right, no words under it, at the owner's ask ("no need
+ *  to have the description, just simple sign in right aligned"). The
+ *  pilot's things are under the same heading, as close under it as the
+ *  Controls' tiles are under theirs (the owner, 2026-10-29: "make the
+ *  space under Account the same as Controls"). */
+function AccountCard({ pilot, children }: { pilot: Pilot | null; children: ReactNode }) {
   if (!pilot) {
     return (
       <PillSection
         title="Account" testId="setup-pill-account"
         right={<><Suspense fallback={null}><SignInModal plain /></Suspense><AccountMenu /></>}
       >
-        {null}
+        {children}
       </PillSection>
     );
   }
@@ -176,6 +180,7 @@ function AccountCard({ pilot }: { pilot: Pilot | null }) {
       </PageButton>
       <AccountMenu />
     </div>
+    {children}
     </PillSection>
   );
 }

@@ -49,7 +49,14 @@ export function useFigureFit<F extends Fitted>(exact: F[], rounded: F[], valueTy
   const [room, space] = useRoom<HTMLElement>();
   const probe = useRef<HTMLSpanElement>(null);
   const unitProbe = useRef<HTMLSpanElement>(null);
-  const key = exact.map(f => `${f.value}${f.unit ?? ""}`).join("|");
+  // By their shape, every digit a nought: the figures are set in tabular
+  // figures, each digit as wide as another, so "82.4 nm" fits where "17.9
+  // nm" did and is not measured again. Measured at every new figure, a dry
+  // run's strip counting down did it at every frame -- each figure's
+  // widths read after setting it, a layout forced each time, 190 to 390 ms
+  // of three seconds at 4x a phone's (a dry run at 200x, 2026-10-29).
+  const shape = (f: F) => `${f.value.replace(/\d/g, "0")}${f.unit ?? ""}`;
+  const key = [...exact.map(shape), "/", ...rounded.map(shape)].join("|");
   const moving = usePanelDragging(d => d.dragging);
   const [verdict, setVerdict] = useState<{ key: string; room: typeof space; fits: boolean[]; scale: number; px: { value: number; unit: number } } | null>(null);
   // The room itself is kept, not its width: useRoom hands out a new one
