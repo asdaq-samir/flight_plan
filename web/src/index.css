@@ -314,9 +314,10 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --caution-ink: oklch(0.473 0.137 46.201);
   --caution-wash: oklch(0.769 0.188 70.08 / 12%);
   /* Go, the one green: a check passed, a flight landed or in the air.
-     Tailwind's green-600 for marks and -700 for words (4.5:1 and more). */
+     Tailwind's green-600 for marks and -800 for words: -700 came to 4.43:1
+     on the Brief's glass in the nightly audit (P15 wants 4.5:1). */
   --go: oklch(0.627 0.194 149.214);
-  --go-ink: oklch(0.527 0.154 150.069);
+  --go-ink: oklch(0.448 0.119 151.328);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
