@@ -246,8 +246,11 @@ export const api = {
    *  the model is loaded and the features are already built -- once the
    *  chart is read along the route, which on a new one is seconds: given
    *  up with `signal` when the route changes (checkpointsQuery). */
-  checkpoints: (dep: string, dest: string, stops?: string[], signal?: AbortSignal) =>
-    planner.GET("/api/checkpoints", { params: { query: { dep, dest, stops: stopsParam(stops) } }, signal }).then(data<Checkpoints>),
+  /** `ahead`: asked for before the pilot does (PlanWorkspace's Recents and
+   *  Saved planned ahead), its chart reads queued behind the pilot's own
+   *  (the planner's chart_model.READ_AHEAD). */
+  checkpoints: (dep: string, dest: string, stops?: string[], signal?: AbortSignal, ahead = false) =>
+    planner.GET("/api/checkpoints", { params: { query: { dep, dest, stops: stopsParam(stops), ahead: ahead || undefined } }, signal }).then(data<Checkpoints>),
 
   /**
    * The slow half: terrain, the obstacle file, the airspace shapefile
@@ -262,7 +265,7 @@ export const api = {
     dep: string, dest: string, altitudeFt?: string, aircraft?: AircraftChoice, altitudeChoice?: AltitudeChoice,
     depart?: string, signal?: AbortSignal, stops?: string[], classBClearance?: boolean, altitudes?: string,
     checkpoints = true, rules: "vfr" | "ifr" = "vfr", alternate = "", procedures = "", crossings = "", ground = "", holds = "",
-    altitudeNearest = false, runways = "", patterns = "",
+    altitudeNearest = false, runways = "", patterns = "", ahead = false,
   ): AsyncGenerator<NavLogMessage> {
     const result = await planner.GET("/api/navlog", {
       params: {
@@ -298,6 +301,8 @@ export const api = {
           // first plan flies its patterns, where its time jumped as the
           // picks came and the route was planned again.
           wind_runways: true,
+          // Asked for before the pilot does, its chart reads behind theirs.
+          ahead: ahead || undefined,
           // The runway each field is landed on, its pattern flown in.
           patterns: patterns || undefined,
           // The altitudes given to cross their fixes at.

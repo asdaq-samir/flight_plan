@@ -155,7 +155,7 @@ function planKeyOf(
 /** A plan's nav log, with its checkpoints or point to point: the page's
  *  own (usePlan), and Fly Here's, asked for at the tap before the page
  *  has drawn the route (PlanWorkspace). */
-export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
+export function navlogQuery(plan: PlanParams, checkpointsToo: boolean, ahead = false) {
   const {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, classBClearance = false, altitudes = "", rules = "vfr", alternate = "",
     procedures = "", runways = "", crossings = "", ground = "", holds = "", altitudeNearest = false, patterns = "",
@@ -164,12 +164,14 @@ export function navlogQuery(plan: PlanParams, checkpointsToo: boolean) {
   return {
     // The same key as the checkpoints' with them off, so the route as
     // entered and a plan with Waypoints off are one answer.
-    queryKey: ["navlog", ...planKey.slice(0, 9), checkpointsToo, ...planKey.slice(10)],
+    // Asked for ahead of the pilot (`ahead`), a key of its own: a pilot's
+    // own ask is never the low-priority one already on its way.
+    queryKey: [ahead ? "navlog-ahead" : "navlog", ...planKey.slice(0, 9), checkpointsToo, ...planKey.slice(10)],
     // In batches (inBatches): one render for the lines that come together.
     queryFn: streamedQuery({
       streamFn: ({ signal }: { signal: AbortSignal }) => inBatches(ended(
         api.navlog(dep, dest, altitudeFt || undefined, aircraft, altitudeChoice, depart || undefined, signal, stops, classBClearance, altitudes, checkpointsToo,
-          rules, alternate, procedures, crossings, ground, holds, altitudeNearest, runways, patterns),
+          rules, alternate, procedures, crossings, ground, holds, altitudeNearest, runways, patterns, ahead),
         "nav log",
       )),
       reducer: (lines: NavLogMessage[], batch: NavLogMessage[]) => [...lines, ...batch],

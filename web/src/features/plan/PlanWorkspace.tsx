@@ -1514,7 +1514,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           checkpoints: showWaypoints, rules: flightRules,
         };
         // Asked for and let go, the page's cache as it was.
-        const ask = async (query: { queryKey: readonly unknown[] }) => {
+        const ask = async (query: { queryKey: readonly unknown[]; queryFn?: unknown }) => {
           if (gone || queryClient.getQueryState(query.queryKey)) return;
           await queryClient.fetchQuery({ ...query, meta: { silent: true } } as Parameters<typeof queryClient.fetchQuery>[0]).catch(() => {});
           if (!queryClient.getQueryCache().find({ queryKey: query.queryKey, exact: true })?.getObserversCount()) {
@@ -1522,8 +1522,14 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           }
         };
         await ask(courseQuery(dep, dest, via));
-        if (showWaypoints) await ask(checkpointsQuery(dep, dest, via));
-        await ask(navlogQuery(plan, showWaypoints));
+        // Marked ahead, the planner's chart reads for them queued behind
+        // the pilot's own (the planner's chart_model.READ_AHEAD): unmarked,
+        // two took both its readers and a route just typed waited 3.85 s
+        // for one (the planner's measurement, 2026-10-29).
+        if (showWaypoints) {
+          await ask({ queryKey: ["checkpoints-ahead", dep, dest, via.join(",")], queryFn: () => api.checkpoints(dep, dest, via, undefined, true) });
+        }
+        await ask(navlogQuery(plan, showWaypoints, true));
       }
     });
     return () => { gone = true; cancel(handle); };
