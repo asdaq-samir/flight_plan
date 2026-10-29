@@ -81,6 +81,14 @@ interface Preferences {
    *  category and a terminal chart on hover. Off by default: useful on
    *  a route that passes near one, clutter on a route that does not. */
   classB: boolean;
+  /** Whether the Class B, C and D are drawn over the chart, each line from
+   *  the FAA's own airspace file with its altitudes as the sectional
+   *  prints them (AirspaceLayer). On by default, the owner's pick of the
+   *  map's looks ("C", 2026-10-29). */
+  airspace: boolean;
+  /** Whether the VORs are drawn over the chart, and closer in the low
+   *  enroute chart's fixes (NavaidsLayer). On by default, as `airspace`. */
+  navaids: boolean;
   /** Whether the temporary flight restrictions are drawn (TfrLayer). On
    *  by default: a pilot must know of every one near the route. */
   tfrs: boolean;
@@ -200,6 +208,8 @@ interface Preferences {
   setTac: (tac: boolean) => void;
   setWaypoints: (waypoints: boolean) => void;
   setClassB: (classB: boolean) => void;
+  setAirspace: (airspace: boolean) => void;
+  setNavaids: (navaids: boolean) => void;
   setTfrs: (tfrs: boolean) => void;
   setAlerts: (alerts: boolean) => void;
   setSpeakAlerts: (speakAlerts: boolean) => void;
@@ -263,6 +273,8 @@ export const usePreferences = create<Preferences>()(
       tac: false,
       waypoints: false,
       classB: false,
+      airspace: true,
+      navaids: true,
       tfrs: true,
       alerts: true,
       speakAlerts: false,
@@ -330,6 +342,8 @@ export const usePreferences = create<Preferences>()(
       setTac: tac => set({ tac }),
       setWaypoints: waypoints => set({ waypoints }),
       setClassB: classB => set({ classB }),
+      setAirspace: airspace => set({ airspace }),
+      setNavaids: navaids => set({ navaids }),
       setTfrs: tfrs => set({ tfrs }),
       setAlerts: alerts => set({ alerts }),
       setSpeakAlerts: speakAlerts => set({ speakAlerts }),
@@ -382,11 +396,17 @@ export const usePreferences = create<Preferences>()(
       name: "vfr.preferences",
       // 1: the VFR checkpoints off unless turned on, once for every
       // browser that had them on by the old default (the owner's ask).
-      version: 1,
-      migrate: (kept, from) => (from < 1 ? { ...(kept as object), waypoints: false } : kept) as Preferences,
+      // 2: the airspace and the VORs drawn over the chart, on for every
+      // browser as for a new one (the owner's pick of the map's looks).
+      version: 2,
+      migrate: (kept, from) => ({
+        ...(kept as object),
+        ...(from < 1 ? { waypoints: false } : {}),
+        ...(from < 2 ? { airspace: true, navaids: true } : {}),
+      }) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,

@@ -19,6 +19,8 @@ import { ChartTiles } from "./ChartTiles";
 import { LandWaterTiles } from "./LandWaterTiles";
 import { OverlayTiles } from "./OverlayTiles";
 import { ClassBLayer } from "./ClassBLayer";
+import { AirspaceLayer } from "./AirspaceLayer";
+import { NavaidsLayer } from "./NavaidsLayer";
 import { ResizeAware } from "./MapEffects";
 import { prefersReducedMotion } from "../motion";
 import { followSheet, slideMap, stopFollowingSheet } from "./sheetSlide";
@@ -517,6 +519,10 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
               tile pane, under them by its zIndex. */}
           <LandWaterTiles />
           <OverlayTiles />
+          {/* The Class B, C and D, the VORs and the fixes over the chart,
+              on both maps, under everything else drawn on it. */}
+          <AirspaceLayer />
+          <NavaidsLayer />
           {/* Both maps get it: a Class B is worth seeing whether
               planning a route past it or rating chart detections
               near it. Draws nothing unless switched on. */}

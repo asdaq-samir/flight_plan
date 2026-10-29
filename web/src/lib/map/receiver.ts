@@ -171,6 +171,13 @@ export async function listen(): Promise<() => void> {
   };
 }
 
+/** The receiver's latest TAF of a field as sent, for the card's hours
+ *  (lib/hourly) where the planner's could not be had; null where none
+ *  has been heard. */
+export function useHeardTaf(ident: string | null | undefined): string | null {
+  return useReceiver(s => (ident ? Object.values(s.tafs).find(h => sameField(h.report.station, ident))?.report.text ?? null : null));
+}
+
 /** The receiver's latest METAR of a field, read (lib/metarText); null
  *  where none has been heard. A field's FAA identifier (DLH) finds its
  *  ICAO station (KDLH). */

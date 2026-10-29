@@ -102,6 +102,11 @@ export default function MapSettings() {
             were chosen from closer in; off, the course line and its two
             airports alone. */}
         <SwitchRow title="VFR Checkpoints" on={prefs.waypoints} onChange={prefs.setWaypoints} testId="waypoints-toggle" />
+        {/* The Class B, C and D's lines and altitudes over the chart
+            (AirspaceLayer), and the VORs and enroute fixes (NavaidsLayer):
+            on unless turned off, the owner's pick of the map's looks. */}
+        <SwitchRow title="Airspace" on={prefs.airspace} onChange={prefs.setAirspace} testId="airspace-toggle" />
+        <SwitchRow title="VORs and Fixes" on={prefs.navaids} onChange={prefs.setNavaids} testId="navaids-toggle" />
         {/* The temporary flight restrictions, from tfr.faa.gov: on unless
             turned off, as a pilot must know of every one near the route
             (14 CFR 91.103). */}

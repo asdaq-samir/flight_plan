@@ -1353,6 +1353,17 @@
             "title": "Standard Keying",
             "type": "boolean"
           },
+          "taf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf"
+          },
           "towered": {
             "title": "Towered",
             "type": "boolean"
@@ -1751,6 +1762,22 @@
         "title": "AirspaceBand",
         "type": "object"
       },
+      "AirspaceInView": {
+        "properties": {
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/AirspaceVolume"
+            },
+            "title": "Volumes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "volumes"
+        ],
+        "title": "AirspaceInView",
+        "type": "object"
+      },
       "AirspaceTransit": {
         "description": "Controlled airspace the route passes through: a radio call to\nmake, not a ceiling constraint.",
         "properties": {
@@ -1790,6 +1817,96 @@
           "along_track_nm"
         ],
         "title": "AirspaceTransit",
+        "type": "object"
+      },
+      "AirspaceVolume": {
+        "description": "One Class B, C or D volume in the map's view (vfr.airspace_map):\none shelf of a Class B, the surface area or a shelf of a Class C, or\na Class D, with its altitudes as the FAA's Class Airspace file has\nthem and its boundary as lines of [lat, lon] clipped to the box.",
+        "properties": {
+          "airspace_class": {
+            "enum": [
+              "B",
+              "C",
+              "D"
+            ],
+            "title": "Airspace Class",
+            "type": "string"
+          },
+          "ceiling_excluded": {
+            "title": "Ceiling Excluded",
+            "type": "boolean"
+          },
+          "ceiling_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ceiling Ft"
+          },
+          "floor_ft": {
+            "title": "Floor Ft",
+            "type": "number"
+          },
+          "floor_sfc": {
+            "title": "Floor Sfc",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "ident": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ident"
+          },
+          "label_lat": {
+            "title": "Label Lat",
+            "type": "number"
+          },
+          "label_lon": {
+            "title": "Label Lon",
+            "type": "number"
+          },
+          "lines": {
+            "items": {
+              "items": {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "airspace_class",
+          "floor_ft",
+          "floor_sfc",
+          "ceiling_excluded",
+          "label_lat",
+          "label_lon",
+          "lines"
+        ],
+        "title": "AirspaceVolume",
         "type": "object"
       },
       "AirwayAltitudes": {
@@ -5097,6 +5214,30 @@
           "on_route"
         ],
         "title": "FieldBelowVfr",
+        "type": "object"
+      },
+      "FixPin": {
+        "description": "A fix on the low-altitude enroute chart (NASR's FIX_BASE).",
+        "properties": {
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "ident",
+          "lat",
+          "lon"
+        ],
+        "title": "FixPin",
         "type": "object"
       },
       "FlightArrival": {
@@ -8562,6 +8703,30 @@
           "detail"
         ],
         "title": "NavLogStage",
+        "type": "object"
+      },
+      "NavaidsInView": {
+        "properties": {
+          "fixes": {
+            "items": {
+              "$ref": "#/components/schemas/FixPin"
+            },
+            "title": "Fixes",
+            "type": "array"
+          },
+          "vors": {
+            "items": {
+              "$ref": "#/components/schemas/VorPin"
+            },
+            "title": "Vors",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vors",
+          "fixes"
+        ],
+        "title": "NavaidsInView",
         "type": "object"
       },
       "NearbyMetar": {
@@ -14257,6 +14422,62 @@
         "title": "VorCheck",
         "type": "object"
       },
+      "VorPin": {
+        "description": "A VOR, VOR/DME or VORTAC in the map's view (NASR's NAV_BASE).",
+        "properties": {
+          "freq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Freq"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "VORTAC",
+              "VOR/DME",
+              "VOR"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "ident",
+          "kind",
+          "lat",
+          "lon"
+        ],
+        "title": "VorPin",
+        "type": "object"
+      },
       "WaypointPin": {
         "description": "A VFR waypoint on the sectional (VPBNG), for the map's diamond: a\ntap names it, and with a route open puts it in the stops.",
         "properties": {
@@ -15376,6 +15597,81 @@
           }
         },
         "summary": "Airspace At Point"
+      }
+    },
+    "/api/airspace/in-view": {
+      "get": {
+        "description": "The Class B, C and D inside the map's view (vfr.airspace_map), for\nthe map to draw over the chart: each volume's lines from the FAA's own\nshapefile, so they lie on the chart's printed ones, with its floor and\ntop for the label the chart prints. None where the FAA's airspace\ncannot be had: the chart's own lines are still under the map.",
+        "operationId": "airspace_in_view_api_airspace_in_view_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "south",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "South",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "west",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "West",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "north",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "North",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "east",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "East",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirspaceInView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Airspace In View"
       }
     },
     "/api/alternate": {
@@ -17356,6 +17652,103 @@
           }
         },
         "summary": "Model Comparison"
+      }
+    },
+    "/api/navaids/in-view": {
+      "get": {
+        "description": "The VORs inside the map's view, and with `fixes` the fixes of the\nlow-altitude enroute chart there too (vfr.fixes), at most `limit` of\neach: the hexagons and the triangles the map draws over the chart.\nThe map asks for the fixes only close in, where they do not scatter\nover the whole chart.",
+        "operationId": "navaids_in_view_api_navaids_in_view_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "south",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "South",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "west",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "West",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "north",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "North",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "east",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "East",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fixes",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Fixes",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 2000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NavaidsInView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Navaids In View"
       }
     },
     "/api/navlog": {
