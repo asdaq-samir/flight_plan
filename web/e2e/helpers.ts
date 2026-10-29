@@ -525,11 +525,19 @@ export async function openSection(page: Page, title: string) {
   const here = panel.locator(`[role="tabpanel"][data-state="active"] [data-title="${title}"]`).first();
   if (!(await here.isVisible().catch(() => false))) {
     await briefPage(page, "Preflight");
-    for (const phase of PHASES) {
-      const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
-      if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
-      if (await here.waitFor({ timeout: 3000 }).then(() => true, () => false)) break;
-    }
+    // Round the phases again until it is on one: a section drawn once the
+    // plan is in -- the Flight Plan with the nav log's totals, the Mock
+    // Oral with the briefing -- is on none of them for as long as a cold
+    // planner takes, and one round of 3 s a phase gave up first (CI's
+    // flight-plan and oral specs, 2026-10-28).
+    await expect(async () => {
+      for (const phase of PHASES) {
+        const tab = panelTabs(page).getByRole("tab", { name: phase, exact: true });
+        if ((await tab.getAttribute("aria-selected")) !== "true") await tab.click();
+        if (await here.waitFor({ timeout: 3000 }).then(() => true, () => false)) return;
+      }
+      throw new Error(`no "${title}" section on any of the Brief's pages yet`);
+    }).toPass({ timeout: slow(60_000) });
   }
   // A section drawn again as its tab's content arrives can be detached
   // between finding it and scrolling to it: tried until it holds still.
