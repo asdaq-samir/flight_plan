@@ -1,49 +1,38 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { BadgeCheck, ChartLine, Crosshair, Fan, IdCard, Plane, Route, Share, Star, TowerControl, UserRound } from "lucide-react";
+import { BadgeCheck, ChartLine, Crosshair, Fan, IdCard, Plane, Route, Star, UserRound } from "lucide-react";
 import { cn } from "cn";
-import { CardClose, CardTop, PanelCard } from "../../../components/PanelCard";
-import { useCardTitle } from "../../../components/mapChrome";
+import { PanelCard } from "../../../components/PanelCard";
+import { PhotoHead } from "../../../components/PhotoHead";
+import { PhotoSlide } from "../../../components/PictureSlides";
+import { FAVORITE_STAR, useCardTitle } from "../../../components/mapChrome";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
+import { PillSection } from "../../../components/Favorites";
 import { RowBadge } from "../../../components/RowBadge";
 import { Toggle as TogglePrimitive } from "radix-ui";
-import RoundButton from "../../../components/RoundButton";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
-import { bearingDeg } from "../../../lib/geo";
-import { useOwnFix } from "../../../lib/map/ownShip";
-import { carriedOn, closestApproach } from "../../../lib/map/traffic";
+import { bearingDeg, distanceNm } from "../../../lib/geo";
+import { useOwnFix, type Fix } from "../../../lib/map/ownShip";
+import { carriedOn, closestApproach, nearInHeight } from "../../../lib/map/traffic";
 import { useTracking } from "../../../lib/map/tracking";
 import { alertsLine } from "../../../lib/aircraftAlerts";
-import type { AircraftRegistration } from "../../../lib/api/types";
+import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/types";
 import { planePhotoQuery } from "../../../lib/planePhoto";
 import { airportQuery, flightQuery, routeQuery } from "../../../lib/queryClient";
 import { BADGE } from "../../../lib/rowBadges";
 import { TEXT } from "../../../lib/text";
-import { altFt, grouped } from "../../../lib/units";
+import { altFt, bearing, grouped } from "../../../lib/units";
+import { awayFrom, nmAway } from "../../../lib/useAway";
+import { clockTime } from "../../../lib/clock";
 import AircraftAlertMenu from "./AircraftAlertMenu";
-import AirplaneSketch, { type SketchBadge } from "./AirplaneSketch";
-import NowFlight from "./NowFlight";
+import AirplaneSketch from "./AirplaneSketch";
 import { SQUAWKS } from "../../../lib/squawks";
 import PastFlights from "./PastFlights";
-import { shortWhen, when } from "./pastFlightFormat";
+import { lasted, shortWhen, when } from "./pastFlightFormat";
 import { pastFlightQuery, pastFlightsQuery } from "./pastFlightsQuery";
 import { CardAction } from "./CardAction";
 import { AirplaneFigures } from "./AirplaneFigures";
-import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
-import { useCardTab } from "../../../lib/cardTab";
-import { useOpenCards } from "../../../lib/openCards";
 import { shareOrCopy } from "../../../lib/share";
-import { Tabs } from "../../../components/ui/tabs";
-
-/** The card's tabs: its flights, the one it is on now at their head, and
- *  what it is -- at the owner's ask ("Now tab can be removed and instead
- *  flights can have the now entry on top as the latest"), where they were
- *  Now, Flights and Info. */
-const FLIGHT_TABS = [
-  { value: "activity", label: "Flights" },
-  { value: "info", label: "Info" },
-] as const;
-type FlightTab = (typeof FLIGHT_TABS)[number]["value"];
 
 /** A link to the airplane on the planner, shared where the phone can,
  *  copied where it cannot. */
@@ -73,29 +62,171 @@ const sketchField = (ident: string | null) => ({
   }),
 });
 
+/** The state on the summary's corner: climbing, level or descending in
+ *  the air; on the ground; or an emergency's code (AIM 6-2-2, 6-3-4,
+ *  6-4-2). */
+interface StateBadge {
+  word: string;
+  tone: "air" | "ground" | "alarm";
+}
+
+const TONE = {
+  air: "bg-teal-700",
+  // iOS's dark grey: white on it reads at 7.7:1.
+  ground: "bg-zinc-600",
+  alarm: "bg-destructive",
+} as const;
+
+/** Feet against own ship's: "500 ft above", "1,200 ft below", "level". */
+function against(feet: number): string {
+  const rounded = Math.round(feet / 100) * 100;
+  if (rounded === 0) return "level";
+  return `${altFt(Math.abs(rounded))} ft ${rounded > 0 ? "above" : "below"}`;
+}
+
+/** One end of the flight in its summary: the field's ident, a tap that
+ *  opens its card where there is one to open, and its town under it. */
+function End({ ident, place, at, right = false, onOpen, testId, openTestId }: {
+  ident: string; place?: string | null; at?: string | null; right?: boolean; onOpen?: () => void; testId?: string; openTestId?: string;
+}) {
+  const name = <span className={cn("max-w-full truncate font-bold", TEXT.title)}>{ident}</span>;
+  return (
+    <span className={cn("flex min-w-0 flex-col", right && "items-end text-right")} data-testid={testId}>
+      {onOpen ? (
+        <button
+          type="button" onClick={onOpen} aria-label={`${ident}'s card`} data-testid={openTestId}
+          // The tint, as everything tappable; its 44 points round it.
+          className="relative max-w-full text-tint outline-none after:absolute after:-inset-x-2 after:-inset-y-3 focus-visible:ring-2 focus-visible:ring-ring"
+        >{name}</button>
+      ) : <span className="text-foreground">{name}</span>}
+      {place && <span className={cn("max-w-full truncate text-muted-foreground", TEXT.note)}>{place}</span>}
+      {at && <span className={cn("max-w-full truncate text-muted-foreground tabular-nums", TEXT.note)}>{at}</span>}
+    </span>
+  );
+}
+
+/**
+ * The flight in a card under the actions, at the owner's pick of the
+ * redesign (A2): where it left and where it is bound, a bar between them
+ * as far along as it has flown, and how it is flying -- its height and
+ * climb, its ground speed, its true track and how long it has been up --
+ * or, not heard now, where its last flight landed and when. Under them an
+ * emergency's code, and with own ship on, how far and which way it is and
+ * when and how near it comes. Seconds-old internet data from adsb.lol's
+ * receivers: for knowing what is about, not for avoiding it.
+ */
+function FlightSummary({ plane, badge, chip, from, to, progress, startedAt, departedAt, now, fix, here, cpa, onOpenAirport, airport }: {
+  plane: TrafficAircraft | null;
+  badge: StateBadge | null;
+  /** Not heard now: "Landed KPSM 16:02", "Last heard 3 Oct". */
+  chip: string | null;
+  from: { ident: string; place: string | null } | null;
+  to: { ident: string; place: string | null } | null;
+  /** How far along, 0 to 1, where both ends and where it is are known. */
+  progress: number | null;
+  startedAt: number | null;
+  departedAt: number | null;
+  now: number;
+  fix: Fix | null;
+  here: { lat: number; lon: number } | null;
+  cpa: { inMin: number; nm: number; aboveFt: number | null } | null;
+  onOpenAirport?: (ident: string) => void;
+  /** The field the airport tap was for: the card's Airport tile's. */
+  airport: string | null;
+}) {
+  const rate = plane?.vertical_fpm ?? 0;
+  const squawk = plane?.squawk ?? null;
+  const climb = Math.abs(rate) >= 100 ? `${rate > 0 ? "↑" : "↓"} ${altFt(Math.abs(Math.round(rate / 100) * 100))} fpm` : "level";
+  const flown = plane && startedAt ? lasted(now / 1000 - startedAt) : null;
+  const open = (ident: string) => (onOpenAirport ? () => onOpenAirport(ident) : undefined);
+  return (
+    <div className="mt-3 flex flex-col gap-2 rounded-xl bg-card px-3.5 py-3 ring-1 ring-border/60" data-testid={plane ? "flight-now" : "flight-last"}>
+      <div className={cn("flex items-center gap-2 font-semibold", TEXT.note)}>
+        {badge && (
+          <span className={cn("rounded-md px-1 font-bold text-white", TEXT.caption, TONE[badge.tone])} data-testid="flight-state">{badge.word}</span>
+        )}
+        <span className={plane ? "text-go-ink" : "text-muted-foreground"}>{plane ? (flown ? `In the air · ${flown}` : "In the air") : "Not heard now"}</span>
+      </div>
+      {from && (
+        <div className="grid grid-cols-[minmax(0,auto)_minmax(2rem,1fr)_minmax(0,auto)] items-center gap-3">
+          <End
+            ident={from.ident} place={from.place} at={departedAt ? clockTime(new Date(departedAt * 1000)) : null}
+            onOpen={from.ident !== "?" ? open(from.ident) : undefined}
+            testId={departedAt ? "flight-departed" : undefined} openTestId={from.ident === airport ? "flight-airport" : undefined}
+          />
+          {/* As far along as it has flown, in the tint; a plain line where
+              that cannot be said (no field it is bound for). */}
+          <div
+            className="relative h-1 rounded-full bg-foreground/15" role={progress != null ? "progressbar" : undefined}
+            aria-label={progress != null ? "Of the way flown" : undefined}
+            aria-valuenow={progress != null ? Math.round(progress * 100) : undefined} aria-valuemin={progress != null ? 0 : undefined} aria-valuemax={progress != null ? 100 : undefined}
+          >
+            {progress != null && <div className="absolute inset-y-0 left-0 rounded-full bg-tint" style={{ width: `${Math.round(progress * 100)}%` }} />}
+          </div>
+          <End
+            right ident={to?.ident ?? "Now"} place={to?.place ?? null} onOpen={to ? open(to.ident) : undefined}
+            testId={plane ? "flight-bound" : undefined} openTestId={to && to.ident === airport && to.ident !== from.ident ? "flight-airport" : undefined}
+          />
+        </div>
+      )}
+      {plane ? (
+        <span className={cn("font-semibold text-foreground tabular-nums", TEXT.detail)} data-testid="flight-altitude">
+          {plane.altitude_ft == null ? "—" : `${altFt(Math.round(plane.altitude_ft / 25) * 25)} ft`} {climb}
+          {" · "}{plane.speed_kt == null ? "—" : `${Math.round(plane.speed_kt)} kt`}
+          {/* ADS-B's track is over the ground and true, not magnetic. */}
+          {plane.track_deg != null && ` · ${bearing(plane.track_deg)} true`}
+        </span>
+      ) : chip && (
+        <span className={cn("font-semibold text-foreground", TEXT.detail)} data-testid="flight-chip">{chip}</span>
+      )}
+      {squawk && SQUAWKS[squawk] && (
+        // An emergency's code where it is seen first (AIM 6-2-2, 6-3-4, 6-4-2).
+        <span className={cn("font-semibold text-destructive-ink tabular-nums", TEXT.detail)} data-testid="flight-squawk-alarm">
+          Squawk {squawk} · {SQUAWKS[squawk]}
+        </span>
+      )}
+      {plane && fix && here && (
+        <span className={cn("text-muted-foreground", TEXT.detail)} data-testid="flight-from-you">
+          {`${awayFrom({ lat: fix.lat, lon: fix.lon }, here)} of you`}
+          {fix.altitudeFt != null && plane.altitude_ft != null ? `, ${against(plane.altitude_ft - fix.altitudeFt)}` : ""}
+          {cpa && (
+            <span
+              data-testid="flight-closest"
+              className={cn(cpa.nm < 1 && (cpa.aboveFt == null || nearInHeight(cpa.aboveFt)) && "font-semibold text-destructive-ink")}
+            >
+              {" · closest "}{cpa.inMin < 0.5 ? "now, drawing apart" : `in ${Math.round(cpa.inMin)} min`}
+              {`: ${nmAway(cpa.nm)}${cpa.aboveFt != null ? `, ${against(cpa.aboveFt)}` : ""}`}
+            </span>
+          )}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** A field's town, "Chicago, IL", from the sketch's field. */
+const townOf = (field: { city?: string | null; region?: string | null; name?: string | null } | null | undefined) =>
+  field ? [field.city, field.region?.replace(/^US-/, "")].filter(Boolean).join(", ") || field.name || null : null;
+
 /**
  * An airplane being tracked, as FlightAware's flight page and ForeFlight's
- * traffic card show one, laid out at the owner's pick of the redesign:
- * what it is and who flies it; beside them where it has flown, sketched,
- * its state and height on the sketch -- its flight now, or where it is
- * not heard its last -- and its photo a swipe across; the star, Follow
- * (the map keeps it in the middle, TrafficLayer) and Share in a column
- * under the close ("I want the follow and share icons just below the fav
- * icon button"); then Alert, Debrief and its airport; and its Flights,
- * the one it is on first, and what it is (Info). Seconds-old internet data
- * from adsb.lol's receivers: for knowing what is about, not for avoiding it.
+ * traffic card show one, laid out at the owner's pick of the cards'
+ * redesign (A2, 2026-10-29), as an airport's is: its photo across the top
+ * (Planespotters', its photographer named), where it has flown a swipe
+ * across, its callsign large over them with what it is and who flies it;
+ * Follow (the map keeps it in the middle, TrafficLayer), Alert, Debrief
+ * and the star under them; its flight in a card; and one scroll of what it
+ * is and its earlier flights, where they were two tabs. Seconds-old
+ * internet data from adsb.lol's receivers: for knowing what is about, not
+ * for avoiding it.
  */
-export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, onExpand, onLower }: {
+export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: {
   hex: string;
   onClose: () => void;
-  /** The panel all the way up, for a tab picked, and back to the pill, the
-   *  open one tapped again, as an airport's card's tabs do (CardTabBar). */
-  onExpand?: () => void;
-  onLower?: () => void;
   /** Opens one of its past flights' own card over this one: a flight from
    *  its list, or the one Debrief is for. */
   onOpenPast: (id: number) => void;
-  /** Opens a field's card over this one: its airport's tile. */
+  /** Opens a field's card over this one: an end of its flight tapped. */
   onOpenAirport?: (ident: string) => void;
 }) {
   const latest = useTracking(s => (s.latest?.plane.hex === hex ? s.latest : null));
@@ -116,12 +247,6 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
   }, []);
   const plane = latest?.plane ?? null;
   const following = follow && !!plane;
-  // On its Flights, the flight it is on first; the pilot's pick kept for
-  // the airplane while the page is open (back from a past flight's card,
-  // the tab it was opened from).
-  const tabsRef = useRef<HTMLDivElement>(null);
-  const raise = onExpand && onLower ? { onExpand, onLower } : undefined;
-  const [tab, setPicked] = useCardTab<FlightTab>(`flight:${hex}`, "activity");
   // What is kept of it, for the Aircraft card's Recents and Favorites,
   // once it can be named: its registration, else its callsign.
   // An airplane not heard today has no trace to name it: the FAA's record
@@ -141,17 +266,15 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
   const cpa = fix && plane && here ? closestApproach(fix, { ...plane, ...here }) : null;
   const squawk = plane?.squawk ?? null;
   const rate = plane?.vertical_fpm ?? 0;
-  // Its name the title over the card (TabBar), as an airport's ident is, at
-  // the owner's ask ("aircraft can be similar layout"): the card's own
-  // head what it is, as the FAA's and the database's names have it, and
-  // who flies it.
+  // Its name the title over the card in the pill's bar (TabBar), as an
+  // airport's ident is.
   useEffect(() => {
     useCardTitle.setState({ title: name });
     return () => useCardTitle.setState({ title: null });
   }, [name]);
   const model = detail?.description ? nameCase(detail.description) : detail?.type ?? plane?.type ?? null;
   const operator = detail?.operator ? nameCase(detail.operator) : null;
-  // Its flights found (the Flights tab's list, the same question): the
+  // Its flights found (Earlier flights' list, the same question): the
   // newest is the one it is on, or, not heard now, its last -- sketched,
   // and what Debrief opens.
   const { data: past } = useInfiniteQuery(pastFlightsQuery(hex, null));
@@ -166,27 +289,26 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
   const { data: lastFlight } = useQuery({ ...pastFlightQuery(hex, lastId ?? 0), enabled: lastId !== null });
   const flown = lastId !== null ? lastFlight?.points : today;
   const trail = useMemo(() => (flown ?? []).map(p => ({ lat: p.lat, lon: p.lon, altFt: p.alt_ft ?? null })), [flown]);
-  // The fields on the sketch: where its trace says it took off, else its
-  // flight number's route's first, and the route's last where it is
-  // flying the route; not heard, its last flight's ends.
+  // Its ends: where its trace says it took off, else its flight number's
+  // route's first, and the route's last where it is flying the route; not
+  // heard, its last flight's ends.
   const fromIdent = plane ? detail?.departed?.ident ?? route?.airports[0]?.ident ?? null : last?.origin?.ident ?? detail?.departed?.ident ?? null;
   const toIdent = plane
     ? flying && flying.airports.length > 1 ? flying.airports[flying.airports.length - 1]!.ident : null
     : last?.destination?.ident ?? null;
   const { data: fromField } = useQuery(sketchField(fromIdent));
   const { data: toField } = useQuery(sketchField(toIdent));
-  // Its state on the sketch's corner, at the owner's ask: an emergency's
+  // Its state on the summary's corner, at the owner's ask: an emergency's
   // code first (AIM 6-2-2, 6-3-4, 6-4-2), else climbing or descending
   // past 300 feet a minute, else level; not heard, on the ground where its
   // last flight landed.
   // Today's trace ending on the ground says so before its flights' list
   // has the flight (the list is minutes behind the trace).
   const endOfToday = !plane ? today?.at(-1) ?? null : null;
-  const badge: SketchBadge | null = plane
+  const badge: StateBadge | null = plane
     ? squawk && SQUAWKS[squawk] ? { word: squawk, tone: "alarm" } : { word: rate >= 300 ? "CLB" : rate <= -300 ? "DES" : "LVL", tone: "air" }
     : last?.landed || (!last && endOfToday && endOfToday.alt_ft == null) ? { word: "GND", tone: "ground" } : null;
-  const chip = plane
-    ? `${plane.altitude_ft == null ? "—" : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`} · ${plane.speed_kt == null ? "—" : `${Math.round(plane.speed_kt)} kt`}`
+  const chip = plane ? null
     : last
       ? last.landed && last.destination ? `Landed ${last.destination.ident} ${shortWhen(when(last.on))}` : `Last heard ${shortWhen(when(last.on))}`
       : endOfToday ? `Last heard ${shortWhen(when(endOfToday.t))}` : null;
@@ -198,122 +320,134 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport, on
   const debriefed = current ?? last;
   const alerts = usePreferences(s => s.aircraftAlerts);
   const waiting = alertsLine(useMemo(() => alerts.filter(a => a.hex === hex), [alerts, hex]));
-  // On a phone the minimized tab bar's Share is its share, in Back's place
-  // (TabBar); wider, the column's third button, under Follow.
-  const barShares = useOpenCards(s => s.barMinimized);
-  return (
-    <PanelCard testId="flight-card">
-      <CardTop
-        tall={!barShares}
-        name={model ?? name} nameTestId="flight-name" nameFitTestId="flight-name-fit"
-        lines={(
-          <>
-            {operator && <p className={cn("line-clamp-2 text-muted-foreground", TEXT.note)} data-testid="flight-what">{operator}</p>}
-            {/* What the pilot asked to be told of it, while it waits. */}
-            {waiting && <p className={cn("line-clamp-2 text-tint", TEXT.note)} data-testid="flight-alerts-set">{waiting}</p>}
-          </>
-        )}
-        picture={(
-          <AirplaneSketch
-            name={name} points={trail} now={here && plane ? { ...here, altFt: plane.altitude_ft ?? null } : null}
-            // Its track now, or, not heard, its last flight's last way.
-            trackDeg={plane?.track_deg ?? (trail.length > 1 ? bearingDeg(trail[trail.length - 2]!, trail[trail.length - 1]!) : null)}
-            from={fromField ?? null} to={toField ?? null} badge={badge} chip={chip} photo={photo ?? null}
-          />
-        )}
-        side={(
-          <>
-            <CardClose onClose={onClose} onShare={() => void shareFlight(name, hex)} testId="flight-close" />
-            <FavoriteButton kept={kept} />
-            {/* Nothing to follow where it is not heard now: greyed, not pressed. */}
-            <TogglePrimitive.Root asChild pressed={following} disabled={!plane} onPressedChange={on => useTracking.setState({ follow: on })}>
-              <RoundButton
-                label={following ? `Stop following ${name}` : `Follow ${name} on the map`}
-                className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:hover:bg-primary data-[state=on]:hover:text-primary-foreground dark:data-[state=on]:bg-primary dark:data-[state=on]:hover:bg-primary"
-                data-testid="flight-follow"
-              >
-                <Crosshair className="size-5" strokeWidth={2.2} />
-              </RoundButton>
-            </TogglePrimitive.Root>
-            {!barShares && (
-              <RoundButton label={`Share ${name}`} onClick={() => void shareFlight(name, hex)} data-testid="flight-share">
-                <Share className="size-5" strokeWidth={2} />
-              </RoundButton>
-            )}
-          </>
-        )}
-        columns={3}
-        // What to be told of it, its flight debriefed, and its airport.
-        actions={(
-          <>
-            <AircraftAlertMenu hex={hex} name={name} airborne={!!plane} from={fromField ?? null} to={toField ?? null} />
-            <CardAction
-              icon={<ChartLine />} label="Debrief" testId="flight-debrief" disabled={!debriefed}
-              onClick={() => { if (debriefed) onOpenPast(debriefed.id); }}
-            />
-            <CardAction
-              icon={<TowerControl />} label={airport ?? "Airport"} spoken={airport ? `${airport}'s card` : undefined}
-              testId="flight-airport" disabled={!airport || !onOpenAirport}
-              onClick={() => { if (airport) onOpenAirport?.(airport); }}
-            />
-          </>
-        )}
+  // The summary's ends: flying, the field it left (or its route's first)
+  // and the route's last where it flies it; not heard, its last flight's.
+  const fromEnd = fromIdent ? { ident: fromIdent, place: townOf(fromField) ?? (plane ? route?.airports[0]?.location ?? null : null) } : null;
+  const toEnd = toIdent ? { ident: toIdent, place: townOf(toField) ?? (plane ? flying?.airports.at(-1)?.location ?? null : null) } : null;
+  // How far along, by the miles flown from the field it left against the
+  // miles still to go to the one it is bound for; a flight landed all the
+  // way.
+  const progress = plane
+    ? fromField && toField && here ? (() => {
+      const done = distanceNm(fromField, here), left = distanceNm(here, toField);
+      return done + left > 0 ? done / (done + left) : null;
+    })() : null
+    : last?.landed ? 1 : null;
+  const share = () => void shareFlight(name, hex);
+  // The photo first, as Maps opens a place on its photos, where
+  // Planespotters has one; else the airplane's shape on the tint, a
+  // quiet stand-in, not an empty box. Where it has flown a swipe across.
+  const slides = [
+    photo ? (
+      <PhotoSlide
+        key="photo" flush src={photo.src} alt={name} href={photo.link} label={`${name}'s photo on Planespotters`}
+        // Planespotters' terms: the photographer named beside it.
+        credit={`© ${photo.photographer} · Planespotters`} testId="flight-photo" creditTestId="flight-photo-credit"
       />
-      <Tabs value={tab} className="gap-0">
-        {/* The cards' tabs (CardTabBar), the airport card's: tapped, the
-            panel all the way up, as its are. */}
-        <CardTabBar tabs={FLIGHT_TABS} value={tab} onPick={setPicked} testIdPrefix="flight-tab" raise={raise} barRef={tabsRef} className="mt-3" />
-        {/* The flight it is on now, then the ones before it, each replayed. */}
-        <CardTabPanel value="activity">
-          {plane && latest && (
-            <NowFlight
-              plane={plane} now={now} type={detail?.type ?? plane.type ?? null}
-              departed={detail?.departed ?? null} departedPlace={fromField ?? null} route={flying}
-              startedAt={detail?.departed?.at ?? today?.[0]?.t ?? null} fix={fix} here={here} cpa={cpa}
+    ) : (
+      <div key="none" className="flex size-full items-start justify-center bg-linear-to-b from-primary/55 to-primary/15 pt-10" data-testid="flight-photo-none">
+        <Plane className="size-20 text-white/55" strokeWidth={1.25} aria-hidden="true" />
+      </div>
+    ),
+    <AirplaneSketch
+      key="trail" points={trail} now={here && plane ? { ...here, altFt: plane.altitude_ft ?? null } : null}
+      // Its track now, or, not heard, its last flight's last way.
+      trackDeg={plane?.track_deg ?? (trail.length > 1 ? bearingDeg(trail[trail.length - 2]!, trail[trail.length - 1]!) : null)}
+      from={fromField ?? null} to={toField ?? null}
+    />,
+  ];
+  const registration = detail?.registration ?? plane?.registration ?? null;
+  return (
+    <PanelCard testId="flight-card" flush>
+      <PhotoHead
+        title={name} testId="flight-head" titleTestId="flight-name" subtitleTestId="flight-what"
+        subtitle={[model, operator].filter(Boolean).join(" · ") || "\u00a0"}
+        label={`${name}: ${photo ? "its photo, and " : ""}where it has flown`}
+        slides={slides} onClose={onClose} onShare={share} closeTestId="flight-close" shareTestId="flight-share"
+      />
+      <div className="grid grid-cols-4 gap-2 pt-3" data-testid="flight-actions">
+        {/* Follow filled, the card's first thing to do; nothing to follow
+            where it is not heard now: greyed, not pressed. */}
+        <TogglePrimitive.Root asChild pressed={following} disabled={!plane} onPressedChange={on => useTracking.setState({ follow: on })}>
+          <CardAction
+            icon={<Crosshair />} label={following ? "Following" : "Follow"} filled pressed={following} testId="flight-follow"
+            spoken={following ? `Stop following ${name}` : `Follow ${name} on the map`}
+          />
+        </TogglePrimitive.Root>
+        <AircraftAlertMenu hex={hex} name={name} airborne={!!plane} from={fromField ?? null} to={toField ?? null} />
+        <CardAction
+          icon={<ChartLine />} label="Debrief" testId="flight-debrief" disabled={!debriefed}
+          onClick={() => { if (debriefed) onOpenPast(debriefed.id); }}
+        />
+        <FavoriteButton kept={kept} />
+      </div>
+      {/* What the pilot asked to be told of it, while it waits. */}
+      {waiting && <p className={cn("pt-2 text-tint", TEXT.note)} data-testid="flight-alerts-set">{waiting}</p>}
+      {(plane || last || endOfToday) && (
+        <FlightSummary
+          plane={plane} badge={badge} chip={chip} from={fromEnd} to={toEnd} progress={progress}
+          startedAt={detail?.departed?.at ?? today?.[0]?.t ?? null} departedAt={plane ? detail?.departed?.at ?? null : null}
+          now={now} fix={fix} here={here} cpa={cpa} onOpenAirport={onOpenAirport} airport={airport}
+        />
+      )}
+      {/* What it is: who it is registered to, its type and year, its
+          squawk -- the rest of what Info had after. */}
+      <div className="pt-5">
+        <PillSection title="Details" testId="flight-details">
+          <ListGroup>
+            <ListRow title="Registration" value={<span className="font-semibold text-foreground">{registration ?? "—"}</span>} />
+            <ListRow
+              title="Type"
+              value={<span className="font-semibold text-foreground">{[detail?.type ?? plane?.type, detail?.year].filter(Boolean).join(" · ") || "—"}</span>}
             />
-          )}
-          <PastFlights hex={hex} onOpen={onOpenPast} nowShown={!!plane} type={detail?.type ?? plane?.type ?? past?.pages[0]?.type ?? null} />
-        </CardTabPanel>
-        {/* What it is -- its make and model and who flies it, its
-            registration and address, its callsign and route -- and the
-            FAA's record. */}
-        <CardTabPanel value="info">
-          <ListGroup title="Airplane">
+            {squawk && (
+              <ListRow
+                title="Squawk" data-testid="flight-squawk"
+                value={<span className={cn("font-semibold tabular-nums", SQUAWKS[squawk] ? "text-destructive-ink" : "text-foreground")}>{squawk}{SQUAWKS[squawk] ? ` · ${SQUAWKS[squawk]}` : ""}</span>}
+              />
+            )}
+            {detail?.faa?.owner && (
+              <ListRow title="Registered to" value={<span className="font-semibold text-foreground" data-testid="flight-owner">{nameCase(detail.faa.owner)}</span>} />
+            )}
             {detail?.description && (
               <ListRow title="Model" value={<span className="font-semibold text-foreground" data-testid="flight-model">{nameCase(detail.description)}</span>} />
             )}
             {detail?.operator && (
               <ListRow title="Operator" value={<span className="font-semibold text-foreground" data-testid="flight-operator">{nameCase(detail.operator)}</span>} />
             )}
-            <ListRow title="Registration" value={<span className="font-semibold text-foreground">{detail?.registration ?? plane?.registration ?? "—"}</span>} />
-            <ListRow
-              title="Type"
-              value={<span className="font-semibold text-foreground">{[detail?.type ?? plane?.type, detail?.year].filter(Boolean).join(" · ") || "—"}</span>}
-            />
             <ListRow title="ICAO address" value={<span className={cn("font-semibold text-foreground uppercase tabular-nums", TEXT.row)}>{hex}</span>} />
             <ListRow title="Callsign" value={<span className="font-semibold text-foreground">{plane?.callsign ?? "—"}</span>} />
           </ListGroup>
-          {/* The figures the planner flies it on, the pilot's to set, where
-              it is the airplane flown now (AirplaneFigures). */}
-          {(detail?.registration ?? plane?.registration) && <AirplaneFigures tail={(detail?.registration ?? plane?.registration)!} />}
-          {route && (
-            // Its flight number's scheduled route (Virtual Radar Server's
-            // route database), not the flight plan filed, which the FAA does
-            // not publish openly: said in the row, not in a footnote.
-            <ListGroup title="Scheduled route">
-              <ListRow
-                media={<RowBadge colour={BADGE.approach}><Route /></RowBadge>} data-testid="flight-route"
-                title={<span className="font-semibold">{route.airports.map(a => a.ident).join(" → ")}</span>}
-                description={[
-                  route.airports.map(a => a.location ?? a.name).filter(Boolean).join(" to "),
-                  route.plausible === false ? "not where it is flying now" : null,
-                ].filter(Boolean).join(" · ")}
-              />
-            </ListGroup>
-          )}
-          {detail?.faa && <FaaRegistration faa={detail.faa} />}
-        </CardTabPanel>
-      </Tabs>
+        </PillSection>
+      </div>
+      {/* The ones before the flight it is on, each replayed (PastFlights),
+          and a day to look back from. */}
+      <div className="pt-5">
+        <PillSection title="Earlier flights" testId="flight-earlier">
+          <PastFlights hex={hex} onOpen={onOpenPast} nowShown={!!plane} untitled type={detail?.type ?? plane?.type ?? past?.pages[0]?.type ?? null} />
+        </PillSection>
+      </div>
+      <div className="flex flex-col gap-5 pt-5">
+        {/* The figures the planner flies it on, the pilot's to set, where
+            it is the airplane flown now (AirplaneFigures). */}
+        {registration && <AirplaneFigures tail={registration} />}
+        {route && (
+          // Its flight number's scheduled route (Virtual Radar Server's
+          // route database), not the flight plan filed, which the FAA does
+          // not publish openly: said in the row, not in a footnote.
+          <ListGroup title="Scheduled route">
+            <ListRow
+              media={<RowBadge colour={BADGE.approach}><Route /></RowBadge>} data-testid="flight-route"
+              title={<span className="font-semibold">{route.airports.map(a => a.ident).join(" → ")}</span>}
+              description={[
+                route.airports.map(a => a.location ?? a.name).filter(Boolean).join(" to "),
+                route.plausible === false ? "not where it is flying now" : null,
+              ].filter(Boolean).join(" · ")}
+            />
+          </ListGroup>
+        )}
+        {detail?.faa && <FaaRegistration faa={detail.faa} />}
+      </div>
     </PanelCard>
   );
 }
@@ -371,22 +505,20 @@ function FaaRegistration({ faa }: { faa: AircraftRegistration }) {
   );
 }
 
-/** The star that adds the airplane to the Aircraft card's Favorites,
- *  filled in iOS's yellow while it is one, as the airport card's is. */
+/** The star that adds the airplane to the Aircraft card's Favorites, one
+ *  of its actions, filled in iOS's yellow while it is one, as the airport
+ *  card's is. */
 function FavoriteButton({ kept }: { kept: KeptAircraft | null }) {
   const starred = usePreferences(s => !!kept && s.favoriteAircraft.some(a => a.hex === kept.hex));
   const toggle = usePreferences(s => s.toggleFavoriteAircraft);
   return (
-    // The stock Toggle round the round button, on as Radix's is, the
-    // yellow and the filled star from its data-state.
+    // The stock Toggle round the action, on as Radix's is, the yellow and
+    // the filled star from its data-state.
     <TogglePrimitive.Root asChild pressed={starred} disabled={!kept} onPressedChange={() => { if (kept) toggle(kept); }}>
-      <RoundButton
-        label={starred ? "Remove from Favorites" : "Add to Favorites"}
-        className="data-[state=on]:text-[#ffcc00] data-[state=on]:hover:text-[#ffcc00] dark:data-[state=on]:text-[#ffd60a] dark:data-[state=on]:hover:text-[#ffd60a] data-[state=on]:[&_svg]:fill-current"
-        data-testid="flight-favorite"
-      >
-        <Star className="size-5" strokeWidth={2} />
-      </RoundButton>
+      <CardAction
+        icon={<Star className={FAVORITE_STAR} strokeWidth={2} />} label="Favorite" pressed={starred}
+        spoken={starred ? "Remove from Favorites" : "Add to Favorites"} testId="flight-favorite"
+      />
     </TogglePrimitive.Root>
   );
 }

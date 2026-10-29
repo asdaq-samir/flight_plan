@@ -234,6 +234,11 @@ export const ADD_CAPSULE =
   "relative h-8 shrink-0 rounded-full bg-tint/12 px-3.5 font-semibold text-tint outline-none " +
   `after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${TEXT.detail}`;
 
+/** A star filled in iOS's yellow while its card action is on (data-state
+ *  on its button, a stock Toggle's: the airport and airplane cards'
+ *  Favorite), as a starred thing is everywhere on iOS. */
+export const FAVORITE_STAR = "in-data-[state=on]:fill-[#ffcc00] in-data-[state=on]:text-[#ffcc00] dark:in-data-[state=on]:fill-[#ffd60a] dark:in-data-[state=on]:text-[#ffd60a]";
+
 /** A round button on the panel -- the console's, the route's close -- as
  *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the
  *  text's colour (the pilot's pick, after a grey disc). */

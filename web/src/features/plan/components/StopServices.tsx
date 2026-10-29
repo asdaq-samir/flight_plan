@@ -43,8 +43,8 @@ export function StopGlance({ ident, className }: { ident: string; className?: st
   return data ? <Glance of={data} className={className} testId="stop-glance" /> : null;
 }
 
-/** A section of the Info tab, titled as its frequencies and lights are
- *  (PillSection), after them. */
+/** A section of the airport card's, titled as its frequencies and lights
+ *  are (PillSection), after them. */
 function Section({ title, children, testId }: { title: string; children: ReactNode; testId?: string }) {
   return (
     <div className="pt-5" data-testid={testId}>
@@ -66,15 +66,19 @@ const placeRows = (places: NearbyPlace[], media: ReactNode, testId: string) => p
 ));
 
 /**
- * What the field offers a pilot who lands there, under the airport card's
- * Info (PlaceCard), at the owner's ask for food, fuel and rest stops on a
+ * What the field offers a pilot who lands there, at the foot of the
+ * airport card (PlaceCard), at the owner's ask for food, fuel and rest stops on a
  * long cross-country: the fuel and its remarks, what is on the field --
  * parking, a hangar, repair, oxygen, a landing fee, a courtesy car -- from
  * its Chart Supplement entry, then the places to eat, sleep and hire a car
  * within five miles, nearest first (vfr.nearby). A place with a phone is
  * a tap that calls it.
  */
-export function StopServices({ ident }: { ident: string }) {
+export function StopServices({ ident, withoutFuel = false }: {
+  ident: string;
+  /** Its fuel left to the airport card's details, which show it. */
+  withoutFuel?: boolean;
+}) {
   const asked = useQuery(servicesQuery(ident));
   const s = asked.data;
   // A line while they are fetched, and where they could not be, that they
@@ -106,16 +110,18 @@ export function StopServices({ ident }: { ident: string }) {
   const near = s.food.length + s.lodging.length + s.cars.length > 0;
   return (
     <div data-testid="place-services">
-      <Section title="Fuel">
-        <ListRow
-          media={<RowBadge colour={BADGE.fuel}><Fuel /></RowBadge>}
-          title={s.fuel_types.length ? fuelNames(s.fuel_types) : <span className="text-muted-foreground">None listed</span>}
-          data-testid="services-fuel"
-        />
-        {/* The remarks in plain English as the planner gives them
-            (vfr.remarks.service_notes): self-serve, its hours, the FBO's. */}
-        {s.fuel_notes.map(note => <ListRow key={note} title={note} />)}
-      </Section>
+      {!withoutFuel && (
+        <Section title="Fuel">
+          <ListRow
+            media={<RowBadge colour={BADGE.fuel}><Fuel /></RowBadge>}
+            title={s.fuel_types.length ? fuelNames(s.fuel_types) : <span className="text-muted-foreground">None listed</span>}
+            data-testid="services-fuel"
+          />
+          {/* The remarks in plain English as the planner gives them
+              (vfr.remarks.service_notes): self-serve, its hours, the FBO's. */}
+          {s.fuel_notes.map(note => <ListRow key={note} title={note} />)}
+        </Section>
+      )}
       {field.length > 0 && <Section title="On the field">{field}</Section>}
       {s.food.length > 0 && <Section title="Food nearby">{placeRows(s.food, <RowBadge colour={BADGE.food}><Utensils /></RowBadge>, "services-food")}</Section>}
       {s.lodging.length > 0 && <Section title="Places to stay">{placeRows(s.lodging, <RowBadge colour={BADGE.lodging}><BedDouble /></RowBadge>, "services-lodging")}</Section>}
@@ -145,7 +151,7 @@ export type SuggestedStop = {
 /** The suggested stop's figures, at the top of its airport's card, at the
  *  owner's pick of the canvas's stop card: when it is reached, the fuel
  *  it lands with and the miles it adds, three tiles, then what is there on
- *  the ground in a line (StopGlance) -- the rest under Info. */
+ *  the ground in a line (StopGlance) -- the rest at the card's foot. */
 export function StopStrip({ ident, stop }: { ident: string; stop: SuggestedStop }) {
   const tile = (label: string, value: string, testId: string) => (
     <div className="min-w-0 rounded-xl bg-foreground/5 px-2.5 py-1.5" data-testid={testId}>

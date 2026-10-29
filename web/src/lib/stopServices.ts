@@ -35,7 +35,7 @@ const nearest = (n: Nearest) => (Array.isArray(n) ? n[0] : n) ?? undefined;
  * here burns where it is sold (vfr.fuelstops.FUEL), the nearest food, the
  * nearest bed, and a courtesy car or a car to hire -- what the canvas's A
  * showed under each stop, at the owner's pick ("Ok do it", 2026-10-22).
- * The rest is in the field's card's Info (StopServices).
+ * The rest is at the foot of the field's card (StopServices).
  */
 export function glanceOf(f: Glanceable): GlanceItem[] {
   const out: GlanceItem[] = [];
