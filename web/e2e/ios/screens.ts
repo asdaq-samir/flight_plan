@@ -91,16 +91,22 @@ export const SCREENS: Screen[] = [
     },
   })),
   // An airport's card half way, its pictures across the top, its actions
-  // and the weather's line (A2); and all the way up, its one scroll.
-  ...["", ", all the way up"].map(part => ({
+  // and its tabs right under them (A2, the tabs back); all the way up on
+  // Info; and on Weather, the hourly card over the reports.
+  ...["", ", all the way up", ", its Weather tab"].map(part => ({
     name: `airport card${part}`,
     ready: async (page: Page) => {
       await page.goto(`/app/plan?${ROUTE}&place=KDLH`);
       await expect(page.getByTestId("place-name")).toHaveText("KDLH", { timeout: slow(30000) });
       await expect(page.getByTestId("fly-here")).toBeEnabled({ timeout: slow(30000) });
-      if (part) {
+      if (part === ", all the way up") {
         await grabberTo(page, "full");
         await expect(sideDrawer(page).getByTestId("place-details")).toBeVisible();
+      }
+      if (part === ", its Weather tab") {
+        await sideDrawer(page).getByTestId("place-tab-weather").click();
+        await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
+        await expect(sideDrawer(page).getByTestId("place-weather-summary")).toBeVisible();
       }
     },
   })),

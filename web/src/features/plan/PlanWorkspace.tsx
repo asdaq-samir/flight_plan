@@ -2592,7 +2592,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     <Suspense fallback={null}>
       <PlaceCard
         key={place} ident={place} from={measuredFrom}
-        onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")}
+        onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
         // None for a point of the route, or past the planner's most stops.
         onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined
           : suggestedAt ? () => keepFuelStops(suggestedAt.after, [place]) : addStop}

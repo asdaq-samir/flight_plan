@@ -13,6 +13,9 @@ import { PhotoHead } from "../../../components/PhotoHead";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { PillSection } from "../../../components/Favorites";
+import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
+import { Tabs } from "../../../components/ui/tabs";
+import { useCardTab } from "../../../lib/cardTab";
 import { CardAction as Action } from "./CardAction";
 import { ApiError } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
@@ -69,8 +72,9 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
 /** How many frequencies the card lists before the title's All. */
 const FIRST_FREQUENCIES = 3;
 
-/** How long the panel takes to come all the way up before a section is
- *  scrolled to: the sheet's settle and a frame (SETTLE_MOST is 0.35 s). */
+/** How long the panel takes to come all the way up before the tabs' bar
+ *  or the approaches are scrolled to: the sheet's settle and a frame
+ *  (SETTLE_MOST is 0.35 s). */
 const RISEN_MS = 520;
 
 /** A time as reports give it: "1255Z". */
@@ -104,11 +108,21 @@ function knownOf(queryClient: QueryClient, ident: string): { name: string; categ
   return null;
 }
 
-/** The card's sections, one scroll all the way up, where they were four
- *  tabs (Info, Weather, Runways, Charts): each a place to scroll to. */
-type Section = "details" | "frequencies" | "runways" | "weather" | "charts";
+type CardTab = "radio" | "weather" | "runways" | "diagrams";
+/** The card's pages, in the pilot's order, right under its actions, brought
+ *  back at the owner's ask (2026-10-29, "bring back the tabs after the
+ *  buttons") after a day as one scroll (A2): the radio first, what is
+ *  wanted first on the way in, named Info at the owner's ask ("Rename
+ *  Freq. to Info"). Their values are the old ones, which the specs and a
+ *  kept tab know them by. */
+const CARD_TABS: { value: CardTab; label: string }[] = [
+  { value: "radio", label: "Info" },
+  { value: "weather", label: "Weather" },
+  { value: "runways", label: "Runways" },
+  { value: "diagrams", label: "Charts" },
+];
 
-/** The field's charts in the d-TPP under Charts, by what they are for:
+/** The field's charts in the d-TPP under the Charts tab, by what they are for:
  *  the FAA's chart codes (vfr.publications). The airport's own -- its hot
  *  spots, land and hold short -- go with its diagram. */
 const CHART_GROUPS: { title: string; kinds: string[] }[] = [
@@ -157,14 +171,13 @@ function radioOf(place: AirportPlace): string {
   return `${ctaf.type === "MULTICOM" ? "MULTICOM" : "CTAF"} ${mhzText(ctaf.frequency_mhz!)}`;
 }
 
-/** A section of the card's one scroll, a place the weather's line and
- *  the route's Approaches scroll to: its title over its rows (PillSection),
- *  clear of the bar that takes the picture's place over it (PhotoHead). */
-function CardSection({ id, title, onMore, right, children, testId }: {
-  id: Section; title: string; onMore?: () => void; right?: ReactNode; children: ReactNode; testId?: string;
+/** A section of the Info tab, which has several: its title over its rows
+ *  (PillSection), the title the way to its list in full where it has more. */
+function CardSection({ title, onMore, right, children, testId }: {
+  title: string; onMore?: () => void; right?: ReactNode; children: ReactNode; testId?: string;
 }) {
   return (
-    <div className="scroll-mt-16 pt-5" data-section={id}>
+    <div className="pt-5 first:pt-0">
       <PillSection title={title} onMore={onMore} right={right} testId={testId}>{children}</PillSection>
     </div>
   );
@@ -176,15 +189,16 @@ function CardSection({ id, title, onMore, right, children, testId }: {
  * across its top -- its runways, from the air, from the ground -- its ident
  * large over them with its name and town; four things to do under them --
  * fly there, land there on the way, call it, keep it as a Favorite -- and
- * the weather there hour by hour (G1); and all the way up, one scroll of its
- * details, frequencies, runways, weather and charts, where they were four
- * tabs. Opened by a tap on the airport on the chart (AirportsLayer), and
- * held in the address (`?place=KDLH`), so a link lands on it.
+ * right under them its four tabs, back at the owner's ask: Info (its
+ * details, frequencies, lights and services), Weather (the weather there
+ * hour by hour, G1, over the reports as sent), Runways and Charts. Opened
+ * by a tap on the airport on the chart (AirportsLayer), and held in the
+ * address (`?place=KDLH`), so a link lands on it.
  *
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, startOn, onStarted, stop, arrival }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, onLower, startOn, onStarted, stop, arrival }: {
   ident: string;
   /** What the distance is measured from where own ship has no fix: the
    *  route's departure. */
@@ -195,10 +209,13 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
    *  (or the end a half route lacks, or the first point of a new one);
    *  none where it is in the route already. */
   onAddStop?: (place: AirportPlace) => void;
-  /** The panel all the way up, for a section scrolled to. */
+  /** The panel all the way up, as a tab is picked. */
   onExpand: () => void;
-  /** Opened on a section: the route's Approaches opens the destination's
-   *  on its approaches. `onStarted` once it has. */
+  /** Back down half way: the open tab tapped again with the panel all the
+   *  way up, as the route's tabs do (PanelTabs). */
+  onLower: () => void;
+  /** Opened on a part of a tab: the route's Approaches opens the
+   *  destination's on its approaches. `onStarted` once it has. */
   startOn?: "approaches";
   onStarted?: () => void;
   /** A stop the planner suggests here, opened from its pin on the map or
@@ -231,7 +248,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // old would be wrong.
   const ship = useOwnShip(o => (o.enabled ? o.fix : null));
   const measured = ship ? { point: { lat: ship.lat, lon: ship.lon }, name: null } : from;
-  const cardRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   // Fly Here tapped: the tile says so at once, a frame before the route
   // is drawn (PlanWorkspace's flyHere), which is a moment of a phone's --
   // the tap looked lost under it, at the pilot's ask for no lag. The card
@@ -239,17 +256,25 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const [flying, setFlying] = useState(false);
   // Every frequency, the title's All tapped; the first few until then.
   const [allFrequencies, setAllFrequencies] = useState(false);
-  // A section scrolled to -- the weather's, from its line -- with the
-  // panel all the way up first where it is not, once it has risen.
-  const scrollTo = (section: Section, selector = `[data-section="${section}"]`) => {
-    const card = cardRef.current?.closest<HTMLElement>('[data-testid="place-card"]');
-    const up = card?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
-    if (!up) onExpand();
-    window.setTimeout(() => card?.querySelector(selector)?.scrollIntoView({ block: "start", behavior: "smooth" }), up ? 0 : RISEN_MS);
+  // The tab picked, kept for the airport while the page is open
+  // (useCardTab); Charts where the card opens on its approaches.
+  const [tab, setPicked] = useCardTab<CardTab>(`place:${ident}`, "radio", startOn ? "diagrams" : null);
+  // A tab picked takes the panel all the way up, as the route's tabs do;
+  // the bar back in sight if the card was scrolled past it, once the panel
+  // is up, clear of the name's bar over the card (PhotoHead).
+  const isUp = () => tabsRef.current?.closest("[data-panel]")?.getAttribute("data-panel") === "full";
+  const raise = () => {
+    const up = isUp();
+    onExpand();
+    window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }), up ? 50 : RISEN_MS);
+  };
+  const open = (next: CardTab) => {
+    setPicked(next);
+    raise();
   };
   // Opened on its approaches (the route's Approaches): the panel all the
-  // way up and, once the answer is in and the panel has risen, the
-  // approaches at the top of the card.
+  // way up and, once the answer is in and the panel has risen, Charts open
+  // on the approaches.
   // The callbacks the page's, made again at each of its draws: read
   // through a ref, so the panel rising draws nothing that restarts this.
   const placeIn = !!place;
@@ -258,13 +283,20 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   useEffect(() => {
     if (startOn !== "approaches" || !placeIn) return;
     calls.current.onExpand();
+    // The card may already be open on another tab (it does not remount),
+    // and an inactive tab's groups are not drawn: switch, and look a frame
+    // or so after it has drawn.
+    let look = 0;
     const scroll = window.setTimeout(() => {
-      cardRef.current?.closest('[data-testid="place-card"]')?.querySelector('[data-chart-group="Approaches"]')
-        ?.scrollIntoView({ block: "start", behavior: "smooth" });
-      calls.current.onStarted?.();
+      setPicked("diagrams");
+      look = window.setTimeout(() => {
+        tabsRef.current?.closest('[data-testid="place-card"]')?.querySelector('[data-chart-group="Approaches"]')
+          ?.scrollIntoView({ block: "start", behavior: "smooth" });
+        calls.current.onStarted?.();
+      }, 50);
     }, RISEN_MS);
-    return () => window.clearTimeout(scroll);
-  }, [startOn, placeIn]);
+    return () => { window.clearTimeout(scroll); window.clearTimeout(look); };
+  }, [startOn, placeIn, setPicked]);
   // The runways, sketched or the FAA's diagram cropped to them, a page of
   // the pictures: a tap shows it full screen -- the FAA's diagram, or for
   // a field the FAA draws none for the sketch (SketchViewer).
@@ -282,7 +314,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // card's first answer and went 0.6 s after the tap (the 23 Oct timings).
   const { data: photos } = useQuery(photosQuery(ident));
   // The services asked for with it too: the fuel is the details', the
-  // rest the Services' at the card's foot (StopServices).
+  // rest the Services' at the Info tab's foot (StopServices).
   const { data: services } = useQuery(servicesQuery(ident));
   usePrefetchQuery(servicesQuery(ident));
   const [picture, setPicture] = useState<"aerial" | "photo" | null>(null);
@@ -345,10 +377,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       )}
     </span>
   );
-  // The weather in a line under the actions, as a pilot reads a report
-  // first: the wind, the visibility and the ceiling (the lowest broken or
-  // overcast layer, 14 CFR 1.1), and how old it is; with none of its own,
-  // the model's or the nearest station's, said as such.
+  // The weather in a line at the top of its tab where there is no
+  // forecast to say, as a pilot reads a report first: the wind, the
+  // visibility and the ceiling (the lowest broken or overcast layer, 14
+  // CFR 1.1), and how old it is; with none of its own, the model's or the
+  // nearest station's, said as such.
   const weatherLine = metar
     ? [windLine(metar), metar.visibility_sm != null ? miles(metar.visibility_sm) : null, metar.ceiling_ft == null ? "No ceiling" : `Ceiling ${feet(metar.ceiling_ft)}`].filter(Boolean).join(" · ")
     : modelled ? `Modelled: ${modelled.visibility_sm >= 10 ? "10+ sm" : miles(modelled.visibility_sm)} · ${modelled.ceiling_ft == null ? "no ceiling" : `ceiling ${feet(modelled.ceiling_ft)}`}`
@@ -378,12 +411,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // the field from the air and from the ground.
   const runwaysSlide = (
     <div key="diagram" className="relative size-full bg-background">
-      {/* A tap where there is nothing to draw goes to the runways'
-          section where it has rows (runways whose ends are unsurveyed, a
-          pattern altitude); otherwise it is words, not a button. */}
+      {/* A tap where there is nothing to draw opens the Runways tab
+          where it has rows (runways whose ends are unsurveyed, a pattern
+          altitude); otherwise it is words, not a button. */}
       {place && !sketched && (place.runways.length > 0 || place.pattern?.altitude_ft != null ? (
         <button
-          type="button" data-testid="place-runway-sketch" onClick={() => scrollTo("runways")}
+          type="button" data-testid="place-runway-sketch" onClick={() => open("runways")}
           className={cn("absolute inset-0 flex items-center justify-center text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset", TEXT.note)}
         >
           No runways to draw
@@ -483,7 +516,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               the pilot's ask, the field the route's next stop; Call, the
               field's own phone from the FAA's airport file, greyed where it
               lists none; and the star. */}
-          <div ref={cardRef} className={cn("grid gap-2 pt-3", onAddStop ? "grid-cols-4" : "grid-cols-3")} data-testid="place-actions">
+          <div className={cn("grid gap-2 pt-3", onAddStop ? "grid-cols-4" : "grid-cols-3")} data-testid="place-actions">
             <Action
               icon={<DirectToIcon />} label="Fly Here" filled busy={flying} disabled={!place} testId="fly-here"
               onClick={() => { if (place) { setFlying(true); onFlyHere(place); } }}
@@ -499,32 +532,6 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />
           </div>
           {place && stop && <StopStrip ident={place.ident} stop={stop} />}
-          {/* The weather's card, as Apple's Weather has its hourly one:
-              its category in the FAA's colour, the forecast in a sentence
-              and the report's age over a hairline, the hours under it; a
-              tap on the sentence takes the card up to the reports as sent.
-              With no report or forecast of its own, what there is said in
-              the sentence's place: the model's, the nearest station's. */}
-          {(place || known) && (
-            <div className="pt-3">
-              <ListGroup>
-                <ListRow
-                  media={chip || undefined}
-                  title={<span className={TEXT.prose} data-testid="place-forecast-sentence">{place ? hourly.sentence ?? weatherLine : "…"}</span>}
-                  value={weatherAge ?? undefined} chevron onClick={place ? () => scrollTo("weather") : undefined}
-                  data-testid="place-weather-summary"
-                />
-                {place && hourly.hours.length > 0 && (
-                  <div className="min-w-0">
-                    <HourlyForecast
-                      hours={hourly.hours}
-                      arrival={landsIn != null && landsAt != null ? { index: landsIn, at: landsAt } : null}
-                    />
-                  </div>
-                )}
-              </ListGroup>
-            </div>
-          )}
         </>
       ) : (
         <div className="flex flex-col pt-[var(--corner-inset,0.75rem)]" data-to-edge="">
@@ -538,231 +545,283 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         </div>
       )}
 
-      {place && (
-        <>
-          <CardSection id="details" title="Details" testId="place-details">
-            <ListGroup>
-              <ListRow
-                title="Elevation" data-testid="place-elevation"
-                value={<span className="font-semibold text-foreground">{feet(place.elevation_ft)}</span>}
-              />
-              {/* The class of the airspace it sits in (its airspace_class,
-                  from the FAA's NASR) and the radio a pilot calls it on. */}
-              <ListRow
-                title="Airspace" data-testid="place-airspace"
-                value={<span className="font-semibold text-foreground">{[place.airspace_class && `Class ${place.airspace_class}`, radioOf(place)].filter(Boolean).join(" · ")}</span>}
-              />
-              {longest && (
-                <ListRow
-                  title="Longest runway" data-testid="place-longest-runway"
-                  value={<span className="font-semibold text-foreground">{`${longest.ends ?? "—"} · ${feet(longest.length_ft)}`}</span>}
-                />
-              )}
-              {/* Its fuel from its Chart Supplement entry, and the remarks
-                  in plain English as the planner gives them, a row each
-                  (vfr.remarks.service_notes): self-serve, its hours, the FBO's. */}
-              <ListRow
-                title="Fuel" data-testid="services-fuel"
-                value={<span className="font-semibold text-foreground">{services ? (services.fuel_types.length ? fuelNames(services.fuel_types) : "None listed") : "…"}</span>}
-              />
-              {/* Its remarks folded under their own row, so a field's
-                  paragraph of them (Duluth's) does not stand between the
-                  fuel and the address in A2's Details. shadcn's Collapsible. */}
-              {!!services?.fuel_notes.length && (
-                <Collapsible>
-                  <CollapsibleTrigger asChild>
-                    <ListRow title="Fuel remarks" chevron data-testid="services-fuel-remarks" />
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    {services.fuel_notes.map(note => <ListRow key={note} title={<span className={cn("text-muted-foreground", TEXT.detail)}>{note}</span>} />)}
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-              {/* Where it is on the ground, in Maps: an action of the
-                  card's until the star took its place (A2). */}
-              <ListRow title="Address in Maps" description={place.address ?? undefined} href={mapsLink(place)} data-testid="place-address" />
-            </ListGroup>
-          </CardSection>
-
-          {/* The first few, the title the way to every one, as every
-              section's title is the way to its list in full (PillSection);
-              how many of how many at its right. */}
-          <CardSection
-            id="frequencies" title="Frequencies" testId="place-frequencies"
-            onMore={moreFrequencies ? () => setAllFrequencies(true) : undefined}
-            right={moreFrequencies ? <span className={cn("text-muted-foreground", TEXT.note)}>{`${FIRST_FREQUENCIES} of ${place.frequencies.length}`}</span> : undefined}
-          >
-            <ListGroup>
-              {frequencies.length ? frequencies.map((f, i) => (
-                <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
-              )) : <ListRow title="None listed" />}
-              {/* What some fields read out on so many clicks of the mic on
-                  the CTAF: the weather, a radio check (vfr.remarks). */}
-              {place.radio_notes.map(note => (
-                <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
-              ))}
-            </ListGroup>
-          </CardSection>
-          {place.lighting.length > 0 && (
-            // The field's lights, from its Chart Supplement remarks: the
-            // ones a pilot turns on from the cockpit by keying the mic, and
-            // with no count of clicks of their own, the standard one --
-            // after the radio, as it is the mic that turns them on.
-            <div className="pt-5">
-              <PillSection title="Lights">
-                <ListGroup>
-                  {place.lighting.map(note => (
-                    <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
-                  ))}
-                  {/* The standard keying (AIM 2-1-9): the mic keyed 7 times
-                      within 5 seconds for high intensity, 5 for medium, 3 for
-                      low -- a row, where it was a footnote. */}
-                  {place.standard_keying && (
-                    <ListRow title="Keying" value={<span className="text-foreground">7 high · 5 medium · 3 low</span>} data-testid="place-keying" />
-                  )}
-                </ListGroup>
-              </PillSection>
-            </div>
-          )}
-
-          <CardSection id="runways" title="Runways" testId="place-runways">
-            <ListGroup>
-              {place.pattern?.altitude_ft != null && (
-                <ListRow
-                  media={<RowBadge colour={BADGE.runway}><Repeat /></RowBadge>}
-                  title="Pattern altitude"
-                  // 1,000 ft above the field where none is published (AIM 4-3-3).
-                  description={place.pattern.published ? "As the FAA publishes it" : "1,000 ft above the field: none published"}
-                  value={<span className="font-semibold text-foreground">{feet(place.pattern.altitude_ft)}</span>} data-testid="place-pattern"
-                />
-              )}
-              {place.runways.length ? place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />) : <ListRow title="None listed" />}
-            </ListGroup>
-          </CardSection>
-
-          <CardSection id="weather" title="Weather" testId="place-weather">
-            <ListGroup>
-              {metar ? (
-                <>
-                  {/* When it was observed, first: a report's age is what a
-                      pilot weighs it by (and where it came from, where it is
-                      own ship's receiver). Its wind is true, as reported. */}
-                  {metar.observed_at && (
+      {/* The card's four tabs right under its actions, at the owner's ask
+          ("bring back the tabs after the buttons", 2026-10-29), from the
+          first frame, greyed until the answer comes as the actions are: a
+          tap would raise the sheet over pages with nothing in them yet.
+          Tapped, the panel all the way up, the open one tapped again up
+          there back half way (CardTabBar). Not over a card that could not
+          be had. */}
+      {!(error && !place) && (
+        <Tabs value={tab} className="gap-0">
+          <CardTabBar
+            tabs={CARD_TABS} value={tab} onPick={setPicked} testIdPrefix="place-tab" disabled={!place}
+            raise={{ onExpand: raise, onLower }} barRef={tabsRef} className="mt-3 scroll-mt-16"
+          />
+          <CardTabPanel value="radio" className="space-y-0">
+            {place && (
+              <>
+                <CardSection title="Details" testId="place-details">
+                  <ListGroup>
                     <ListRow
-                      title="Observed" data-testid="place-observed"
-                      value={<span className="text-foreground">{observedLine(metar.observed_at)}{viaReceiver ? " · FIS-B" : ""}</span>}
+                      title="Elevation" data-testid="place-elevation"
+                      value={<span className="font-semibold text-foreground">{feet(place.elevation_ft)}</span>}
                     />
-                  )}
-                  {/* Each figure with its glyph, its value at the right in
-                      the text's own colour; the report as it was sent
-                      under them. */}
-                  {metar.wind_speed_kt != null && (
+                    {/* The class of the airspace it sits in (its airspace_class,
+                        from the FAA's NASR) and the radio a pilot calls it on. */}
                     <ListRow
-                      media={<RowBadge colour={BADGE.weather}><Wind /></RowBadge>} title="Wind"
-                      value={<span className="font-semibold text-foreground">{windLine(metar)}</span>} data-testid="place-wind"
+                      title="Airspace" data-testid="place-airspace"
+                      value={<span className="font-semibold text-foreground">{[place.airspace_class && `Class ${place.airspace_class}`, radioOf(place)].filter(Boolean).join(" · ")}</span>}
                     />
-                  )}
-                  <ListRow
-                    media={<RowBadge colour={BADGE.weather}><Eye /></RowBadge>} title="Visibility"
-                    value={<span className="font-semibold text-foreground">{miles(metar.visibility_sm)}</span>}
-                  />
-                  <ListRow
-                    media={<RowBadge colour={BADGE.weather}><Cloud /></RowBadge>} title="Ceiling"
-                    value={<span className="font-semibold text-foreground">{metar.ceiling_ft == null ? "None" : feet(metar.ceiling_ft)}</span>}
-                  />
-                  {metar.temp_c != null && (
+                    {longest && (
+                      <ListRow
+                        title="Longest runway" data-testid="place-longest-runway"
+                        value={<span className="font-semibold text-foreground">{`${longest.ends ?? "—"} · ${feet(longest.length_ft)}`}</span>}
+                      />
+                    )}
+                    {/* Its fuel from its Chart Supplement entry, and the remarks
+                        in plain English as the planner gives them, a row each
+                        (vfr.remarks.service_notes): self-serve, its hours, the FBO's. */}
                     <ListRow
-                      media={<RowBadge colour={BADGE.weather}><Thermometer /></RowBadge>} title="Temperature"
-                      description={metar.dewpoint_c != null ? `Dew point ${Math.round(metar.dewpoint_c)} °C` : undefined}
-                      value={<span className="font-semibold text-foreground">{Math.round(metar.temp_c)} °C</span>}
+                      title="Fuel" data-testid="services-fuel"
+                      value={<span className="font-semibold text-foreground">{services ? (services.fuel_types.length ? fuelNames(services.fuel_types) : "None listed") : "…"}</span>}
                     />
-                  )}
-                  {metar.altimeter_in_hg != null && (
-                    <ListRow
-                      media={<RowBadge colour={BADGE.weather}><Gauge /></RowBadge>} title="Altimeter"
-                      value={<span className="font-semibold text-foreground">{metar.altimeter_in_hg.toFixed(2)} inHg</span>}
-                    />
-                  )}
-                  <ListRow title={<span className="font-mono break-words">{metar.raw}</span>} />
-                </>
-              ) : (
-                <ListRow title={place.weather_unavailable ? "The weather service could not be reached" : "No weather station reports from this field"} />
-              )}
-            </ListGroup>
-            {/* For one with no report of its own, the weather modelled at
-                it for the hour (vfr.glmp): its category -- the card's "≈"
-                badge -- ceiling and visibility, and that it is a model's. */}
-            {modelled && (
-              <div className="pt-5" data-testid="place-modelled-weather">
-                {/* The National Weather Service's Gridded LAMP: planning
-                    guidance from a model, not an observation. */}
-                <ListGroup title={`Modelled for ${zuluOf(modelled.valid_at)}`}>
-                  <ListRow
-                    media={<RowBadge colour={BADGE.weather}><CloudSun /></RowBadge>} title="Flight category"
-                    value={<span className="font-semibold text-foreground">{modelled.flight_category}</span>}
-                  />
-                  <ListRow
-                    media={<RowBadge colour={BADGE.weather}><Eye /></RowBadge>} title="Visibility"
-                    // GLMP's most is 10 sm, as a METAR's "10SM" is.
-                    value={<span className="font-semibold text-foreground">{modelled.visibility_sm >= 10 ? "10+ sm" : miles(modelled.visibility_sm)}</span>}
-                  />
-                  <ListRow
-                    media={<RowBadge colour={BADGE.weather}><Cloud /></RowBadge>} title="Ceiling"
-                    value={<span className="font-semibold text-foreground">{modelled.ceiling_ft == null ? "None" : feet(modelled.ceiling_ft)}</span>}
-                  />
-                </ListGroup>
-              </div>
-            )}
-            {/* Its nearest station's, for one with none of its own: where
-                it is from it, its category and the report as sent -- the
-                card's "≈" badge where nothing is modelled. */}
-            {nearby && (
-              <div className="pt-5" data-testid="place-nearby-metar">
-                <ListGroup title={`Nearest report, ${nearby.distance_nm} nm ${compassPoint(nearby.bearing_deg)}`}>
-                  <ListRow
-                    title={<span className="font-semibold">{nearby.ident}</span>}
-                    description={nearby.metar.observed_at ? observedLine(nearby.metar.observed_at) : undefined}
-                    value={nearbyCategory ? <span className="font-semibold text-foreground">{nearbyCategory}</span> : undefined}
-                  />
-                  {nearby.metar.raw && <ListRow title={<span className="font-mono break-words">{nearby.metar.raw}</span>} />}
-                </ListGroup>
-              </div>
-            )}
-          </CardSection>
-
-          <CardSection id="charts" title="Charts" testId="place-charts">
-            <ListGroup title="Airport">
-              {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
-                // Drawn by the FAA for the fields with a tower or a busy
-                // ramp; most small fields have none, and are sketched.
-                <ListRow muted title="The FAA publishes no airport diagram for this field" />
-              )}
-              <PublicationRows
-                ident={place.ident} diagram={place.airport_diagram_url} diagramCycle={place.airport_diagram_cycle}
-                supplement={place.chart_supplement_url}
-                sketch={sketched ? { runways: place.runways, lat: place.lat, lon: place.lon } : null}
-              />
-              {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
-            </ListGroup>
-            {/* The approaches, departures, arrivals and minimums in this
-                cycle's d-TPP, at the pilot's ask, as the FAA's PDFs. */}
-            {[...CHART_GROUPS, { title: "Other", kinds: procedures.map(c => c.kind).filter(k => !GROUPED.has(k)) }].map(g => {
-              const charts = procedures.filter(c => g.kinds.includes(c.kind));
-              return charts.length > 0 && (
-                <div key={g.title} data-chart-group={g.title} className="scroll-mt-16 pt-5">
-                  <ListGroup title={g.title}>
-                    {charts.map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
+                    {/* Its remarks folded under their own row, so a field's
+                        paragraph of them (Duluth's) does not stand between the
+                        fuel and the address in A2's Details. shadcn's Collapsible. */}
+                    {!!services?.fuel_notes.length && (
+                      <Collapsible>
+                        <CollapsibleTrigger asChild>
+                          <ListRow title="Fuel remarks" chevron data-testid="services-fuel-remarks" />
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          {services.fuel_notes.map(note => <ListRow key={note} title={<span className={cn("text-muted-foreground", TEXT.detail)}>{note}</span>} />)}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    )}
+                    {/* Where it is on the ground, in Maps: an action of the
+                        card's until the star took its place (A2). */}
+                    <ListRow title="Address in Maps" description={place.address ?? undefined} href={mapsLink(place)} data-testid="place-address" />
                   </ListGroup>
-                </div>
-              );
-            })}
-          </CardSection>
+                </CardSection>
 
-          {/* What the field offers on the ground (StopServices), at the
-              owner's ask for food, fuel and rest stops: its fuel is the
-              details'. */}
-          <StopServices ident={place.ident} withoutFuel />
-        </>
+                {/* The first few, the title the way to every one, as every
+                    section's title is the way to its list in full (PillSection);
+                    how many of how many at its right. */}
+                <CardSection
+                  title="Frequencies" testId="place-frequencies"
+                  onMore={moreFrequencies ? () => setAllFrequencies(true) : undefined}
+                  right={moreFrequencies ? <span className={cn("text-muted-foreground", TEXT.note)}>{`${FIRST_FREQUENCIES} of ${place.frequencies.length}`}</span> : undefined}
+                >
+                  <ListGroup>
+                    {frequencies.length ? frequencies.map((f, i) => (
+                      <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
+                    )) : <ListRow title="None listed" />}
+                    {/* What some fields read out on so many clicks of the mic on
+                        the CTAF: the weather, a radio check (vfr.remarks). */}
+                    {place.radio_notes.map(note => (
+                      <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
+                    ))}
+                  </ListGroup>
+                </CardSection>
+                {place.lighting.length > 0 && (
+                  // The field's lights, from its Chart Supplement remarks: the
+                  // ones a pilot turns on from the cockpit by keying the mic, and
+                  // with no count of clicks of their own, the standard one --
+                  // after the radio, as it is the mic that turns them on.
+                  <div className="pt-5">
+                    <PillSection title="Lights">
+                      <ListGroup>
+                        {place.lighting.map(note => (
+                          <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
+                        ))}
+                        {/* The standard keying (AIM 2-1-9): the mic keyed 7 times
+                            within 5 seconds for high intensity, 5 for medium, 3 for
+                            low -- a row, where it was a footnote. */}
+                        {place.standard_keying && (
+                          <ListRow title="Keying" value={<span className="text-foreground">7 high · 5 medium · 3 low</span>} data-testid="place-keying" />
+                        )}
+                      </ListGroup>
+                    </PillSection>
+                  </div>
+                )}
+                {/* What the field offers on the ground (StopServices), after
+                    the radio and the lights, at the owner's ask for food, fuel
+                    and rest stops: its fuel is the details'. */}
+                <StopServices ident={place.ident} withoutFuel />
+              </>
+            )}
+          </CardTabPanel>
+
+          <CardTabPanel value="weather" className="space-y-0">
+            {/* The weather's card at the top of its tab, as Apple's Weather
+                has its hourly one: its category in the FAA's colour, the
+                forecast in a sentence and the report's age over a hairline,
+                the hours under it; the reports as sent right under it, so
+                the sentence is not a button. With no report or forecast of
+                its own, what there is said in the sentence's place: the
+                model's, the nearest station's. */}
+            {(place || known) && (
+              <ListGroup>
+                <ListRow
+                  media={chip || undefined}
+                  title={<span className={TEXT.prose} data-testid="place-forecast-sentence">{place ? hourly.sentence ?? weatherLine : "…"}</span>}
+                  value={weatherAge ?? undefined} data-testid="place-weather-summary"
+                />
+                {place && hourly.hours.length > 0 && (
+                  <div className="min-w-0">
+                    <HourlyForecast
+                      hours={hourly.hours}
+                      arrival={landsIn != null && landsAt != null ? { index: landsIn, at: landsAt } : null}
+                    />
+                  </div>
+                )}
+              </ListGroup>
+            )}
+            {place && (
+              <div className="pt-5" data-testid="place-weather">
+                <ListGroup>
+                  {metar ? (
+                    <>
+                      {/* When it was observed, first: a report's age is what a
+                          pilot weighs it by (and where it came from, where it is
+                          own ship's receiver). Its wind is true, as reported. */}
+                      {metar.observed_at && (
+                        <ListRow
+                          title="Observed" data-testid="place-observed"
+                          value={<span className="text-foreground">{observedLine(metar.observed_at)}{viaReceiver ? " · FIS-B" : ""}</span>}
+                        />
+                      )}
+                      {/* Each figure with its glyph, its value at the right in
+                          the text's own colour; the report as it was sent
+                          under them. */}
+                      {metar.wind_speed_kt != null && (
+                        <ListRow
+                          media={<RowBadge colour={BADGE.weather}><Wind /></RowBadge>} title="Wind"
+                          value={<span className="font-semibold text-foreground">{windLine(metar)}</span>} data-testid="place-wind"
+                        />
+                      )}
+                      <ListRow
+                        media={<RowBadge colour={BADGE.weather}><Eye /></RowBadge>} title="Visibility"
+                        value={<span className="font-semibold text-foreground">{miles(metar.visibility_sm)}</span>}
+                      />
+                      <ListRow
+                        media={<RowBadge colour={BADGE.weather}><Cloud /></RowBadge>} title="Ceiling"
+                        value={<span className="font-semibold text-foreground">{metar.ceiling_ft == null ? "None" : feet(metar.ceiling_ft)}</span>}
+                      />
+                      {metar.temp_c != null && (
+                        <ListRow
+                          media={<RowBadge colour={BADGE.weather}><Thermometer /></RowBadge>} title="Temperature"
+                          description={metar.dewpoint_c != null ? `Dew point ${Math.round(metar.dewpoint_c)} °C` : undefined}
+                          value={<span className="font-semibold text-foreground">{Math.round(metar.temp_c)} °C</span>}
+                        />
+                      )}
+                      {metar.altimeter_in_hg != null && (
+                        <ListRow
+                          media={<RowBadge colour={BADGE.weather}><Gauge /></RowBadge>} title="Altimeter"
+                          value={<span className="font-semibold text-foreground">{metar.altimeter_in_hg.toFixed(2)} inHg</span>}
+                        />
+                      )}
+                      <ListRow title={<span className="font-mono break-words">{metar.raw}</span>} />
+                    </>
+                  ) : (
+                    <ListRow title={place.weather_unavailable ? "The weather service could not be reached" : "No weather station reports from this field"} />
+                  )}
+                </ListGroup>
+                {/* For one with no report of its own, the weather modelled at
+                    it for the hour (vfr.glmp): its category -- the card's "≈"
+                    badge -- ceiling and visibility, and that it is a model's. */}
+                {modelled && (
+                  <div className="pt-5" data-testid="place-modelled-weather">
+                    {/* The National Weather Service's Gridded LAMP: planning
+                        guidance from a model, not an observation. */}
+                    <ListGroup title={`Modelled for ${zuluOf(modelled.valid_at)}`}>
+                      <ListRow
+                        media={<RowBadge colour={BADGE.weather}><CloudSun /></RowBadge>} title="Flight category"
+                        value={<span className="font-semibold text-foreground">{modelled.flight_category}</span>}
+                      />
+                      <ListRow
+                        media={<RowBadge colour={BADGE.weather}><Eye /></RowBadge>} title="Visibility"
+                        // GLMP's most is 10 sm, as a METAR's "10SM" is.
+                        value={<span className="font-semibold text-foreground">{modelled.visibility_sm >= 10 ? "10+ sm" : miles(modelled.visibility_sm)}</span>}
+                      />
+                      <ListRow
+                        media={<RowBadge colour={BADGE.weather}><Cloud /></RowBadge>} title="Ceiling"
+                        value={<span className="font-semibold text-foreground">{modelled.ceiling_ft == null ? "None" : feet(modelled.ceiling_ft)}</span>}
+                      />
+                    </ListGroup>
+                  </div>
+                )}
+                {/* Its nearest station's, for one with none of its own: where
+                    it is from it, its category and the report as sent -- the
+                    card's "≈" badge where nothing is modelled. */}
+                {nearby && (
+                  <div className="pt-5" data-testid="place-nearby-metar">
+                    <ListGroup title={`Nearest report, ${nearby.distance_nm} nm ${compassPoint(nearby.bearing_deg)}`}>
+                      <ListRow
+                        title={<span className="font-semibold">{nearby.ident}</span>}
+                        description={nearby.metar.observed_at ? observedLine(nearby.metar.observed_at) : undefined}
+                        value={nearbyCategory ? <span className="font-semibold text-foreground">{nearbyCategory}</span> : undefined}
+                      />
+                      {nearby.metar.raw && <ListRow title={<span className="font-mono break-words">{nearby.metar.raw}</span>} />}
+                    </ListGroup>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardTabPanel>
+
+          <CardTabPanel value="runways" className="space-y-0">
+            {place && (
+              <div data-testid="place-runways">
+                <ListGroup>
+                  {place.pattern?.altitude_ft != null && (
+                    <ListRow
+                      media={<RowBadge colour={BADGE.runway}><Repeat /></RowBadge>}
+                      title="Pattern altitude"
+                      // 1,000 ft above the field where none is published (AIM 4-3-3).
+                      description={place.pattern.published ? "As the FAA publishes it" : "1,000 ft above the field: none published"}
+                      value={<span className="font-semibold text-foreground">{feet(place.pattern.altitude_ft)}</span>} data-testid="place-pattern"
+                    />
+                  )}
+                  {place.runways.length ? place.runways.map((r, i) => <RunwayRow key={`${r.ends}-${i}`} runway={r} />) : <ListRow title="None listed" />}
+                </ListGroup>
+              </div>
+            )}
+          </CardTabPanel>
+
+          <CardTabPanel value="diagrams" className="space-y-0">
+            {place && (
+              <div data-testid="place-charts">
+                <ListGroup title="Airport">
+                  {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
+                    // Drawn by the FAA for the fields with a tower or a busy
+                    // ramp; most small fields have none, and are sketched.
+                    <ListRow muted title="The FAA publishes no airport diagram for this field" />
+                  )}
+                  <PublicationRows
+                    ident={place.ident} diagram={place.airport_diagram_url} diagramCycle={place.airport_diagram_cycle}
+                    supplement={place.chart_supplement_url}
+                    sketch={sketched ? { runways: place.runways, lat: place.lat, lon: place.lon } : null}
+                  />
+                  {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
+                </ListGroup>
+                {/* The approaches, departures, arrivals and minimums in this
+                    cycle's d-TPP, at the pilot's ask, as the FAA's PDFs. */}
+                {[...CHART_GROUPS, { title: "Other", kinds: procedures.map(c => c.kind).filter(k => !GROUPED.has(k)) }].map(g => {
+                  const charts = procedures.filter(c => g.kinds.includes(c.kind));
+                  return charts.length > 0 && (
+                    <div key={g.title} data-chart-group={g.title} className="scroll-mt-16 pt-5">
+                      <ListGroup title={g.title}>
+                        {charts.map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
+                      </ListGroup>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardTabPanel>
+        </Tabs>
       )}
       {isLoading && !known && <p className={cn("pt-4 text-muted-foreground", TEXT.prose)}>Fetching the airport…</p>}
       {/* Where the planner could not be reached, the way to ask again, in
