@@ -885,12 +885,12 @@ def wind_picks(r: Route, outcome: "Flown", q: "PlanQuery") -> tuple[dict[str, st
     pilot's own picks and, at every other field, the runway into the wind
     the page picks for it as its weather comes in -- the field's own
     report's within FORECAST_AFTER_S of now (vfr.runway_wind.runway_in_use),
-    the forecast's for the time the flight is there after that
-    (forecast_pick, its own TAF or the nearest's, vfr.weather.forecast_wind)
-    -- so a first plan flies its patterns and is the plan the page then
-    asks for, where its time jumped as the picks came. A field with no
-    report of its own, or a variable wind, is left to the page (a nearby
-    report's). The times: the departure (`depart`, now when not given),
+    or with none of its own or a variable one, the nearest report's
+    (_wind_of, wind_pick); the forecast's for the time the flight is there
+    after that (wind_pick, its own TAF or the nearest's,
+    vfr.weather.forecast_wind) -- so a first plan flies its patterns and is
+    the plan the page then asks for, where its time jumped as the picks
+    came. The times: the departure (`depart`, now when not given),
     each landing the legs' ETEs on from it and each stop's minutes on the
     ground."""
     leave, land = q.departure_runways(), q.landing_runways()
@@ -920,20 +920,31 @@ def wind_picks(r: Route, outcome: "Flown", q: "PlanQuery") -> tuple[dict[str, st
         reports = {}
     leave, land = dict(leave), dict(land)
     for which, ident, airport, _, when in wanted:
-        report = reports.get(sources[ident]) or reports.get(ident.upper())
+        report = reports.get(sources[ident]) or reports.get(ident.upper()) if reports else None
         try:
             winded = runway_wind.with_winds(airports.get_runways(sources[ident]), report, airport["lat"], airport["lon"])
             ways = pattern.with_traffic(winded, ident, airport["lat"], airport["lon"])
             if (when - now).total_seconds() > FORECAST_AFTER_S:
                 at_s = round(when.timestamp() / FORECAST_STEP_S) * FORECAST_STEP_S
-                end = runway_wind.forecast_pick(ways, weather.forecast_wind(airport["lat"], airport["lon"], at_s, sources[ident]))
+                end = runway_wind.wind_pick(ways, weather.forecast_wind(airport["lat"], airport["lon"], at_s, sources[ident]))
             else:
-                end = runway_wind.runway_in_use(ways)
+                end = runway_wind.runway_in_use(ways) or runway_wind.wind_pick(ways, _wind_of(report, airport, sources[ident]))
         except (OSError, ValueError, weather.WeatherServiceError):
             continue
         if end:
             (leave if which == "leave" else land).setdefault(_bare_field(ident.upper()), end)
     return leave, land
+
+
+def _wind_of(report: dict | None, airport: dict, source: str) -> dict | None:
+    """The wind a field's runway is picked by where its own report put
+    none on a runway (wind_picks): its own report's variable wind, else the
+    nearest report's within reach (vfr.weather.nearest_report), as the
+    airport's card gives the page them (`metar`, `nearby_metar`)."""
+    if report is None:
+        near = weather.nearest_report(airport["lat"], airport["lon"], exclude=source)
+        report = near and near.get("metar")
+    return {"dir_true_deg": report.get("wind_dir_true_deg"), "speed_kt": report.get("wind_speed_kt")} if report else None
 
 
 def _field_runway(ident: str, airport: dict, end: str) -> dict | None:

@@ -53,10 +53,8 @@ export async function showTabs(page: Page) {
   // The minimized line can turn back into the tabs by itself as it is
   // tapped -- the card it named put away by the step before -- so the tap
   // is tried, and what is asked is the tabs in sight.
-  // Tapped again until the tabs show: on desktop, a replay just started at
-  // 200x, a click Playwright called done reached nothing in the page -- no
-  // pointerdown even at the window -- where the same click by hand a moment
-  // later did (tracking.spec, 2026-10-28).
+  // Tapped again until the tabs show: a tap can land as the card it named
+  // is put away by the step before.
   await expect(async () => {
     if (await title.isVisible()) await title.click({ timeout: 2000 }).catch(() => {});
     await expect(title).toBeHidden({ timeout: 1500 });

@@ -154,7 +154,7 @@ function ReplayChart({ points }: { points: PastFlightPoint[] }) {
           of 1.32 MB, measured). The space it takes is kept while it loads. */}
       <div ref={box} className={height === null ? "h-28" : undefined} style={height === null ? undefined : { height }} data-testid="replay-chart-box">
         <Suspense fallback={<div className="h-full" />}>
-          <FlightChart points={points} at={second} />
+          <FlightChart points={points} />
         </Suspense>
       </div>
     </div>
