@@ -182,7 +182,12 @@ export function OwnShipLayer() {
   // the ring went out until each answer came -- flickering under a dry
   // run's airplane, at the owner's notice ("During the dry run, the ring
   // around the plane is flickering").
-  const { data: nearest } = useQuery({ ...nearestQuery(fix?.lat ?? 0, fix?.lon ?? 0), enabled: enabled && !!fix, placeholderData: keepPreviousData });
+  // A dry run's asked every quarter of a degree, not every twentieth: at
+  // 200x it crossed a twentieth several times a second, 13 asks in 5 s, each
+  // answer drawing the ring again, for a field's elevation that changes as
+  // slowly over the next fifteen miles (a dry run's requests, 2026-10-29).
+  const nearAt = (n: number | undefined) => (n === undefined ? 0 : simulated ? Math.round(n * 4) / 4 : n);
+  const { data: nearest } = useQuery({ ...nearestQuery(nearAt(fix?.lat), nearAt(fix?.lon)), enabled: enabled && !!fix, placeholderData: keepPreviousData });
   const glide = glideRangeNm(fix, nearest?.[0]?.elevation_ft);
   const ship = useRef<L.Marker>(null);
   const ring = useRef<L.Circle>(null);
