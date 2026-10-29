@@ -5,6 +5,7 @@ import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { airportQuery, classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
+import { placeWords } from "../../../lib/advisories";
 import type { Candidate, ClassBAirport, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import type { AirportWeather } from "../../../lib/map/AirportCard";
@@ -421,14 +422,22 @@ const CandidateMark = memo(function CandidateMark({ candidate: c, previewed, eve
  *  checkpoints alone. Hovering previews the same card a tap opens, the way
  *  Class B airports do -- `useCardedMarker` takes the preview away once
  *  that marker's own popup is open, so the two never draw at once. */
-function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick<Props, "candidates" | "selected" | "onSelectCandidate"> & {
+function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus }: Pick<Props, "candidates" | "selected" | "onSelectCandidate" | "focus"> & {
   /** The route's own airports, whose chips a name keeps off. */
   airports: { ident: string; lat: number; lon: number }[];
 }) {
   const show = usePreferences(s => s.waypoints);
   const { carded, cardEvents } = useCardedMarker<string>();
   const spaced = useSpaced(selected, airports);
-  const labelled = useLabelled(selected.filter(c => spaced.has(`${c.lat},${c.lon}`)), airports);
+  // Named once the map is in close, or the one picked (its row, its dot):
+  // further out its number alone, as the nav log numbers it -- a route's
+  // two dozen dark names covered the chart at half (the design review,
+  // 2026-10-28, the owner's "I want all").
+  const zoom = useRestZoom();
+  const picked = (c: Candidate) => !!focus && focus.lat === c.lat && focus.lon === c.lon;
+  const labelled = useLabelled(
+    selected.filter(c => spaced.has(`${c.lat},${c.lon}`) && (zoom >= NAME_ZOOM || picked(c))), airports,
+  );
   if (!show) return null;
   return (
     <>
@@ -469,6 +478,12 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports }: Pick
     </>
   );
 }
+
+/** The zoom from which every checkpoint in sight is named: a phone's width
+ *  some 20 nm, about the scale the sectional is printed at (1:500,000),
+ *  where the chart's own names are legible and a route's names no longer
+ *  lie on one another along it. */
+const NAME_ZOOM = 10;
 
 /** How far apart two checkpoints' dots are kept on the screen, points:
  *  their 24-point dots and a little room between them. */
@@ -511,12 +526,27 @@ function useRestZoom(): number {
   return zoom;
 }
 
-/** A checkpoint's name as its label shows it: its ForeFlight waypoint's,
- *  with spaces for the underscores ForeFlight needs, else its place's; a
- *  field's own name and ident, where the pack's name for it is the
- *  route's ends and its number (C81DLH01), at the owner's yes (2026-10-24). */
-const labelOf = (c: Pick<Candidate, "waypoint" | "name" | "category">) =>
-  (c.category === "airport" && c.name ? c.name : c.waypoint ?? c.name ?? "").replaceAll("_", " ").trim();
+/** A checkpoint's name as its label shows it, in sentence case (the
+ *  design review, 2026-10-28): the chart's name for the place as the
+ *  places know it, "River near Lenroot", "Lake Zurich" (vfr.places
+ *  checkpoint_name), where its ForeFlight waypoint's capitals (RIVER
+ *  LENROOT) were shouted over the chart; else that waypoint's words,
+ *  spaced, spelt as a place's are, a code (a figure in it) as written --
+ *  and so where the name is the bare kind ("River", the places not loaded
+ *  yet) and the waypoint says more. A field its own name
+ *  as a place's is spelt and its ident as written, "Wag-Aero (WI92)",
+ *  where the pack's name for it is the route's ends and its number
+ *  (C81DLH01), at the owner's yes (2026-10-24). */
+const labelOf = (c: Pick<Candidate, "waypoint" | "name" | "category">) => {
+  if (c.category === "airport" && c.name) {
+    const [, name = c.name, ident = ""] = /^(.*?)((?: \([A-Z0-9]+\))?)$/.exec(c.name.trim()) ?? [];
+    return `${placeWords(name)}${ident}`;
+  }
+  const waypoint = (c.waypoint ?? "").replaceAll("_", " ").trim();
+  const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
+  if (c.name && /[a-z]/.test(c.name) && words(c.name) >= words(waypoint)) return c.name.trim();
+  return (waypoint || c.name || "").split(/\s+/).map(w => (/\d/.test(w) ? w : placeWords(w))).join(" ");
+};
 
 /**
  * Which checkpoints' names fit beside their dots in the map as it is, and
@@ -750,7 +780,7 @@ export default memo(function RouteMap({
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
           <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
           <HoldTracks legs={legs} />
-          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} />
+          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} focus={focus} />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />
         </>
