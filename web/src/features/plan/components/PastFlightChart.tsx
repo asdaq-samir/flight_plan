@@ -1,6 +1,7 @@
 import { memo, useMemo } from "react";
-import { Area, ComposedChart, Line, ReferenceArea, ReferenceLine, XAxis, YAxis, usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
+import { Area, ComposedChart, Line, ReferenceArea, XAxis, YAxis, usePlotArea, useXAxisScale, useYAxisScale } from "recharts";
 import { ChartContainer, type ChartConfig } from "../../../components/ui/chart";
+import { usePastFlight } from "../../../lib/map/pastFlight";
 import type { PastFlightPoint, RouteProfile } from "../../../lib/api/types";
 import { clockTime } from "../../../lib/clock";
 import { altFt, grouped } from "../../../lib/units";
@@ -23,9 +24,11 @@ const chartConfig = {
  *  traces said over it instead; room over the traces at the top; and
  *  across, the distance flown, not the time ("x axis can be just
  *  distance"), its mark where the moment is along the course. */
-const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = null, laid }: {
+const FlightChart = memo(function FlightChart({ points, fromStart = false, alongNm, airspace = null, laid }: {
   points: PastFlightPoint[];
-  at: number | null;
+  /** The mark at the first point before the run is played (the dry
+   *  run's), where a replay's has none till then. */
+  fromStart?: boolean;
   alongNm?: number[];
   /** The route from the side (vfr.profile), for a dry run's airspace. */
   airspace?: RouteProfile | null;
@@ -36,26 +39,6 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = 
 }) {
   const data = useMemo(() => points.map((p, i) => ({ t: p.t, nm: alongNm?.[i] ?? null, alt: p.alt_ft ?? 0, kt: p.gs_kt ?? null })), [points, alongNm]);
   const plain = !!alongNm;
-  // The moment's distance along the course, between the points either side.
-  const atNm = useMemo(() => {
-    if (!alongNm || at === null || !points.length) return null;
-    if (at <= points[0]!.t) return alongNm[0] ?? null;
-    const i = points.findIndex(p => p.t >= at);
-    if (i < 0) return alongNm.at(-1) ?? null;
-    const a = points[i - 1]!, b = points[i]!;
-    const f = b.t > a.t ? (at - a.t) / (b.t - a.t) : 0;
-    return alongNm[i - 1]! + (alongNm[i]! - alongNm[i - 1]!) * f;
-  }, [alongNm, at, points]);
-  // The height and speed there, between the points either side, for the
-  // figures riding the traces (NowMarks).
-  const now = useMemo(() => {
-    if (at === null || !points.length) return null;
-    const i = Math.max(1, Math.min(points.length - 1, points.findIndex(p => p.t >= at)));
-    const a = points[i - 1] ?? points[0]!, b = points[i] ?? a;
-    const f = b.t > a.t ? Math.min(1, Math.max(0, (at - a.t) / (b.t - a.t))) : 0;
-    const mix = (x: number | null | undefined, y: number | null | undefined) => (x == null || y == null ? x ?? y ?? null : x + (y - x) * f);
-    return { alt: mix(a.alt_ft, b.alt_ft) ?? 0, kt: mix(a.gs_kt, b.gs_kt) };
-  }, [at, points]);
   // The white space on top, a quarter again over the highest height; the
   // speed held to the chart's lower half, so the two traces read apart
   // where both run level (the owner's recording: a cruise at 3,000 ft and
@@ -117,12 +100,40 @@ const FlightChart = memo(function FlightChart({ points, at, alongNm, airspace = 
         <Area yAxisId="alt" dataKey="alt" type="monotone" stroke="var(--color-alt)" fill="var(--color-alt)" fillOpacity={0.15}
           strokeWidth={2} isAnimationActive={false} dot={false} />
         <Line yAxisId="kt" dataKey="kt" type="monotone" stroke="var(--color-kt)" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
-        {(plain ? atNm : at) !== null && <ReferenceLine yAxisId="alt" x={(plain ? atNm : at)!} stroke="var(--tint)" strokeWidth={2} />}
-        {plain && atNm !== null && now && <NowMarks nm={atNm} alt={now.alt} kt={now.kt} />}
+        <Now points={points} alongNm={alongNm} fromStart={fromStart} />
       </ComposedChart>
     </ChartContainer>
   );
 });
+
+/**
+ * The replay's moment on the chart: its line, and on a dry run's the
+ * height and speed riding the traces (NowMarks). Its own component, the
+ * clock read here alone: given to the chart as a prop, the whole of
+ * recharts was drawn again as it moved, every frame at 200x -- a long task
+ * of 60 to 130 ms each on a desktop, 16 frames a second, and a tap on the
+ * sheet's bar went unanswered in CI (tracking.spec, 2026-10-28).
+ */
+function Now({ points, alongNm, fromStart }: { points: PastFlightPoint[]; alongNm?: number[]; fromStart: boolean }) {
+  const second = usePastFlight(s => (s.at === null ? null : Math.floor(s.at)));
+  const at = second ?? (fromStart ? points[0]?.t ?? null : null);
+  const x = useXAxisScale(), area = usePlotArea();
+  if (at === null || !points.length || !x || !area) return null;
+  // The moment's distance along the course, between the points either side.
+  const i = Math.max(1, Math.min(points.length - 1, points.findIndex(p => p.t >= at) < 0 ? points.length - 1 : points.findIndex(p => p.t >= at)));
+  const a = points[i - 1] ?? points[0]!, b = points[i] ?? a;
+  const f = b.t > a.t ? Math.min(1, Math.max(0, (at - a.t) / (b.t - a.t))) : 0;
+  const mix = (p: number | null | undefined, q: number | null | undefined) => (p == null || q == null ? p ?? q ?? null : p + (q - p) * f);
+  const atNm = alongNm ? (at <= points[0]!.t ? alongNm[0] ?? null : at >= points.at(-1)!.t ? alongNm.at(-1) ?? null : mix(alongNm[i - 1], alongNm[i])) : null;
+  const cx = x(alongNm ? atNm ?? undefined : at);
+  if (cx === undefined || !Number.isFinite(cx)) return null;
+  return (
+    <>
+      <line x1={cx} x2={cx} y1={area.y} y2={area.y + area.height} stroke="var(--tint)" strokeWidth={2} data-testid="replay-mark" />
+      {alongNm && atNm !== null && <NowMarks nm={atNm} alt={mix(a.alt_ft, b.alt_ft) ?? 0} kt={mix(a.gs_kt, b.gs_kt)} />}
+    </>
+  );
+}
 
 /** A figure's line of words, in pixels: its box's height, and how far
  *  from its dot its middle sits, over or under it. */

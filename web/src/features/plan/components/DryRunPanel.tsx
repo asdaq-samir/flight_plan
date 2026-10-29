@@ -46,6 +46,9 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
   const speed = usePastFlight(s => s.speed);
   const second = usePastFlight(s => (s.at === null ? null : Math.floor(s.at)));
   const here = second === null ? null : positionAt(run.points, second);
+  // The chart's own, the same while the run is: it is drawn once, its
+  // moment moving by itself (PastFlightChart's Now).
+  const laid = useMemo(() => (fraction: number) => runNmAt(run, fraction * (run.bends.at(-1)?.route ?? 0)), [run]);
   // On the approach's final, not gone missed yet: the moment to go missed,
   // at the owner's ask ("just show a go missed button when on the final of
   // the approach").
@@ -134,8 +137,7 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
         <div className="absolute inset-0">
           <Suspense fallback={null}>
             <FlightChart
-              points={run.points} at={second ?? run.points[0]?.t ?? null} alongNm={run.alongNm} airspace={profile}
-              laid={fraction => runNmAt(run, fraction * (run.bends.at(-1)?.route ?? 0))}
+              points={run.points} fromStart alongNm={run.alongNm} airspace={profile} laid={laid}
             />
           </Suspense>
         </div>
