@@ -21,7 +21,39 @@ lock=${ONE_AT_A_TIME_LOCK:-/tmp/flight-plan-heavy.lock}
 wait_max=${ONE_AT_A_TIME_WAIT:-2700}
 started=$(date +%s)
 said=""
-while ! mkdir "$lock" 2>/dev/null; do
+# In line in the order asked, not whoever looks first as a turn ends: a
+# ticket each, named by when it was taken, and the turn goes to the oldest
+# whose runner is still there. Without it two sessions' agents, asking
+# every five seconds, took turn after turn while the other session's run
+# waited 40 minutes and more, twice (2026-10-28).
+line="$lock.line"
+mkdir -p "$line"
+ticket="$line/$(date +%s)$(printf '%05d' $((RANDOM % 100000))).$$"
+: > "$ticket"
+trap 'rm -f "$ticket"' EXIT
+first_in_line() {
+  local t pid
+  for t in $(ls "$line" 2>/dev/null | sort); do
+    pid=${t##*.}
+    if ! kill -0 "$pid" 2>/dev/null; then rm -f "$line/$t"; continue; fi
+    [ "$line/$t" = "$ticket" ] && return 0
+    return 1
+  done
+  return 0
+}
+while ! { first_in_line && mkdir "$lock" 2>/dev/null; }; do
+  if ! first_in_line; then
+    if [ "$said" != "line" ]; then
+      echo "one-at-a-time: in line behind $(( $(ls "$line" | sort | sed -n "/$(basename "$ticket")/=" ) - 1 )) earlier" >&2
+      said=line
+    fi
+    if [ $(( $(date +%s) - started )) -ge "$wait_max" ]; then
+      echo "one-at-a-time: not my turn after ${wait_max}s; giving up" >&2
+      exit 75
+    fi
+    sleep 5
+    continue
+  fi
   holder=$(cat "$lock/owner" 2>/dev/null || true)
   pid=${holder%% *}
   if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
@@ -45,6 +77,7 @@ while ! mkdir "$lock" 2>/dev/null; do
   sleep 5
 done
 echo "$$ $label (since $(date +%H:%M))" > "$lock/owner"
+rm -f "$ticket"
 trap 'rm -rf "$lock"' EXIT
 trap 'exit 130' INT TERM HUP
 "$@"
