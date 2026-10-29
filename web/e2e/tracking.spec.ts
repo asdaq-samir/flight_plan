@@ -139,12 +139,16 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
 
 test("a search finds the airplanes about as it is typed, and asks the planner one name at a time, the last typed", async ({ page }) => {
   await sky(page);
-  // The planner's search held two seconds, as adsb.lol's pace can.
+  // The planner's search held four seconds, as adsb.lol's pace can: past
+  // the typing below however slow the runner, so the name typed last is
+  // what is there as the first answer comes. Held two, a loaded runner's
+  // fills can run past it and have "N654F" asked (this test failed twice in
+  // a row on a busy Mac, 2026-10-29, and passed 6 of 6 on a quieter one).
   const asked: string[] = [];
   await page.route(url => url.pathname.endsWith("/api/planner/traffic/find"), async route => {
     const q = new URL(route.request().url()).searchParams.get("q")!;
     asked.push(q);
-    await new Promise(done => setTimeout(done, 2000));
+    await new Promise(done => setTimeout(done, 4000));
     await route.fulfill({ json: { aircraft: q === "N654FL" ? [{ ...CESSNA, hex: "a89c1e", callsign: "N654FL", registration: "N654FL" }] : [] } });
   });
   await page.goto("/app/plan?aircraft=1");
