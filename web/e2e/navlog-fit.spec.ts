@@ -52,6 +52,15 @@ test("the nav log fits a phone's panel with long names, five-figure altitudes an
   // Every row's time, the departure's the time picked, all on the
   // drawer's width: nothing past its side.
   await expect(log.getByTestId("navlog-row-eta").first()).toHaveText(/^\d\d:\d\d$/);
+  // The right-hand column named over it, the time over the groundspeed,
+  // and each row's groundspeed its figure alone under "GS kt", lined up
+  // as the times are (the design review, 2026-10-28).
+  const heads = log.getByTestId("navlog-list-heads");
+  await expect(heads).toHaveText(/ETA\s*GS kt/);
+  const speeds = log.getByTestId("navlog-row-gs");
+  await expect(speeds.nth(1)).toHaveText(/^\d+$/);
+  const rightEdges = await log.locator('[data-testid="navlog-row-eta"], [data-testid="navlog-row-gs"]').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().right)));
+  expect(new Set(rightEdges).size).toBe(1);
   const overflow = await scroller.evaluate(el => el.scrollWidth - el.clientWidth);
   expect(overflow).toBeLessThanOrEqual(1);
   await expect(scroller.locator('[data-testid="section-tabs"]')).toHaveCount(0);

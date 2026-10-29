@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { slow, settle, sideDrawer, openBrief, briefPage, openBriefing, openTab, grabberTo, panelTabs, openNavLog, closeNavLog, navLogScroller, navLogSheet } from "./helpers";
+import { slow, settle, mapStill, sideDrawer, openBrief, briefPage, openBriefing, openTab, grabberTo, panelTabs, openNavLog, closeNavLog, navLogScroller, navLogSheet } from "./helpers";
 
 /**
  * The nav log's checkpoints: selected by a click, by Enter or by a pick
@@ -209,15 +209,33 @@ test("plan page: iOS never zooms the page in on a phone's field: the viewport fo
   expect(small).toEqual([]);
 });
 
-test("plan page: the checkpoints are named on the map beside their dots, as ForeFlight names them, none over another and none off the screen", async ({ page }) => {
+test("plan page: the checkpoints are their numbers at the route's zoom, named in sentence case beside their dots once closer in, none over another and none off the screen", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const labels = page.locator("[data-checkpoint-label]");
-  await expect.poll(() => labels.count(), { timeout: slow(30000) }).toBeGreaterThan(3);
-  // The names the route's ForeFlight pack gives them, spaced; a field its
-  // own name, as the FAA writes it, and its ident: "WAG-AERO (WI92)" (the
-  // owner, 2026-10-24).
-  for (const text of await labels.allInnerTexts()) expect(text).toMatch(/^([A-Z0-9 ]+|.+ \([A-Z0-9]+\))$/);
+  // The route fitted: its dots numbered and no names, where two dozen dark
+  // names covered the chart (the design review, 2026-10-28).
+  const dots = page.locator(".leaflet-marker-icon").filter({ hasText: /^\d+$/ });
+  await expect.poll(() => dots.count(), { timeout: slow(30000) }).toBeGreaterThan(3);
+  await mapStill(page);
+  await expect(labels).toHaveCount(0);
+  // Closer in, over the first dot, they are named.
+  const first = await dots.first().boundingBox();
+  await expect(async () => {
+    await page.mouse.move(first!.x + first!.width / 2, first!.y + first!.height / 2);
+    await page.mouse.wheel(0, -300);
+    await expect.poll(() => labels.count(), { timeout: 2500 }).toBeGreaterThan(0);
+  }).toPass({ timeout: slow(30000) });
+  await mapStill(page);
+  // In sentence case, the chart's names for the places ("River near
+  // Lenroot"); a field its own name and its ident as written, "Wag-Aero
+  // (WI92)" (the owner, 2026-10-24).
+  for (const text of await labels.allInnerTexts()) {
+    expect(text).toMatch(/^[A-Z0-9]/);
+    expect(text, `${text} in capitals`).toMatch(/[a-z]/);
+    const ident = /\(([^)]+)\)$/.exec(text)?.[1];
+    if (ident) expect(ident).toMatch(/^[A-Z0-9]+$/);
+  }
   const viewport = page.viewportSize()!;
   const boxes = (await labels.evaluateAll(els => els.map(el => {
     const r = el.getBoundingClientRect();

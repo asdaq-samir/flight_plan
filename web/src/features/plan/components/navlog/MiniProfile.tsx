@@ -3,6 +3,7 @@ import { AIRSPACE, ceilingOverFloor, ceilings, nameFits, namedPieces } from "./p
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import type { Candidate, Leg } from "../../../../lib/api/types";
+import { Skeleton } from "../../../../components/ui/skeleton";
 import { routeProfileQuery } from "../../../../lib/queryClient";
 import { TEXT } from "../../../../lib/text";
 import { altFt } from "../../../../lib/units";
@@ -17,6 +18,34 @@ const rulerMarks = (top: number) => {
   const step = top <= 6000 ? 1000 : top <= 12_000 ? 2000 : 4000;
   return Array.from({ length: Math.floor((top * 3) / step) }, (_, i) => (i + 1) * step);
 };
+
+/** The climb, the cruise and the descent as a band a few points thick,
+ *  and hills under them: the side view's own shapes, cut from stock
+ *  Skeletons (clip-path), so the card says what is coming. */
+const CLIMB = "polygon(0 100%, 18% 14%, 82% 14%, 100% 100%, 96.5% 100%, 80.5% 19%, 19.5% 19%, 3.5% 100%)";
+const HILLS = "polygon(0 72%, 10% 52%, 22% 64%, 36% 34%, 50% 58%, 63% 42%, 77% 66%, 90% 46%, 100% 60%, 100% 100%, 0 100%)";
+
+/**
+ * The side view while its ground is fetched, the card's height as the
+ * chart will be: shadcn's Skeleton in the ground's and the climb's shapes,
+ * and the miles' row under them, where it was an empty white box with the
+ * Dry run over it (the design review, 2026-10-28, the owner's "I want
+ * all"). Said once to a screen reader; the shapes are not.
+ */
+function ProfileSkeleton({ look }: { look: string }) {
+  return (
+    <div role="status" data-testid="mini-profile-skeleton" className={look}>
+      <span className="sr-only">Fetching the side view…</span>
+      <span aria-hidden="true" className="relative block min-h-0">
+        <Skeleton className="absolute inset-x-0 bottom-0 h-3/5 rounded-none" style={{ clipPath: HILLS }} />
+        <Skeleton className="absolute inset-0 rounded-none" style={{ clipPath: CLIMB }} />
+      </span>
+      <span aria-hidden="true" className="flex justify-between pt-1">
+        <Skeleton className="h-2.5 w-4" /><Skeleton className="h-2.5 w-6" /><Skeleton className="h-2.5 w-10" />
+      </span>
+    </div>
+  );
+}
 
 /**
  * FPL's pill's side view of the flight, at the owner's pick of the
@@ -55,7 +84,11 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
   const { data: profile } = useQuery(routeProfileQuery(dep, dest, stops));
   const plan = useMemo(() => planProfile(navLogRows(ends, selected, legs)), [ends, selected, legs]);
   const cruise = Math.max(0, ...plan.points.map(p => p.plan_ft));
-  if (!profile) return <div className="h-24 rounded-xl bg-background/60" aria-hidden="true" />;
+  const look = cn(
+    "grid h-24 w-full shrink-0 grid-rows-[1fr_auto] overflow-hidden rounded-xl bg-background/70 px-2 pt-1.5 pb-1",
+    "text-muted-foreground tabular-nums", TEXT.caption,
+  );
+  if (!profile) return <ProfileSkeleton look={look} />;
   const scale = plan.length_nm > 0 ? profile.length_nm / plan.length_nm : 1;
   // The airspace's ceilings over the plan's line, at the owner's ask
   // ("Profile view should show the airspace ceilings above the altitude
@@ -83,10 +116,6 @@ export default memo(function MiniProfile({ ends, selected, legs, onOpen, preview
     .filter(a => nameFits(a, profile.length_nm));
   const line = plan.points.map((p, i) => `${i ? "L" : "M"}${x(p.along_nm * scale).toFixed(1)} ${y(p.plan_ft).toFixed(1)}`).join(" ");
   const label = `Profile: ${cruise ? `cruise ${altFt(cruise)} ft` : "the route from the side"}`;
-  const look = cn(
-    "grid h-24 w-full shrink-0 grid-rows-[1fr_auto] overflow-hidden rounded-xl bg-background/70 px-2 pt-1.5 pb-1",
-    "text-muted-foreground tabular-nums", TEXT.caption,
-  );
   const chart = (
     <>
       <span

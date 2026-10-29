@@ -187,6 +187,11 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await expect(picker).toHaveAttribute("placeholder", "");
   await expect(page.getByTestId("aircraft-select")).toContainText("N");
   await expect(picker).toHaveValue("N-");
+  // And "Pick airplane" after it, grey, where "N-" alone read as a stray
+  // mark (the design review, 2026-10-28); gone once a number is typed.
+  const hint = page.getByTestId("aircraft-select-hint");
+  await expect(hint).toHaveText("N-Pick airplane");
+  await expect(picker).toHaveAccessibleName("Airplane, N-number: none picked");
   // An N-number typed is added at once, its type looked up behind it (the
   // owner's "You can do the lookup in the background") -- here a made-up
   // Archer, flown on its type's profile once the registry answers -- and
@@ -198,6 +203,7 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await picker.fill("N181PA");
   await picker.press("Enter");
   await expect(picker).toHaveValue("N-181PA");
+  await expect(hint).toHaveCount(0);
   // No card button at its end since the owner's "we don't need the info
   // for n number" (2026-10-27).
   await expect(page.getByTestId("aircraft-card-button")).toHaveCount(0);

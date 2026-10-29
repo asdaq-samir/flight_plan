@@ -2312,7 +2312,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (flightRules !== "vfr" && browsing) applyChip("none");
   }, [flightRules, browsing, applyChip]);
-  // What a chip's way meets, said on it in amber: the first thing it
+  // What a chip's way meets, said in its chip's name: the first thing it
   // crosses, or no field with fuel in reach (the planner's "fuel" hazard).
   const routeLine = useMemo(() => {
     if (!vfrRoute || chips.length < 2) return null;

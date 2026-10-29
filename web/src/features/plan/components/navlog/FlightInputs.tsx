@@ -65,9 +65,13 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
       {/* A field as the altitude's is, at the owner's ask ("N-number should
           look similar to altitude"), the same field (InlineField): typed
           in, its card's button at its end once there is one. */}
+      {/* With none picked, "N-" and then "Pick airplane" in grey, the
+          example's style, where the "N-" alone read as a stray mark (the
+          design review, 2026-10-28, the owner's "I want all"); the field
+          as wide with it as without, as the owner keeps these fields. */}
       <InlineField
         label="Airplane" testId="aircraft-select" widest="N-888MM" placeholder="" endRoom="w-0" shrink
-        placeholderClassName={TEXT.detail}
+        placeholderClassName={TEXT.detail} hint={{ start: "N-", words: "Pick airplane" }}
         input={{
           // The N fixed before it, the rest typed, at the owner's ask
           // (2026-10-27: "N- can stay static while the rest of the number
@@ -75,7 +79,7 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
           // starts with it. In the field's own text, not a label beside it:
           // iOS keeps a few points inside an input's edge, which set the
           // number apart from it ("N- 654FL" on the owner's phone).
-          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: `N-${shown.replace(/^N-?/, "")}`, "aria-label": "Airplane, N-number",
+          autoCapitalize: "characters", autoCorrect: "off", spellCheck: false, value: `N-${shown.replace(/^N-?/, "")}`, "aria-label": shown ? "Airplane, N-number" : "Airplane, N-number: none picked",
           onChange: e => {
             const rest = e.target.value.toUpperCase().replace(/^N-?/, "").replace(/[^A-Z0-9]/g, "").slice(0, 5);
             setTyped(rest ? `N${rest}` : "");

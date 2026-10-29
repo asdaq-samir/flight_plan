@@ -126,7 +126,7 @@ export const CHECKPOINT_LABEL_GAP = 16;
 /** Its height, for the labels to be kept from one another (RouteMap). */
 export const CHECKPOINT_LABEL_HEIGHT = 20;
 /** A checkpoint label's width as drawn (checkpointLabelIcon): its name in
- *  the page's own bold 12, the tracking's 0.3 a letter, 6 either side --
+ *  the page's own bold 12, 6 either side --
  *  for the labels to be kept from one another and the screen's edge
  *  (RouteMap). A width per letter guessed short: FOREST VIEW, its bold
  *  capitals wider than the guess, ran off a phone's screen. */
@@ -134,7 +134,7 @@ export function checkpointLabelWidth(name: string): number {
   const known = labelWidths.get(name);
   if (known != null) return known;
   const width = typeof document === "undefined" ? null : textWidth(name, `700 12px ${getComputedStyle(document.body).fontFamily}`);
-  const out = width == null ? name.length * 9 + 12 : Math.ceil(width + name.length * 0.3 + 12);
+  const out = width == null ? name.length * 8 + 12 : Math.ceil(width + 12);
   // Measured once a name: the labels are placed again at every move that
   // ends, and each measure read the page's styles.
   if (width != null) labelWidths.set(name, out);
@@ -151,19 +151,18 @@ export const airportMarkReach = (ident: string) => AIRPORT_MARK / 2 + 2 + Math.c
 
 /**
  * A checkpoint's name beside its dot, as ForeFlight labels a flight
- * plan's waypoints: the name the route's ForeFlight pack gives it (ROUND
- * LAKE BEACH, ROAD WATERTOWN), so the map here and ForeFlight's read
- * alike, on a dark label that holds on the chart's paper and its
- * linework both, after the dot -- or before it where there is no room
- * after (the screen's edge, another name). Not a target: a tap there is
- * the dot's or the chart's.
+ * plan's waypoints, in sentence case as it is given ("River near
+ * Lenroot"; RouteMap's labelOf), on a dark label that holds on the
+ * chart's paper and its linework both, after the dot -- or before it
+ * where there is no room after (the screen's edge, another name). Not a
+ * target: a tap there is the dot's or the chart's.
  */
 export const checkpointLabelIcon = made(function checkpointLabelIcon(name: string, side: "right" | "left" = "right") {
   return L.divIcon({
     className: "",
     iconSize: [0, 0],
     iconAnchor: [side === "right" ? -CHECKPOINT_LABEL_GAP : CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT / 2],
-    html: `<span data-checkpoint-label="" class="pointer-events-none absolute ${side === "right" ? "left-0" : "right-0"} top-0 whitespace-nowrap rounded-md bg-[#1f2933]/85 px-1.5 text-[12px] font-bold uppercase leading-[20px] tracking-wide text-white shadow-[0_1px_3px_rgba(0,0,0,.4)]">${text(name)}</span>`,
+    html: `<span data-checkpoint-label="" class="pointer-events-none absolute ${side === "right" ? "left-0" : "right-0"} top-0 whitespace-nowrap rounded-md bg-[#1f2933]/85 px-1.5 text-[12px] font-bold leading-[20px] text-white shadow-[0_1px_3px_rgba(0,0,0,.4)]">${text(name)}</span>`,
   });
 });
 

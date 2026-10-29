@@ -63,6 +63,9 @@ test("FPL's route line folds to the way picked, None at first, and a chip tapped
   // Folded to None, the route as typed, planned at once; what it meets said.
   await expect(picked).toHaveText("None", { timeout: slow(30_000) });
   await expect(picked).toHaveAccessibleName(/None, the route as typed, crosses storms/);
+  // Said, not ringed: a coloured ring is a runway's warning, and on a plain
+  // choice it read as one (the design review, 2026-10-28).
+  await expect(picked).not.toHaveClass(/(^|\s)ring-(amber|destructive)/);
   await expect.poll(() => planned.length, { timeout: slow(15_000) }).toBeGreaterThan(0);
 
   // Opened: every way a chip, and drawn on the chart beside the course.
@@ -70,6 +73,8 @@ test("FPL's route line folds to the way picked, None at first, and a chip tapped
   const chips = line.getByTestId("route-line-chip");
   await expect(chips).toHaveText(["None", "Avoid Weather", "Fastest"]);
   await expect(page.locator("[data-route-way]")).toHaveCount(2);
+  await expect(chips.first()).toHaveAccessibleName(/crosses storms/);
+  for (const chip of await chips.all()) await expect(chip).not.toHaveClass(/(^|\s)ring-(amber|destructive)/);
 
   // A chip tapped: the route at once, its fuel stop named, and planned.
   await chips.filter({ hasText: "Avoid Weather" }).click();
