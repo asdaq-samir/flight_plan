@@ -1029,7 +1029,7 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
     `${c.key === "none" ? "None, the route as typed" : c.label}${c.time ? `, ${c.time}` : ""}${c.warning ? `, ${c.warning.toLowerCase()}` : ""}`;
   const others = line.chips.length - 1;
   return (
-    <Collapsible open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })} className="mx-4 mt-2 rounded-xl bg-card" data-testid="route-line">
+    <Collapsible open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })} className="mt-2 rounded-xl bg-card" data-testid="route-line">
       <CollapsibleTrigger asChild>
         <button
           type="button" data-testid="route-line-toggle" data-disclosure=""
@@ -1057,12 +1057,12 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
             <ToggleGroupItem
               key={c.key} value={c.key} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}
               className={cn(
-                "h-auto min-w-24 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-2.5 py-2 text-left",
+                "h-auto min-w-24 max-w-44 shrink-0 flex-col items-start gap-0.5 rounded-xl border border-border bg-background px-2.5 py-2 text-left",
                 "data-[state=on]:border-2 data-[state=on]:border-tint data-[state=on]:bg-tint/12",
               )}
             >
               <span className={cn("font-semibold", TEXT.row, c.key === line.picked && "text-tint")}>{c.time ?? "—"}</span>
-              <span className={cn("whitespace-nowrap", TEXT.note, c.warning ? "text-amber-700 dark:text-amber-400" : "text-foreground")}>{c.label}</span>
+              <span className={cn("whitespace-normal", TEXT.note, c.warning ? "text-amber-700 dark:text-amber-400" : "text-foreground")}>{c.label}</span>
             </ToggleGroupItem>
           ))}
         </ToggleGroup>
