@@ -1,6 +1,7 @@
 import L from "leaflet";
 import { SHEET_SECONDS } from "../../components/mapChrome";
 import { prefersReducedMotion } from "../motion";
+import { sheetEdges } from "../../hooks/use-detent-drag";
 
 /** The chart where the map is going asked for before it gets there: a
  *  phone's tiles load only once a move ends (Leaflet's updateWhenIdle),
@@ -43,7 +44,7 @@ const LONGEST_MS = 1500;
  * through a turn from a key or a tap. What was in the middle of the room
  * above the sheet stays in the middle of the room above it: the map moves
  * half as far as the sheet's edge, read each frame from the sheet itself
- * (its top, the transition's value in that frame). Not above `halfEdge`:
+ * (the look it is painted at, sheetEdges). Not above `halfEdge`:
  * half way to all the way up and back the map stays put, at the owner's
  * ask. Eased on its own -- Leaflet's pan, its own curve and time -- the
  * map started before the sheet and landed 80 ms ahead of it, and under a
@@ -82,7 +83,47 @@ export function followSheet(map: L.Map, sheet: {
   let still = 0;
   let released = 0;
   let offset = 0;
+  // The pane moved by the compositor in step with a sheet moving by itself
+  // (a key, a tap, a finger let go): the same curve, length and start as
+  // the sheet's own animation (MapPanel's useSheetMotion), where moved
+  // frame by frame it went a frame behind the sheet, and not at all in a
+  // frame the page was busy in.
+  let glide: { of: Animation; run: Animation } | null = null;
+  // Read afresh each frame: the panel says it again at each of its renders.
+  const said = () => sheetEdges.get(sheet.el);
+  const edgeNow = () => said()?.edge() ?? sheet.el.getBoundingClientRect().top;
+  const unglide = () => {
+    if (!glide) return;
+    const { run } = glide;
+    glide = null;
+    put(offsetAt(edgeNow()), false);
+    run.cancel();
+  };
+  const glideWith = (move: { run: Animation; from: number; to: number }) => {
+    const timing = move.run.effect?.getTiming();
+    if (!timing || typeof timing.duration !== "number") return;
+    const at = (edge: number) => {
+      const y = start.y + offsetAt(edge);
+      return { transform: `translate3d(${start.x}px, ${Math.round(y * dpr) / dpr}px, 0px)` };
+    };
+    // A keyframe where the edge passes half way up, past which the map
+    // stays put.
+    const cross = (sheet.halfEdge - move.from) / (move.to - move.from);
+    const frames: Keyframe[] = [{ offset: 0, ...at(move.from) }];
+    if (cross > 0 && cross < 1) frames.push({ offset: cross, ...at(sheet.halfEdge) });
+    frames.push({ offset: 1, ...at(move.to) });
+    const run = pane.animate(frames, { duration: timing.duration, easing: timing.easing, fill: "forwards" });
+    const align = () => { if (move.run.startTime !== null) run.startTime = move.run.startTime; };
+    align();
+    move.run.ready.then(align, () => {});
+    if (!moved) {
+      moved = true;
+      map.fire("movestart");
+    }
+    glide = { of: move.run, run };
+  };
   const stop = () => {
+    unglide();
     cancelAnimationFrame(frame);
     following.delete(map);
     if (to === undefined && offset) gone.set(map, { from: sheet.from, offset, at: performance.now() });
@@ -102,7 +143,9 @@ export function followSheet(map: L.Map, sheet: {
   };
   const step = () => {
     if (!sheet.free() || !sheet.el.isConnected) return stop();
-    const edge = sheet.el.getBoundingClientRect().top;
+    // From what the sheet says (MapPanel), as cheap as a number; read from
+    // the page, it laid the sheet out again in every frame of the move.
+    const edge = edgeNow();
     still = Math.abs(edge - lastEdge) < 0.25 ? still + 1 : 0;
     lastEdge = edge;
     const pressed = sheet.pressed();
@@ -115,9 +158,21 @@ export function followSheet(map: L.Map, sheet: {
       frame = requestAnimationFrame(step);
       return;
     }
-    put(offsetAt(edge), landed);
-    if (landed) stop();
-    else frame = requestAnimationFrame(step);
+    // Moving by itself: in step on the compositor, until it lands or a
+    // finger takes it.
+    const move = pressed || landed ? null : said()?.move() ?? null;
+    if (glide && glide.of !== move?.run) unglide();
+    if (move && !glide) glideWith(move);
+    if (landed) {
+      const run = glide?.run;
+      glide = null;
+      put(offsetAt(edge), true);
+      run?.cancel();
+      stop();
+    } else {
+      if (!glide) put(offsetAt(edge), false);
+      frame = requestAnimationFrame(step);
+    }
   };
   following.set(map, { stop, going: edge => { to = edge; } });
   // The pilot's own move of the map takes over: it stops where it is.
