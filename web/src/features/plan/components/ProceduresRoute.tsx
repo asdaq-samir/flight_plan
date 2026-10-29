@@ -539,11 +539,13 @@ export default function ProceduresRoute({
     const time = row ? etaAt(depart || new Date().toISOString(), row.minutesFlown) : null;
     // 22 in the 36 of its glass button, where the map's 26 filled it.
     // Before the plan, the field's own mark from its card (its airspace,
-    // its weather), not a dot, at the owner's screenshot (a departure alone).
+    // its weather), not a dot, at the owner's screenshot (a departure alone);
+    // and before its card is in, the plain airport symbol the route's box
+    // shows, where a blue dot stood in for it while the route was drawn (the
+    // owner's screenshot, 2026-10-29: BDL to KGLH, "Drawing Route...").
     const placed = cards[i]?.data;
     const mark = row ? <PointMark row={row} number={undefined} weather={weather} airportSize={22} />
-      : placed ? <AirportMark airspaceClass={placed.airspace_class ?? null} colour={weather(a.ident) ?? colourOf(placed.metar?.flight_category ?? null)} size={22} />
-        : <FieldDot last={last} />;
+      : <AirportMark airspaceClass={placed?.airspace_class ?? null} colour={weather(a.ident) ?? colourOf(placed?.metar?.flight_category ?? null)} size={22} />;
     // A step of the field's, at the owner's pick (option C of the
     // procedures canvas): its name and time in its head, its runway chips
     // under with its info at their start ("Info can go on the left side of
@@ -959,12 +961,6 @@ export default function ProceduresRoute({
 /** "KDLH approaches": a kind's list's title. */
 function listTitle(ident: string, kind: Kind): string {
   return `${ident} ${KIND_TITLE[kind].toLowerCase()}`;
-}
-
-/** A field's dot on the line before the course is in: hollow, and filled
- *  at the flight's end. */
-function FieldDot({ last }: { last: boolean }) {
-  return <span aria-hidden="true" className={cn("mt-1 block size-3.5 rounded-full border-[3px] border-tint", last ? "bg-tint" : "bg-background")} />;
 }
 
 const NO_HOLDS: Hold[] = [];

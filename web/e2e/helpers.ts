@@ -613,7 +613,13 @@ export async function tapNear(page: Page, mark: Locator | (() => Promise<{ x: nu
       middle = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     }
     const at = await page.evaluate(([x, y]) => {
-      for (const [dx, dy] of [[0, 16], [-16, 0], [0, -16], [-11, 11], [-11, -11], [11, 11], [11, -11]]) {
+      // Then a ring of points 14 and 18 out: what is drawn round a route's
+      // field -- its traffic pattern, from the first plan since the planner
+      // picks its runway -- covered all seven fixed ones round C81 on CI's
+      // runners (places.spec, both projects, three tries of three).
+      const ring: number[][] = [[0, 16], [-16, 0], [0, -16], [-11, 11], [-11, -11], [11, 11], [11, -11]];
+      for (const r of [14, 18]) for (let a = 0; a < 360; a += 30) ring.push([Math.round(r * Math.sin(a * Math.PI / 180)), Math.round(r * Math.cos(a * Math.PI / 180))]);
+      for (const [dx, dy] of ring) {
         const hit = document.elementFromPoint(x! + dx!, y! + dy!);
         if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x: x! + dx!, y: y! + dy! };
       }
