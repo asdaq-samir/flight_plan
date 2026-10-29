@@ -837,7 +837,9 @@ export default function ProceduresRoute({
   }
   const steps: ReactNode[] = [];
   const shown = new Set<ProcedureAirport>();
-  // Routes, over the route's fields (RouteLine).
+  // Routes, over the route's fields (RouteLine), four points clear of the
+  // first field's toggle under it, whose 44-point hit area came 3 up into
+  // the Routes row's (the iOS audit's P1, CI on 4d7da5f0).
   const lineRow = routeLine ? <RouteLine line={routeLine} /> : null;
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   points.forEach((row, i) => {
@@ -1029,7 +1031,7 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
     `${c.key === "none" ? "None, the route as typed" : c.label}${c.time ? `, ${c.time}` : ""}${c.warning ? `, ${c.warning.toLowerCase()}` : ""}`;
   const others = line.chips.length - 1;
   return (
-    <Collapsible open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })} className="mt-2 rounded-xl bg-card" data-testid="route-line">
+    <Collapsible open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })} className="mt-2 mb-1 rounded-xl bg-card" data-testid="route-line">
       <CollapsibleTrigger asChild>
         <button
           type="button" data-testid="route-line-toggle" data-disclosure=""
