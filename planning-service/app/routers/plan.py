@@ -1337,7 +1337,17 @@ def _name_waypoints(r: Route, selected: list) -> None:
         c["waypoint"] = name
 
 
-@router.get("/api/checkpoints")
+async def _read_ahead(
+    ahead: Annotated[bool, Query(description="Asked ahead of the pilot -- a Recent or Saved route planned while "
+                                 "the page is idle: its chart reads wait behind the route on screen's")] = False,
+) -> None:
+    """The request's chart reads as reads ahead (chart_model.READ_AHEAD).
+    Async, so it is set in the request's own context, which the endpoint's
+    thread and a streamed body's are copied from."""
+    chart_model.READ_AHEAD.set(ahead)
+
+
+@router.get("/api/checkpoints", dependencies=[Depends(_read_ahead)])
 def checkpoints(dep: str, dest: str, stops: str = "") -> Checkpoints:
     """Scored candidates and the subset worth flying, hop by hop along
     the whole route: fast once each hop's chart has been read, a few
@@ -1502,7 +1512,7 @@ def local_flight(q: Annotated[PlanQuery, Depends()], duration_min: LocalMinutes 
     )
 
 
-@router.get("/api/navlog")
+@router.get("/api/navlog", dependencies=[Depends(_read_ahead)])
 def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     """Altitude and the dead-reckoning legs, as newline-delimited JSON --
     the slow half, because it reads terrain, the obstacle file, the

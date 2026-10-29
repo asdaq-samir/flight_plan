@@ -12,6 +12,7 @@ import threading
 from collections import deque
 from concurrent.futures import Future, ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
+from contextvars import ContextVar
 
 import pandas as pd
 from vfr import chartfeatures, chartlabels, chartmodel, model_client
@@ -68,31 +69,55 @@ _RUNNING = 0
 # checkpoints waited for one of them to end.
 _RUNNING_AHEAD = 0
 
+# A request made ahead of the pilot: the web app planning the pilot's
+# Recents and Saved routes while the page is idle (?ahead=true on
+# /api/checkpoints and /api/navlog, app.routers.plan). It waits on its
+# reads as any request does, but they are reads ahead, behind the pilot's
+# and one at a time: asked as waited-on reads, two of them took both
+# processes, and a new route's checkpoints waited for one to end: 3.9 s
+# on the live planner where alone they are 0.7 to 1.1 (KFOD-KMCW,
+# 2026-10-29), 1.3 to 3.6 s against 0.2 to 1.4 once they are reads ahead
+# (a scratch planner, nine routes each way). Set for the
+# request as a whole (a context variable) because a route's reads are
+# asked from many places along the way (app.scoring's route_checkpoints).
+READ_AHEAD: ContextVar[bool] = ContextVar("read_ahead", default=False)
+# The reads ahead that a request waits on, kept in the queue however many
+# come after them: dropped, the request waiting on one would have nothing
+# to wait for.
+_AWAITED: set = set()
 
-def _reading(key: tuple, start: tuple, end: tuple, ahead: bool = False) -> Future | None:
+
+def _reading(key: tuple, start: tuple, end: tuple, ahead: bool = False, waited: bool = False) -> Future | None:
     """The read of a corridor neither in this process's memory nor kept on
     disk, started once however many ask -- queued, a read `ahead` behind
-    any that is waited on -- and None where there is nothing to read (or
-    the pool is not to be used)."""
+    any that is waited on and not dropped while it is `waited` on -- and
+    None where there is nothing to read (or the pool is not to be used)."""
     if not READS_IN_PROCESS or key in detection._DETECT_JOBS or detection._kept_path(key).exists():
         return None
     with _READING_LOCK:
         running = _READING.get(key)
         if running is not None and not running.done():
-            # Read ahead and waited on now: ahead of the reads ahead.
+            queued = [q for q in _AHEAD if q[0] == key]
             if not ahead:
-                for queued in list(_AHEAD):
-                    if queued[0] == key:
-                        _AHEAD.remove(queued)
-                        _WANTED.append(queued)
+                # Read ahead and waited on by the pilot now: ahead of the
+                # reads ahead.
+                for q in queued:
+                    _AHEAD.remove(q)
+                    _WANTED.append(q)
+                _AWAITED.discard(key)
                 _dispatch()
+            elif waited and queued:
+                _AWAITED.add(key)
             return running
         future: Future = Future()
         _READING[key] = future
         if ahead:
             _AHEAD.appendleft((key, start, end))
-            while len(_AHEAD) > AHEAD_KEPT:
-                dropped = _AHEAD.pop()
+            if waited:
+                _AWAITED.add(key)
+            # The oldest of those nobody waits on dropped, past AHEAD_KEPT.
+            for dropped in [q for q in _AHEAD if q[0] not in _AWAITED][AHEAD_KEPT:]:
+                _AHEAD.remove(dropped)
                 _READING.pop(dropped[0]).cancel()
         else:
             _WANTED.append((key, start, end))
@@ -107,6 +132,7 @@ def _dispatch() -> None:
     while _RUNNING < READERS and (_WANTED or (_AHEAD and _RUNNING_AHEAD < READERS - 1)):
         ahead = not _WANTED
         key, start, end = _AHEAD.popleft() if ahead else _WANTED.popleft()
+        _AWAITED.discard(key)
         future = _READING.get(key)
         if future is None or future.done():
             continue
@@ -185,7 +211,8 @@ def corridor(route: str, wait: bool, ahead: bool = False) -> list | None:
     read is still going and `wait` is False; the job it asks for is the
     page's own, shared, so this starts no second read. A read `ahead` --
     nobody waiting on it yet -- goes behind the reads that are waited on
-    (_reading)."""
+    (_reading), as is every read of a request made ahead (READ_AHEAD)."""
+    ahead = ahead or READ_AHEAD.get()
     dep, dest = route.split("->")
     r = load_hop(dep, dest)
     key = (route, TRAINING_HALF_WIDTH_NM)
@@ -194,7 +221,7 @@ def corridor(route: str, wait: bool, ahead: bool = False) -> list | None:
     # new pool _reading starts; not here, where a read that ran a process
     # out of memory would take the planner with it.
     for tries in (1, 2):
-        elsewhere = _reading(key, r.start, r.end, ahead=ahead and not wait)
+        elsewhere = _reading(key, r.start, r.end, ahead=ahead, waited=wait)
         if elsewhere is None:
             break
         if not wait and not elsewhere.done():
