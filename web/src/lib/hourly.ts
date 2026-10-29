@@ -70,6 +70,10 @@ export interface Hour {
   atTimesGustKt: number | null;
   /** Thunder at times, where the prevailing has none. */
   atTimesThunder: boolean;
+  /** The worse weather at times comes only from a PROB group: a chance
+   *  of it (30 or 40 per cent), not weather expected now and then as a
+   *  TEMPO's is (AC 00-45H, the TAF's PROB and TEMPO groups). */
+  atTimesChance: boolean;
 }
 
 const RANK: Record<string, number> = { VFR: 0, MVFR: 1, IFR: 2, LIFR: 3 };
@@ -164,15 +168,19 @@ function hourAt(taf: IForecastContainer, at: number): Omit<Hour, "now"> | null {
     const was = before && figuresOf(before);
     if (was && rank(was.category) > rank(figures.category)) figures = { ...was, windDirTrueDeg: figures.windDirTrueDeg, windSpeedKt: figures.windSpeedKt, windGustKt: figures.windGustKt };
   }
-  let atTimes: string | null = null, atTimesGustKt: number | null = null, atTimesThunder = false;
+  let atTimes: string | null = null, atTimesGustKt: number | null = null, atTimesThunder = false, atTimesChance = false;
   for (const group of supplemental) {
     const then = figuresOf(group, prevailing);
-    if (rank(then.category) > rank(figures.category) && rank(then.category) > rank(atTimes)) atTimes = then.category;
+    // A PROB30 or PROB40 group, alone or before a TEMPO, carries its
+    // per cent; a plain TEMPO none.
+    const chance = "probability" in group && group.probability != null;
+    if (rank(then.category) > rank(figures.category) && rank(then.category) > rank(atTimes)) { atTimes = then.category; atTimesChance = chance; }
+    else if (then.category === atTimes && !chance) atTimesChance = false;
     const gust = then.windGustKt;
     if (gust != null && gust > (figures.windGustKt ?? 0) && gust > (atTimesGustKt ?? 0)) atTimesGustKt = gust;
     if (then.precip === "thunder" && figures.precip !== "thunder") atTimesThunder = true;
   }
-  return { at, ...figures, atTimes, atTimesGustKt, atTimesThunder };
+  return { at, ...figures, atTimes, atTimesGustKt, atTimesThunder, atTimesChance };
 }
 
 /** Now, from the field's METAR: its figures as the planner (or own
@@ -195,7 +203,7 @@ function nowOf(metar: Metar, now: number): Hour {
     category: metar.flight_category ?? null, ceilingFt: metar.ceiling_ft ?? null, visibilitySm: metar.visibility_sm ?? null,
     sky, precip,
     windDirTrueDeg: metar.wind_dir_true_deg ?? null, windSpeedKt: metar.wind_speed_kt ?? null, windGustKt: metar.wind_gust_kt ?? null,
-    atTimes: null, atTimesGustKt: null, atTimesThunder: false,
+    atTimes: null, atTimesGustKt: null, atTimesThunder: false, atTimesChance: false,
   };
 }
 
@@ -269,7 +277,9 @@ export function sentenceOf(hours: Hour[], time: (ms: number) => string = clock):
     const worst = within[start]!.atTimes!;
     let end = start;
     while (end + 1 < within.length && within[end + 1]!.atTimes != null) end++;
-    said.push(`At times ${worst} between ${time(within[start]!.at)} and ${time(within[end]!.at + HOUR_MS)}.`);
+    // "Chance of" where only a PROB group says so, as the TAF means it.
+    const chance = within.slice(start, end + 1).every(h => h.atTimesChance);
+    said.push(`${chance ? "Chance of" : "At times"} ${worst} between ${time(within[start]!.at)} and ${time(within[end]!.at + HOUR_MS)}.`);
   }
 
   const storm = within.find(h => h.precip === "thunder" || h.atTimesThunder);

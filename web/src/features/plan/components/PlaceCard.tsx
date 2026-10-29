@@ -515,7 +515,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   data-testid="place-weather-summary"
                 />
                 {place && hourly.hours.length > 0 && (
-                  <div role="listitem" className="min-w-0">
+                  <div className="min-w-0">
                     <HourlyForecast
                       hours={hourly.hours}
                       arrival={landsIn != null && landsAt != null ? { index: landsIn, at: landsAt } : null}

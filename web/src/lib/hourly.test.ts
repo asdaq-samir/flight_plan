@@ -72,6 +72,12 @@ describe("a field's weather hour by hour", () => {
     expect(sentenceOf(hours, zulu)).toBe("Staying VFR through 0500Z. At times IFR between 2000Z and 2300Z.");
   });
 
+  it("a PROB group is a chance of the weather, not weather at times", () => {
+    const hours = series("TAF KDLH 291720Z 2918/3018 27010KT P6SM SCT035 PROB30 3001/3004 2SM -SHRA BKN015 FM300600 30008KT P6SM SKC");
+    expect(hours.find(h => h.at === at("2026-10-30T01:00:00Z"))).toMatchObject({ category: "VFR", atTimes: "IFR", atTimesChance: true });
+    expect(sentenceOf(hours, zulu)).toBe("Staying VFR through 0500Z. Chance of IFR between 0100Z and 0400Z.");
+  });
+
   it("the strongest gust is said, a TEMPO's among them, and thunder at times", () => {
     const hours = series("TAF KDLH 291720Z 2918/3018 27010G18KT P6SM SCT050 TEMPO 2920/2923 25020G35KT 4SM TSRA BKN030CB FM300300 30008KT P6SM SKC");
     const storm = hours.find(h => h.at === at("2026-10-29T20:00:00Z"))!;
