@@ -1353,6 +1353,17 @@
             "title": "Standard Keying",
             "type": "boolean"
           },
+          "taf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taf"
+          },
           "towered": {
             "title": "Towered",
             "type": "boolean"

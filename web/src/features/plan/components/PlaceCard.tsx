@@ -33,8 +33,10 @@ import { RunwaySketch } from "./RunwaySketch";
 import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
-import { useHeardMetar } from "../../../lib/map/receiver";
-import { ago, zuluTime } from "../../../lib/clock";
+import { useHeardMetar, useHeardTaf } from "../../../lib/map/receiver";
+import { ago, useMinuteClock, zuluTime } from "../../../lib/clock";
+import { arrivalHour, hoursOf, sentenceOf, tafOf } from "../../../lib/hourly";
+import { HourlyForecast } from "./HourlyForecast";
 import { sameField } from "../../../lib/procedures";
 import { ctafOf, frequencyOf, mhzText } from "../../../lib/frequencies";
 import { fuelNames } from "../../../lib/stopServices";
@@ -171,10 +173,10 @@ function CardSection({ id, title, onMore, right, children, testId }: {
 /**
  * An airport's card in the panel, as a place's is in Maps, laid out at
  * the owner's pick of its redesign (A2, 2026-10-29): the field's pictures
- * across its top -- from the air, from the ground, its runways -- its ident
+ * across its top -- its runways, from the air, from the ground -- its ident
  * large over them with its name and town; four things to do under them --
  * fly there, land there on the way, call it, keep it as a Favorite -- and
- * the weather there in a line; and all the way up, one scroll of its
+ * the weather there hour by hour (G1); and all the way up, one scroll of its
  * details, frequencies, runways, weather and charts, where they were four
  * tabs. Opened by a tap on the airport on the chart (AirportsLayer), and
  * held in the address (`?place=KDLH`), so a link lands on it.
@@ -182,7 +184,7 @@ function CardSection({ id, title, onMore, right, children, testId }: {
  * How far it is is from the pilot's own position when it is known, and
  * from the route's departure otherwise.
  */
-export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, startOn, onStarted, stop }: {
+export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, onExpand, startOn, onStarted, stop, arrival }: {
   ident: string;
   /** What the distance is measured from where own ship has no fix: the
    *  route's departure. */
@@ -203,6 +205,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
    *  the route's box: its figures under the actions (StopStrip), and Add
    *  Stop puts it in at its place. */
   stop?: SuggestedStop;
+  /** Where the field is the planned flight's destination: when it leaves
+   *  (ISO; null for now) and how long until it lands, minutes, for the
+   *  hour its forecast marks. */
+  arrival?: { depart: string | null; minutes: number };
 }) {
   // Asked again every five minutes while the card is open, its weather a
   // report's freshness (airportQuery): an open card's METAR was the one
@@ -349,11 +355,27 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       : nearby ? `Nearest report ${nearby.ident}, ${nearby.distance_nm} nm ${compassPoint(nearby.bearing_deg)}`
         : place?.weather_unavailable ? "The weather service could not be reached" : "No weather station reports from this field";
   const weatherAge = metar ? ageOf(metar.observed_at) : nearby ? ageOf(nearby.metar.observed_at) : null;
+  // And hour by hour, as Apple's Weather has it (the owner's pick, G1):
+  // Now from the report, each hour after it from the field's own TAF --
+  // the planner's, or own ship's receiver's where the planner has none --
+  // and a sentence of what they say, written from them (lib/hourly). Read
+  // again each minute, as the hours move on.
+  const heardTaf = useHeardTaf(ident);
+  const tafText = place?.taf ?? heardTaf;
+  const now = useMinuteClock();
+  const hourly = useMemo(() => {
+    const hours = hoursOf({ metar, taf: tafOf(tafText, now), now });
+    return { hours, sentence: sentenceOf(hours) };
+  }, [metar, tafText, now]);
+  // The hour the planned flight lands in, where this is its destination.
+  const landsAt = arrival ? (arrival.depart ? Date.parse(arrival.depart) : now) + arrival.minutes * 60_000 : null;
+  const landsIn = landsAt != null && !Number.isNaN(landsAt) ? arrivalHour(hourly.hours, landsAt) : null;
   // The longest runway open, for the details: what a pilot sizes a field by.
   const longest = place?.runways.filter(r => !r.closed && r.length_ft != null).sort((a, b) => b.length_ft! - a.length_ft!)[0] ?? null;
   const ident4 = place?.ident ?? ident;
-  // The pictures, a swipe across (PictureSlides): from the air, from the
-  // ground, then the runways.
+  // The pictures, a swipe across (PictureSlides): the runways first, at the
+  // owner's ask (2026-10-29: "pictures open on the runway diagram"), then
+  // the field from the air and from the ground.
   const runwaysSlide = (
     <div key="diagram" className="relative size-full bg-background">
       {/* A tap where there is nothing to draw goes to the runways'
@@ -397,6 +419,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     </div>
   );
   const slides = [
+    runwaysSlide,
     photos && (
       <PhotoSlide
         key="aerial" flush src={photos.aerial_url} alt="" onOpen={() => setPicture("aerial")}
@@ -411,7 +434,6 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         credit={`${photos.photo.credit}${photos.photo.license ? ` · ${photos.photo.license}` : ""}`}
       />
     ),
-    runwaysSlide,
   ];
   const share = () => void shareOrCopy({ title: place?.name ?? ident, url: `${location.origin}/app/plan?place=${place?.ident ?? ident}` }).catch(() => {});
   const frequencies = place ? (allFrequencies ? place.frequencies : place.frequencies.slice(0, FIRST_FREQUENCIES)) : [];
@@ -427,7 +449,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             title={ident4} testId="place-head" titleTestId="place-name" subtitleTestId="place-where"
             subtitle={name && name !== ident4 ? [name, where].filter(Boolean).join(" · ") : where || " "}
             line={line ? <p className={cn("line-clamp-2 text-white/80", TEXT.note)} data-testid="place-line">{line}</p> : null}
-            label={`${ident4}: ${photos ? "from the air, " : ""}${photos?.photo ? "from the ground, " : ""}its runways`}
+            label={`${ident4}: its runways${photos ? ", from the air" : ""}${photos?.photo ? ", from the ground" : ""}`}
             slides={slides} onClose={onClose} onShare={share} closeTestId="place-close" shareTestId="place-share"
           >
             {diagramOpen === "faa" && place?.airport_diagram_url && (
@@ -477,16 +499,29 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />
           </div>
           {place && stop && <StopStrip ident={place.ident} stop={stop} />}
-          {/* The weather in a line, its category in the FAA's colour; a
-              tap takes the card up to the report itself. */}
+          {/* The weather's card, as Apple's Weather has its hourly one:
+              its category in the FAA's colour, the forecast in a sentence
+              and the report's age over a hairline, the hours under it; a
+              tap on the sentence takes the card up to the reports as sent.
+              With no report or forecast of its own, what there is said in
+              the sentence's place: the model's, the nearest station's. */}
           {(place || known) && (
             <div className="pt-3">
               <ListGroup>
                 <ListRow
-                  media={chip || undefined} title={place ? weatherLine : "…"}
+                  media={chip || undefined}
+                  title={<span className={TEXT.prose} data-testid="place-forecast-sentence">{place ? hourly.sentence ?? weatherLine : "…"}</span>}
                   value={weatherAge ?? undefined} chevron onClick={place ? () => scrollTo("weather") : undefined}
                   data-testid="place-weather-summary"
                 />
+                {place && hourly.hours.length > 0 && (
+                  <div className="min-w-0">
+                    <HourlyForecast
+                      hours={hourly.hours}
+                      arrival={landsIn != null && landsAt != null ? { index: landsIn, at: landsAt } : null}
+                    />
+                  </div>
+                )}
               </ListGroup>
             </div>
           )}

@@ -17,7 +17,7 @@ DULUTH = {
 }
 
 
-def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None, surface_class="C", nearby=None, modelled=None):
+def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None, surface_class="C", nearby=None, modelled=None, taf=None):
     monkeypatch.setattr(airports, "find_place", lambda ident: place if ident.upper() in ("KDLH", "DLH") else None)
     monkeypatch.setattr(airports, "get_frequencies", lambda ident: list(frequencies))
     monkeypatch.setattr(airports, "get_runways", lambda ident: list(runways))
@@ -35,6 +35,12 @@ def stub_place(monkeypatch, place=DULUTH, frequencies=(), runways=(), metar=None
     else:
         monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: metar for i in idents})
     monkeypatch.setattr(weather, "nearest_report", lambda lat, lon, exclude=None: nearby)
+    if isinstance(taf, Exception):
+        def no_tafs(idents):
+            raise taf
+        monkeypatch.setattr(weather, "taf_for_idents", no_tafs)
+    else:
+        monkeypatch.setattr(weather, "taf_for_idents", lambda idents: {i: taf for i in idents})
     if isinstance(modelled, Exception):
         def down(lat, lon):
             raise modelled
@@ -92,6 +98,21 @@ def test_a_field_with_no_station_is_given_the_weather_modelled_there(monkeypatch
     stub_place(monkeypatch, modelled=glmp.GlmpUnavailable("down"))
     body = client.get("/api/airport/KDLH").json()
     assert body["modelled_weather"] is None and body["name"] == "Duluth International Airport"
+
+
+def test_a_fields_card_carries_its_own_taf_as_issued(monkeypatch):
+    raw = "TAF KDLH 291720Z 2918/3018 27012G22KT P6SM SCT050 FM300000 30008KT P6SM BKN025"
+    stub_place(monkeypatch, metar={"raw": "KDLH 291753Z 27012KT 10SM SCT050", "flight_category": "VFR"},
+               taf={"raw": raw, "ceiling_ft": None, "visibility_sm": 6.0, "change": "", "valid_from": 0, "valid_to": 0})
+    # The text as sent: the card reads its hours from it (web lib/hourly).
+    assert client.get("/api/airport/KDLH").json()["taf"] == raw
+    # Most fields issue none.
+    stub_place(monkeypatch, taf=None)
+    assert client.get("/api/airport/KDLH").json()["taf"] is None
+    # The forecasts out: the card all the same, with none.
+    stub_place(monkeypatch, taf=weather.WeatherServiceError("aviationweather.gov is down"))
+    body = client.get("/api/airport/KDLH").json()
+    assert body["taf"] is None and body["name"] == "Duluth International Airport"
 
 
 def test_a_field_with_no_tower_or_station_says_so_rather_than_failing(monkeypatch):
