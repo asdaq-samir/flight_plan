@@ -995,7 +995,7 @@ def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
     chart_kind = KINDS[kind]
     if not (chart_kind.min_zoom <= zoom <= chart_kind.max_zoom):
         return None
-    cycle = serving_cycle()
+    cycle = serving_cycle_of(kind)
     path = _tile_path(chart_kind, cycle, x, y, zoom)
     none_marker = path.with_suffix(".none")
     try:
@@ -1044,7 +1044,7 @@ def tile_image(x: int, y: int, zoom: int, kind: str = "sec") -> Image.Image | No
 
 
 def tile_cached(x: int, y: int, zoom: int, kind: str = "sec") -> bool:
-    return _tile_path(KINDS[kind], serving_cycle(), x, y, zoom).exists()
+    return _tile_path(KINDS[kind], serving_cycle_of(kind), x, y, zoom).exists()
 
 
 def prepare_for_bbox(bbox: Box, kinds: tuple = tuple(KINDS)) -> list:
@@ -1111,6 +1111,30 @@ def serving_cycle() -> str:
     value = value or next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, ("sec",))), None)
     value = value or current_cycle()
     _serving_cache.update(value=value, at=time.time())
+    return value
+
+
+_kind_serving: dict = {}
+
+
+def serving_cycle_of(kind: str) -> str:
+    """The cycle a kind of chart is drawn from: the newest on disk whose
+    pyramid of that kind is complete, so each kind goes over to a new
+    cycle as its own pass finishes, at the owner's pick (2026-10-29: the
+    sectionals were done at 15:11 and the IFR charts hours later). Under
+    serving_cycle alone, the whole map turned at the sectional's finish
+    and a kind still rendering was drawn tile by tile on request from its
+    new sheets, beside the refresh's own workers. The sectional's is
+    serving_cycle's; with no complete pyramid of the kind on disk, or the
+    tiles in the cloud (one published pointer for every kind), it is
+    serving_cycle's too. Held for a minute, as that is."""
+    if kind == "sec" or CHART_TILES_URL:
+        return serving_cycle()
+    held = _kind_serving.get(kind)
+    if held and time.time() - held[1] < _SERVING_TTL_S:
+        return held[0]
+    value = next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, (kind,))), None) or serving_cycle()
+    _kind_serving[kind] = (value, time.time())
     return value
 
 
@@ -1331,6 +1355,7 @@ def _write_pyramid_status(cycle: str, record: dict) -> None:
     data[record["kind"]] = record
     _write_atomically(path, json.dumps(data, indent=1).encode())
     _serving_cache["at"] = 0.0  # a pass just ended, or began: re-decide what to serve
+    _kind_serving.clear()
 
 
 def _record(kind_key: str, raw: dict) -> dict:

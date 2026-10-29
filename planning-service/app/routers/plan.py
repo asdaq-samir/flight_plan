@@ -318,6 +318,7 @@ def chart_layers() -> list[ChartLayer]:
     return [
         ChartLayer(
             kind=k.key, label=k.label, min_zoom=k.min_zoom, max_zoom=k.max_zoom, base=k.base, over=list(k.over),
+            cycle=(cycle := charts.serving_cycle_of(k.key)), revision=charts.tiles_revision(cycle),
             sheets=[] if k.base else [
                 ChartSheet(name=name, label=charts.sheet_label(k, name), west=w, south=s, east=e, north=n)
                 for name, (w, s, e, n) in charts.sheets(k)
