@@ -30,10 +30,10 @@ async function noPhotos(page: Page) {
   await page.route(url => /\/api\/planner\/airport\/[^/]+\/photos$/.test(url.pathname), route => route.fulfill({ status: 404, json: { detail: "No photos" } }));
 }
 
-/** The card's Charts, all the way up: a section of its one scroll. */
+/** The card's Charts tab, which takes the panel all the way up. */
 async function toCharts(page: Page) {
-  await grabberTo(page, "full");
-  await card(page).getByTestId("place-charts").scrollIntoViewIfNeeded();
+  await card(page).getByTestId("place-tab-diagrams").click();
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "full");
 }
 
 async function withDiagram(page: Page, picture: "drawn" | "missing", pdf = true) {
@@ -55,7 +55,7 @@ test("an airport's card has its diagram as a row, and a tap shows it full screen
   await withDiagram(page, "drawn");
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
-  // Under Charts, the card's last section.
+  // On the Charts tab, the card's last.
   await toCharts(page);
   // A row, as the Chart Supplement's is, not the sheet itself in the tab.
   const row = card(page).getByTestId("airport-diagram");
@@ -126,7 +126,7 @@ test("where the diagram's picture cannot be had, the card links the FAA's PDF", 
   await withDiagram(page, "missing");
   await page.goto("/app/plan?place=KDLH");
   await settle(page);
-  // Under Charts, the card's last section.
+  // On the Charts tab, the card's last.
   await toCharts(page);
   // And the card's own sketch of the runways where the crop is not had.
   await expect(card(page).getByTestId("runway-sketch")).toBeVisible();
@@ -164,7 +164,7 @@ async function withChartPages(page: Page) {
   return asked;
 }
 
-test("the Charts section's charts and the Chart Supplement open in the app, the field's own pages of a booklet", async ({ page }) => {
+test("the Charts tab's charts and the Chart Supplement open in the app, the field's own pages of a booklet", async ({ page }) => {
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), async route => {
     const answer = await route.fetch();
     await route.fulfill({ response: answer, json: { ...await answer.json(),
@@ -273,9 +273,10 @@ test("a tap on the card's sketch of a field the FAA draws no diagram for shows t
   const viewer = page.getByTestId("airport-sketch-viewer");
   await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
   await expect(viewer.getByTestId("runway-sketch").locator("line").first()).toBeVisible();
-  // Not the Runways section, which the tap used to open: the card still
-  // half way.
+  // Not the Runways tab, which the tap used to open: the card still half
+  // way, on its first tab.
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(card(page).getByTestId("place-tab-runways")).not.toHaveAttribute("data-state", "active");
   await viewer.getByTestId("airport-sketch-close").click();
   await expect(viewer).toHaveCount(0);
 });

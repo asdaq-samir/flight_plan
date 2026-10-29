@@ -70,6 +70,11 @@ class ChartLayer(BaseModel):
     over: list[str] = []
     # For an overlay, its sheets and their extents.
     sheets: list[ChartSheet] = []
+    # The cycle this kind is drawn from (vfr.charts.serving_cycle_of) and
+    # its tiles' revision there: each kind goes over to a new cycle as its
+    # own pyramid is finished, so the map's tile URLs carry its own.
+    cycle: str | None = None
+    revision: int = 0
 
 
 class ChartInfo(BaseModel):

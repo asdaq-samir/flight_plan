@@ -14,6 +14,17 @@ describe("tile URLs", () => {
     expect(tileTemplate(published, "tac")).toBe("https://tiles.example/09-03-2026/tac/{z}/{x}/{y}.png?r=2");
   });
 
+  it("carry each kind's own cycle, as each goes over to a new one when its own pass is finished", () => {
+    const turning = {
+      ...course, chart_cycle: "10-29-2026", chart_revision: 0,
+      chart_layers: [{ kind: "sec", cycle: "10-29-2026", revision: 0 }, { kind: "ifr_low", cycle: "09-03-2026", revision: 3 }],
+    } as unknown as Course;
+    expect(tileUrl(turning, "sec", 1, 2, 3)).toBe("/api/planner/chart-tile/sec/1/2/3.png?c=10-29-2026&r=0");
+    expect(tileUrl(turning, "ifr_low", 1, 2, 3)).toBe("/api/planner/chart-tile/ifr_low/1/2/3.png?c=09-03-2026&r=3");
+    // A layer that names none: the chart's own.
+    expect(tileUrl(turning, "tac", 1, 2, 3)).toBe("/api/planner/chart-tile/tac/1/2/3.png?c=10-29-2026&r=0");
+  });
+
   it("reads a course from before the revision existed as revision 0", () => {
     const older = { chart_cycle: "09-03-2026", chart_tiles_base: null } as unknown as Course;
     expect(tileUrl(older, "sec", 1, 2, 3)).toBe("/api/planner/chart-tile/sec/1/2/3.png?c=09-03-2026&r=0");

@@ -17,7 +17,7 @@ import { useSystemProblems } from "../problems";
 vi.mock("sonner", () => ({ toast: { loading: vi.fn(), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
 
 const layer = (kind: string): ChartLayer =>
-  ({ kind, label: kind === "sec" ? "Sectional" : "IFR low", min_zoom: 3, max_zoom: 9, base: true, over: [], sheets: [] }) as ChartLayer;
+  ({ kind, label: kind === "sec" ? "Sectional" : "IFR low", min_zoom: 3, max_zoom: 9, base: true, over: [], sheets: [], revision: 0 }) as ChartLayer;
 const SEC = layer("sec");
 const IFR_LOW = layer("ifr_low");
 const COURSE = {

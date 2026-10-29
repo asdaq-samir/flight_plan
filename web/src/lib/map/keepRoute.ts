@@ -3,7 +3,7 @@ import { persist } from "zustand/middleware";
 import { api } from "../api/client";
 import type { ChartLayer, Course } from "../api/types";
 import { diagramPicture, diagramRunwaysPicture } from "../diagram";
-import { tileUrl } from "./tiles";
+import { kindCycle, tileUrl } from "./tiles";
 
 /**
  * The tiles a route needs in the air, fetched now so the service
@@ -232,7 +232,8 @@ function remember(key: string, now = Date.now()) {
 
 export function keepKey(course: Course, kind: string): string {
   const route = [course.departure, ...(course.stops ?? []), course.destination].map(a => a.ident).join("->");
-  return `${route}/${kind}/${course.chart_cycle}/${course.chart_revision ?? 0}`;
+  const { cycle, revision } = kindCycle(course, kind);
+  return `${route}/${kind}/${cycle}/${revision}`;
 }
 
 /** The zooms kept: from a whole-route view (8) down to the chart's own detail. */

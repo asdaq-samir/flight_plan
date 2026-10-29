@@ -117,7 +117,7 @@ test("a suggested stop's pin opens its card with its figures", async ({ page }) 
   await expect(page).toHaveURL(/[?&]fuel=KRPD(&|$)/);
 });
 
-test("the airport's card says its fuel in its details, and what is on the field and the places near it at its foot", async ({ page }) => {
+test("the airport's Info says its fuel in its details, and what is on the field and the places near it at its foot", async ({ page }) => {
   await page.route(url => url.pathname.endsWith("/airport/KRPD/services"), route => route.fulfill({ json: SERVICES }));
   await page.goto("/app/plan?place=KRPD");
   const card = page.getByTestId("place-card");

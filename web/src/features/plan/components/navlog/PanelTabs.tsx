@@ -190,11 +190,10 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
           tab whose findings (lib/verdict) have something to fix carries a
           red mark, something to look at an amber one, as its sections'
           titles do. */}
-      {/* The route's pages as a segmented control, as the airport and
-          airplane cards' pages were before their one scroll (A2), at the
-          owner's pick of the redesign: words, the
-          glyphs gone, a page with something to fix or look at marked by a
-          dot after its word as before. */}
+      {/* The route's pages as the same segmented control an airport's
+          card's are (CardTabBar), at the owner's pick of the redesign:
+          words, the glyphs gone, a page with something to fix or look at
+          marked by a dot after its word as before. */}
       {tab !== null && <TabsList
         data-tip="tabs"
         className="mx-4 my-2 w-auto shrink-0 group-data-[orientation=horizontal]/tabs:h-9 pointer-coarse:group-data-[orientation=horizontal]/tabs:h-11 print:hidden"

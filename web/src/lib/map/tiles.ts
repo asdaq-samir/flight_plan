@@ -42,12 +42,20 @@ export function sheetAt(overlay: ChartLayer | null, lat: number, lon: number): C
  *  notice, 2026-10-16: "Only updates when the finger is off the screen"). */
 export const LIVE_TILES = { updateWhenIdle: false } as const;
 
-export function tileTemplate(chart: ChartInfo, kind: string): string {
+/** The cycle and revision a kind's tiles are drawn from: its layer's own,
+ *  each kind going over to a new cycle as its pyramid is finished
+ *  (vfr.charts.serving_cycle_of), else the chart's, the sectional's. */
+export function kindCycle(chart: Pick<ChartInfo, "chart_cycle" | "chart_revision" | "chart_layers">, kind: string): { cycle: string; revision: number } {
+  const layer = chart.chart_layers?.find(l => l.kind === kind);
   // A course cached offline from before the planner reported one has none.
-  const revision = chart.chart_revision ?? 0;
+  return layer?.cycle ? { cycle: layer.cycle, revision: layer.revision ?? 0 } : { cycle: chart.chart_cycle, revision: chart.chart_revision ?? 0 };
+}
+
+export function tileTemplate(chart: ChartInfo, kind: string): string {
+  const { cycle, revision } = kindCycle(chart, kind);
   return chart.chart_tiles_base
-    ? `${chart.chart_tiles_base}/${chart.chart_cycle}/${kind}/{z}/{x}/{y}.png?r=${revision}`
-    : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c=${chart.chart_cycle}&r=${revision}`;
+    ? `${chart.chart_tiles_base}/${cycle}/${kind}/{z}/{x}/{y}.png?r=${revision}`
+    : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c=${cycle}&r=${revision}`;
 }
 
 export function tileUrl(chart: ChartInfo, kind: string, z: number, x: number, y: number): string {

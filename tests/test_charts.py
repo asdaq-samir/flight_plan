@@ -524,6 +524,37 @@ def test_serving_cycle_is_the_newest_complete_pyramid(tmp_path, monkeypatch):
     assert not (tmp_path / "tiles" / "09-03-2026").exists()
 
 
+def test_each_kind_goes_over_to_a_new_cycle_as_its_own_pass_finishes(tmp_path, monkeypatch):
+    # The owner, 2026-10-29: the sectionals were done at 15:11 and the IFR
+    # charts hours later; each kind is drawn from its own newest complete
+    # pyramid, not all from the sectional's.
+    monkeypatch.setattr(charts, "RENDERER_VERSION", 1)
+    monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
+    monkeypatch.setattr(charts, "CHARTS_DIR", tmp_path / "charts")
+    monkeypatch.setattr(charts, "current_cycle", lambda *a, **k: "10-29-2026")
+    monkeypatch.setattr(charts, "_serving_cache", {"value": None, "at": 0.0})
+    monkeypatch.setattr(charts, "_kind_serving", {})
+    done = {"zooms": [3], "started_at": "t", "finished_at": "t", "rasters_total": 1,
+            "rasters_done": 1, "tiles_written": 1, "current": None}
+    monkeypatch.setattr(charts, "COVERAGE", {k: {} for k in charts.KINDS})
+    for kind in charts.KINDS:
+        charts._write_pyramid_status("09-03-2026", {**done, "kind": kind})
+    charts._write_pyramid_status("10-29-2026", {**done, "kind": "sec"})
+    charts._write_pyramid_status("10-29-2026", {**done, "kind": "ifr_low", "finished_at": None})   # still drawing
+    assert charts.serving_cycle() == "10-29-2026"
+    assert charts.serving_cycle_of("sec") == "10-29-2026"
+    assert charts.serving_cycle_of("ifr_low") == "09-03-2026"
+    assert charts.serving_cycle_of("tac") == "09-03-2026"
+    # Its pass finished: over it goes.
+    charts._write_pyramid_status("10-29-2026", {**done, "kind": "ifr_low"})
+    assert charts.serving_cycle_of("ifr_low") == "10-29-2026"
+    # A kind with no complete pyramid anywhere: the sectional's, drawn on request.
+    monkeypatch.setattr(charts, "_kind_serving", {})
+    for c in ("09-03-2026", "10-29-2026"):
+        charts._write_pyramid_status(c, {**done, "kind": "ifr_high", "finished_at": None})
+    assert charts.serving_cycle_of("ifr_high") == "10-29-2026"
+
+
 def test_published_pointer_decides_the_served_cycle_in_the_cloud(tmp_path, monkeypatch):
     monkeypatch.setattr(charts, "CHART_TILE_CACHE_DIR", tmp_path / "tiles")
     monkeypatch.setattr(charts, "CHART_TILES_URL", "https://d123.cloudfront.net/tiles")
