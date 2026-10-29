@@ -11,6 +11,7 @@ import { shareOrCopy } from "../../../lib/share";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { PhotoHead } from "../../../components/PhotoHead";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { PillSection } from "../../../components/Favorites";
 import { CardAction as Action } from "./CardAction";
 import { ApiError } from "../../../lib/api/client";
@@ -529,7 +530,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 title="Fuel" data-testid="services-fuel"
                 value={<span className="font-semibold text-foreground">{services ? (services.fuel_types.length ? fuelNames(services.fuel_types) : "None listed") : "…"}</span>}
               />
-              {services?.fuel_notes.map(note => <ListRow key={note} title={<span className={cn("text-muted-foreground", TEXT.detail)}>{note}</span>} />)}
+              {/* Its remarks folded under their own row, so a field's
+                  paragraph of them (Duluth's) does not stand between the
+                  fuel and the address in A2's Details. shadcn's Collapsible. */}
+              {!!services?.fuel_notes.length && (
+                <Collapsible>
+                  <CollapsibleTrigger asChild>
+                    <ListRow title="Fuel remarks" chevron data-testid="services-fuel-remarks" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {services.fuel_notes.map(note => <ListRow key={note} title={<span className={cn("text-muted-foreground", TEXT.detail)}>{note}</span>} />)}
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
               {/* Where it is on the ground, in Maps: an action of the
                   card's until the star took its place (A2). */}
               <ListRow title="Address in Maps" description={place.address ?? undefined} href={mapsLink(place)} data-testid="place-address" />
