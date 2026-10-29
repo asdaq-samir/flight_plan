@@ -66,7 +66,13 @@ test("plan page: a click or Enter selects a nav log checkpoint, with the briefin
 });
 
 test("plan page: a checkpoint picked on the map is brought to the middle of the nav log, and a row clicked in view stays put", { tag: "@smoke" }, async ({ page }) => {
-  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  // The runways the pilot's own (auto=-), so none is picked into the wind:
+  // that pick plans the route again a moment after its log first shows,
+  // and the log written anew moved the rows under the test -- the row
+  // clicked 52 px down, and the row above the selected one another
+  // checkpoint (CI, 2026-10-28). Which rows stay put is the claim here,
+  // not the wind's runway.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&pattern=C81:9,KDLH:27&auto=-");
   await settle(page);
   const marker = page.locator(".leaflet-marker-icon", { hasText: /^1[01]$/ }).first();
   await expect(marker).toBeVisible({ timeout: slow(15000) });
@@ -129,9 +135,12 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // in give a row above a second line -- 22 px, on a CI phone.
   const onScreen = async () => (await neighbour.boundingBox())!.y;
   const before = await onScreen();
+  // Its name before the click: `neighbour` is a place in the list, read
+  // again at each use.
+  const name = (await neighbour.getByRole("rowheader").textContent()) ?? "";
   await neighbour.getByRole("rowheader").click();
   // By its name.
-  await expect(selectedRow.first().getByRole("rowheader")).toHaveText((await neighbour.getByRole("rowheader").textContent()) ?? "");
+  await expect(selectedRow.first().getByRole("rowheader")).toHaveText(name);
   await page.waitForTimeout(400);
   expect(Math.abs((await onScreen()) - before)).toBeLessThan(2);
 

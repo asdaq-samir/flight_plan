@@ -1363,8 +1363,17 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
     trailingStood.set(key, { open: shown === "open", x });
     if (!was || was.open === (shown === "open") || Math.abs(was.x - x) < 1) return;
     if (globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    // Never from past the line's right edge: in the open line they can
+    // stand beyond it, scrolled out of sight in its own scroller, and
+    // gliding in from there they ran the panel sideways past its edge for
+    // the glide's 300 ms -- the nav log 434 px wide in a 385 px drawer as
+    // the runway picked into the wind folded the line (checkpoints.spec,
+    // CI 2026-10-28), the iOS audit's "no sideways scroll in a panel".
+    const room = Math.max(0, base.getBoundingClientRect().width - box.getBoundingClientRect().width - x);
+    const from = Math.min(was.x - x, room);
+    if (Math.abs(from) < 1) return;
     box.style.transition = "none";
-    box.style.transform = `translateX(${was.x - x}px)`;
+    box.style.transform = `translateX(${from}px)`;
     // Laid out from there before the transition back: a call, as the
     // minifier drops a bare read of offsetWidth.
     box.getBoundingClientRect();

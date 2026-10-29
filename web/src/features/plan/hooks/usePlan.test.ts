@@ -261,6 +261,20 @@ describe("an altitude asked for", () => {
     expect(result.current.stage).not.toBe("navlog");
   });
 
+  test("as a runway is picked into the wind, keeps the log before it too, said to be planned again", async () => {
+    // The departure's runway (runways, arg 18) and the destination's
+    // pattern (patterns, arg 19) as ProceduresRoute writes them.
+    vi.mocked(api.course).mockResolvedValue({ ...courseFixture(), checkpoints_ready: true });
+    vi.mocked(api.navlog).mockImplementation((...args: Parameters<typeof api.navlog>) => (args[18] || args[19] ? waiting() : whole(4500)));
+    const { result, rerender } = renderHook((plan: PlanParams) => usePlan(plan), { wrapper, initialProps: params });
+    await waitFor(() => expect(result.current.totals).not.toBeNull());
+    rerender({ ...params, runways: "C81:9", patterns: "KDLH:27" });
+    await waitFor(() => expect(vi.mocked(api.navlog).mock.calls.some(call => call[18] === "C81:9")).toBe(true));
+    expect(result.current.totals).not.toBeNull();
+    expect(result.current.legs).toHaveLength(1);
+    expect(result.current.replanning).toBe(true);
+  });
+
   test("on another route, is not held over it", async () => {
     vi.mocked(api.course).mockResolvedValue({ ...courseFixture(), checkpoints_ready: true });
     vi.mocked(api.navlog).mockImplementation((...args: Parameters<typeof api.navlog>) => (args[1] === "KMSP" ? waiting() : whole(4500)));

@@ -17,6 +17,13 @@ async function openRunways(field: Locator) {
   // shows, folding it as it comes (ProceduresRoute's intoWind): opened again
   // until it stays open.
   const folded = field.locator("[data-folded]");
+  // That pick waited for first, where the field has a wind to pick into:
+  // a line opened before it is folded by it, as the owner asked
+  // (e6d13391), and on a slow runner it came after the loop below had
+  // seen the line open and gone on, the runway then clicked gone under the
+  // finger (the mobile project, CI 2026-10-28, and here on the merged
+  // bundle). Calm, nothing is picked, and the line is open already.
+  await folded.first().waitFor({ timeout: slow(10000) }).catch(() => {});
   await expect(async () => {
     if (await folded.count()) await folded.click();
     await expect(folded).toHaveCount(0, { timeout: 1500 });
