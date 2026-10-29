@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, type ReactNode } from "react";
+import { create } from "zustand";
 import { ArrowLeftRight, ChevronDown } from "lucide-react";
 import { cn } from "cn";
 import RoundButton from "../../../components/RoundButton";
@@ -70,11 +71,25 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   const plates = usePreferences(s => s.plates);
   // A runway's approaches and a procedure's transitions are pages pushed
   // in the panel's place, Back at the head's left to the one before.
-  const [pages, setPages] = useState<Page[]>([]);
-  const [open, setOpen] = useState(false);
+  // Open, and its pages, kept by the field and the kind (useOpenMenu), not
+  // in the component: the field's line draws its pull-downs anew as its
+  // runways come in, open, and as the runway picked into the wind folds it,
+  // a second or more later on a slow connection, and a menu opened before
+  // that closed under the pilot's finger (procedures.spec and the iOS
+  // audit, CI 2026-10-28).
+  const menuKey = `${ident}:${kind}:${look}`;
+  const me = useId();
+  const open = useOpenMenu(s => s.key === menuKey && s.owner === me);
+  const pages = useOpenMenu(s => (s.key === menuKey && s.owner === me ? s.pages : NO_PAGES));
+  const setPages = (next: Page[]) => useOpenMenu.setState(s => (s.owner === me ? { pages: next } : s));
+  useKeptOpen(menuKey, me);
   const toggle = (next: boolean) => {
-    setOpen(next);
-    if (next) onOpen(); else setPages([]);
+    if (next) {
+      useOpenMenu.setState({ key: menuKey, owner: me, pages: [] });
+      onOpen();
+    } else if (useOpenMenu.getState().owner === me) {
+      useOpenMenu.setState(CLOSED);
+    }
   };
   // The whole list opens a sheet of its own: focus not handed back to the
   // trigger as this closes, which the sheet took for a tap outside it
@@ -260,3 +275,34 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
 /** A page of the panel pushed in its place: a runway's approaches, or a
  *  procedure's transitions. */
 type Page = { runway: string } | { procedure: ProcedureSummary; name: string } | { direct: true };
+const NO_PAGES: Page[] = [];
+const CLOSED = { key: null, owner: null, pages: NO_PAGES };
+
+/** The one pull-down open -- a tap outside closes it -- by its field, kind
+ *  and look ("KDLH:approach:add"), the one drawn that opened it (`owner`),
+ *  and the pages pushed in it. */
+const useOpenMenu = create<{ key: string | null; owner: string | null; pages: Page[] }>(() => CLOSED);
+
+/** The pull-downs drawn now, by their useId. */
+const drawn = new Set<string>();
+
+/** An open pull-down drawn anew keeps open: the one drawn in its place, in
+ *  the same commit, takes it over before it is painted. Put away for good
+ *  -- the field out of the route -- it is closed a moment after, so it
+ *  does not open by itself when that field's pull-down is next drawn. */
+function useKeptOpen(key: string, me: string) {
+  useLayoutEffect(() => {
+    drawn.add(me);
+    const s = useOpenMenu.getState();
+    if (s.key === key && s.owner !== null && !drawn.has(s.owner)) useOpenMenu.setState({ owner: me });
+    // Its field changed under it while open: another pull-down now.
+    else if (s.owner === me && s.key !== key) useOpenMenu.setState(CLOSED);
+    return () => {
+      drawn.delete(me);
+      window.setTimeout(() => {
+        const now = useOpenMenu.getState();
+        if (now.owner !== null && !drawn.has(now.owner)) useOpenMenu.setState(CLOSED);
+      }, 0);
+    };
+  }, [key, me]);
+}

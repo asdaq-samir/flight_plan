@@ -2525,9 +2525,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // Offered once the plan has settled: no stage still being planned, and
   // the runways into the wind picked -- they plan the route again with
   // their patterns flown, and a Save before them filed the plan before
-  // them (the owner's yes, 2026-10-28; lib/windPicks).
+  // them (the owner's yes, 2026-10-28; lib/windPicks). Nor while the log
+  // on screen is the one before a new runway or altitude, held there till
+  // its own is in (usePlan's `replanning`): its stage is not said, and a
+  // Save then filed the plan being replaced.
   const windPending = useWindPicks(w => w.pending);
-  const settledPlan = s.stage === null && !windPending;
+  const settledPlan = s.stage === null && !s.replanning && !windPending;
   const flightToSave = {
     course: routed && settledPlan ? course : null, totals: s.pointToPoint ? null : s.totals, nav: s.nav, legs: s.legs, selected: s.logSelected,
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: picksOf(searchParams),
