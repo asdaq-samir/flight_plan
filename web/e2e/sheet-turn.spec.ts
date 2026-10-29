@@ -20,7 +20,14 @@ async function frames(page: Page, move: () => Promise<void>): Promise<Frame[]> {
     w.__frames = [];
     const t0 = performance.now();
     const tick = () => {
-      const panel = document.querySelector("[data-slot=map-panel]")!.getBoundingClientRect();
+      // The sheet as it shows on the screen: on a phone it is moved by
+      // transforms and cut to its height at its foot (MapPanel's
+      // useSheetMotion), its box laid out as tall as the larger end.
+      const sheet = document.querySelector<HTMLElement>("[data-slot=map-panel]")!;
+      const box = sheet.getBoundingClientRect();
+      const cut = /^inset\(\S+ \S+ (-?[\d.]+)px/.exec(getComputedStyle(sheet).clipPath);
+      const foot = Math.min(box.bottom - (cut ? Math.max(0, Number(cut[1])) : 0), window.innerHeight);
+      const panel = { top: box.top, height: foot - box.top };
       const at = (selector: string) => {
         const r = document.querySelector(`[data-slot=map-panel] ${selector}`)?.getBoundingClientRect();
         return r && r.height > 0 ? { top: r.top - panel.top, bottom: r.bottom - panel.top } : null;

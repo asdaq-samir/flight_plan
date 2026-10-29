@@ -10,7 +10,8 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState, type Rea
 import { MapContainer, ZoomControl } from "react-leaflet";
 import MapControls from "../../components/MapControls";
 import MapBanners from "../../components/MapBanners";
-import { MapInsetsContext, SHEET_SECONDS } from "../../components/mapChrome";
+import { MapInsetsContext, SHEET_SECONDS, type MapInsets } from "../../components/mapChrome";
+import type { SheetTurn } from "../../components/MapPanel";
 import { useSheetCards } from "../sheetCards";
 import type { Course } from "../api/types";
 import { chartQuery } from "../queryClient";
@@ -118,6 +119,11 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
   // page opens on the route.
   const insetsRef = useRef(insets);
   useEffect(() => { insetsRef.current = insets; }, [insets]);
+  // The room a sheet said it was going to as it set off (its sheetturn,
+  // below), until the page's insets say it too: worked through then
+  // already, and not again.
+  const turnedEarly = useRef<MapInsets | null>(null);
+  const turnToNow = useRef<(insets: MapInsets) => void>(() => {});
   const fit = useCallback((fly: boolean) => {
     if (!map || !bounds) return;
     map.invalidateSize();
@@ -299,10 +305,30 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       followSheet(map, sheetRoom(bottom, el));
     };
     const up = () => { pressed.current = false; };
+    // And as the sheet starts to move by itself (MapPanel's sheetturn: a
+    // key, a tap, a finger let go), not once the page has heard of the
+    // room it leaves (the insets, below), which it is told of in a
+    // transition: the map started a frame or ten after the sheet.
+    const turned = (event: Event) => {
+      const el = event.target;
+      const going = (event as CustomEvent<SheetTurn | null>).detail?.insets;
+      if (going) {
+        turnedEarly.current = going;
+        insetsRef.current = going;
+        if (going.out && !going.up && !going.left && going.bottom) halfBottom.current = going.bottom;
+        turnToNow.current(going);
+        return;
+      }
+      const { left, bottom } = insetsRef.current;
+      if (!(el instanceof HTMLElement) || pressed.current || left || !bottom || heldRef.current) return;
+      followSheet(map, sheetRoom(bottom, el));
+    };
     doc.addEventListener("pointerdown", down, true);
     doc.addEventListener("pointerup", up, true);
     doc.addEventListener("pointercancel", up, true);
+    doc.addEventListener("sheetturn", turned, true);
     return () => {
+      doc.removeEventListener("sheetturn", turned, true);
       doc.removeEventListener("pointerdown", down, true);
       doc.removeEventListener("pointerup", up, true);
       doc.removeEventListener("pointercancel", up, true);
@@ -334,7 +360,11 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     const middle = (i: { top: number; bottom: number; left: number }) => L.point((i.left + size.x) / 2, (i.top + size.y - i.bottom) / 2);
     map.panBy(middle(was).subtract(middle(insets)), { animate: false });
   }, [insets, map, bounds, routeKey, fit, opening]);
-  useEffect(() => {
+  // The room the panel leaves the map at a turn, worked through as it
+  // changes (below) -- or as a phone's sheet sets off for another size
+  // (MapPanel's sheetturn, which says the room it is going to), the page
+  // told of the room only once the sheet has landed.
+  const turnTo = useCallback((insets: MapInsets) => {
     const was = settledInsets.current;
     settledInsets.current = insets;
     if (!map || held) return;
@@ -446,7 +476,18 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
         if (by.x || by.y) slideMap(map, by);
       }
     }
-  }, [insets, map, course, bounds, routeKey, held, fit, edgeOf, sheetRoom]);
+  }, [map, course, bounds, routeKey, held, fit, edgeOf, sheetRoom]);
+  useEffect(() => { turnToNow.current = turnTo; });
+  useEffect(() => {
+    const early = turnedEarly.current;
+    if (early && !sameInsets(early, insets)) {
+      turnTo(early);
+      return;
+    }
+    turnedEarly.current = null;
+    if (early && sameInsets(settledInsets.current, insets)) return;
+    turnTo(insets);
+  }, [insets, turnTo]);
 
   // bg-slate-100: purely cosmetic, so the gap before the course loads
   // reads as "a map is about to be here" rather than a blank white
@@ -497,6 +538,9 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     </div>
   );
 }
+
+const sameInsets = (a: MapInsets, b: MapInsets) =>
+  a.top === b.top && a.bottom === b.bottom && a.left === b.left && a.out === b.out && a.up === b.up;
 
 /** Whether any of `line` crosses `sight`, in the map's container pixels:
  *  a point in it, or a leg through it. */
