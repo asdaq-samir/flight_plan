@@ -110,6 +110,16 @@ export function NavLogList({ rows, label, numberOf, weather, isSelected, onSelec
           ))}
         </div>
       </div>
+      {/* The right-hand column's names over it, as a paper log's heads
+          are: the clock time over the groundspeed, each row's two lines,
+          so each row's groundspeed is its figure alone under "GS kt" and
+          they line up as the times do; it was "GS 102" on every row (the
+          design review, 2026-10-28, the owner's "I want all"). The screen
+          reader's names are the row group's above. */}
+      <div aria-hidden="true" className={cn("grid grid-cols-[2.125rem_minmax(0,1fr)_auto] gap-x-2.5 px-1.5 pb-0.5 text-right text-muted-foreground", TEXT.note)} data-testid="navlog-list-heads">
+        <span className="col-start-3">ETA</span>
+        <span className="col-start-3">GS kt</span>
+      </div>
       <div role="rowgroup">
         {rows.map((row, at) => {
           const leg = legOf(row);
@@ -208,8 +218,8 @@ export function NavLogList({ rows, label, numberOf, weather, isSelected, onSelec
                       </>
                     )}
                   </span>
-                  <span role="cell" className={cn("text-right tabular-nums", selected ? "text-foreground" : "text-muted-foreground", TEXT.note)}>
-                    {row.kind === "departure" ? "Takeoff" : leg?.groundspeed_kt != null ? `GS ${Math.round(leg.groundspeed_kt)}` : ""}
+                  <span role="cell" className={cn("text-right tabular-nums", selected ? "text-foreground" : "text-muted-foreground", TEXT.note)} data-testid="navlog-row-gs">
+                    {row.kind === "departure" ? "Takeoff" : leg?.groundspeed_kt != null ? Math.round(leg.groundspeed_kt) : ""}
                   </span>
                 </div>
                 {selected && (
