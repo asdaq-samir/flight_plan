@@ -1010,7 +1010,7 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
  * what is flown there (a field's). The line runs on to the next step.
  */
 /** FPL's route line's choices (PlanWorkspace's routeLine): each chip's
- *  key and words, and what its way meets; the one picked. */
+ *  key and words, and what its way meets, in amber; the one picked. */
 export interface RouteLineChoices {
   chips: { key: string; label: string; warning: string | null }[];
   picked: string;
@@ -1026,16 +1026,13 @@ export interface RouteLineChoices {
  * once. "None" is the route as typed. Open until it is folded by its
  * glyph, at the owner's ask ("Keep the routes and runway opened until
  * folded", 2026-10-28), where it folded after the runway line's two
- * seconds untouched. What a way meets is said in its name: the planner
- * warns, never refuses. Not ringed: a coloured ring is a runway's warning
- * (too short, a crosswind past the demonstrated), and on these plain
- * choices -- "None" folded first of all -- it read as one (the design
- * review, 2026-10-28, the owner's "I want all"); the route's own alerts
- * and Brief say what it crosses.
+ * seconds untouched. A way that meets something is ringed in amber, said
+ * in its name: the planner warns, never refuses.
  */
 function RouteLine({ line }: { line: RouteLineChoices }) {
   const open = useRouteLineOpen(s => s.open);
   const picked = line.chips.find(c => c.key === line.picked) ?? line.chips[0]!;
+  const ring = (c: RouteLineChoices["chips"][number]) => (c.warning ? "ring-2 ring-amber-500" : undefined);
   const words = (c: RouteLineChoices["chips"][number]) =>
     `${c.key === "none" ? "None, the route as typed" : c.label}${c.warning ? `, ${c.warning.toLowerCase()}` : ""}`;
   return (
@@ -1066,7 +1063,7 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
             <ToggleGroup type="single" value={picked.key} aria-label="Route options" className={cn(TRAY_BODY, "rounded-l-none")}>
               <ToggleGroupItem
                 value={picked.key} onClick={() => useRouteLineOpen.setState({ open: true })}
-                className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300")}
+                className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", ring(picked))}
                 aria-label={`${words(picked)}, picked: tap for the other routes`} data-testid="route-line-picked" data-key={picked.key}
               >
                 {picked.label}
@@ -1082,7 +1079,7 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
                   enter="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300"
                 >
                   {line.chips.map(c => (
-                    <ToggleGroupItem key={c.key} value={c.key} className={cn(CHIP, "whitespace-nowrap")} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}>
+                    <ToggleGroupItem key={c.key} value={c.key} className={cn(CHIP, "whitespace-nowrap", ring(c))} aria-label={words(c)} data-testid="route-line-chip" data-key={c.key}>
                       {c.label}
                     </ToggleGroupItem>
                   ))}
