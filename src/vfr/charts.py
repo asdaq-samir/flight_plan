@@ -698,8 +698,32 @@ def build_overviews(path: Path) -> None:
 
 
 
+# From how far past the chart's own resolution a tile is drawn smooth
+# (_warp_smooth): a sectional's tile at zoom 12 is 1.46 times finer than
+# the FAA's 42.3 m pixels at Chicago, a TAC's at 13 about 1.4. Below
+# this the two are nearly one to one, and nearest-neighbour is as sharp
+# as the sheet.
+_SMOOTH_FROM = 1.1
+# How finely the sheet is read for that: twice its own resolution, so
+# nearest-neighbour onto a grid that does not line up with the sheet's
+# pixels still gives every one of them its place (at the sheet's own
+# size, a thin line one pixel wide fell between two grid points and was
+# dropped, or was doubled).
+_SMOOTH_READ = 2
+# Grid pixels read beyond the warp's own edge on every side, so the
+# filter has neighbours there and a tile's edge matches the next tile's
+# (Lanczos reaches three output pixels each way, a little over four
+# grid pixels at a sectional's zoom 12).
+_SMOOTH_MARGIN_PX = 5
+# Lanczos over bicubic: side by side over Midway and O'Hare it keeps
+# the lettering and the runways' edges a little firmer, with no halo
+# to see beside the thin lines, and drew no slower (115 ms a tile
+# against 123, 210 tiles).
+_SMOOTH_FILTER = Image.Resampling.LANCZOS
+
+
 def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float,
-              mask: Path | None = None) -> tuple:
+              mask: Path | None = None, face: Box | None = None) -> tuple:
     """Part of a raster, reprojected to web mercator: (height, width,
     3) RGB and (height, width) float32 coverage, 0 to 1, of how much
     of each pixel the raster actually had (and, given a companion
@@ -712,7 +736,12 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
     coloured afterwards. At zooms coarser than the chart's own
     resolution that alone drops thin lines; so the warp is read at up
     to four times the requested size and box-filtered down in RGB,
-    which is the averaging a palette cannot have.
+    which is the averaging a palette cannot have. At zooms finer than
+    it, nearest-neighbour makes each of the sheet's pixels a hard block
+    of one or two tile pixels -- every letter and line a staircase,
+    which the map's stretch past the deepest tiles magnifies -- so
+    those are drawn smooth instead (_warp_smooth); `face`, the box of
+    the chart the tile draws, keeps the collar out of that filter.
 
     The coverage matters at a sheet's own edge. A sheet is a rectangle
     in its conic projection, which in web mercator is a quadrilateral
@@ -724,28 +753,15 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
     meet inside one pixel each cover less than half of it: a yes-or-no
     at half left such a pixel to nobody, a hairline along the seam."""
     import rasterio
-    from rasterio.enums import Resampling
-    from rasterio.transform import from_bounds
-    from rasterio.vrt import WarpedVRT
 
     xmin, ymin, xmax, ymax = bbox_3857
     with rasterio.open(path) as src:
         ground_m_per_px = (xmax - xmin) / width * math.cos(math.radians(centre_lat))
+        upsample = float(src.res[0]) / ground_m_per_px
+        if upsample >= _SMOOTH_FROM:
+            return _warp_smooth(src, bbox_3857, width, height, upsample, mask, face)
         oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
-        w, h = width * oversample, height * oversample
-        bands = src.count
-        # No nodata value: with one, GDAL "protects" it by rewriting
-        # every source pixel of that index to the next one, and index
-        # 0 is the chart's paper. add_alpha gives the mask instead.
-        grid = dict(crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h), width=w, height=h,
-                    resampling=Resampling.nearest)
-        with WarpedVRT(src, add_alpha=True, **grid) as vrt:
-            rgb = chart_faces.read_rgb(vrt)
-            alpha = vrt.read(bands + 1)
-        if mask is not None:
-            with rasterio.open(mask) as mask_src, WarpedVRT(mask_src, **grid) as vrt:
-                alpha = np.minimum(alpha, vrt.read(1))
-        inside = chart_faces.without_raster_rim(alpha >= 128, rgb, src, (xmin, ymin, xmax, ymax))
+        rgb, inside = _warp_grid(src, bbox_3857, width * oversample, height * oversample, mask)
     if oversample == 1:
         return rgb, inside.astype(np.float32)
     # Box-filter the covered samples alone (the others zeroed, the
@@ -758,6 +774,79 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
     scale = np.where(coverage > 0, 1.0 / np.maximum(coverage, 1e-6), 0.0)
     rgb = np.clip(rgb * scale[:, :, None] + 0.5, 0, 255).astype(np.uint8)
     return rgb, coverage
+
+
+def _warp_grid(src, bbox_3857: tuple, w: int, h: int, mask: Path | None) -> tuple:
+    """The raster warped nearest-neighbour onto a (h, w) web-mercator
+    grid over `bbox_3857`: its RGB, and which of the grid's pixels it
+    covers (less any collar `mask` cuts out and the pale rim of the scan)."""
+    import rasterio
+    from rasterio.enums import Resampling
+    from rasterio.transform import from_bounds
+    from rasterio.vrt import WarpedVRT
+
+    xmin, ymin, xmax, ymax = bbox_3857
+    # No nodata value: with one, GDAL "protects" it by rewriting
+    # every source pixel of that index to the next one, and index
+    # 0 is the chart's paper. add_alpha gives the mask instead.
+    grid = dict(crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h), width=w, height=h,
+                resampling=Resampling.nearest)
+    with WarpedVRT(src, add_alpha=True, **grid) as vrt:
+        rgb = chart_faces.read_rgb(vrt)
+        alpha = vrt.read(src.count + 1)
+    if mask is not None:
+        with rasterio.open(mask) as mask_src, WarpedVRT(mask_src, **grid) as vrt:
+            alpha = np.minimum(alpha, vrt.read(1))
+    return rgb, chart_faces.without_raster_rim(alpha >= 128, rgb, src, bbox_3857)
+
+
+def _warp_smooth(src, bbox_3857: tuple, width: int, height: int, upsample: float, mask: Path | None,
+                 face: Box | None) -> tuple:
+    """_warp_rgb for a tile finer than the sheet: the indices warped at
+    twice the sheet's own resolution, coloured, then resized to the
+    tile in RGB with a smooth filter -- the way the FAA's own PDF and
+    ForeFlight show the chart close in, edges soft rather than stepped.
+
+    The filter runs on colour weighted by what it may draw (the others
+    zeroed) and divides by the same filter of the weights, as the box
+    filter above does: so the collar beyond a sheet's face and the
+    nothing beyond its raster never bleed into the chart as a dark or
+    white fringe along a seam. The coverage is the raster's own,
+    filtered alike, a fraction at its leaning edge as ever. A few sheet
+    pixels are read beyond the warp's edge on every side, so a tile's
+    edge is filtered with its real neighbours and meets the next tile's
+    without a line."""
+    xmin, ymin, xmax, ymax = bbox_3857
+    cols, rows = math.ceil(width * _SMOOTH_READ / upsample), math.ceil(height * _SMOOTH_READ / upsample)
+    cell_x, cell_y = (xmax - xmin) / cols, (ymax - ymin) / rows
+    m = _SMOOTH_MARGIN_PX
+    outer = (xmin - m * cell_x, ymin - m * cell_y, xmax + m * cell_x, ymax + m * cell_y)
+    rgb, inside = _warp_grid(src, outer, cols + 2 * m, rows + 2 * m, mask)
+    weight = inside.astype(np.float32)
+    if face is not None:
+        ys = outer[3] - (np.arange(rows + 2 * m) + 0.5) * cell_y
+        lats = np.degrees(2 * np.arctan(np.exp(ys / _EARTH_RADIUS_M)) - np.pi / 2)
+        lons = (outer[0] + (np.arange(cols + 2 * m) + 0.5) * cell_x) / _MERCATOR_ORIGIN_M * 180.0
+        weight *= _face_mask(face, lats, lons)
+    box = (m, m, m + cols, m + rows)
+
+    def enlarged(plane: np.ndarray) -> np.ndarray:
+        image = Image.fromarray(np.ascontiguousarray(plane, dtype=np.float32), "F")
+        return np.asarray(image.resize((width, height), _SMOOTH_FILTER, box=box))
+
+    total = enlarged(weight)
+    smooth = np.stack([enlarged(rgb[:, :, band] * weight) for band in range(3)], axis=-1)
+    smooth /= np.maximum(total, 1e-6)[:, :, None]
+    # Where the weights all but vanish -- past the raster's edge, or the
+    # pale rim of its scan, under the filter's tails -- the division is
+    # noise and the pixel is the neighbour's to draw: none of it covered.
+    # (Past a face's edge, too, which the face mask leaves to the
+    # neighbour anyway.) Drawn, the scan's paper and its ramp came
+    # through there, faintly, in the next sheet's colour.
+    drawn = total > 0.25
+    out = np.where(drawn[:, :, None], smooth, 0.0)
+    coverage = np.where(drawn, np.clip(enlarged(inside.astype(np.float32)), 0.0, 1.0), 0.0).astype(np.float32)
+    return np.clip(out + 0.5, 0, 255).astype(np.uint8), coverage
 
 
 def _tile_lats(y: int, zoom: int) -> np.ndarray:
@@ -812,7 +901,8 @@ def render_tile(rasters: list, x: int, y: int, zoom: int) -> np.ndarray | None:
         covered = _face_mask(raster.face, lats, lons) & (out[:, :, 3] < 255)
         if not covered.any():
             continue
-        rgb, coverage = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]), raster.mask)
+        rgb, coverage = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]), raster.mask,
+                                  raster.face)
         out = _composite(out, rgb, coverage * covered)
     return out if out[:, :, 3].any() else None
 
@@ -1193,7 +1283,7 @@ def _render_row(args: tuple) -> int:
     _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
     width = (x1 - x0 + 1) * TILE_PX
     strip, coverage = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]),
-                                Path(mask) if mask else None)
+                                Path(mask) if mask else None, face)
 
     written = 0
     for x, tile_path, rgba, fill in owed:
