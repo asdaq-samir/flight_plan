@@ -214,6 +214,26 @@ test("opened fresh with no position to have, the map stays on the country, nothi
   await expect.poll(asks).toBe(1);
 });
 
+test("opened on the whole country, land and water lie under the charts where they end, not the page's grey", async ({ page }) => {
+  // The design review, 2026-10-28: grey bands over and under the
+  // sectionals on a phone. The USGS's tiles answered here, a pixel each.
+  const asked: string[] = [];
+  await page.route(url => url.hostname === "basemap.nationalmap.gov", route => {
+    asked.push(route.request().url());
+    return route.fulfill({ body: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==", "base64"), contentType: "image/png" });
+  });
+  await page.goto("/app/plan");
+  await settle(page);
+  await expect.poll(() => asked.filter(u => u.includes("/USGSHydroCached/")).length, { timeout: slow(10_000) }).toBeGreaterThan(0);
+  // Under every chart layer, the sectional's included.
+  const order = await page.locator(".leaflet-tile-pane > .leaflet-layer").evaluateAll(layers => layers.map(l => ({
+    z: Number((l as HTMLElement).style.zIndex || 0), base: !!l.querySelector('img[src*="nationalmap"]'), sec: !!l.querySelector('img[src*="/sec/"]'),
+  })));
+  const base = order.find(l => l.base)!;
+  expect(base).toBeTruthy();
+  for (const l of order.filter(l => l.sec)) expect(base.z).toBeLessThan(l.z);
+});
+
 test("opened fresh where the position was given before, it is asked for again as the page opens", async ({ page }) => {
   // A fix kept from an earlier visit, as Safari, which asks again on a
   // later day, leaves the permission at "prompt".
