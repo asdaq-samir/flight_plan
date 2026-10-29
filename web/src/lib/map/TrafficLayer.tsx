@@ -335,8 +335,16 @@ function Traffic() {
         }
       }
       // The flight followed kept in the middle of what the panel leaves,
-      // moved with it ten times a second.
-      const target = tracked && follow ? targets.current.get(tracked) : undefined;
+      // moved with it ten times a second -- not while a past flight of it
+      // is out, whose replay keeps its own airplane in sight
+      // (useReplayMarker): the two pulled the map between today's position
+      // and the replay's, each a jump past the map's size that Leaflet
+      // makes by throwing every tile away and laying them again, ten times
+      // a second, and the page answered nothing while a replay played
+      // (tracking.spec:260 on desktop, CI three times of three; a CPU
+      // profile of it, 2026-10-29).
+      const replaying = usePastFlight.getState().hex === tracked;
+      const target = tracked && follow && !replaying ? targets.current.get(tracked) : undefined;
       if (target) {
         const centre = centreClear(map, target.marker.getLatLng(), map.getZoom());
         if (map.latLngToContainerPoint(centre).distanceTo(map.latLngToContainerPoint(map.getCenter())) > 0.5) {
