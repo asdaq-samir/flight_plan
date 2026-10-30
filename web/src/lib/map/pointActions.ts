@@ -13,4 +13,7 @@ export type ChartPoint = { ident: string; lat: number; lon: number };
 export const usePointActions = create<{
   addToRoute: ((point: ChartPoint) => void) | null;
   directTo: ((point: ChartPoint) => void) | null;
-}>(() => ({ addToRoute: null, directTo: null }));
+  /** The route planned round the Class B (the planner's Avoid Class B),
+   *  from a Class B's card, while it goes through. */
+  avoidClassB: (() => void) | null;
+}>(() => ({ addToRoute: null, directTo: null, avoidClassB: null }));

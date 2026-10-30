@@ -12,6 +12,12 @@ import { AIRSPACE_LINE, AIRSPACE_TAP } from "./airspaceMarks";
 import { airportBox, overlaps, useDrawnAirports, type Box } from "./declutter";
 import { edgeSpots, spotBox } from "./edgeLabels";
 import { MapCard } from "./MapCard";
+import { Button } from "../../components/ui/button";
+import { ListGroup, ListRow } from "../../components/GroupedList";
+import { callTypes, entryRules } from "../airspaceRules";
+import { mhzText } from "../frequencies";
+import { airportQuery } from "../queryClient";
+import { usePointActions } from "./pointActions";
 import { MapPopup } from "./MapPopup";
 import { useAhead, useLiveZoom } from "./useView";
 
@@ -250,6 +256,8 @@ function Swatch({ volume }: { volume: AirspaceVolume }) {
 }
 
 function AirspaceCard({ volume }: { volume: AirspaceVolume }) {
+  const map = useMap();
+  const avoid = usePointActions(s => s.avoidClassB);
   const facts = airspaceFacts(volume);
   const rows: [string, string][] = [["Floor", facts.floor], ["Ceiling", facts.ceiling]];
   if (facts.hours) rows.push(["Hours", facts.hours]);
@@ -268,6 +276,47 @@ function AirspaceCard({ volume }: { volume: AirspaceVolume }) {
           </div>
         ))}
       </dl>
+      <AirspaceCall volume={volume} />
+      {/* What it takes to go in, each rule with its section (lib/airspaceRules),
+          at the owner's ask for cards that say what a pilot does there
+          (2026-10-30). */}
+      <div data-testid="airspace-rules">
+        <ListGroup title="To enter">
+          {entryRules(volume.airspace_class).map(r => (
+            <ListRow key={r.rule} title={<span className={TEXT.detail}>{r.rule}</span>} description={r.cite} />
+          ))}
+        </ListGroup>
+      </div>
+      {volume.airspace_class === "B" && avoid && (
+        <Button type="button" variant="secondary" className="w-full text-tint" onClick={() => { map.closePopup(); avoid(); }} data-testid="airspace-avoid">
+          Route Around Class B
+        </Button>
+      )}
     </MapCard>
+  );
+}
+
+/** Who to call before entering, from the primary airport's frequencies
+ *  (NASR FRQ): its approach control for a Class B or C, its tower for a
+ *  Class D; the first three. */
+function AirspaceCall({ volume }: { volume: AirspaceVolume }) {
+  const { data: field } = useQuery({ ...airportQuery(volume.ident ?? ""), enabled: !!volume.ident });
+  const types = callTypes(volume.airspace_class);
+  const calls = (field?.frequencies ?? []).filter(f => f.frequency_mhz != null && types.includes((f.type ?? "").toUpperCase()));
+  // Approach where it has one, else the tower.
+  const first = types.find(type => calls.some(f => f.type?.toUpperCase() === type));
+  const shown = calls.filter(f => f.type?.toUpperCase() === first).slice(0, 3);
+  if (!shown.length) return null;
+  return (
+    <div data-testid="airspace-call">
+      <ListGroup title={first === "APP" ? "Call approach" : "Call the tower"}>
+        {shown.map((f, i) => (
+          <ListRow
+            key={`${f.frequency_mhz}-${i}`} title={<span className={TEXT.detail}>{f.description ?? f.type}</span>}
+            value={<span className="font-semibold text-foreground tabular-nums">{mhzText(f.frequency_mhz!)}</span>}
+          />
+        ))}
+      </ListGroup>
+    </div>
   );
 }

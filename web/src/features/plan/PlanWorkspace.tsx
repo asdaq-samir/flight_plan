@@ -1438,12 +1438,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [setSearchParams]);
   // The map's VOR and fix cards' Add to Route and Direct To, while there
   // is a route (lib/map/pointActions).
-  const hasFix = useOwnShip(st => st.enabled && st.fix !== null);
-  useEffect(() => {
-    const routed = !!course && planned.stops.length < MAX_STOPS;
-    usePointActions.setState({ addToRoute: routed ? addStopAt : null, directTo: routed && hasFix ? directToChartPoint : null });
-    return () => usePointActions.setState({ addToRoute: null, directTo: null });
-  }, [course, planned.stops.length, addStopAt, directToChartPoint, hasFix]);
   // Allowed again: the waypoint Avoid Class B put round it (class_b_via)
   // taken out of the stops too, where it still is -- left in, the route
   // still bent round the Class B it was now planned through.
@@ -1456,6 +1450,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       });
     }, { replace: true });
   }, [setSearchParams]);
+  const hasFix = useOwnShip(st => st.enabled && st.fix !== null);
+  const classBAvoided = searchParams.get("class_b") === "0";
+  useEffect(() => {
+    const routed = !!course && planned.stops.length < MAX_STOPS;
+    usePointActions.setState({
+      addToRoute: routed ? addStopAt : null, directTo: routed && hasFix ? directToChartPoint : null,
+      avoidClassB: course && !classBAvoided ? () => acceptClassB(false) : null,
+    });
+    return () => usePointActions.setState({ addToRoute: null, directTo: null, avoidClassB: null });
+  }, [course, planned.stops.length, addStopAt, directToChartPoint, hasFix, classBAvoided, acceptClassB]);
   // "Avoid Class B": the planner's waypoint round it put in the stops where
   // it says (Detour.stop_index, before that stop), and the clearance taken
   // back, so the rest is planned under or round it; with no waypoint in
