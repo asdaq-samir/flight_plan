@@ -406,9 +406,11 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // The longest runway open, for the details: what a pilot sizes a field by.
   const longest = place?.runways.filter(r => !r.closed && r.length_ft != null).sort((a, b) => b.length_ft! - a.length_ft!)[0] ?? null;
   const ident4 = place?.ident ?? ident;
-  // The pictures, a swipe across (PictureSlides): the runways first, at the
-  // owner's ask (2026-10-29: "pictures open on the runway diagram"), then
-  // the field from the air and from the ground.
+  // The pictures, a swipe across (PictureSlides): the field from the air
+  // first, then its runways, then the field from the ground, at the
+  // owner's ask (2026-10-29: "make the aerial view as the first image and
+  // then next one can be the airport diagram"); the runways first where
+  // there is no aerial.
   const runwaysSlide = (
     <div key="diagram" className="relative size-full bg-background">
       {/* A tap where there is nothing to draw opens the Runways tab
@@ -452,13 +454,13 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
     </div>
   );
   const slides = [
-    runwaysSlide,
     photos && (
       <PhotoSlide
         key="aerial" flush src={photos.aerial_url} alt="" onOpen={() => setPicture("aerial")}
         label={`${ident4} from the air, full screen`} testId="place-aerial"
       />
     ),
+    runwaysSlide,
     photos?.photo && (
       <PhotoSlide
         key="photo" flush src={photos.photo.url} alt="" onOpen={() => setPicture("photo")}
@@ -471,17 +473,16 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // The pill's line and picture, at the owner's pick (P5, 2026-10-29): the
   // category as the chip says it ("≈" where it is not the field's own),
   // the reported wind as FPL's list writes it, and the name; the head's
-  // first picture -- the FAA diagram's runways where it is drawn, the
-  // aerial where no runways are, none for the sketch, drawn in the page.
+  // first picture -- the aerial, else the FAA diagram's runways where it
+  // is drawn, none for the sketch, drawn in the page.
   const pillWind = metar ? reportedWind(metar.wind_dir_true_deg, metar.wind_speed_kt, metar.wind_gust_kt) : null;
   const pillLine = [
     category && (weather?.category ? category : `≈ ${category}`),
     pillWind && (pillWind === "calm" ? "Calm" : `${pillWind.dir} ${pillWind.speed}`),
     name && name !== ident4 ? name : null,
   ].filter(Boolean).join(" · ");
-  const pillPicture = place && sketched
-    ? place.airport_diagram_cycle && !noRunwaysPicture ? diagramRunwaysPicture(place.ident, place.airport_diagram_cycle) : undefined
-    : photos?.aerial_url;
+  const pillPicture = photos?.aerial_url ?? (place && sketched && place.airport_diagram_cycle && !noRunwaysPicture
+    ? diagramRunwaysPicture(place.ident, place.airport_diagram_cycle) : undefined);
   const share = () => void shareOrCopy({ title: place?.name ?? ident, url: `${location.origin}/app/plan?place=${place?.ident ?? ident}` }).catch(() => {});
   const frequencies = place ? (allFrequencies ? place.frequencies : place.frequencies.slice(0, FIRST_FREQUENCIES)) : [];
   const moreFrequencies = !!place && !allFrequencies && place.frequencies.length > FIRST_FREQUENCIES;

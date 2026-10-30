@@ -122,12 +122,12 @@ test("the pictures open on the runways, and the Weather tab opens on the forecas
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
-  // The runways the first page of the pictures (the owner's ask,
-  // 2026-10-29), the aerial after them.
+  // The aerial the first page of the pictures, the runways after it (the
+  // owner's ask, 2026-10-29).
   const pages = card(page).getByTestId("place-head").locator('[data-slot="carousel-item"]');
   await expect(pages).toHaveCount(2, { timeout: slow(15000) });
-  await expect(pages.nth(0).getByTestId("place-runway-sketch")).toBeVisible();
-  await expect(pages.nth(1).getByTestId("place-aerial")).toHaveCount(1);
+  await expect(pages.nth(0).getByTestId("place-aerial")).toHaveCount(1);
+  await expect(pages.nth(1).getByTestId("place-runway-sketch")).toBeVisible();
 
   // The weather's card at the top of the Weather tab.
   await card(page).getByTestId("place-tab-weather").click();
