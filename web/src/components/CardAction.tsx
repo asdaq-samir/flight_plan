@@ -1,9 +1,9 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "cn";
-import { Button } from "../../../components/ui/button";
-import { GLASS_BUTTON } from "../../../components/mapChrome";
-import { TEXT } from "../../../lib/text";
-import { Spinner } from "../../../components/ui/spinner";
+import { Button } from "./ui/button";
+import { GLASS_BUTTON } from "./mapChrome";
+import { TEXT } from "../lib/text";
+import { Spinner } from "./ui/spinner";
 
 /**
  * One of a card's actions under its head -- the airport card's Fly Here,

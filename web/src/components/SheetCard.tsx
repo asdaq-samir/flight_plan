@@ -127,7 +127,12 @@ export function SheetCard({
     useSheetCards.setState(s => ({ stack: s.stack.map(entry => (entry.id === id && entry.title !== title ? { ...entry, title } : entry)) }));
   }, [id, title]);
 
-  const head = useMemo(() => (title === undefined ? { slot, headingId, setPill } : null), [title, slot, headingId, setPill]);
+  // The top card's name in the bar's row where the bar has one for it
+  // (barHeadRef), else in its own head row.
+  const barHead = useSheetCards(s => s.barHead);
+  const inBar = top && !!barHead && title === undefined;
+  const head = useMemo(() => (title === undefined ? { slot: inBar ? barHead : slot, headingId, setPill, inBar } : null),
+    [title, inBar, barHead, slot, headingId, setPill]);
   if (!host) return null;
   // No close of its own wherever the tab bar is over it, whether the bar
   // names it or the card draws its own name (a map card, MapCard into the
@@ -205,7 +210,7 @@ export function SheetCard({
       {/* Its name at the left at a card's size and the close at the right
           end of its row, as CardHead sets a place's; a form's Cancel and
           Save at the two ends, the name between them. */}
-      <div className={cn("flex shrink-0 items-center gap-2 pb-3", (titleHidden || (barNamed && end == null && !leading)) && "sr-only")}>
+      <div className={cn("flex shrink-0 items-center gap-2 pb-3", (titleHidden || (barNamed && end == null && !leading)) && "sr-only", inBar && end == null && !leading && "hidden")}>
         {leading}
         {title === undefined ? (
           <div ref={setSlot} className="flex min-w-0 flex-1 items-center gap-2.5" />

@@ -14463,6 +14463,28 @@
       "VorPin": {
         "description": "A VOR, VOR/DME or VORTAC in the map's view (NASR's NAV_BASE).",
         "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation Ft"
+          },
           "freq": {
             "anyOf": [
               {
@@ -14473,6 +14495,17 @@
               }
             ],
             "title": "Freq"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
           },
           "ident": {
             "title": "Ident",
@@ -14495,6 +14528,17 @@
             "title": "Lon",
             "type": "number"
           },
+          "mag_var": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mag Var"
+          },
           "name": {
             "anyOf": [
               {
@@ -14505,6 +14549,30 @@
               }
             ],
             "title": "Name"
+          },
+          "remarks": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Remarks",
+            "type": "array"
+          },
+          "restricted": {
+            "default": false,
+            "title": "Restricted",
+            "type": "boolean"
+          },
+          "service_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Volume"
           }
         },
         "required": [

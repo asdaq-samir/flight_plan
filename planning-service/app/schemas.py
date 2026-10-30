@@ -1986,6 +1986,21 @@ class VorPin(BaseModel):
     freq: str | None = None
     lat: float
     lon: float
+    #: The station's own magnetic variation, east positive (MAG_VARN): the
+    #: declination its radials are aligned to.
+    mag_var: float | None = None
+    elevation_ft: float | None = None
+    #: Its TACAN or DME channel ("70X").
+    channel: str | None = None
+    #: Its standard service volume's class: T, L, H, VL or VH (AIM 1-1-8).
+    service_volume: str | None = None
+    #: Its hours as NASR files them: "24" for continuous.
+    hours: str | None = None
+    #: In service with restrictions (NAV_STATUS "OPERATIONAL RESTRICTED"),
+    #: which its remarks say.
+    restricted: bool = False
+    #: Its remarks in plain English: where it is unusable (NAV_RMK).
+    remarks: list[str] = []
 
 
 class FixPin(BaseModel):

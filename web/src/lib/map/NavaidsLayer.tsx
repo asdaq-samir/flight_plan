@@ -1,7 +1,17 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
+import { Check, Copy, MapPinPlus } from "lucide-react";
+import { cn } from "cn";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import L from "leaflet";
-import { Marker, Pane } from "react-leaflet";
+import { Marker, Pane, useMap } from "react-leaflet";
+import { CardAction } from "../../components/CardAction";
+import DirectToIcon from "../../components/DirectToIcon";
+import { ListGroup, ListRow } from "../../components/GroupedList";
+import { declinationOf, fixRadialDistance, hoursOf, morseOf, radialOf, serviceVolume, threeFigures } from "../navaid";
+import { TEXT } from "../text";
+import { feet } from "../units";
+import { useOwnFix } from "./ownShip";
+import { usePointActions, type ChartPoint } from "./pointActions";
 import { api } from "../api/client";
 import type { FixPin, VorPin } from "../api/types";
 import { usePreferences } from "../preferences";
@@ -10,7 +20,7 @@ import { useAhead, useLiveZoom } from "./useView";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { degreesMinutes } from "../coords";
-import { useAwayWords } from "../useAway";
+import { nmAway, useAwayWords } from "../useAway";
 import { PointWhere } from "./PointWhere";
 
 /** The VORs from a region's zoom in: a few to a state, each a station a
@@ -75,7 +85,7 @@ export function NavaidsLayer() {
         {vors.map(v => <Mark key={`${v.ident}-${v.lat}`} at={v} icon={vorIcon(v.ident)} />)}
       </Pane>
       <Pane name="navaid-taps" style={TAPS_PANE}>
-        {fixes.map(f => <FixTap key={f.ident} fix={f} />)}
+        {fixes.map(f => <FixTap key={f.ident} fix={f} vors={vors} />)}
         {vors.map(v => <VorTap key={`${v.ident}-${v.lat}`} vor={v} />)}
       </Pane>
     </>
@@ -123,7 +133,13 @@ const VorTap = memo(function VorTap({ vor }: { vor: VorPin }) {
 
 /** Made only once it is opened, so only an open card hears own ship. */
 function VorCard({ vor }: { vor: VorPin }) {
+  const ship = useOwnFix();
   const away = useAwayWords(vor.lat, vor.lon);
+  // The radial the airplane is on and the course back to the station, to
+  // its own declination (lib/navaid): what the OBS is set to.
+  const on = ship ? radialOf(vor, ship) : null;
+  const volume = serviceVolume(vor.service_volume);
+  const hours = hoursOf(vor.hours);
   return (
     <MapCard
       media={HEXAGON}
@@ -131,29 +147,93 @@ function VorCard({ vor }: { vor: VorPin }) {
       subtitle={[vor.name, vor.freq].filter(Boolean).join(" · ") || undefined}
       pill={{ name: `${vor.ident} ${vor.kind}`, line: [vor.freq, away ?? vor.name].filter(Boolean).join(" · "), colour: VOR_BLUE }}
     >
+      <PointActions point={vor} copy={vor.freq ? { label: vor.freq, text: vor.freq } : null} />
+      {on && (
+        <p className={cn("tabular-nums", TEXT.row)} data-testid="vor-radial">
+          <span className="font-semibold">On the {threeFigures(on.radial)} radial</span> · {nmAway(on.nm)}
+          <span className={cn("block text-muted-foreground", TEXT.detail)}>{threeFigures(on.toCourse)}° to fly to it</span>
+        </p>
+      )}
+      <ListGroup>
+        {/* Its identifier as it sends it: the only sure way to know the
+            station tuned is the one meant (AIM 1-1-3). */}
+        <ListRow title="Identifier" value={<span className="font-semibold text-foreground" aria-label={[...vor.ident].join(" ")}>{morseOf(vor.ident)}</span>} data-testid="vor-morse" />
+        {vor.channel && <ListRow title="DME channel" value={<span className="text-foreground">{vor.channel}</span>} />}
+        {volume && <ListRow title="Service volume" description={volume} data-testid="vor-service-volume" />}
+        {vor.elevation_ft != null && <ListRow title="Elevation" value={<span className="text-foreground">{feet(vor.elevation_ft)}</span>} />}
+        {vor.mag_var != null && <ListRow title="Declination" value={<span className="text-foreground">{declinationOf(vor.mag_var)}</span>} />}
+        {hours && <ListRow title="Hours" value={<span className="text-foreground">{hours}</span>} />}
+      </ListGroup>
+      {/* Where its signal is not to be used, as the Chart Supplement lists
+          it (NASR NAV_RMK): in the caution colour where it is in service
+          with restrictions. */}
+      {(vor.remarks ?? []).length > 0 && (
+        <ListGroup>
+          {(vor.remarks ?? []).map(remark => (
+            <ListRow
+              key={remark} title={<span className={cn(vor.restricted && "text-amber-700 dark:text-amber-400", TEXT.detail)}>{remark}</span>}
+              data-testid="vor-remark"
+            />
+          ))}
+        </ListGroup>
+      )}
       <PointWhere lat={vor.lat} lon={vor.lon} />
     </MapCard>
   );
 }
 
-const FixTap = memo(function FixTap({ fix }: { fix: FixPin }) {
+/**
+ * A point card's actions, as an airport card's: Direct To, from where the
+ * airplane is to the point and on along the route, and Add to Route, the
+ * point a stop where it fits -- each while there is a route to do it to
+ * (usePointActions) -- and Copy, the VOR's frequency for the radio.
+ */
+function PointActions({ point, copy }: { point: ChartPoint; copy: { label: string; text: string } | null }) {
+  const map = useMap();
+  const { addToRoute, directTo } = usePointActions();
+  const [copied, setCopied] = useState(false);
+  if (!addToRoute && !directTo && !copy) return null;
+  const done = (act: (p: ChartPoint) => void) => () => { map.closePopup(); act({ ident: point.ident, lat: point.lat, lon: point.lon }); };
+  return (
+    <div className="grid grid-cols-3 gap-2" data-testid="point-actions">
+      {directTo && <CardAction icon={<DirectToIcon />} label="Direct To" filled onClick={done(directTo)} testId="point-direct-to" />}
+      {addToRoute && <CardAction icon={<MapPinPlus />} label="Add to Route" onClick={done(addToRoute)} testId="point-add" />}
+      {copy && (
+        <CardAction
+          icon={copied ? <Check /> : <Copy />} label={copied ? "Copied" : copy.label} spoken={`Copy ${copy.label}`}
+          onClick={() => {
+            // Called in the tap, as the clipboard asks; refused, nothing said.
+            void navigator.clipboard?.writeText(copy.text).then(() => setCopied(true), () => {});
+          }}
+          testId="point-copy"
+        />
+      )}
+    </div>
+  );
+}
+
+const FixTap = memo(function FixTap({ fix, vors }: { fix: FixPin; vors: readonly VorPin[] }) {
   const position = useMemo<[number, number]>(() => [fix.lat, fix.lon], [fix.lat, fix.lon]);
   return (
     <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${fix.ident} fix`}>
       <MapPopup pane="popupPane" panOnce>
-        <FixCard fix={fix} />
+        <FixCard fix={fix} vors={vors} />
       </MapPopup>
     </Marker>
   );
 });
 
-function FixCard({ fix }: { fix: FixPin }) {
+function FixCard({ fix, vors }: { fix: FixPin; vors: readonly VorPin[] }) {
   const away = useAwayWords(fix.lat, fix.lon);
+  // Where it is off the nearest VOR in view, as a controller says it.
+  const frd = fixRadialDistance(fix, vors);
   return (
     <MapCard
       media={TRIANGLE} title={<>{fix.ident}<span className="font-normal text-muted-foreground">Fix</span></>}
-      pill={{ name: `${fix.ident} fix`, line: away ?? degreesMinutes(fix), colour: FIX_INK }}
+      subtitle={frd ?? undefined}
+      pill={{ name: `${fix.ident} fix`, line: frd ?? away ?? degreesMinutes(fix), colour: FIX_INK }}
     >
+      <PointActions point={fix} copy={null} />
       <PointWhere lat={fix.lat} lon={fix.lon} />
     </MapCard>
   );

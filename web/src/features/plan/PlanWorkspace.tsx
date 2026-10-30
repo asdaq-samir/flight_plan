@@ -78,6 +78,7 @@ import type { SuggestedStop } from "./components/StopServices";
 import { useDryRunButton } from "../../lib/dryRunButton";
 import { useWindPicks } from "../../lib/windPicks";
 import { useStopsAlong } from "../../lib/stopsAlong";
+import { usePointActions } from "../../lib/map/pointActions";
 import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
@@ -1420,6 +1421,29 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     stops.splice(bestStopIndex(points, at), 0, at.ident);
     setStops(stops);
   }, [course, planned.stops, setStops]);
+  // Direct to a VOR or a fix off the chart (its card's Direct To), as to a
+  // point of the route (directToPoint): from where the airplane is, to it,
+  // and on through the route's stops to its destination, the route as it
+  // was kept (`was`) for the strip's Cancel. Only from a position: from the
+  // departure it would be a stop, Add to Route's.
+  const directToChartPoint = useCallback((to: { ident: string }) => {
+    const ship = useOwnShip.getState();
+    const fix = ship.enabled ? ship.fix : null;
+    if (!fix) return;
+    setSearchParams(prev => {
+      const was = prev.get("was") ?? routeWas(prev);
+      const stops = stopsOf(prev.get("stops")).filter(stop => !sameField(stop, to.ident));
+      return patched(prev, { dep: positionIdent(fix), stops: [to.ident, ...stops].join(","), direct: to.ident, was, place: null });
+    }, { replace: true });
+  }, [setSearchParams]);
+  // The map's VOR and fix cards' Add to Route and Direct To, while there
+  // is a route (lib/map/pointActions).
+  const hasFix = useOwnShip(st => st.enabled && st.fix !== null);
+  useEffect(() => {
+    const routed = !!course && planned.stops.length < MAX_STOPS;
+    usePointActions.setState({ addToRoute: routed ? addStopAt : null, directTo: routed && hasFix ? directToChartPoint : null });
+    return () => usePointActions.setState({ addToRoute: null, directTo: null });
+  }, [course, planned.stops.length, addStopAt, directToChartPoint, hasFix]);
   // Allowed again: the waypoint Avoid Class B put round it (class_b_via)
   // taken out of the stops too, where it still is -- left in, the route
   // still bent round the Class B it was now planned through.

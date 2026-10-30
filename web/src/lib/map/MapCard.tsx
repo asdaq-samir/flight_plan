@@ -67,13 +67,20 @@ export function MapCard({ title, subtitle, leading, media, pill, children }: {
             {leading}
             {media}
             <div className="min-w-0 flex-1">
-              <h2 id={inSheet.headingId} tabIndex={-1} className={cn("flex flex-wrap items-center gap-x-2 font-bold tracking-tight text-foreground outline-none", TEXT.card)}>{title}</h2>
-              {subtitle !== undefined && <p className={cn("text-muted-foreground", TEXT.detail)}>{subtitle}</p>}
+              {/* At a row's size and on one line each in the bar's row
+                  (inBar), beside its close. */}
+              <h2
+                id={inSheet.headingId} tabIndex={-1}
+                className={cn("flex items-center gap-x-2 font-bold tracking-tight text-foreground outline-none", inSheet.inBar ? cn("truncate", TEXT.row) : cn("flex-wrap", TEXT.card))}
+              >
+                {title}
+              </h2>
+              {subtitle !== undefined && <p className={cn("text-muted-foreground", inSheet.inBar ? cn("truncate", TEXT.note) : TEXT.detail)}>{subtitle}</p>}
             </div>
           </>,
           inSheet.slot,
         )}
-        <div className={cn("space-y-1.5", TEXT.detail)}>{children}</div>
+        <div className={cn("space-y-3", TEXT.detail)}>{children}</div>
       </>
     );
   }
