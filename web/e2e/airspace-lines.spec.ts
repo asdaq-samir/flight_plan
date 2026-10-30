@@ -28,20 +28,11 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   await page.goto("/app/plan?place=KORD");
   await expect(lines(page).first()).toBeAttached({ timeout: slow(30000) });
   expect(await lines(page).count()).toBeGreaterThan(5);
-  // The surface area's "100 over SFC", and Wheeling's "-30" in its box.
-  await expect(labels(page).filter({ hasText: "SFC" }).filter({ hasText: "100" }).first()).toBeAttached();
-  await expect(labels(page).filter({ hasText: /^-30$/ }).first()).toBeAttached();
+  // No altitude plates of ours: the chart prints them (the owner,
+  // 2026-10-29).
+  await expect(labels(page)).toHaveCount(0);
   // And the VORs about it: Northbrook's, north of the field.
   await expect(vors(page).and(page.locator('[data-vor="OBK"]'))).toBeAttached({ timeout: slow(15000) });
-
-  // Not targets: a tap on a label is the chart's under it.
-  const label = labels(page).first();
-  const box = await label.boundingBox();
-  if (box) {
-    const under = await page.evaluate(([x, y]) => document.elementFromPoint(x!, y!)?.closest("[data-airspace-label]") != null,
-      [box.x + box.width / 2, box.y + box.height / 2]);
-    expect(under).toBe(false);
-  }
 
   await openMapSettings(page);
   await page.getByTestId("airspace-toggle").click();
@@ -77,7 +68,8 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
   await page.mouse.click(at!.x, at!.y);
   const card = page.getByTestId("airspace-card");
   await expect(card).toBeVisible({ timeout: slow(10000) });
-  await expect(page.getByText("Class D", { exact: true }).first()).toBeVisible();
+  // In the card's head: the pill's name, out of sight at half, says it too.
+  await expect(page.locator("[data-sheet-card]").getByText("Class D", { exact: true }).first()).toBeVisible();
   await expect(card).toContainText("Ceiling");
   await expect(card).toContainText(/\d,\d{3} ft MSL/);
   await expect(card).toContainText("Hours");

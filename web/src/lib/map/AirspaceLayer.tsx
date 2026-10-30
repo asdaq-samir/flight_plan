@@ -25,6 +25,9 @@ const CLASS_B_FROM_ZOOM = 6;
 /** The Class C's lines a zoom before the D's, at the owner's ask
  *  (2026-10-29, "Show c airspace from 7"); unlabelled until FROM_ZOOM. */
 const CLASS_C_FROM_ZOOM = 7;
+/** Our own altitude plates, off while the chart's printed ones are the
+ *  labels (below). */
+const SHOW_LABELS = false;
 
 /** Under the route and everything on it, the airports' marks and the VFR
  *  waypoints' diamonds (440 and up) and Leaflet's own overlay pane (400),
@@ -84,7 +87,12 @@ export function AirspaceLayer() {
         {volumes.map(v => <VolumeLines key={v.id} volume={v} />)}
       </Pane>
       <Pane name="airspace-labels" style={LABELS_PANE}>
-        {near && volumes.map(v => <VolumeLabel key={v.id} volume={v} />)}
+        {/* No plates of ours for now: the chart prints every shelf's
+            altitudes already, and ours beside them were a second set over
+            it (the owner, 2026-10-29: "simply write the altitudes over
+            what's written on the chart, instead of creating our own
+            markers"), until they can be written on the chart's own. */}
+        {SHOW_LABELS && near && volumes.map(v => <VolumeLabel key={v.id} volume={v} />)}
       </Pane>
       <Pane name="airspace-taps" style={TAPS_PANE}>
         {volumes.map(v => <VolumeTap key={v.id} volume={v} />)}
