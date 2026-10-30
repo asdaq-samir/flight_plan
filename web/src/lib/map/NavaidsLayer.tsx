@@ -66,11 +66,16 @@ const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagati
 
 /** A VOR's mark on its card: the sectional's blue hexagon. */
 const HEXAGON = (
-  <span aria-hidden="true" className="mx-1 size-4 shrink-0 bg-[#1e5bb8] [clip-path:polygon(25%_5%,75%_5%,100%_50%,75%_95%,25%_95%,0_50%)]" />
+  <svg className="mx-1 shrink-0" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
+    <polygon points="15,8 11.5,14.06 4.5,14.06 1,8 4.5,1.94 11.5,1.94" fill="#fff" stroke="#1e5bb8" strokeWidth="2" />
+    <circle cx="8" cy="8" r="1.6" fill="#1e5bb8" />
+  </svg>
 );
-/** An enroute fix's on its card: the low chart's triangle. */
+/** An enroute fix's on its card: the low chart's triangle, as the map's. */
 const TRIANGLE = (
-  <span aria-hidden="true" className="mx-1 size-3.5 shrink-0 bg-[#1e5bb8] [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
+  <svg className="mx-1 shrink-0" width="16" height="16" viewBox="0 0 10 10" aria-hidden="true">
+    <polygon points="5,1 9.4,8.8 0.6,8.8" fill="#fff" stroke="#1c1a17" strokeWidth="1.2" strokeLinejoin="round" />
+  </svg>
 );
 
 const VorMark = memo(function VorMark({ vor }: { vor: VorPin }) {
