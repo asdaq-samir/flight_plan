@@ -97,15 +97,15 @@ test("a checkpoint tapped on the chart opens its card in the sheet, ringed on th
   // Its own click, not one at its place: neighbouring checkpoints stack
   // on a phone's fitted route (map.spec).
   await marker.dispatchEvent("click");
-  const checkpoint = panel.locator("[data-sheet-card]");
-  await expect(checkpoint).toBeVisible();
+  await expect(panel.locator("[data-sheet-card]")).toBeVisible();
   // Its name in the bar's row beside the close (barHeadRef), which names
   // the card.
   const head = panel.getByTestId("tab-card-head");
   await expect(head).toContainText("nm along");
   const name = head.getByRole("heading", { level: 2 });
   await expect(name).toBeVisible();
-  await expect(checkpoint).toHaveAccessibleName((await name.innerText()).trim());
+  const checkpoint = panel.getByRole("region", { name: (await name.innerText()).trim(), exact: true });
+  await expect(checkpoint).toBeVisible();
   await expect(panel).not.toHaveAttribute("data-panel", "peek");
   // Not a popup over the chart.
   await expect(page.locator(".leaflet-popup:visible")).toHaveCount(0);
