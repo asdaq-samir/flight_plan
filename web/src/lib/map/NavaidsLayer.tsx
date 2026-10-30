@@ -1,18 +1,16 @@
-import { memo, useMemo, useState } from "react";
-import { Check, Copy, MapPinPlus } from "lucide-react";
+import { memo, useEffect, useMemo } from "react";
 import { cn } from "cn";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import L from "leaflet";
 import { Marker, Pane, useMap } from "react-leaflet";
-import { CardAction } from "../../components/CardAction";
-import DirectToIcon from "../../components/DirectToIcon";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../components/ui/collapsible";
 import { declinationOf, fixRadialDistance, hoursOf, morseOf, radialOf, serviceVolume, threeFigures } from "../navaid";
 import { TEXT } from "../text";
 import { feet } from "../units";
 import { useOwnFix } from "./ownShip";
-import { usePointActions, type ChartPoint } from "./pointActions";
+import { PointActions } from "./PointCardActions";
+import { usePointActions } from "./pointActions";
 import { api } from "../api/client";
 import type { FixPin, VorPin } from "../api/types";
 import { usePreferences } from "../preferences";
@@ -96,6 +94,9 @@ export function NavaidsLayer() {
     meta: { silent: true },
   });
   const vors = data?.vors ?? NO_VORS;
+  // The VORs in view for the other point cards to place a point off the
+  // nearest (a VFR waypoint's, WaypointsLayer).
+  useEffect(() => { usePointActions.setState({ stations: show ? vors : [] }); }, [vors, show]);
   // Not the fixes of an answer kept from closer in, zoomed back out.
   const fixes = withFixes ? (data?.fixes ?? NO_FIXES) : NO_FIXES;
   const sides = useTagSides(on ? vors : NO_VORS, zoom);
@@ -210,37 +211,6 @@ function VorCard({ vor }: { vor: VorPin }) {
       )}
       <PointWhere lat={vor.lat} lon={vor.lon} />
     </MapCard>
-  );
-}
-
-/**
- * A point card's actions, as an airport card's: Direct To, from where the
- * airplane is to the point and on along the route, and Add to Route, the
- * point a stop where it fits -- each while there is a route to do it to
- * (usePointActions) -- and Copy, the VOR's frequency for the radio.
- */
-function PointActions({ point, copy }: { point: ChartPoint; copy: { label: string; text: string } | null }) {
-  const map = useMap();
-  const { addToRoute, directTo } = usePointActions();
-  const [copied, setCopied] = useState(false);
-  if (!addToRoute && !directTo && !copy) return null;
-  const done = (act: (p: ChartPoint) => void) => () => { map.closePopup(); act({ ident: point.ident, lat: point.lat, lon: point.lon }); };
-  return (
-    // As many columns as tiles, as the airport card's row fills its width.
-    <div className={cn("grid gap-2", [directTo, addToRoute, copy].filter(Boolean).length === 3 ? "grid-cols-3" : "grid-cols-2")} data-testid="point-actions">
-      {directTo && <CardAction icon={<DirectToIcon />} label="Direct To" filled onClick={done(directTo)} testId="point-direct-to" />}
-      {addToRoute && <CardAction icon={<MapPinPlus />} label="Add to Route" onClick={done(addToRoute)} testId="point-add" />}
-      {copy && (
-        <CardAction
-          icon={copied ? <Check /> : <Copy />} label={copied ? "Copied" : copy.label} spoken={`Copy ${copy.label}`}
-          onClick={() => {
-            // Called in the tap, as the clipboard asks; refused, nothing said.
-            void navigator.clipboard?.writeText(copy.text).then(() => setCopied(true), () => {});
-          }}
-          testId="point-copy"
-        />
-      )}
-    </div>
   );
 }
 

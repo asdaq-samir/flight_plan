@@ -96,8 +96,6 @@ interface Props {
    *  fitted to them over the half panel (FitTo). */
   nearest?: { ident: string; lat: number; lon: number }[] | null;
   onSelectPlace: (ident: string | null) => void;
-  /** A VFR waypoint tapped on the chart, put in the route's stops. */
-  onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
   /** The nav log's legs so far, for their tops of climb and descent. */
   legs: Leg[];
   /** The point whose airspace card is open, and the way to open one: a
@@ -728,7 +726,7 @@ const START_ZOOM = 9;
 // renders at each answer that streams in, and the whole map went with it.
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
-  airportWeather, place, start = null, onSelectPlace, onAddStop, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
+  airportWeather, place, start = null, onSelectPlace, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
   procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
   stopFields = NO_STOP_FIELDS, onPickStopField, ways, wayShown = null, onPickWay,
 }: Props) {
@@ -786,7 +784,7 @@ export default memo(function RouteMap({
           opens its card, and Fly Here makes the route. */}
       {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} others={chippedFields} route={routeBox} />}
       {layered && <TfrLayer />}
-      {layered && <WaypointsLayer exclude={chipped} onAddStop={course ? onAddStop : undefined} />}
+      {layered && <WaypointsLayer exclude={chipped} />}
       {/* The airport whose card opens comes to the middle of the chart
           clear of the panel, in close enough to find it, as a place
           picked in Maps does: from the search bar it was wherever the

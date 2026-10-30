@@ -1,8 +1,7 @@
 import L from "leaflet";
 import { memo, useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Marker, Pane, useMap } from "react-leaflet";
-import { Button } from "../../components/ui/button";
+import { Marker, Pane } from "react-leaflet";
 import { api } from "../api/client";
 import { hovers } from "./view";
 import { useAhead, useLiveZoom } from "./useView";
@@ -12,6 +11,10 @@ import { MapPopup } from "./MapPopup";
 import { MAGENTA } from "../useAirspace";
 import { MapTooltip } from "./MapTooltip";
 import { PointWhere } from "./PointWhere";
+import { PointActions } from "./PointCardActions";
+import { usePointActions } from "./pointActions";
+import { fixRadialDistance } from "../navaid";
+import { TEXT } from "../text";
 
 /** From this zoom in, as the airports' (AirportsLayer): further out the
  *  diamonds would be a scatter over every city's airspace. */
@@ -20,15 +23,12 @@ const FROM_ZOOM = 8;
 /**
  * The chart's VFR waypoints (VPBNG), each marked with a magenta diamond
  * from zoom 8 in: the sectional prints them as small flags, too small to
- * read zoomed out and not a thing to tap. A tap names it and, with a
- * route open (`onAddStop`), puts it in the stops to be flown through.
+ * read zoomed out and not a thing to tap. A tap opens its card: what and
+ * where it is, and with a route open Direct To and Add to Route.
  * Under the airports' chips, and not for one the route has already
  * (`exclude`), which wears its own.
  */
-export function WaypointsLayer({ exclude, onAddStop }: {
-  exclude: Set<string>;
-  onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
-}) {
+export function WaypointsLayer({ exclude }: { exclude: Set<string> }) {
   // As the airports' marks are asked for and drawn (useAhead, useLiveZoom):
   // the view and a screen round it, asked again under a finger's pan or
   // pinch, and the zoom each whole level a pinch passes. The diamonds were
@@ -51,7 +51,7 @@ export function WaypointsLayer({ exclude, onAddStop }: {
   if (zoom < FROM_ZOOM) return null;
   return (
     <Pane name="waypoints" style={{ zIndex: 440 }}>
-      {diamonds.map(w => <WaypointMark key={w.ident} waypoint={w} onAddStop={onAddStop} />)}
+      {diamonds.map(w => <WaypointMark key={w.ident} waypoint={w} />)}
     </Pane>
   );
 }
@@ -64,11 +64,9 @@ const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagati
  *  waypoint changes: made inline, every diamond had a new position and new
  *  handlers at every draw of the map -- each placed on the page again, its
  *  handlers unbound and bound -- at every zoom's end. */
-const WaypointMark = memo(function WaypointMark({ waypoint: w, onAddStop }: {
+const WaypointMark = memo(function WaypointMark({ waypoint: w }: {
   waypoint: { ident: string; lat: number; lon: number; description?: string | null };
-  onAddStop?: (waypoint: { ident: string; lat: number; lon: number }) => void;
 }) {
-  const map = useMap();
   const position = useMemo<[number, number]>(() => [w.lat, w.lon], [w.lat, w.lon]);
   return (
     <Marker position={position} icon={diamondIcon()} eventHandlers={STOP_CLICK}>
@@ -79,24 +77,33 @@ const WaypointMark = memo(function WaypointMark({ waypoint: w, onAddStop }: {
         {/* No name of its own: what it is beside its ident, and where it
             is on a line of its own (the planner's vfr.places), at the
             pilot's ask -- on one line the card ran the screen's width. */}
-        <MapCard
-          pill={{ name: `${w.ident} VFR waypoint`, line: w.description || undefined, colour: MAGENTA }}
-          // The chart's diamond, as the map marks it, before its ident.
-          media={<span aria-hidden="true" className="mx-1.5 size-3.5 shrink-0 rotate-45 rounded-[2px] border-2 border-white shadow-sm" style={{ backgroundColor: MAGENTA }} />}
-          title={<>{w.ident}<span className="font-normal text-muted-foreground">VFR waypoint</span></>}
-          subtitle={w.description || undefined}
-        >
-          <PointWhere lat={w.lat} lon={w.lon} />
-          {onAddStop && (
-            <Button
-              type="button" size="sm" className="w-full"
-              onClick={() => { map.closePopup(); onAddStop(w); }} data-testid="waypoint-add-stop"
-            >
-              Add as a Stop
-            </Button>
-          )}
-        </MapCard>
+        <WaypointCard waypoint={w} />
       </MapPopup>
     </Marker>
   );
 });
+
+/** A VFR waypoint's card, made once it is opened: what it is and where,
+ *  off the nearest VOR on the map as a controller places it, and Direct
+ *  To, Add to Route and Copy of its ident, as a VOR's card (PointActions),
+ *  at the owner's ask for cards that say what a pilot does there
+ *  (2026-10-30). No name of its own: what it is beside its ident, and where
+ *  it is on a line of its own (the planner's vfr.places) -- on one line the
+ *  card ran the screen's width. */
+function WaypointCard({ waypoint: w }: { waypoint: { ident: string; lat: number; lon: number; description?: string | null } }) {
+  const stations = usePointActions(s => s.stations);
+  const frd = fixRadialDistance(w, stations);
+  return (
+    <MapCard
+      pill={{ name: `${w.ident} VFR waypoint`, line: w.description || frd || undefined, colour: MAGENTA }}
+      // The chart's diamond, as the map marks it, before its ident.
+      media={<span aria-hidden="true" className="mx-1.5 size-3.5 shrink-0 rotate-45 rounded-[2px] border-2 border-white shadow-sm" style={{ backgroundColor: MAGENTA }} />}
+      title={<>{w.ident}<span className="font-normal text-muted-foreground">VFR waypoint</span></>}
+      subtitle={w.description || undefined}
+    >
+      <PointActions point={w} copy={{ label: "Copy", text: w.ident }} addTestId="waypoint-add-stop" />
+      {frd && <p className={TEXT.row} data-testid="waypoint-frd">{frd}</p>}
+      <PointWhere lat={w.lat} lon={w.lon} />
+    </MapCard>
+  );
+}

@@ -1457,8 +1457,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     usePointActions.setState({
       addToRoute: routed ? addStopAt : null, directTo: routed && hasFix ? directToChartPoint : null,
       avoidClassB: course && !classBAvoided ? () => acceptClassB(false) : null,
+      courseLine: course?.course_line ?? null,
     });
-    return () => usePointActions.setState({ addToRoute: null, directTo: null, avoidClassB: null });
+    return () => usePointActions.setState({ addToRoute: null, directTo: null, avoidClassB: null, courseLine: null });
   }, [course, planned.stops.length, addStopAt, directToChartPoint, hasFix, classBAvoided, acceptClassB]);
   // "Avoid Class B": the planner's waypoint round it put in the stops where
   // it says (Detour.stop_index, before that stop), and the clearance taken
@@ -2807,9 +2808,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           start={startPin}
           nearest={nearOpen ? nearestPoints : null}
           onSelectPlace={selectPlaceOnChart}
-          // A VFR waypoint's "Add as a Stop" only while there is room for one,
-          // as the airport card's Add Stop is offered (MAX_STOPS).
-          onAddStop={planned.stops.length < MAX_STOPS ? addStopAt : undefined}
           legs={s.legs}
           heldPoint={heldPoint}
           onHoldPoint={holdPoint}

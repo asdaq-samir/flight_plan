@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { Station } from "../navaid";
 
 /** A point on the chart a card can send the route to: a VOR, a fix. */
 export type ChartPoint = { ident: string; lat: number; lon: number };
@@ -16,4 +17,10 @@ export const usePointActions = create<{
   /** The route planned round the Class B (the planner's Avoid Class B),
    *  from a Class B's card, while it goes through. */
   avoidClassB: (() => void) | null;
-}>(() => ({ addToRoute: null, directTo: null, avoidClassB: null }));
+  /** The route's course line, [lat, lon], for an area's card to say
+   *  whether the route goes through it (a TFR's). */
+  courseLine: readonly (readonly [number, number])[] | null;
+  /** The VORs on the map (NavaidsLayer), for a point's place off the
+   *  nearest. */
+  stations: readonly Station[];
+}>(() => ({ addToRoute: null, directTo: null, avoidClassB: null, courseLine: null, stations: [] }));
