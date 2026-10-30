@@ -220,6 +220,26 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // opened it among them, for when it is put away.
   const raised = useSheetCards(s => raisedFor(s.stack));
   const cardsUp = raised !== null;
+  // The top card's content's own height, where it is a card raised half
+  // way (a thing's tapped on the chart): the sheet then goes no higher
+  // than it needs (the detents' full). Measured from the card's scroller,
+  // its last part's foot and the scroller's own padding under it.
+  const sheetHost = useSheetCards(s => s.host);
+  const topCard = useSheetCards(s => s.stack.at(-1)?.id ?? null);
+  const [measuredFit, setMeasuredFit] = useState<{ id: string; px: number } | null>(null);
+  useEffect(() => {
+    if (!sheetHost || !topCard || raised !== "half") return;
+    const card = [...sheetHost.querySelectorAll<HTMLElement>("[data-sheet-card]")].at(-1);
+    if (!card) return;
+    // Told as each part is first seen and as it changes size.
+    const seen = new ResizeObserver(() => {
+      const last = card.lastElementChild as HTMLElement | null;
+      if (last) setMeasuredFit({ id: topCard, px: Math.ceil(last.offsetTop + last.offsetHeight + parseFloat(getComputedStyle(card).paddingBottom)) });
+    });
+    for (const part of card.children) seen.observe(part);
+    return () => seen.disconnect();
+  }, [sheetHost, topCard, raised]);
+  const cardFit = raised === "half" && measuredFit && measuredFit.id === topCard ? measuredFit.px : null;
   const toEdge = layer !== "console" && edgeAsked && !cardsUp;
   // No half size, at the owner's ask ("let's remove the half card"): the
   // tabs alone, the pill and all the way up.
@@ -447,7 +467,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // sheet it took the place of -- not a height it rests at any more, but
   // what its glass and corners still change by between the two.
   const detents = useMemo<Record<"peek" | "half" | "full", number>>(() => {
-    const full = Math.max(peek, room);
+    const whole = Math.max(peek, room);
     // Settling down to the pill, the pill's own height as it was last
     // measured, whatever the sheet's head measures on the way.
     // With a tab bar the pill is one known height, its row's, at rest as
@@ -470,11 +490,15 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       : settling ? capsuleHeight : hasPill && !capsule ? Math.min(capsuleHeight, peek) : peek;
     // Never taller than its rem, whatever a tab holds (the owner's "this
     // tall only"): what does not fit gives way in it.
-    const asked = Math.max(lowest, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(full * HALF_MOST)));
+    const asked = Math.max(lowest, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(whole * HALF_MOST)));
     const body = asked - headHeight - halfChrome - footHeight;
     const half = body > 0 && body < HALF_BODY_LEAST_REM * rootPx() ? Math.max(lowest, asked - body) : asked;
+    // All the way up only as far as a short card on top needs (cardFit):
+    // a fix's card was a line and an empty sheet up to the status bar (the
+    // owner, 2026-10-29). Never under half, never past the room.
+    const full = cardFit === null ? whole : Math.max(Math.min(half, whole), Math.min(whole, headHeight + halfChrome + cardFit));
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight, cardFit]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
