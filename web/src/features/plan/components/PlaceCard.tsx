@@ -62,6 +62,10 @@ function away(from: LatLon, to: LatLon): string {
 function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | null } | null): string {
   return [
     from ? (from.name ? `${away(from.point, place)} of ${from.name}` : away(from.point, place)) : null,
+    // Its elevation beside the distance, at the owner's ask (2026-10-29):
+    // the field's from the FAA's airport file (NASR APT_BASE ELEV, feet
+    // MSL), what a pilot sets the pattern altitude from.
+    place.elevation_ft != null ? `Elevation ${feet(place.elevation_ft)}` : null,
     // A field the armed services own (the FAA's airport file): one most
     // pilots may not land at without the service's permission, or a civil
     // airport sharing it -- not a description, a field to keep out of.
@@ -495,8 +499,15 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               the pilot's ask. */}
           <PhotoHead
             title={ident4} testId="place-head" titleTestId="place-name" subtitleTestId="place-where"
-            subtitle={name && name !== ident4 ? [name, where].filter(Boolean).join(" · ") : where || " "}
-            line={line ? <p className={cn("line-clamp-2 text-white/80", TEXT.note)} data-testid="place-line">{line}</p> : null}
+            // The name, and the town on a line of its own under it, at the
+            // owner's ask (2026-10-29: "keep the city on next line").
+            subtitle={name && name !== ident4 ? name : where || " "}
+            line={(
+              <>
+                {name && name !== ident4 && where && <p className={cn("truncate text-white/90", TEXT.prose)} data-testid="place-town">{where}</p>}
+                {line && <p className={cn("line-clamp-2 text-white/80", TEXT.note)} data-testid="place-line">{line}</p>}
+              </>
+            )}
             label={`${ident4}: its runways${photos ? ", from the air" : ""}${photos?.photo ? ", from the ground" : ""}`}
             slides={slides} onClose={onClose} onShare={share} closeTestId="place-close" shareTestId="place-share"
             pill={{ line: pillLine || undefined, picture: pillPicture }}
@@ -585,6 +596,28 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           <CardTabPanel value="radio" className="space-y-0">
             {place && (
               <>
+                {/* Before the Details, at the owner's ask (2026-10-29: "move
+                    details after frequencies"). The first few, the title the
+                    way to every one, as every
+                    section's title is the way to its list in full (PillSection);
+                    how many of how many at its right. */}
+                <CardSection
+                  title="Frequencies" testId="place-frequencies"
+                  onMore={moreFrequencies ? () => setAllFrequencies(true) : undefined}
+                  right={moreFrequencies ? <span className={cn("text-muted-foreground", TEXT.note)}>{`${FIRST_FREQUENCIES} of ${place.frequencies.length}`}</span> : undefined}
+                >
+                  <ListGroup>
+                    {frequencies.length ? frequencies.map((f, i) => (
+                      <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
+                    )) : <ListRow title="None listed" />}
+                    {/* What some fields read out on so many clicks of the mic on
+                        the CTAF: the weather, a radio check (vfr.remarks). */}
+                    {place.radio_notes.map(note => (
+                      <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
+                    ))}
+                  </ListGroup>
+                </CardSection>
+
                 <CardSection title="Details" testId="place-details">
                   <ListGroup>
                     <ListRow
@@ -625,27 +658,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                     )}
                     {/* Where it is on the ground, in Maps: an action of the
                         card's until the star took its place (A2). */}
-                    <ListRow title="Address in Maps" description={place.address ?? undefined} href={mapsLink(place)} data-testid="place-address" />
-                  </ListGroup>
-                </CardSection>
-
-                {/* The first few, the title the way to every one, as every
-                    section's title is the way to its list in full (PillSection);
-                    how many of how many at its right. */}
-                <CardSection
-                  title="Frequencies" testId="place-frequencies"
-                  onMore={moreFrequencies ? () => setAllFrequencies(true) : undefined}
-                  right={moreFrequencies ? <span className={cn("text-muted-foreground", TEXT.note)}>{`${FIRST_FREQUENCIES} of ${place.frequencies.length}`}</span> : undefined}
-                >
-                  <ListGroup>
-                    {frequencies.length ? frequencies.map((f, i) => (
-                      <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
-                    )) : <ListRow title="None listed" />}
-                    {/* What some fields read out on so many clicks of the mic on
-                        the CTAF: the weather, a radio check (vfr.remarks). */}
-                    {place.radio_notes.map(note => (
-                      <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
-                    ))}
+                    {/* The address written out, the way to it in Maps, at the
+                        owner's ask (2026-10-29: "write the address in
+                        details"); the town where the FAA lists none. */}
+                    <ListRow title="Address" description={place.address ?? where ?? undefined} href={mapsLink(place)} data-testid="place-address" />
                   </ListGroup>
                 </CardSection>
                 {place.lighting.length > 0 && (

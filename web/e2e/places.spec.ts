@@ -31,11 +31,12 @@ test("an airport's card has the field's pictures across its top, its ident over 
   // the ident large over them with the name and the town under it.
   await expect(card(page).getByTestId("place-head")).toBeInViewport();
   await expect(card(page).getByTestId("place-name")).toHaveText("KDLH");
-  await expect(card(page).getByTestId("place-where")).toHaveText("Duluth International Airport · Duluth, MN");
+  await expect(card(page).getByTestId("place-where")).toHaveText("Duluth International Airport");
+  await expect(card(page).getByTestId("place-town")).toHaveText("Duluth, MN");
   await expect(card(page).getByTestId("place-ident")).toHaveCount(0);
   // Measured from the route's departure while the pilot's own position
   // is not known.
-  await expect(card(page).getByTestId("place-line")).toHaveText(/^\d+ nm NW of C81$/);
+  await expect(card(page).getByTestId("place-line")).toHaveText(/^\d+ nm NW of C81 · Elevation [\d,]+ ft$/);
   // Its share and close on the pictures, the minimized bar's out of the
   // pill, and the grabber over them.
   for (const id of ["place-share", "place-close"]) await expect(card(page).getByTestId(id)).toBeInViewport();
@@ -533,8 +534,9 @@ test("a Favorite's card names it and the map goes to it before the card's answer
   // And the head and its actions where they were: nothing above the
   // frequencies grew or moved as it came.
   expect(Math.abs((await card(page).getByTestId("fly-here").boundingBox())!.y - actionsBefore.y)).toBeLessThan(2);
-  // Nothing to measure from: no line under the name, where it said "…".
-  await expect(card(page).getByTestId("place-line")).toHaveCount(0);
+  // Nothing to measure from: the elevation alone under the name, where it
+  // said "…".
+  await expect(card(page).getByTestId("place-line")).toHaveText(/^Elevation [\d,]+ ft$/);
 });
 
 // A planner out of reach for a moment (restarted, say) is not an airport
