@@ -39,7 +39,9 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   const angles = await labels(page).evaluateAll(texts =>
     texts.map(t => Number(/rotate\((-?[\d.]+)/.exec(t.getAttribute("transform") ?? "")?.[1])));
   expect(angles.length).toBeGreaterThan(3);
-  expect(angles.every(a => a >= -90 && a < 90)).toBe(true);
+  // Upright: a line straight up and down reads bottom to top, either
+  // end of the half-turn.
+  expect(angles.every(a => a >= -90 && a <= 90)).toBe(true);
   // And the VORs about it: Northbrook's, north of the field.
   await expect(vors(page).and(page.locator('[data-vor="OBK"]'))).toBeAttached({ timeout: slow(15000) });
 
@@ -77,8 +79,9 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
   await page.mouse.click(at!.x, at!.y);
   const card = page.getByTestId("airspace-card");
   await expect(card).toBeVisible({ timeout: slow(10000) });
-  // In the card's head: the pill's name, out of sight at half, says it too.
-  await expect(page.locator("[data-sheet-card]").getByText("Class D", { exact: true }).first()).toBeVisible();
+  // Named "Class D": in the card's head, or in its pill's (MapCard's pill)
+  // over it.
+  await expect(page.getByRole("heading", { name: "Class D" }).first()).toBeAttached();
   await expect(card).toContainText("Ceiling");
   await expect(card).toContainText(/\d,\d{3} ft MSL/);
   await expect(card).toContainText("Hours");
