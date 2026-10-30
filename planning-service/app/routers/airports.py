@@ -315,6 +315,10 @@ def waypoints_in_view(
     ]}
 
 
+#: What a VOR's card shows of it (VorPin), from NAV_BASE.
+VOR_FIELDS = ("ident", "name", "kind", "freq", "lat", "lon", "mag_var", "elevation_ft", "channel", "service_volume", "hours")
+
+
 @router.get("/api/navaids/in-view", response_model=NavaidsInView)
 def navaids_in_view(
     south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
@@ -332,7 +336,11 @@ def navaids_in_view(
     vors = fixes.vors_within(south, west, north, east)[:limit]
     found = fixes.enroute_fixes_within(south, west, north, east)[:limit] if with_fixes else []
     return {
-        "vors": [{k: v[k] for k in ("ident", "name", "kind", "freq", "lat", "lon")} for v in vors],
+        "vors": [{
+            **{k: v.get(k) for k in VOR_FIELDS},
+            "restricted": bool(v.get("restricted")),
+            "remarks": fixes.navaid_remarks(v["ident"], v["kind"]),
+        } for v in vors],
         "fixes": [{"ident": f["ident"], "lat": f["lat"], "lon": f["lon"]} for f in found],
     }
 

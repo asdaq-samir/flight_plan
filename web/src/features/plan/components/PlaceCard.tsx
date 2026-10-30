@@ -17,7 +17,7 @@ import { FirstFew } from "../../../components/FirstFew";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { Tabs } from "../../../components/ui/tabs";
 import { useCardTab } from "../../../lib/cardTab";
-import { CardAction as Action } from "./CardAction";
+import { CardAction as Action } from "../../../components/CardAction";
 import { ApiError } from "../../../lib/api/client";
 import type { AirportPin, AirportPlace, ClassBAirport, TerminalChart } from "../../../lib/api/types";
 import { compassPoint } from "../../../lib/compass";

@@ -9,7 +9,7 @@ import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
 import { BarOverPicture, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 import { ON_PILL_PICTURE } from "./PillPicture";
-import { closeSheetCards, useSheetCards } from "../lib/sheetCards";
+import { barHeadRef, closeSheetCards, useSheetCards } from "../lib/sheetCards";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -485,6 +485,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
               </RoundButton>
             )}
           </span>
+        )}
+        {/* Out of the pill, the row a map card's mark and name are drawn
+            in (SheetCard), the close beside them. */}
+        {cardNamesItself && size?.size !== "peek" && (
+          <div ref={barHeadRef} className="absolute inset-y-0 right-14 left-4 flex min-w-0 items-center gap-2.5 text-left" data-testid="tab-card-head" />
         )}
         <button
           type="button" onClick={showTabs} aria-expanded={false} aria-label={`${title ?? named.label}, show the tabs`}

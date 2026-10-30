@@ -141,6 +141,9 @@ def _is_icloud_evicted(path: Path) -> bool:
 # own, and read by different callers.
 _NASR_FILES = {
     "NAV_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*NAV_CSV\.zip)"'),
+    # In the same zip: each navaid's remarks, where its service volume's
+    # restrictions are ("VOR UNUSBL 072-090 BYD 34 NM", vfr.fixes).
+    "NAV_RMK.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*NAV_CSV\.zip)"'),
     "APT_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
     # In the same zip as APT_BASE: every airport's remarks, the Chart
     # Supplement's own text (vfr.remarks).
@@ -198,7 +201,7 @@ def ensure_nasr_file(name: str, cache_dir) -> Path:
 # behind APT_RMK and APT_RWY_END from the same zip, each fetched when it
 # went missing (2026-10-07).
 _EDITIONS = {
-    "NAV_CSV": (("NAV_BASE.csv",), None, r'href="([^"]*NAV_CSV\.zip)"'),
+    "NAV_CSV": (("NAV_BASE.csv", "NAV_RMK.csv"), None, r'href="([^"]*NAV_CSV\.zip)"'),
     "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv", "APT_CON.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
     "FIX_CSV": (("FIX_BASE.csv",), None, r'href="([^"]*FIX_CSV\.zip)"'),
     "FRQ_CSV": (("FRQ.csv",), None, r'href="([^"]*FRQ_CSV\.zip)"'),

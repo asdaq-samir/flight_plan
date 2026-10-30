@@ -31,7 +31,7 @@ import { SQUAWKS } from "../../../lib/squawks";
 import PastFlights from "./PastFlights";
 import { lasted, shortWhen, when } from "./pastFlightFormat";
 import { pastFlightQuery, pastFlightsQuery } from "./pastFlightsQuery";
-import { CardAction } from "./CardAction";
+import { CardAction } from "../../../components/CardAction";
 import { AirplaneFigures } from "./AirplaneFigures";
 import { shareOrCopy } from "../../../lib/share";
 
