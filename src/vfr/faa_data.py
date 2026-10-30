@@ -428,7 +428,13 @@ def _address_of(row) -> str | None:
 
 @once(maxsize=2)
 def _contacts_of(path: str, _mtime: float, base: str, _base_mtime: float) -> dict:
-    con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
+    try:
+        con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
+    except UnicodeDecodeError:
+        # The 2026-10-29 edition has a byte that is no UTF-8 (0xA0, a
+        # no-break space in Windows' code page): read as UTF-8 alone, the
+        # whole file failed and every card lost its phone and address.
+        con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False, encoding="cp1252")
     # The manager's first, the airport's own office as a rule, and the
     # owner's where there is no manager -- a county's or a company's.
     rank = {"MANAGER": 0, "OWNER": 1}
