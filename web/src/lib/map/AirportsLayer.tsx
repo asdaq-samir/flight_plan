@@ -38,6 +38,12 @@ const OUT_APART_PX = 80;
  *  -- heliports, seaplane bases, balloonports -- closer in again. The kinds
  *  are the planner's from the FAA's airport file (AirportPin.kind). */
 const SHOWN_FROM: Record<AirportPin["kind"], number> = { large: 6, medium: 8, small: 10, other: 12 };
+/** Sooner by its airspace (the owner, 2026-10-29: "Show class B airport
+ *  marker without airspace from 4 c from 6"): a Class B field's mark from
+ *  the country's zoom and a Class C's from a few states', their rings
+ *  still at their own zooms (AirspaceLayer). */
+const shownFrom = (a: AirportPin) =>
+  Math.min(SHOWN_FROM[a.kind], a.airspace_class === "B" ? FARTHEST_ZOOM : a.airspace_class === "C" ? 6 : Infinity);
 /** Which kind first, out there, where only some fit. */
 const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
 /** What is drawn round the view, a share of it on each side: a pan
@@ -309,13 +315,13 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   const exclude = useMemo(() => new Set(others.map(a => a.ident)), [others]);
   const shown = useMemo(() => {
     if (!reports) return [];
-    const kept = data.filter(a => !exclude.has(a.ident) && zoom >= SHOWN_FROM[a.kind] && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
+    const kept = data.filter(a => !exclude.has(a.ident) && zoom >= shownFrom(a) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
     if (zoom >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
     const room: L.Point[] = [];
     const out: AirportPin[] = [];
-    for (const a of [...kept].sort((x, y) => KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
+    for (const a of [...kept].sort((x, y) => shownFrom(x) - shownFrom(y) || KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
       const at = map.project([a.lat, a.lon], zoom);
       if (room.some(p => p.distanceTo(at) < OUT_APART_PX)) continue;
       room.push(at);
