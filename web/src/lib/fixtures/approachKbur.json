@@ -4,6 +4,42 @@
   "kind": "approach",
   "id": "I08-Y",
   "name": "ILS Y RWY 08",
+  "glidepath_deg": 3.0,
+  "final_course_deg": 79,
+  "missed_legs": [
+   {
+    "path": "CA",
+    "fix": null,
+    "course_deg": 79,
+    "turn": null,
+    "min_ft": 1800,
+    "max_ft": null
+   },
+   {
+    "path": "VI",
+    "fix": null,
+    "course_deg": 210,
+    "turn": "R",
+    "min_ft": null,
+    "max_ft": null
+   },
+   {
+    "path": "CF",
+    "fix": "VTU",
+    "course_deg": 266,
+    "turn": null,
+    "min_ft": 4600,
+    "max_ft": null
+   },
+   {
+    "path": "HM",
+    "fix": "VTU",
+    "course_deg": 131,
+    "turn": "L",
+    "min_ft": 4600,
+    "max_ft": null
+   }
+  ],
   "transition": null,
   "cycle": "261001",
   "stale": false,
@@ -388,7 +424,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "BUDDE",
@@ -401,7 +438,8 @@
     "max_ft": 3000,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": 3.0
    },
    {
     "ident": "RW08",
@@ -414,7 +452,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": 3.0
    },
    {
     "ident": "VTU",
@@ -427,10 +466,11 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": true
+    "missed": true,
+    "vertical_angle_deg": null
    }
   ],
-  "glidepath": {
+  "runway_path": {
    "deg": 3.0,
    "fix": "RW08",
    "lat": 34.197911,
@@ -443,6 +483,42 @@
   "kind": "approach",
   "id": "I08-Y",
   "name": "ILS Y RWY 08",
+  "glidepath_deg": 3.0,
+  "final_course_deg": 79,
+  "missed_legs": [
+   {
+    "path": "CA",
+    "fix": null,
+    "course_deg": 79,
+    "turn": null,
+    "min_ft": 1800,
+    "max_ft": null
+   },
+   {
+    "path": "VI",
+    "fix": null,
+    "course_deg": 210,
+    "turn": "R",
+    "min_ft": null,
+    "max_ft": null
+   },
+   {
+    "path": "CF",
+    "fix": "VTU",
+    "course_deg": 266,
+    "turn": null,
+    "min_ft": 4600,
+    "max_ft": null
+   },
+   {
+    "path": "HM",
+    "fix": "VTU",
+    "course_deg": 131,
+    "turn": "L",
+    "min_ft": 4600,
+    "max_ft": null
+   }
+  ],
   "transition": "LAX",
   "cycle": "261001",
   "stale": false,
@@ -1164,7 +1240,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "SILEX",
@@ -1179,7 +1256,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "BUDDE",
@@ -1192,7 +1270,8 @@
     "max_ft": 3000,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": 3.0
    },
    {
     "ident": "RW08",
@@ -1205,7 +1284,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": 3.0
    },
    {
     "ident": "VTU",
@@ -1218,10 +1298,11 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": true
+    "missed": true,
+    "vertical_angle_deg": null
    }
   ],
-  "glidepath": {
+  "runway_path": {
    "deg": 3.0,
    "fix": "RW08",
    "lat": 34.197911,
@@ -1234,6 +1315,42 @@
   "kind": "approach",
   "id": "R08-Z",
   "name": "RNAV (GPS) Z RWY 08",
+  "glidepath_deg": 3.0,
+  "final_course_deg": 79,
+  "missed_legs": [
+   {
+    "path": "CA",
+    "fix": null,
+    "course_deg": 79,
+    "turn": null,
+    "min_ft": 1178,
+    "max_ft": null
+   },
+   {
+    "path": "DF",
+    "fix": "COTSI",
+    "course_deg": null,
+    "turn": "R",
+    "min_ft": null,
+    "max_ft": null
+   },
+   {
+    "path": "TF",
+    "fix": "VTU",
+    "course_deg": null,
+    "turn": null,
+    "min_ft": 4600,
+    "max_ft": null
+   },
+   {
+    "path": "HM",
+    "fix": "VTU",
+    "course_deg": 131,
+    "turn": "L",
+    "min_ft": 4600,
+    "max_ft": null
+   }
+  ],
   "transition": null,
   "cycle": "261001",
   "stale": false,
@@ -1618,7 +1735,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "BUBNE",
@@ -1631,7 +1749,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "HIMEN",
@@ -1644,7 +1763,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": 3.0
    },
    {
     "ident": "COTSI",
@@ -1655,7 +1775,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": true
+    "missed": true,
+    "vertical_angle_deg": null
    },
    {
     "ident": "VTU",
@@ -1668,16 +1789,53 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": true
+    "missed": true,
+    "vertical_angle_deg": null
    }
   ],
-  "glidepath": null
+  "runway_path": null
  },
  "R08-Z:MIKEI": {
   "airport": "KBUR",
   "kind": "approach",
   "id": "R08-Z",
   "name": "RNAV (GPS) Z RWY 08",
+  "glidepath_deg": 3.0,
+  "final_course_deg": 79,
+  "missed_legs": [
+   {
+    "path": "CA",
+    "fix": null,
+    "course_deg": 79,
+    "turn": null,
+    "min_ft": 1178,
+    "max_ft": null
+   },
+   {
+    "path": "DF",
+    "fix": "COTSI",
+    "course_deg": null,
+    "turn": "R",
+    "min_ft": null,
+    "max_ft": null
+   },
+   {
+    "path": "TF",
+    "fix": "VTU",
+    "course_deg": null,
+    "turn": null,
+    "min_ft": 4600,
+    "max_ft": null
+   },
+   {
+    "path": "HM",
+    "fix": "VTU",
+    "course_deg": 131,
+    "turn": "L",
+    "min_ft": 4600,
+    "max_ft": null
+   }
+  ],
   "transition": "MIKEI",
   "cycle": "261001",
   "stale": false,
@@ -2076,7 +2234,8 @@
     "max_ft": 7000,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "SILEX",
@@ -2090,7 +2249,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "BUBNE",
@@ -2103,7 +2263,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": null
    },
    {
     "ident": "HIMEN",
@@ -2116,7 +2277,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": false
+    "missed": false,
+    "vertical_angle_deg": 3.0
    },
    {
     "ident": "COTSI",
@@ -2127,7 +2289,8 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": true
+    "missed": true,
+    "vertical_angle_deg": null
    },
    {
     "ident": "VTU",
@@ -2140,9 +2303,10 @@
     "max_ft": null,
     "speed_kt": null,
     "speed_limit": null,
-    "missed": true
+    "missed": true,
+    "vertical_angle_deg": null
    }
   ],
-  "glidepath": null
+  "runway_path": null
  }
 }

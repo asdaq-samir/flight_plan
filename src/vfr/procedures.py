@@ -188,11 +188,10 @@ def _tenths(text: str) -> float | None:
 
 
 def _vertical_angle(text: str) -> float | None:
-    """A leg's vertical angle (5.70): hundredths of a degree, negative going
-    down ("-300" is 3.00° down), as degrees below level; None where there
-    is none."""
+    """A vertical angle in hundredths of a degree, signed: "-300" is a
+    3.00° descent (ARINC 424-18 5.70)."""
     text = text.strip()
-    return abs(int(text)) / 100 if re.fullmatch(r"-\d{3}", text) else None
+    return int(text) / 100 if re.fullmatch(r"[+-]?\d{3}", text) else None
 
 
 def _feet(text: str) -> int | None:
@@ -233,9 +232,9 @@ class Leg:
     center: str
     center_icao: str
     center_section: str
-    #: The vertical angle the leg descends at, degrees below level: an
-    #: approach's glidepath or vertical descent angle, coded on its final's
-    #: legs ("-300" is 3.00° down, ARINC 424-18 5.70).
+    #: The vertical path's angle, degrees, negative descending: an
+    #: approach's glidepath, coded on its final approach fix and its
+    #: missed approach point (ARINC 424-18 5.70).
     vertical_angle: float | None = None
 
     @classmethod
@@ -615,8 +614,14 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
     chosen = [key for role in order for key, r in roles.items() if r == role and (r != "transition" or key[1] == wanted)]
 
     lines, holds, fixes = [], [], {}
-    glidepath = None
+    runway_path = None
     turns: list[tuple[str, tuple[float, float], float, bool]] = []
+    # What a pilot briefs from the plate and the coded legs alone give:
+    # the final's glidepath and course, and the missed approach's legs in
+    # order (FAA-H-8083-16B, chapter 4, the approach briefing).
+    glidepath: float | None = None
+    final_course: float | None = None
+    missed_legs: list[dict] = []
     for key in chosen:
         role = roles[key]
         missed = False
@@ -645,6 +650,13 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
         for leg in runs[key]:
             place = _fix_place(airport, leg.fix, leg.fix_icao, leg.fix_section, index)
             course = _course(leg, airport.variation)
+            if kind == "approach" and missed:
+                missed_legs.append(_missed_leg(leg, airport.variation))
+            elif kind == "approach" and role == "final":
+                if leg.vertical_angle is not None:
+                    glidepath = abs(leg.vertical_angle)
+                if leg.missed_approach_point and course is not None:
+                    final_course = _magnetic(course, airport.variation)
             if leg.path == "IF" and place:
                 flush()
                 points = [place]
@@ -693,13 +705,14 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
                 known_ft = low if low is not None else high
             if (kind == "approach" and leg.missed_approach_point and leg.vertical_angle and place
                     and leg.altitude1 is not None and leg.fix.startswith("RW")):
-                # The path the final comes down: its angle into a runway's
+                # The path the final comes down, placed for the debrief to
+                # measure a track against: its angle into a runway's
                 # threshold, crossed at the MAP's coded altitude -- the
                 # threshold's elevation and its crossing height (ARINC 424-18
                 # 5.70; the chart's GS/VDA and TCH). KBUR's ILS 08: 3.00° to
                 # 787 ft at RW08. None where the MAP is not a runway's.
-                glidepath = {"deg": leg.vertical_angle, "fix": leg.fix, "lat": round(place[0], 6),
-                             "lon": round(place[1], 6), "ft": leg.altitude1}
+                runway_path = {"deg": abs(leg.vertical_angle), "fix": leg.fix, "lat": round(place[0], 6),
+                               "lon": round(place[1], 6), "ft": leg.altitude1}
             if kind == "approach" and leg.missed_approach_point:
                 # The rest is the missed approach, drawn dashed from here,
                 # its climb from about the field's elevation.
@@ -726,14 +739,50 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
     # out); none for a circling approach.
     runway = _runway_of(kind, procedure.upper())
     threshold = airport.runways.get(f"RW{runway}") if runway else None
+    if kind == "approach" and final_course is None:
+        final_course = _final_course_between(fixes, airport.variation)
     return {
         "airport": airport.ident, "kind": kind, "id": procedure.upper(), "name": procedure_name(kind, procedure.upper()),
+        "glidepath_deg": glidepath, "final_course_deg": None if final_course is None else round(final_course) % 360 or 360,
+        "missed_legs": missed_legs,
         "threshold": None if threshold is None else [round(threshold[0], 6), round(threshold[1], 6)],
         "transition": wanted or None, "cycle": cifp_cycle(path), "stale": cifp_stale(path, on),
         "lines": [{**ln, "points": [[round(p[0], 6), round(p[1], 6)] for p in ln["points"]]} for ln in lines],
         "holds": [{**h, "points": [[round(p[0], 6), round(p[1], 6)] for p in h["points"]]} for h in holds],
         "fixes": list(fixes.values()),
-        "glidepath": glidepath,
+        "runway_path": runway_path,
+    }
+
+
+def _magnetic(true_deg: float, variation: float) -> float:
+    """A true course made magnetic: less an easterly variation, plus a
+    westerly one (east positive, as ARINC 424-18 5.39 codes it)."""
+    return (true_deg - variation) % 360
+
+
+def _final_course_between(fixes: dict, variation: float) -> float | None:
+    """The final's magnetic course where its missed approach point's leg
+    codes none: the bearing from the final approach fix to that point."""
+    faf = next((f for f in fixes.values() if "FAF" in f["roles"]), None)
+    map_ = next((f for f in fixes.values() if "MAP" in f["roles"]), None)
+    if faf is None or map_ is None:
+        return None
+    return _magnetic(geo.bearing_deg(faf["lat"], faf["lon"], map_["lat"], map_["lon"]), variation)
+
+
+def _missed_leg(leg: Leg, variation: float) -> dict:
+    """A missed approach's leg as its words are made from it: its path and
+    terminator (ARINC 424-18 5.21: CA a course to an altitude, VI a
+    heading to an intercept, CF a course to a fix, HM a hold), the fix it
+    goes to, its course or heading magnetic as the plate gives it, which
+    way it turns, and the altitudes it climbs to (altitude_limits)."""
+    low, high = altitude_limits(leg)
+    course = None
+    if leg.course is not None:
+        course = round(leg.course if not leg.course_true else _magnetic(leg.course, variation)) % 360 or 360
+    return {
+        "path": leg.path, "fix": leg.fix or None, "course_deg": course, "turn": leg.turn if leg.turn in ("L", "R") else None,
+        "min_ft": low, "max_ft": high,
     }
 
 
@@ -745,7 +794,10 @@ def _note_fix(fixes: dict, leg: Leg, place: tuple[float, float], missed: bool) -
     at = fixes.setdefault(leg.fix, {
         "ident": leg.fix, "lat": round(place[0], 6), "lon": round(place[1], 6), "roles": [],
         "min_ft": None, "max_ft": None, "speed_kt": None, "speed_limit": None, "missed": missed,
+        "vertical_angle_deg": None,
     })
+    if leg.vertical_angle is not None and not missed:
+        at["vertical_angle_deg"] = abs(leg.vertical_angle)
     for role in _fix_roles(leg):
         if role not in at["roles"]:
             at["roles"].append(role)

@@ -110,6 +110,7 @@ export type ProcedureSummary = Schemas["ProcedureSummary"];
 export type ProcedureDrawing = Schemas["ProcedureDrawing"];
 export type PlateOverlay = Schemas["PlateOverlay"];
 export type ProcedureFix = Schemas["ProcedureFix"];
+export type ProcedureMissedLeg = Schemas["ProcedureMissedLeg"];
 export type ChartPages = Schemas["ChartPages"];
 /** The mock oral's question, its answer graded, and what each is asked with. */
 export type OralQuestion = Schemas["OralQuestion"];

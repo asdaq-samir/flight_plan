@@ -10893,6 +10893,17 @@
             "title": "Cycle",
             "type": "string"
           },
+          "final_course_deg": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Course Deg"
+          },
           "fixes": {
             "items": {
               "$ref": "#/components/schemas/ProcedureFix"
@@ -10900,15 +10911,16 @@
             "title": "Fixes",
             "type": "array"
           },
-          "glidepath": {
+          "glidepath_deg": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ProcedureGlidepath"
+                "type": "number"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Glidepath Deg"
           },
           "holds": {
             "items": {
@@ -10937,9 +10949,27 @@
             "title": "Lines",
             "type": "array"
           },
+          "missed_legs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ProcedureMissedLeg"
+            },
+            "title": "Missed Legs",
+            "type": "array"
+          },
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "runway_path": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProcedureRunwayPath"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "stale": {
             "default": false,
@@ -11045,6 +11075,17 @@
               }
             ],
             "title": "Speed Limit"
+          },
+          "vertical_angle_deg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vertical Angle Deg"
           }
         },
         "required": [
@@ -11055,40 +11096,6 @@
           "missed"
         ],
         "title": "ProcedureFix",
-        "type": "object"
-      },
-      "ProcedureGlidepath": {
-        "description": "The path an approach's final comes down (vfr.procedures): `deg`\nbelow level, into `fix`, its runway's threshold at `lat`/`lon`,\ncrossed at `ft` MSL -- the threshold's elevation and its crossing\nheight (ARINC 424-18 5.70).",
-        "properties": {
-          "deg": {
-            "title": "Deg",
-            "type": "number"
-          },
-          "fix": {
-            "title": "Fix",
-            "type": "string"
-          },
-          "ft": {
-            "title": "Ft",
-            "type": "integer"
-          },
-          "lat": {
-            "title": "Lat",
-            "type": "number"
-          },
-          "lon": {
-            "title": "Lon",
-            "type": "number"
-          }
-        },
-        "required": [
-          "deg",
-          "fix",
-          "lat",
-          "lon",
-          "ft"
-        ],
-        "title": "ProcedureGlidepath",
         "type": "object"
       },
       "ProcedureHold": {
@@ -11231,6 +11238,113 @@
           "procedures"
         ],
         "title": "ProcedureList",
+        "type": "object"
+      },
+      "ProcedureMissedLeg": {
+        "description": "A leg of an approach's missed approach, in the order flown, as its\nwords are made: `path` its ARINC 424-18 path and terminator (5.21: CA\na course to an altitude, VA a heading to one, VI a heading to an\nintercept, CF and TF to a fix, DF direct to one, HM, HA and HF a\nhold), `fix` the fix it goes to, `course_deg` its course or heading\nmagnetic, `turn` which way it turns, and the altitudes it climbs to\n(at or above `min_ft`, at or below `max_ft`).",
+        "properties": {
+          "course_deg": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Deg"
+          },
+          "fix": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fix"
+          },
+          "max_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Ft"
+          },
+          "min_ft": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Ft"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "turn": {
+            "anyOf": [
+              {
+                "enum": [
+                  "L",
+                  "R"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turn"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "ProcedureMissedLeg",
+        "type": "object"
+      },
+      "ProcedureRunwayPath": {
+        "description": "The path an approach's final comes down, placed (vfr.procedures):\n`deg` below level, into `fix`, its runway's threshold at `lat`/`lon`,\ncrossed at `ft` MSL -- the threshold's elevation and its crossing\nheight (ARINC 424-18 5.70).",
+        "properties": {
+          "deg": {
+            "title": "Deg",
+            "type": "number"
+          },
+          "fix": {
+            "title": "Fix",
+            "type": "string"
+          },
+          "ft": {
+            "title": "Ft",
+            "type": "integer"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          }
+        },
+        "required": [
+          "deg",
+          "fix",
+          "lat",
+          "lon",
+          "ft"
+        ],
+        "title": "ProcedureRunwayPath",
         "type": "object"
       },
       "ProcedureSummary": {

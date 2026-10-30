@@ -72,7 +72,7 @@ function wayIn(d: ProcedureDrawing): Ll[] {
 }
 const lengthOf = (line: Ll[]) => line.slice(1).reduce((s, p, i) => s + distanceNm(line[i]!, p), 0);
 const finalOf = (d: ProcedureDrawing) => wayIn({ ...d, lines: d.lines.filter(l => l.role !== "transition") });
-const gp = ILS.glidepath!;
+const gp = ILS.runway_path!;
 /** The ILS flown as charted: 3,700 to SILEX, 3,000 to the glide slope,
  *  then down it to the runway. */
 const onIls = (toGo: number) => Math.min(glidepathFt(gp, toGo), toGo > 11 ? 3700 : 3000);

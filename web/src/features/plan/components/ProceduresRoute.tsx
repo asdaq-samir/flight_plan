@@ -52,6 +52,7 @@ const ROUTE_LINE = { backgroundColor: COURSE_MAGENTA } as const;
 const FixFromDialog = lazy(() => import("./FixFromDialog"));
 const PointAltitudeDialog = lazy(() => import("./PointAltitudeDialog"));
 const HoldSheet = lazy(() => import("./HoldSheet"));
+const ApproachLesson = lazy(() => import("./ApproachLesson"));
 
 /** The value of a choice's "None" (no transition), and a runway line's
  *  with none picked yet: a toggle's value is a string. */
@@ -248,6 +249,11 @@ export default function ProceduresRoute({
   if (editing !== null && !editingUsed) setEditingUsed(true);
   if (fixFrom !== null && !fixFromUsed) setFixFromUsed(true);
   if (holdAt !== null && !holdUsed) setHoldUsed(true);
+  // The approach being taught (ApproachLesson), from its menu's Learn This
+  // Approach; drawn from its first opening on, as the hold's is.
+  const [lesson, setLesson] = useState<PickedProcedure | null>(null);
+  const [lessonUsed, setLessonUsed] = useState(false);
+  if (lesson !== null && !lessonUsed) setLessonUsed(true);
   const holdOn = (ident: string) => holds.find(h => sameField(h.fix, ident)) ?? null;
   // Where the airplane is known (own ship, or the dry run's): Direct to
   // goes from there.
@@ -533,6 +539,7 @@ export default function ProceduresRoute({
         fixes={inRoute.find(p => sameField(p.ident, a.ident) && p.kind === kind)?.fixes?.map(f => f.ident)}
         runway={chosenAt(a.ident)} windward={wind && !wind.calm ? wind.ident : null}
         onOpen={() => ask(a.ident)} onPick={next => pick(a.ident, kind, next)} onAll={() => onAt({ ident: a.ident, kind })}
+        onLearn={kind === "approach" ? () => setLesson(pickOf(a.ident, kind)) : undefined}
       />
     );
     const has = (kind: Kind) => hasKind(a.ident, kind) || inRoute.some(p => sameField(p.ident, a.ident) && p.kind === kind);
@@ -900,6 +907,11 @@ export default function ProceduresRoute({
     {holdUsed && (
       <Suspense fallback={null}>
         <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet?.(fix, hold); setHoldAt(null); }} />
+      </Suspense>
+    )}
+    {lessonUsed && (
+      <Suspense fallback={null}>
+        <ApproachLesson at={lesson} aircraft={fit?.aircraft ?? null} onClose={() => setLesson(null)} />
       </Suspense>
     )}
     {lineRow}

@@ -11,7 +11,7 @@
  *
  * The procedure is the FAA's CIFP as the planner draws it
  * (vfr.procedures.procedure_drawing): its lines, its fixes with their
- * roles and crossing altitudes, and its glidepath. The track is GPS's
+ * roles and crossing altitudes, and its placed glidepath (runway_path). The track is GPS's
  * (lib/track, or a followed airplane's ADS-B reports), so its altitude is
  * not the altimeter's and its course is a ground track: what is measured
  * here is close to what an instructor sees, not the panel's needles.
@@ -290,13 +290,13 @@ const timeAt = (points: TrackPoint[], i: number, u: number) => at(points, i).t +
 
 /** The glidepath's height at a point, ft MSL: a straight line up from the
  *  runway's crossing altitude at its angle, over the curved earth. */
-function pathFt(gp: NonNullable<ProcedureDrawing["glidepath"]>, p: { lat: number; lon: number }): number {
+function pathFt(gp: NonNullable<ProcedureDrawing["runway_path"]>, p: { lat: number; lon: number }): number {
   const d = distanceNm(p, gp) * FT_PER_NM;
   return gp.ft + d * Math.tan(rad(gp.deg)) + (d * d) / (2 * EARTH_FT);
 }
 
 /** The glidepath's height at a distance from its runway's threshold, nm. */
-export function glidepathFt(gp: NonNullable<ProcedureDrawing["glidepath"]>, nmOut: number): number {
+export function glidepathFt(gp: NonNullable<ProcedureDrawing["runway_path"]>, nmOut: number): number {
   const d = nmOut * FT_PER_NM;
   return gp.ft + d * Math.tan(rad(gp.deg)) + (d * d) / (2 * EARTH_FT);
 }
@@ -342,7 +342,7 @@ export function debriefApproach(d: ProcedureDrawing, points: TrackPoint[], optio
   if (!attempt) return null;
   const xy = points.map(p => to(p.lat, p.lon));
   const guidance = guidanceOf(d.id);
-  const gp = d.glidepath ?? null;
+  const gp = d.runway_path ?? null;
   const hasAltitude = points.some(p => p.altFt != null);
   const fafCross = crossings(path, path.faf.v, xy, attempt.faf, attempt.faf + 1)[0];
   if (!fafCross) return null;
