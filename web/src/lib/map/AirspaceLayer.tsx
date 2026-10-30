@@ -110,11 +110,11 @@ const EDGE_HEIGHT_PX = 14;
  *  field is what a pilot reads there. */
 const AIRPORT_CLEAR_PX = 20;
 
-/** The words' ink, the line's colour a shade darker by day and lighter at
- *  night (index.css), 7:1 or more on their halo either way: over WCAG's
- *  4.5:1 for small type. */
+/** The words' ink, the line's own hue a shade darker by day and as it is
+ *  or lighter at night (index.css), 5.1:1 or more on their halo either
+ *  way: over WCAG's 4.5:1 for small type. */
 const INK: Record<AirspaceVolume["airspace_class"], string> = {
-  B: "var(--airspace-blue-ink)", C: "var(--airspace-magenta-ink)", D: "var(--airspace-blue-ink)",
+  B: "var(--airspace-edge-blue)", C: "var(--airspace-edge-magenta)", D: "var(--airspace-edge-blue)",
 };
 /** A halo of the map's own ground round each letter, white by day and
  *  the sheet's dark at night, so the words read over the chart's own

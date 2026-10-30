@@ -25,7 +25,7 @@ export const EVERY_PX = 300;
  *  box's edge or a small notch says nothing the next piece doesn't. */
 export const MIN_PIECE_PX = 120;
 /** How far the words' middle sits off the line toward the volume, px:
- *  half the 2.5 px line, a 1.5 px halo, a clear 2 px and half the 11 px
+ *  half the 3 px line, a 1.5 px halo, a clear 1.5 px and half the 11 px
  *  type's height. */
 export const INSIDE_PX = 10;
 /** A label is left out where its words would cut a corner this much

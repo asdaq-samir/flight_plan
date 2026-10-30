@@ -303,9 +303,12 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
      sectional's blue and magenta a shade darker, 4.5:1 on their wash. */
   --airspace-blue-ink: #1d559c;
   --airspace-magenta-ink: #962568;
-  /* The halo round the map's airspace altitudes along their lines
-     (AirspaceLayer's EdgeLabels), the map's own ground: the inks above
-     read 7:1 or more on it. */
+  /* The map's airspace altitudes along their lines (AirspaceLayer's
+     EdgeLabels): the lines' own ForeFlight hues (airspaceMarks), a shade
+     darker to read 5.1:1 on their halo, the map's white ground, where
+     the lines' #4b9df8 and #c43fc0 are 2.8 and 4.4:1 (WCAG wants 4.5). */
+  --airspace-edge-blue: #086bd8;
+  --airspace-edge-magenta: #b337b0;
   --airspace-halo: #ffffff;
   /* A procedure's indigo off the map, where a card draws its fixes and
      its pill: the map's own (rowBadges BADGE.approach, ProcedureLayer),
@@ -388,7 +391,10 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --airspace-blue-ink: #8cb8f2;
   --airspace-magenta-ink: #f0a0cf;
   /* The sheet's dark at night, where a white halo was the brightest
-     thing over the dimmed chart; the light inks read 7:1 or more on it. */
+     thing over the dimmed chart: the line's blue itself reads 5.7:1 on
+     it, its magenta a shade lighter 5.1:1 (3.7 as it is). */
+  --airspace-edge-blue: #4b9df8;
+  --airspace-edge-magenta: #d16bce;
   --airspace-halo: #172234;
   --procedure: #9d9df0;
   /* The palette's caution amber (#F5B85E) for words and marks, and a
