@@ -1970,7 +1970,11 @@ class AirspaceVolume(BaseModel):
     #: Where the volume's label goes: on the volume, in the box.
     label_lat: float
     label_lon: float
-    lines: list[list[list[float]]]
+    lines: list[list[list[float]]] = Field(
+        description="The volume's boundary clipped to the box asked for, each line [lat, lon] points. "
+        "A line runs with the volume on its left in lon/lat (the polygon oriented first: its outside "
+        "counter-clockwise, its holes clockwise), so on a map whose y points down the volume is on "
+        "the line's right: the side its altitudes are written on.")
 
 
 class AirspaceInView(BaseModel):

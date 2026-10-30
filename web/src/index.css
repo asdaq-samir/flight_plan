@@ -303,8 +303,10 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
      sectional's blue and magenta a shade darker, 4.5:1 on their wash. */
   --airspace-blue-ink: #1d559c;
   --airspace-magenta-ink: #962568;
-  /* The plate under the map's airspace labels (airspaceMarks). */
-  --airspace-plate: rgba(255, 255, 255, 0.92);
+  /* The halo round the map's airspace altitudes along their lines
+     (AirspaceLayer's EdgeLabels), the map's own ground: the inks above
+     read 7:1 or more on it. */
+  --airspace-halo: #ffffff;
   /* A procedure's indigo off the map, where a card draws its fixes and
      its pill: the map's own (rowBadges BADGE.approach, ProcedureLayer),
      a shade lighter in dark to stand off the card. */
@@ -385,7 +387,9 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --sheet: var(--background);
   --airspace-blue-ink: #8cb8f2;
   --airspace-magenta-ink: #f0a0cf;
-  --airspace-plate: rgba(23, 34, 52, 0.88);
+  /* The sheet's dark at night, where a white halo was the brightest
+     thing over the dimmed chart; the light inks read 7:1 or more on it. */
+  --airspace-halo: #172234;
   --procedure: #9d9df0;
   /* The palette's caution amber (#F5B85E) for words and marks, and a
      paler one for words on its wash. */

@@ -84,3 +84,27 @@ def test_a_volume_cut_by_the_box_has_no_line_along_the_boxs_edge(chicago):
 def test_a_box_far_out_is_simplified_further_than_one_close_in():
     assert airspace_map.tolerance_for(42.0, 42.5) == airspace_map.MIN_TOLERANCE_DEG
     assert airspace_map.tolerance_for(36.0, 48.0) == pytest.approx(0.001)
+
+
+@pytest.mark.parametrize("west", [-89.5, -88.0])
+def test_every_line_has_its_volume_on_its_left(chicago, west):
+    # The stand-in file winds O'Hare's shelf clockwise, as the FAA's
+    # often does: a point a little left of each piece of its lines, in
+    # lon/lat, is on the shelf -- round its outside and its hole, and
+    # where the box cuts it -- and one a little right is not, so the web
+    # can write its altitudes on its own side of the line.
+    shelf = Polygon([(-88.5, 41.5), (-88.5, 42.5), (-87.5, 42.5), (-87.5, 41.5)],
+                    [[(-88.2, 41.8), (-87.8, 41.8), (-87.8, 42.2), (-88.2, 42.2)]])
+    ord_ = next(v for v in airspace_map.volumes_in(chicago, 41.0, west, 43.0, -87.0) if v["ident"] == "ORD")
+    checked = 0
+    for line in ord_["lines"]:
+        for (lat0, lon0), (lat1, lon1) in zip(line, line[1:]):
+            mid_lon, mid_lat = (lon0 + lon1) / 2, (lat0 + lat1) / 2
+            d_lon, d_lat = lon1 - lon0, lat1 - lat0
+            length = (d_lon ** 2 + d_lat ** 2) ** 0.5
+            # A hundredth of a degree off the line, square to it.
+            left = Point(mid_lon - d_lat / length * 0.01, mid_lat + d_lon / length * 0.01)
+            right = Point(mid_lon + d_lat / length * 0.01, mid_lat - d_lon / length * 0.01)
+            assert shelf.contains(left) and not shelf.contains(right)
+            checked += 1
+    assert checked >= 6

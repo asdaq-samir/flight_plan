@@ -3,14 +3,15 @@ import { openMapSettings, slow } from "./helpers";
 
 /**
  * The Class B, C and D over the chart, with their altitudes as the
- * sectional prints them, and the VORs (AirspaceLayer, NavaidsLayer): on
+ * sectional words them, written along their lines as ForeFlight's, and
+ * the VORs (AirspaceLayer, NavaidsLayer): on
  * unless turned off, the owner's pick of the map's looks. Against the
  * real planner and its FAA airspace file, as the point is that the lines
  * and numbers are Chicago's own.
  */
 
 const lines = (page: Page) => page.locator(".leaflet-airspace-pane path");
-const labels = (page: Page) => page.locator(".leaflet-airspace-labels-pane [data-airspace-label]");
+const labels = (page: Page) => page.locator(".leaflet-airspace-labels-pane [data-airspace-edge-label]");
 const vors = (page: Page) => page.locator(".leaflet-navaids-pane [data-vor]");
 
 test("Chicago's airspace is drawn over the chart with its altitudes, and the switch takes it off", async ({ page }) => {
@@ -28,9 +29,17 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   await page.goto("/app/plan?place=KORD");
   await expect(lines(page).first()).toBeAttached({ timeout: slow(30000) });
   expect(await lines(page).count()).toBeGreaterThan(5);
-  // No altitude plates of ours: the chart prints them (the owner,
-  // 2026-10-29).
-  await expect(labels(page)).toHaveCount(0);
+  // The altitudes along the lines, no plates (the owner, 2026-10-30):
+  // O'Hare's surface area's "100/SFC" among them, and a Class D's
+  // ceiling alone. In sight, and turned to read upright.
+  await expect(labels(page).filter({ hasText: /^100\/SFC$/ }).first()).toBeAttached({ timeout: slow(15000) });
+  await expect(labels(page).filter({ hasText: /^-?\d+$/ }).first()).toBeAttached();
+  await expect(labels(page).filter({ hasText: /^\d+\/\d+$/ }).first()).toBeVisible();
+  await expect(page.locator(".leaflet-airspace-labels-pane [data-airspace-label]")).toHaveCount(0);
+  const angles = await labels(page).evaluateAll(texts =>
+    texts.map(t => Number(/rotate\((-?[\d.]+)/.exec(t.getAttribute("transform") ?? "")?.[1])));
+  expect(angles.length).toBeGreaterThan(3);
+  expect(angles.every(a => a >= -90 && a < 90)).toBe(true);
   // And the VORs about it: Northbrook's, north of the field.
   await expect(vors(page).and(page.locator('[data-vor="OBK"]'))).toBeAttached({ timeout: slow(15000) });
 
