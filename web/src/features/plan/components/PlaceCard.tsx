@@ -1,15 +1,15 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePrefetchQuery, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { Cloud, CloudSun, Eye, Gauge, Lightbulb, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
+import { Cloud, CloudSun, Eye, Gauge, Lightbulb, MapPin, MapPinPlus, Phone, PlaneLanding, PlaneTakeoff, Radio, Repeat, Route, Star, Thermometer, Wind } from "lucide-react";
 import DirectToIcon from "../../../components/DirectToIcon";
-import { FAVORITE_STAR } from "../../../components/mapChrome";
+import { FAVORITE_STAR_ON } from "../../../components/mapChrome";
 import { cn } from "cn";
 import { useKeptAirport, usePreferences } from "../../../lib/preferences";
 import { useOwnShip } from "../../../lib/map/ownShip";
-import { Toggle as TogglePrimitive } from "radix-ui";
 import { shareOrCopy } from "../../../lib/share";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
 import { PhotoHead } from "../../../components/PhotoHead";
+import RoundButton from "../../../components/RoundButton";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { PillSection } from "../../../components/Favorites";
@@ -484,6 +484,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             line={line ? <p className={cn("line-clamp-2 text-white/80", TEXT.note)} data-testid="place-line">{line}</p> : null}
             label={`${ident4}: its runways${photos ? ", from the air" : ""}${photos?.photo ? ", from the ground" : ""}`}
             slides={slides} onClose={onClose} onShare={share} closeTestId="place-close" shareTestId="place-share"
+            // The share at the left and the star beside the close, at the
+            // owner's ask (2026-10-29), the star's place in the actions
+            // the address's.
+            shareAtLeft beside={look => <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} className={look} />}
           >
             {diagramOpen === "faa" && place?.airport_diagram_url && (
               <FaaChart
@@ -515,7 +519,8 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               filled, the Direct-To's symbol on it; Add Stop beside it, at
               the pilot's ask, the field the route's next stop; Call, the
               field's own phone from the FAA's airport file, greyed where it
-              lists none; and the star. */}
+              lists none; and the address in Maps, the star's place
+              until the owner moved the star up by the close (2026-10-29). */}
           <div className={cn("grid gap-2 pt-3", onAddStop ? "grid-cols-4" : "grid-cols-3")} data-testid="place-actions">
             <Action
               icon={<DirectToIcon />} label="Fly Here" filled busy={flying} disabled={!place} testId="fly-here"
@@ -529,7 +534,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
               href={place?.phone ? `tel:${place.phone}` : undefined}
               spoken={place?.phone ? `Call ${place.phone}` : "Call: no phone listed"} testId="place-call"
             />
-            <FavoriteButton ident={kept?.ident ?? ident} place={place ?? null} />
+            <Action
+              icon={<MapPin />} label="Address" disabled={!place} href={place ? mapsLink(place) : undefined}
+              spoken={place?.address ? `Address in Maps: ${place.address}` : "Open in Maps"} testId="place-address-action"
+            />
           </div>
           {place && stop && <StopStrip ident={place.ident} stop={stop} />}
         </>
@@ -841,26 +849,25 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   );
 }
 
-/** The star that adds an airport to Favorites (components/Favorites), one
- *  of the card's actions, filled in iOS's yellow while it is one, as Maps'
- *  are. It is there from the card's first frame, as a Favorite or not by
+/** The star that adds an airport to Favorites (components/Favorites), a
+ *  round button beside the card's close, filled in iOS's yellow while it
+ *  is one, as Maps' are. It is there from the card's first frame, as a Favorite or not by
  *  the ident asked for, and a tap is kept for when the card's answer has
  *  the field's name and place to keep. */
-function FavoriteButton({ ident, place }: { ident: string; place: AirportPlace | null }) {
+function FavoriteButton({ ident, place, className }: { ident: string; place: AirportPlace | null; className?: string }) {
   const mine = place?.ident ?? ident;
   const kept = usePreferences(s => s.favoriteAirports.some(a => sameField(a.ident, mine)));
   const toggle = usePreferences(s => s.toggleFavoriteAirport);
   return (
-    // The stock Toggle round the action, so it is on or off as Radix's is
-    // (aria-pressed, data-state), the star's look of on from data-state.
-    <TogglePrimitive.Root
-      asChild pressed={kept} disabled={!place}
-      onPressedChange={() => { if (place) toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon }); }}
+    // On or off by aria-pressed itself, not a stock Toggle's data-state:
+    // the round button is a tooltip's trigger, whose own data-state
+    // ("closed") would take the Toggle's place.
+    <RoundButton
+      label={kept ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={kept} disabled={!place}
+      onClick={() => { if (place) toggle({ ident: place.ident, name: place.name, municipality: place.municipality, lat: place.lat, lon: place.lon }); }}
+      className={className} data-testid="place-favorite"
     >
-      <Action
-        icon={<Star className={FAVORITE_STAR} strokeWidth={2} />} label="Favorite" pressed={kept}
-        spoken={kept ? "Remove from Favorites" : "Add to Favorites"} testId="place-favorite"
-      />
-    </TogglePrimitive.Root>
+      <Star className={cn("size-5", kept && FAVORITE_STAR_ON)} strokeWidth={2} />
+    </RoundButton>
   );
 }

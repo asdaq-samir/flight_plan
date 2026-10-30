@@ -5,7 +5,8 @@ import { cn } from "cn";
 import { PanelCard } from "../../../components/PanelCard";
 import { PhotoHead } from "../../../components/PhotoHead";
 import { PhotoSlide } from "../../../components/PictureSlides";
-import { FAVORITE_STAR, useCardTitle } from "../../../components/mapChrome";
+import { FAVORITE_STAR_ON, useCardTitle } from "../../../components/mapChrome";
+import RoundButton from "../../../components/RoundButton";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { PillSection } from "../../../components/Favorites";
 import { RowBadge } from "../../../components/RowBadge";
@@ -366,8 +367,11 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
         subtitle={[model, operator].filter(Boolean).join(" · ") || "\u00a0"}
         label={`${name}: ${photo ? "its photo, and " : ""}where it has flown`}
         slides={slides} onClose={onClose} onShare={share} closeTestId="flight-close" shareTestId="flight-share"
+        // As the airport card's (2026-10-29): the share at the left, the
+        // star beside the close, the actions the three left.
+        shareAtLeft beside={look => <FavoriteButton kept={kept} className={look} />}
       />
-      <div className="grid grid-cols-4 gap-2 pt-3" data-testid="flight-actions">
+      <div className="grid grid-cols-3 gap-2 pt-3" data-testid="flight-actions">
         {/* Follow filled, the card's first thing to do; nothing to follow
             where it is not heard now: greyed, not pressed. */}
         <TogglePrimitive.Root asChild pressed={following} disabled={!plane} onPressedChange={on => useTracking.setState({ follow: on })}>
@@ -381,7 +385,6 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
           icon={<ChartLine />} label="Debrief" testId="flight-debrief" disabled={!debriefed}
           onClick={() => { if (debriefed) onOpenPast(debriefed.id); }}
         />
-        <FavoriteButton kept={kept} />
       </div>
       {/* What the pilot asked to be told of it, while it waits. */}
       {waiting && <p className={cn("pt-2 text-tint", TEXT.note)} data-testid="flight-alerts-set">{waiting}</p>}
@@ -507,20 +510,19 @@ function FaaRegistration({ faa }: { faa: AircraftRegistration }) {
   );
 }
 
-/** The star that adds the airplane to the Aircraft card's Favorites, one
- *  of its actions, filled in iOS's yellow while it is one, as the airport
- *  card's is. */
-function FavoriteButton({ kept }: { kept: KeptAircraft | null }) {
+/** The star that adds the airplane to the Aircraft card's Favorites, a
+ *  round button beside the card's close, filled in iOS's yellow while it
+ *  is one, as the airport card's is: on or off by aria-pressed, the round
+ *  button being a tooltip's trigger with its own data-state. */
+function FavoriteButton({ kept, className }: { kept: KeptAircraft | null; className?: string }) {
   const starred = usePreferences(s => !!kept && s.favoriteAircraft.some(a => a.hex === kept.hex));
   const toggle = usePreferences(s => s.toggleFavoriteAircraft);
   return (
-    // The stock Toggle round the action, on as Radix's is, the yellow and
-    // the filled star from its data-state.
-    <TogglePrimitive.Root asChild pressed={starred} disabled={!kept} onPressedChange={() => { if (kept) toggle(kept); }}>
-      <CardAction
-        icon={<Star className={FAVORITE_STAR} strokeWidth={2} />} label="Favorite" pressed={starred}
-        spoken={starred ? "Remove from Favorites" : "Add to Favorites"} testId="flight-favorite"
-      />
-    </TogglePrimitive.Root>
+    <RoundButton
+      label={starred ? "Remove from Favorites" : "Add to Favorites"} aria-pressed={starred} disabled={!kept}
+      onClick={() => { if (kept) toggle(kept); }} className={className} data-testid="flight-favorite"
+    >
+      <Star className={cn("size-5", starred && FAVORITE_STAR_ON)} strokeWidth={2} />
+    </RoundButton>
   );
 }
