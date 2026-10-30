@@ -9,7 +9,7 @@ import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
-import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
+import { aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
@@ -78,6 +78,7 @@ import type { SuggestedStop } from "./components/StopServices";
 import { useDryRunButton } from "../../lib/dryRunButton";
 import { useWindPicks } from "../../lib/windPicks";
 import { useStopsAlong } from "../../lib/stopsAlong";
+import { usePointActions } from "../../lib/map/pointActions";
 import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
@@ -1420,6 +1421,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     stops.splice(bestStopIndex(points, at), 0, at.ident);
     setStops(stops);
   }, [course, planned.stops, setStops]);
+  // Direct to a VOR or a fix off the chart (its card's Direct To), as to a
+  // point of the route (directToPoint): from where the airplane is, to it,
+  // and on through the route's stops to its destination, the route as it
+  // was kept (`was`) for the strip's Cancel. Only from a position: from the
+  // departure it would be a stop, Add to Route's.
+  const directToChartPoint = useCallback((to: { ident: string }) => {
+    const ship = useOwnShip.getState();
+    const fix = ship.enabled ? ship.fix : null;
+    if (!fix) return;
+    setSearchParams(prev => {
+      const was = prev.get("was") ?? routeWas(prev);
+      const stops = stopsOf(prev.get("stops")).filter(stop => !sameField(stop, to.ident));
+      return patched(prev, { dep: positionIdent(fix), stops: [to.ident, ...stops].join(","), direct: to.ident, was, place: null });
+    }, { replace: true });
+  }, [setSearchParams]);
+  // The map's VOR and fix cards' Add to Route and Direct To, while there
+  // is a route (lib/map/pointActions).
   // Allowed again: the waypoint Avoid Class B put round it (class_b_via)
   // taken out of the stops too, where it still is -- left in, the route
   // still bent round the Class B it was now planned through.
@@ -1432,6 +1450,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       });
     }, { replace: true });
   }, [setSearchParams]);
+  const hasFix = useOwnShip(st => st.enabled && st.fix !== null);
+  const classBAvoided = searchParams.get("class_b") === "0";
+  useEffect(() => {
+    const routed = !!course && planned.stops.length < MAX_STOPS;
+    usePointActions.setState({
+      addToRoute: routed ? addStopAt : null, directTo: routed && hasFix ? directToChartPoint : null,
+      avoidClassB: course && !classBAvoided ? () => acceptClassB(false) : null,
+    });
+    return () => usePointActions.setState({ addToRoute: null, directTo: null, avoidClassB: null });
+  }, [course, planned.stops.length, addStopAt, directToChartPoint, hasFix, classBAvoided, acceptClassB]);
   // "Avoid Class B": the planner's waypoint round it put in the stops where
   // it says (Detour.stop_index, before that stop), and the clearance taken
   // back, so the rest is planned under or round it; with no waypoint in
@@ -2020,7 +2048,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // distance, and the airplane's book cruise speed and burn -- its own
   // where the pilot set them, else its profile's.
   const profile = profiles?.find(p => p.name === aircraft.profile);
-  const cruiseTasKt = aircraft.cruiseTasKt ?? profile?.cruise_tas_kt ?? null;
+  const cruiseTasKt = cruiseTasOf(aircraft, profiles);
   const fuelBurnGph = aircraft.fuelBurnGph ?? profile?.fuel_burn_gph ?? null;
   // Before the course comes, at the tap: the great circles between the
   // route's points, placed from the airport index the browser keeps

@@ -5,10 +5,11 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
+  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
   sheetSettle, useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
 import { useOpenCards } from "../lib/openCards";
+import { PillPicture } from "./PillPicture";
 import { SheetCardHost } from "./SheetCard";
 import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
@@ -583,6 +584,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // the bar as ever, and with the tabs asked for there, the tabs.
   const ownHead = pictureCard && layer === "card" && !cardsUp && !pillLaid && !tabsShown;
   const barHere = barShown && !ownHead;
+  // And in the pill, the card's name, its line and its buttons over its
+  // head's picture, blurred (PillPicture), at the owner's pick (P5,
+  // 2026-10-29): only the cards with a picture head, only at rest there.
+  const pill = useOpenCards(s => s.pill);
+  // A map card's too, which has no picture head but gives its colour
+  // (MapCard's `pill`).
+  const pillPictured = !!pill && (pictureCard || !!pill.colour) && capsule && minimized && barHere && !figuresPill && !tabsShown;
   // The head's row: in the pill only without a tab bar (whose pill is the
   // bar), out of it wherever there is a top row or no bar shown.
   const headerShown = pillShape ? !bar : top != null || !barShown;
@@ -1048,7 +1056,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     >
       {/* Over a card's picture (ownHead), white with a shade, as Maps'
           is over a place's photos: the grey was lost on a dark one. */}
-      <span className={cn("h-[5px] w-9 rounded-full", ownHead ? "bg-white/75 shadow-[0_0_3px_rgba(0,0,0,.5)]" : "bg-muted-foreground/40")} aria-hidden="true" />
+      <span className={cn("h-[5px] w-9 rounded-full", ownHead || pillPictured ? "bg-white/75 shadow-[0_0_3px_rgba(0,0,0,.5)]" : "bg-muted-foreground/40")} aria-hidden="true" />
     </button>
   );
 
@@ -1099,6 +1107,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         ),
       )}
     >
+      {pillPictured && pill && <PillPicture pill={pill} />}
       {/* The head, dragged as the grabber is: the grabber first on a sheet
           from the bottom, the top row, any notice, the controls -- or, at
           rest, the capsule, its grabber on its far edge from the top. */}
@@ -1155,7 +1164,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // swiping up/down anywhere on the card"). A tap that does not
             // move ten points is the tab's (useDetentDrag).
           >
-            <TabBarMinimized.Provider value={minimized}><PanelSize.Provider value={panelSize}>{bar}</PanelSize.Provider></TabBarMinimized.Provider>
+            <TabBarMinimized.Provider value={minimized}><BarOverPicture.Provider value={pillPictured}><PanelSize.Provider value={panelSize}>{bar}</PanelSize.Provider></BarOverPicture.Provider></TabBarMinimized.Provider>
           </div>
         )}
         {/* Under the tab bar, the route's box and its buttons a shade

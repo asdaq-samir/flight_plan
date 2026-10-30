@@ -40,10 +40,13 @@ WORDS = {
     "NGT": "night", "FM": "from", "EXTN": "extension", "LCL": "local", "ADZY": "advisory", "INDEFLY": "indefinitely",
     "WI": "within", "TEMP": "temperature", "ALT": "altitude", "BTN": "between", "ANNC": "announce", "TKOFF": "takeoff",
     "INFO": "information", "REBCST": "rebroadcast", "THLD": "threshold", "APCH": "approach", "PRESET": "preset",
+    # A navaid's (NAV_RMK): where its signal cannot be used.
+    "UNUSBL": "unusable", "BYD": "beyond", "BLW": "below", "ABV": "above", "RESTR": "restricted",
 }
 KEEP = {
     "CTAF", "UNICOM", "AWOS", "ASOS", "ATIS", "MIRL", "MIRLS", "HIRL", "LIRL", "REIL", "REILS", "PAPI", "PAPIS", "VASI",
     "MALSR", "MALSF", "MALS", "ODALS", "ALSF", "SSALR", "RLLS", "PCL", "FSS", "ATC", "GCO", "AIM", "AGL", "MSL", "VFR", "IFR",
+    "VOR", "DME", "TACAN", "VORTAC", "NDB", "ILS", "GPS", "NOTAM",
     # The fuel and who sells it, as the pump and the sign say: 100LL's
     # letters, the FBO.
     "LL", "FBO",

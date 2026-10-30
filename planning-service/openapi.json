@@ -1854,6 +1854,28 @@
             "title": "Floor Sfc",
             "type": "boolean"
           },
+          "hours_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Code"
+          },
+          "hours_remark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Remark"
+          },
           "id": {
             "title": "Id",
             "type": "string"
@@ -1878,6 +1900,7 @@
             "type": "number"
           },
           "lines": {
+            "description": "The volume's boundary clipped to the box asked for, each line [lat, lon] points. A line runs with the volume on its left in lon/lat (the polygon oriented first: its outside counter-clockwise, its holes clockwise), so on a map whose y points down the volume is on the line's right: the side its altitudes are written on.",
             "items": {
               "items": {
                 "items": {
@@ -14441,6 +14464,28 @@
       "VorPin": {
         "description": "A VOR, VOR/DME or VORTAC in the map's view (NASR's NAV_BASE).",
         "properties": {
+          "channel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channel"
+          },
+          "elevation_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elevation Ft"
+          },
           "freq": {
             "anyOf": [
               {
@@ -14451,6 +14496,17 @@
               }
             ],
             "title": "Freq"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
           },
           "ident": {
             "title": "Ident",
@@ -14473,6 +14529,17 @@
             "title": "Lon",
             "type": "number"
           },
+          "mag_var": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mag Var"
+          },
           "name": {
             "anyOf": [
               {
@@ -14483,6 +14550,30 @@
               }
             ],
             "title": "Name"
+          },
+          "remarks": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Remarks",
+            "type": "array"
+          },
+          "restricted": {
+            "default": false,
+            "title": "Restricted",
+            "type": "boolean"
+          },
+          "service_volume": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Volume"
           }
         },
         "required": [
@@ -15662,6 +15753,19 @@
               "minimum": -180,
               "title": "East",
               "type": "number"
+            }
+          },
+          {
+            "description": "Which classes: the Class B alone further out",
+            "in": "query",
+            "name": "classes",
+            "required": false,
+            "schema": {
+              "default": "BCD",
+              "description": "Which classes: the Class B alone further out",
+              "pattern": "^[BCD]{1,3}$",
+              "title": "Classes",
+              "type": "string"
             }
           }
         ],

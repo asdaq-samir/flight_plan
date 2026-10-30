@@ -16,10 +16,26 @@ export type RouteCard = "brief" | "navlog" | "profile";
  *  is the route's things that card has (the Brief's Print the briefing). */
 export type CardShare = (() => void) | RouteCard;
 
+/** What a card with a picture head gives the pill to show of it, at the
+ *  owner's pick (P5, 2026-10-29): a line under its name ("VFR · 270°T 12G18
+ *  · Duluth International"), and its head's first picture, blurred behind
+ *  the pill -- or, with none to load, `tint` for the tint the head draws
+ *  in its place (an airplane with no photo), else the head's dark slate. */
+export type PillHead = {
+  line?: string; picture?: string; tint?: boolean;
+  /** The pill's name, where the bar has none of the card's own: a map
+   *  card draws its name in its head (MapCard), not on the bar. */
+  name?: string;
+  /** The ground in place of a picture, the thing's own colour on the
+   *  chart: an airspace's ring, a VOR's blue. */
+  colour?: string;
+};
+
 /** `picture`: the card draws its own head over a picture, its share and
  *  its close on it (an airport's, an airplane's), so out of the pill the
- *  panel leaves the minimized bar out over it (MapPanel). */
-type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare; picture?: boolean };
+ *  panel leaves the minimized bar out over it (MapPanel); `pill`, what
+ *  the pill shows of it there. */
+export type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare; picture?: boolean; pill?: PillHead };
 
 const open: OpenCard[] = [];
 
@@ -29,14 +45,14 @@ const open: OpenCard[] = [];
  *  and the nav log's): the bar's Share in place of its Back, at the
  *  owner's ask. And whether the top card draws its own head over a
  *  picture (`picture`). */
-export const useOpenCards = create<{ count: number; total: number; share: CardShare | null; picture: boolean }>(
-  () => ({ count: 0, total: 0, share: null, picture: false }));
+export const useOpenCards = create<{ count: number; total: number; share: CardShare | null; picture: boolean; pill: PillHead | null }>(
+  () => ({ count: 0, total: 0, share: null, picture: false, pill: null }));
 
 /** And `total`: every one open, lists and Setup's pages too, for the bar's
  *  close to say it goes back. */
 function counted() {
   const inBar = open.filter(entry => entry.inBar !== false);
-  return { count: inBar.length, total: open.length, share: inBar.at(-1)?.share ?? null, picture: !!open.at(-1)?.picture };
+  return { count: inBar.length, total: open.length, share: inBar.at(-1)?.share ?? null, picture: !!open.at(-1)?.picture, pill: open.at(-1)?.pill ?? null };
 }
 
 /** A card's close -- or a list's Back, `inBar` false, its way back drawn
@@ -52,6 +68,13 @@ export function holdOpenCard(entry: OpenCard): () => void {
   };
 }
 
+/** What the pill shows of a card held with holdOpenCard, changed in place
+ *  (a map card's, from its content through SheetCardHead). */
+export function setCardPill(entry: OpenCard, pill: PillHead | undefined) {
+  entry.pill = pill;
+  useOpenCards.setState(counted());
+}
+
 /** The top card closed; whether there was one. */
 export function closeTopCard(): boolean {
   const top = open[open.length - 1];
@@ -65,16 +88,32 @@ export function closeTopCard(): boolean {
  * device's Back and the bar's, and its share for the bar's Share. A card
  * whose head is a picture with its own share and close on it says so
  * (`picture`), and the panel leaves the minimized bar out over it out of
- * the pill (PhotoHead).
+ * the pill (PhotoHead), and what the pill shows of it (`pill`).
  */
-export function useHeldCard(onClose: () => void, onShare?: CardShare, picture = false) {
+export function useHeldCard(onClose: () => void, onShare?: CardShare, picture = false, pill?: PillHead) {
   const close = useRef(onClose);
   const share = useRef(onShare);
   useEffect(() => { close.current = onClose; share.current = onShare; });
   const shares = typeof onShare === "string" ? onShare : !!onShare;
-  useEffect(() => holdOpenCard({
-    close: () => close.current(),
-    share: typeof shares === "string" ? shares : shares ? () => { if (typeof share.current === "function") share.current(); } : undefined,
-    picture,
-  }), [shares, picture]);
+  const held = useRef<OpenCard | null>(null);
+  useEffect(() => {
+    const entry: OpenCard = {
+      close: () => close.current(),
+      share: typeof shares === "string" ? shares : shares ? () => { if (typeof share.current === "function") share.current(); } : undefined,
+      picture,
+    };
+    held.current = entry;
+    const drop = holdOpenCard(entry);
+    return () => { held.current = null; drop(); };
+  }, [shares, picture]);
+  // The pill's line and picture changed in place, by their strings, not
+  // the card held again: held again it would go to the top, over a card
+  // opened over it, and a new object each render would set the store at
+  // every one.
+  const given = !!pill, line = pill?.line, url = pill?.picture, tint = !!pill?.tint;
+  useEffect(() => {
+    const entry = held.current;
+    if (!entry) return;
+    setCardPill(entry, given ? { line, picture: url, tint } : undefined);
+  }, [given, line, url, tint, shares, picture]);
 }

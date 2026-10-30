@@ -85,7 +85,7 @@ test("Aircraft is a tab, finds an airplane by its callsign, and a tap on one tra
   const card = page.getByTestId("flight-card");
   // At the pill's size, as every card opens; its pages all the way up.
   await grabberTo(page, "full");
-  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("UAL2088");
   await expect(card.getByTestId("flight-line")).toHaveCount(0);
   // Its callsign large over its pictures, what it is and who flies it
   // under it (the owner's pick of the redesign, A2).
@@ -127,7 +127,7 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
   await page.getByTestId("aircraft-search").press("Enter");
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   // No field it took off from in its track: no Departed row.
-  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("UAL2088");
   await expect(page.getByTestId("flight-departed")).toHaveCount(0);
   // One tapped on the map: the Cessna, the second heard.
   await closeCard(page, "flight-close");
@@ -135,7 +135,7 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
   await expect(hits).toHaveCount(2);
   await hits.nth(1).dispatchEvent("click");
   await expect(page).toHaveURL(/[?&]flight=a128b9/);
-  await expect(page.getByTestId("tab-title")).toHaveText("N174HA");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("N174HA");
 });
 
 test("a search finds the airplanes about as it is typed, and asks the planner one name at a time, the last typed", async ({ page }) => {
@@ -190,7 +190,7 @@ test("an airplane not in the air is found by its registration, and its card says
   await expect(page).toHaveURL(/[?&]flight=a89c1e/);
   const card = page.getByTestId("flight-card");
   // Named by its FAA record, not its address, with no trace today to name it.
-  await expect(page.getByTestId("tab-title")).toHaveText("N654FL");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("N654FL");
   // Not heard now: on its flights, and its sketch says when it was last
   // heard, on the ground where its trace ends there.
   await grabberTo(page, "full");
@@ -422,7 +422,7 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
-  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088", { timeout: slow(15_000) });
+  await expect(page.getByTestId("tab-title-name")).toHaveText("UAL2088", { timeout: slow(15_000) });
   const star = card.getByTestId("flight-favorite");
   await expect(star).toHaveAttribute("aria-pressed", "false");
   await star.click();

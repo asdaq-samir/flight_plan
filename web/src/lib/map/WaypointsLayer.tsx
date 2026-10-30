@@ -11,6 +11,7 @@ import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { MAGENTA } from "../useAirspace";
 import { MapTooltip } from "./MapTooltip";
+import { PointWhere } from "./PointWhere";
 
 /** From this zoom in, as the airports' (AirportsLayer): further out the
  *  diamonds would be a scatter over every city's airspace. */
@@ -79,11 +80,13 @@ const WaypointMark = memo(function WaypointMark({ waypoint: w, onAddStop }: {
             is on a line of its own (the planner's vfr.places), at the
             pilot's ask -- on one line the card ran the screen's width. */}
         <MapCard
+          pill={{ name: `${w.ident} VFR waypoint`, line: w.description || undefined, colour: MAGENTA }}
           // The chart's diamond, as the map marks it, before its ident.
           media={<span aria-hidden="true" className="mx-1.5 size-3.5 shrink-0 rotate-45 rounded-[2px] border-2 border-white shadow-sm" style={{ backgroundColor: MAGENTA }} />}
           title={<>{w.ident}<span className="font-normal text-muted-foreground">VFR waypoint</span></>}
           subtitle={w.description || undefined}
         >
+          <PointWhere lat={w.lat} lon={w.lon} />
           {onAddStop && (
             <Button
               type="button" size="sm" className="w-full"

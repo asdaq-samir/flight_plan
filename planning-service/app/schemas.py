@@ -1962,10 +1962,19 @@ class AirspaceVolume(BaseModel):
     #: The top is "to but not including" `ceiling_ft` (the file's TNI): a
     #: Class D under a Class B shelf, which the chart prints as "-30".
     ceiling_excluded: bool
+    #: When the volume is in effect, the FAA NASR Class Airspace
+    #: shapefile's WKHR_CODE: "H24" continuous, "NOTAM" part-time with its
+    #: hours by NOTAM, "RMK" as `hours_remark` says (its WKHR_RMK).
+    hours_code: str | None = None
+    hours_remark: str | None = None
     #: Where the volume's label goes: on the volume, in the box.
     label_lat: float
     label_lon: float
-    lines: list[list[list[float]]]
+    lines: list[list[list[float]]] = Field(
+        description="The volume's boundary clipped to the box asked for, each line [lat, lon] points. "
+        "A line runs with the volume on its left in lon/lat (the polygon oriented first: its outside "
+        "counter-clockwise, its holes clockwise), so on a map whose y points down the volume is on "
+        "the line's right: the side its altitudes are written on.")
 
 
 class AirspaceInView(BaseModel):
@@ -1981,6 +1990,21 @@ class VorPin(BaseModel):
     freq: str | None = None
     lat: float
     lon: float
+    #: The station's own magnetic variation, east positive (MAG_VARN): the
+    #: declination its radials are aligned to.
+    mag_var: float | None = None
+    elevation_ft: float | None = None
+    #: Its TACAN or DME channel ("70X").
+    channel: str | None = None
+    #: Its standard service volume's class: T, L, H, VL or VH (AIM 1-1-8).
+    service_volume: str | None = None
+    #: Its hours as NASR files them: "24" for continuous.
+    hours: str | None = None
+    #: In service with restrictions (NAV_STATUS "OPERATIONAL RESTRICTED"),
+    #: which its remarks say.
+    restricted: bool = False
+    #: Its remarks in plain English: where it is unusable (NAV_RMK).
+    remarks: list[str] = []
 
 
 class FixPin(BaseModel):

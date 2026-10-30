@@ -164,7 +164,8 @@ _ALL_AIRSPACE_LOCK = threading.Lock()
 # before that has no way to say so -- a new suffix rebuilds rather
 # than reading records that are missing a key every caller now reads.
 # v4: and an "upper_desc", for the map's labels (vfr.airspace_map).
-_CONTROLLED_CACHE_SUFFIX = ".controlled.v4.pkl"
+# v5: and the "hours_code" and "hours_remark", for the map's cards.
+_CONTROLLED_CACHE_SUFFIX = ".controlled.v5.pkl"
 
 
 def _load_all_controlled_airspace(shp_path) -> list:
@@ -186,6 +187,13 @@ def _load_all_controlled_airspace(shp_path) -> list:
                 _write_controlled_cache(shp_path, key, polygons)
             _ALL_AIRSPACE_CACHE[key] = polygons
         return _ALL_AIRSPACE_CACHE[key]
+
+
+def _text(value) -> str | None:
+    """A text field of the shapefile, or None where it is empty or the
+    file's "<Null>"."""
+    value = (value or "").strip()
+    return None if value in ("", "<Null>") else value
 
 
 def _parse_controlled_airspace(shp_path: Path) -> list:
@@ -212,6 +220,13 @@ def _parse_controlled_airspace(shp_path: Path) -> list:
                 # Class D: "a minus ceiling value indicates surface up to
                 # but not including that value").
                 "upper_desc": (record.get("UPPER_DESC") or "").strip().upper() or None,
+                # When the volume is in effect, as the FAA's NASR Class
+                # Airspace shapefile has it: WKHR_CODE "H24" (continuous),
+                # "NOTAM" (part-time, its hours set by NOTAM and kept in
+                # the Chart Supplement) or "RMK" (said in WKHR_RMK, the
+                # remark). The file writes an empty remark as "<Null>".
+                "hours_code": _text(record.get("WKHR_CODE")),
+                "hours_remark": _text(record.get("WKHR_RMK")),
                 "geometry": shapely_shape(sr.shape.__geo_interface__),
                 "bbox": tuple(sr.shape.bbox),  # (min_lon, min_lat, max_lon, max_lat)
             }
@@ -238,7 +253,9 @@ def _read_controlled_cache(shp_path: Path, key: tuple) -> list | None:
         {
             "ident": p.get("ident", ""), "name": p["name"], "class": p["class"],
             "floor_ft_msl": p["floor_ft_msl"], "ceiling_ft_msl": p.get("ceiling_ft_msl"),
-            "upper_desc": p.get("upper_desc"), "bbox": tuple(p["bbox"]), "geometry": from_wkb(p["wkb"]),
+            "upper_desc": p.get("upper_desc"),
+            "hours_code": p.get("hours_code"), "hours_remark": p.get("hours_remark"),
+            "bbox": tuple(p["bbox"]), "geometry": from_wkb(p["wkb"]),
         }
         for p in cached["polygons"]
     ]
@@ -252,7 +269,9 @@ def _write_controlled_cache(shp_path: Path, key: tuple, polygons: list) -> None:
             {
                 "ident": p.get("ident", ""), "name": p["name"], "class": p["class"],
                 "floor_ft_msl": p["floor_ft_msl"], "ceiling_ft_msl": p.get("ceiling_ft_msl"),
-                "upper_desc": p.get("upper_desc"), "bbox": p["bbox"], "wkb": to_wkb(p["geometry"]),
+                "upper_desc": p.get("upper_desc"),
+                "hours_code": p.get("hours_code"), "hours_remark": p.get("hours_remark"),
+                "bbox": p["bbox"], "wkb": to_wkb(p["geometry"]),
             }
             for p in polygons
         ],

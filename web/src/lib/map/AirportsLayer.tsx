@@ -9,6 +9,7 @@ import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { AirportMarksLayer, type CanvasMark } from "./AirportCanvas";
 import { selectionIcon } from "./icons";
+import { useDrawnAirports } from "./declutter";
 import { boxOf, hovers } from "./view";
 import { PANNING_MS, useAhead, useLiveZoom } from "./useView";
 
@@ -17,9 +18,8 @@ import { PANNING_MS, useAhead, useLiveZoom } from "./useView";
  *  circles over half a state. */
 const FROM_ZOOM = 8;
 
-/** A zoom further out the fields that report wear their marks already,
- *  the rest nothing: the weather across a region at a glance, the chart
- *  under it still readable. */
+/** From this zoom every field shown (SHOWN_FROM) wears its mark however
+ *  near another's; further out each keeps its room (OUT_APART_PX). */
 const REPORTING_FROM_ZOOM = 7;
 
 /** Further out than REPORTING_FROM_ZOOM, the biggest fields that report
@@ -30,9 +30,22 @@ const FARTHEST_ZOOM = 4;
 /** Out there, a field's mark only where no bigger one's is this near on
  *  the screen, px: a mark and its ident, so none sit on each other. */
 const OUT_APART_PX = 80;
-/** And at 4 and 5 the large and medium fields alone: the airline
- *  airports and the regional ones a pilot steers by. */
-const BIG_ONLY_BELOW_ZOOM = 6;
+/** The zoom each size of field first wears its mark from, the biggest
+ *  first, as Maps brings in a city's names by its size (the owner,
+ *  2026-10-29: "make zoom levels different from big airports to small
+ *  airports"), each two levels in from where it first was ("Do two levels
+ *  up"): the airline airports from a few states' zoom, the regional ones at
+ *  a region's, the small fields at the sectional's own scale, and the rest
+ *  -- heliports, seaplane bases, balloonports -- closer in again. The kinds
+ *  are the planner's from the FAA's airport file (AirportPin.kind). */
+const SHOWN_FROM: Record<AirportPin["kind"], number> = { large: 6, medium: 8, small: 10, other: 12 };
+/** Sooner by its airspace (the owner, 2026-10-29: "Show class B airport
+ *  marker without airspace from 4 c from 6"): a Class B field's mark from
+ *  the country's zoom and a Class C's from a few states', their rings
+ *  still at their own zooms (AirspaceLayer); and a Class D's with its ring,
+ *  at 8, where Waukegan's ring and its "32" had no field in them. */
+const shownFrom = (a: AirportPin) =>
+  Math.min(SHOWN_FROM[a.kind], a.airspace_class === "B" ? FARTHEST_ZOOM : a.airspace_class === "C" ? 6 : a.airspace_class === "D" ? FROM_ZOOM : Infinity);
 /** Which kind first, out there, where only some fit. */
 const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
 /** What is drawn round the view, a share of it on each side: a pan
@@ -224,7 +237,12 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       const target = e.target as Element | null;
       // Nor one on a line drawn over the chart -- the course, a way the
       // Routes offer -- which keeps its own tap where it passes a field.
-      if (!target?.closest(".leaflet-map-pane") || target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive")) return;
+      // But an airspace ring's or a VOR's or fix's tap target is under a
+      // field's mark: near a field the field wins, as its mark is drawn
+      // over them (the owner, 2026-10-30: "When I try to select airport,
+      // it selects the airspace or vor if they are overlapping").
+      const yields = target?.closest(".leaflet-airspace-taps-pane, .leaflet-navaid-taps-pane");
+      if (!target?.closest(".leaflet-map-pane") || (!yields && target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive"))) return;
       const at = map.mouseEventToContainerPoint(e);
       let best: { ident: string; px: number } | null = null;
       for (const a of drawn.current) {
@@ -302,23 +320,26 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     return [...byIdent.values()];
   }, [alongRoute, inView, inViewAlone, full, seen, view.box]);
   const exclude = useMemo(() => new Set(others.map(a => a.ident)), [others]);
+  // The field whose card is open wears its mark at any zoom, its size
+  // aside: its ring (below) went round nothing on a small field further
+  // out than SHOWN_FROM.
+  const selectedIdent = selected?.ident ?? null;
   const shown = useMemo(() => {
     if (!reports) return [];
-    const kept = data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
+    const kept = data.filter(a => !exclude.has(a.ident) && (zoom >= shownFrom(a) || a.ident === selectedIdent) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
     if (zoom >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
     const room: L.Point[] = [];
     const out: AirportPin[] = [];
-    for (const a of [...kept].sort((x, y) => KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
-      if (zoom < BIG_ONLY_BELOW_ZOOM && KIND_RANK[a.kind] > KIND_RANK.medium) break;
+    for (const a of [...kept].sort((x, y) => shownFrom(x) - shownFrom(y) || KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
       const at = map.project([a.lat, a.lon], zoom);
       if (room.some(p => p.distanceTo(at) < OUT_APART_PX)) continue;
       room.push(at);
       out.push(a);
     }
     return out;
-  }, [reports, data, exclude, near, showMilitary, showPrivate, zoom, map]);
+  }, [reports, data, exclude, near, showMilitary, showPrivate, zoom, map, selectedIdent]);
   useEffect(() => { drawn.current = shown; }, [shown]);
   useEffect(() => { elsewhere.current = others; }, [others]);
   // What the canvas draws (AirportCanvas): each field's mark where it
@@ -329,6 +350,14 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     space: a.airspace_class ?? null, weather: colourOf(a.flight_category),
     use: a.military === "military" ? "military" : a.private ? "private" : null,
   })), [shown, zoom]);
+  // The fields wearing a mark and an ident just now, the canvas's and the
+  // route's own, for the VORs' tags to keep off (declutter): given as what
+  // is drawn changes, not at every render.
+  useEffect(() => {
+    const fields = [...marks.filter(m => m.chip), ...others];
+    useDrawnAirports.setState({ fields });
+  }, [marks, others]);
+  useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
   return (
     <>
       <Pane name="airports" style={{ zIndex: 450 }}>
