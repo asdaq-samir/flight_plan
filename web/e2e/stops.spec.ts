@@ -792,8 +792,8 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   }).toPass({ timeout: slow(15000) });
   // What it is beside its ident, where it is on a line of its own: in its
   // popup over the chart, or on a phone its card in the map's sheet
-  // (MapPopup).
-  const popup = page.locator(".leaflet-popup, [data-sheet-card]");
+  // (MapPopup), its name and line in the bar's row beside the close.
+  const popup = page.locator(".leaflet-popup, [data-sheet-card], [data-testid=tab-card-head]");
   await expect(popup.getByText("VFR waypoint", { exact: true })).toBeVisible();
   await expect(popup.getByText("3 nm SW of Campbell", { exact: true })).toBeVisible();
   // And the map holds still under the open card, once it has panned it
