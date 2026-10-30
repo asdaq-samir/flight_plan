@@ -61,7 +61,7 @@ def _lines(geometry) -> list[list[list[float]]]:
     return lines
 
 
-def volumes_in(shp_path, south: float, west: float, north: float, east: float) -> tuple[dict, ...]:
+def volumes_in(shp_path, south: float, west: float, north: float, east: float, classes: str = "BCD") -> tuple[dict, ...]:
     """The Class B, C and D volumes inside the box, each one's lines
     clipped to it, simplified under a pixel, and a point for its label.
 
@@ -70,17 +70,21 @@ def volumes_in(shp_path, south: float, west: float, north: float, east: float) -
     ground is answered from memory. Callers must treat the answer as
     read-only, since it is shared with every later asker of that box."""
     shp_path = Path(shp_path)
-    return _volumes_in(str(shp_path), shp_path.stat().st_mtime, south, west, north, east)
+    return _volumes_in(str(shp_path), shp_path.stat().st_mtime, south, west, north, east, "".join(sorted(set(classes))))
 
 
 @once(maxsize=64)
-def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: float, east: float) -> tuple[dict, ...]:
+def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: float, east: float, classes: str) -> tuple[dict, ...]:
     view = shapely_box(west, south, east, north)
     tolerance = tolerance_for(south, north)
     found = []
     # Numbered by their place in the national file, so a volume keeps its
     # id from one box to the next and the map does not draw it again.
     for number, polygon in enumerate(airspace._load_all_controlled_airspace(shp_path)):
+        # Only the classes asked for: the Class B alone, zoomed out, where
+        # a box holds the country's hundreds of C and D.
+        if polygon["class"] not in classes:
+            continue
         min_lon, min_lat, max_lon, max_lat = polygon["bbox"]
         if max_lat < south or min_lat > north or max_lon < west or min_lon > east:
             continue

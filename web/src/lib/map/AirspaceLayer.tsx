@@ -13,10 +13,15 @@ import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { useAhead, useLiveZoom } from "./useView";
 
-/** From this zoom in, as the airports' and the VFR waypoints': further
- *  out the chart's own lines are as much as a phone can read, and a box
- *  there holds a few states' airspace. */
+/** From this zoom in, as the airports' and the VFR waypoints', the Class
+ *  C and D and every label: further out they are a scatter of small rings
+ *  over a few states. */
 const FROM_ZOOM = 8;
+/** The Class B's lines from the country's zoom, as the airline airports'
+ *  marks are (AirportsLayer), at the owner's ask (2026-10-29, "Maybe
+ *  class B from 4?"): the big rings a pilot plans round, there before
+ *  anything else. Unlabelled until FROM_ZOOM. */
+const CLASS_B_FROM_ZOOM = 4;
 
 /** Under the route and everything on it, the airports' marks and the VFR
  *  waypoints' diamonds (440 and up) and Leaflet's own overlay pane (400),
@@ -57,10 +62,12 @@ export function AirspaceLayer() {
   // and a screen round it, again under a finger's pan or pinch.
   const zoom = useLiveZoom();
   const asked = useAhead();
-  const on = show && zoom >= FROM_ZOOM;
+  const on = show && zoom >= CLASS_B_FROM_ZOOM;
+  const near = zoom >= FROM_ZOOM;
+  const classes = near ? "BCD" : "B";
   const { data } = useQuery({
-    queryKey: ["airspaceInView", asked.key],
-    queryFn: () => api.airspaceInView(asked.box),
+    queryKey: ["airspaceInView", asked.key, classes],
+    queryFn: () => api.airspaceInView({ ...asked.box, classes }),
     enabled: on,
     staleTime: Infinity,
     placeholderData: keepPreviousData,
@@ -74,7 +81,7 @@ export function AirspaceLayer() {
         {volumes.map(v => <VolumeLines key={v.id} volume={v} />)}
       </Pane>
       <Pane name="airspace-labels" style={LABELS_PANE}>
-        {volumes.map(v => <VolumeLabel key={v.id} volume={v} />)}
+        {near && volumes.map(v => <VolumeLabel key={v.id} volume={v} />)}
       </Pane>
       <Pane name="airspace-taps" style={TAPS_PANE}>
         {volumes.map(v => <VolumeTap key={v.id} volume={v} />)}
