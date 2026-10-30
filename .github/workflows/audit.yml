@@ -97,7 +97,7 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7
         if: steps.run.outputs.go == 'true'
         with:
           python-version: "3.13"
@@ -125,7 +125,7 @@ jobs:
             marketing) brief="Audit the marketing, following the market-gap skill for what the planner does that no one else does. Issues only: change no code and open no pull request. Who it is for first (student pilots, renters, flight instructors, flight schools, owners) and why them; where they hear of tools (flight schools, instructors, AOPA and EAA chapters, pilot forums and subreddits, YouTube channels, podcasts); the App Store name, subtitle, keywords and first screenshots; a launch announcement draft; and three pieces of content that show what only this planner does. Each a separate issue with a concrete next step and how to tell whether it worked. Read the issues labelled marketing first and update rather than repeat them." ;;
           esac
           echo "brief=$brief" >> "$GITHUB_OUTPUT"
-      - uses: anthropics/claude-code-action@e4a6faad497d33dbc7144135c75e41f82f0bf6c0  # v1.0.255
+      - uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6  # v1.0.264
         if: steps.run.outputs.go == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
