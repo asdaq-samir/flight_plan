@@ -1,4 +1,6 @@
 import { memo, useMemo, useState } from "react";
+import { hm } from "../../../lib/clock";
+import { threeFigures } from "../../../lib/navaid";
 import L from "leaflet";
 import { CircleMarker, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
@@ -257,7 +259,28 @@ function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props
  *  of the candidates it was chosen from. It used to be `<b>` and `<br>`
  *  written twice, which is why the two drifted into saying the same
  *  thing two ways. */
-function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: number }) {
+/** A checkpoint's place in the flight, from the nav log's legs: the leg
+ *  that comes to it and the one that leaves it, by its name as the log
+ *  names them, and how long after takeoff it is reached. */
+type LegFacts = { into?: Leg; out?: Leg; afterMin: number };
+
+function legFactsOf(selected: Candidate[], legs: Leg[]): Map<string, LegFacts> {
+  const facts = new Map<string, LegFacts>();
+  let from = 0;
+  for (const c of selected) {
+    if (!c.name) continue;
+    const at = legs.findIndex((leg, i) => i >= from && leg.to === c.name);
+    if (at < 0) continue;
+    from = at + 1;
+    // The time in the air to it: each leg's time, and any stop's on the
+    // ground before it (ground_min).
+    const afterMin = legs.slice(0, at + 1).reduce((sum, leg) => sum + (leg.ete_min ?? 0) + (leg.ground_min ?? 0), 0);
+    facts.set(`${c.lat},${c.lon}`, { into: legs[at], out: legs[at + 1], afterMin });
+  }
+  return facts;
+}
+
+function CheckpointCard({ candidate, number, leg }: { candidate: Candidate; number?: number; leg?: LegFacts }) {
   const fill = scoreColor(candidate.predicted_score);
   return (
     <MapCard
@@ -296,6 +319,27 @@ function CheckpointCard({ candidate, number }: { candidate: Candidate; number?: 
         </Badge>
         <span className="text-muted-foreground">{candidate.category}</span>
       </div>
+      {/* Its leg of the nav log, at the owner's ask for cards that say
+          what a pilot does there (2026-10-30): the heading and altitude
+          on from it, the leg to it, and when it comes. */}
+      {leg && (
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-left tabular-nums" data-testid="checkpoint-leg">
+          {leg.out && (
+            <>
+              <dt className="text-muted-foreground">On from it</dt>
+              <dd>{`${threeFigures(leg.out.magnetic_heading_deg)}° · ${feet(leg.out.altitude_ft)}${leg.out.groundspeed_kt != null ? ` · ${Math.round(leg.out.groundspeed_kt)} kt` : ""}`}</dd>
+            </>
+          )}
+          {leg.into && (
+            <>
+              <dt className="text-muted-foreground">Leg to it</dt>
+              <dd>{[`${leg.into.distance_nm.toFixed(1)} nm`, leg.into.ete_min != null && hm(leg.into.ete_min)].filter(Boolean).join(" · ")}</dd>
+            </>
+          )}
+          <dt className="text-muted-foreground">Reached</dt>
+          <dd>{`${hm(leg.afterMin)} after takeoff`}</dd>
+        </dl>
+      )}
     </MapCard>
   );
 }
@@ -422,7 +466,7 @@ const CandidateMark = memo(function CandidateMark({ candidate: c, previewed, eve
  *  checkpoints alone. Hovering previews the same card a tap opens, the way
  *  Class B airports do -- `useCardedMarker` takes the preview away once
  *  that marker's own popup is open, so the two never draw at once. */
-function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus }: Pick<Props, "candidates" | "selected" | "onSelectCandidate" | "focus"> & {
+function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus, legs }: Pick<Props, "candidates" | "selected" | "onSelectCandidate" | "focus" | "legs"> & {
   /** The route's own airports, whose chips a name keeps off. */
   airports: { ident: string; lat: number; lon: number }[];
 }) {
@@ -438,6 +482,7 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus 
   const labelled = useLabelled(
     selected.filter(c => spaced.has(`${c.lat},${c.lon}`) && (zoom >= NAME_ZOOM || picked(c))), airports,
   );
+  const legFacts = useMemo(() => legFactsOf(selected, legs), [selected, legs]);
   if (!show) return null;
   return (
     <>
@@ -462,7 +507,7 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus 
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectCandidate(c); }, ...cardEvents(key) }}
           >
             {carded !== key && <MapTooltip><CheckpointCard candidate={c} number={i + 1} /></MapTooltip>}
-            <MapPopup panCard={false}><CheckpointCard candidate={c} number={i + 1} /></MapPopup>
+            <MapPopup panCard={false}><CheckpointCard candidate={c} number={i + 1} leg={legFacts.get(key)} /></MapPopup>
           </Marker>
         );
       })}
@@ -785,7 +830,7 @@ export default memo(function RouteMap({
           <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
           <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
           <HoldTracks legs={legs} />
-          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} focus={focus} />
+          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} focus={focus} legs={legs} />
           {focus && <Halo at={focus} />}
           <FocusOn point={focus} zoom={focusZoom} />
         </>
