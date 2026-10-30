@@ -1900,6 +1900,7 @@
             "type": "number"
           },
           "lines": {
+            "description": "The volume's boundary clipped to the box asked for, each line [lat, lon] points. A line runs with the volume on its left in lon/lat (the polygon oriented first: its outside counter-clockwise, its holes clockwise), so on a map whose y points down the volume is on the line's right: the side its altitudes are written on.",
             "items": {
               "items": {
                 "items": {

@@ -1,14 +1,16 @@
 import L from "leaflet";
-import { memo, useMemo } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Marker, Pane, Polyline } from "react-leaflet";
+import { Pane, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import type { AirspaceVolume } from "../api/types";
 import { usePreferences } from "../preferences";
 import { cn } from "cn";
 import { TEXT } from "../text";
 import { airspaceFacts, airspaceLabel } from "./airspaceLabel";
-import { AIRSPACE_LINE, AIRSPACE_TAP, airspaceLabelIcon } from "./airspaceMarks";
+import { AIRSPACE_LINE, AIRSPACE_TAP } from "./airspaceMarks";
+import { airportBox, overlaps, useDrawnAirports, type Box } from "./declutter";
+import { edgeSpots, spotBox } from "./edgeLabels";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { useAhead, useLiveZoom } from "./useView";
@@ -25,9 +27,6 @@ const CLASS_B_FROM_ZOOM = 6;
 /** The Class C's lines a zoom before the D's, at the owner's ask
  *  (2026-10-29, "Show c airspace from 7"); unlabelled until FROM_ZOOM. */
 const CLASS_C_FROM_ZOOM = 7;
-/** Our own altitude plates, off while the chart's printed ones are the
- *  labels (below). */
-const SHOW_LABELS = false;
 
 /** Under the route and everything on it, the airports' marks and the VFR
  *  waypoints' diamonds (440 and up) and Leaflet's own overlay pane (400),
@@ -55,8 +54,8 @@ const NONE: AirspaceVolume[] = [];
  * The Class B, C and D over the chart, the owner's pick of the map's
  * looks ("C", after ForeFlight's): each volume's line from the FAA's own
  * airspace file -- the one the chart is drawn from, so it lies on the
- * chart's printed ring however irregular -- and its altitudes on it as
- * the sectional prints them (lib/map/airspaceLabel). A tap on a line
+ * chart's printed ring however irregular -- and its altitudes written
+ * along it, just inside, as ForeFlight writes them (EdgeLabels). A tap on a line
  * opens the volume's card: its class, name, floor, ceiling and hours
  * (the owner, 2026-10-29: "make the airspace rings selectable with more
  * info"). The labels are not targets. The settings' Airspace turns them
@@ -87,12 +86,7 @@ export function AirspaceLayer() {
         {volumes.map(v => <VolumeLines key={v.id} volume={v} />)}
       </Pane>
       <Pane name="airspace-labels" style={LABELS_PANE}>
-        {/* No plates of ours for now: the chart prints every shelf's
-            altitudes already, and ours beside them were a second set over
-            it (the owner, 2026-10-29: "simply write the altitudes over
-            what's written on the chart, instead of creating our own
-            markers"), until they can be written on the chart's own. */}
-        {SHOW_LABELS && near && volumes.map(v => <VolumeLabel key={v.id} volume={v} />)}
+        {near && <EdgeLabels volumes={volumes} zoom={zoom} />}
       </Pane>
       <Pane name="airspace-taps" style={TAPS_PANE}>
         {volumes.map(v => <VolumeTap key={v.id} volume={v} />)}
@@ -106,14 +100,119 @@ const VolumeLines = memo(function VolumeLines({ volume }: { volume: AirspaceVolu
   return <Polyline positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_LINE[volume.airspace_class]} interactive={false} />;
 });
 
-/** One volume's label, one a volume, on the volume. */
-const VolumeLabel = memo(function VolumeLabel({ volume }: { volume: AirspaceVolume }) {
-  const position = useMemo<[number, number]>(() => [volume.label_lat, volume.label_lon], [volume.label_lat, volume.label_lon]);
+/** The words along the lines: 11 px bold, the map's smallest type, each
+ *  letter guessed a little wide (declutter's), and the room they take
+ *  across with their halo. */
+const EDGE_TEXT_PX = 11;
+const EDGE_LETTER_PX = 7;
+const EDGE_HEIGHT_PX = 14;
+/** No altitudes this close to an airport's mark or its ident, px: the
+ *  field is what a pilot reads there. */
+const AIRPORT_CLEAR_PX = 20;
+
+/** The words' ink, the line's own hue a shade darker by day and as it is
+ *  or lighter at night (index.css), 5.1:1 or more on their halo either
+ *  way: over WCAG's 4.5:1 for small type. */
+const INK: Record<AirspaceVolume["airspace_class"], string> = {
+  B: "var(--airspace-edge-blue)", C: "var(--airspace-edge-magenta)", D: "var(--airspace-edge-blue)",
+};
+/** A halo of the map's own ground round each letter, white by day and
+ *  the sheet's dark at night, so the words read over the chart's own
+ *  print without a plate of their own (the owner, 2026-10-29). */
+const EDGE_STYLE = {
+  fontSize: EDGE_TEXT_PX, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+  stroke: "var(--airspace-halo)", strokeWidth: 3, strokeLinejoin: "round", paintOrder: "stroke",
+} as const;
+
+/** A volume's altitudes on one line, as ForeFlight writes them: a Class B
+ *  or C shelf's "100/30", a Class D's ceiling alone ("-30" under a Class
+ *  B shelf), the wording the sectional's (lib/map/airspaceLabel). */
+function edgeText(volume: AirspaceVolume): string | null {
   const label = airspaceLabel(volume);
   if (!label) return null;
-  return <Marker position={position} icon={airspaceLabelIcon(label, volume.airspace_class)} interactive={false} keyboard={false} />;
+  return label.kind === "shelf" ? `${label.top}/${label.floor}` : label.ceiling;
+}
+
+interface EdgeWords { key: string; x: number; y: number; angle: number; text: string; ink: string }
+
+/**
+ * Every volume's altitudes written along its own lines, just inside it
+ * and a few times round a long one (lib/map/edgeLabels), as ForeFlight's
+ * Chicago map writes them (the owner's ask, 2026-10-30), clear of the
+ * airports' marks. One SVG for all of them, in the map's pixels at this
+ * zoom: a pan moves it with the pane and costs nothing, and the words are
+ * worked out again only when the zoom, the volumes or the airports drawn
+ * change. Hidden while a zoom or pinch is under way, when its pixels are
+ * the zoom's before, and shown again at the new zoom's once it ends.
+ */
+const EdgeLabels = memo(function EdgeLabels({ volumes, zoom }: { volumes: AirspaceVolume[]; zoom: number }) {
+  const map = useMap();
+  const fields = useDrawnAirports(s => s.fields);
+  const holder = useRef<HTMLDivElement>(null);
+  const zooming = useRef(false);
+  const words = useMemo(() => {
+    const at = (lat: number, lon: number) => map.project([lat, lon], zoom);
+    const clear: Box[] = fields.map(f => {
+      const b = airportBox(at(f.lat, f.lon), f.ident);
+      return { x0: b.x0 - AIRPORT_CLEAR_PX, y0: b.y0 - AIRPORT_CLEAR_PX, x1: b.x1 + AIRPORT_CLEAR_PX, y1: b.y1 + AIRPORT_CLEAR_PX };
+    });
+    const out: EdgeWords[] = [];
+    for (const volume of volumes) {
+      const text = edgeText(volume);
+      if (!text) continue;
+      const width = text.length * EDGE_LETTER_PX;
+      volume.lines.forEach((line, n) => {
+        const points = line.map(p => at(p[0]!, p[1]!));
+        edgeSpots(points, width).forEach((spot, i) => {
+          if (clear.some(b => overlaps(b, spotBox(spot, width, EDGE_HEIGHT_PX)))) return;
+          out.push({
+            key: `${volume.id}-${n}-${i}`, x: Math.round(spot.x * 10) / 10, y: Math.round(spot.y * 10) / 10,
+            angle: Math.round(spot.angle * 10) / 10, text, ink: INK[volume.airspace_class],
+          });
+        });
+      });
+    }
+    return { zoom, out };
+  }, [map, volumes, zoom, fields]);
+
+  // The SVG's corner at the world's pixel origin, so the words' world
+  // pixels land where the pane's own do; shown only once they are this
+  // zoom's.
+  const place = useCallback(() => {
+    const el = holder.current;
+    if (!el || zooming.current || words.zoom !== map.getZoom()) return;
+    L.DomUtil.setPosition(el, map.getPixelOrigin().multiplyBy(-1));
+    el.style.visibility = "";
+  }, [map, words]);
+  useMapEvents(useMemo(() => ({
+    zoomstart: () => {
+      zooming.current = true;
+      if (holder.current) holder.current.style.visibility = "hidden";
+    },
+    zoomend: () => {
+      zooming.current = false;
+      place();
+    },
+    viewreset: place,
+  }), [place]));
+  useLayoutEffect(place, [place]);
+
+  return (
+    <div ref={holder} className="pointer-events-none absolute left-0 top-0" style={HOLDER_STYLE}>
+      <svg width="1" height="1" overflow="visible" aria-hidden="true" style={EDGE_STYLE}>
+        {words.out.map(w => (
+          <text
+            key={w.key} data-airspace-edge-label="" x={w.x} y={w.y} transform={`rotate(${w.angle} ${w.x} ${w.y})`}
+            fill={w.ink} textAnchor="middle" dominantBaseline="central"
+          >{w.text}</text>
+        ))}
+      </svg>
+    </div>
+  );
 });
 
+/** Hidden until it is placed at this zoom (EdgeLabels' place). */
+const HOLDER_STYLE = { visibility: "hidden" } as const;
 /** A tap on a ring kept off the map under it, whose own tap is the
  *  chart's Airspace card. A constant: react-leaflet binds a path's
  *  handlers again whenever they are a new object. */

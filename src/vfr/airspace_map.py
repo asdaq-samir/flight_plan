@@ -11,6 +11,14 @@ new edges along the box, and a map that keeps the last answer while the
 next is asked for (keepPreviousData) would draw them as airspace lines
 across the chart.
 
+Every polygon is oriented before its boundary is taken -- its outside
+counter-clockwise and its holes clockwise in lon/lat, shapely's sign 1.0
+-- so a line runs with its volume always on its left in lon/lat, which is
+its right on the screen, where y points down. The web writes a shelf's
+altitudes just inside its own line by that (lib/map/edgeLabels): where two
+shelves share a line, each one's on its own side, as ForeFlight writes
+them. The clip and the simplifying keep a line's direction.
+
 The altitudes are sent as the file has them, the floor and the top in
 feet MSL and whether the top is "to but not including"; the web writes
 them as the chart does (lib/map/airspaceLabel).
@@ -88,7 +96,9 @@ def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: 
         min_lon, min_lat, max_lon, max_lat = polygon["bbox"]
         if max_lat < south or min_lat > north or max_lon < west or min_lon > east:
             continue
-        geometry = shapely.force_2d(polygon["geometry"])
+        # Oriented so its volume is on the left of every line (the
+        # module's note): the file winds its rings either way.
+        geometry = shapely.orient_polygons(shapely.force_2d(polygon["geometry"]))
         if not geometry.intersects(view):
             continue
         lines = _lines(geometry.boundary.intersection(view).simplify(tolerance, preserve_topology=False))
