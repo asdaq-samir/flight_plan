@@ -359,6 +359,16 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
       from={fromField ?? null} to={toField ?? null}
     />,
   ];
+  // The pill's line, at the owner's pick (P5, 2026-10-29): what the
+  // summary says first -- its altitude and ground speed as it writes them
+  // while it is heard, else its chip -- and where it is from and bound;
+  // behind it the photo, or the tint the head draws where there is none.
+  const pillLine = [
+    plane?.altitude_ft != null && `${altFt(Math.round(plane.altitude_ft / 25) * 25)} ft`,
+    plane?.speed_kt != null && `${Math.round(plane.speed_kt)} kt`,
+    !plane && chip,
+    fromIdent && toIdent && fromIdent !== toIdent ? `${fromIdent} → ${toIdent}` : fromIdent ? `From ${fromIdent}` : toIdent ? `To ${toIdent}` : null,
+  ].filter(Boolean).join(" · ");
   const registration = detail?.registration ?? plane?.registration ?? null;
   return (
     <PanelCard testId="flight-card" flush>
@@ -367,6 +377,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
         subtitle={[model, operator].filter(Boolean).join(" · ") || "\u00a0"}
         label={`${name}: ${photo ? "its photo, and " : ""}where it has flown`}
         slides={slides} onClose={onClose} onShare={share} closeTestId="flight-close" shareTestId="flight-share"
+        pill={{ line: pillLine || undefined, picture: photo?.src, tint: !photo }}
         // As the airport card's (2026-10-29): the share at the left, the
         // star beside the close, the actions the three left.
         shareAtLeft beside={look => <FavoriteButton kept={kept} className={look} />}

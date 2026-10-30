@@ -81,7 +81,8 @@ export function SheetCard({
   // The tab bar names it and has its close (TabBar, minimized): its own
   // row keeps only a form's Cancel and Save, its name there for a screen
   // reader and the focus.
-  const barNamed = useSheetCards(s => s.barNamed) && title !== undefined;
+  const barShown = useSheetCards(s => s.barNamed);
+  const barNamed = barShown && title !== undefined;
   const card = useRef<HTMLElement>(null);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   // A close of the caller's own in the head (`action`, the app's
@@ -114,8 +115,14 @@ export function SheetCard({
   }, [id, title]);
 
   if (!host) return null;
+  // No close of its own wherever the tab bar is over it, whether the bar
+  // names it or the card draws its own name (a map card, MapCard into the
+  // slot): the bar's close puts the top card away all the same
+  // (holdOpenCard). Keyed to the bar naming it, every map card -- an
+  // airspace's, a VOR's, a waypoint's -- drew a second close under the
+  // bar's (the owner's screenshot, 2026-10-29).
   const end = (closeButton ?? (action === undefined && !leading))
-    ? (barNamed ? null : <CloseButton onClick={onClose} data-testid="sheet-card-close" />)
+    ? (barShown ? null : <CloseButton onClick={onClose} data-testid="sheet-card-close" />)
     : barNamed && back ? null : action;
   return (
     // Radix's dialog, not modal: Escape and a tap on the chart put it away,

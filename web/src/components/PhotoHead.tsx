@@ -4,7 +4,7 @@ import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import RoundButton from "./RoundButton";
 import { PictureSlides } from "./PictureSlides";
-import { closeTopCard, useHeldCard } from "../lib/openCards";
+import { closeTopCard, useHeldCard, type PillHead } from "../lib/openCards";
 import { TEXT } from "../lib/text";
 
 /** The picture's height, in points: Maps' place photos' room, and fixed
@@ -32,7 +32,7 @@ const OVER_PICTURE = "bg-black/45 text-white backdrop-blur-md hover:bg-black/55 
  * bar's did. Scrolled up past the picture, a bar takes its place with the
  * name, the share and the close on it, so the way back is always in sight.
  */
-export function PhotoHead({ title, subtitle, line, slides, label, onClose, onShare, shareAtLeft, beside, testId, titleTestId, subtitleTestId, closeTestId, shareTestId, children }: {
+export function PhotoHead({ title, subtitle, line, slides, label, onClose, onShare, shareAtLeft, beside, pill, testId, titleTestId, subtitleTestId, closeTestId, shareTestId, children }: {
   /** Set large over the picture's foot: an airport's ident, an airplane's callsign. */
   title: string;
   /** Under it: "Duluth International · Duluth, MN". */
@@ -51,6 +51,9 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
   /** A round button before the close, given the look the close has over
    *  the picture or on the bar (the airport card's star). */
   beside?: (look: string) => ReactNode;
+  /** What the pill shows of the card down at its smallest: a line under
+   *  the name and the first picture's address (lib/openCards). */
+  pill?: PillHead;
   testId: string;
   titleTestId: string;
   subtitleTestId?: string;
@@ -59,7 +62,7 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
   /** Out of its flow: a full-screen viewer. */
   children?: ReactNode;
 }) {
-  useHeldCard(onClose, onShare, true);
+  useHeldCard(onClose, onShare, true, pill);
   // Whether the picture has scrolled up under the bar's height, read from
   // the card's scroller as it scrolls.
   const head = useRef<HTMLDivElement>(null);
