@@ -32,12 +32,12 @@ const OUT_APART_PX = 80;
 /** The zoom each size of field first wears its mark from, the biggest
  *  first, as Maps brings in a city's names by its size (the owner,
  *  2026-10-29: "make zoom levels different from big airports to small
- *  airports"): the airline airports from the country's zoom, the regional
- *  ones at a state's, the small fields at a region's, where they are tapped
- *  too, and the rest -- heliports, seaplane bases, balloonports -- at the
- *  sectional's own scale. The kinds are the planner's from the FAA's
- *  airport file (AirportPin.kind). */
-const SHOWN_FROM: Record<AirportPin["kind"], number> = { large: FARTHEST_ZOOM, medium: 6, small: FROM_ZOOM, other: 10 };
+ *  airports"), each two levels in from where it first was ("Do two levels
+ *  up"): the airline airports from a few states' zoom, the regional ones at
+ *  a region's, the small fields at the sectional's own scale, and the rest
+ *  -- heliports, seaplane bases, balloonports -- closer in again. The kinds
+ *  are the planner's from the FAA's airport file (AirportPin.kind). */
+const SHOWN_FROM: Record<AirportPin["kind"], number> = { large: 6, medium: 8, small: 10, other: 12 };
 /** Which kind first, out there, where only some fit. */
 const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
 /** What is drawn round the view, a share of it on each side: a pan

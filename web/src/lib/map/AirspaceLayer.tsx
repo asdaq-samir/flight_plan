@@ -17,11 +17,11 @@ import { useAhead, useLiveZoom } from "./useView";
  *  C and D and every label: further out they are a scatter of small rings
  *  over a few states. */
 const FROM_ZOOM = 8;
-/** The Class B's lines from the country's zoom, as the airline airports'
+/** The Class B's lines from a few states' zoom, as the airline airports'
  *  marks are (AirportsLayer), at the owner's ask (2026-10-29, "Maybe
- *  class B from 4?"): the big rings a pilot plans round, there before
- *  anything else. Unlabelled until FROM_ZOOM. */
-const CLASS_B_FROM_ZOOM = 4;
+ *  class B from 4?", then two levels in from that): the big rings a pilot
+ *  plans round, there before anything else. Unlabelled until FROM_ZOOM. */
+const CLASS_B_FROM_ZOOM = 6;
 
 /** Under the route and everything on it, the airports' marks and the VFR
  *  waypoints' diamonds (440 and up) and Leaflet's own overlay pane (400),

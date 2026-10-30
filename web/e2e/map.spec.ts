@@ -199,9 +199,9 @@ test("the chart's airports keep coming in under a finger's pan, before it lets g
     asked.push(`${south},${west},${north},${east}`);
     return route.fulfill({ json: { airports: [{
       ident: `X${asked.length}`, name: "Asked for", lat: (south + north) / 2, lon: (west + east) / 2,
-      // A regional field: at the region's zoom a small one wears no mark
-      // yet (SHOWN_FROM, the biggest first).
-      kind: "medium", longest_runway_ft: 6500, flight_category: "VFR", military: null,
+      // An airline airport: at the region's zoom a smaller one wears no
+      // mark yet (SHOWN_FROM, the biggest first).
+      kind: "large", longest_runway_ft: 9500, flight_category: "VFR", military: null,
     }] } });
   });
   await page.goto("/app/plan");
