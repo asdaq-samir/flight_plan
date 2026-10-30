@@ -13,6 +13,7 @@ import RoundButton from "../../../components/RoundButton";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
 import { PillSection } from "../../../components/Favorites";
+import { FirstFew } from "../../../components/FirstFew";
 import { CardTabBar, CardTabPanel } from "../../../components/CardTabs";
 import { Tabs } from "../../../components/ui/tabs";
 import { useCardTab } from "../../../lib/cardTab";
@@ -72,9 +73,6 @@ function subtitleOf(place: AirportPlace, from: { point: LatLon; name: string | n
     place.military === "military" ? "Military, permission required" : place.military === "joint" ? "Joint use" : place.private ? "Private, permission required" : null,
   ].filter(Boolean).join(" · ");
 }
-
-/** How many frequencies the card lists before the title's All. */
-const FIRST_FREQUENCIES = 3;
 
 /** How long the panel takes to come all the way up before the tabs' bar
  *  or the approaches are scrolled to: the sheet's settle and a frame
@@ -259,7 +257,6 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // goes with the route; it is a new card (keyed by its ident) after.
   const [flying, setFlying] = useState(false);
   // Every frequency, the title's All tapped; the first few until then.
-  const [allFrequencies, setAllFrequencies] = useState(false);
   // The tab picked, kept for the airport while the page is open
   // (useCardTab); Charts where the card opens on its approaches.
   const [tab, setPicked] = useCardTab<CardTab>(`place:${ident}`, "radio", startOn ? "diagrams" : null);
@@ -488,8 +485,6 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   const pillPicture = photos?.aerial_url ?? (place && sketched && place.airport_diagram_cycle && !noRunwaysPicture
     ? diagramRunwaysPicture(place.ident, place.airport_diagram_cycle) : undefined);
   const share = () => void shareOrCopy({ title: place?.name ?? ident, url: `${location.origin}/app/plan?place=${place?.ident ?? ident}` }).catch(() => {});
-  const frequencies = place ? (allFrequencies ? place.frequencies : place.frequencies.slice(0, FIRST_FREQUENCIES)) : [];
-  const moreFrequencies = !!place && !allFrequencies && place.frequencies.length > FIRST_FREQUENCIES;
   return (
     <PanelCard testId="place-card" flush={!(error && !place)}>
       {place || !error ? (
@@ -601,22 +596,19 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                     way to every one, as every
                     section's title is the way to its list in full (PillSection);
                     how many of how many at its right. */}
-                <CardSection
-                  title="Frequencies" testId="place-frequencies"
-                  onMore={moreFrequencies ? () => setAllFrequencies(true) : undefined}
-                  right={moreFrequencies ? <span className={cn("text-muted-foreground", TEXT.note)}>{`${FIRST_FREQUENCIES} of ${place.frequencies.length}`}</span> : undefined}
-                >
-                  <ListGroup>
-                    {frequencies.length ? frequencies.map((f, i) => (
+                <div className="pt-5 first:pt-0">
+                  <FirstFew
+                    key={place.ident} title="Frequencies" testId="place-frequencies"
+                    rows={place.frequencies.length ? place.frequencies.map((f, i) => (
                       <FrequencyRow key={`${f.type}-${f.frequency_mhz}-${i}`} type={f.type} description={f.description} mhz={f.frequency_mhz} testId="place-frequency" />
-                    )) : <ListRow title="None listed" />}
-                    {/* What some fields read out on so many clicks of the mic on
-                        the CTAF: the weather, a radio check (vfr.remarks). */}
-                    {place.radio_notes.map(note => (
+                    )) : [<ListRow key="none" title="None listed" />]}
+                    // What some fields read out on so many clicks of the mic on
+                    // the CTAF: the weather, a radio check (vfr.remarks).
+                    after={place.radio_notes.map(note => (
                       <ListRow key={note} media={<RowBadge colour={BADGE.traffic}><Radio /></RowBadge>} title={note} />
                     ))}
-                  </ListGroup>
-                </CardSection>
+                  />
+                </div>
 
                 <CardSection title="Details" testId="place-details">
                   <ListGroup>
@@ -670,19 +662,18 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                   // with no count of clicks of their own, the standard one --
                   // after the radio, as it is the mic that turns them on.
                   <div className="pt-5">
-                    <PillSection title="Lights">
-                      <ListGroup>
-                        {place.lighting.map(note => (
-                          <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
-                        ))}
-                        {/* The standard keying (AIM 2-1-9): the mic keyed 7 times
-                            within 5 seconds for high intensity, 5 for medium, 3 for
-                            low -- a row, where it was a footnote. */}
-                        {place.standard_keying && (
-                          <ListRow title="Keying" value={<span className="text-foreground">7 high · 5 medium · 3 low</span>} data-testid="place-keying" />
-                        )}
-                      </ListGroup>
-                    </PillSection>
+                    <FirstFew
+                      key={place.ident} title="Lights"
+                      rows={place.lighting.map(note => (
+                        <ListRow key={note} media={<RowBadge colour={BADGE.lights}><Lightbulb /></RowBadge>} title={note} data-testid="place-lighting" />
+                      ))}
+                      after={place.standard_keying && (
+                        // The standard keying (AIM 2-1-9): the mic keyed 7 times
+                        // within 5 seconds for high intensity, 5 for medium, 3 for
+                        // low -- a row, where it was a footnote.
+                        <ListRow title="Keying" value={<span className="text-foreground">7 high · 5 medium · 3 low</span>} data-testid="place-keying" />
+                      )}
+                    />
                   </div>
                 )}
                 {/* What the field offers on the ground (StopServices), after
@@ -833,28 +824,34 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
           <CardTabPanel value="diagrams" className="space-y-0">
             {place && (
               <div data-testid="place-charts">
-                <ListGroup title="Airport">
-                  {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
-                    // Drawn by the FAA for the fields with a tower or a busy
-                    // ramp; most small fields have none, and are sketched.
-                    <ListRow muted title="The FAA publishes no airport diagram for this field" />
-                  )}
-                  <PublicationRows
-                    ident={place.ident} diagram={place.airport_diagram_url} diagramCycle={place.airport_diagram_cycle}
-                    supplement={place.chart_supplement_url}
-                    sketch={sketched ? { runways: place.runways, lat: place.lat, lon: place.lon } : null}
-                  />
-                  {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
-                </ListGroup>
+                <PillSection title="Airport">
+                  <ListGroup>
+                    {!place.airport_diagram_url && !place.airport_diagram_cycle && !sketched && (
+                      // Drawn by the FAA for the fields with a tower or a busy
+                      // ramp; most small fields have none, and are sketched.
+                      <ListRow muted title="The FAA publishes no airport diagram for this field" />
+                    )}
+                    <PublicationRows
+                      ident={place.ident} diagram={place.airport_diagram_url} diagramCycle={place.airport_diagram_cycle}
+                      supplement={place.chart_supplement_url}
+                      sketch={sketched ? { runways: place.runways, lat: place.lat, lon: place.lon } : null}
+                    />
+                    {procedures.filter(c => AIRPORT_CHARTS.includes(c.kind)).map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
+                  </ListGroup>
+                </PillSection>
                 {/* The approaches, departures, arrivals and minimums in this
                     cycle's d-TPP, at the pilot's ask, as the FAA's PDFs. */}
                 {[...CHART_GROUPS, { title: "Other", kinds: procedures.map(c => c.kind).filter(k => !GROUPED.has(k)) }].map(g => {
                   const charts = procedures.filter(c => g.kinds.includes(c.kind));
                   return charts.length > 0 && (
-                    <div key={g.title} data-chart-group={g.title} className="scroll-mt-16 pt-5">
-                      <ListGroup title={g.title}>
-                        {charts.map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
-                      </ListGroup>
+                    <div key={`${place.ident}-${g.title}`} data-chart-group={g.title} className="scroll-mt-16 pt-5">
+                      {/* The first three, the title the rest (FirstFew); all
+                          the approaches where the route's Approaches opened
+                          the card on them. */}
+                      <FirstFew
+                        title={g.title} open={startOn === "approaches" && g.title === "Approaches"}
+                        rows={charts.map(c => <TerminalChartRow key={c.url} chart={c} airport={place.ident} />)}
+                      />
                     </div>
                   );
                 })}
