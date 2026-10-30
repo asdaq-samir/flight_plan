@@ -167,6 +167,14 @@ function mapsLink(place: AirportPlace): string {
  *  where it has one, else the CTAF -- a UNICOM that is also the CTAF, or
  *  MULTICOM's 122.9 where none is listed (AC 90-66C 9.6, ctafOf). */
 function radioOf(place: AirportPlace): string {
+  // Every tower frequency the FAA lists, where a field splits its runways
+  // between two (KPHX: 118.7 for 08/26, 120.9 for 07L/25R and 07R/25L):
+  // the first alone read as the field's one tower, against the other in
+  // Frequencies just above it (the owner's screenshot, 2026-10-29).
+  const towers = place.towered
+    ? [...new Set(place.frequencies.filter(f => f.type === "TWR" && f.frequency_mhz != null).map(f => mhzText(f.frequency_mhz!)))]
+    : [];
+  if (towers.length) return `Tower ${towers.join(", ")}`;
   const tower = place.towered ? frequencyOf(place.frequencies, "TWR") : null;
   if (tower?.frequency_mhz != null) return `Tower ${mhzText(tower.frequency_mhz)}`;
   const ctaf = ctafOf(place.frequencies);

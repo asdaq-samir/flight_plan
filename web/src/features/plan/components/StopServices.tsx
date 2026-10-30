@@ -102,7 +102,10 @@ export function StopServices({ ident, withoutFuel = false }: {
       </Section>
     );
   }
-  const repair = [s.airframe_repair && `airframe ${s.airframe_repair}`, s.powerplant_repair && `engine ${s.powerplant_repair}`].filter(Boolean).join(", ");
+  // Sentence case, as every value on the card starts: "Airframe major,
+  // engine major".
+  const repair = [s.airframe_repair && `airframe ${s.airframe_repair}`, s.powerplant_repair && `engine ${s.powerplant_repair}`].filter(Boolean).join(", ")
+    .replace(/^./, c => c.toUpperCase());
   const field = [
     s.courtesy_car && (
       <ListRow
