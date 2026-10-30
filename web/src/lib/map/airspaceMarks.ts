@@ -12,14 +12,24 @@ type Class = AirspaceVolume["airspace_class"];
  * Chart User's Guide, VFR Terms and Symbols, Airspace): Class B a solid
  * blue line, Class C solid magenta, Class D dashed blue. Constants, so a
  * path is never restyled for a new object (react-leaflet sets the style
- * again whenever pathOptions is one), and not a target: a tap on a line
- * is the chart's under it.
+ * again whenever pathOptions is one), and not a target: the wider
+ * AIRSPACE_TAP over it takes the tap. A Class D's dash is a little longer
+ * and its line whole and as heavy as a B's: at 2 px and .85 it was lost
+ * in the chart's own dashed ring under it (the owner, 2026-10-29).
  */
 export const AIRSPACE_LINE: Record<Class, L.PathOptions> = {
   B: { color: BLUE, weight: 2.5, opacity: 0.85, interactive: false },
   C: { color: MAGENTA, weight: 2.5, opacity: 0.85, interactive: false },
-  D: { color: BLUE, weight: 2, opacity: 0.85, dashArray: "7 5", lineCap: "butt", interactive: false },
+  D: { color: BLUE, weight: 2.75, opacity: 1, dashArray: "10 5", lineCap: "butt", interactive: false },
 };
+
+/** A volume's line as a finger meets it: unseen, 20 px wide over the line
+ *  drawn, so a finger's 44 points across it (Apple's HIG) take in the
+ *  line wherever they land on it, and a tap well off the line is still
+ *  the chart's. Its class named, for the browser tests to find it. */
+const tap = (airspaceClass: Class): L.PathOptions =>
+  ({ color: "#000", weight: 20, opacity: 0, interactive: true, className: `airspace-tap-${airspaceClass}` });
+export const AIRSPACE_TAP: Record<Class, L.PathOptions> = { B: tap("B"), C: tap("C"), D: tap("D") };
 
 /** The labels' words, the line's colour a shade darker, to read 4.5:1 or
  *  more on their white plate (WCAG's for small type). */

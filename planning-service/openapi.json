@@ -1854,6 +1854,28 @@
             "title": "Floor Sfc",
             "type": "boolean"
           },
+          "hours_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Code"
+          },
+          "hours_remark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Remark"
+          },
           "id": {
             "title": "Id",
             "type": "string"

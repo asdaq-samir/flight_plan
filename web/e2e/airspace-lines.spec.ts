@@ -51,3 +51,32 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   await expect(labels(page)).toHaveCount(0);
   await expect(vors(page)).toHaveCount(0);
 });
+
+test("a tap on a Class D ring opens its card, with its ceiling and hours", async ({ page }) => {
+  // Wheeling's, under O'Hare's 3,000 ft shelf: up to but not including it.
+  await page.goto("/app/plan?place=KPWK");
+  const rings = page.locator(".leaflet-airspace-taps-pane path.airspace-tap-D");
+  await expect(rings.first()).toBeAttached({ timeout: slow(30000) });
+  // A point on a Class D ring in sight that the ring's own target is the
+  // top of there (not an airport's mark or a panel over it).
+  const at = await rings.evaluateAll(paths => {
+    for (const path of paths as SVGPathElement[]) {
+      const length = path.getTotalLength();
+      for (let i = 0; i < 24; i++) {
+        const point = path.getPointAtLength((length * i) / 24);
+        const screen = new DOMPoint(point.x, point.y).matrixTransform(path.getScreenCTM()!);
+        if (screen.x < 0 || screen.y < 0 || screen.x > innerWidth || screen.y > innerHeight) continue;
+        if (document.elementFromPoint(screen.x, screen.y) === path) return { x: screen.x, y: screen.y };
+      }
+    }
+    return null;
+  });
+  expect(at).not.toBeNull();
+  await page.mouse.click(at!.x, at!.y);
+  const card = page.getByTestId("airspace-card");
+  await expect(card).toBeVisible({ timeout: slow(10000) });
+  await expect(page.getByText("Class D", { exact: true }).first()).toBeVisible();
+  await expect(card).toContainText("Ceiling");
+  await expect(card).toContainText(/\d,\d{3} ft MSL/);
+  await expect(card).toContainText("Hours");
+});

@@ -95,11 +95,13 @@ def test_the_airspace_in_view_is_each_volumes_lines_and_altitudes(monkeypatch):
     monkeypatch.setattr(airspace_map, "volumes_in", lambda shp, south, west, north, east: ({
         "id": "PWK-12", "ident": "PWK", "name": "WHEELING CLASS D", "airspace_class": "D",
         "floor_ft": 0.0, "floor_sfc": True, "ceiling_ft": 3000.0, "ceiling_excluded": True,
+        "hours_code": "NOTAM", "hours_remark": "Legal description references NOTAM",
         "label_lat": 42.11, "label_lon": -87.9, "lines": [[[42.1, -87.95], [42.15, -87.9]]],
     },))
     body = client.get("/api/airspace/in-view", params={"south": 41.5, "west": -88.5, "north": 42.5, "east": -87.5}).json()
     assert [(v["ident"], v["ceiling_ft"], v["ceiling_excluded"]) for v in body["volumes"]] == [("PWK", 3000.0, True)]
     assert body["volumes"][0]["lines"] == [[[42.1, -87.95], [42.15, -87.9]]]
+    assert body["volumes"][0]["hours_code"] == "NOTAM"
 
 
 def test_the_airspace_in_view_without_the_file_is_none(monkeypatch):
