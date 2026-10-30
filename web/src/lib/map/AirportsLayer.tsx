@@ -17,9 +17,8 @@ import { PANNING_MS, useAhead, useLiveZoom } from "./useView";
  *  circles over half a state. */
 const FROM_ZOOM = 8;
 
-/** A zoom further out the fields that report wear their marks already,
- *  the rest nothing: the weather across a region at a glance, the chart
- *  under it still readable. */
+/** From this zoom every field shown (SHOWN_FROM) wears its mark however
+ *  near another's; further out each keeps its room (OUT_APART_PX). */
 const REPORTING_FROM_ZOOM = 7;
 
 /** Further out than REPORTING_FROM_ZOOM, the biggest fields that report
@@ -30,9 +29,15 @@ const FARTHEST_ZOOM = 4;
 /** Out there, a field's mark only where no bigger one's is this near on
  *  the screen, px: a mark and its ident, so none sit on each other. */
 const OUT_APART_PX = 80;
-/** And at 4 and 5 the large and medium fields alone: the airline
- *  airports and the regional ones a pilot steers by. */
-const BIG_ONLY_BELOW_ZOOM = 6;
+/** The zoom each size of field first wears its mark from, the biggest
+ *  first, as Maps brings in a city's names by its size (the owner,
+ *  2026-10-29: "make zoom levels different from big airports to small
+ *  airports"): the airline airports from the country's zoom, the regional
+ *  ones at a state's, the small fields at a region's, where they are tapped
+ *  too, and the rest -- heliports, seaplane bases, balloonports -- at the
+ *  sectional's own scale. The kinds are the planner's from the FAA's
+ *  airport file (AirportPin.kind). */
+const SHOWN_FROM: Record<AirportPin["kind"], number> = { large: FARTHEST_ZOOM, medium: 6, small: FROM_ZOOM, other: 10 };
 /** Which kind first, out there, where only some fit. */
 const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
 /** What is drawn round the view, a share of it on each side: a pan
@@ -304,14 +309,13 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   const exclude = useMemo(() => new Set(others.map(a => a.ident)), [others]);
   const shown = useMemo(() => {
     if (!reports) return [];
-    const kept = data.filter(a => !exclude.has(a.ident) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
+    const kept = data.filter(a => !exclude.has(a.ident) && zoom >= SHOWN_FROM[a.kind] && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
     if (zoom >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
     const room: L.Point[] = [];
     const out: AirportPin[] = [];
     for (const a of [...kept].sort((x, y) => KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
-      if (zoom < BIG_ONLY_BELOW_ZOOM && KIND_RANK[a.kind] > KIND_RANK.medium) break;
       const at = map.project([a.lat, a.lon], zoom);
       if (room.some(p => p.distanceTo(at) < OUT_APART_PX)) continue;
       room.push(at);
