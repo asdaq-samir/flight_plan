@@ -9,7 +9,7 @@ import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
-import { aircraftKey, choiceOf, shortName } from "../../lib/aircraftChoice";
+import { aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
@@ -2048,7 +2048,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // distance, and the airplane's book cruise speed and burn -- its own
   // where the pilot set them, else its profile's.
   const profile = profiles?.find(p => p.name === aircraft.profile);
-  const cruiseTasKt = aircraft.cruiseTasKt ?? profile?.cruise_tas_kt ?? null;
+  const cruiseTasKt = cruiseTasOf(aircraft, profiles);
   const fuelBurnGph = aircraft.fuelBurnGph ?? profile?.fuel_burn_gph ?? null;
   // Before the course comes, at the tap: the great circles between the
   // route's points, placed from the airport index the browser keeps
