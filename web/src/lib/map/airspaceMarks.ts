@@ -3,6 +3,7 @@ import type { AirspaceVolume } from "../api/types";
 import { BLUE, MAGENTA } from "../useAirspace";
 import type { AirspaceLabel } from "./airspaceLabel";
 import { text } from "./airportMark";
+import type { TagSide } from "./declutter";
 import { made } from "./icons";
 
 type Class = AirspaceVolume["airspace_class"];
@@ -59,12 +60,16 @@ export const airspaceLabelIcon = made(function airspaceLabelIcon(label: Airspace
   return L.divIcon({ className: "", iconSize: [0, 0], iconAnchor: [0, 0], html });
 });
 
+/** Where a VOR's tag sits beside its hexagon (declutter's vorTagSide). */
+const TAG_SIDE: Record<TagSide, string> = { right: "left-[11px]", left: "right-[11px]", none: "hidden" };
+
 /**
  * A VOR, VOR/DME or VORTAC: the chart's hexagon in blue on white, a dot
  * at its middle where the station is, and its ident on a blue tag beside
- * it. Not a target.
+ * it -- to its right, as the chart's, or its left where an airport's mark
+ * or own ship is on the right (`side`). Not a target.
  */
-export const vorIcon = made(function vorIcon(ident: string) {
+export const vorIcon = made(function vorIcon(ident: string, side: TagSide = "right") {
   return L.divIcon({
     className: "", iconSize: [0, 0], iconAnchor: [0, 0],
     html:
@@ -72,7 +77,7 @@ export const vorIcon = made(function vorIcon(ident: string) {
       `<svg class="absolute -left-2 -top-2" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">` +
       `<polygon points="15,8 11.5,14.06 4.5,14.06 1,8 4.5,1.94 11.5,1.94" fill="#fff" stroke="${BLUE}" stroke-width="2"/>` +
       `<circle cx="8" cy="8" r="1.6" fill="${BLUE}"/></svg>` +
-      `<span class="absolute left-[11px] top-0 -translate-y-1/2 whitespace-nowrap rounded-[3px] px-1 text-[11px] font-bold leading-[14px] text-white"` +
+      `<span data-vor-tag="${side}" class="absolute ${TAG_SIDE[side]} top-0 -translate-y-1/2 whitespace-nowrap rounded-[3px] px-1 text-[11px] font-bold leading-[14px] text-white"` +
       ` style="background:${BLUE}">${text(ident)}</span></span>`,
   });
 });
