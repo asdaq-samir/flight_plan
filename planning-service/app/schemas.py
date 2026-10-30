@@ -2106,6 +2106,27 @@ class ProcedureFix(BaseModel):
     speed_kt: int | None = None
     speed_limit: Literal["at", "min", "max"] | None = None
     missed: bool
+    #: The vertical path's angle at the fix, degrees of descent, where the
+    #: CIFP codes one: an approach's glidepath at its final approach fix
+    #: and its missed approach point (ARINC 424-18 5.70).
+    vertical_angle_deg: float | None = None
+
+
+class ProcedureMissedLeg(BaseModel):
+    """A leg of an approach's missed approach, in the order flown, as its
+    words are made: `path` its ARINC 424-18 path and terminator (5.21: CA
+    a course to an altitude, VA a heading to one, VI a heading to an
+    intercept, CF and TF to a fix, DF direct to one, HM, HA and HF a
+    hold), `fix` the fix it goes to, `course_deg` its course or heading
+    magnetic, `turn` which way it turns, and the altitudes it climbs to
+    (at or above `min_ft`, at or below `max_ft`)."""
+
+    path: str
+    fix: str | None = None
+    course_deg: int | None = None
+    turn: Literal["L", "R"] | None = None
+    min_ft: int | None = None
+    max_ft: int | None = None
 
 
 class ProcedureDrawing(BaseModel):
@@ -2122,6 +2143,14 @@ class ProcedureDrawing(BaseModel):
     lines: list[ProcedureLine]
     holds: list[ProcedureHold]
     fixes: list[ProcedureFix]
+    #: An approach's final: its glidepath's angle, degrees, where the CIFP
+    #: codes one (a vertical angle on its final's legs, ARINC 424-18 5.70),
+    #: and its course, degrees magnetic, as its missed approach point's leg
+    #: codes it or else from its final approach fix to that point.
+    glidepath_deg: float | None = None
+    final_course_deg: int | None = None
+    #: Its missed approach's legs in order, for the words a plate says it in.
+    missed_legs: list[ProcedureMissedLeg] = []
 
 
 class PlateOverlay(BaseModel):
