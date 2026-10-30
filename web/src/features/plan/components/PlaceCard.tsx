@@ -436,9 +436,12 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         type="button" data-testid="place-runway-sketch"
         aria-label={`${place.ident} runways ${sketchedRunways.join(", ")}, north up${leftOut ? `, ${leftOut} more not drawn, their ends unsurveyed` : ""}. ${place.airport_diagram_url ? "Airport diagram" : "Runways sketch"}, full screen`}
         onClick={() => setDiagramOpen(place.airport_diagram_url ? "faa" : "sketch")}
-        // Clear of the name over its foot: the runways drawn in the top of
-        // the box, where the shade is light.
-        className="absolute inset-x-0 top-0 bottom-16 block outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        // The whole head, as the photos fill it, the name on the shade over
+        // its foot: kept clear of the name, the crop sat in a box with bands
+        // either side and under it (the owner's screenshot, 2026-10-29: "Why
+        // is airport diagram not filling the rest of the space"). All of it
+        // is a tap away, full screen.
+        className="absolute inset-0 block outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         {/* The FAA's own diagram, cropped to its runways, where the field
             has one, at the pilot's ask; the card's sketch of them
@@ -449,7 +452,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             onError={() => setNoRunwaysPicture(true)} data-testid="place-diagram-runways"
             // The diagram's white paper round it, black at night: the
             // inversion turns the paper too.
-            className="absolute inset-0 size-full bg-white object-contain dark:invert"
+            className="absolute inset-0 size-full bg-white object-cover dark:invert"
           />
         ) : (
           <RunwaySketch runways={place.runways} lat={place.lat} lon={place.lon} />
