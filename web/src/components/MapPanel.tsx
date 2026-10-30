@@ -588,7 +588,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // head's picture, blurred (PillPicture), at the owner's pick (P5,
   // 2026-10-29): only the cards with a picture head, only at rest there.
   const pill = useOpenCards(s => s.pill);
-  const pillPictured = !!pill && pictureCard && capsule && minimized && barHere && !figuresPill && !tabsShown;
+  // A map card's too, which has no picture head but gives its colour
+  // (MapCard's `pill`).
+  const pillPictured = !!pill && (pictureCard || !!pill.colour) && capsule && minimized && barHere && !figuresPill && !tabsShown;
   // The head's row: in the pill only without a tab bar (whose pill is the
   // bar), out of it wherever there is a top row or no bar shown.
   const headerShown = pillShape ? !bar : top != null || !barShown;

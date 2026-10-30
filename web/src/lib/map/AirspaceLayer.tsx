@@ -137,7 +137,12 @@ function AirspaceCard({ volume }: { volume: AirspaceVolume }) {
   const rows: [string, string][] = [["Floor", facts.floor], ["Ceiling", facts.ceiling]];
   if (facts.hours) rows.push(["Hours", facts.hours]);
   return (
-    <MapCard media={<Swatch volume={volume} />} title={`Class ${volume.airspace_class}`} subtitle={facts.name}>
+    <MapCard
+      media={<Swatch volume={volume} />} title={`Class ${volume.airspace_class}`} subtitle={facts.name}
+      // In the pill its name and place on the ring's own colour, as an
+      // airport's is its picture (MapCard's `pill`).
+      pill={{ name: `Class ${volume.airspace_class}`, line: facts.name, colour: AIRSPACE_LINE[volume.airspace_class].color }}
+    >
       <dl className={cn("grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-left", TEXT.row)} data-testid="airspace-card">
         {rows.map(([term, value]) => (
           <div key={term} className="contents">

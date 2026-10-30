@@ -163,7 +163,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // A card opened over the tab from a control or the chart (SheetCard):
   // its name on the minimized bar, whose close puts it away first.
   const cardName = useSheetCards(s => s.stack.at(-1)?.title);
-  const title = cardName ?? given;
+  // Or a map card's, which draws its name in its own head, given for the
+  // pill (MapCard's `pill`).
+  const pillName = useOpenCards(s => s.pill?.name);
+  const title = cardName ?? pillName ?? given;
   // A card on top that draws its own name (a map card's, MapCard into its
   // head): the bar names nothing over it, where it showed the tab's name
   // and menu over an airspace's card (the owner, 2026-10-29: "the tab

@@ -21,11 +21,16 @@ export const ON_PILL_PICTURE = "bg-white/20 text-white backdrop-blur-md hover:bg
  * the 4.5:1 WCAG 2 asks of words; darker under the name. The buttons'
  * white glass over it there, #8f8f8f, keeps a white glyph at 3.2:1, past
  * the 3:1 for a control's glyph. With no picture to load, the head's dark
- * slate, or the tint it draws for an airplane with no photo.
+ * slate, or the tint it draws for an airplane with no photo; for a map
+ * card, the thing's own colour on the chart (`colour`), under the same
+ * shade.
  */
 export const PillPicture = memo(function PillPicture({ pill }: { pill: PillHead }) {
   return (
-    <div aria-hidden="true" className={cn("pointer-events-none absolute inset-0 -z-10 overflow-hidden", pill.tint && !pill.picture ? "bg-primary" : "bg-zinc-800")} data-testid="pill-picture">
+    <div
+      aria-hidden="true" className={cn("pointer-events-none absolute inset-0 -z-10 overflow-hidden", pill.tint && !pill.picture ? "bg-primary" : "bg-zinc-800")}
+      style={pill.colour && !pill.picture ? { backgroundColor: pill.colour } : undefined} data-testid="pill-picture"
+    >
       {pill.picture && (
         // Larger than the pill, so the blur's soft edge is out of sight.
         <img src={pill.picture} alt="" decoding="async" className="absolute inset-0 size-full scale-125 object-cover blur-xl" data-testid="pill-picture-img" />

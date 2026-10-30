@@ -21,13 +21,21 @@ export type CardShare = (() => void) | RouteCard;
  *  · Duluth International"), and its head's first picture, blurred behind
  *  the pill -- or, with none to load, `tint` for the tint the head draws
  *  in its place (an airplane with no photo), else the head's dark slate. */
-export type PillHead = { line?: string; picture?: string; tint?: boolean };
+export type PillHead = {
+  line?: string; picture?: string; tint?: boolean;
+  /** The pill's name, where the bar has none of the card's own: a map
+   *  card draws its name in its head (MapCard), not on the bar. */
+  name?: string;
+  /** The ground in place of a picture, the thing's own colour on the
+   *  chart: an airspace's ring, a VOR's blue. */
+  colour?: string;
+};
 
 /** `picture`: the card draws its own head over a picture, its share and
  *  its close on it (an airport's, an airplane's), so out of the pill the
  *  panel leaves the minimized bar out over it (MapPanel); `pill`, what
  *  the pill shows of it there. */
-type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare; picture?: boolean; pill?: PillHead };
+export type OpenCard = { close: () => void; inBar?: boolean; share?: CardShare; picture?: boolean; pill?: PillHead };
 
 const open: OpenCard[] = [];
 
@@ -58,6 +66,13 @@ export function holdOpenCard(entry: OpenCard): () => void {
     if (at >= 0) open.splice(at, 1);
     useOpenCards.setState(counted());
   };
+}
+
+/** What the pill shows of a card held with holdOpenCard, changed in place
+ *  (a map card's, from its content through SheetCardHead). */
+export function setCardPill(entry: OpenCard, pill: PillHead | undefined) {
+  entry.pill = pill;
+  useOpenCards.setState(counted());
 }
 
 /** The top card closed; whether there was one. */
@@ -99,7 +114,6 @@ export function useHeldCard(onClose: () => void, onShare?: CardShare, picture = 
   useEffect(() => {
     const entry = held.current;
     if (!entry) return;
-    entry.pill = given ? { line, picture: url, tint } : undefined;
-    useOpenCards.setState(counted());
+    setCardPill(entry, given ? { line, picture: url, tint } : undefined);
   }, [given, line, url, tint, shares, picture]);
 }

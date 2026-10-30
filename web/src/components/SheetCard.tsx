@@ -1,10 +1,10 @@
-import { isValidElement, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import TabKept from "./TabKept";
 import { Dialog, DialogPortal } from "./ui/dialog";
-import { holdOpenCard } from "../lib/openCards";
+import { holdOpenCard, setCardPill, type OpenCard, type PillHead } from "../lib/openCards";
 import { SheetCardHead, useSheetCards } from "../lib/sheetCards";
 import { TEXT } from "../lib/text";
 
@@ -84,6 +84,10 @@ export function SheetCard({
   const barShown = useSheetCards(s => s.barNamed);
   const barNamed = barShown && title !== undefined;
   const card = useRef<HTMLElement>(null);
+  // Its entry among the open cards, for what its content says the pill
+  // shows of it (a map card's, MapCard's `pill`).
+  const held = useRef<OpenCard | null>(null);
+  const setPill = useCallback((pill: PillHead | undefined) => { if (held.current) setCardPill(held.current, pill); }, []);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   // A close of the caller's own in the head (`action`, the app's
   // CloseButton): one that goes back a page first, the procedures'. With
@@ -102,8 +106,11 @@ export function SheetCard({
     const close = () => latest.current.onClose();
     useSheetCards.setState(s => ({ stack: [...s.stack, { id, raise, close }] }));
     // Back one: a page of the card's first where it has one (`back`).
-    const release = holdOpenCard({ close: () => (latest.current.back ?? latest.current.onClose)() });
+    const entry: OpenCard = { close: () => (latest.current.back ?? latest.current.onClose)() };
+    held.current = entry;
+    const release = holdOpenCard(entry);
     return () => {
+      held.current = null;
       release();
       useSheetCards.setState(s => ({ stack: s.stack.filter(entry => entry.id !== id) }));
     };
@@ -114,6 +121,7 @@ export function SheetCard({
     useSheetCards.setState(s => ({ stack: s.stack.map(entry => (entry.id === id && entry.title !== title ? { ...entry, title } : entry)) }));
   }, [id, title]);
 
+  const head = useMemo(() => (title === undefined ? { slot, headingId, setPill } : null), [title, slot, headingId, setPill]);
   if (!host) return null;
   // No close of its own wherever the tab bar is over it, whether the bar
   // names it or the card draws its own name (a map card, MapCard into the
@@ -203,7 +211,7 @@ export function SheetCard({
         )}
         {end != null && <div className="-mr-1 flex shrink-0 items-center">{end}</div>}
       </div>
-      <SheetCardHead.Provider value={title === undefined ? { slot, headingId } : null}>
+      <SheetCardHead.Provider value={head}>
         {children}
       </SheetCardHead.Provider>
     </section>

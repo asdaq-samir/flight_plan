@@ -1,3 +1,4 @@
+import type { PillHead } from "./openCards";
 import { createContext } from "react";
 import { create } from "zustand";
 
@@ -37,7 +38,7 @@ export function closeSheetCards() {
 }
 
 /** The head's place for a card whose content draws its own name there --
- *  a map card's (MapCard), its mark beside its name -- and the id that
- *  name takes, which names the card. */
-export const SheetCardHead = createContext<{ slot: HTMLElement | null; headingId: string } | null>(null);
+ *  a map card's (MapCard), its mark beside its name -- the id that name
+ *  takes, which names the card, and what the pill shows of it there. */
+export const SheetCardHead = createContext<{ slot: HTMLElement | null; headingId: string; setPill: (pill: PillHead | undefined) => void } | null>(null);
 

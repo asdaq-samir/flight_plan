@@ -9,6 +9,8 @@ import { enrouteFixIcon, vorIcon } from "./airspaceMarks";
 import { useAhead, useLiveZoom } from "./useView";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
+import { degreesMinutes } from "../coords";
+import { useAwayWords } from "../useAway";
 import { PointWhere } from "./PointWhere";
 
 /** The VORs from a region's zoom in: a few to a state, each a station a
@@ -104,32 +106,55 @@ const Mark = memo(function Mark({ at, icon }: { at: { lat: number; lon: number }
   return <Marker position={position} icon={icon} interactive={false} keyboard={false} />;
 });
 
+/** The chart's colours of the two marks, the ground of their cards' pill. */
+const VOR_BLUE = "#1e5bb8";
+const FIX_INK = "#1c1a17";
+
 const VorTap = memo(function VorTap({ vor }: { vor: VorPin }) {
   const position = useMemo<[number, number]>(() => [vor.lat, vor.lon], [vor.lat, vor.lon]);
   return (
     <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${vor.ident} ${vor.kind}`}>
       <MapPopup pane="popupPane" panOnce>
-        <MapCard
-          media={HEXAGON}
-          title={<>{vor.ident}<span className="font-normal text-muted-foreground">{vor.kind}</span></>}
-          subtitle={[vor.name, vor.freq].filter(Boolean).join(" · ") || undefined}
-        >
-          <PointWhere lat={vor.lat} lon={vor.lon} />
-        </MapCard>
+        <VorCard vor={vor} />
       </MapPopup>
     </Marker>
   );
 });
+
+/** Made only once it is opened, so only an open card hears own ship. */
+function VorCard({ vor }: { vor: VorPin }) {
+  const away = useAwayWords(vor.lat, vor.lon);
+  return (
+    <MapCard
+      media={HEXAGON}
+      title={<>{vor.ident}<span className="font-normal text-muted-foreground">{vor.kind}</span></>}
+      subtitle={[vor.name, vor.freq].filter(Boolean).join(" · ") || undefined}
+      pill={{ name: `${vor.ident} ${vor.kind}`, line: [vor.freq, away ?? vor.name].filter(Boolean).join(" · "), colour: VOR_BLUE }}
+    >
+      <PointWhere lat={vor.lat} lon={vor.lon} />
+    </MapCard>
+  );
+}
 
 const FixTap = memo(function FixTap({ fix }: { fix: FixPin }) {
   const position = useMemo<[number, number]>(() => [fix.lat, fix.lon], [fix.lat, fix.lon]);
   return (
     <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${fix.ident} fix`}>
       <MapPopup pane="popupPane" panOnce>
-        <MapCard media={TRIANGLE} title={<>{fix.ident}<span className="font-normal text-muted-foreground">Fix</span></>}>
-          <PointWhere lat={fix.lat} lon={fix.lon} />
-        </MapCard>
+        <FixCard fix={fix} />
       </MapPopup>
     </Marker>
   );
 });
+
+function FixCard({ fix }: { fix: FixPin }) {
+  const away = useAwayWords(fix.lat, fix.lon);
+  return (
+    <MapCard
+      media={TRIANGLE} title={<>{fix.ident}<span className="font-normal text-muted-foreground">Fix</span></>}
+      pill={{ name: `${fix.ident} fix`, line: away ?? degreesMinutes(fix), colour: FIX_INK }}
+    >
+      <PointWhere lat={fix.lat} lon={fix.lon} />
+    </MapCard>
+  );
+}
