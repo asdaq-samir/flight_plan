@@ -11,6 +11,7 @@ import type { LatLon } from "../../../lib/geo";
 import { altFt } from "../../../lib/units";
 import { TEXT } from "../../../lib/text";
 import { CardHead, PanelCard } from "../../../components/PanelCard";
+import { CardAction } from "../../../components/CardAction";
 import { RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { FINDING_TONE } from "../../../lib/status";
@@ -124,17 +125,9 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
           directions: the first the tint's, the others its wash. */}
       {named && actions.length > 0 && (
         <div className="grid grid-cols-3 gap-2 pt-3" data-testid="point-actions">
+          {/* The cards' own tiles (CardAction), as a VOR's and an airport's. */}
           {actions.map((a, i) => (
-            <button
-              key={a.testId} type="button" onClick={() => a.go!(named.ident, point)} data-testid={a.testId}
-              className={cn(
-                "flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-xl px-1 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring [&_svg]:size-5",
-                TEXT.note, i === 0 ? "bg-primary text-primary-foreground" : "bg-foreground/6 text-tint",
-              )}
-            >
-              {a.icon}
-              {a.label}
-            </button>
+            <CardAction key={a.testId} icon={a.icon} label={a.label} filled={i === 0} onClick={() => a.go!(named.ident, point)} testId={a.testId} />
           ))}
         </div>
       )}
