@@ -81,6 +81,24 @@ test("an airport's card has the field's pictures across its top, its ident over 
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 });
 
+test("down in the pill, an airport's card is its ident over a line of its category, wind and name, on its head's picture blurred", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the pill is a phone's");
+  await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27012G18KT 10SM CLR 12/02 A3001", flight_category: "VFR", ceiling_ft: null, wind_dir_true_deg: 270, wind_speed_kt: 12, wind_gust_kt: 18 }, taf: null });
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  await expect(card(page).getByTestId("place-name")).toHaveText("KDLH");
+  await grabberTo(page, "peek");
+  // The owner's pick (P5): two lines between Share and the close, white
+  // on the picture behind the pill.
+  await expect(page.getByTestId("tab-title-name")).toHaveText("KDLH");
+  await expect(page.getByTestId("tab-title-line")).toHaveText("VFR · 270°T 12G18 · Duluth International Airport");
+  await expect(sideDrawer(page).getByTestId("pill-picture")).toBeVisible();
+  for (const id of ["tab-share", "tab-close"]) await expect(page.getByTestId(id)).toBeInViewport();
+  // Up again, the card's own head, and the pill's picture gone with the pill.
+  await grabberTo(page, "half");
+  await expect(sideDrawer(page).getByTestId("pill-picture")).toHaveCount(0);
+});
+
 
 /** A TAF for KDLH issued this hour, for a day: fair until an FM group in
  *  three hours brings a broken layer at 2,500 ft, 5 sm in rain and gusts

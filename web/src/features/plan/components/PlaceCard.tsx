@@ -25,7 +25,7 @@ import { awayFrom } from "../../../lib/useAway";
 import { chipColourOf } from "../../../lib/map/flightCategory";
 import { inkOn } from "../../../lib/scoreScale";
 import { feet, miles } from "../../../lib/units";
-import { windLine } from "../format";
+import { reportedWind, windLine } from "../format";
 import { ChartBadge, RowBadge } from "../../../components/RowBadge";
 import { BADGE } from "../../../lib/rowBadges";
 import { FrequencyRow } from "./FrequencyRow";
@@ -468,6 +468,20 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
       />
     ),
   ];
+  // The pill's line and picture, at the owner's pick (P5, 2026-10-29): the
+  // category as the chip says it ("≈" where it is not the field's own),
+  // the reported wind as FPL's list writes it, and the name; the head's
+  // first picture -- the FAA diagram's runways where it is drawn, the
+  // aerial where no runways are, none for the sketch, drawn in the page.
+  const pillWind = metar ? reportedWind(metar.wind_dir_true_deg, metar.wind_speed_kt, metar.wind_gust_kt) : null;
+  const pillLine = [
+    category && (weather?.category ? category : `≈ ${category}`),
+    pillWind && (pillWind === "calm" ? "Calm" : `${pillWind.dir} ${pillWind.speed}`),
+    name && name !== ident4 ? name : null,
+  ].filter(Boolean).join(" · ");
+  const pillPicture = place && sketched
+    ? place.airport_diagram_cycle && !noRunwaysPicture ? diagramRunwaysPicture(place.ident, place.airport_diagram_cycle) : undefined
+    : photos?.aerial_url;
   const share = () => void shareOrCopy({ title: place?.name ?? ident, url: `${location.origin}/app/plan?place=${place?.ident ?? ident}` }).catch(() => {});
   const frequencies = place ? (allFrequencies ? place.frequencies : place.frequencies.slice(0, FIRST_FREQUENCIES)) : [];
   const moreFrequencies = !!place && !allFrequencies && place.frequencies.length > FIRST_FREQUENCIES;
@@ -484,6 +498,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
             line={line ? <p className={cn("line-clamp-2 text-white/80", TEXT.note)} data-testid="place-line">{line}</p> : null}
             label={`${ident4}: its runways${photos ? ", from the air" : ""}${photos?.photo ? ", from the ground" : ""}`}
             slides={slides} onClose={onClose} onShare={share} closeTestId="place-close" shareTestId="place-share"
+            pill={{ line: pillLine || undefined, picture: pillPicture }}
             // The share at the left and the star beside the close, at the
             // owner's ask (2026-10-29), the star's place in the actions
             // the address's.

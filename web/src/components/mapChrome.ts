@@ -51,6 +51,12 @@ export const ConsoleInPanelContext = createContext<{ close: () => void } | null>
  *  (TabBar). */
 export const TabBarMinimized = createContext(false);
 
+/** Whether the minimized bar lies in the pill over a card's picture
+ *  (MapPanel's PillPicture, lib/openCards' `pill`): its words and glyphs
+ *  white, its round buttons a light glass, and the card's line under its
+ *  name (TabBar). */
+export const BarOverPicture = createContext(false);
+
 /** The panel's size as the tab bar sees it, and the way to change it
  *  (MapPanel). Null outside a panel. */
 export const PanelSize = createContext<{
