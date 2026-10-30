@@ -30,9 +30,11 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   await expect(lines(page).first()).toBeAttached({ timeout: slow(30000) });
   expect(await lines(page).count()).toBeGreaterThan(5);
   // The altitudes along the lines, no plates (the owner, 2026-10-30):
-  // O'Hare's surface area's "100/SFC" among them, and a Class D's
+  // O'Hare's shelves among them, and a Class D's
   // ceiling alone. In sight, and turned to read upright.
-  await expect(labels(page).filter({ hasText: /^100\/SFC$/ }).first()).toBeAttached({ timeout: slow(15000) });
+  // O'Hare's shelves' "100/…": the surface area's "100/SFC" is a small
+  // ring round KORD's own mark, its label skipped where the mark is.
+  await expect(labels(page).filter({ hasText: /^100\/(SFC|\d+)$/ }).first()).toBeAttached({ timeout: slow(15000) });
   await expect(labels(page).filter({ hasText: /^-?\d+$/ }).first()).toBeAttached();
   await expect(labels(page).filter({ hasText: /^\d+\/\d+$/ }).first()).toBeVisible();
   await expect(page.locator(".leaflet-airspace-labels-pane [data-airspace-label]")).toHaveCount(0);
