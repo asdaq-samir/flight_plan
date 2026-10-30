@@ -357,8 +357,9 @@ test("an airport's Info lists its first frequencies, and its title the way to ev
   await more.click();
   expect(await rows.count()).toBeGreaterThan(3);
   await expect(more).toHaveCount(0);
-  // Down to the last of them, the pictures scrolled up out of sight.
-  await rows.last().scrollIntoViewIfNeeded();
+  // Down past them to the Details' address, under the frequencies since
+  // the owner's 2026-10-29 ask, the pictures scrolled up out of sight.
+  await card(page).getByTestId("place-address").scrollIntoViewIfNeeded();
   await expect(card(page).getByTestId("place-head-bar")).toHaveCSS("opacity", "1");
   await expect(card(page).getByTestId("place-head-bar")).toHaveText("KDLH");
   await expect(card(page).getByTestId("place-close")).toBeInViewport();
