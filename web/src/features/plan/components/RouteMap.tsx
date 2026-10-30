@@ -18,6 +18,7 @@ import { TfrLayer } from "../../../lib/map/TfrLayer";
 import { PatternLayer } from "../../../lib/map/PatternLayer";
 import { PlateLayer } from "../../../lib/map/PlateLayer";
 import { ProcedureLayer } from "../../../lib/map/ProcedureLayer";
+import LessonLayer from "../../../lib/map/LessonLayer";
 import { proceduresOf, sameField } from "../../../lib/procedures";
 import type { TrafficPattern } from "../../../lib/trafficPattern";
 
@@ -821,6 +822,9 @@ export default memo(function RouteMap({
           {/* Each approach's plate under its lines, where it could be placed. */}
           <PlateLayer drawings={procedures} />
           <ProcedureLayer drawings={procedures} crossings={crossings} directs={directs} onFix={onProcedureFix} />
+          {/* The approach lesson's step over it: its fix ringed, its part
+              drawn over, its airplane (ApproachLesson). */}
+          <LessonLayer />
           {/* A procedure just picked, all of it in sight clear of the panel. */}
           <FitTo points={focusedProcedure} fitKey={focusedProcedure.length ? procedureFocus : null} maxZoom={12} cover={procedureCover} />
           {/* A pattern just picked, all of it in sight clear of the panel. */}

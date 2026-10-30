@@ -7,7 +7,7 @@ import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
-import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
+import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, procedureQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
 import { aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
@@ -231,14 +231,6 @@ function suggestedStopAt(ident: string | null, suggestions: FuelStopSuggestion[]
 
 const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r => (r.data ? [r.data] : []));
 
-/** A procedure picked, drawn as the planner draws it (vfr.procedures):
- *  one query for the map's drawing and the planner's descent alike. */
-const procedureQuery = (p: PickedProcedure) => ({
-  queryKey: ["procedure", p.ident, p.id, p.transition],
-  queryFn: () => api.procedure(p.ident, p.id, p.transition),
-  // A cycle's procedures hold for its 28 days.
-  staleTime: 6 * 60 * 60_000,
-});
 
 
 /** The planner's places, its tab bar's (TabBar): the flight being
