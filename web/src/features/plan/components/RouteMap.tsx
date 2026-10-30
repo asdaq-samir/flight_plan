@@ -752,6 +752,11 @@ export default memo(function RouteMap({
           them has its own card up, which brings that one in. */}
       {!place && <FitTo points={nearest ?? []} fitKey={nearest?.length ? nearest.map(a => a.ident).join(",") : null} />}
       <HeldPoint point={heldPoint} onHold={onHoldPoint} />
+      {/* The Stops' fields round the pilot as well as along a route, all
+          of them brought into sight above the sheet as it opens, at the
+          owner's ask ("when places button is pressed make sure to zoom out
+          to fit all places on the map", 2026-10-29). */}
+      <FitTo points={stopFields} fitKey={stopFields.length ? `stops:${stopFields.map(f => f.ident).join(",")}` : null} />
       {/* The Stops' fields round the pilot as well as along a route. */}
       {stopFields.map(field => <StopFieldMark key={field.ident} field={field} onSelect={onPickStopField ?? onSelectPlace} />)}
       {course && (

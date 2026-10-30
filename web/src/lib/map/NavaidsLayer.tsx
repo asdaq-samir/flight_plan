@@ -21,6 +21,20 @@ const FIX_ZOOM = 10;
 /** Over the airspace's lines and labels (AirspaceLayer's 350 and 355),
  *  under the overlay pane's course line (400) and the airports' marks. */
 const NAVAIDS_Z = 360;
+/** Their taps over the airspace rings' (AirspaceLayer's 430), whose
+ *  20 px targets otherwise took a tap on a VOR or fix inside a ring and
+ *  opened the airspace's card; under the airports' and waypoints' marks
+ *  (the marker pane's 600), which keep theirs. */
+const NAVAID_TAPS_Z = 440;
+const MARKS_PANE = { zIndex: NAVAIDS_Z };
+const TAPS_PANE = { zIndex: NAVAID_TAPS_Z };
+
+/** The 44 points round a station that take its tap, unseen, the mark
+ *  drawn below in its own pane not grown for it. */
+const HIT_ICON = L.divIcon({
+  className: "", iconSize: [0, 0], iconAnchor: [0, 0],
+  html: `<span class="absolute -left-[22px] -top-[22px] size-11 rounded-full" data-navaid-hit=""></span>`,
+});
 
 const NO_VORS: VorPin[] = [];
 const NO_FIXES: FixPin[] = [];
@@ -53,10 +67,16 @@ export function NavaidsLayer() {
   const fixes = withFixes ? (data?.fixes ?? NO_FIXES) : NO_FIXES;
   if (!on) return null;
   return (
-    <Pane name="navaids" style={{ zIndex: NAVAIDS_Z }}>
-      {fixes.map(f => <FixMark key={f.ident} fix={f} />)}
-      {vors.map(v => <VorMark key={`${v.ident}-${v.lat}`} vor={v} />)}
-    </Pane>
+    <>
+      <Pane name="navaids" style={MARKS_PANE}>
+        {fixes.map(f => <Mark key={f.ident} at={f} icon={enrouteFixIcon(f.ident)} />)}
+        {vors.map(v => <Mark key={`${v.ident}-${v.lat}`} at={v} icon={vorIcon(v.ident)} />)}
+      </Pane>
+      <Pane name="navaid-taps" style={TAPS_PANE}>
+        {fixes.map(f => <FixTap key={f.ident} fix={f} />)}
+        {vors.map(v => <VorTap key={`${v.ident}-${v.lat}`} vor={v} />)}
+      </Pane>
+    </>
   );
 }
 
@@ -78,10 +98,16 @@ const TRIANGLE = (
   </svg>
 );
 
-const VorMark = memo(function VorMark({ vor }: { vor: VorPin }) {
+/** A VOR's or fix's mark as the chart draws it, not a target. */
+const Mark = memo(function Mark({ at, icon }: { at: { lat: number; lon: number }; icon: L.DivIcon }) {
+  const position = useMemo<[number, number]>(() => [at.lat, at.lon], [at.lat, at.lon]);
+  return <Marker position={position} icon={icon} interactive={false} keyboard={false} />;
+});
+
+const VorTap = memo(function VorTap({ vor }: { vor: VorPin }) {
   const position = useMemo<[number, number]>(() => [vor.lat, vor.lon], [vor.lat, vor.lon]);
   return (
-    <Marker position={position} icon={vorIcon(vor.ident)} eventHandlers={STOP_CLICK} title={`${vor.ident} ${vor.kind}`}>
+    <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${vor.ident} ${vor.kind}`}>
       <MapPopup pane="popupPane" panOnce>
         <MapCard
           media={HEXAGON}
@@ -95,10 +121,10 @@ const VorMark = memo(function VorMark({ vor }: { vor: VorPin }) {
   );
 });
 
-const FixMark = memo(function FixMark({ fix }: { fix: FixPin }) {
+const FixTap = memo(function FixTap({ fix }: { fix: FixPin }) {
   const position = useMemo<[number, number]>(() => [fix.lat, fix.lon], [fix.lat, fix.lon]);
   return (
-    <Marker position={position} icon={enrouteFixIcon(fix.ident)} eventHandlers={STOP_CLICK} title={`${fix.ident} fix`}>
+    <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${fix.ident} fix`}>
       <MapPopup pane="popupPane" panOnce>
         <MapCard media={TRIANGLE} title={<>{fix.ident}<span className="font-normal text-muted-foreground">Fix</span></>}>
           <PointWhere lat={fix.lat} lon={fix.lon} />
