@@ -237,7 +237,12 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       const target = e.target as Element | null;
       // Nor one on a line drawn over the chart -- the course, a way the
       // Routes offer -- which keeps its own tap where it passes a field.
-      if (!target?.closest(".leaflet-map-pane") || target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive")) return;
+      // But an airspace ring's or a VOR's or fix's tap target is under a
+      // field's mark: near a field the field wins, as its mark is drawn
+      // over them (the owner, 2026-10-30: "When I try to select airport,
+      // it selects the airspace or vor if they are overlapping").
+      const yields = target?.closest(".leaflet-airspace-taps-pane, .leaflet-navaid-taps-pane");
+      if (!target?.closest(".leaflet-map-pane") || (!yields && target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive"))) return;
       const at = map.mouseEventToContainerPoint(e);
       let best: { ident: string; px: number } | null = null;
       for (const a of drawn.current) {

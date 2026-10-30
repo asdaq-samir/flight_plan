@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openMapSettings, slow } from "./helpers";
+import { airportMark, openMapSettings, slow } from "./helpers";
 
 /**
  * The Class B, C and D over the chart, with their altitudes as the
@@ -92,4 +92,16 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
     await expect(page.getByTestId("tab-title")).toBeHidden();
     await page.screenshot({ path: "test-results/look/airspace-card.png" });
   }
+});
+
+test("a tap on a field's mark opens the field, over an airspace ring or a VOR beside it", async ({ page }) => {
+  // KDPA: its Class D ring through its mark and the DPA VOR on the field
+  // (the owner, 2026-10-30: the airspace or the VOR took the tap).
+  await page.goto("/app/plan?place=KORD");
+  await expect(page.locator(".leaflet-airspace-taps-pane path").first()).toBeAttached({ timeout: slow(30000) });
+  await expect.poll(async () => (await airportMark(page, "KDPA")) != null, { timeout: slow(15000) }).toBe(true);
+  const mark = (await airportMark(page, "KDPA"))!;
+  await page.mouse.click(mark.x, mark.y);
+  await expect(page).toHaveURL(/[?&]place=KDPA/, { timeout: slow(10000) });
+  await expect(page.getByTestId("airspace-card")).toHaveCount(0);
 });
