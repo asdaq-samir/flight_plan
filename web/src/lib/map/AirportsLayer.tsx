@@ -9,6 +9,7 @@ import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { AirportMarksLayer, type CanvasMark } from "./AirportCanvas";
 import { selectionIcon } from "./icons";
+import { useDrawnAirports } from "./declutter";
 import { boxOf, hovers } from "./view";
 import { PANNING_MS, useAhead, useLiveZoom } from "./useView";
 
@@ -344,6 +345,14 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     space: a.airspace_class ?? null, weather: colourOf(a.flight_category),
     use: a.military === "military" ? "military" : a.private ? "private" : null,
   })), [shown, zoom]);
+  // The fields wearing a mark and an ident just now, the canvas's and the
+  // route's own, for the VORs' tags to keep off (declutter): given as what
+  // is drawn changes, not at every render.
+  useEffect(() => {
+    const fields = [...marks.filter(m => m.chip), ...others];
+    useDrawnAirports.setState({ fields });
+  }, [marks, others]);
+  useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
   return (
     <>
       <Pane name="airports" style={{ zIndex: 450 }}>
