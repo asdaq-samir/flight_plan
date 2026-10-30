@@ -2108,6 +2108,19 @@ class ProcedureFix(BaseModel):
     missed: bool
 
 
+class ProcedureGlidepath(BaseModel):
+    """The path an approach's final comes down (vfr.procedures): `deg`
+    below level, into `fix`, its runway's threshold at `lat`/`lon`,
+    crossed at `ft` MSL -- the threshold's elevation and its crossing
+    height (ARINC 424-18 5.70)."""
+
+    deg: float
+    fix: str
+    lat: float
+    lon: float
+    ft: int
+
+
 class ProcedureDrawing(BaseModel):
     """One procedure drawn with the transition picked (vfr.procedures):
     its lines, holds and fixes, from the CIFP of `cycle`."""
@@ -2122,6 +2135,9 @@ class ProcedureDrawing(BaseModel):
     lines: list[ProcedureLine]
     holds: list[ProcedureHold]
     fixes: list[ProcedureFix]
+    #: An approach's glidepath or vertical descent angle where the CIFP
+    #: codes one to its runway; None for the rest.
+    glidepath: ProcedureGlidepath | None = None
 
 
 class PlateOverlay(BaseModel):

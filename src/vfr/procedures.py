@@ -187,6 +187,14 @@ def _tenths(text: str) -> float | None:
     return int(text) / 10 if text.isdigit() else None
 
 
+def _vertical_angle(text: str) -> float | None:
+    """A leg's vertical angle (5.70): hundredths of a degree, negative going
+    down ("-300" is 3.00° down), as degrees below level; None where there
+    is none."""
+    text = text.strip()
+    return abs(int(text)) / 100 if re.fullmatch(r"-\d{3}", text) else None
+
+
 def _feet(text: str) -> int | None:
     """An altitude field: feet ("04600"), or a flight level ("FL180")."""
     text = text.strip()
@@ -225,6 +233,10 @@ class Leg:
     center: str
     center_icao: str
     center_section: str
+    #: The vertical angle the leg descends at, degrees below level: an
+    #: approach's glidepath or vertical descent angle, coded on its final's
+    #: legs ("-300" is 3.00° down, ARINC 424-18 5.70).
+    vertical_angle: float | None = None
 
     @classmethod
     def read(cls, rec: str) -> Leg:
@@ -246,6 +258,7 @@ class Leg:
             speed_kt=int(_col(rec, 100, 102)) if _col(rec, 100, 102).strip().isdigit() else None,
             speed_code=_col(rec, 118, 118).strip(),
             center=_col(rec, 107, 111).strip(), center_icao=_col(rec, 113, 114), center_section=_col(rec, 115, 116),
+            vertical_angle=_vertical_angle(_col(rec, 103, 106)),
         )
 
     @property
@@ -602,6 +615,7 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
     chosen = [key for role in order for key, r in roles.items() if r == role and (r != "transition" or key[1] == wanted)]
 
     lines, holds, fixes = [], [], {}
+    glidepath = None
     turns: list[tuple[str, tuple[float, float], float, bool]] = []
     for key in chosen:
         role = roles[key]
@@ -677,6 +691,15 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
             low, high = altitude_limits(leg)
             if (low is not None or high is not None) and not leg.missed_approach_point:
                 known_ft = low if low is not None else high
+            if (kind == "approach" and leg.missed_approach_point and leg.vertical_angle and place
+                    and leg.altitude1 is not None and leg.fix.startswith("RW")):
+                # The path the final comes down: its angle into a runway's
+                # threshold, crossed at the MAP's coded altitude -- the
+                # threshold's elevation and its crossing height (ARINC 424-18
+                # 5.70; the chart's GS/VDA and TCH). KBUR's ILS 08: 3.00° to
+                # 787 ft at RW08. None where the MAP is not a runway's.
+                glidepath = {"deg": leg.vertical_angle, "fix": leg.fix, "lat": round(place[0], 6),
+                             "lon": round(place[1], 6), "ft": leg.altitude1}
             if kind == "approach" and leg.missed_approach_point:
                 # The rest is the missed approach, drawn dashed from here,
                 # its climb from about the field's elevation.
@@ -710,6 +733,7 @@ def procedure_drawing(ident: str, procedure: str, transition: str | None = None,
         "lines": [{**ln, "points": [[round(p[0], 6), round(p[1], 6)] for p in ln["points"]]} for ln in lines],
         "holds": [{**h, "points": [[round(p[0], 6), round(p[1], 6)] for p in h["points"]]} for h in holds],
         "fixes": list(fixes.values()),
+        "glidepath": glidepath,
     }
 
 

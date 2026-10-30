@@ -232,3 +232,20 @@ def test_a_leg_flown_to_an_altitude_goes_as_far_as_the_standard_climb_takes_the_
 def test_an_airports_elevation_is_its_airport_records():
     # KBUR's airport record, columns 57 to 61: 00778.
     assert procedures._airport("KBUR", CIFP).elevation_ft == 778
+
+
+def test_an_approachs_glidepath_is_its_finals_vertical_angle_to_its_runways_crossing_altitude():
+    """ARINC 424-18 5.70: KBUR's ILS Y RWY 08 comes down 3.00° ("-300") to
+    RW08, crossed at 787 ft: its threshold's 727 ft and its 60 ft crossing
+    height, as the runway's own record has them."""
+    path = procedures.procedure_drawing("KBUR", "I08-Y")["glidepath"]
+    assert path["deg"] == 3.0 and path["fix"] == "RW08" and path["ft"] == 787
+    assert near((path["lat"], path["lon"]), RW08)
+    assert procedures._vertical_angle("-300") == 3.0 and procedures._vertical_angle("    ") is None
+
+
+def test_a_departure_has_no_glidepath():
+    drawn = procedures.procedure_drawing("KBUR", "I08-Y", "LAX")
+    assert drawn["glidepath"] is not None
+    assert all(procedures.procedure_drawing("KBUR", p["id"])["glidepath"] is None
+               for p in procedures.procedures_at("KBUR")["procedures"] if p["kind"] == "departure")
