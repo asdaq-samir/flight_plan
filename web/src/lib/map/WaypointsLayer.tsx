@@ -11,6 +11,7 @@ import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { MAGENTA } from "../useAirspace";
 import { MapTooltip } from "./MapTooltip";
+import { PointWhere } from "./PointWhere";
 
 /** From this zoom in, as the airports' (AirportsLayer): further out the
  *  diamonds would be a scatter over every city's airspace. */
@@ -84,6 +85,7 @@ const WaypointMark = memo(function WaypointMark({ waypoint: w, onAddStop }: {
           title={<>{w.ident}<span className="font-normal text-muted-foreground">VFR waypoint</span></>}
           subtitle={w.description || undefined}
         >
+          <PointWhere lat={w.lat} lon={w.lon} />
           {onAddStop && (
             <Button
               type="button" size="sm" className="w-full"

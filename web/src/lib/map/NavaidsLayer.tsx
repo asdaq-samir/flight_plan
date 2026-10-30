@@ -1,11 +1,15 @@
 import { memo, useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import L from "leaflet";
 import { Marker, Pane } from "react-leaflet";
 import { api } from "../api/client";
 import type { FixPin, VorPin } from "../api/types";
 import { usePreferences } from "../preferences";
 import { enrouteFixIcon, vorIcon } from "./airspaceMarks";
 import { useAhead, useLiveZoom } from "./useView";
+import { MapCard } from "./MapCard";
+import { MapPopup } from "./MapPopup";
+import { PointWhere } from "./PointWhere";
 
 /** The VORs from a region's zoom in: a few to a state, each a station a
  *  pilot tunes, and the chart's compass roses round them. */
@@ -25,8 +29,10 @@ const NO_FIXES: FixPin[] = [];
  * The VORs over the chart as the sectional marks them, a blue hexagon
  * with its ident beside it, and from closer in the low enroute chart's
  * fixes as small triangles -- with the airspace (AirspaceLayer), the
- * owner's pick of the map's looks ("C", after ForeFlight's). Not targets.
- * The settings' VORs and Fixes turns them off.
+ * owner's pick of the map's looks ("C", after ForeFlight's). A tap opens
+ * its card -- what it is, a VOR's name and frequency, and where it is --
+ * at the owner's ask ("the VORs or any other fix or navaid should be
+ * selectable", 2026-10-29). The settings' VORs and Fixes turns them off.
  */
 export function NavaidsLayer() {
   const show = usePreferences(s => s.navaids);
@@ -54,12 +60,45 @@ export function NavaidsLayer() {
   );
 }
 
+/** A tap on a mark kept off the map under it. A constant: react-leaflet
+ *  binds a marker's handlers again whenever they are a new object. */
+const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagation(e) };
+
+/** A VOR's mark on its card: the sectional's blue hexagon. */
+const HEXAGON = (
+  <span aria-hidden="true" className="mx-1 size-4 shrink-0 bg-[#1e5bb8] [clip-path:polygon(25%_5%,75%_5%,100%_50%,75%_95%,25%_95%,0_50%)]" />
+);
+/** An enroute fix's on its card: the low chart's triangle. */
+const TRIANGLE = (
+  <span aria-hidden="true" className="mx-1 size-3.5 shrink-0 bg-[#1e5bb8] [clip-path:polygon(50%_0,100%_100%,0_100%)]" />
+);
+
 const VorMark = memo(function VorMark({ vor }: { vor: VorPin }) {
   const position = useMemo<[number, number]>(() => [vor.lat, vor.lon], [vor.lat, vor.lon]);
-  return <Marker position={position} icon={vorIcon(vor.ident)} interactive={false} keyboard={false} />;
+  return (
+    <Marker position={position} icon={vorIcon(vor.ident)} eventHandlers={STOP_CLICK} title={`${vor.ident} ${vor.kind}`}>
+      <MapPopup pane="popupPane" panOnce>
+        <MapCard
+          media={HEXAGON}
+          title={<>{vor.ident}<span className="font-normal text-muted-foreground">{vor.kind}</span></>}
+          subtitle={[vor.name, vor.freq].filter(Boolean).join(" · ") || undefined}
+        >
+          <PointWhere lat={vor.lat} lon={vor.lon} />
+        </MapCard>
+      </MapPopup>
+    </Marker>
+  );
 });
 
 const FixMark = memo(function FixMark({ fix }: { fix: FixPin }) {
   const position = useMemo<[number, number]>(() => [fix.lat, fix.lon], [fix.lat, fix.lon]);
-  return <Marker position={position} icon={enrouteFixIcon(fix.ident)} interactive={false} keyboard={false} />;
+  return (
+    <Marker position={position} icon={enrouteFixIcon(fix.ident)} eventHandlers={STOP_CLICK} title={`${fix.ident} fix`}>
+      <MapPopup pane="popupPane" panOnce>
+        <MapCard media={TRIANGLE} title={<>{fix.ident}<span className="font-normal text-muted-foreground">Fix</span></>}>
+          <PointWhere lat={fix.lat} lon={fix.lon} />
+        </MapCard>
+      </MapPopup>
+    </Marker>
+  );
 });
