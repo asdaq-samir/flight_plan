@@ -49,6 +49,13 @@ def test_each_volume_has_its_altitudes_as_the_file_gives_them(chicago):
     assert [41.5, -88.5] in ord_["lines"][0] + ord_["lines"][1]
 
 
+def test_zoomed_out_the_class_b_alone_is_asked_for(chicago):
+    # The map asks for "B" further out than zoom 8: O'Hare's shelf, not
+    # Wheeling's Class D under it.
+    volumes = airspace_map.volumes_in(chicago, 41.0, -89.5, 43.0, -87.0, "B")
+    assert {v["ident"] for v in volumes} == {"ORD"}
+
+
 def test_each_volume_says_when_it_is_in_effect_as_the_file_does(chicago):
     volumes = {v["ident"]: v for v in airspace_map.volumes_in(chicago, 41.0, -89.5, 43.0, -87.0)}
     # The Bravo continuous, its "<Null>" remark none; Wheeling part-time,
