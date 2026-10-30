@@ -42,6 +42,7 @@
     "cn": "^0.4.0",
     "date-fns": "^4.4.0",
     "embla-carousel-react": "^8.6.0",
+    "geomagnetism": "^0.2.0",
     "leaflet": "1.9.4",
     "lucide-react": "^1.52.0",
     "metar-taf-parser": "^9.1.3",
