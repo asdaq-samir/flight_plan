@@ -22,6 +22,9 @@ const FROM_ZOOM = 8;
  *  class B from 4?", then two levels in from that): the big rings a pilot
  *  plans round, there before anything else. Unlabelled until FROM_ZOOM. */
 const CLASS_B_FROM_ZOOM = 6;
+/** The Class C's lines a zoom before the D's, at the owner's ask
+ *  (2026-10-29, "Show c airspace from 7"); unlabelled until FROM_ZOOM. */
+const CLASS_C_FROM_ZOOM = 7;
 
 /** Under the route and everything on it, the airports' marks and the VFR
  *  waypoints' diamonds (440 and up) and Leaflet's own overlay pane (400),
@@ -64,7 +67,7 @@ export function AirspaceLayer() {
   const asked = useAhead();
   const on = show && zoom >= CLASS_B_FROM_ZOOM;
   const near = zoom >= FROM_ZOOM;
-  const classes = near ? "BCD" : "B";
+  const classes = near ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
   const { data } = useQuery({
     queryKey: ["airspaceInView", asked.key, classes],
     queryFn: () => api.airspaceInView({ ...asked.box, classes }),

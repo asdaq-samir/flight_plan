@@ -313,9 +313,13 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     return [...byIdent.values()];
   }, [alongRoute, inView, inViewAlone, full, seen, view.box]);
   const exclude = useMemo(() => new Set(others.map(a => a.ident)), [others]);
+  // The field whose card is open wears its mark at any zoom, its size
+  // aside: its ring (below) went round nothing on a small field further
+  // out than SHOWN_FROM.
+  const selectedIdent = selected?.ident ?? null;
   const shown = useMemo(() => {
     if (!reports) return [];
-    const kept = data.filter(a => !exclude.has(a.ident) && zoom >= shownFrom(a) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
+    const kept = data.filter(a => !exclude.has(a.ident) && (zoom >= shownFrom(a) || a.ident === selectedIdent) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
     if (zoom >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
@@ -328,7 +332,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       out.push(a);
     }
     return out;
-  }, [reports, data, exclude, near, showMilitary, showPrivate, zoom, map]);
+  }, [reports, data, exclude, near, showMilitary, showPrivate, zoom, map, selectedIdent]);
   useEffect(() => { drawn.current = shown; }, [shown]);
   useEffect(() => { elsewhere.current = others; }, [others]);
   // What the canvas draws (AirportCanvas): each field's mark where it
