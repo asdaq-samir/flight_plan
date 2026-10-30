@@ -7,6 +7,7 @@ import { Marker, Pane, useMap } from "react-leaflet";
 import { CardAction } from "../../components/CardAction";
 import DirectToIcon from "../../components/DirectToIcon";
 import { ListGroup, ListRow } from "../../components/GroupedList";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../components/ui/collapsible";
 import { declinationOf, fixRadialDistance, hoursOf, morseOf, radialOf, serviceVolume, threeFigures } from "../navaid";
 import { TEXT } from "../text";
 import { feet } from "../units";
@@ -188,14 +189,23 @@ function VorCard({ vor }: { vor: VorPin }) {
       {/* Where its signal is not to be used, as the Chart Supplement lists
           it (NASR NAV_RMK): in the caution colour where it is in service
           with restrictions. */}
+      {/* Folded under a row of their own, as the airport card's fuel
+          remarks are: a busy station's run to a screenful (STL's). */}
       {(vor.remarks ?? []).length > 0 && (
         <ListGroup>
-          {(vor.remarks ?? []).map(remark => (
-            <ListRow
-              key={remark} title={<span className={cn(vor.restricted && "text-amber-700 dark:text-amber-400", TEXT.detail)}>{remark}</span>}
-              data-testid="vor-remark"
-            />
-          ))}
+          <Collapsible>
+            <CollapsibleTrigger asChild>
+              <ListRow
+                title={<span className={cn(vor.restricted && "text-amber-700 dark:text-amber-400")}>{vor.restricted ? "Restrictions" : "Remarks"}</span>}
+                chevron data-testid="vor-remarks"
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              {(vor.remarks ?? []).map(remark => (
+                <ListRow key={remark} title={<span className={cn("text-muted-foreground", TEXT.detail)}>{remark}</span>} data-testid="vor-remark" />
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
         </ListGroup>
       )}
       <PointWhere lat={vor.lat} lon={vor.lon} />
@@ -216,7 +226,8 @@ function PointActions({ point, copy }: { point: ChartPoint; copy: { label: strin
   if (!addToRoute && !directTo && !copy) return null;
   const done = (act: (p: ChartPoint) => void) => () => { map.closePopup(); act({ ident: point.ident, lat: point.lat, lon: point.lon }); };
   return (
-    <div className="grid grid-cols-3 gap-2" data-testid="point-actions">
+    // As many columns as tiles, as the airport card's row fills its width.
+    <div className={cn("grid gap-2", [directTo, addToRoute, copy].filter(Boolean).length === 3 ? "grid-cols-3" : "grid-cols-2")} data-testid="point-actions">
       {directTo && <CardAction icon={<DirectToIcon />} label="Direct To" filled onClick={done(directTo)} testId="point-direct-to" />}
       {addToRoute && <CardAction icon={<MapPinPlus />} label="Add to Route" onClick={done(addToRoute)} testId="point-add" />}
       {copy && (
