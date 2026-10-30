@@ -87,7 +87,13 @@ export function SheetCard({
   // Its entry among the open cards, for what its content says the pill
   // shows of it (a map card's, MapCard's `pill`).
   const held = useRef<OpenCard | null>(null);
-  const setPill = useCallback((pill: PillHead | undefined) => { if (held.current) setCardPill(held.current, pill); }, []);
+  // Kept for the entry too: the content's effect runs before this card's
+  // own, which holds the entry.
+  const pillGiven = useRef<PillHead | undefined>(undefined);
+  const setPill = useCallback((pill: PillHead | undefined) => {
+    pillGiven.current = pill;
+    if (held.current) setCardPill(held.current, pill);
+  }, []);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   // A close of the caller's own in the head (`action`, the app's
   // CloseButton): one that goes back a page first, the procedures'. With
@@ -106,7 +112,7 @@ export function SheetCard({
     const close = () => latest.current.onClose();
     useSheetCards.setState(s => ({ stack: [...s.stack, { id, raise, close }] }));
     // Back one: a page of the card's first where it has one (`back`).
-    const entry: OpenCard = { close: () => (latest.current.back ?? latest.current.onClose)() };
+    const entry: OpenCard = { close: () => (latest.current.back ?? latest.current.onClose)(), pill: pillGiven.current };
     held.current = entry;
     const release = holdOpenCard(entry);
     return () => {
