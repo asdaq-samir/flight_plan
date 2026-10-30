@@ -108,6 +108,10 @@ def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: 
             "floor_sfc": floor == 0,
             "ceiling_ft": polygon["ceiling_ft_msl"],
             "ceiling_excluded": polygon.get("upper_desc") == "TNI",
+            # When it is in effect (vfr.airspace): "H24", "NOTAM" or
+            # "RMK", and the file's remark; the web words them.
+            "hours_code": polygon.get("hours_code"),
+            "hours_remark": polygon.get("hours_remark"),
             "label_lat": round(label.y, 5),
             "label_lon": round(label.x, 5),
             "lines": lines,
