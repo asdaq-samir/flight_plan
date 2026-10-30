@@ -106,7 +106,12 @@ const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagati
  *  changes. */
 const VolumeTap = memo(function VolumeTap({ volume }: { volume: AirspaceVolume }) {
   return (
-    <Polyline positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_TAP[volume.airspace_class]} eventHandlers={STOP_CLICK}>
+    <Polyline
+      positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_TAP[volume.airspace_class]} eventHandlers={STOP_CLICK}
+      // Its class as an option of its own: react-leaflet gives pathOptions
+      // to setStyle, which sets no class, so the browser tests found none.
+      className={AIRSPACE_TAP[volume.airspace_class].className}
+    >
       {/* In Leaflet's own pane, over the marks, as the waypoints' card;
           a line's, so no ring at the point tapped. */}
       <MapPopup pane="popupPane" panOnce ring={false}>

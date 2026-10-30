@@ -164,6 +164,12 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // its name on the minimized bar, whose close puts it away first.
   const cardName = useSheetCards(s => s.stack.at(-1)?.title);
   const title = cardName ?? given;
+  // A card on top that draws its own name (a map card's, MapCard into its
+  // head): the bar names nothing over it, where it showed the tab's name
+  // and menu over an airspace's card (the owner, 2026-10-29: "the tab
+  // title shouldn't be shown either"); down at the pill, where the card
+  // is out of sight, the tab's name is all that says what is open.
+  const cardNamesItself = useSheetCards(s => s.stack.length > 0 && s.stack.at(-1)?.title === undefined);
   const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: Settings }];
   const up: T | "setup" = consoleOpen ? "setup" : tab;
   const minimized = useContext(TabBarMinimized);
@@ -479,7 +485,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
         )}
         <button
           type="button" onClick={showTabs} aria-expanded={false} aria-label={`${title ?? named.label}, show the tabs`}
-          data-testid="tab-title"
+          data-testid="tab-title" hidden={cardNamesItself && size?.size !== "peek"}
           className={cn(
             "relative flex h-8 min-w-0 max-w-[calc(100%-7rem)] items-center gap-1.5 rounded-full px-3 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
             "after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']", overPicture ? "text-white" : title ? "text-foreground" : "text-tint", TEXT.row,

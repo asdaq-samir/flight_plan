@@ -54,7 +54,9 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
 
 test("a tap on a Class D ring opens its card, with its ceiling and hours", async ({ page }) => {
   // Wheeling's, under O'Hare's 3,000 ft shelf: up to but not including it.
-  await page.goto("/app/plan?place=KPWK");
+  // O'Hare's card brings the map in on Chicago, Wheeling's ring in sight
+  // (KPWK's own card left the map where it was).
+  await page.goto("/app/plan?place=KORD");
   const rings = page.locator(".leaflet-airspace-taps-pane path.airspace-tap-D");
   await expect(rings.first()).toBeAttached({ timeout: slow(30000) });
   // A point on a Class D ring in sight that the ring's own target is the
@@ -79,4 +81,11 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
   await expect(card).toContainText("Ceiling");
   await expect(card).toContainText(/\d,\d{3} ft MSL/);
   await expect(card).toContainText("Hours");
+  // On a phone, one close, the tab bar's, and no tab name over a card
+  // that names itself (the owner, 2026-10-29).
+  if (page.viewportSize()!.width < 768) {
+    await expect(page.locator("[data-sheet-card]").getByTestId("sheet-card-close")).toHaveCount(0);
+    await expect(page.getByTestId("tab-title")).toBeHidden();
+    await page.screenshot({ path: "test-results/look/airspace-card.png" });
+  }
 });
