@@ -16,6 +16,8 @@ import { api } from "../api/client";
 import type { FixPin, VorPin } from "../api/types";
 import { usePreferences } from "../preferences";
 import { enrouteFixIcon, vorIcon } from "./airspaceMarks";
+import { airportBox, ownShipBox, useDrawnAirports, vorTagSide, type TagSide } from "./declutter";
+import { useOwnShipNear } from "./ownShip";
 import { useAhead, useLiveZoom } from "./useView";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
@@ -51,6 +53,24 @@ const HIT_ICON = L.divIcon({
 const NO_VORS: VorPin[] = [];
 const NO_FIXES: FixPin[] = [];
 
+const vorKey = (v: VorPin) => `${v.ident}-${v.lat}`;
+
+/** Which side of each VOR's hexagon its tag goes at this zoom, clear of
+ *  the airports' marks and own ship's airplane where it can be (declutter):
+ *  own ship is never moved for a VOR. Own ship as it moves a few hundred
+ *  metres (useOwnShipNear), not at every fix. */
+function useTagSides(vors: VorPin[], zoom: number): Map<string, TagSide> {
+  const map = useMap();
+  const fields = useDrawnAirports(s => s.fields);
+  const ship = useOwnShipNear();
+  return useMemo(() => {
+    const at = (lat: number, lon: number) => map.project([lat, lon], zoom);
+    const blockers = fields.map(f => airportBox(at(f.lat, f.lon), f.ident));
+    if (ship) blockers.push(ownShipBox(at(ship.lat, ship.lon)));
+    return new Map(vors.map(v => [vorKey(v), vorTagSide(at(v.lat, v.lon), v.ident, blockers)]));
+  }, [map, vors, zoom, fields, ship]);
+}
+
 /**
  * The VORs over the chart as the sectional marks them, a blue hexagon
  * with its ident beside it, and from closer in the low enroute chart's
@@ -77,16 +97,17 @@ export function NavaidsLayer() {
   const vors = data?.vors ?? NO_VORS;
   // Not the fixes of an answer kept from closer in, zoomed back out.
   const fixes = withFixes ? (data?.fixes ?? NO_FIXES) : NO_FIXES;
+  const sides = useTagSides(on ? vors : NO_VORS, zoom);
   if (!on) return null;
   return (
     <>
       <Pane name="navaids" style={MARKS_PANE}>
         {fixes.map(f => <Mark key={f.ident} at={f} icon={enrouteFixIcon(f.ident)} />)}
-        {vors.map(v => <Mark key={`${v.ident}-${v.lat}`} at={v} icon={vorIcon(v.ident)} />)}
+        {vors.map(v => <Mark key={vorKey(v)} at={v} icon={vorIcon(v.ident, sides.get(vorKey(v)))} />)}
       </Pane>
       <Pane name="navaid-taps" style={TAPS_PANE}>
         {fixes.map(f => <FixTap key={f.ident} fix={f} vors={vors} />)}
-        {vors.map(v => <VorTap key={`${v.ident}-${v.lat}`} vor={v} />)}
+        {vors.map(v => <VorTap key={vorKey(v)} vor={v} />)}
       </Pane>
     </>
   );
