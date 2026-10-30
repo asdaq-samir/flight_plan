@@ -31,12 +31,15 @@ const tap = (airspaceClass: Class): L.PathOptions =>
   ({ color: "#000", weight: 20, opacity: 0, interactive: true, className: `airspace-tap-${airspaceClass}` });
 export const AIRSPACE_TAP: Record<Class, L.PathOptions> = { B: tap("B"), C: tap("C"), D: tap("D") };
 
-/** The labels' words, the line's colour a shade darker, to read 4.5:1 or
- *  more on their white plate (WCAG's for small type). */
-const INK: Record<Class, string> = { B: "#1b4f94", C: "#9a1f7e", D: "#1b4f94" };
+/** The labels' words, the line's colour a shade darker on the white
+ *  plate by day and lighter on the dark one at night (index.css), to read
+ *  4.5:1 or more either way (WCAG's for small type). */
+const INK: Record<Class, string> = { B: "var(--airspace-blue-ink)", C: "var(--airspace-magenta-ink)", D: "var(--airspace-blue-ink)" };
 
-/** The white plate under a label, a little of the chart through it. */
-const PLATE = "rgba(255,255,255,.92)";
+/** The plate under a label, a little of the chart through it: white by
+ *  day, the sheet's dark at night, where a white one was the brightest
+ *  thing over the dimmed chart (the owner's screenshot, 2026-10-29). */
+const PLATE = "var(--airspace-plate)";
 
 /**
  * A volume's altitudes on the chart (lib/map/airspaceLabel), centred on

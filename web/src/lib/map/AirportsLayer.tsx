@@ -41,9 +41,10 @@ const SHOWN_FROM: Record<AirportPin["kind"], number> = { large: 6, medium: 8, sm
 /** Sooner by its airspace (the owner, 2026-10-29: "Show class B airport
  *  marker without airspace from 4 c from 6"): a Class B field's mark from
  *  the country's zoom and a Class C's from a few states', their rings
- *  still at their own zooms (AirspaceLayer). */
+ *  still at their own zooms (AirspaceLayer); and a Class D's with its ring,
+ *  at 8, where Waukegan's ring and its "32" had no field in them. */
 const shownFrom = (a: AirportPin) =>
-  Math.min(SHOWN_FROM[a.kind], a.airspace_class === "B" ? FARTHEST_ZOOM : a.airspace_class === "C" ? 6 : Infinity);
+  Math.min(SHOWN_FROM[a.kind], a.airspace_class === "B" ? FARTHEST_ZOOM : a.airspace_class === "C" ? 6 : a.airspace_class === "D" ? FROM_ZOOM : Infinity);
 /** Which kind first, out there, where only some fit. */
 const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
 /** What is drawn round the view, a share of it on each side: a pan
