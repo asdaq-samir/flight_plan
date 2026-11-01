@@ -9,4 +9,4 @@ pillow==12.3.0      # vfr.charts encodes the tiles, vfr.chartvision reads them
 rasterio==1.5.2     # vfr.charts reads and reprojects the FAA chart GeoTIFFs (bundles GDAL; the slim image needs libexpat1 for it)
 pypdfium2==5.14.0   # vfr.publications draws the airport diagram's PDF as a picture (Apache-2.0/BSD; PyMuPDF is AGPL)
 affine==3.0.1       # vfr.chart_faces applies transforms with `@`, which affine 3 has; it came only as rasterio's own, unpinned, dependency
-gribberish==1.8.3   # vfr.glmp reads the NWS's Gridded LAMP (GRIB2), complex packing included (MIT; 2 MB, where eccodes is 100)
+gribberish==1.9.0   # vfr.glmp reads the NWS's Gridded LAMP (GRIB2), complex packing included (MIT; 2 MB, where eccodes is 100)
