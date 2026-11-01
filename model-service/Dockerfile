@@ -2,7 +2,7 @@
 # The dependencies are installed before app/ is copied, so a change to
 # the service's code rebuilds only the small layers after `COPY app`.
 
-FROM python:3.13-slim
+FROM python:3.15-slim
 WORKDIR /service
 RUN useradd -m appuser
 COPY requirements.txt .
