@@ -22,15 +22,37 @@ PAD_DEG = 1.0
 MOST_WORDS = 100
 
 
+def _corridor(near: tuple) -> list[tuple[float, float, float, float]]:
+    """Boxes along the lines between the route's points, a degree apart
+    and PAD_DEG round each: a navaid halfway along a long route -- Hill
+    City on one from San Jose to Nashville -- is outside the boxes round
+    its ends, and a box round both ends is most of the country."""
+    boxes = []
+    for (lat1, lon1), (lat2, lon2) in zip(near, near[1:] or near):
+        steps = max(1, int(max(abs(lat2 - lat1), abs(lon2 - lon1))))
+        for k in range(steps + 1):
+            lat, lon = lat1 + (lat2 - lat1) * k / steps, lon1 + (lon2 - lon1) * k / steps
+            boxes.append((lat - PAD_DEG, lon - PAD_DEG * 1.4, lat + PAD_DEG, lon + PAD_DEG * 1.4))
+    return boxes
+
+
 def _places(near: tuple) -> list[dict]:
-    """The navaids, fixes and airports round the route's points, each
-    with `what` it is, for vfr.spoken."""
+    """The navaids, fixes and airports along the route, each with `what`
+    it is, for vfr.spoken."""
     if not near:
         return []
-    lats, lons = [p[0] for p in near], [p[1] for p in near]
-    south, north, west, east = min(lats) - PAD_DEG, max(lats) + PAD_DEG, min(lons) - PAD_DEG * 1.4, max(lons) + PAD_DEG * 1.4
-    found = [{**f, "what": "navaid" if f.get("navaid") else "fix"} for f in fixes.within(south, west, north, east)]
-    found += [{**a, "what": "airport"} for a in airports.places_in(south, west, north, east, limit=500)]
+    lats = [p[0] for p in near]
+    seen, found = set(), []
+    for south, west, north, east in _corridor(near):
+        for f in fixes.within(south, west, north, east):
+            place = {**f, "what": "navaid" if f.get("navaid") else "fix"}
+            if (place["ident"], place["what"], place["lat"]) not in seen:
+                seen.add((place["ident"], place["what"], place["lat"]))
+                found.append(place)
+        for a in airports.places_in(south, west, north, east, limit=200):
+            if (a["ident"], "airport", a["lat"]) not in seen:
+                seen.add((a["ident"], "airport", a["lat"]))
+                found.append({**a, "what": "airport"})
     # The nearest to the route's points first: of two fixes that sound the
     # same, PYKLA by Duluth and PICLE in Iowa, the one by the route
     # (vfr.spoken keeps this order between equals).
@@ -61,12 +83,19 @@ def _exact(said: str, near: tuple) -> list[dict]:
 
 
 def _airport(said: str, near: tuple) -> dict | None:
-    """The field an airport's name said is, the nearest of its name."""
+    """The field an airport's name said is, the nearest of its name. A
+    name said short or long of the one on file -- "Seattle Tacoma" for
+    Seattle–Tacoma International, "city of Colorado Springs" -- is tried
+    by fewer of its words, the longest run first."""
     words, _ = spoken.words_of(said)
-    if not words:
-        return None
-    hits = airports.search_airports(" ".join(words), limit=1, near=list(near) or None)
-    return airports.find_place(hits[0]["ident"]) if hits else None
+    runs = [words[i:i + n] for n in range(len(words), 0, -1) for i in range(len(words) - n + 1)]
+    for run in runs:
+        if len(run) == 1 and len(run[0]) < 4:
+            continue
+        hits = airports.search_airports(" ".join(run), limit=1, near=list(near) or None)
+        if hits:
+            return airports.find_place(hits[0]["ident"])
+    return None
 
 
 def _navaid_names(places: list[dict]) -> dict[str, str]:

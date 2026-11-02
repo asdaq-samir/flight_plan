@@ -68,3 +68,15 @@ def test_a_sid_or_star_is_found_by_its_name_and_number_and_its_transition_by_its
     assert spoken.procedure("bunyan", "2", "departure", LISTED, names) is None
     assert spoken.transition("Duluth", ["DLH", "KVUSI"], PLACES) == "DLH"
     assert spoken.transition("kavusi", ["DLH", "KVUSI"], PLACES) == "KVUSI"
+
+
+def test_a_navaids_name_comes_before_a_fix_spelled_as_the_word():
+    places = [
+        {"ident": "FLINT", "what": "fix", "lat": 43.0, "lon": -83.7},
+        {"ident": "FNT", "name": "Flint", "what": "navaid", "lat": 42.97, "lon": -83.74},
+        {"ident": "LVZ", "name": "Wilkes-Barre", "what": "navaid", "lat": 41.27, "lon": -75.69},
+    ]
+    assert spoken.point("Flint", places)["ident"] == "FNT"
+    # Said as the fix's letters, it is the fix.
+    assert spoken.point("flint intersection", places)["ident"] == "FLINT"
+    assert [p["ident"] for p in spoken.points("Wilkes Barre Flint", places)] == ["LVZ", "FNT"]
