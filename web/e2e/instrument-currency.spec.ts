@@ -36,7 +36,7 @@ test("the Logbook says how far instrument currency runs, logs approaches with a 
       await route.fulfill({ json: [] });
     }
   });
-  await page.route(url => url.pathname === "/api/training", route => route.fulfill({ json: { experience: [], knowledgeTestCodes: [], endorsements: [] } }));
+  await page.route(url => url.pathname === "/api/training", route => route.fulfill({ json: { experience: [], knowledgeTestCodes: [], endorsements: [], lessons: [] } }));
 
   await page.goto("/app/plan");
   await showTabs(page);
@@ -96,7 +96,7 @@ test("the Logbook's reminders are turned on, and kept", async ({ page }) => {
   });
   await page.route(url => url.pathname === "/api/logbook/currency", route => route.fulfill({ json: CURRENCY }));
   await page.route(url => url.pathname === "/api/logbook", route => route.fulfill({ json: [] }));
-  await page.route(url => url.pathname === "/api/training", route => route.fulfill({ json: { experience: [], knowledgeTestCodes: [], endorsements: [] } }));
+  await page.route(url => url.pathname === "/api/training", route => route.fulfill({ json: { experience: [], knowledgeTestCodes: [], endorsements: [], lessons: [] } }));
   await page.goto("/app/plan");
   await showTabs(page);
   await openConsole(page);
