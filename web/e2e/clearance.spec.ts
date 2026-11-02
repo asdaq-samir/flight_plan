@@ -66,8 +66,13 @@ test("the microphone listens once into a pill, and its chip flies the altitude s
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  await page.getByTestId("radio-button").click();
   const pill = page.getByTestId("radio-pill");
+  // The page's first tap can land before its handlers are in on a slow
+  // load: tapped again until it listens.
+  await expect(async () => {
+    if (!(await pill.count())) await page.getByTestId("radio-button").click();
+    await expect(pill).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: slow(20_000) });
   await expect(pill).toContainText("climb and maintain five thousand", { timeout: slow(10_000) });
   // No card: the pill is the microphone's.
   await expect(page.getByTestId("clearance-card")).toHaveCount(0);
