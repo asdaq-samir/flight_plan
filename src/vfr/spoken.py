@@ -66,8 +66,23 @@ def sound(word: str) -> str:
     return out
 
 
+def spelled(word: str) -> str:
+    """A word's sound with its vowels kept as one: "pickla" and PYKLA are
+    both PAKLA, where PCKLE is PKLA -- the second look between fixes whose
+    consonants are the same."""
+    s = re.sub(r"[^A-Z]", "", word.upper())
+    for spelled_as, said in (("PH", "F"), ("CK", "K"), ("GH", "G"), ("X", "KS"), ("Q", "K"), ("Z", "S"), ("C", "K")):
+        s = s.replace(spelled_as, said)
+    s = re.sub(r"[AEIOUY]+", "A", s.replace("H", "").replace("W", ""))
+    return re.sub(r"(.)\1+", r"\1", s)
+
+
 def _alike(a: str, b: str) -> float:
     return SequenceMatcher(None, sound(a), sound(b)).ratio()
+
+
+def _closer(a: str, b: str) -> float:
+    return SequenceMatcher(None, spelled(a), spelled(b)).ratio()
 
 
 def words_of(said: str) -> tuple[list[str], str | None]:
@@ -114,12 +129,13 @@ def point(said: str, places: list[dict], airport: dict | None = None) -> dict | 
     if len(words) != 1:
         return None
     scored = sorted(
-        ((max(_alike(joined, p["ident"]), _alike(joined, p.get("name") or "")), p) for p in wanted if p["what"] != "airport"),
-        key=lambda hit: -hit[0],
+        ((max(_alike(joined, p["ident"]), _alike(joined, p.get("name") or "")), _closer(joined, p["ident"]), p)
+         for p in wanted if p["what"] != "airport"),
+        key=lambda hit: (-hit[0], -hit[1]),
     )
     if not scored or scored[0][0] < ALIKE:
         return None
-    return _row(said, scored[0][1], False)
+    return _row(said, scored[0][2], False)
 
 
 def points(said: str, places: list[dict]) -> list[dict]:

@@ -33,6 +33,8 @@ def test_an_ident_or_a_name_said_is_found_outright():
 def test_a_fix_said_as_a_word_is_found_by_its_sound_and_offered_unsure():
     found = spoken.point("pickla", PLACES)
     assert (found["ident"], found["sure"]) == ("PYKLA", False)
+    # Of two fixes with its consonants, the one with its vowels too.
+    assert spoken.point("pickla", [{"ident": "PCKLE", "what": "fix"}, *PLACES])["ident"] == "PYKLA"
     # Nothing near sounds like it: none, rather than a guess.
     assert spoken.point("zebra", PLACES) is None
 
