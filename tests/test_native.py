@@ -191,12 +191,18 @@ def test_real_routes_turn_where_the_python_turned(route):
         points = [tuple(p) for p in case["points"]]
         mc, wc = case["marginal_cost"], case["water_cost"]
         assert ro._straightened(grid, gs, points, mc, case["slower_min"], wc) == [tuple(p) for p in case["turns"]]
-        assert [ro._line_minutes(grid, gs, p, q, mc, wc) for p, q in zip(points, points[1:])] == case["legs_min"]
+        # Minutes and miles to the last bits PROJ's arithmetic leaves them:
+        # its build on GitHub's runner fuses multiply-adds the planner's
+        # image does not (13.265898843079754 there, ...885 here). The turns
+        # and cells, which those minutes decide, stay exact.
+        assert [ro._line_minutes(grid, gs, p, q, mc, wc) for p, q in zip(points, points[1:])] == \
+            pytest.approx(case["legs_min"], rel=1e-9)
         assert [grid.line_cells(points[0], p) for p in points[1:]] == \
             [[tuple(c) for c in cells] for cells in case["cells_from_first"]]
         # The miles the engine's tests are given are vfr.geo's.
         lats, lons = np.array([p[0] for p in points]), np.array([p[1] for p in points])
-        assert np.asarray(geo.distance_nm(lats[:-1], lons[:-1], lats[1:], lons[1:])).reshape(-1).tolist() == case["leg_nm"]
+        assert np.asarray(geo.distance_nm(lats[:-1], lons[:-1], lats[1:], lons[1:])).reshape(-1).tolist() == \
+            pytest.approx(case["leg_nm"], rel=1e-9)
 
 
 # --- The airspace at a point -------------------------------------------------
