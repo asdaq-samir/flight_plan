@@ -232,6 +232,11 @@ def find_navaid(ident: str, near: tuple = ()) -> dict | None:
     return min(found, key=lambda navaid: sum(geo.distance_nm(navaid["lat"], navaid["lon"], lat, lon) for lat, lon in near))
 
 
+def navaids() -> list[dict]:
+    """Every navaid in service, each place of an ident once."""
+    return [navaid for found in _table().navaids.values() for navaid in found]
+
+
 def title(fix: dict) -> str:
     """What a fix is called to a pilot: a navaid by its name, kind and
     frequency -- "Rockford DME 110.8" -- the rest by their kind."""

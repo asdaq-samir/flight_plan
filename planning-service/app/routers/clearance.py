@@ -3,6 +3,7 @@ lib/clearance and the app's Clearance read the words the recognizer
 wrote into the clearance's items (AIM 4-4-3), and ask here for the
 idents of the places it named (vfr.spoken), near the route. Before
 listening, the names the recognizer is told to expect."""
+import functools
 import math
 import re
 
@@ -61,12 +62,29 @@ def _places(near: tuple) -> list[dict]:
     return sorted(found, key=lambda p: min((p["lat"] - lat) ** 2 + ((p["lon"] - lon) * squeeze) ** 2 for lat, lon in near))
 
 
+@functools.cache
+def _navaids_by_name() -> dict[str, list[dict]]:
+    """Every navaid in service by its name as words ("WILL ROGERS"), held
+    while the planner runs: a few thousand."""
+    by_name: dict[str, list[dict]] = {}
+    for navaid in fixes.navaids():
+        if navaid.get("name"):
+            by_name.setdefault(spoken.name_words(navaid["name"]), []).append({**navaid, "what": "navaid"})
+    return by_name
+
+
 def _exact(said: str, near: tuple) -> list[dict]:
     """The places anywhere whose ident one of the words, or all of them
     run together, is -- a point spelled in the phonetic alphabet far from
-    the route's ends."""
+    the route's ends -- and the navaids anywhere named by a run of them:
+    a route that doglegs far off the line between the points known, as
+    one from Charlotte to Phoenix by Will Rogers (IRW) does."""
     words = re.findall(r"[a-z0-9]+", said.lower())
     out = []
+    by_name = _navaids_by_name()
+    for n in (1, 2, 3):
+        for i in range(len(words) - n + 1):
+            out += by_name.get(" ".join(words[i:i + n]).upper(), [])
     for ident in {"".join(words).upper(), *(w.upper() for w in words)}:
         if len(ident) < 2:
             continue
