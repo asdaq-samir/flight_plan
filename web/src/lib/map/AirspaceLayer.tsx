@@ -56,6 +56,28 @@ const TAPS_PANE = { zIndex: TAPS_Z, pointerEvents: "none" } as const;
 
 const NONE: AirspaceVolume[] = [];
 
+/** The volumes already drawn, by their id and the box's height their
+ *  lines were simplified for (the planner's tolerance_for): a pan into a
+ *  new box answers with the same rings, and each kept as the same object
+ *  is not drawn again (VolumeLines and VolumeTap are memo). New objects,
+ *  every ring on the map was taken off its line and put back, its tap
+ *  too, at each box a pan or a pinch asked for. */
+const drawn = new Map<string, AirspaceVolume>();
+/** The most kept, a few states' worth, before they are let go. */
+const MOST_KEPT = 3000;
+
+function kept(volumes: AirspaceVolume[], box: { south: number; north: number }): AirspaceVolume[] {
+  if (drawn.size > MOST_KEPT) drawn.clear();
+  const height = box.north - box.south;
+  return volumes.map(v => {
+    const key = `${v.id}|${height}`;
+    const was = drawn.get(key);
+    if (was) return was;
+    drawn.set(key, v);
+    return v;
+  });
+}
+
 /**
  * The Class B, C and D over the chart, the owner's pick of the map's
  * looks ("C", after ForeFlight's): each volume's line from the FAA's own
@@ -78,7 +100,7 @@ export function AirspaceLayer() {
   const classes = near ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
   const { data } = useQuery({
     queryKey: ["airspaceInView", asked.key, classes],
-    queryFn: () => api.airspaceInView({ ...asked.box, classes }),
+    queryFn: () => api.airspaceInView({ ...asked.box, classes }).then(volumes => kept(volumes, asked.box)),
     enabled: on,
     staleTime: Infinity,
     placeholderData: keepPreviousData,

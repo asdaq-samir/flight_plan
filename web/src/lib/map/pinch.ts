@@ -98,7 +98,7 @@ L.GridLayer.include({
  * between two.
  */
 export const PINCH_REDRAW_MS = 50;
-type Redrawn = { _project: () => void; _update: () => void };
+type Redrawn = { _project: () => void; _update: () => void; getBounds?: () => L.LatLngBounds; getLatLng?: () => L.LatLng };
 type Svg = L.SVG & {
   _map?: ZoomingMap;
   _layers: Record<string, Redrawn>;
@@ -127,11 +127,52 @@ L.SVG.include({
       this.on("update", this._updatePaths, this);
     }
     this._updateTransform(this._center, this._zoom);
+    // Only the paths in sight, and half a screen round it: a pinch out
+    // brings no more than that in before the next draw. The rest -- the
+    // airspace's rings a few screens off -- are drawn again as the zoom
+    // ends (Renderer._onZoomEnd), not at every step of it.
+    const near = this._map!.getBounds().pad(0.5);
     for (const id in this._layers) {
       const path = this._layers[id]!;
+      const bounds = path.getBounds?.() ?? (path.getLatLng ? L.latLngBounds([path.getLatLng()]) : null);
+      if (bounds && !near.intersects(bounds)) continue;
       path._project();
       path._update();
     }
+  },
+});
+
+/**
+ * A line drawn whole (noClip) not drawn again where nothing has changed:
+ * Leaflet clips, simplifies and writes out every line as each pan ends
+ * (the renderer's 'update'), for the cut it makes at the view's edge; a
+ * line not cut comes out the same until it is projected again, at a zoom.
+ * The airspace's rings are drawn whole (AirspaceLayer), and all of them
+ * were written out again as each pan ended, a few hundred lines.
+ */
+type Line = L.Polyline & {
+  _map?: L.Map;
+  _renderer: { _bounds: L.Bounds };
+  _pxBounds?: L.Bounds;
+  _parts?: unknown[];
+  /** Projected since it was last drawn. */
+  _moved?: boolean;
+  _project: () => void;
+  _update: () => void;
+};
+const polyline = L.Polyline.prototype as unknown as Line;
+const project = polyline._project;
+const update = polyline._update;
+L.Polyline.include({
+  _project(this: Line) {
+    this._moved = true;
+    project.call(this);
+  },
+  _update(this: Line) {
+    const same = this.options.noClip && !this._moved && !!this._parts?.length && !!this._pxBounds?.intersects(this._renderer._bounds);
+    if (same) return;
+    this._moved = false;
+    update.call(this);
   },
 });
 
