@@ -61,7 +61,8 @@ test("the microphone listens once into a pill, and its chip flies the altitude s
       }
       stop() { setTimeout(() => this.onend?.(), 50); }
     }
-    (window as unknown as Record<string, unknown>).webkitSpeechRecognition = Heard;
+    // Both names: this Chromium has the unprefixed one as well.
+    Object.assign(window, { SpeechRecognition: Heard, webkitSpeechRecognition: Heard });
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
