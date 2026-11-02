@@ -23,7 +23,7 @@
  * pattern is the pilot's, flown as the field and its traffic need.
  */
 import type { Runway } from "./api/types";
-import { FT_PER_NM, bearingDeg, destination, distanceNm, signedTurn, type LatLon } from "./geo";
+import { FT_PER_NM, bearingDeg, destination, distanceNm, normalizeDeg, signedTurn, type LatLon } from "./geo";
 import { patternSideDeg, runwayNumber, type RunwayEnd } from "./pattern";
 
 /** Three-quarters of a statute mile, in nautical miles: the middle of the
@@ -71,7 +71,7 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
   // From out on the pattern's side, behind the downwind's direction: the
   // bisector of the landing direction and the pattern's side.
   const turn = signedTurn(along, side);
-  const entryFrom = destination(midfield, (along + turn / 2 + 360) % 360, ENTRY_NM);
+  const entryFrom = destination(midfield, normalizeDeg(along + turn / 2), ENTRY_NM);
   return {
     kind: "arrival", ident, runway: runwayNumber(end.ident), traffic: end.traffic, altitudeFt,
     legs: [
@@ -99,7 +99,7 @@ export function departurePattern(ident: string, runway: Runway, endIdent: string
   const c = corners(runway, endIdent);
   if (!c) return null;
   const { threshold, along, side, upwindEnd, end } = c;
-  const turned = (along + signedTurn(along, side) / 2 + 360) % 360;
+  const turned = normalizeDeg(along + signedTurn(along, side) / 2);
   const on = toward ? bearingDeg(upwindEnd, toward) : along;
   const straight = Math.abs(signedTurn(along, on)) <= Math.abs(signedTurn(turned, on));
   return {
