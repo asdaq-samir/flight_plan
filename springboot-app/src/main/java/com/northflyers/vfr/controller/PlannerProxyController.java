@@ -168,6 +168,9 @@ public class PlannerProxyController {
             route("GET", "/api/waypoints/in-view"),
             // The map's VORs, and close in the enroute chart's fixes.
             route("GET", "/api/navaids/in-view"),
+            // The route's points' Garmin types and ICAO regions, for the
+            // flight plan files a panel GPS imports.
+            route("GET", "/api/waypoint-codes"),
             route("GET", "/api/airports/nearest"),
             // The map's Stops: fields with fuel, food, repair or a flight school, round the pilot or along the route.
             route("GET", "/api/stops/near"),
