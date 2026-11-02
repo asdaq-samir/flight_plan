@@ -121,10 +121,12 @@ test("the card's runways are a page of the pictures across its top, the FAA's di
   // A tap shows the picture alone, the name and buttons gone and the
   // full-screen button in their place (the owner's ask, 2026-11-02); a
   // tap again brings them back.
+  const shade = card(page).getByTestId("place-name").locator("..");
   await sketch.click();
-  await expect(card(page).getByTestId("place-name")).toHaveCSS("opacity", "0");
+  await expect(shade).toHaveCSS("opacity", "0");
+  await expect(card(page).getByTestId("place-close").locator("..")).toHaveCSS("opacity", "0");
   await sketch.click();
-  await expect(card(page).getByTestId("place-name")).toHaveCSS("opacity", "1");
+  await expect(shade).toHaveCSS("opacity", "1");
   await expect(card(page).getByTestId("place-diagram-open")).toHaveCount(0);
   await sketch.click();
   await card(page).getByTestId("place-diagram-open").click();
