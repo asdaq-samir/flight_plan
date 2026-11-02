@@ -165,6 +165,12 @@ const LIMIT_ENDS = new Set([...AFTER_ROUTE, "via", "as", "then", "radar", "vecto
 /** Words between places, not places: "then direct", "to". */
 const BETWEEN = new Set(["then", "direct", "to", "and", "thence", "via", "the"]);
 
+/** "Cleared ILS approach", "cleared visual": an approach, not a route. */
+const APPROACH_WORDS = ["ils", "rnp", "rnav", "gps", "loc", "visual", "approach", "vor", "ndb"];
+
+/** Whose a frequency is, said before it. */
+const FACILITIES = ["departure", "center", "approach", "tower", "ground", "clearance", "information", "apron", "radio", "unicom", "director"];
+
 /** "departure" as the frequency's, not a SID's: "departure frequency
  *  125.35", "departure control", "departure will be on 125.35". */
 function isFacility(toks: Token[], i: number): boolean {
@@ -270,16 +276,20 @@ export function readClearance(text: string): Clearance {
     expectFt: null, expectMin: null, frequency: null, facility: null, squawk: null, classB: false,
   };
   const cleared = toks.findIndex(t => t.word === "cleared" || t.word === "clear");
-  let rest = 0;
+  // Where the limit and the route were read, which the rest is not
+  // looked for in: the altitudes, frequency and code are said before
+  // "cleared" too ("climb flight level seven zero and cleared to...").
+  let from = toks.length, rest = 0;
   if (cleared >= 0) {
+    from = cleared;
     let i = cleared + 1;
     if (["into", "through"].includes(toks[i]?.word ?? "")) {
       // A Class B's: "cleared into the Class Bravo airspace".
       out.classB = toks.slice(i, i + 5).some(t => t.word === "bravo" || t.word === "b");
       i = toks.findIndex((t, k) => k > i && t.word === "airspace") + 1 || i + 4;
-    } else if (["for", "on"].includes(toks[i]?.word ?? "") || (toks[i]?.word === "to" && toks[i + 1]?.word === "land")) {
-      // "Cleared for takeoff", "cleared to land": no route in it.
-      i = toks.length;
+    } else if (["for", "on", ...APPROACH_WORDS].includes(toks[i]?.word ?? "") || (toks[i]?.word === "to" && toks[i + 1]?.word === "land")) {
+      // "Cleared for takeoff", "cleared to land", "cleared ILS approach":
+      // no route in it, the altitudes after it still read.
     } else {
       if (toks[i]?.word === "to" || toks[i]?.num === "2") i++;
       const start = i;
@@ -296,10 +306,15 @@ export function readClearance(text: string): Clearance {
     }
     rest = i;
   }
-  for (let i = rest; i < toks.length; i++) {
-    const t = toks[i]!;
-    if ((t.word === "maintain" || t.word === "cruise") && out.maintainFt === null) {
+  for (let i = 0; i < toks.length; i++) {
+    if (i >= from && i < rest) i = rest;
+    const t = toks[i];
+    if (!t) break;
+    if (["maintain", "cruise", "climb", "descend"].includes(t.word) && out.maintainFt === null) {
+      // "Climb and maintain" is read at its "maintain"; "climb to five
+      // thousand", "descend flight level seven zero" at the verb.
       let k = i + 1;
+      while ((t.word === "climb" || t.word === "descend") && ["to", "initially", "altitude"].includes(toks[k]?.word ?? "")) k++;
       if (toks[k]?.word === "vfr") { out.vfr = true; k++; }
       if (toks[k]?.word === "at" && toks[k + 1]?.word === "or" && (toks[k + 2]?.word === "below" || toks[k + 2]?.word === "above")) {
         out.maintainLimit = `at or ${toks[k + 2]!.word as "below" | "above"}`;
@@ -321,8 +336,8 @@ export function readClearance(text: string): Clearance {
     } else if (t.num && out.frequency === null) {
       const frequency = frequencyOf(t.num);
       const said = toks.slice(Math.max(0, i - 4), i).map(x => x.word);
-      const facility = said.reverse().find(w => ["departure", "center", "approach", "tower", "ground", "clearance"].includes(w));
-      if (frequency && (facility || said.includes("contact") || said.includes("frequency"))) {
+      const facility = said.reverse().find(w => FACILITIES.includes(w));
+      if (frequency && (facility || said.includes("contact") || said.includes("monitor") || said.includes("frequency"))) {
         out.frequency = frequency;
         out.facility = facility ?? null;
       }
