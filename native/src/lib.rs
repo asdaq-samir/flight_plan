@@ -4,8 +4,7 @@
 //! stands in for gives -- the same samples, the same sums in the same
 //! order -- and tests/test_native.py runs both on the same cases.
 
-use numpy::ndarray::{ArrayView2, ArrayView3};
-use numpy::{PyReadonlyArray1, PyReadonlyArray2, PyReadonlyArray3};
+use pyo3::buffer::{PyBuffer, ReadOnlyCell};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::collections::HashSet;
@@ -100,22 +99,37 @@ impl Neumaier {
     }
 }
 
+/// A C-contiguous array's elements, borrowed: numpy's own memory, read
+/// in place.
+fn cells<'a, T: pyo3::buffer::Element>(py: Python<'a>, buffer: &'a PyBuffer<T>, dims: usize)
+    -> PyResult<&'a [ReadOnlyCell<T>]> {
+    if buffer.dimensions() != dims {
+        return Err(PyValueError::new_err(format!("an array of {dims} dimensions")));
+    }
+    buffer.as_slice(py).ok_or_else(|| PyValueError::new_err("an array in C order"))
+}
+
 struct Costs<'a> {
-    closed: ArrayView2<'a, i64>,
-    marginal: ArrayView2<'a, i64>,
-    dear: ArrayView2<'a, f64>,
-    offshore: ArrayView2<'a, f64>,
-    gs: ArrayView3<'a, f64>,
+    cols: usize,
+    closed: &'a [ReadOnlyCell<i64>],
+    marginal: &'a [ReadOnlyCell<i64>],
+    dear: &'a [ReadOnlyCell<f64>],
+    offshore: &'a [ReadOnlyCell<f64>],
+    gs: &'a [ReadOnlyCell<f64>],
     ends: &'a HashSet<(i64, i64)>,
 }
 
 impl Costs<'_> {
+    fn at(&self, c: (i64, i64)) -> usize {
+        c.0 as usize * self.cols + c.1 as usize
+    }
+
     fn is_open(&self, c: (i64, i64)) -> bool {
-        self.closed[[c.0 as usize, c.1 as usize]] < 0 || self.ends.contains(&c)
+        self.closed[self.at(c)].get() < 0 || self.ends.contains(&c)
     }
 
     fn is_marginal(&self, c: (i64, i64)) -> bool {
-        self.marginal[[c.0 as usize, c.1 as usize]] >= 0
+        self.marginal[self.at(c)].get() >= 0
     }
 
     /// _line_minutes: the way nearest the line's bearing (Python's round,
@@ -135,10 +149,10 @@ impl Costs<'_> {
         }
         let rates: Vec<f64> = cells
             .iter()
-            .map(|&(r, c)| {
-                let (ru, cu) = (r as usize, c as usize);
-                let m = if self.marginal[[ru, cu]] >= 0 { marginal_cost } else { 0.0 };
-                (1.0 + self.dear[[ru, cu]] + m + water_cost * self.offshore[[ru, cu]]) / self.gs[[ru, cu, k]]
+            .map(|&c| {
+                let at = self.at(c);
+                let m = if self.marginal[at].get() >= 0 { marginal_cost } else { 0.0 };
+                (1.0 + self.dear[at].get() + m + water_cost * self.offshore[at].get()) / self.gs[at * 8 + k].get()
             })
             .collect();
         nm * (pairwise(&rates) / rates.len() as f64) * 60.0
@@ -161,15 +175,29 @@ fn line_cells(a: (f64, f64), b: (f64, f64), lat0: f64, lon0: f64, cell: f64, row
 
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-fn line_minutes(a: (f64, f64), b: (f64, f64), nm: f64, lat0: f64, lon0: f64, cell: f64,
-                marginal: PyReadonlyArray2<i64>, dear: PyReadonlyArray2<f64>, offshore: PyReadonlyArray2<f64>,
-                gs: PyReadonlyArray3<f64>, marginal_cost: f64, water_cost: f64) -> PyResult<f64> {
-    let m = marginal.as_array();
-    let g = geom(lat0, lon0, cell, m.shape()[0] as i64, m.shape()[1] as i64)?;
+fn line_minutes(py: Python<'_>, a: (f64, f64), b: (f64, f64), nm: f64, lat0: f64, lon0: f64, cell: f64,
+                marginal: PyBuffer<i64>, dear: PyBuffer<f64>, offshore: PyBuffer<f64>, gs: PyBuffer<f64>,
+                marginal_cost: f64, water_cost: f64) -> PyResult<f64> {
+    let (rows, cols) = (marginal.shape()[0], marginal.shape()[1]);
+    let g = geom(lat0, lon0, cell, rows as i64, cols as i64)?;
     let ends = HashSet::new();
-    let costs = Costs { closed: m, marginal: m, dear: dear.as_array(), offshore: offshore.as_array(), gs: gs.as_array(),
-                        ends: &ends };
+    let costs = grid_costs(py, cols, rows, &marginal, &marginal, &dear, &offshore, &gs, &ends)?;
     Ok(costs.minutes(&cells_of(g, a, b), a, b, nm, marginal_cost, water_cost))
+}
+
+/// The grid's arrays, each the grid's size (gs eight ways a cell).
+#[allow(clippy::too_many_arguments)]
+fn grid_costs<'a>(py: Python<'a>, cols: usize, rows: usize, closed: &'a PyBuffer<i64>, marginal: &'a PyBuffer<i64>,
+                  dear: &'a PyBuffer<f64>, offshore: &'a PyBuffer<f64>, gs: &'a PyBuffer<f64>,
+                  ends: &'a HashSet<(i64, i64)>) -> PyResult<Costs<'a>> {
+    let n = rows * cols;
+    let costs = Costs { cols, closed: cells(py, closed, 2)?, marginal: cells(py, marginal, 2)?, dear: cells(py, dear, 2)?,
+                        offshore: cells(py, offshore, 2)?, gs: cells(py, gs, 3)?, ends };
+    if [costs.closed.len(), costs.marginal.len(), costs.dear.len(), costs.offshore.len()].iter().any(|&l| l != n)
+        || costs.gs.len() != n * 8 || gs.shape()[2] != 8 {
+        return Err(PyValueError::new_err("the grid's arrays, each its size, groundspeeds eight ways"));
+    }
+    Ok(costs)
 }
 
 /// _straightened's turns, as indices into the points: from each turn the
@@ -179,17 +207,18 @@ fn line_minutes(a: (f64, f64), b: (f64, f64), nm: f64, lat0: f64, lon0: f64, cel
 /// point i to every point, vfr.geo's, so the miles are PROJ's own.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
-fn straightened(points: Vec<(f64, f64)>, lat0: f64, lon0: f64, cell: f64, closed: PyReadonlyArray2<i64>,
-                marginal: PyReadonlyArray2<i64>, dear: PyReadonlyArray2<f64>, offshore: PyReadonlyArray2<f64>,
-                gs: PyReadonlyArray3<f64>, ends: Vec<(i64, i64)>, leg_nm: PyReadonlyArray1<f64>,
-                nm_from: &Bound<'_, PyAny>, marginal_cost: f64, slower_min: f64, water_cost: f64)
-    -> PyResult<Vec<usize>> {
-    let closed_v = closed.as_array();
-    let g = geom(lat0, lon0, cell, closed_v.shape()[0] as i64, closed_v.shape()[1] as i64)?;
+fn straightened(py: Python<'_>, points: Vec<(f64, f64)>, lat0: f64, lon0: f64, cell: f64, closed: PyBuffer<i64>,
+                marginal: PyBuffer<i64>, dear: PyBuffer<f64>, offshore: PyBuffer<f64>, gs: PyBuffer<f64>,
+                ends: Vec<(i64, i64)>, leg_nm: PyBuffer<f64>, nm_from: &Bound<'_, PyAny>, marginal_cost: f64,
+                slower_min: f64, water_cost: f64) -> PyResult<Vec<usize>> {
+    if closed.dimensions() != 2 {
+        return Err(PyValueError::new_err("the grid's closed cells, rows by columns"));
+    }
+    let (rows, cols) = (closed.shape()[0], closed.shape()[1]);
+    let g = geom(lat0, lon0, cell, rows as i64, cols as i64)?;
     let ends: HashSet<(i64, i64)> = ends.into_iter().collect();
-    let costs = Costs { closed: closed_v, marginal: marginal.as_array(), dear: dear.as_array(),
-                        offshore: offshore.as_array(), gs: gs.as_array(), ends: &ends };
-    let leg_nm = leg_nm.as_array();
+    let costs = grid_costs(py, cols, rows, &closed, &marginal, &dear, &offshore, &gs, &ends)?;
+    let leg_nm = leg_nm.to_vec(py)?;
     let n = points.len();
     if leg_nm.len() + 1 != n {
         return Err(PyValueError::new_err("a leg's miles for each pair of points"));
@@ -230,9 +259,8 @@ fn straightened(points: Vec<(f64, f64)>, lat0: f64, lon0: f64, cell: f64, closed
             let shut = cells.iter().filter(|&&c| !costs.is_open(c)).count();
             if shut <= crossed[j] {
                 if row.is_none() {
-                    let nm = nm_from.call1((i,))?;
-                    let nm: PyReadonlyArray1<f64> = nm.extract()?;
-                    row = Some(nm.as_array().to_vec());
+                    let nm = PyBuffer::<f64>::get(&nm_from.call1((i,))?)?;
+                    row = Some(nm.to_vec(py)?);
                 }
                 let nm = row.as_ref().unwrap()[j];
                 if costs.minutes(&cells, points[i], points[j], nm, marginal_cost, water_cost) <= spent[j] + slower_min
