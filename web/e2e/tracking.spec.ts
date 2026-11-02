@@ -518,14 +518,15 @@ test("an airplane's card is laid out as an airport's: its pictures across the to
 });
 
 test("an airplane's card has Follow, Alert, Debrief and the star in a row, Share and the close on its pictures, its flight's state and height in its summary, and its airport a tap away", async ({ page }) => {
-  // The owner's pick of the redesign (A2): the actions a row of four
-  // under the pictures, Follow filled, as Maps' are under a place's.
+  // The owner's pick of the redesign (A2): the actions a row under the
+  // pictures, Follow filled, as Maps' are under a place's; the star on the
+  // pictures beside the close since the owner's ask of 2026-10-29.
   await sky(page, { ...DETAIL, departed: { ident: "C81", name: "Campbell Airport", at: Date.now() / 1000 - 3600 } });
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
   await expect(card.getByTestId("flight-follow")).toBeVisible({ timeout: slow(15_000) });
-  const row = await Promise.all(["flight-follow", "flight-alert", "flight-debrief", "flight-favorite"].map(async id => (await card.getByTestId(id).boundingBox())!));
+  const row = await Promise.all(["flight-follow", "flight-alert", "flight-debrief"].map(async id => (await card.getByTestId(id).boundingBox())!));
   for (let i = 1; i < row.length; i++) {
     expect(Math.abs(row[i]!.y - row[0]!.y), "one row").toBeLessThan(1);
     expect(Math.abs(row[i]!.width - row[0]!.width), "equal").toBeLessThan(1);
@@ -536,7 +537,7 @@ test("an airplane's card has Follow, Alert, Debrief and the star in a row, Share
   await expect(card.getByTestId("flight-follow")).toContainText("Following");
   // Share and the close on the pictures, the bar's out of the pill.
   const head = (await card.getByTestId("flight-head").boundingBox())!;
-  for (const id of ["flight-share", "flight-close"]) {
+  for (const id of ["flight-share", "flight-favorite", "flight-close"]) {
     const button = (await card.getByTestId(id).boundingBox())!;
     expect(button.y >= head.y && button.y + button.height <= head.y + head.height, `${id} on the pictures`).toBe(true);
   }

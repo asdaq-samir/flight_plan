@@ -81,9 +81,9 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
   await page.mouse.click(at!.x, at!.y);
   const card = page.getByTestId("airspace-card");
   await expect(card).toBeVisible({ timeout: slow(10000) });
-  // Named "Class D": in the card's head, or in its pill's (MapCard's pill)
-  // over it.
-  await expect(page.getByRole("heading", { name: "Class D" }).first()).toBeAttached();
+  // Named "Class D": in the card's head on a phone (or its pill's), on the
+  // head of its popup over the chart from md up, which has no heading.
+  await expect(page.getByRole("heading", { name: "Class D" }).or(page.locator(".leaflet-popup").getByText("Class D", { exact: true })).first()).toBeAttached();
   await expect(card).toContainText("Ceiling");
   await expect(card).toContainText(/\d,\d{3} ft MSL/);
   await expect(card).toContainText("Hours");
