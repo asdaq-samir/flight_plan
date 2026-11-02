@@ -1,4 +1,5 @@
 import type { Frequency, ProcedureDrawing, ProcedureFix, ProcedureMissedLeg } from "./api/types";
+import { stopwatchTime } from "./clock";
 import { ctafOf, frequencyOf, mhzText } from "./frequencies";
 import { distanceNm, rad, type LatLon } from "./geo";
 import { altitudeLines } from "./procedures";
@@ -212,7 +213,7 @@ export function missedWords(legs: ProcedureMissedLeg[] | undefined): string | nu
 /** A time as a stopwatch says it: "2:05". */
 export function stopwatch(seconds: number): string {
   const whole = Math.round(seconds);
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+  return stopwatchTime(whole);
 }
 
 /** The parts of the approach the lesson goes by. */
