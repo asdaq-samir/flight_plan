@@ -10,7 +10,10 @@ share code with:
   pyshp and shapely code gave at real taps round Chicago (O'Hare, KDPA,
   Midway and its shelf, Wheeling under O'Hare's shelf), captured then from
   the NASR Class Airspace shapefile the planner held, cut to the volumes
-  there.
+  there; and the same from the cycle pack (vfr.pack) made of that file.
+
+The route grids and the Chicago taps are shared with the engine's own
+tests (native/engine/tests/fixtures.rs).
 
 The wheel is built into the planner's image; CI builds it for these."""
 import gzip
@@ -27,6 +30,7 @@ from shapely.geometry import shape as shapely_shape
 
 import vfr_native
 from vfr import airspace_at, geo
+from vfr import pack as cycle_pack
 from vfr import route_options as ro
 
 FIXTURES = Path(__file__).parent / "fixtures" / "native"
@@ -158,17 +162,30 @@ def test_minutes_average_as_numpy_does():
 # --- Real routes' grids, as the Python answered on 2026-11-02 --------------
 
 
-@pytest.mark.parametrize("route", ["KMSP-KDEN", "KDLH-KSTL"])
-def test_real_routes_turn_where_the_python_turned(route):
-    arrays = np.load(FIXTURES / f"route-{route}.npz")
-    cases = json.loads(gzip.decompress((FIXTURES / f"route-{route}.json.gz").read_bytes()))
+def _route_grid(route: str):
+    """A real route's grid from its shared vector (the engine's own tests
+    read it too): a JSON line naming the arrays, then their bytes."""
+    raw = gzip.decompress((FIXTURES / f"route-{route}.grid.gz").read_bytes())
+    head, body = raw.split(b"\n", 1)
+    header = json.loads(head)
+    arrays, at = {}, 0
+    for name, dtype, shape in header["arrays"]:
+        size = int(np.prod(shape)) * np.dtype(dtype).itemsize
+        arrays[name] = np.frombuffer(body[at:at + size], dtype=dtype).reshape(shape).astype(np.dtype(dtype).newbyteorder("="))
+        at += size
     grid = ro._Grid.__new__(ro._Grid)
-    grid.lat0, grid.lon0 = (float(v) for v in arrays["corner"])
+    grid.lat0, grid.lon0 = header["corner"]
     grid.closed, grid.marginal, grid.dear, grid.offshore = (arrays[k] for k in ("closed", "marginal", "dear", "offshore"))
     grid.rows, grid.cols = grid.closed.shape
-    grid.ends = {tuple(int(v) for v in e) for e in arrays["ends"]}
+    grid.ends = {tuple(e) for e in header["ends"]}
     grid._lines = {}
-    gs = arrays["gs"]
+    return grid, arrays["gs"]
+
+
+@pytest.mark.parametrize("route", ["KMSP-KDEN", "KDLH-KSTL"])
+def test_real_routes_turn_where_the_python_turned(route):
+    grid, gs = _route_grid(route)
+    cases = json.loads(gzip.decompress((FIXTURES / f"route-{route}.json.gz").read_bytes()))
     assert cases
     for case in cases:
         points = [tuple(p) for p in case["points"]]
@@ -177,6 +194,9 @@ def test_real_routes_turn_where_the_python_turned(route):
         assert [ro._line_minutes(grid, gs, p, q, mc, wc) for p, q in zip(points, points[1:])] == case["legs_min"]
         assert [grid.line_cells(points[0], p) for p in points[1:]] == \
             [[tuple(c) for c in cells] for cells in case["cells_from_first"]]
+        # The miles the engine's tests are given are vfr.geo's.
+        lats, lons = np.array([p[0] for p in points]), np.array([p[1] for p in points])
+        assert np.asarray(geo.distance_nm(lats[:-1], lons[:-1], lats[1:], lons[1:])).reshape(-1).tolist() == case["leg_nm"]
 
 
 # --- The airspace at a point -------------------------------------------------
@@ -216,3 +236,48 @@ def test_a_shape_holds_what_shapely_says_it_holds(chicago):
             assert vfr_native.shape_holds(content, float(x), float(y)) == inside, (i, x, y)
     reader.close()
     assert held > 1000
+
+
+# --- The cycle pack -------------------------------------------------------------
+
+
+@pytest.fixture()
+def chicago_pack(chicago, tmp_path, monkeypatch):
+    """A pack of the Chicago cut alone, where vfr.pack looks for one."""
+    path = cycle_pack.write(tmp_path, "2026-10-29", shp_path=chicago, sua_held=[], sua_at=0.0, urban=[],
+                            urban_path=None, tables={})
+    monkeypatch.setattr(cycle_pack, "PACK_DIR", tmp_path)
+    return path
+
+
+def test_the_pack_reads_back_as_written(chicago_pack):
+    pack = cycle_pack.Pack(chicago_pack)
+    assert pack.verify()
+    header = vfr_native.pack_header(pack.mapped)
+    assert header["cycle"] == pack.cycle == "2026-10-29"
+    assert header["crc32"] == pack.crc32
+    assert set(header["sections"]) == set(pack.sections)
+    assert vfr_native.pack_verify(pack.mapped)
+    assert cycle_pack.matches(pack, "airspace", chicago_pack.parent.parent / "missing.shp") is False
+
+
+def test_real_taps_from_the_pack_find_what_the_shapefile_found(chicago, chicago_pack):
+    taps = json.loads((FIXTURES / "chicago_airspace.json").read_text())
+    assert airspace_at._packed(chicago) is not None
+    for name, tap in taps.items():
+        assert airspace_at.volumes_at(*tap["at"], chicago) == tap["volumes"], name
+
+
+def test_the_packs_rings_hold_what_the_shapefiles_hold(chicago, chicago_pack):
+    """Random points in each volume's box, the pack's WKB against the
+    shapefile's own record."""
+    rng = np.random.default_rng(5)
+    pack = cycle_pack.Pack(chicago_pack)
+    wkbs, boxes = pack.wkb("airspace"), pack.boxes("airspace")
+    shp = chicago.read_bytes()
+    shx = np.frombuffer(chicago.with_suffix(".shx").read_bytes(), dtype=">i4", offset=100).reshape(-1, 2)
+    contents = [shp[int(o) * 2 + 8:int(o) * 2 + 8 + int(n) * 2] for o, n in shx]
+    assert len(wkbs) == len(contents)
+    for wkb, content, (x0, y0, x1, y1) in zip(wkbs, contents, boxes):
+        for x, y in zip(rng.uniform(x0, x1, 200), rng.uniform(y0, y1, 200)):
+            assert vfr_native.wkb_holds(wkb, float(x), float(y)) == vfr_native.shape_holds(content, float(x), float(y))

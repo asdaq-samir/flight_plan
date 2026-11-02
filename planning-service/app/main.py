@@ -37,6 +37,7 @@ from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
 from vfr import airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, water, weather
 from vfr import airspace_at, congested
+from vfr import pack as cycle_pack
 from vfr import traffic as traffic_data
 from vfr import airports as airport_table
 
@@ -69,6 +70,10 @@ EDITIONS_CHECK_EVERY_S = 6 * 3600
 #: Whether the FAA's aircraft registry is downloaded and read here
 #: (vfr.registry): on, but on a test stack (docker-compose.ci.yml).
 REGISTRY_REFRESH = os.environ.get("REGISTRY_REFRESH", "1") != "0"
+#: Whether the cycle pack (vfr.pack) is built here, from the files the
+#: planner holds, once a cycle: on, but on a test stack, which reads the
+#: files themselves and need not write 400 MB a run.
+CYCLE_PACK = os.environ.get("CYCLE_PACK", "1") != "0"
 # Set once the reference data below is loaded: the health probe reports
 # it, so a test run against a fresh stack can wait for a planner that
 # answers at full speed rather than one still parsing airspace under
@@ -205,6 +210,15 @@ def _warm_reference_data() -> None:
         except Exception:  # noqa: BLE001 -- the next day's check tries again
             log.exception("aircraft registry not read")
 
+    # The cycle pack, from the files read above, where the one on disk is
+    # not of them: a new cycle's first start writes it (a minute or so),
+    # and every start after reads its airspace and towns from it.
+    if CYCLE_PACK:
+        try:
+            cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
+        except Exception:  # noqa: BLE001 -- the files are read as they were; the next start tries again
+            log.exception("cycle pack not built")
+
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
 
@@ -240,6 +254,8 @@ def _warm_reference_data() -> None:
                     faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)
                     remarks.preload()
                     fixes.preload()
+                    if CYCLE_PACK:
+                        cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
         # The aircraft registry, read again once it is a day old (each

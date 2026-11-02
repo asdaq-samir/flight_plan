@@ -50,6 +50,14 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
         with:
           node-version-file: .nvmrc
+      - name: The newest Xcode on the runner
+        run: |
+          # iPhone Duo shows an app at its inner screen's full size only if
+          # it was built with the iOS 27.1 SDK; an older one is letterboxed.
+          # The runner's default Xcode can lag its newest.
+          newest=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|_rc' | sort -V | tail -1)
+          sudo xcode-select -s "$newest"
+          xcodebuild -version
       - name: The shell, with its plugins
         working-directory: web
         run: |
@@ -81,6 +89,14 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
         with:
           node-version-file: .nvmrc
+      - name: The newest Xcode on the runner
+        run: |
+          # iPhone Duo shows an app at its inner screen's full size only if
+          # it was built with the iOS 27.1 SDK; an older one is letterboxed.
+          # The runner's default Xcode can lag its newest.
+          newest=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|_rc' | sort -V | tail -1)
+          sudo xcode-select -s "$newest"
+          xcodebuild -version
       - name: The shell, with its plugins
         working-directory: web
         run: |

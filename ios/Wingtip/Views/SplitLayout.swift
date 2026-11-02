@@ -11,8 +11,14 @@ enum RootLayout: Equatable {
     case sheet
     case split
 
-    static func of(_ sizeClass: UserInterfaceSizeClass?, pad: Bool) -> RootLayout {
-        pad && sizeClass == .regular ? .split : .sheet
+    /// By the size classes alone, as Apple asks of apps on iPhone Duo
+    /// (its "Prepare your app for iPhone Duo" talk): regular both ways is
+    /// an iPad or iPhone Duo open, with room for the map beside the
+    /// sidebar. An iPhone Max held sideways is regular across but compact
+    /// up and down, and keeps the sheet, as do iPhone Duo closed and an
+    /// iPad in a narrow Split View.
+    static func of(_ horizontal: UserInterfaceSizeClass?, _ vertical: UserInterfaceSizeClass?) -> RootLayout {
+        horizontal == .regular && vertical == .regular ? .split : .sheet
     }
 
     /// Which of the Airport tab's pages open in the inspector on iPad: a

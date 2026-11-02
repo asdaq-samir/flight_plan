@@ -13,6 +13,7 @@ struct RootView: View {
     @Environment(DryRun.self) private var dryRun
     @Environment(Traffic.self) private var traffic
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.verticalSizeClass) private var verticalSizeClass
     @Environment(\.undoManager) private var undoManager
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
@@ -51,7 +52,7 @@ struct RootView: View {
     /// names, as the web app's pill is.
     static let pill = PresentationDetent.height(132)
 
-    private var layout: RootLayout { .of(sizeClass, pad: UIDevice.current.userInterfaceIdiom == .pad) }
+    private var layout: RootLayout { .of(sizeClass, verticalSizeClass) }
 
     var body: some View {
         switch layout {

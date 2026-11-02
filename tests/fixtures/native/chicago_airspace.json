@@ -41,6 +41,12 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   9,
+   13,
+   17
   ]
  },
  "KDPA": {
@@ -85,6 +91,12 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   4,
+   12,
+   17
   ]
  },
  "Midway": {
@@ -129,6 +141,12 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   6,
+   9,
+   17
   ]
  },
  "Midway's shelf": {
@@ -173,6 +191,12 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   5,
+   10,
+   17
   ]
  },
  "Wheeling under O'Hare's shelf": {
@@ -226,6 +250,13 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   9,
+   15,
+   16,
+   17
   ]
  },
  "Lake Michigan off Chicago": {
@@ -261,6 +292,11 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   10,
+   17
   ]
  },
  "Rockford": {
@@ -296,6 +332,11 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   8,
+   17,
+   19
   ]
  },
  "Aurora": {
@@ -331,6 +372,11 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   3,
+   17
   ]
  },
  "Gary": {
@@ -384,6 +430,13 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   0,
+   2,
+   7,
+   18,
+   20
   ]
  },
  "Joliet": {
@@ -410,6 +463,10 @@
     "floor_ref": "AGL",
     "ceiling_ft": 18000.0
    }
+  ],
+  "records": [
+   2,
+   17
   ]
  }
 }

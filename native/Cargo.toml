@@ -1,17 +1,9 @@
-[package]
-name = "vfr_native"
-version = "0.1.0"
-edition = "2021"
-publish = false
-
-[lib]
-name = "vfr_native"
-crate-type = ["cdylib"]
-
-[dependencies]
-# The arrays come in by the buffer protocol (abi3 has it from 3.11): no
-# numpy crate, nor its ndarray, to keep up with.
-pyo3 = { version = "0.29.3", features = ["extension-module", "abi3-py311"] }
+# Wingtip's Rust: the engine (engine/, wingtip-engine), the same answers
+# on the planner and, later, the phone, and its Python face (py/,
+# vfr_native), which the planner imports.
+[workspace]
+members = ["engine", "py"]
+resolver = "2"
 
 [profile.release]
 lto = true
