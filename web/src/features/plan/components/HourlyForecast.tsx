@@ -43,8 +43,11 @@ export function HourlyForecast({ hours, arrival }: {
 }) {
   return (
     <div
-      role="list" aria-label="Hour by hour" data-slides="" data-testid="place-hours"
-      className="flex snap-x overflow-x-auto overscroll-x-contain px-1.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      // Focusable so the keyboard can scroll the row (axe's
+      // scrollable-region-focusable, WCAG 2.1.1), which the iPhone audit checks.
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scroller is what a keyboard needs to reach
+      role="list" tabIndex={0} aria-label="Hour by hour" data-slides="" data-testid="place-hours"
+      className="flex snap-x rounded-lg focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none overflow-x-auto overscroll-x-contain px-1.5 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {hours.map((hour, i) => {
         const label = hour.now ? "Now" : clockTime(new Date(hour.at));
