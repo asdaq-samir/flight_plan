@@ -95,6 +95,11 @@ def words_of(said: str) -> tuple[list[str], str | None]:
     return words, kind
 
 
+def name_words(name: str) -> str:
+    """A name as words, its marks gone: "WILKES BARRE" for Wilkes-Barre."""
+    return " ".join(re.findall(r"[A-Z0-9']+", name.upper()))
+
+
 def _row(said: str, place: dict, sure: bool) -> dict:
     return {
         "said": said, "ident": place["ident"], "name": place.get("name"), "kind": place["what"],
@@ -113,16 +118,21 @@ def point(said: str, places: list[dict], airport: dict | None = None) -> dict | 
         return None
     joined, spaced = "".join(words).upper(), " ".join(words).upper()
     wanted = [p for p in places if kind is None or p["what"] == kind]
-    # An ident outright, said or spelled: "GEP", "KDLH", "PYKLA".
+    # A navaid's or a field's ident outright, spelled: "GEP", "KDLH".
     exact = [p for p in wanted if p["ident"].upper() == joined]
-    if exact:
+    if exact and exact[0]["what"] != "fix":
         return _row(said, exact[0], True)
     if kind == "airport" and airport:
         return _row(said, {**airport, "what": "airport"}, True)
-    # A name outright: "Gopher", "Sioux Falls".
-    named = [p for p in wanted if p.get("name") and p["name"].upper() == spaced]
+    # A name outright: "Gopher", "Sioux Falls", "Wilkes-Barre" -- before a
+    # fix whose letters are the word, which a controller would spell or
+    # say as the fix: "Flint" is the Flint VOR (FNT), not the fix FLINT.
+    named = [p for p in wanted if p.get("name") and name_words(p["name"]) == spaced]
     if named:
         return _row(said, named[0], True)
+    # A fix said as its letters: "PYKLA".
+    if exact:
+        return _row(said, exact[0], True)
     if airport and kind in (None, "airport") and (airport.get("name") or "").upper().startswith(spaced):
         return _row(said, {**airport, "what": "airport"}, True)
     # A fix by its sound, one word only: five letters said as a word.
