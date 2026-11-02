@@ -74,8 +74,18 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
         lastAsked = Date()
         asking?.cancel()
         asking = Task { [weak self] in
-            guard let alerts = try? await Planner.ahead(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude, trackDeg: track, groundspeedKt: gs, altitudeFt: fix.altitudeFt),
-                  !Task.isCancelled else { return }
+            let (lat, lon) = (fix.coordinate.latitude, fix.coordinate.longitude)
+            let alerts: [AheadAlert]
+            if let online = try? await Planner.ahead(lat: lat, lon: lon, trackDeg: track, groundspeedKt: gs, altitudeFt: fix.altitudeFt) {
+                alerts = online
+            } else if let offline = CyclePacks.shared.ahead(lat: lat, lon: lon, trackDeg: track, groundspeedKt: gs, altitudeFt: fix.altitudeFt) {
+                // No planner in the air: the same alerts from the packs kept
+                // for the route (CyclePacks.ahead).
+                alerts = offline.alerts
+            } else {
+                return
+            }
+            guard !Task.isCancelled else { return }
             self?.ahead = alerts
         }
     }

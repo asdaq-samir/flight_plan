@@ -7,6 +7,7 @@
 //! the caller maps.
 //!
 //! - grid: route options' straight lines over the grid;
+//! - ahead: the alerts ahead of the airplane from the phone's packs;
 //! - airspace: whether an airspace volume holds a point;
 //! - pack: the cycle pack, one file per FAA cycle;
 //! - geo: great-circle distances, as vfr.geo has them;
@@ -22,6 +23,7 @@
 //!   sent, read strictly (xml: the small XML reader they share; time:
 //!   UTC dates).
 
+pub mod ahead;
 pub mod airspace;
 pub mod clearance;
 pub mod flight;

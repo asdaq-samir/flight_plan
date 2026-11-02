@@ -17,6 +17,7 @@ import gzip
 import json
 import math
 import shutil
+import struct
 from pathlib import Path
 
 import numpy as np
@@ -193,3 +194,82 @@ def test_the_ios_apps_fixture_packs_answer_as_the_planner(chicago):
     for name, tap in taps.items():
         lat, lon = tap["at"]
         assert _engine(PHONE, lat, lon) == expected[name] == _planner(chicago, lat, lon), name
+
+
+# --- The alerts ahead with no network (wingtip_engine::ahead) -------------
+
+def _ground_pack(tmp_path, monkeypatch, heights) -> bytes:
+    """A region's pack holding only its ground, written by vfr.pack's own
+    `_terrain` from a ground grid of two cells a degree over n40w088
+    (`heights`, 8 by 8 feet, row 0 the south), and a special-use area."""
+    from vfr import ground_grid
+
+    grid = np.asarray(heights, dtype="<i2")
+    monkeypatch.setattr(ground_grid, "SOUTH", 40.0)
+    monkeypatch.setattr(ground_grid, "NORTH", 44.0)
+    monkeypatch.setattr(ground_grid, "WEST", -88.0)
+    monkeypatch.setattr(ground_grid, "EAST", -84.0)
+    monkeypatch.setattr(ground_grid, "PER_DEG", 2)
+    monkeypatch.setattr(ground_grid, "_grids", lambda: (grid, grid))
+    ground = cycle_pack._terrain("n40w088")
+    area = Polygon([(-87.0, 42.4), (-87.0, 42.6), (-86.6, 42.6), (-86.6, 42.4)])
+    wkb = shapely.to_wkb(shapely.geometry.polygon.orient(area, sign=-1.0), byte_order=1)
+    record = {"name": "R-9999", "type": "R", "floor_ft": None, "floor_ref": "SFC", "ceiling_ft": 18000.0,
+              "ceiling_ref": "MSL", "times_of_use": "0800-1700 MON-FRI"}
+    path = tmp_path / "n40w088.pack"
+    with open(path, "w+b") as f:
+        w = cycle_pack._Writer(f, ["meta", "sua.box", "sua.off", "sua.wkb", "sua.rec", "sua.json", "sua.names",
+                                   "sua.alt", "sua.times", "terrain"])
+        w.put("meta", b"{}")
+        cycle_pack._layer(w, "sua", [area.bounds], [wkb], None)
+        w.put("sua.rec", struct.pack("<dIIII", float("nan"), 0, 0, 0, 6))
+        w.put("sua.json", b"")
+        w.put("sua.names", b"R-9999")
+        alt, times = cycle_pack._sua_alt([record])
+        w.put("sua.alt", alt)
+        w.put("sua.times", times)
+        w.put("terrain", ground)
+        w.finish("2026-11-02", 0.0)
+    return path.read_bytes()
+
+
+def test_the_ground_is_pooled_by_its_highest_and_a_misread_cell_is_none(tmp_path, monkeypatch):
+    heights = np.full((8, 8), 1000)
+    heights[0, 1] = 1500                 # pooled with three 1,000s: the cell is 1,500
+    heights[4:6, 4:6] = 32000            # tiles misread: no ground known
+    heights[6, 6] = 32000                # one misread among three read: theirs
+    pack = _ground_pack(tmp_path, monkeypatch, heights)
+    raw = cycle_pack._terrain("n40w088")
+    south, west, per, rows, cols, _ = struct.unpack("<ddIIII", raw[:32])
+    cells = np.frombuffer(raw[32:], dtype="<i2").reshape(rows, cols)
+    assert (south, west, per, rows, cols) == (40.0, -88.0, 1, 4, 4)
+    assert cells[0, 0] == 1500 and cells[2, 2] == np.iinfo(np.int16).min and cells[3, 3] == 1000
+    # Over the 1,500 ft cell at 1,700 ft: the grid's margin makes it 1,650,
+    # 50 ft under the airplane, a warning; well over it, nothing.
+    low = json.loads(vfr_native.ahead_json([pack], 40.2, -87.7, 90.0, 100.0, 1700.0, 0.0, 0))
+    terrain = [a for a in low["alerts"] if a["kind"] == "terrain"]
+    assert terrain and terrain[0]["level"] == "warning" and terrain[0]["top_ft"] == 1650.0
+    assert "obstacles" in low["unavailable"] and "TFRs" in low["unavailable"]
+    high = json.loads(vfr_native.ahead_json([pack], 40.2, -87.7, 90.0, 100.0, 4000.0, 0.0, 0))
+    assert not [a for a in high["alerts"] if a["kind"] == "terrain"]
+    # Over the misread cell the ground is not known: said, not alerted.
+    unknown = json.loads(vfr_native.ahead_json([pack], 42.2, -85.5, 0.0, 100.0, 3000.0, 0.0, 0))
+    assert "terrain" in unknown["unavailable"]
+
+
+def test_a_restricted_area_and_a_tfr_ahead(tmp_path, monkeypatch):
+    pack = _ground_pack(tmp_path, monkeypatch, np.full((8, 8), 600))
+    # Eastbound at 120 kt, two minutes from the area: 4 nm.
+    lat, lon = 42.5, -87.0 - 4.0 / (60.0 * math.cos(math.radians(42.5)))
+    ring = "-86.95 42.45,-86.9 42.45,-86.9 42.55,-86.95 42.55,-86.95 42.45"
+    tfr = f"6/1234\tA stadium\tspecial security instructions (99.7)\t0\tAGL\t3000\tAGL\t\t\t{ring}"
+    found = json.loads(vfr_native.ahead_json([pack], lat, lon, 90.0, 120.0, 3500.0, 0.0, 1_793_628_000, tfr, 1_793_620_000))
+    by_id = {a["id"]: a for a in found["alerts"]}
+    restricted = by_id["special_use:R-9999"]
+    assert (restricted["level"], restricted["class"], restricted["times_of_use"]) == ("caution", "R", "0800-1700 MON-FRI")
+    assert 115 <= restricted["seconds"] <= 125
+    stadium = by_id["tfr:6/1234"]
+    # 3,000 ft over ground of 750 (600 and the margin): to 3,750, and the airplane at 3,500.
+    assert (stadium["level"], stadium["ceiling_ft"]) == ("warning", 3750.0)
+    assert stadium["need"].endswith("(special security instructions (99.7)).")
+    assert found["tfrs_as_of"] == 1_793_620_000
