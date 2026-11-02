@@ -29,6 +29,7 @@ import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { patched, useSearchParamsNow } from "../../lib/useSearchParamsNow";
+import { lessonOf } from "../../lib/lessonLink";
 import type { WorkspaceProps } from "../page/workspace";
 import type { PanelState } from "../../components/mapChrome";
 import { useIsMobile } from "../../hooks/use-mobile";
@@ -242,6 +243,9 @@ const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r 
 /** The saved flights in full, FPL's card (the console's list, loaded as
  *  it opens). */
 const SavedFlights = lazy(() => import("../pilot/AccountPanels").then(m => ({ default: m.FlightsPanel })));
+/** An approach the pilot's instructor set them, opened from their
+ *  Checkride page (`?lesson=12`): its own chunk, as the lesson's is. */
+const AssignedLesson = lazy(() => import("./components/AssignedLesson"));
 
 const PLANNER_TABS: BarTab<PanelTab>[] = [
   // FPL first and Aircraft third, swapped back at the owner's ask ("Swap
@@ -1706,6 +1710,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { data: nearStrip } = useQuery({ ...nearestQuery(nearOrigin?.lat ?? 0, nearOrigin?.lon ?? 0), enabled: airportPill && showsNearest && !!nearOrigin });
   // FPL's saved flights in full, a card over it (SAVED's title).
   const savedOpen = searchParams.get("saved") === "1";
+  // An approach set by their instructor, open over the map until closed.
+  const lessonOpen = lessonOf(searchParams.get("lesson"));
+  const closeLesson = useCallback(() => {
+    setSearchParams(prev => patched(prev, { lesson: null }), { replace: true });
+  }, [setSearchParams]);
   // Each written in place of the address's last, as every panel change is
   // (lib/back): they pushed onto the history, the browser's Back stepping
   // through Saved and Nearest alone of the lists.
@@ -2819,6 +2828,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         />
         </Suspense>
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
+        {lessonOpen !== null && (
+          <Suspense fallback={null}>
+            <AssignedLesson key={lessonOpen} id={lessonOpen} aircraft={fitAircraft} onClose={closeLesson} />
+          </Suspense>
+        )}
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
       </div>

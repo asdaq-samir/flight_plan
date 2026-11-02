@@ -1,7 +1,7 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AirspaceInView, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, ClearanceAsk, ClearancePlaces, ClearanceWords, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, MapLayerAges, ModelComparison, NarrativeMessage, NarrativeRequest, NavaidsInView, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, RouteStops, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StopFields, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
+import type { Aircraft, AircraftBases, AssignLessonRequest, LessonProgressRequest, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AirspaceInView, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, MapLayerAges, ModelComparison, NarrativeMessage, NarrativeRequest, NavaidsInView, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, RouteStops, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StopFields, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView, ClearanceAsk, ClearancePlaces, ClearanceWords } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -852,6 +852,9 @@ export const api = {
       webapp.POST("/api/training/reviews", { body }).then(data<Training>),
     withdrawReview: (id: number) =>
       webapp.DELETE("/api/training/reviews/{id}", { params: { path: { id } } }).then(data<Training>),
+    /** How far along an approach set them: briefed, flown, its quiz so far. */
+    lessonProgress: (id: number, body: LessonProgressRequest) =>
+      webapp.POST("/api/training/lessons/{id}/progress", { params: { path: { id } }, body }).then(data<Training>),
   },
 
   /** The pilot as a flight instructor: their certificate, students,
@@ -872,6 +875,15 @@ export const api = {
       webapp.POST("/api/instructor/endorsements/{id}/void", { params: { path: { id } } }).then(data<Instructor>),
     decline: (id: number, note: string) =>
       webapp.POST("/api/instructor/reviews/{id}/decline", { params: { path: { id } }, body: { note } }).then(data<Instructor>),
+    /** An approach set one of their students as a lesson, and taken back. */
+    assignLesson: (studentId: number, body: AssignLessonRequest) =>
+      webapp.POST("/api/instructor/students/{studentId}/lessons", { params: { path: { studentId } }, body }).then(data<Training>),
+    removeLesson: (studentId: number, id: number) =>
+      webapp.DELETE("/api/instructor/students/{studentId}/lessons/{id}", { params: { path: { studentId, id } } }).then(data<Training>),
+    /** The track of a flight the student put to them, to debrief its approach. */
+    reviewedTrack: (studentId: number, flightId: number) =>
+      webapp.GET("/api/instructor/students/{studentId}/flights/{flightId}/track", { params: { path: { studentId, flightId } } })
+        .then(data<SavedTrack>),
   },
 
   /** A signed-in pilot's own filed flights. */

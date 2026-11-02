@@ -26,6 +26,7 @@ import { feet, gal, nm } from "../../lib/units";
 import { ExperienceGroup, KnowledgeCodes } from "./CheckridePage";
 import { acDay, inForce, reviewRoute, said } from "../../lib/endorsements";
 import { GoodTo, SignedRow, SignForm } from "./Endorsements";
+import StudentLessons from "./LessonAssign";
 
 /** Minutes as a nav log writes them: "1:35". */
 
@@ -189,7 +190,8 @@ function ReviewSection({ review, kind, studentId, studentName, instructor }: {
 
 /**
  * One student, as their instructor reads them: the solo cross-countries
- * waiting on them, 61.109's experience from the student's logbook, their
+ * waiting on them, the approaches set them as lessons (LessonAssign),
+ * 61.109's experience from the student's logbook, their
  * knowledge test codes, and each AC 61-65K endorsement -- signed here,
  * recorded from paper, or not yet, with a tap to sign one.
  */
@@ -234,6 +236,7 @@ function StudentPage({ row, instructor }: { row: StudentRow; instructor: Instruc
           })}
         </ListGroup>
       )}
+      <StudentLessons studentId={row.studentId} training={training} />
       <ExperienceGroup training={training} />
       <KnowledgeCodes codes={training.knowledgeTestCodes} />
     </div>

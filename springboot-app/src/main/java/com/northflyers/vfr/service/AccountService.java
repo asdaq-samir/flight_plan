@@ -29,7 +29,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * best effort, so Apple being down never keeps an account); then, in one transaction, the pilot's row --
  * the database cascades it to their aircraft, flights, logbook and
  * endorsements, their instructors and students and the solo
- * cross-countries between them (V26) -- and the sign-in links ever sent
+ * cross-countries between them (V26), the approaches set as lessons
+ * between them (V30) -- and the sign-in links ever sent
  * to their address; last
  * every session they hold, on any device, under any of the names they
  * sign in by. Only the planner being down leaves the account whole: the

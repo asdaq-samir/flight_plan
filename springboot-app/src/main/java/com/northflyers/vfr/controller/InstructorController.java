@@ -1,12 +1,15 @@
 package com.northflyers.vfr.controller;
 
 import com.northflyers.vfr.domain.Pilot;
+import com.northflyers.vfr.dto.AssignLessonRequest;
 import com.northflyers.vfr.dto.DeclineRequest;
 import com.northflyers.vfr.dto.InstructorDto;
 import com.northflyers.vfr.dto.InstructorRequest;
 import com.northflyers.vfr.dto.SignRequest;
+import com.northflyers.vfr.dto.TrackDto;
 import com.northflyers.vfr.dto.TrainingDto;
 import com.northflyers.vfr.service.InstructorService;
+import com.northflyers.vfr.service.LessonService;
 import com.northflyers.vfr.service.LogbookService;
 import com.northflyers.vfr.service.PilotService;
 import com.northflyers.vfr.service.TrainingService;
@@ -28,20 +31,23 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * A pilot as a flight instructor (see {@link InstructorService}): their
  * certificate, the students who asked them in, each student's record,
- * the endorsements they sign and void, and the solo cross-countries put to
- * them. Pilot-scoped: 401 signed out; a student not theirs is 404.
+ * the endorsements they sign and void, the solo cross-countries put to
+ * them, and the approaches they set as lessons (LessonService). Pilot-scoped: 401 signed out; a student not theirs is 404.
  */
 @RestController
 @RequestMapping("/api/instructor")
 public class InstructorController {
 
     private final InstructorService instructors;
+    private final LessonService lessons;
     private final TrainingService training;
     private final LogbookService logbook;
     private final PilotService pilots;
 
-    public InstructorController(InstructorService instructors, TrainingService training, LogbookService logbook, PilotService pilots) {
+    public InstructorController(InstructorService instructors, LessonService lessons, TrainingService training, LogbookService logbook,
+                                PilotService pilots) {
         this.instructors = instructors;
+        this.lessons = lessons;
         this.training = training;
         this.logbook = logbook;
         this.pilots = pilots;
@@ -102,6 +108,33 @@ public class InstructorController {
                     instructors.sign(pilot, student, request, Instant.now());
                     return recordOf(pilot, student);
                 }));
+    }
+
+    /** An approach set as a lesson for one of their students, who is
+     *  emailed: 409 the same one set them already and not yet quizzed. */
+    @PostMapping("/students/{studentId}/lessons")
+    public ResponseEntity<TrainingDto> assignLesson(Authentication authentication, @PathVariable Long studentId,
+                                                    @Valid @RequestBody AssignLessonRequest request) {
+        return PilotResponses.found(pilots, authentication, pilot -> instructors.student(pilot, studentId)
+                .map(student -> {
+                    lessons.assign(pilot, student, request, Instant.now());
+                    return recordOf(pilot, student);
+                }));
+    }
+
+    /** A lesson they set taken back. */
+    @DeleteMapping("/students/{studentId}/lessons/{id}")
+    public ResponseEntity<TrainingDto> removeLesson(Authentication authentication, @PathVariable Long studentId, @PathVariable Long id) {
+        return PilotResponses.found(pilots, authentication, pilot -> instructors.student(pilot, studentId)
+                .filter(student -> lessons.remove(pilot, studentId, id))
+                .map(student -> recordOf(pilot, student)));
+    }
+
+    /** The track of a flight the student put to them, for its approach to
+     *  be debriefed against a lesson's: 404 for any other flight. */
+    @GetMapping("/students/{studentId}/flights/{flightId}/track")
+    public ResponseEntity<TrackDto> reviewedTrack(Authentication authentication, @PathVariable Long studentId, @PathVariable Long flightId) {
+        return PilotResponses.found(pilots, authentication, pilot -> lessons.reviewedTrack(pilot, studentId, flightId));
     }
 
     /** One they signed, voided for a correction. */

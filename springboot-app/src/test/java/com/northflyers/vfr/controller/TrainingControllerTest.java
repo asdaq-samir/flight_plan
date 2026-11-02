@@ -48,6 +48,9 @@ class TrainingControllerTest {
     private TrainingService training;
 
     @MockitoBean
+    private com.northflyers.vfr.service.LessonService lessons;
+
+    @MockitoBean
     private LogbookService logbook;
 
     @MockitoBean
@@ -62,7 +65,7 @@ class TrainingControllerTest {
             List.of(new ExperienceItemDto("total", "61.109(a)", "Flight time", 12.5, 40, "h", false)),
             List.of("PA.I.E.K1"),
             List.of(new EndorsementDto("pre-solo-knowledge", LocalDate.of(2026, 9, 1), null)),
-            List.of(), List.of(), "Avery B. Student", List.of(), List.of());
+            List.of(), List.of(), "Avery B. Student", List.of(), List.of(), List.of());
 
     @Test
     void get_returns401_whenSignedOut() throws Exception {
@@ -140,6 +143,19 @@ class TrainingControllerTest {
                 .andExpect(status().isTooManyRequests());
         mockMvc.perform(post("/api/training/instructors").with(oidcLogin()).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content("{\"email\": \"not an address\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void lessonProgress_isOnlyForTheirOwn_andAQuizOfNoQuestionsIs400() throws Exception {
+        given(pilotService.current(any())).willReturn(Optional.of(PILOT));
+        given(lessons.progress(eq(PILOT), eq(5L), any(), any())).willReturn(false);
+        mockMvc.perform(post("/api/training/lessons/5/progress").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"briefed\": true, \"flown\": false}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/training/lessons/5/progress").with(oidcLogin()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"briefed\": false, \"flown\": false, \"quiz\": {\"answers\": [], \"of\": 0}}"))
                 .andExpect(status().isBadRequest());
     }
 }

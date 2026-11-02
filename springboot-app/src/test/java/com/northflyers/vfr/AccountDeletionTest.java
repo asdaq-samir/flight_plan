@@ -148,6 +148,9 @@ class AccountDeletionTest {
                 pilot.getId(), LocalDate.of(2026, 10, 1));
         jdbc.update("INSERT INTO cross_country_reviews (student_id, instructor_id, flight_id, make_model, flight_on, asked_at)"
                 + " VALUES (?, ?, ?, 'Cessna 172', ?, now())", pilot.getId(), pilot.getId(), flight.getId(), LocalDate.of(2026, 10, 2));
+        // An approach set them as a lesson (V30), by themselves again.
+        jdbc.update("INSERT INTO approach_lessons (student_id, instructor_id, airport_ident, procedure_id, procedure_name, created_at,"
+                + " updated_at) VALUES (?, ?, 'KDLH', 'I09', 'ILS RWY 09', now(), now())", pilot.getId(), pilot.getId());
         // The free month started, and a written briefing counted against its cap.
         subscriptions.save(new Subscription(pilot.getId(), Instant.now()));
         jdbc.update("INSERT INTO paid_feature_uses (pilot_id, month, feature, uses) VALUES (?, ?, 'NARRATIVE', 1)",
@@ -192,6 +195,7 @@ class AccountDeletionTest {
                 jdbc.queryForObject("SELECT count(*) FROM instructor_students WHERE student_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM signed_endorsements WHERE student_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM cross_country_reviews WHERE student_id = ?", Integer.class, id),
+                jdbc.queryForObject("SELECT count(*) FROM approach_lessons WHERE student_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM subscriptions WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM paid_feature_uses WHERE pilot_id = ?", Integer.class, id),
                 jdbc.queryForObject("SELECT count(*) FROM magic_links WHERE email = ?", Integer.class, pilot.getEmail()),

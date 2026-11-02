@@ -46,12 +46,16 @@ function Mark({ tone }: { tone: Tone }) {
  * one whose final the track came down, the one picked for the flight
  * where it fits as well, and then its transition. Nothing where none was
  * flown. For the pilot's own flight (FlightPage) and an airplane followed
- * (PastFlightCard), so an instructor can debrief a student's.
+ * (PastFlightCard), so an instructor can debrief a student's; and for a
+ * lesson an instructor set (LessonAssign), `only` its approach's id, and
+ * `none` said where the track did not fly it.
  */
-export default function ApproachDebriefs({ fields, points, picked = NO_PICKS }: {
+export default function ApproachDebriefs({ fields, points, picked = NO_PICKS, only, none }: {
   fields: string[];
   points: TrackPoint[];
   picked?: PickedProcedure[];
+  only?: string;
+  none?: string;
 }) {
   const lists = useQueries({ queries: fields.map(listQuery) });
   // Each field's approaches, from vectors to final -- the one picked with
@@ -101,10 +105,13 @@ export default function ApproachDebriefs({ fields, points, picked = NO_PICKS }: 
   if (listsPending || drawings.pending) {
     return fields.length ? <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Looking for an approach in the track…</p> : null;
   }
-  if (flown.length === 0) return null;
+  const shown = only ? flown.filter(d => d.id === only) : flown;
+  if (shown.length === 0) {
+    return none ? <p className={cn("px-1 text-muted-foreground", TEXT.prose)} data-testid="approach-debrief-none">{none}</p> : null;
+  }
   return (
     <div className="space-y-4" data-testid="approach-debrief">
-      {flown.map(d => {
+      {shown.map(d => {
         const key = `${d.airport}:${d.id}:${d.fafAt}`;
         return (
           <ApproachSection
