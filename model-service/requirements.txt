@@ -1,7 +1,7 @@
 # What serves the chart model.
-fastapi==0.142.2
+fastapi==0.162.0
 uvicorn[standard]==0.54.0
-pydantic==2.13.5
+pydantic==2.14.2
 
 # The model's own runtime, pinned exactly as the image that writes the
 # model pins it (docker/requirements-training.txt, numpy and pandas
@@ -13,6 +13,6 @@ pydantic==2.13.5
 # mispredicts. The training side used to be unpinned under a "bump both
 # together" note; tests/test_requirements.py now fails if the two differ.
 scikit-learn==1.9.1
-numpy==2.5.3
-pandas==3.0.6
+numpy==2.5.4
+pandas==3.1.0
 joblib==1.6.0
