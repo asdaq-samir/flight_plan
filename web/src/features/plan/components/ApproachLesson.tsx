@@ -12,7 +12,8 @@ import { useIsMobile } from "../../../hooks/use-mobile";
 import {
   approachBrief, approachQuiz, coachingSteps, lessonPath, lessonProfile, pathBetween, type CoachStep, type LessonInput,
 } from "../../../lib/approachLesson";
-import type { AircraftProfile, ProcedureDrawing } from "../../../lib/api/types";
+import type { AircraftProfile, ProcedureDrawing, QuizAnswer } from "../../../lib/api/types";
+import { noteAt } from "../../../lib/assignedLessons";
 import { bearingDeg } from "../../../lib/geo";
 import { NO_FOCUS, endLessonMap, useLessonMap } from "../../../lib/map/lessonMap";
 import type { PickedProcedure } from "../../../lib/procedures";
@@ -34,6 +35,27 @@ const PAGES = [{ value: "brief", label: "Brief" }, { value: "fly", label: "Fly" 
  *  it in still air -- the pilot's to change, said on the control. */
 const SPEEDS = [70, 90, 120] as const;
 
+/** An approach an instructor set as a lesson (AssignedLesson): their name
+ *  and their notes at its fixes, shown on the brief's and the flying's
+ *  cards, and where the lesson reports how far the student has come -- the
+ *  brief finished, flown to its end, each quiz answer (the answers so far,
+ *  of how many) -- with what went wrong sending it, said on the card. */
+export interface FromInstructor {
+  instructorName: string;
+  notes: Record<string, string>;
+  onBriefed: () => void;
+  onFlown: () => void;
+  onQuiz: (answers: QuizAnswer[], of: number) => void;
+  problem: string | null;
+}
+
+/** "Your instructor: …" under a step whose fix they left a note at. */
+function InstructorNote({ from, fix }: { from: FromInstructor | undefined; fix: string | null }) {
+  const note = noteAt(from?.notes, fix);
+  if (!from || !note) return null;
+  return <ListRow title={<span className={TEXT.prose}>Your instructor: “{note}”</span>} description={from.instructorName} data-testid="approach-instructor-note" />;
+}
+
 /** A speed of the airplane's own figures, where its profile carries one
  *  (its POH's VREF, or its VSO): none of the app's profiles do yet, and
  *  then no category is said. */
@@ -53,10 +75,12 @@ function speedOf(aircraft: AircraftProfile | null | undefined, key: "vref_kt" | 
  * card in the map's panel on a phone, as the hold's is; its subtitle the
  * one line that says it is a training aid.
  */
-export default function ApproachLesson({ at, aircraft, onClose }: {
+export default function ApproachLesson({ at, aircraft, onClose, from }: {
   at: PickedProcedure | null;
   aircraft: AircraftProfile | null;
   onClose: () => void;
+  /** Set by an instructor (AssignedLesson); none from a picked approach's menu. */
+  from?: FromInstructor;
 }) {
   const isMobile = useIsMobile();
   const { data: drawing, error, isPending } = useQuery({ ...procedureQuery(at ?? { ident: "", id: "", transition: null }), enabled: !!at });
@@ -81,14 +105,14 @@ export default function ApproachLesson({ at, aircraft, onClose }: {
         ) : isPending || !input ? (
           <p role="status" className={cn("flex items-center gap-2 text-muted-foreground", TEXT.prose)}><Spinner aria-hidden />Fetching the approach…</p>
         ) : (
-          <Lesson key={`${input.drawing.airport}:${input.drawing.id}:${input.drawing.transition ?? ""}`} input={input} />
+          <Lesson key={`${input.drawing.airport}:${input.drawing.id}:${input.drawing.transition ?? ""}`} input={input} from={from} />
         )}
       </ResponsivePopoverContent>
     </ResponsivePopover>
   );
 }
 
-function Lesson({ input }: { input: LessonInput }) {
+function Lesson({ input, from }: { input: LessonInput; from?: FromInstructor }) {
   const [page, setPage] = useState<Page>("brief");
   const [gs, setGs] = useState<number>(90);
   // The approach on the chart while the lesson is open; each page says
@@ -100,9 +124,10 @@ function Lesson({ input }: { input: LessonInput }) {
         label="Lesson step" value={page} onChange={v => setPage(v as Page)} options={PAGES} className="w-full [&>*]:flex-1"
         testId="approach-lesson-steps"
       />
-      {page === "brief" && <BriefPage input={input} onDone={() => setPage("fly")} />}
-      {page === "fly" && <FlyPage input={input} gs={gs} onGs={setGs} onDone={() => setPage("quiz")} />}
-      {page === "quiz" && <QuizPage input={input} gs={gs} />}
+      {from?.problem && <p role="alert" className={cn(FINDING_TONE.stop, TEXT.note)} data-testid="approach-lesson-problem">{from.problem}</p>}
+      {page === "brief" && <BriefPage input={input} from={from} onDone={() => { from?.onBriefed(); setPage("fly"); }} />}
+      {page === "fly" && <FlyPage input={input} from={from} gs={gs} onGs={setGs} onDone={() => setPage("quiz")} />}
+      {page === "quiz" && <QuizPage input={input} from={from} gs={gs} />}
     </>
   );
 }
@@ -112,7 +137,7 @@ const Progress = ({ at, of }: { at: number; of: number }) => (
   <p className={GROUP_HEADING} aria-live="polite" data-testid="approach-lesson-progress">{at + 1} of {of}</p>
 );
 
-function BriefPage({ input, onDone }: { input: LessonInput; onDone: () => void }) {
+function BriefPage({ input, from, onDone }: { input: LessonInput; from?: FromInstructor; onDone: () => void }) {
   const items = useMemo(() => approachBrief(input), [input]);
   const [at, setAt] = useState(0);
   const item = items[Math.min(at, items.length - 1)]!;
@@ -123,6 +148,7 @@ function BriefPage({ input, onDone }: { input: LessonInput; onDone: () => void }
       <Progress at={at} of={items.length} />
       <ListGroup title={item.title}>
         {item.lines.map(line => <ListRow key={line} title={line} />)}
+        <InstructorNote from={from} fix={item.focus.fix} />
       </ListGroup>
       <Button className="w-full" onClick={() => (last ? onDone() : setAt(at + 1))} data-testid="approach-brief-next">
         {last ? "Fly It" : "Got It"}
@@ -131,7 +157,13 @@ function BriefPage({ input, onDone }: { input: LessonInput; onDone: () => void }
   );
 }
 
-function FlyPage({ input, gs, onGs, onDone }: { input: LessonInput; gs: number; onGs: (gs: number) => void; onDone: () => void }) {
+function FlyPage({ input, from, gs, onGs, onDone }: {
+  input: LessonInput;
+  from?: FromInstructor;
+  gs: number;
+  onGs: (gs: number) => void;
+  onDone: () => void;
+}) {
   const steps = useMemo(() => coachingSteps(input, gs), [input, gs]);
   // Where each step is and what it shows, the same at any speed: a new
   // speed changes the words, and the airplane stays where it is.
@@ -153,6 +185,10 @@ function FlyPage({ input, gs, onGs, onDone }: { input: LessonInput; gs: number; 
       flight: way.length ? { path: way, track: a && b ? bearingDeg(a, b) : s.flight?.track ?? null, id: (s.flight?.id ?? 0) + 1 } : s.flight,
     }));
   }, [at, path, places]);
+  // Flown to its last step: the instructor told, once a lesson.
+  const flownToEnd = steps.length > 0 && at >= steps.length - 1;
+  const onFlown = from?.onFlown;
+  useEffect(() => { if (flownToEnd) onFlown?.(); }, [flownToEnd, onFlown]);
   if (!step) return <p className={cn("text-muted-foreground", TEXT.prose)}>See the plate</p>;
   const last = at >= steps.length - 1;
   return (
@@ -170,6 +206,7 @@ function FlyPage({ input, gs, onGs, onDone }: { input: LessonInput; gs: number; 
           title={<span className={cn("block font-medium", TEXT.prose)} data-testid="approach-coach">{step.say}</span>}
           description={step.why ?? undefined}
         />
+        <InstructorNote from={from} fix={step.focus.fix} />
       </ListGroup>
       <LessonProfile drawing={input.drawing} steps={steps} at={at} />
       <div className="flex gap-2">
@@ -231,11 +268,13 @@ function LessonProfile({ drawing, steps, at }: { drawing: ProcedureDrawing; step
   );
 }
 
-function QuizPage({ input, gs }: { input: LessonInput; gs: number }) {
+function QuizPage({ input, from, gs }: { input: LessonInput; from?: FromInstructor; gs: number }) {
   const questions = useMemo(() => approachQuiz(input, gs), [input, gs]);
   const [at, setAt] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [right, setRight] = useState(0);
+  // This attempt's answers, for the instructor's score: Ask Again starts anew.
+  const [answers, setAnswers] = useState<QuizAnswer[]>([]);
   const done = at >= questions.length;
   const q = done ? null : questions[at]!;
   // A wrong answer shows where the right one is; until then, nothing.
@@ -247,7 +286,7 @@ function QuizPage({ input, gs }: { input: LessonInput; gs: number }) {
     return (
       <div className="space-y-3" data-testid="approach-quiz-done">
         <p className={cn("font-semibold", TEXT.row)} role="status">{right} of {questions.length} right</p>
-        <Button className="w-full" onClick={() => { setAt(0); setPicked(null); setRight(0); }} data-testid="approach-quiz-again">Ask Again</Button>
+        <Button className="w-full" onClick={() => { setAt(0); setPicked(null); setRight(0); setAnswers([]); }} data-testid="approach-quiz-again">Ask Again</Button>
       </div>
     );
   }
@@ -256,6 +295,9 @@ function QuizPage({ input, gs }: { input: LessonInput; gs: number }) {
     if (answered) return;
     setPicked(choice);
     if (choice === q.answer) setRight(right + 1);
+    const next = [...answers, { question: q.prompt, chosen: q.choices[choice]!, right: choice === q.answer }];
+    setAnswers(next);
+    from?.onQuiz(next, questions.length);
   };
   return (
     <div className="space-y-3" data-testid="approach-quiz">

@@ -334,6 +334,11 @@ export type StudentRow = Webapp["StudentDto"];
 /** One of a student's instructors, asked or taken. */
 export type InstructorLink = Webapp["InstructorLinkDto"];
 export type SignRequest = Webapp["SignRequest"];
+/** An approach an instructor set a student to learn, and how far along they are. */
+export type ApproachLesson = Webapp["ApproachLessonDto"];
+export type AssignLessonRequest = Webapp["AssignLessonRequest"];
+export type LessonProgressRequest = Webapp["LessonProgressRequest"];
+export type QuizAnswer = Webapp["QuizAnswerDto"];
 
 // ---------------------------------------------------------------------
 // The narrative agents, reached through ComparisonProxyController, which
