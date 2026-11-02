@@ -50,6 +50,14 @@ double wt_declination(double lat, double lon, double year);
 int32_t wt_weather_in_force(int32_t kind, int64_t now, int64_t observed, int64_t last_routine,
                             int64_t valid_from, int64_t valid_to);
 
+/// The alerts ahead with no network, as the planner's /api/alerts/ahead
+/// answers, JSON: count packs (the regions round the airplane), alt_ft
+/// NAN where not known, tfrs the kept TFRs a tab-separated line each or
+/// NULL, downloaded at tfrs_at (INT64_MIN not known). Free with
+/// wt_string_free.
+char *wt_ahead(const uint8_t *const *ptrs, const size_t *lens, size_t count, double lat, double lon, double track_deg,
+               double gs_kt, double alt_ft, double vs_fpm, int64_t now, const char *tfrs, int64_t tfrs_at);
+
 #ifdef __cplusplus
 }
 #endif
