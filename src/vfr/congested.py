@@ -90,6 +90,12 @@ def _urban_areas() -> list:
     # and shapely building every outline from lists was 3 to 4 CPU-seconds
     # of each planner start, where WKB is read back in a fraction of one
     # (2026-11-01).
+    # The cycle pack's outlines first, where it was made from this download.
+    from . import pack as cycle_pack
+
+    packed = cycle_pack.current()
+    if cycle_pack.matches(packed, "urban", URBAN_AREAS_PATH):
+        return packed.geometries("urban")
     stat = URBAN_AREAS_PATH.stat()
     key = (stat.st_size, stat.st_mtime)
     kept = URBAN_AREAS_PATH.with_suffix(".wkb.pkl")

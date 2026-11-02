@@ -179,3 +179,30 @@ def test_the_urban_areas_are_read_back_from_their_wkb_as_drawn(monkeypatch, tmp_
     drawn = congested._urban_areas()
     monkeypatch.setattr(shapefile, "Reader", None)  # the shapefile is not read again
     assert [a.wkt for a in congested._urban_areas()] == [a.wkt for a in drawn]
+
+
+def test_the_urban_areas_are_read_from_the_cycle_pack_made_of_their_download(monkeypatch, tmp_path):
+    import zipfile
+
+    import shapefile
+
+    from vfr import pack as cycle_pack
+
+    base = tmp_path / "ua"
+    with shapefile.Writer(str(base), shapeType=shapefile.POLYGON) as w:
+        w.field("NAME", "C")
+        w.poly([[[-93.3, 44.9], [-93.2, 44.9], [-93.2, 45.0], [-93.3, 45.0], [-93.3, 44.9]]])
+        w.record("Minneapolis")
+    archive = tmp_path / "ua.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for part in ("shp", "shx", "dbf"):
+            z.write(base.with_suffix(f".{part}"), f"ua.{part}")
+    monkeypatch.setattr(congested, "URBAN_AREAS_PATH", archive)
+    drawn = congested._urban_areas()
+    with shapefile.Writer(str(tmp_path / "empty"), shapeType=shapefile.POLYGON) as w:
+        w.field("CLASS", "C")
+    cycle_pack.write(cycle_pack.PACK_DIR, "2026-10-29", shp_path=tmp_path / "empty.shp", sua_held=[], sua_at=0.0,
+                     urban=drawn, urban_path=archive, tables={})
+    archive.with_suffix(".wkb.pkl").unlink()
+    monkeypatch.setattr(shapefile, "Reader", None)  # nor the shapefile, nor its WKB beside it
+    assert [a.wkt for a in congested._urban_areas()] == [a.wkt for a in drawn]
