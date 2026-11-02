@@ -69,7 +69,7 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     this.schedule();
   }
 
-  protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from, dpr }: CanvasView): void {
+  protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from, dpr, warp }: CanvasView): void {
     const canvas = this.canvas!;
     this.font ||= `700 ${LABEL_PX}px ${getComputedStyle(map.getContainer()).fontFamily || "system-ui, sans-serif"}`;
     ctx.font = this.font;
@@ -97,24 +97,26 @@ export class AirportMarksLayer extends ViewCanvasLayer {
         space: mark.space ?? "", use: mark.use ?? "", weather: mark.weather,
       });
       if (!mark.chip) continue;
-      if (at.x < -pad.x - half || at.y < -pad.y - half || at.x > size.x + pad.x + half || at.y > size.y + pad.y + half) continue;
+      // Through a zoom's animation, where the chart has it at this frame.
+      const shown = warp(at);
+      if (shown.x < -pad.x - half || shown.y < -pad.y - half || shown.x > size.x + pad.x + half || shown.y > size.y + pad.y + half) continue;
       const picture = pictureOf(mark, () => this.schedule());
       if (picture.complete && picture.naturalWidth) {
         // airportMarkIcon's drop-shadow(0 1px 1px rgba(0,0,0,.35)).
         ctx.shadowColor = "rgba(0,0,0,0.35)";
         ctx.shadowBlur = 1 * dpr;
         ctx.shadowOffsetY = 1 * dpr;
-        ctx.drawImage(picture, at.x - half, at.y - half, AIRPORT_MARK, AIRPORT_MARK);
+        ctx.drawImage(picture, shown.x - half, shown.y - half, AIRPORT_MARK, AIRPORT_MARK);
         ctx.shadowColor = "transparent";
       }
       // The ident one point clear of the mark, dark on a white halo, as
       // the chart letters a field.
-      const x = at.x + half + 1;
+      const x = shown.x + half + 1;
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 3.5;
-      ctx.strokeText(mark.ident, x, at.y);
+      ctx.strokeText(mark.ident, x, shown.y);
       ctx.fillStyle = LABEL_INK;
-      ctx.fillText(mark.ident, x, at.y);
+      ctx.fillText(mark.ident, x, shown.y);
     }
     canvas.dataset.airportMarks = JSON.stringify(written);
   }

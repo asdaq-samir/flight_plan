@@ -22,6 +22,30 @@ export interface CanvasView {
   from: L.Point;
   /** Device pixels to a point on this canvas. */
   dpr: number;
+  /** Where a point of this drawing is at this frame of a zoom's
+   *  animation, for a layer whose marks keep their size through it
+   *  (redrawWhileZooming): the identity but while one runs. */
+  warp: (at: L.Point) => L.Point;
+}
+
+const SAME = (at: L.Point) => at;
+
+/** Leaflet's zoom animation as its stylesheet times it (.leaflet-zoom-anim
+ *  .leaflet-zoom-animated: transform 0.25s cubic-bezier(0, 0, 0.25, 1)),
+ *  so that marks drawn at each frame of it move with the chart's tiles. */
+const ZOOM_MS = 250;
+function zoomEase(x: number): number {
+  // The curve's x and y for a parameter t; its first control point is at
+  // (0, 0) and its second at (0.25, 1).
+  const bx = (t: number) => 3 * (1 - t) * t * t * 0.25 + t * t * t;
+  const by = (t: number) => 3 * (1 - t) * t * t + t * t * t;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2;
+    if (bx(mid) < x) lo = mid;
+    else hi = mid;
+  }
+  return by((lo + hi) / 2);
 }
 
 /**
@@ -42,6 +66,8 @@ export abstract class ViewCanvasLayer extends L.Layer {
   private drawnZoom = 0;
   /** What the last drawing covers, in the map's layer points. */
   private drawn: L.Bounds | null = null;
+  /** The zoom being animated to, and when it started, while one is. */
+  private zoomingTo: { zoom: number; center: L.LatLng; start: number } | null = null;
 
   /** Drawn again at each step of a pinch (the airports' marks, which must
    *  stay sharp and placed as the chart grows), or only once it ends,
@@ -74,6 +100,7 @@ export abstract class ViewCanvasLayer extends L.Layer {
     map.on("zoom", this.zoomed, this);
     map.on("move", this.moved, this);
     map.on("zoomanim", this.animate, this);
+    map.on("zoomend", this.animated, this);
     this.draw();
     return this;
   }
@@ -84,6 +111,7 @@ export abstract class ViewCanvasLayer extends L.Layer {
     map.off("zoom", this.zoomed, this);
     map.off("move", this.moved, this);
     map.off("zoomanim", this.animate, this);
+    map.off("zoomend", this.animated, this);
     cancelAnimationFrame(this.frame);
     this.frame = 0;
     this.canvas?.remove();
@@ -144,13 +172,64 @@ export abstract class ViewCanvasLayer extends L.Layer {
     if (this.redrawWhileZooming) this.schedule();
   }
 
-  /** Through a zoom's animation the canvas scaled and moved where the map
-   *  will be, as Leaflet's own layers are; drawn again as it ends. */
+  /** Through a zoom's animation (a wheel's step, a double tap, a fitted
+   *  route) the canvas scaled and moved where the map will be, as
+   *  Leaflet's own layers are, and drawn again as it ends -- or, for marks
+   *  that keep their size (redrawWhileZooming), drawn at each frame where
+   *  the chart then is, their size kept. Scaled, the airports' marks and
+   *  idents grew to twice their size through each step in and shrank to
+   *  half through each step out, and a trackpad's run of steps kept them
+   *  so: the owner's recording (2026-11-02, a Mac), KCLT's mark and ident
+   *  twice their size through a zoom in on Charlotte and specks through
+   *  the zoom back out. */
   private animate(e: L.ZoomAnimEvent): void {
     const map = this._map as L.Map & { _latLngToNewLayerPoint: (latlng: L.LatLng, zoom: number, center: L.LatLng) => L.Point };
     if (!this.canvas || !this.topLeft) return;
+    if (this.redrawWhileZooming) {
+      this.zoomingTo = { zoom: e.zoom, center: e.center, start: performance.now() };
+      cancelAnimationFrame(this.frame);
+      this.frame = 0;
+      this.step();
+      return;
+    }
     const scale = map.getZoomScale(e.zoom, map.getZoom());
     L.DomUtil.setTransform(this.canvas, map._latLngToNewLayerPoint(this.topLeft, e.zoom, e.center), scale);
+  }
+
+  /** A frame of a zoom's animation drawn, and the next asked for until it
+   *  has run its time; the map's zoomend draws it at the new zoom. */
+  private step(): void {
+    this.draw();
+    const zooming = this.zoomingTo;
+    if (zooming && performance.now() - zooming.start < ZOOM_MS) {
+      this.frame = requestAnimationFrame(() => {
+        this.frame = 0;
+        this.step();
+      });
+    }
+  }
+
+  private animated(): void {
+    if (!this.zoomingTo) return;
+    this.zoomingTo = null;
+    cancelAnimationFrame(this.frame);
+    this.frame = 0;
+    this.draw();
+  }
+
+  /** Where a point of a drawing at the map's present zoom is at this frame
+   *  of the animation: Leaflet's transform for the canvas (moved to where
+   *  its corner will be, scaled by the zoom's change), eased as its
+   *  stylesheet eases it, applied to where the point is and not to the
+   *  mark's size. */
+  private warpOf(origin: L.Point, pad: L.Point): (at: L.Point) => L.Point {
+    const map = this._map as L.Map & { _latLngToNewLayerPoint: (latlng: L.LatLng, zoom: number, center: L.LatLng) => L.Point };
+    const zooming = this.zoomingTo;
+    if (!zooming || !this.topLeft) return SAME;
+    const p = zoomEase(Math.min(1, (performance.now() - zooming.start) / ZOOM_MS));
+    const scale = 1 + (map.getZoomScale(zooming.zoom, map.getZoom()) - 1) * p;
+    const shift = map._latLngToNewLayerPoint(this.topLeft, zooming.zoom, zooming.center).subtract(origin).multiplyBy(p);
+    return at => at.add(pad).multiplyBy(scale).add(shift).subtract(pad);
   }
 
   private draw(): void {
@@ -180,6 +259,6 @@ export abstract class ViewCanvasLayer extends L.Layer {
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, pad.x * dpr, pad.y * dpr);
     ctx.clearRect(-pad.x, -pad.y, width, height);
-    this.paint(ctx, { map, size, pad, origin, from, dpr });
+    this.paint(ctx, { map, size, pad, origin, from, dpr, warp: this.warpOf(origin, pad) });
   }
 }
