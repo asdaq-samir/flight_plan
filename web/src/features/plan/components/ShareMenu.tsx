@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { cn } from "cn";
-import { Ellipsis, FileArchive, FileDown, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share } from "lucide-react";
+import { Ellipsis, FileArchive, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share } from "lucide-react";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
@@ -10,13 +9,7 @@ import type { RouteCard } from "../../../lib/openCards";
 import { foreflightRoute, shareFile, type PlanPoint } from "../../../lib/flightPlanFiles";
 import { api } from "../../../lib/api/client";
 import { fplOf } from "../../../lib/avionics/fpl";
-import { gfpOf, isApproach } from "../../../lib/avionics/gfp";
-import { PANEL_MAX_POINTS, panelFileName } from "../../../lib/avionics/points";
-import { dynonUserWaypointsOf, gpxOf, gtnUserWaypointsOf } from "../../../lib/avionics/waypointFiles";
-import { proceduresOf } from "../../../lib/procedures";
-import { TEXT } from "../../../lib/text";
-import { patternsOf } from "../../../lib/trafficPattern";
-import { useSearchParam } from "../../../lib/useSearchParam";
+import { panelFileName } from "../../../lib/avionics/points";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../../lib/foreflightPack";
 import { routeName } from "../../../lib/identSchema";
 import { showError } from "../../../lib/problems";
@@ -112,47 +105,24 @@ export default function ShareMenu({
     return [{
       ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport",
       lat: row.airport.lat, lon: row.airport.lon,
-      // The airway the leg into it is flown along, for a GTN's .gfp.
-      airway: row.kind === "departure" ? null : row.leg?.airway?.id ?? null,
     }];
   }), [course, selected]);
 
-  // The procedures and runways picked, for a GTN's .gfp: a departure at
-  // the departure, an arrival and an approach at the destination.
-  const procsParam = useSearchParam("procs"), takeoffParam = useSearchParam("takeoff"), patternParam = useSearchParam("pattern");
-  const gtnProcedures = useMemo(() => {
-    const picked = proceduresOf(procsParam);
-    const atDest = picked.filter(p => p.ident === planned.dest);
-    return {
-      departure: picked.find(p => p.ident === planned.dep && !isApproach(p.id)) ?? null,
-      arrival: atDest.find(p => !isApproach(p.id)) ?? null,
-      approach: atDest.find(p => isApproach(p.id)) ?? null,
-      takeoffRunway: patternsOf(takeoffParam).get(planned.dep) ?? null,
-      landingRunway: patternsOf(patternParam).get(planned.dest) ?? null,
-    };
-  }, [procsParam, takeoffParam, patternParam, planned.dep, planned.dest]);
-  const checkpointsIn = points.some(p => p.kind === "checkpoint");
-  // Past 99 a GTN cuts the plan and a SkyView reads no further (lib/avionics):
-  // said on the panels' items, the file still whole.
-  const overPanel = points.length > PANEL_MAX_POINTS ? `A panel loads the first ${PANEL_MAX_POINTS} of ${points.length} points` : null;
-
-  const exportPlan = useCallback(async (kind: "fpl" | "gpx" | "gfp" | "user-wpt" | "dynon" | "garmin-pilot") => {
+  // The route to Garmin Pilot, which sends it on to the panel over
+  // Bluetooth (Connext): a Garmin flight plan to the share sheet. The
+  // owner's call (2026-11-02): wireless, no files for an SD card or a USB
+  // stick.
+  const toGarminPilot = useCallback(async () => {
     if (!points.length) return;
     const name = routeName(planned.dep, planned.dest, planned.stops);
-    const file = panelFileName(name);
     try {
       // Each point's Garmin type and ICAO region, which tell a panel which
       // of two of a name is meant; without them a panel goes by the name.
-      const coded = kind === "fpl" || kind === "gfp" || kind === "garmin-pilot" ? await withCodes(points) : points;
-      if (kind === "fpl" || kind === "garmin-pilot") await shareFile(`${file}.fpl`, "application/xml", fplOf(coded, name));
-      else if (kind === "gfp") await shareFile(`${file}.gfp`, "text/plain", gfpOf(coded, gtnProcedures).text);
-      else if (kind === "user-wpt") await shareFile("user.wpt", "text/plain", gtnUserWaypointsOf(points));
-      else if (kind === "dynon") await shareFile(`${file}-waypoints.csv`, "text/csv", dynonUserWaypointsOf(points));
-      else await shareFile(`${file}.gpx`, "application/gpx+xml", gpxOf(points, name));
+      await shareFile(`${panelFileName(name)}.fpl`, "application/xml", fplOf(await withCodes(points), name));
     } catch (err) {
-      if ((err as Error).name !== "AbortError") showError("Could not export the route", (err as Error).message);
+      if ((err as Error).name !== "AbortError") showError("Could not send the route", (err as Error).message);
     }
-  }, [points, planned.dep, planned.dest, planned.stops, gtnProcedures]);
+  }, [points, planned.dep, planned.dest, planned.stops]);
 
   // The checkpoints as a ForeFlight content pack, built by the planner
   // (lib/foreflightPack): each a waypoint with its own page, and the course
@@ -204,28 +174,9 @@ export default function ShareMenu({
             <>
               {routed && (
                 <>
-                  <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl">
-                    <FileDown /><Lines label="Flight plan (.fpl)" help={overPanel ?? "G1000, G3X, MGL: on an SD card"} />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void exportPlan("gfp")} data-testid="export-gfp">
-                    <FileDown /><Lines label="GTN flight plan (.gfp)" help={overPanel ?? "In an FPL folder on the SD card"} />
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx">
-                    <FileDown /><Lines label="GPX route (.gpx)" help={overPanel ?? "Dynon, aera, MGL: on a USB stick"} />
-                  </DropdownMenuItem>
-                  {checkpointsIn && (
-                    <>
-                      <DropdownMenuItem onSelect={() => void exportPlan("user-wpt")} data-testid="export-user-wpt">
-                        <FileDown /><Lines label="GTN checkpoints (user.wpt)" help="At the SD card's top level" />
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => void exportPlan("dynon")} data-testid="export-dynon">
-                        <FileDown /><Lines label="Dynon checkpoints (.csv)" help="On a USB stick" />
-                      </DropdownMenuItem>
-                    </>
-                  )}
                   {/* The .fpl to Garmin Pilot from the share sheet, which sends
                       it on to a Connext panel (Flight Stream, GTX 345, G3X). */}
-                  <DropdownMenuItem onSelect={() => void exportPlan("garmin-pilot")} data-testid="open-garmin-pilot"><Send />Open in Garmin Pilot</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void toGarminPilot()} data-testid="open-garmin-pilot"><Send />Open in Garmin Pilot</DropdownMenuItem>
                   {/* Links, not handlers: ForeFlight opens from a tap on its
                       own link, and a download needs one too. */}
                   {points.length > 0 && (packHref && !sentPack ? (
@@ -284,17 +235,6 @@ export default function ShareMenu({
       </DropdownMenu>
       {askingReview && reviewSheet(() => setAskingReview(false))}
     </ResponsivePopover>
-  );
-}
-
-/** A menu item's name and, under it, the one line a panel's file needs:
- *  where it goes, or that the panel will not load all of it. */
-function Lines({ label, help }: { label: string; help: string }) {
-  return (
-    <span className="flex min-w-0 flex-col">
-      <span>{label}</span>
-      <span className={cn("text-muted-foreground", TEXT.note)}>{help}</span>
-    </span>
   );
 }
 
