@@ -101,6 +101,13 @@ body .leaflet-container {
   font-family: inherit;
 }
 
+/* Safari only, Leaflet's own stylesheet sets the tiles' image-rendering to
+   -webkit-optimize-contrast, which WebKit takes as crisp edges: past the
+   chart's last drawn zoom the tiles were blown up in hard blocks, undoing
+   the smooth enlargement the owner chose to match ForeFlight's close zoom
+   (2026-10-28). The browser's own smoothing, as everywhere else. */
+.leaflet-safari .chart-tiles .leaflet-tile { image-rendering: auto; }
+
 /* Clear of the map panel (MapPanel): its edge's corner controls sit
    past what the panel covers at rest (MapPage sets the insets), and past
    the home indicator, moving in the sheet's time (mapChrome's
