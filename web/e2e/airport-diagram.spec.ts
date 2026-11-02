@@ -96,10 +96,10 @@ test("the card's runways are a page of the pictures across its top, the FAA's di
   const sketch = card(page).getByTestId("place-runway-sketch");
   // KDLH's runways, named for a screen reader.
   await expect(sketch).toHaveAttribute("aria-label", /^KDLH runways .*09\/27.*, north up\./, { timeout: slow(15000) });
-  // The ident over the pictures, and no line under it with nothing to
-  // measure from (places.spec has the distance).
+  // The ident over the pictures, and under it with nothing to measure
+  // from only the elevation (places.spec has the distance).
   await expect(card(page).getByTestId("place-name")).toHaveText("KDLH");
-  await expect(card(page).getByTestId("place-line")).toHaveCount(0);
+  await expect(card(page).getByTestId("place-line")).toHaveText(/^Elevation [\d,]+ ft$/);
   await expect(sketch.getByTestId("place-diagram-runways")).toHaveAttribute("src", "/api/planner/airport-diagram/2610/runways/KDLH.png");
   await expect(card(page).getByTestId("place-elevation")).toContainText(/^Elevation[\d,]+ ft$/);
   const layout = async () => {

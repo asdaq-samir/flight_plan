@@ -1,5 +1,5 @@
 // The debrief's marks are also the planner's (app/figures/debrief.py marked, for the native app): the two change together.
-import { useId, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { Check, Upload, X } from "lucide-react";
@@ -24,6 +24,11 @@ import { reviewState, said } from "../../lib/endorsements";
 import { ReviewAskForm, type ReviewAsk } from "./ReviewAsk";
 import { FINDING_TONE } from "../../lib/status";
 import { airportQuery, trainingQuery } from "../../lib/queryClient";
+import { proceduresOf, sameField } from "../../lib/procedures";
+
+// Its own chunk: the approach's debrief is drawn only where a track came
+// down a final, and asks for the field's procedures as it is.
+const ApproachDebriefs = lazy(() => import("../../components/ApproachDebrief"));
 
 /** A difference as said, its sign after rounding: "+3 min", "±0 min". */
 function signed(n: number, unit = ""): string {
@@ -224,6 +229,17 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
 
   const showTrack = useFlownTrack(s => s.show);
   const onAccount = !!saved.data;
+  // The procedures picked for the flight (its `procs`), and the fields to
+  // look for an approach flown at: the destination, and a stop an
+  // approach was picked at (a departure's field is left out).
+  const picked = useMemo(() => proceduresOf(new URLSearchParams(flight.picks ?? "").get("procs")), [flight.picks]);
+  const approachFields = useMemo(() => {
+    const fields = [flight.destinationIdent];
+    for (const p of picked) {
+      if (flight.stops.some(s => sameField(s, p.ident)) && !fields.some(f => sameField(f, p.ident))) fields.push(p.ident);
+    }
+    return fields;
+  }, [flight.destinationIdent, flight.stops, picked]);
   return (
     <div className="space-y-4" data-testid="debrief">
       {/* A track log from ForeFlight, Garmin Pilot or a GPS, as GPX or KML,
@@ -278,6 +294,11 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
         </p>
       )}
       {result && <Findings d={result} />}
+      {result && track && (
+        <Suspense fallback={null}>
+          <ApproachDebriefs fields={approachFields} points={track.points} picked={picked} />
+        </Suspense>
+      )}
     </div>
   );
 }

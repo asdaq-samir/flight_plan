@@ -56,6 +56,7 @@ export default function PastFlightCard({ hex, id, onClose }: { hex: string; id: 
       <div className="space-y-5 pt-3">
         <Replay />
         {flight && <Figures flight={flight} points={points} />}
+        {flight?.destination && points.length > 1 && <ApproachRow ident={flight.destination.ident} points={points} />}
         {points.length > 1 && <TrackLog points={points} />}
       </div>
     </PanelCard>
@@ -163,6 +164,32 @@ function ReplayChart({ points }: { points: PastFlightPoint[] }) {
 
 
 const FlightChart = lazy(() => import("./PastFlightChart"));
+// Its own chunk, as the chart's: asked for only when the approach is.
+const ApproachDebriefs = lazy(() => import("../../../components/ApproachDebrief"));
+
+/**
+ * The flight's approach into the field it landed at, debriefed against
+ * the procedure (lib/approachDebrief), so an instructor following a
+ * student's airplane can go over it after: at a tap, as it asks for the
+ * field's procedures, each drawn.
+ */
+function ApproachRow({ ident, points }: { ident: string; points: PastFlightPoint[] }) {
+  const [asked, setAsked] = useState(false);
+  // Its reports as a track: seconds to ms, the height on the ground none.
+  const track = useMemo(() => points.map(p => ({ t: p.t * 1000, lat: p.lat, lon: p.lon, altFt: p.alt_ft ?? null })), [points]);
+  if (!asked) {
+    return (
+      <ListGroup>
+        <ListRow title={<span className="text-[var(--tint)]">Debrief its approach into {ident}</span>} onClick={() => setAsked(true)} data-testid="past-flight-approach" />
+      </ListGroup>
+    );
+  }
+  return (
+    <Suspense fallback={null}>
+      <ApproachDebriefs fields={[ident]} points={track} />
+    </Suspense>
+  );
+}
 
 /** The graph's height bounds, px: under 72 its axis and line crowd each
  *  other; over 160 it only pushes the figures further down. */

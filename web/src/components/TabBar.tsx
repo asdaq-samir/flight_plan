@@ -7,8 +7,9 @@ import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
 import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
 import TabGlass from "./TabGlass";
-import { PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
-import { closeSheetCards, useSheetCards } from "../lib/sheetCards";
+import { BarOverPicture, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
+import { ON_PILL_PICTURE } from "./PillPicture";
+import { barHeadRef, closeSheetCards, useSheetCards } from "../lib/sheetCards";
 
 /** One of a page's places, a tab of its bar: its word and its glyph. */
 export interface BarTab<T extends string> {
@@ -162,7 +163,16 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // A card opened over the tab from a control or the chart (SheetCard):
   // its name on the minimized bar, whose close puts it away first.
   const cardName = useSheetCards(s => s.stack.at(-1)?.title);
-  const title = cardName ?? given;
+  // Or a map card's, which draws its name in its own head, given for the
+  // pill (MapCard's `pill`).
+  const pillName = useOpenCards(s => s.pill?.name);
+  const title = cardName ?? pillName ?? given;
+  // A card on top that draws its own name (a map card's, MapCard into its
+  // head): the bar names nothing over it, where it showed the tab's name
+  // and menu over an airspace's card (the owner, 2026-10-29: "the tab
+  // title shouldn't be shown either"); down at the pill, where the card
+  // is out of sight, the tab's name is all that says what is open.
+  const cardNamesItself = useSheetCards(s => s.stack.length > 0 && s.stack.at(-1)?.title === undefined);
   const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: Settings }];
   const up: T | "setup" = consoleOpen ? "setup" : tab;
   const minimized = useContext(TabBarMinimized);
@@ -235,6 +245,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // The close button should behave like the back button", 2026-10-20).
   const share = useOpenCards(s => s.share);
   const shareInstead = back && (typeof share === "function" || (typeof share === "string" && !!routeShare));
+  // In the pill over an airport's or an airplane's picture (MapPanel's
+  // PillPicture): white on its shade, the card's line under its name.
+  const overPicture = useContext(BarOverPicture) && back;
+  const pillLine = useOpenCards(s => s.pill?.line);
   // A swipe across the panel goes back only, at the owner's ask ("let's
   // not support swipe to switch tabs... Swipe should only support going
   // back"): to the right, as iOS's swipe back goes, what the bar's close
@@ -466,21 +480,34 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
             {typeof share === "string" ? routeShare?.(share) : (
               // Drawn as the close is: the glyph in the text's colour on
               // the round glass button, a thin line.
-              <RoundButton label={title ? `Share ${title}` : "Share"} onClick={() => { if (typeof share === "function") share(); }} data-testid="tab-share">
+              <RoundButton label={title ? `Share ${title}` : "Share"} onClick={() => { if (typeof share === "function") share(); }} className={cn(overPicture && ON_PILL_PICTURE)} data-testid="tab-share">
                 <Share className="size-5!" strokeWidth={2} />
               </RoundButton>
             )}
           </span>
         )}
+        {/* Out of the pill, the row a map card's mark and name are drawn
+            in (SheetCard), the close beside them. */}
+        {cardNamesItself && size?.size !== "peek" && (
+          <div ref={barHeadRef} className="absolute inset-y-0 right-14 left-4 flex min-w-0 items-center gap-2.5 text-left" data-testid="tab-card-head" />
+        )}
         <button
           type="button" onClick={showTabs} aria-expanded={false} aria-label={`${title ?? named.label}, show the tabs`}
-          data-testid="tab-title"
+          data-testid="tab-title" hidden={cardNamesItself && size?.size !== "peek"}
           className={cn(
             "relative flex h-8 min-w-0 max-w-[calc(100%-7rem)] items-center gap-1.5 rounded-full px-3 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            "after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']", title ? "text-foreground" : "text-tint", TEXT.row,
+            "after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']", overPicture ? "text-white" : title ? "text-foreground" : "text-tint", TEXT.row,
+            overPicture && pillLine && "h-auto flex-col justify-center gap-0 leading-tight",
           )}
         >
-          {title ? <span className="truncate">{title}</span> : (
+          {/* Two lines over a card's picture, as P5 has them: the name
+              large and bold, what the card says of it first under it. */}
+          {title && overPicture && pillLine ? (
+            <>
+              <span className={cn("max-w-full truncate font-bold", TEXT.row)} data-testid="tab-title-name">{title}</span>
+              <span className={cn("max-w-full truncate font-normal", TEXT.note)} data-testid="tab-title-line">{pillLine}</span>
+            </>
+          ) : title ? <span className="truncate" data-testid="tab-title-name">{title}</span> : (
             <>
               <Icon className="size-5" strokeWidth={2.25} aria-hidden="true" />
               {named.label}
@@ -501,7 +528,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
             <CloseButton
               // Back one: the card on top, a list in full, a Setup page;
               // with none, the tab put away.
-              label={anyOpen ? "Back" : "Close"}
+              label={anyOpen ? "Back" : "Close"} className={cn(overPicture && ON_PILL_PICTURE)}
               onClick={() => {
                 if (closeTopCard()) return;
                 if (consoleOpen) setConsoleOpen(false);

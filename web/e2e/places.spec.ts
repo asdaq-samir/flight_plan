@@ -31,11 +31,12 @@ test("an airport's card has the field's pictures across its top, its ident over 
   // the ident large over them with the name and the town under it.
   await expect(card(page).getByTestId("place-head")).toBeInViewport();
   await expect(card(page).getByTestId("place-name")).toHaveText("KDLH");
-  await expect(card(page).getByTestId("place-where")).toHaveText("Duluth International Airport · Duluth, MN");
+  await expect(card(page).getByTestId("place-where")).toHaveText("Duluth International Airport");
+  await expect(card(page).getByTestId("place-town")).toHaveText("Duluth, MN");
   await expect(card(page).getByTestId("place-ident")).toHaveCount(0);
   // Measured from the route's departure while the pilot's own position
   // is not known.
-  await expect(card(page).getByTestId("place-line")).toHaveText(/^\d+ nm NW of C81$/);
+  await expect(card(page).getByTestId("place-line")).toHaveText(/^\d+ nm NW of C81 · Elevation [\d,]+ ft$/);
   // Its share and close on the pictures, the minimized bar's out of the
   // pill, and the grabber over them.
   for (const id of ["place-share", "place-close"]) await expect(card(page).getByTestId(id)).toBeInViewport();
@@ -81,6 +82,24 @@ test("an airport's card has the field's pictures across its top, its ident over 
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
 });
 
+test("down in the pill, an airport's card is its ident over a line of its category, wind and name, on its head's picture blurred", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the pill is a phone's");
+  await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27012G18KT 10SM CLR 12/02 A3001", flight_category: "VFR", ceiling_ft: null, wind_dir_true_deg: 270, wind_speed_kt: 12, wind_gust_kt: 18 }, taf: null });
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  await expect(card(page).getByTestId("place-name")).toHaveText("KDLH");
+  await grabberTo(page, "peek");
+  // The owner's pick (P5): two lines between Share and the close, white
+  // on the picture behind the pill.
+  await expect(page.getByTestId("tab-title-name")).toHaveText("KDLH");
+  await expect(page.getByTestId("tab-title-line")).toHaveText("VFR · 270°T 12G18 · Duluth International Airport");
+  await expect(sideDrawer(page).getByTestId("pill-picture")).toBeVisible();
+  for (const id of ["tab-share", "tab-close"]) await expect(page.getByTestId(id)).toBeInViewport();
+  // Up again, the card's own head, and the pill's picture gone with the pill.
+  await grabberTo(page, "half");
+  await expect(sideDrawer(page).getByTestId("pill-picture")).toHaveCount(0);
+});
+
 
 /** A TAF for KDLH issued this hour, for a day: fair until an FM group in
  *  three hours brings a broken layer at 2,500 ft, 5 sm in rain and gusts
@@ -104,12 +123,12 @@ test("the pictures open on the runways, and the Weather tab opens on the forecas
   }));
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
-  // The runways the first page of the pictures (the owner's ask,
-  // 2026-10-29), the aerial after them.
+  // The aerial the first page of the pictures, the runways after it (the
+  // owner's ask, 2026-10-29).
   const pages = card(page).getByTestId("place-head").locator('[data-slot="carousel-item"]');
   await expect(pages).toHaveCount(2, { timeout: slow(15000) });
-  await expect(pages.nth(0).getByTestId("place-runway-sketch")).toBeVisible();
-  await expect(pages.nth(1).getByTestId("place-aerial")).toHaveCount(1);
+  await expect(pages.nth(0).getByTestId("place-aerial")).toHaveCount(1);
+  await expect(pages.nth(1).getByTestId("place-runway-sketch")).toBeVisible();
 
   // The weather's card at the top of the Weather tab.
   await card(page).getByTestId("place-tab-weather").click();
@@ -338,8 +357,9 @@ test("an airport's Info lists its first frequencies, and its title the way to ev
   await more.click();
   expect(await rows.count()).toBeGreaterThan(3);
   await expect(more).toHaveCount(0);
-  // Down to the last of them, the pictures scrolled up out of sight.
-  await rows.last().scrollIntoViewIfNeeded();
+  // Down past them to the Details' address, under the frequencies since
+  // the owner's 2026-10-29 ask, the pictures scrolled up out of sight.
+  await card(page).getByTestId("place-address").scrollIntoViewIfNeeded();
   await expect(card(page).getByTestId("place-head-bar")).toHaveCSS("opacity", "1");
   await expect(card(page).getByTestId("place-head-bar")).toHaveText("KDLH");
   await expect(card(page).getByTestId("place-close")).toBeInViewport();
@@ -515,8 +535,9 @@ test("a Favorite's card names it and the map goes to it before the card's answer
   // And the head and its actions where they were: nothing above the
   // frequencies grew or moved as it came.
   expect(Math.abs((await card(page).getByTestId("fly-here").boundingBox())!.y - actionsBefore.y)).toBeLessThan(2);
-  // Nothing to measure from: no line under the name, where it said "…".
-  await expect(card(page).getByTestId("place-line")).toHaveCount(0);
+  // Nothing to measure from: the elevation alone under the name, where it
+  // said "…".
+  await expect(card(page).getByTestId("place-line")).toHaveText(/^Elevation [\d,]+ ft$/);
 });
 
 // A planner out of reach for a moment (restarted, say) is not an airport

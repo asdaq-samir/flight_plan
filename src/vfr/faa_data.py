@@ -141,6 +141,9 @@ def _is_icloud_evicted(path: Path) -> bool:
 # own, and read by different callers.
 _NASR_FILES = {
     "NAV_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*NAV_CSV\.zip)"'),
+    # In the same zip: each navaid's remarks, where its service volume's
+    # restrictions are ("VOR UNUSBL 072-090 BYD 34 NM", vfr.fixes).
+    "NAV_RMK.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*NAV_CSV\.zip)"'),
     "APT_BASE.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
     # In the same zip as APT_BASE: every airport's remarks, the Chart
     # Supplement's own text (vfr.remarks).
@@ -198,7 +201,7 @@ def ensure_nasr_file(name: str, cache_dir) -> Path:
 # behind APT_RMK and APT_RWY_END from the same zip, each fetched when it
 # went missing (2026-10-07).
 _EDITIONS = {
-    "NAV_CSV": (("NAV_BASE.csv",), None, r'href="([^"]*NAV_CSV\.zip)"'),
+    "NAV_CSV": (("NAV_BASE.csv", "NAV_RMK.csv"), None, r'href="([^"]*NAV_CSV\.zip)"'),
     "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv", "APT_CON.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
     "FIX_CSV": (("FIX_BASE.csv",), None, r'href="([^"]*FIX_CSV\.zip)"'),
     "FRQ_CSV": (("FRQ.csv",), None, r'href="([^"]*FRQ_CSV\.zip)"'),
@@ -428,7 +431,13 @@ def _address_of(row) -> str | None:
 
 @once(maxsize=2)
 def _contacts_of(path: str, _mtime: float, base: str, _base_mtime: float) -> dict:
-    con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
+    try:
+        con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False)
+    except UnicodeDecodeError:
+        # The 2026-10-29 edition has a byte that is no UTF-8 (0xA0, a
+        # no-break space in Windows' code page): read as UTF-8 alone, the
+        # whole file failed and every card lost its phone and address.
+        con = pd.read_csv(path, dtype=str, low_memory=False, keep_default_na=False, encoding="cp1252")
     # The manager's first, the airport's own office as a rule, and the
     # owner's where there is no manager -- a county's or a company's.
     rank = {"MANAGER": 0, "OWNER": 1}

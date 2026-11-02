@@ -24,9 +24,10 @@ import { followingSheet } from "./sheetSlide";
  * panning the map, not asking for a popup.
  */
 
-/** A sectional's look at the country round the pilot: some 25 nm across
- *  a phone. */
-const LOCAL_ZOOM = 11;
+/** A sectional's look at the country round the pilot: some 100 nm across
+ *  a phone, two levels out from the 25 nm it was, at the owner's pick
+ *  (three levels out asked, then "How about level 9?", 2026-10-29). */
+const LOCAL_ZOOM = 9;
 
 /** As far out as the map opens (COUNTRY_ZOOM), and a level further in:
  *  the country, not a place the pilot is looking at. */

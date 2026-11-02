@@ -11,6 +11,14 @@ new edges along the box, and a map that keeps the last answer while the
 next is asked for (keepPreviousData) would draw them as airspace lines
 across the chart.
 
+Every polygon is oriented before its boundary is taken -- its outside
+counter-clockwise and its holes clockwise in lon/lat, shapely's sign 1.0
+-- so a line runs with its volume always on its left in lon/lat, which is
+its right on the screen, where y points down. The web writes a shelf's
+altitudes just inside its own line by that (lib/map/edgeLabels): where two
+shelves share a line, each one's on its own side, as ForeFlight writes
+them. The clip and the simplifying keep a line's direction.
+
 The altitudes are sent as the file has them, the floor and the top in
 feet MSL and whether the top is "to but not including"; the web writes
 them as the chart does (lib/map/airspaceLabel).
@@ -61,7 +69,7 @@ def _lines(geometry) -> list[list[list[float]]]:
     return lines
 
 
-def volumes_in(shp_path, south: float, west: float, north: float, east: float) -> tuple[dict, ...]:
+def volumes_in(shp_path, south: float, west: float, north: float, east: float, classes: str = "BCD") -> tuple[dict, ...]:
     """The Class B, C and D volumes inside the box, each one's lines
     clipped to it, simplified under a pixel, and a point for its label.
 
@@ -70,21 +78,27 @@ def volumes_in(shp_path, south: float, west: float, north: float, east: float) -
     ground is answered from memory. Callers must treat the answer as
     read-only, since it is shared with every later asker of that box."""
     shp_path = Path(shp_path)
-    return _volumes_in(str(shp_path), shp_path.stat().st_mtime, south, west, north, east)
+    return _volumes_in(str(shp_path), shp_path.stat().st_mtime, south, west, north, east, "".join(sorted(set(classes))))
 
 
 @once(maxsize=64)
-def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: float, east: float) -> tuple[dict, ...]:
+def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: float, east: float, classes: str) -> tuple[dict, ...]:
     view = shapely_box(west, south, east, north)
     tolerance = tolerance_for(south, north)
     found = []
     # Numbered by their place in the national file, so a volume keeps its
     # id from one box to the next and the map does not draw it again.
     for number, polygon in enumerate(airspace._load_all_controlled_airspace(shp_path)):
+        # Only the classes asked for: the Class B alone, zoomed out, where
+        # a box holds the country's hundreds of C and D.
+        if polygon["class"] not in classes:
+            continue
         min_lon, min_lat, max_lon, max_lat = polygon["bbox"]
         if max_lat < south or min_lat > north or max_lon < west or min_lon > east:
             continue
-        geometry = shapely.force_2d(polygon["geometry"])
+        # Oriented so its volume is on the left of every line (the
+        # module's note): the file winds its rings either way.
+        geometry = shapely.orient_polygons(shapely.force_2d(polygon["geometry"]))
         if not geometry.intersects(view):
             continue
         lines = _lines(geometry.boundary.intersection(view).simplify(tolerance, preserve_topology=False))
@@ -108,6 +122,10 @@ def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: 
             "floor_sfc": floor == 0,
             "ceiling_ft": polygon["ceiling_ft_msl"],
             "ceiling_excluded": polygon.get("upper_desc") == "TNI",
+            # When it is in effect (vfr.airspace): "H24", "NOTAM" or
+            # "RMK", and the file's remark; the web words them.
+            "hours_code": polygon.get("hours_code"),
+            "hours_remark": polygon.get("hours_remark"),
             "label_lat": round(label.y, 5),
             "label_lon": round(label.x, 5),
             "lines": lines,

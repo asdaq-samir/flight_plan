@@ -70,3 +70,11 @@ export function choiceOf(a: Aircraft, profiles: AircraftProfileSummary[]): Aircr
 export function shortName(label: string): string {
   return label.split(" · ")[0] ?? label;
 }
+
+/** The true airspeed an airplane cruises at: its own where the pilot set
+ *  one, else its stock profile's; null while the profiles load and the
+ *  pilot gave none. The planner's figures before its nav log comes, and
+ *  the map's ruler, which times a line at it. */
+export function cruiseTasOf(a: AircraftChoice, profiles: AircraftProfileSummary[] | undefined): number | null {
+  return a.cruiseTasKt ?? profiles?.find(p => p.name === a.profile)?.cruise_tas_kt ?? null;
+}

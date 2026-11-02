@@ -85,7 +85,7 @@ test("Aircraft is a tab, finds an airplane by its callsign, and a tap on one tra
   const card = page.getByTestId("flight-card");
   // At the pill's size, as every card opens; its pages all the way up.
   await grabberTo(page, "full");
-  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("UAL2088");
   await expect(card.getByTestId("flight-line")).toHaveCount(0);
   // Its callsign large over its pictures, what it is and who flies it
   // under it (the owner's pick of the redesign, A2).
@@ -127,7 +127,7 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
   await page.getByTestId("aircraft-search").press("Enter");
   await expect(page).toHaveURL(/[?&]flight=a0b7d8/);
   // No field it took off from in its track: no Departed row.
-  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("UAL2088");
   await expect(page.getByTestId("flight-departed")).toHaveCount(0);
   // One tapped on the map: the Cessna, the second heard.
   await closeCard(page, "flight-close");
@@ -135,7 +135,7 @@ test("an airplane is found by its callsign, and a tap on one on the map tracks i
   await expect(hits).toHaveCount(2);
   await hits.nth(1).dispatchEvent("click");
   await expect(page).toHaveURL(/[?&]flight=a128b9/);
-  await expect(page.getByTestId("tab-title")).toHaveText("N174HA");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("N174HA");
 });
 
 test("a search finds the airplanes about as it is typed, and asks the planner one name at a time, the last typed", async ({ page }) => {
@@ -190,7 +190,7 @@ test("an airplane not in the air is found by its registration, and its card says
   await expect(page).toHaveURL(/[?&]flight=a89c1e/);
   const card = page.getByTestId("flight-card");
   // Named by its FAA record, not its address, with no trace today to name it.
-  await expect(page.getByTestId("tab-title")).toHaveText("N654FL");
+  await expect(page.getByTestId("tab-title-name")).toHaveText("N654FL");
   // Not heard now: on its flights, and its sketch says when it was last
   // heard, on the ground where its trace ends there.
   await grabberTo(page, "full");
@@ -422,7 +422,7 @@ test("an airplane opened is in the Aircraft card's Recents, and one starred on i
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
-  await expect(page.getByTestId("tab-title")).toHaveText("UAL2088", { timeout: slow(15_000) });
+  await expect(page.getByTestId("tab-title-name")).toHaveText("UAL2088", { timeout: slow(15_000) });
   const star = card.getByTestId("flight-favorite");
   await expect(star).toHaveAttribute("aria-pressed", "false");
   await star.click();
@@ -517,15 +517,17 @@ test("an airplane's card is laid out as an airport's: its pictures across the to
   expect(line.y + line.height).toBeLessThanOrEqual(head.y + head.height);
 });
 
-test("an airplane's card has Follow, Alert, Debrief and the star in a row, Share and the close on its pictures, its flight's state and height in its summary, and its airport a tap away", async ({ page }) => {
-  // The owner's pick of the redesign (A2): the actions a row of four
-  // under the pictures, Follow filled, as Maps' are under a place's.
+test("an airplane's card has Follow, Alert and Debrief in a row, Share at the left of its pictures and the star beside the close, its flight's state and height in its summary, and its airport a tap away", async ({ page }) => {
+  // The owner's pick of the redesign (A2): the actions a row under the
+  // pictures, Follow filled, as Maps' are under a place's -- three since
+  // the owner moved the star beside the close and Share to the pictures'
+  // top left (2026-10-29, 3d3fc388), as the airport card's are.
   await sky(page, { ...DETAIL, departed: { ident: "C81", name: "Campbell Airport", at: Date.now() / 1000 - 3600 } });
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
   const card = page.getByTestId("flight-card");
   await expect(card.getByTestId("flight-follow")).toBeVisible({ timeout: slow(15_000) });
-  const row = await Promise.all(["flight-follow", "flight-alert", "flight-debrief", "flight-favorite"].map(async id => (await card.getByTestId(id).boundingBox())!));
+  const row = await Promise.all(["flight-follow", "flight-alert", "flight-debrief"].map(async id => (await card.getByTestId(id).boundingBox())!));
   for (let i = 1; i < row.length; i++) {
     expect(Math.abs(row[i]!.y - row[0]!.y), "one row").toBeLessThan(1);
     expect(Math.abs(row[i]!.width - row[0]!.width), "equal").toBeLessThan(1);
@@ -534,12 +536,17 @@ test("an airplane's card has Follow, Alert, Debrief and the star in a row, Share
   // Following it as it opens, said on its action.
   await expect(card.getByTestId("flight-follow")).toHaveAttribute("aria-pressed", "true");
   await expect(card.getByTestId("flight-follow")).toContainText("Following");
-  // Share and the close on the pictures, the bar's out of the pill.
+  // Share, the star and the close on the pictures, the bar's out of the
+  // pill: Share at the left, the star beside the close at the right.
   const head = (await card.getByTestId("flight-head").boundingBox())!;
-  for (const id of ["flight-share", "flight-close"]) {
+  const [share, star, close] = await Promise.all(["flight-share", "flight-favorite", "flight-close"].map(async id => {
     const button = (await card.getByTestId(id).boundingBox())!;
     expect(button.y >= head.y && button.y + button.height <= head.y + head.height, `${id} on the pictures`).toBe(true);
-  }
+    return button;
+  }));
+  expect(share!.x + share!.width, "Share at the left").toBeLessThan(head.x + head.width / 2);
+  expect(star!.x, "the star at the right").toBeGreaterThan(head.x + head.width / 2);
+  expect(star!.x + star!.width, "the star before the close").toBeLessThanOrEqual(close!.x);
   await expect(card.getByTestId("flight-share")).toHaveAccessibleName("Share UAL2088");
   // Descending 1,200 ft a minute, at 7,000 ft and 250 kt: said in its summary.
   await expect(card.getByTestId("flight-state")).toHaveText("DES");

@@ -40,7 +40,7 @@ function shortName(p: ProcedureSummary): string {
  * whole list (the Procedures sheet, with each one's fixes and plate)
  * after it. The list is asked for as the menu opens.
  */
-export default function ProcedureMenu({ ident, kind, list, loading, picked, label, runway, windward, fixes = [], look = "chip", onOpen, onPick, onAll }: {
+export default function ProcedureMenu({ ident, kind, list, loading, picked, label, runway, windward, fixes = [], look = "chip", onOpen, onPick, onAll, onLearn }: {
   ident: string;
   kind: Kind;
   /** The field's procedures, once asked for (onOpen). */
@@ -66,6 +66,9 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
   onOpen: () => void;
   onPick: (next: { id: string; transition: string | null; direct?: string | null } | null) => void;
   onAll: () => void;
+  /** The approach picked taught (ApproachLesson): its brief, flown with
+   *  coaching, and a quiz. An approach's menu alone. */
+  onLearn?: () => void;
 }) {
   const all = (list?.procedures ?? []).filter(p => p.kind === kind);
   const plates = usePreferences(s => s.plates);
@@ -261,6 +264,14 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
                 <ListRow title="Plate on the map">
                   <Switch checked={plates} onCheckedChange={on => usePreferences.getState().setPlates(on)} aria-label="Plate on the map" data-testid="procedure-menu-plate" />
                 </ListRow>
+              )}
+              {/* The approach picked taught, at the owner's ask ("do it all",
+                  2026-10-30): a card of its own, as the whole list's is. */}
+              {kind === "approach" && picked && onLearn && (
+                <ListRow
+                  title="Learn This Approach" chevron
+                  onClick={() => { toSheet.current = true; toggle(false); onLearn(); }} data-testid="procedure-menu-learn"
+                />
               )}
               {picked && <ListRow title={NONE[kind]} onClick={() => pick(null)} data-testid="procedure-menu-none" />}
               <ListRow title={ALL[kind]} chevron onClick={() => { toSheet.current = true; toggle(false); onAll(); }} data-testid="procedure-menu-all" />

@@ -85,7 +85,9 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   if (page.viewportSize()!.width < 768) {
     const card = page.locator("[data-sheet-card]");
     await expect(card).toBeVisible();
-    await card.getByTestId("sheet-card-close").click();
+    // The tab bar's close, the card drawing none of its own under it.
+    await expect(card.getByTestId("sheet-card-close")).toHaveCount(0);
+    await page.getByTestId("tab-close").click();
     await expect(card).toHaveCount(0);
   }
 

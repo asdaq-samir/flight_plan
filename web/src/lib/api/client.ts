@@ -618,7 +618,7 @@ export const api = {
 
   /** The Class B, C and D in the map's view, each one's lines and its
    *  altitudes, to draw over the chart (AirspaceLayer). */
-  airspaceInView: (box: { south: number; west: number; north: number; east: number }) =>
+  airspaceInView: (box: { south: number; west: number; north: number; east: number; classes?: string }) =>
     planner.GET("/api/airspace/in-view", { params: { query: box } }).then(data<AirspaceInView>).then(r => r.volumes),
 
   /** The VORs in the map's view, and with `fixes` the low enroute

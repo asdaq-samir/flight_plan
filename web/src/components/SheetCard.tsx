@@ -1,10 +1,10 @@
-import { isValidElement, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { isValidElement, useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import TabKept from "./TabKept";
 import { Dialog, DialogPortal } from "./ui/dialog";
-import { holdOpenCard } from "../lib/openCards";
+import { holdOpenCard, setCardPill, type OpenCard, type PillHead } from "../lib/openCards";
 import { SheetCardHead, useSheetCards } from "../lib/sheetCards";
 import { TEXT } from "../lib/text";
 
@@ -81,8 +81,19 @@ export function SheetCard({
   // The tab bar names it and has its close (TabBar, minimized): its own
   // row keeps only a form's Cancel and Save, its name there for a screen
   // reader and the focus.
-  const barNamed = useSheetCards(s => s.barNamed) && title !== undefined;
+  const barShown = useSheetCards(s => s.barNamed);
+  const barNamed = barShown && title !== undefined;
   const card = useRef<HTMLElement>(null);
+  // Its entry among the open cards, for what its content says the pill
+  // shows of it (a map card's, MapCard's `pill`).
+  const held = useRef<OpenCard | null>(null);
+  // Kept for the entry too: the content's effect runs before this card's
+  // own, which holds the entry.
+  const pillGiven = useRef<PillHead | undefined>(undefined);
+  const setPill = useCallback((pill: PillHead | undefined) => {
+    pillGiven.current = pill;
+    if (held.current) setCardPill(held.current, pill);
+  }, []);
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   // A close of the caller's own in the head (`action`, the app's
   // CloseButton): one that goes back a page first, the procedures'. With
@@ -101,8 +112,11 @@ export function SheetCard({
     const close = () => latest.current.onClose();
     useSheetCards.setState(s => ({ stack: [...s.stack, { id, raise, close }] }));
     // Back one: a page of the card's first where it has one (`back`).
-    const release = holdOpenCard({ close: () => (latest.current.back ?? latest.current.onClose)() });
+    const entry: OpenCard = { close: () => (latest.current.back ?? latest.current.onClose)(), pill: pillGiven.current };
+    held.current = entry;
+    const release = holdOpenCard(entry);
     return () => {
+      held.current = null;
       release();
       useSheetCards.setState(s => ({ stack: s.stack.filter(entry => entry.id !== id) }));
     };
@@ -113,9 +127,21 @@ export function SheetCard({
     useSheetCards.setState(s => ({ stack: s.stack.map(entry => (entry.id === id && entry.title !== title ? { ...entry, title } : entry)) }));
   }, [id, title]);
 
+  // The top card's name in the bar's row where the bar has one for it
+  // (barHeadRef), else in its own head row.
+  const barHead = useSheetCards(s => s.barHead);
+  const inBar = top && !!barHead && title === undefined;
+  const head = useMemo(() => (title === undefined ? { slot: inBar ? barHead : slot, headingId, setPill, inBar } : null),
+    [title, inBar, barHead, slot, headingId, setPill]);
   if (!host) return null;
+  // No close of its own wherever the tab bar is over it, whether the bar
+  // names it or the card draws its own name (a map card, MapCard into the
+  // slot): the bar's close puts the top card away all the same
+  // (holdOpenCard). Keyed to the bar naming it, every map card -- an
+  // airspace's, a VOR's, a waypoint's -- drew a second close under the
+  // bar's (the owner's screenshot, 2026-10-29).
   const end = (closeButton ?? (action === undefined && !leading))
-    ? (barNamed ? null : <CloseButton onClick={onClose} data-testid="sheet-card-close" />)
+    ? (barShown ? null : <CloseButton onClick={onClose} data-testid="sheet-card-close" />)
     : barNamed && back ? null : action;
   return (
     // Radix's dialog, not modal: Escape and a tap on the chart put it away,
@@ -184,7 +210,7 @@ export function SheetCard({
       {/* Its name at the left at a card's size and the close at the right
           end of its row, as CardHead sets a place's; a form's Cancel and
           Save at the two ends, the name between them. */}
-      <div className={cn("flex shrink-0 items-center gap-2 pb-3", (titleHidden || (barNamed && end == null && !leading)) && "sr-only")}>
+      <div className={cn("flex shrink-0 items-center gap-2 pb-3", (titleHidden || (barNamed && end == null && !leading)) && "sr-only", inBar && end == null && !leading && "hidden")}>
         {leading}
         {title === undefined ? (
           <div ref={setSlot} className="flex min-w-0 flex-1 items-center gap-2.5" />
@@ -196,7 +222,7 @@ export function SheetCard({
         )}
         {end != null && <div className="-mr-1 flex shrink-0 items-center">{end}</div>}
       </div>
-      <SheetCardHead.Provider value={title === undefined ? { slot, headingId } : null}>
+      <SheetCardHead.Provider value={head}>
         {children}
       </SheetCardHead.Provider>
     </section>

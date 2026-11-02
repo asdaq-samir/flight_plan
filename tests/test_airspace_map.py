@@ -12,18 +12,18 @@ def _write(path) -> None:
     Class D up to but not including 3,000 ft, and a Class E the map
     leaves out."""
     w = shapefile.Writer(str(path))
-    for name in ("IDENT", "NAME", "CLASS", "UPPER_DESC", "UPPER_CODE", "LOWER_CODE"):
+    for name in ("IDENT", "NAME", "CLASS", "UPPER_DESC", "UPPER_CODE", "LOWER_CODE", "WKHR_CODE", "WKHR_RMK"):
         w.field(name, "C")
     w.field("UPPER_VAL", "N", decimal=0)
     w.field("LOWER_VAL", "N", decimal=0)
     outer = [(-88.5, 41.5), (-88.5, 42.5), (-87.5, 42.5), (-87.5, 41.5), (-88.5, 41.5)]
     hole = [(-88.2, 41.8), (-87.8, 41.8), (-87.8, 42.2), (-88.2, 42.2), (-88.2, 41.8)]
     w.poly([outer, hole])
-    w.record("ORD", "CHICAGO CLASS B", "B", "TI", "MSL", "MSL", 10000, 3000)
+    w.record("ORD", "CHICAGO CLASS B", "B", "TI", "MSL", "MSL", "H24", "<Null>", 10000, 3000)
     w.poly([[(-87.98, 42.08), (-87.98, 42.16), (-87.86, 42.16), (-87.86, 42.08), (-87.98, 42.08)]])
-    w.record("PWK", "WHEELING CLASS D", "D", "TNI", "MSL", "SFC", 3000, 0)
+    w.record("PWK", "WHEELING CLASS D", "D", "TNI", "MSL", "SFC", "NOTAM", "Legal description references NOTAM", 3000, 0)
     w.poly([[(-89.0, 41.0), (-89.0, 41.2), (-88.8, 41.2), (-88.8, 41.0), (-89.0, 41.0)]])
-    w.record("", "SOMEWHERE E", "E", "TI", "MSL", "MSL", 17999, 700)
+    w.record("", "SOMEWHERE E", "E", "TI", "MSL", "MSL", "H24", "", 17999, 700)
     w.close()
 
 
@@ -49,6 +49,21 @@ def test_each_volume_has_its_altitudes_as_the_file_gives_them(chicago):
     assert [41.5, -88.5] in ord_["lines"][0] + ord_["lines"][1]
 
 
+def test_zoomed_out_the_class_b_alone_is_asked_for(chicago):
+    # The map asks for "B" further out than zoom 8: O'Hare's shelf, not
+    # Wheeling's Class D under it.
+    volumes = airspace_map.volumes_in(chicago, 41.0, -89.5, 43.0, -87.0, "B")
+    assert {v["ident"] for v in volumes} == {"ORD"}
+
+
+def test_each_volume_says_when_it_is_in_effect_as_the_file_does(chicago):
+    volumes = {v["ident"]: v for v in airspace_map.volumes_in(chicago, 41.0, -89.5, 43.0, -87.0)}
+    # The Bravo continuous, its "<Null>" remark none; Wheeling part-time,
+    # its hours by NOTAM, with the file's remark as it is written.
+    assert (volumes["ORD"]["hours_code"], volumes["ORD"]["hours_remark"]) == ("H24", None)
+    assert (volumes["PWK"]["hours_code"], volumes["PWK"]["hours_remark"]) == ("NOTAM", "Legal description references NOTAM")
+
+
 def test_a_label_sits_on_its_own_shelf_not_in_the_hole(chicago):
     ord_ = next(v for v in airspace_map.volumes_in(chicago, 41.0, -89.5, 43.0, -87.0) if v["ident"] == "ORD")
     shelf = Polygon([(-88.5, 41.5), (-88.5, 42.5), (-87.5, 42.5), (-87.5, 41.5)],
@@ -69,3 +84,27 @@ def test_a_volume_cut_by_the_box_has_no_line_along_the_boxs_edge(chicago):
 def test_a_box_far_out_is_simplified_further_than_one_close_in():
     assert airspace_map.tolerance_for(42.0, 42.5) == airspace_map.MIN_TOLERANCE_DEG
     assert airspace_map.tolerance_for(36.0, 48.0) == pytest.approx(0.001)
+
+
+@pytest.mark.parametrize("west", [-89.5, -88.0])
+def test_every_line_has_its_volume_on_its_left(chicago, west):
+    # The stand-in file winds O'Hare's shelf clockwise, as the FAA's
+    # often does: a point a little left of each piece of its lines, in
+    # lon/lat, is on the shelf -- round its outside and its hole, and
+    # where the box cuts it -- and one a little right is not, so the web
+    # can write its altitudes on its own side of the line.
+    shelf = Polygon([(-88.5, 41.5), (-88.5, 42.5), (-87.5, 42.5), (-87.5, 41.5)],
+                    [[(-88.2, 41.8), (-87.8, 41.8), (-87.8, 42.2), (-88.2, 42.2)]])
+    ord_ = next(v for v in airspace_map.volumes_in(chicago, 41.0, west, 43.0, -87.0) if v["ident"] == "ORD")
+    checked = 0
+    for line in ord_["lines"]:
+        for (lat0, lon0), (lat1, lon1) in zip(line, line[1:]):
+            mid_lon, mid_lat = (lon0 + lon1) / 2, (lat0 + lat1) / 2
+            d_lon, d_lat = lon1 - lon0, lat1 - lat0
+            length = (d_lon ** 2 + d_lat ** 2) ** 0.5
+            # A hundredth of a degree off the line, square to it.
+            left = Point(mid_lon - d_lat / length * 0.01, mid_lat + d_lon / length * 0.01)
+            right = Point(mid_lon + d_lat / length * 0.01, mid_lat - d_lon / length * 0.01)
+            assert shelf.contains(left) and not shelf.contains(right)
+            checked += 1
+    assert checked >= 6

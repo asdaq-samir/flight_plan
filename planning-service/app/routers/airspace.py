@@ -100,6 +100,7 @@ def airspace_ahead(
 def airspace_in_view(
     south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
     north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
+    classes: str = Query(default="BCD", pattern="^[BCD]{1,3}$", description="Which classes: the Class B alone further out"),
 ) -> AirspaceInView:
     """The Class B, C and D inside the map's view (vfr.airspace_map), for
     the map to draw over the chart: each volume's lines from the FAA's own
@@ -110,7 +111,7 @@ def airspace_in_view(
         raise HTTPException(422, "The box's south is above its north, or its west east of its east.")
     try:
         shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
-        volumes = airspace_map.volumes_in(shp_path, south, west, north, east)
+        volumes = airspace_map.volumes_in(shp_path, south, west, north, east, classes)
     except (OSError, RuntimeError) as err:
         log.warning("airspace in (%s, %s, %s, %s) not read: %s", south, west, north, east, err)
         volumes = ()

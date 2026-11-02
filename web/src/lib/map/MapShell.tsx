@@ -31,6 +31,7 @@ import { OwnShipLayer } from "./OwnShipLayer";
 import { OwnTrailLayer } from "./OwnTrailLayer";
 import { AheadLayer } from "./AheadLayer";
 import { TrafficLayer } from "./TrafficLayer";
+import { MapRuler } from "./MapRuler";
 import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "./ownShip";
 import TvMapKeys from "./TvMapKeys";
 import { tvPlatform } from "../tv";
@@ -544,6 +545,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       ) : (
         <div className="h-full w-full bg-slate-100 dark:bg-slate-900" />
       )}
+      {/* Two fingers held on the chart measure it, as ForeFlight's ruler. */}
+      {chart && map && <MapRuler map={map} />}
       <MapBanners />
       <MapControls />
     </div>

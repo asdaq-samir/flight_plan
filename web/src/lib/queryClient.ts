@@ -291,6 +291,16 @@ export const airportQuery = (ident: string) => queryOptions({
   queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000, meta: { silent: true },
 });
 
+/** A procedure picked, drawn as the planner draws it (vfr.procedures):
+ *  one query for the map's drawing, the planner's descent and the approach
+ *  lesson (ApproachLesson) alike. */
+export const procedureQuery = (p: { ident: string; id: string; transition: string | null }) => ({
+  queryKey: ["procedure", p.ident, p.id, p.transition],
+  queryFn: () => api.procedure(p.ident, p.id, p.transition),
+  // A cycle's procedures hold for its 28 days.
+  staleTime: 6 * 60 * 60_000,
+});
+
 /** What a field offers on the ground (api.airportServices): the stop's
  *  card's and a suggested stop's row's. The FAA's cycle and Overture's
  *  monthly release change it, so it is good for the page's life; quiet,

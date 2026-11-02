@@ -100,6 +100,13 @@ def _station_variation(row: dict) -> float | None:
     return -degrees if (row.get("MAG_VARN_HEMIS") or "").strip().upper() == "W" else degrees
 
 
+def _number(text: str | None) -> float | None:
+    try:
+        return float((text or "").strip())
+    except ValueError:
+        return None
+
+
 def _read_navaids(path: Path) -> dict[str, list[dict]]:
     """NAV_BASE's navaids in service, as fixes: "RFD", the Rockford DME,
     named and with its frequency. Every one by each ident, the likelier
@@ -123,6 +130,16 @@ def _read_navaids(path: Path) -> dict[str, list[dict]]:
                 "name": (row.get("NAME") or "").strip().title() or None, "freq": (row.get("FREQ") or "").strip() or None,
                 "state": (row.get("STATE_CODE") or "").strip() or None,
                 "mag_var": _station_variation(row),
+                # For its card: the station's height (ELEV, ft MSL), its
+                # TACAN or DME channel (CHAN, "70X"), its standard service
+                # volume's class (ALT_CODE: T, L, H, VL or VH, AIM 1-1-8),
+                # its hours (OPER_HOURS, "24") and whether it is in
+                # service with restrictions (NAV_STATUS's "RESTRICTED").
+                "elevation_ft": _number(row.get("ELEV")),
+                "channel": (row.get("CHAN") or "").strip() or None,
+                "service_volume": (row.get("ALT_CODE") or "").strip() or None,
+                "hours": (row.get("OPER_HOURS") or "").strip() or None,
+                "restricted": "RESTRICTED" in (row.get("NAV_STATUS") or "").upper(),
             }
             held = table.setdefault(ident, [])
             here = next(
@@ -269,6 +286,38 @@ def enroute_fixes_within(south: float, west: float, north: float, east: float) -
         (f for f in within(south, west, north, east) if f.get("enroute_low") and not f["vfr"]),
         key=lambda f: f["ident"],
     )
+
+
+_REMARKS: tuple[float, dict[tuple[str, str], list[str]]] | None = None
+
+
+def navaid_remarks(ident: str, kind: str, cache_dir=FAA_CACHE_DIR) -> list[str]:
+    """A navaid's own remarks from NASR's NAV_RMK.csv, in plain English
+    (vfr.remarks.plain): where its signal is unusable ("VOR unusable
+    072-090 beyond 34 nm below 3000 ft"), the Chart Supplement's service
+    volume restrictions (AIM 1-1-8). Not its receiver checkpoints'. None
+    where the file cannot be had: a card without them."""
+    from . import remarks
+
+    global _REMARKS
+    try:
+        path = faa_data.ensure_nasr_file("NAV_RMK.csv", cache_dir)
+        mtime = path.stat().st_mtime
+    except (OSError, RuntimeError):
+        return []
+    with _LOCK:
+        if _REMARKS is None or _REMARKS[0] != mtime:
+            table: dict[tuple[str, str], list[str]] = {}
+            with open(path, newline="", encoding="utf-8", errors="replace") as f:
+                for row in csv.DictReader(f):
+                    if (row.get("TAB_NAME") or "").strip() != "NAVIGATION_AID":
+                        continue
+                    key = ((row.get("NAV_ID") or "").strip().upper(), (row.get("NAV_TYPE") or "").strip())
+                    text = (row.get("REMARK") or "").strip()
+                    if text:
+                        table.setdefault(key, []).append(remarks.plain(text))
+            _REMARKS = (mtime, table)
+        return list(_REMARKS[1].get((ident.upper(), kind), []))
 
 
 def preload() -> None:

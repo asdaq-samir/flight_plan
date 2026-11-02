@@ -20,6 +20,13 @@ export function awayFrom(from: LatLon, to: LatLon): string {
   return `${nmAway(distanceNm(from, to))} ${compassPoint(bearingDeg(from, to))}`;
 }
 
+/** How far and which way the point is from the airplane ("12 nm NE of
+ *  you"), for a card's pill; none where the position is not known. */
+export function useAwayWords(lat: number, lon: number): string | undefined {
+  const ship = useOwnFix();
+  return ship ? `${awayFrom(ship, { lat, lon })} of you` : undefined;
+}
+
 /** A kept airport's tile's second line -- Home's, the Favorites', the
  *  Recents', the search's and the route pickers' -- how far it is from own
  *  ship's fix as it is, else its town, else its name. Each strip had its

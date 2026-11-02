@@ -232,3 +232,47 @@ def test_a_leg_flown_to_an_altitude_goes_as_far_as_the_standard_climb_takes_the_
 def test_an_airports_elevation_is_its_airport_records():
     # KBUR's airport record, columns 57 to 61: 00778.
     assert procedures._airport("KBUR", CIFP).elevation_ft == 778
+
+
+def test_an_approachs_runway_path_is_its_finals_vertical_angle_to_its_runways_crossing_altitude():
+    """ARINC 424-18 5.70: KBUR's ILS Y RWY 08 comes down 3.00° ("-300") to
+    RW08, crossed at 787 ft: its threshold's 727 ft and its 60 ft crossing
+    height, as the runway's own record has them."""
+    path = procedures.procedure_drawing("KBUR", "I08-Y")["runway_path"]
+    assert path["deg"] == 3.0 and path["fix"] == "RW08" and path["ft"] == 787
+    assert near((path["lat"], path["lon"]), RW08)
+
+
+def test_a_departure_has_no_runway_path():
+    drawn = procedures.procedure_drawing("KBUR", "I08-Y", "LAX")
+    assert drawn["runway_path"] is not None
+    assert all(procedures.procedure_drawing("KBUR", p["id"])["runway_path"] is None
+               for p in procedures.procedures_at("KBUR")["procedures"] if p["kind"] == "departure")
+
+
+def test_an_approach_says_its_glidepath_its_final_course_and_its_missed_approach_leg_by_leg():
+    # What an approach briefing takes from the coded legs (FAA-H-8083-16B,
+    # chapter 4): the ILS Y 08's glidepath, coded -300 on BUDDE and the
+    # threshold (3.00°, ARINC 424-18 5.70), its final course 079° magnetic
+    # as the threshold's leg codes it, and its missed approach in order --
+    # climb on 079° to 1,800, a right turn to heading 210° to intercept,
+    # to VTU and hold.
+    drawn = procedures.procedure_drawing("KBUR", "I08-Y", "LAX")
+    assert drawn["glidepath_deg"] == 3.0 and drawn["final_course_deg"] == 79
+    fixes = {f["ident"]: f for f in drawn["fixes"]}
+    assert fixes["BUDDE"]["vertical_angle_deg"] == 3.0 and fixes["SILEX"]["vertical_angle_deg"] is None
+    legs = drawn["missed_legs"]
+    assert [leg["path"] for leg in legs] == ["CA", "VI", "CF", "HM"]
+    assert (legs[0]["course_deg"], legs[0]["min_ft"]) == (79, 1800)
+    assert (legs[1]["course_deg"], legs[1]["turn"]) == (210, "R")
+    assert legs[2]["fix"] == "VTU" and legs[2]["min_ft"] == 4600
+    assert legs[3]["fix"] == "VTU" and legs[3]["turn"] == "L"
+    # An arrival has none of them.
+    star = procedures.procedure_drawing("KBUR", "JANNY5")
+    assert star["glidepath_deg"] is None and star["final_course_deg"] is None and star["missed_legs"] == []
+
+
+def test_a_vertical_angle_is_read_in_hundredths_of_a_degree():
+    assert procedures._vertical_angle("-300") == -3.0
+    assert procedures._vertical_angle("-350") == -3.5
+    assert procedures._vertical_angle("    ") is None

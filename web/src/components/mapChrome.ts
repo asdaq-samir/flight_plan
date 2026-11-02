@@ -51,6 +51,12 @@ export const ConsoleInPanelContext = createContext<{ close: () => void } | null>
  *  (TabBar). */
 export const TabBarMinimized = createContext(false);
 
+/** Whether the minimized bar lies in the pill over a card's picture
+ *  (MapPanel's PillPicture, lib/openCards' `pill`): its words and glyphs
+ *  white, its round buttons a light glass, and the card's line under its
+ *  name (TabBar). */
+export const BarOverPicture = createContext(false);
+
 /** The panel's size as the tab bar sees it, and the way to change it
  *  (MapPanel). Null outside a panel. */
 export const PanelSize = createContext<{
@@ -238,6 +244,11 @@ export const ADD_CAPSULE =
  *  on its button, a stock Toggle's: the airport and airplane cards'
  *  Favorite), as a starred thing is everywhere on iOS. */
 export const FAVORITE_STAR = "in-data-[state=on]:fill-[#ffcc00] in-data-[state=on]:text-[#ffcc00] dark:in-data-[state=on]:fill-[#ffd60a] dark:in-data-[state=on]:text-[#ffd60a]";
+
+/** The same star's yellow, given outright: the airport card's star is a
+ *  round button by its close, a tooltip's trigger, with no Toggle's
+ *  data-state to read. */
+export const FAVORITE_STAR_ON = "fill-[#ffcc00] text-[#ffcc00] dark:fill-[#ffd60a] dark:text-[#ffd60a]";
 
 /** A round button on the panel -- the console's, the route's close -- as
  *  Maps' are on iOS 26: a circle of that glass, its glyph bold in the

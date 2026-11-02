@@ -177,6 +177,16 @@ def test_a_fields_contact_is_its_managers_phone_and_street_by_either_ident(tmp_p
     assert faa_data.airport_contact("ZZZ", tmp_path) == {"phone": None, "address": None}
 
 
+def test_a_contacts_file_that_is_no_utf8_is_still_read(tmp_path):
+    # The 2026-10-29 edition carries a lone 0xA0 (Windows' no-break space):
+    # read as UTF-8 alone it failed, and every card lost its phone and street.
+    row = "2026/10/29,00754.,A,AZ,PHX,PHOENIX,US,MANAGER,A MANAGER,2485 E BUCKEYE RD,,PHOENIX,AZ,85034,,602-273-3302\n"
+    odd = "2026/10/29,00755.,A,AZ,ZZ1,PHOENIX,US,MANAGER,A\xa0MANAGER,1 MAIN ST,,PHOENIX,AZ,85000,,\n"
+    (tmp_path / "APT_CON.csv").write_bytes((CONTACTS.splitlines(keepends=True)[0] + row + odd).encode("cp1252"))
+    (tmp_path / "APT_BASE.csv").write_text("ARPT_ID,ICAO_ID,TPA\nPHX,KPHX,\nZZ1,,\n")
+    assert faa_data.airport_contact("KPHX", tmp_path) == {"phone": "602-273-3302", "address": "2485 E Buckeye Rd, Phoenix, AZ 85034"}
+
+
 def test_no_contacts_file_is_a_card_without_them_not_a_failure(monkeypatch, tmp_path):
     def unreachable(name, cache_dir):
         raise RuntimeError("the FAA is down")

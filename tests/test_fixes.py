@@ -190,3 +190,25 @@ def test_a_dropped_point_is_named_off_the_nearest_fix_a_pilot_knows_and_comes_ba
     back = fixes.frd_point(near["ident"])
     assert geo.distance_nm(lat, lon, back["lat"], back["lon"]) < 0.3
     assert fixes.frd_near(10.0, 10.0) is None
+
+
+def test_a_vors_card_has_its_channel_service_volume_and_unusable_sectors(tmp_path):
+    # Joliet's row and remark as NASR files them (NAV_BASE, NAV_RMK, the
+    # 2026-10-29 cycle); its receiver checkpoint's remark is not the card's.
+    (tmp_path / "NAV_BASE.csv").write_text(
+        '"NAV_ID","NAV_TYPE","NAME","STATE_CODE","NAV_STATUS","LAT_DECIMAL","LONG_DECIMAL","FREQ","ELEV","MAG_VARN",'
+        '"MAG_VARN_HEMIS","CHAN","ALT_CODE","OPER_HOURS"\n'
+        '"JOT","VOR/DME","JOLIET","IL","OPERATIONAL RESTRICTED",41.54641852,-88.31841055,"112.3","590.9","2","E","70X","VH","24"\n')
+    jot = fixes._read_navaids(tmp_path / "NAV_BASE.csv")["JOT"][0]
+    assert {k: jot[k] for k in ("mag_var", "elevation_ft", "channel", "service_volume", "hours", "restricted")} == {
+        "mag_var": 2.0, "elevation_ft": 590.9, "channel": "70X", "service_volume": "VH", "hours": "24", "restricted": True}
+
+    (tmp_path / "NAV_RMK.csv").write_text(
+        '"EFF_DATE","NAV_ID","NAV_TYPE","STATE_CODE","CITY","COUNTRY_CODE","TAB_NAME","REF_COL_NAME","REF_COL_SEQ_NO","REMARK"\n'
+        '"2026/10/29","JOT","VOR/DME","IL","JOLIET","US","NAVIGATION_AID","GENERAL_REMARK",2,'
+        '"VOR UNUSBL 072-090 BYD 34 NM BLW 3000 FT; 130-175 BYD 40 NM."\n'
+        '"2026/10/29","JOT","VOR/DME","IL","JOLIET","US","VOR_RECEIVER_CHKPT","AIR_GND_CODE",1,"A CHECKPOINT."\n')
+    fixes._REMARKS = None
+    assert fixes.navaid_remarks("JOT", "VOR/DME", cache_dir=tmp_path) == [
+        "VOR unusable 072-090 beyond 34 nm below 3000 ft; 130-175 beyond 40 nm."]
+    assert fixes.navaid_remarks("OBK", "VOR/DME", cache_dir=tmp_path) == []

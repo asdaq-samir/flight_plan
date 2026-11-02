@@ -5,6 +5,7 @@ import { cn } from "cn";
 import { pointName } from "../../../lib/identSchema";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { PillSection } from "../../../components/Favorites";
+import { FirstFew } from "../../../components/FirstFew";
 import QueryState from "../../../components/QueryState";
 import { RowBadge } from "../../../components/RowBadge";
 import type { NearbyPlace } from "../../../lib/api/types";
@@ -53,6 +54,16 @@ function Section({ title, children, testId }: { title: string; children: ReactNo
   );
 }
 
+/** A section of rows, the first three and its title the rest (FirstFew),
+ *  as the card's Frequencies. */
+function FewSection({ title, rows, testId }: { title: string; rows: ReactNode[]; testId?: string }) {
+  return (
+    <div className="pt-5" data-testid={testId}>
+      <FirstFew title={title} rows={rows} testId={testId && `${testId}-section`} />
+    </div>
+  );
+}
+
 // A tap opens the place's own website, its photos and menu there, at the
 // owner's word ("links are fine for now for the places", where Google's
 // photos wait on its key, #210); a place with none calls it, where it has
@@ -91,7 +102,10 @@ export function StopServices({ ident, withoutFuel = false }: {
       </Section>
     );
   }
-  const repair = [s.airframe_repair && `airframe ${s.airframe_repair}`, s.powerplant_repair && `engine ${s.powerplant_repair}`].filter(Boolean).join(", ");
+  // Sentence case, as every value on the card starts: "Airframe major,
+  // engine major".
+  const repair = [s.airframe_repair && `airframe ${s.airframe_repair}`, s.powerplant_repair && `engine ${s.powerplant_repair}`].filter(Boolean).join(", ")
+    .replace(/^./, c => c.toUpperCase());
   const field = [
     s.courtesy_car && (
       <ListRow
@@ -122,12 +136,12 @@ export function StopServices({ ident, withoutFuel = false }: {
           {s.fuel_notes.map(note => <ListRow key={note} title={note} />)}
         </Section>
       )}
-      {field.length > 0 && <Section title="On the field">{field}</Section>}
-      {s.food.length > 0 && <Section title="Food nearby">{placeRows(s.food, <RowBadge colour={BADGE.food}><Utensils /></RowBadge>, "services-food")}</Section>}
-      {s.lodging.length > 0 && <Section title="Places to stay">{placeRows(s.lodging, <RowBadge colour={BADGE.lodging}><BedDouble /></RowBadge>, "services-lodging")}</Section>}
+      {field.length > 0 && <FewSection title="On the field" rows={field} />}
+      {s.food.length > 0 && <FewSection title="Food nearby" rows={placeRows(s.food, <RowBadge colour={BADGE.food}><Utensils /></RowBadge>, "services-food")} />}
+      {s.lodging.length > 0 && <FewSection title="Places to stay" rows={placeRows(s.lodging, <RowBadge colour={BADGE.lodging}><BedDouble /></RowBadge>, "services-lodging")} />}
       {/* Overture's credit under its places, as its licence asks: the
           data's, not a note (the owner's no-footnotes rule keeps these). */}
-      {s.cars.length > 0 && <Section title="Car rental">{placeRows(s.cars, <RowBadge colour={BADGE.car}><CarFront /></RowBadge>, "services-cars")}</Section>}
+      {s.cars.length > 0 && <FewSection title="Car rental" rows={placeRows(s.cars, <RowBadge colour={BADGE.car}><CarFront /></RowBadge>, "services-cars")} />}
       {near && <p className={cn("px-1 pt-1.5 text-muted-foreground", TEXT.note)}>Places © Overture Maps Foundation</p>}
       {s.nearby_unavailable && (
         <Section title="Nearby"><ListRow muted title="Places near the field could not be looked up" /></Section>

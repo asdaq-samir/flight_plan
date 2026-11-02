@@ -47,6 +47,7 @@ def faa(monkeypatch, tmp_path):
 def test_a_file_of_the_current_cycle_is_left_and_an_old_one_fetched_with_its_zip(faa):
     folder, fetched, _ = faa
     _csv(folder / "NAV_BASE.csv", "2026/10/01")
+    _csv(folder / "NAV_RMK.csv", "2026/10/01")
     _csv(folder / "FIX_BASE.csv", "2026/10/01")
     # The airports a cycle behind, its remarks current: one zip, fetched whole.
     _csv(folder / "APT_BASE.csv", "2026/09/03")

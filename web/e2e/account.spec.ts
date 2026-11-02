@@ -101,8 +101,14 @@ test.describe("the email sign-in link", () => {
     });
     const console = await openPlannerConsole(page);
     await console.getByRole("button", { name: "Sign in" }).click();
+    // Sent from the field by Return, the pointer nowhere near the send
+    // button: its label is a tooltip with no delay (IconButton), a layer
+    // of its own over the dialog, and on CI's desktop runner the Escape
+    // below went to it and left the dialog up (run 41014180625, passed
+    // on its retry).
     await page.getByLabel("Email address").fill("a@example.com");
-    await page.getByRole("button", { name: "Send sign-in link" }).click();
+    await page.getByLabel("Email address").press("Enter");
+    await expect(page.getByRole("button", { name: "Send sign-in link" })).toBeDisabled();
     await page.keyboard.press("Escape");
     // Escape closes the sign-in dialog, the top layer, and leaves the
     // console under it open.

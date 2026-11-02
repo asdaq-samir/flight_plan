@@ -1,6 +1,7 @@
-import { useContext, type ReactNode } from "react";
+import { useContext, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "cn";
+import type { PillHead } from "../openCards";
 import { SheetCardHead } from "../sheetCards";
 import { TEXT } from "../text";
 
@@ -28,7 +29,7 @@ import { TEXT } from "../text";
  * head, which is what `leading` is for. On a phone it is a card in the
  * map's panel instead (MapPopup), with the panel's close as every card's.
  */
-export function MapCard({ title, subtitle, leading, media, children }: {
+export function MapCard({ title, subtitle, leading, media, pill, children }: {
   title: ReactNode;
   subtitle?: ReactNode;
   /** A control that belongs with the title rather than in the corner,
@@ -40,12 +41,24 @@ export function MapCard({ title, subtitle, leading, media, children }: {
    *  left, as a list's rows are: the cards on the map read as the
    *  panel's do, at the pilot's ask for every card to read as Nearest's. */
   media?: ReactNode;
+  /** What the pill shows of it on a phone, as an airport's card's head
+   *  drawn small (PillPicture): its name, one line, and its colour on the
+   *  chart behind them, at the owner's ask (2026-10-29). */
+  pill?: PillHead;
   children?: ReactNode;
 }) {
   // On a phone, a card in the map's panel (MapPopup's SheetCard): its mark
   // and its name in the card's head, at a card's size where its close is,
   // and the rest the card's body, the panel's width.
   const inSheet = useContext(SheetCardHead);
+  // Given by its strings, not the object, made new at each draw.
+  const setPill = inSheet?.setPill;
+  const name = pill?.name, line = pill?.line, colour = pill?.colour;
+  useEffect(() => {
+    if (!setPill || !name) return;
+    setPill({ name, line, colour });
+    return () => setPill(undefined);
+  }, [setPill, name, line, colour]);
   if (inSheet) {
     return (
       <>
@@ -54,13 +67,20 @@ export function MapCard({ title, subtitle, leading, media, children }: {
             {leading}
             {media}
             <div className="min-w-0 flex-1">
-              <h2 id={inSheet.headingId} tabIndex={-1} className={cn("flex flex-wrap items-center gap-x-2 font-bold tracking-tight text-foreground outline-none", TEXT.card)}>{title}</h2>
-              {subtitle !== undefined && <p className={cn("text-muted-foreground", TEXT.detail)}>{subtitle}</p>}
+              {/* At a row's size and on one line each in the bar's row
+                  (inBar), beside its close. */}
+              <h2
+                id={inSheet.headingId} tabIndex={-1}
+                className={cn("flex items-center gap-x-2 font-bold tracking-tight text-foreground outline-none", inSheet.inBar ? cn("truncate", TEXT.row) : cn("flex-wrap", TEXT.card))}
+              >
+                {title}
+              </h2>
+              {subtitle !== undefined && <p className={cn("text-muted-foreground", inSheet.inBar ? cn("truncate", TEXT.note) : TEXT.detail)}>{subtitle}</p>}
             </div>
           </>,
           inSheet.slot,
         )}
-        <div className={cn("space-y-1.5", TEXT.detail)}>{children}</div>
+        <div className={cn("space-y-3", TEXT.detail)}>{children}</div>
       </>
     );
   }

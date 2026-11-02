@@ -10,7 +10,7 @@ import { useOwnShip } from "../../../lib/map/ownShip";
 import { usePreferences } from "../../../lib/preferences";
 import { primeSpeech } from "../../../lib/speech";
 import { TEXT } from "../../../lib/text";
-import { CardAction } from "./CardAction";
+import { CardAction } from "../../../components/CardAction";
 import type { SketchField } from "./TrailSketch";
 
 /** A choice that cannot be made now greyed, as the menu's own items are
