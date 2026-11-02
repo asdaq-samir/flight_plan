@@ -4,7 +4,7 @@
 //! with `wt_string_free`.
 
 use std::ffi::{c_char, CStr, CString};
-use wingtip_engine::{clearance::Route, flight, pack::Pack, phone, spoken, validity, wmm};
+use wingtip_engine::{ahead, clearance::Route, flight, pack::Pack, phone, spoken, validity, wmm};
 
 /// SAFETY: the caller passes `len` readable bytes at `ptr` (or a null
 /// pointer and 0), alive for the call.
@@ -230,4 +230,32 @@ pub extern "C" fn wt_weather_in_force(kind: i32, now: i64, observed: i64, last_r
         Some(p) => validity::in_force(p, now, opt(observed), opt(last_routine), opt(valid_from), opt(valid_to)) as i32,
         None => -1,
     }
+}
+
+/// The alerts ahead with no network (wingtip_engine::ahead), as the
+/// planner's /api/alerts/ahead answers, JSON: `count` packs, each at
+/// `ptrs[i]` with `lens[i]` bytes kept mapped for the call (the regions
+/// round the airplane); `alt_ft` NAN where the GPS gives none; `tfrs` the
+/// kept TFRs, a tab-separated line each, or NULL where there are none,
+/// downloaded at `tfrs_at` (INT64_MIN not known). Packs that are not packs
+/// are passed over. NULL where the answer cannot be written.
+///
+/// # Safety
+/// `ptrs` and `lens` hold `count` entries, each as for every function
+/// here; `tfrs` NULL or a NUL-terminated string.
+#[no_mangle]
+pub unsafe extern "C" fn wt_ahead(ptrs: *const *const u8, lens: *const usize, count: usize, lat: f64, lon: f64, track_deg: f64,
+                                  gs_kt: f64, alt_ft: f64, vs_fpm: f64, now: i64, tfrs: *const c_char, tfrs_at: i64) -> *mut c_char {
+    let mut packs = Vec::new();
+    if !ptrs.is_null() && !lens.is_null() {
+        for i in 0..count {
+            if let Ok(p) = Pack::read(bytes(*ptrs.add(i), *lens.add(i))) {
+                packs.push(p);
+            }
+        }
+    }
+    let lines = if tfrs.is_null() { None } else { CStr::from_ptr(tfrs).to_str().ok() };
+    let alt = (!alt_ft.is_nan()).then_some(alt_ft);
+    let at = (tfrs_at != i64::MIN).then_some(tfrs_at);
+    give(ahead::ahead(&packs, lat, lon, track_deg, gs_kt, alt, vs_fpm, now, lines, at))
 }

@@ -447,6 +447,69 @@ def _strings(texts: list[str]) -> tuple[list[tuple[int, int]], bytes]:
 
 
 _FLOOR_REFS = {"SFC": 0, "AGL": 1, "MSL": 2}
+#: A special-use area's heights' references in `sua.alt` (0 none given).
+_SUA_REFS = {"SFC": 1, "AGL": 2, "MSL": 3}
+
+#: The phones' ground: vfr.ground_grid's highest ground, a 120th of a
+#: degree a cell, pooled to the highest of each POOL by POOL cells -- a
+#: 60th of a degree, a nautical mile north to south -- so a region's is
+#: 240 by 240 heights (115 KB). Pooling by the highest keeps it never
+#: under the grid it is drawn from: over it by 3 ft at the median, 145 ft
+#: at the 90th percentile and 755 at the 99th, on the 22 million cells of
+#: the lower 48 (2026-11-02).
+TERRAIN_POOL = 2
+#: No ground in the lower 48 stands higher than Mount Whitney, 14,505 ft
+#: (USGS); the grid holds 102 cells far above it (32,000 ft in the
+#: Everglades), tiles misread, which the phones take as no ground known
+#: rather than warn of a mountain over Florida.
+HIGHEST_GROUND_FT = 14600
+
+
+def _terrain(region: str) -> bytes | None:
+    """A region's `terrain` section: 32 bytes -- its south and west edges
+    (f64), the cells a degree, its rows and columns (u32), four zeros --
+    then each cell's highest ground in feet (i16, row 0 the south, the
+    grid's NONE where no tile reached), the ground grid's own heights,
+    to which a reader adds its RESAMPLED_MARGIN_FT as vfr.ground_grid
+    does. None where the grid is not built or the region is outside it."""
+    from . import ground_grid
+
+    grids = ground_grid._grids()
+    if grids is None:
+        return None
+    high = grids[0]
+    west, south, east, north = region_bounds(region)
+    if south < ground_grid.SOUTH or north > ground_grid.NORTH or west < ground_grid.WEST or east > ground_grid.EAST:
+        return None
+    per = ground_grid.PER_DEG
+    r0, c0 = round((south - ground_grid.SOUTH) * per), round((west - ground_grid.WEST) * per)
+    block = np.asarray(high[r0:r0 + REGION_DEG * per, c0:c0 + REGION_DEG * per]).astype(np.int32)
+    block[block > HIGHEST_GROUND_FT] = ground_grid.NONE
+    rows, cols = block.shape[0] // TERRAIN_POOL, block.shape[1] // TERRAIN_POOL
+    tiles = block[:rows * TERRAIN_POOL, :cols * TERRAIN_POOL].reshape(rows, TERRAIN_POOL, cols, TERRAIN_POOL)
+    known = tiles != ground_grid.NONE
+    pooled = np.where(known, tiles, np.iinfo(np.int32).min).max(axis=(1, 3))
+    pooled = np.where(known.any(axis=(1, 3)), pooled, ground_grid.NONE).astype("<i2")
+    if (pooled == ground_grid.NONE).all():
+        return None
+    head = struct.pack("<ddIIII", south, west, per // TERRAIN_POOL, rows, cols, 0)
+    return head + pooled.tobytes()
+
+
+def _sua_alt(areas: list[dict]) -> tuple[bytes, bytes]:
+    """`sua.alt`, 32 bytes an area for the alerts ahead (crate::ahead):
+    its type (ASCII, NUL-padded to 4: P, R, MOA, W, A), its floor's and
+    its ceiling's reference (u8, _SUA_REFS), two zeros, its floor and its
+    ceiling in feet (f64, not a number where none is given), and where its
+    times of use are in `sua.times` (u32 offset, u32 length)."""
+    spans, run = _strings([a.get("times_of_use") or "" for a in areas])
+    nan = float("nan")
+    rec = b"".join(
+        struct.pack("<4sBB2xddII", (a["type"] or "").encode()[:4], _SUA_REFS.get(a["floor_ref"] or "", 0),
+                    _SUA_REFS.get(a["ceiling_ref"] or "", 0), nan if a["floor_ft"] is None else float(a["floor_ft"]),
+                    nan if a["ceiling_ft"] is None else float(a["ceiling_ft"]), *span)
+        for a, span in zip(areas, spans))
+    return rec, run
 
 
 def _phone_shapes(pack: Pack) -> dict:
@@ -503,7 +566,7 @@ def write_phone(pack: Pack, out_dir: Path, veil: list[dict]) -> dict:
             old.unlink()
     part.mkdir(parents=True, exist_ok=True)
     index = {"cycle": pack.cycle, "built_at": time.time(), "tolerance_deg": PHONE_TOLERANCE_DEG,
-             "worst_nm": PHONE_WORST_NM, "region_deg": REGION_DEG, "regions": []}
+             "worst_nm": PHONE_WORST_NM, "region_deg": REGION_DEG, "terrain_pool": TERRAIN_POOL, "regions": []}
     for region in sorted(regions):
         west, south, east, north = region_bounds(region)
         held = regions[region]
@@ -514,7 +577,10 @@ def write_phone(pack: Pack, out_dir: Path, veil: list[dict]) -> dict:
         if "airspace" in held:
             names += ["airspace.vol", "airspace.names"]
         if "sua" in held:
-            names += ["sua.rec", "sua.json", "sua.names"]
+            names += ["sua.rec", "sua.json", "sua.names", "sua.alt", "sua.times"]
+        ground = _terrain(region)
+        if ground is not None:
+            names.append("terrain")
         names += ["veil.pts", "veil.names"] + list(tables)
         path = part / f"{region}.pack"
         with open(path, "w+b") as f:
@@ -544,6 +610,11 @@ def write_phone(pack: Pack, out_dir: Path, veil: list[dict]) -> dict:
                     for a, b, n in zip(areas, blob_spans, name_spans)))
                 w.put("sua.json", blob_run)
                 w.put("sua.names", name_run)
+                alt, times = _sua_alt(areas)
+                w.put("sua.alt", alt)
+                w.put("sua.times", times)
+            if ground is not None:
+                w.put("terrain", ground)
             w.put("veil.pts", veil_pts)
             w.put("veil.names", veil_names)
             for name, table in tables.items():
@@ -610,7 +681,8 @@ def ensure_phone(pack_dir=None) -> dict | None:
     if pack is None:
         return None
     index = phone_index(pack_dir)
-    if index is not None and index.get("cycle") == pack.cycle and index.get("tolerance_deg") == PHONE_TOLERANCE_DEG:
+    if (index is not None and index.get("cycle") == pack.cycle and index.get("tolerance_deg") == PHONE_TOLERANCE_DEG
+            and index.get("terrain_pool") == TERRAIN_POOL):
         return None
     started = time.monotonic()
     index = write_phone(pack, Path(pack_dir or PACK_DIR) / "phone", list(airspace_at.mode_c_airports()))

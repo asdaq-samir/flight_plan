@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::HashSet;
 use wingtip_engine::grid::{self, Cell, Costs, Geom, Point, StraightError, Straighten, Values};
-use wingtip_engine::{airspace, flight, geo, metar, notam, pack, phone, taf, tfr, validity, winds, wmm};
+use wingtip_engine::{ahead, airspace, flight, geo, metar, notam, pack, phone, taf, tfr, validity, winds, wmm};
 
 /// A C-contiguous array's elements, numpy's own memory read in place.
 struct Ro<'a, T: Element>(&'a [ReadOnlyCell<T>]);
@@ -289,6 +289,19 @@ fn notam_text_json(raw: &str) -> Option<String> {
     notam::from_text(raw).map(|n| notam::to_json(&[n]))
 }
 
+/// The alerts ahead from phone packs (wingtip_engine::ahead), JSON.
+#[pyfunction]
+#[pyo3(signature = (packs, lat, lon, track_deg, gs_kt, alt_ft, vs_fpm, now, tfr_lines=None, tfrs_at=None))]
+#[allow(clippy::too_many_arguments)]
+fn ahead_json(packs: Vec<PyBuffer<u8>>, lat: f64, lon: f64, track_deg: f64, gs_kt: f64, alt_ft: Option<f64>, vs_fpm: f64,
+              now: i64, tfr_lines: Option<&str>, tfrs_at: Option<i64>) -> PyResult<String> {
+    let mut read = Vec::new();
+    for b in &packs {
+        read.push(read_pack(bytes_of(b)?)?);
+    }
+    Ok(ahead::ahead(&read, lat, lon, track_deg, gs_kt, alt_ft, vs_fpm, now, tfr_lines, tfrs_at))
+}
+
 #[pymodule]
 fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(line_cells, m)?)?;
@@ -309,7 +322,7 @@ fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         wrap_pyfunction!(isa_temp_c, m)?, wrap_pyfunction!(density_ratio, m)?, wrap_pyfunction!(density_altitude_ft, m)?,
         wrap_pyfunction!(pressure_altitude_ft, m)?, wrap_pyfunction!(declination, m)?,
         wrap_pyfunction!(weather_expires_at, m)?, wrap_pyfunction!(weather_in_force, m)?,
-        wrap_pyfunction!(metar_json, m)?, wrap_pyfunction!(taf_json, m)?, wrap_pyfunction!(winds_json, m)?,
+        wrap_pyfunction!(ahead_json, m)?, wrap_pyfunction!(metar_json, m)?, wrap_pyfunction!(taf_json, m)?, wrap_pyfunction!(winds_json, m)?,
         wrap_pyfunction!(tfr_detail_json, m)?, wrap_pyfunction!(notams_json, m)?, wrap_pyfunction!(notam_text_json, m)?,
     ] {
         m.add_function(f)?;
