@@ -488,8 +488,14 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
    luminance 0.21), the inks a touch deeper so its black type still reads
    5:1 on it, its colours kept so blue and magenta airspace stay told
    apart.
-   A GPU colour matrix, applied to each tile layer's own container. */
-html.dark[data-chart-night="dimmed"] .chart-tiles {
+   A GPU colour matrix, applied to each tile image, not to the tile
+   layer's container: Leaflet's container is a box of no size whose
+   tiles overflow it under a 3D transform, and Safari's engine drew a
+   filter there through an offscreen pass in bands, which showed on the
+   owner's iPhone as thin light lines straight across the chart about
+   150 points apart (2026-10-30); WebKit in the Playwright image left
+   that container undimmed altogether, and dims each tile. */
+html.dark[data-chart-night="dimmed"] .chart-tiles .leaflet-tile {
   filter: brightness(0.5) contrast(1.15);
 }
 /* The course over a dimmed chart in the palette's lighter magenta
