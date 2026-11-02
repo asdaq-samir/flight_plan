@@ -17,6 +17,11 @@ on:
       - ios/**
       - web/src/lib/fixtures/**
       - web/src/lib/acs.json
+      # And the engine the app links, with the fixtures its tests read.
+      - native/engine/**
+      - native/ffi/**
+      - native/Cargo.*
+      - tests/fixtures/native/**
       - .github/workflows/native-ios.yml
   push:
     # And a native-app branch of Claude's: its builds run from the branch
@@ -26,6 +31,10 @@ on:
       - ios/**
       - web/src/lib/fixtures/**
       - web/src/lib/acs.json
+      - native/engine/**
+      - native/ffi/**
+      - native/Cargo.*
+      - tests/fixtures/native/**
       - .github/workflows/native-ios.yml
   workflow_dispatch:
 
@@ -46,6 +55,12 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: The engine, for the app
+        # wingtip-engine through its C functions (native/ffi), which the app
+        # answers the airspace from with no network. The runner's own
+        # rustup; no Actions cache, as the engine has no crates to fetch and
+        # builds for the three targets in about a minute.
+        run: native/ffi/build-xcframework.sh
       - name: The Xcode project, from project.yml
         run: |
           brew install xcodegen
@@ -159,6 +174,12 @@ jobs:
       KEY_P8: ${{ secrets.APP_STORE_KEY_P8 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - name: The engine, for the app
+        # wingtip-engine through its C functions (native/ffi), which the app
+        # answers the airspace from with no network. The runner's own
+        # rustup; no Actions cache, as the engine has no crates to fetch and
+        # builds for the three targets in about a minute.
+        run: native/ffi/build-xcframework.sh
       - name: The Xcode project, from project.yml
         run: |
           brew install xcodegen

@@ -66,6 +66,8 @@ ios/Wingtip.xcodeproj
 ios/.build
 ios/Wingtip/Info.plist
 ios/Wingtip/Wingtip.entitlements
+# The engine for the app, built on the runner (native/ffi/build-xcframework.sh).
+ios/Frameworks/
 
 # The Rust extension's build output (native/, built by maturin)
 native/target/

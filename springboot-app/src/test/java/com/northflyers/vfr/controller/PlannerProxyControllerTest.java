@@ -299,6 +299,22 @@ class PlannerProxyControllerTest {
     }
 
     @Test
+    void thePhonesPacksAreForwardedWithTheirUpstreamCacheControl() throws Exception {
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/cycle-packs")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/cycle-pack/2026-10-29/n40w092.pack")).isTrue();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/cycle-pack/2026-10-29")).isFalse();
+        responseHeaders.put("Cache-Control", "public, max-age=2419200, immutable");
+
+        // A region's pack, its cycle in its address: kept the whole cycle
+        // by the phone and by CloudFront, as an airport diagram is.
+        MvcResult started = mockMvc.perform(get("/api/planner/cycle-pack/2026-10-29/n40w092.pack"))
+                .andExpect(request().asyncStarted())
+                .andReturn();
+        mockMvc.perform(asyncDispatch(started))
+                .andExpect(header().string("Cache-Control", "public, max-age=2419200, immutable"));
+    }
+
+    @Test
     void theAnswersTheSameForEveryPilotKeepTheirUpstreamCacheControl() throws Exception {
         responseHeaders.put("Cache-Control", "public, max-age=300, s-maxage=3600");
 

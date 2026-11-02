@@ -93,6 +93,12 @@ public class PlannerProxyController {
     /** The FAA's charts' pages, their edition in their address too (the
      *  list by the chart's own, in its query): carried as the diagram's. */
     private static final String FAA_CHART_PATH = "/api/faa-chart";
+    /** The phones' cycle packs (the planner's vfr.pack): the list of them,
+     *  kept as the airport search is, and each region's, its cycle in its
+     *  address, kept as an airport diagram is. Both carry their
+     *  upstream's Cache-Control. */
+    static final String CYCLE_PACKS_PATH = "/api/cycle-packs";
+    private static final String CYCLE_PACK_PATH = "/api/cycle-pack/";
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
     private static final String PACK_PATH = "/api/foreflight-pack/";
 
@@ -191,6 +197,9 @@ public class PlannerProxyController {
             route("POST", "/api/clearance/places"),
             route("GET", "/api/clearance/words"),
             route("GET", "/api/chart-tile/{kind}/{z}/{x}/{y}.png"),
+            // The phones' packs, for the airspace with no network.
+            route("GET", CYCLE_PACKS_PATH),
+            route("GET", CYCLE_PACK_PATH + "{cycle}/{file}"),
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),
             // The developer's.
@@ -331,6 +340,7 @@ public class PlannerProxyController {
             // and Expires are emptied, as Spring's static resources do.
             if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || path.startsWith(PLATE_PATH) || path.startsWith(FAA_CHART_PATH)
                     || path.startsWith(AERIAL_PATH) || path.startsWith(PHOTO_PATH)
+                    || path.equals(CYCLE_PACKS_PATH) || path.startsWith(CYCLE_PACK_PATH)
                     || isAirportExtra(path)
                     || SHARED_PATHS.contains(path)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL).ifPresent(value -> {

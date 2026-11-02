@@ -183,13 +183,17 @@ final class Plan {
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
-    /// zooms a pilot flies at: the chart's lowest to 10.
+    /// zooms a pilot flies at: the chart's lowest to 10; and the cycle
+    /// packs of the regions it crosses (CyclePacks), so a held finger on
+    /// the map is answered with the airspace there with no connection.
     func keepForTheAir(template: TileTemplate, minZoom: Int) {
         guard let course else { return }
         keepTask?.cancel()
         let tiles = KeepRoute.tiles(along: course.coordinates, minZoom: max(minZoom, 6), maxZoom: 10)
+        let regions = CyclePacks.regions(along: course.coordinates)
         keeping = (0, tiles.count)
         keepTask = Task { [weak self] in
+            await CyclePacks.shared.keep(regions: regions)
             await KeepRoute.keep(tiles, template: template) { kept, wanted in
                 Task { @MainActor in self?.keeping = (kept, wanted) }
             }

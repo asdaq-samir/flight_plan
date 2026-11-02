@@ -45,7 +45,7 @@ from . import chart_model, chart_refresh, errors, swim, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
 from .routers import airports, airspace as airspace_router, basemaps, briefing, chart, classb, devml, devservices, notes, oral, plan
-from .routers import clearance, figures, food_details, gonogo, route_options, system, traffic
+from .routers import clearance, figures, food_details, gonogo, packs, route_options, system, traffic
 from .schemas import STREAM_MESSAGES, Index
 
 # Nothing else in the process configured logging, so every log.info() in
@@ -212,10 +212,12 @@ def _warm_reference_data() -> None:
 
     # The cycle pack, from the files read above, where the one on disk is
     # not of them: a new cycle's first start writes it (a minute or so),
-    # and every start after reads its airspace and towns from it.
+    # and every start after reads its airspace and towns from it. Then the
+    # phones' packs of it, by region (/api/cycle-packs).
     if CYCLE_PACK:
         try:
             cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
+            cycle_pack.ensure_phone()
         except Exception:  # noqa: BLE001 -- the files are read as they were; the next start tries again
             log.exception("cycle pack not built")
 
@@ -256,6 +258,7 @@ def _warm_reference_data() -> None:
                     fixes.preload()
                     if CYCLE_PACK:
                         cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
+                        cycle_pack.ensure_phone()
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
         # The aircraft registry, read again once it is a day old (each
@@ -325,7 +328,7 @@ def index() -> Index:
 
 
 for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports, airspace_router, oral, traffic, basemaps,
-               route_options, gonogo, figures, food_details, clearance):
+               route_options, gonogo, figures, food_details, clearance, packs):
     app.include_router(module.router)
 
 

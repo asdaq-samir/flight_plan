@@ -25,6 +25,9 @@ final class Charts {
             try? FileManager.default.createDirectory(at: Self.kept.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? JSONEncoder().encode(fresh).write(to: Self.kept, options: .atomic)
             TileStore.shared.keepOnly(cycle: fresh.chartCycle)
+            // The airspace kept for the air, fetched again where the FAA's
+            // cycle has turned since it was.
+            Task.detached { await CyclePacks.shared.refresh() }
         } catch {
             problem = info == nil ? "The chart could not be fetched: \(error.localizedDescription)" : nil
         }
