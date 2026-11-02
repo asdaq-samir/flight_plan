@@ -82,3 +82,29 @@ test("the microphone listens once into a pill, and its chip flies the altitude s
   await expect(page).toHaveURL(/altitude_ft=5000/);
   await expect(pill).toHaveCount(0);
 });
+
+test("with nothing heard the pill stays and says so until put away", async ({ page }) => {
+  // A recognizer that hears nothing and ends, as Safari's does in a quiet
+  // cockpit.
+  await page.addInitScript(() => {
+    class Quiet {
+      onresult = null; onerror: ((e: unknown) => void) | null = null; onend: (() => void) | null = null;
+      start() { setTimeout(() => { this.onerror?.({ error: "audio-capture" }); this.onend?.(); }, 300); }
+      stop() { setTimeout(() => this.onend?.(), 50); }
+    }
+    Object.assign(window, { SpeechRecognition: Quiet, webkitSpeechRecognition: Quiet });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const pill = page.getByTestId("radio-pill");
+  await expect(async () => {
+    if (!(await pill.count())) await page.getByTestId("radio-button").click();
+    await expect(pill).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: slow(20_000) });
+  await expect(pill).toContainText("No microphone could be used", { timeout: slow(10_000) });
+  // Still there a while on.
+  await page.waitForTimeout(3000);
+  await expect(pill).toBeVisible();
+  await pill.getByTestId("radio-pill-close").click();
+  await expect(pill).toHaveCount(0);
+});

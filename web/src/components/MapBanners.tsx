@@ -29,7 +29,10 @@ const RadioLayer = lazy(() => import("./RadioLayer"));
  * actions, and the captions while the app listens, once it first has.
  */
 export default function MapBanners() {
-  const radio = useAtcRadio(s => s.listening || !!s.error || s.heard.length > 0);
+  // The microphone's pill too, which stays with what it heard or why it
+  // heard nothing until put away: with nothing heard it went with the
+  // listening, a few seconds after the tap (the owner's report, 2026-11-02).
+  const radio = useAtcRadio(s => s.listening || !!s.error || s.heard.length > 0 || s.pill !== null);
   return (
     <div
       className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px)+3.25rem)] z-[1000] flex flex-col items-center gap-2 nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:right-[max(1rem,env(safe-area-inset-right))] nav-bottom:left-[calc(max(1rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] nav-bottom:bottom-auto"

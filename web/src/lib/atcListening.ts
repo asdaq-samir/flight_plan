@@ -15,8 +15,9 @@ const KEPT = 60;
 /** Once words have come, this long with no more ends listening once, ms:
  *  the pause after a transmission. */
 const PAUSE_MS = 1800;
-/** With nothing said at all, listening once ends after this long, ms. */
-const NOTHING_MS = 8000;
+/** With nothing said at all, listening once ends after this long, ms:
+ *  long enough to wait for ATC to call back. */
+const NOTHING_MS = 15000;
 /** Listening once ends after this long whatever is said, ms. */
 const LONGEST_MS = 30000;
 
