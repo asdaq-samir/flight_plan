@@ -98,7 +98,14 @@ L.GridLayer.include({
  * between two.
  */
 export const PINCH_REDRAW_MS = 50;
-type Redrawn = { _project: () => void; _update: () => void; getBounds?: () => L.LatLngBounds; getLatLng?: () => L.LatLng };
+type Redrawn = {
+  _project: () => void;
+  _update: () => void;
+  getBounds?: () => L.LatLngBounds;
+  getLatLng?: () => L.LatLng;
+  options: L.PathOptions;
+  _path?: SVGPathElement;
+};
 type Svg = L.SVG & {
   _map?: ZoomingMap;
   _layers: Record<string, Redrawn>;
@@ -106,6 +113,9 @@ type Svg = L.SVG & {
   _zoom: number;
   /** When it last drew its paths again under a pinch or a flight, ms. */
   _redrawnAt?: number;
+  /** The zoom the map rested at as this pinch or flight began. */
+  _restZoom?: number;
+  _onZoomEnd: () => void;
   _update: () => void;
   _updatePaths: () => void;
   _updateTransform: (center: L.LatLng, zoom: number) => void;
@@ -113,11 +123,13 @@ type Svg = L.SVG & {
 };
 const svg = L.SVG.prototype as unknown as Svg;
 const scaledOnZoom = svg._onZoom;
+const zoomEnded = svg._onZoomEnd;
 L.SVG.include({
   _onZoom(this: Svg, e?: Smooth) {
     const now = performance.now();
     if (!smooth(this._map, e) || now - (this._redrawnAt ?? -Infinity) < PINCH_REDRAW_MS) return scaledOnZoom.call(this, e);
     this._redrawnAt = now;
+    this._restZoom ??= this._zoom;
     // The view box at the zoom now, its paths not drawn twice: the
     // renderer's own 'update' draws each from where it was projected.
     this.off("update", this._updatePaths, this);
@@ -131,16 +143,45 @@ L.SVG.include({
     // brings no more than that in before the next draw. The rest -- the
     // airspace's rings a few screens off -- are drawn again as the zoom
     // ends (Renderer._onZoomEnd), not at every step of it.
-    const near = this._map!.getBounds().pad(0.5);
+    const map = this._map!;
+    const near = map.getBounds().pad(0.5);
+    // A dashed line's dashes grown and shrunk with the chart, as its
+    // length is: kept at their own size, each step of the zoom laid them
+    // out again from the line's start, more or fewer round a ring, and a
+    // Class D's dashed ring seemed to turn one way zooming in and the
+    // other zooming out (the owner, 2026-11-02). Back to their own size
+    // as the zoom ends.
+    const scale = map.getZoomScale(map.getZoom(), this._restZoom);
     for (const id in this._layers) {
       const path = this._layers[id]!;
       const bounds = path.getBounds?.() ?? (path.getLatLng ? L.latLngBounds([path.getLatLng()]) : null);
       if (bounds && !near.intersects(bounds)) continue;
       path._project();
       path._update();
+      const { dashArray, dashOffset } = path.options;
+      if (path._path && dashArray) {
+        path._path.style.strokeDasharray = scaled(dashArray, scale);
+        if (dashOffset) path._path.style.strokeDashoffset = scaled(dashOffset, scale);
+      }
+    }
+  },
+  _onZoomEnd(this: Svg) {
+    zoomEnded.call(this);
+    if (this._restZoom === undefined) return;
+    this._restZoom = undefined;
+    for (const id in this._layers) {
+      const drawn = this._layers[id]!._path;
+      drawn?.style.removeProperty("stroke-dasharray");
+      drawn?.style.removeProperty("stroke-dashoffset");
     }
   },
 });
+
+/** A dash pattern ("10 5", "8,7", [10, 5]) times `scale`. */
+function scaled(pattern: string | number[], scale: number): string {
+  const lengths = typeof pattern === "string" ? pattern.split(/[\s,]+/).filter(Boolean).map(Number) : pattern;
+  return lengths.map(v => v * scale).join(" ");
+}
 
 /**
  * A line drawn whole (noClip) not drawn again where nothing has changed:

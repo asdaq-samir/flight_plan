@@ -19,7 +19,7 @@ describe("pinch patch", () => {
     const touchZoom = (L.Map as unknown as { TouchZoom: { prototype: Record<string, unknown> } }).TouchZoom.prototype;
     expect(touchZoom._onTouchEnd).toBeTypeOf("function");
     const svg = L.SVG.prototype as unknown as Record<string, unknown>;
-    for (const name of ["_onZoom", "_update", "_updatePaths", "_updateTransform"]) expect(svg[name]).toBeTypeOf("function");
+    for (const name of ["_onZoom", "_onZoomEnd", "_update", "_updatePaths", "_updateTransform"]) expect(svg[name]).toBeTypeOf("function");
     const path = L.Polyline.prototype as unknown as Record<string, unknown>;
     expect(path._project).toBeTypeOf("function");
     expect(path._update).toBeTypeOf("function");
