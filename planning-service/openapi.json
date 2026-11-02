@@ -4278,6 +4278,92 @@
         "title": "Course",
         "type": "object"
       },
+      "CyclePackRegion": {
+        "description": "One region's phone pack (vfr.pack's write_phone): its bounds in\ndegrees, its size in bytes and its CRC-32 (zlib's), for the phone to\ncheck it whole.",
+        "properties": {
+          "bytes": {
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "crc32": {
+            "title": "Crc32",
+            "type": "integer"
+          },
+          "east": {
+            "title": "East",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "north": {
+            "title": "North",
+            "type": "number"
+          },
+          "south": {
+            "title": "South",
+            "type": "number"
+          },
+          "west": {
+            "title": "West",
+            "type": "number"
+          }
+        },
+        "required": [
+          "name",
+          "west",
+          "south",
+          "east",
+          "north",
+          "bytes",
+          "crc32"
+        ],
+        "title": "CyclePackRegion",
+        "type": "object"
+      },
+      "CyclePacks": {
+        "description": "The phones' packs of the FAA cycle the planner holds: the regions\nthere are, each fetched at /api/cycle-pack/{cycle}/{name}.pack; how\nfar the packs' lines may stray from the FAA's (degrees, and the worst\nin nm); and how big a region is (degrees).",
+        "properties": {
+          "built_at": {
+            "title": "Built At",
+            "type": "number"
+          },
+          "cycle": {
+            "title": "Cycle",
+            "type": "string"
+          },
+          "region_deg": {
+            "title": "Region Deg",
+            "type": "integer"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/CyclePackRegion"
+            },
+            "title": "Regions",
+            "type": "array"
+          },
+          "tolerance_deg": {
+            "title": "Tolerance Deg",
+            "type": "number"
+          },
+          "worst_nm": {
+            "title": "Worst Nm",
+            "type": "number"
+          }
+        },
+        "required": [
+          "cycle",
+          "built_at",
+          "tolerance_deg",
+          "worst_nm",
+          "region_deg",
+          "regions"
+        ],
+        "title": "CyclePacks",
+        "type": "object"
+      },
       "DataFile": {
         "properties": {
           "downloaded_at": {
@@ -17030,6 +17116,73 @@
           }
         },
         "summary": "Course"
+      }
+    },
+    "/api/cycle-pack/{cycle}/{region}.pack": {
+      "get": {
+        "description": "One region's pack of a cycle, by its name in /api/cycle-packs. Its\ncycle is in its address, so it is kept as an airport diagram is: the\nwhole cycle, and never asked for again in between.",
+        "operationId": "cycle_pack_file_api_cycle_pack__cycle___region__pack_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycle",
+            "required": true,
+            "schema": {
+              "title": "Cycle",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "region",
+            "required": true,
+            "schema": {
+              "title": "Region",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cycle Pack File"
+      }
+    },
+    "/api/cycle-packs": {
+      "get": {
+        "description": "The regions there are packs of, for the cycle the planner holds.\n404 until the planner has built them (after its warm-up, once a\ncycle). Kept as the airport search is: the next cycle's reaches a\nphone within the hour.",
+        "operationId": "cycle_packs_api_cycle_packs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CyclePacks"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cycle Packs"
       }
     },
     "/api/debrief": {

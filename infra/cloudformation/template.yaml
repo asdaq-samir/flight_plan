@@ -725,6 +725,17 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref SharedAnswersCachePolicy
+          # The phones' packs of the FAA cycle (the planner's /api/cycle-packs
+          # and /api/cycle-pack/{cycle}/{region}.pack), the same for every
+          # pilot: the list for the hour it says, each pack for a day at the
+          # edge (the policy's most) and its whole cycle on the phone.
+          - PathPattern: api/planner/cycle-pack*
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref SharedAnswersCachePolicy
         # A server error is passed on, never kept: CloudFront would hold
         # one for ten seconds by default, and a planner restarting would
         # then outlast itself at the edge.

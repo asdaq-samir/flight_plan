@@ -124,10 +124,18 @@ struct AirspaceCard: View {
         .task(id: "\(lat),\(lon)") { await load() }
     }
 
+    /// The planner's answer; with no connection, the engine's from the
+    /// cycle packs kept on the phone (CyclePacks), the same bands but for
+    /// the ground's height, the TFRs and the fix the point is named off,
+    /// which only the planner has.
     private func load() async {
         problem = nil
         do { here = try await Planner.airspaceAt(lat: lat, lon: lon) } catch {
-            problem = "The planner could not read the airspace here. Try again in a moment."
+            if let kept = CyclePacks.shared.airspaceAt(lat: lat, lon: lon) {
+                here = kept
+            } else {
+                problem = "The planner could not read the airspace here. Try again in a moment."
+            }
         }
     }
 

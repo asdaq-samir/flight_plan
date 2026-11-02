@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::HashSet;
 use wingtip_engine::grid::{self, Cell, Costs, Geom, Point, StraightError, Straighten, Values};
-use wingtip_engine::{airspace, pack};
+use wingtip_engine::{airspace, geo, pack, phone};
 
 /// A C-contiguous array's elements, numpy's own memory read in place.
 struct Ro<'a, T: Element>(&'a [ReadOnlyCell<T>]);
@@ -145,6 +145,30 @@ fn pack_holding(data: PyBuffer<u8>, layer: &str, lon: f64, lat: f64) -> PyResult
     l.holding(lon, lat).ok_or_else(|| PyValueError::new_err(format!("a shape in {layer} the engine cannot read")))
 }
 
+/// The planner's AirspaceAt for the point as JSON, from a phone's pack
+/// (phone::airspace_at): what the phones answer with no network.
+#[pyfunction]
+#[pyo3(signature = (data, lat, lon, ground_ft=None))]
+fn airspace_at_json(data: Option<PyBuffer<u8>>, lat: f64, lon: f64, ground_ft: Option<f64>) -> PyResult<String> {
+    let answer = match &data {
+        Some(d) => phone::airspace_at(Some(&read_pack(bytes_of(d)?)?), lat, lon, ground_ft),
+        None => phone::airspace_at(None, lat, lon, ground_ft),
+    };
+    answer.ok_or_else(|| PyValueError::new_err("a shape in the pack the engine cannot read"))
+}
+
+/// The region whose phone pack holds a point (phone::region_of).
+#[pyfunction]
+fn region_of(lat: f64, lon: f64) -> String {
+    phone::region_of(lat, lon)
+}
+
+/// The geodesic distance in nm (geo::distance_nm), against pyproj's.
+#[pyfunction]
+fn distance_nm(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    geo::distance_nm(lat1, lon1, lat2, lon2)
+}
+
 #[pymodule]
 fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(line_cells, m)?)?;
@@ -156,5 +180,8 @@ fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(pack_header, m)?)?;
     m.add_function(wrap_pyfunction!(pack_verify, m)?)?;
     m.add_function(wrap_pyfunction!(pack_holding, m)?)?;
+    m.add_function(wrap_pyfunction!(airspace_at_json, m)?)?;
+    m.add_function(wrap_pyfunction!(distance_nm, m)?)?;
+    m.add_function(wrap_pyfunction!(region_of, m)?)?;
     Ok(())
 }

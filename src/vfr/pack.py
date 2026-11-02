@@ -21,6 +21,13 @@ not of the files it has (`ensure`), and its readers turn to it only where
 it matches them (`current`), so an answer is the same with or without it.
 It lives in data/raw/packs, beside the files it is made from, and is not
 committed.
+
+The phones carry packs of their own (`write_phone`): the same format, one
+region of REGION_DEG degrees a pack, the rings simplified to
+PHONE_TOLERANCE_DEG, with what wingtip-engine's `phone` module reads to
+answer the airspace at a point with no network (its sections are set out
+there). They are built beside the planner's (`ensure_phone`), in
+data/raw/packs/phone/<cycle>, with an index the phone asks for first.
 """
 from __future__ import annotations
 
@@ -56,6 +63,22 @@ COLUMNS = {
     "fixes": ("FIX_BASE.csv", ("FIX_ID", "ICAO_REGION_CODE", "STATE_CODE", "LAT_DECIMAL", "LONG_DECIMAL",
                                "FIX_USE_CODE", "CHARTS")),
 }
+
+#: How far the phones' rings may stray from the FAA's, in degrees: each
+#: ring is simplified by Douglas and Peucker's method (shapely's simplify),
+#: which keeps every point of the simplified ring within this of the
+#: file's and every point of the file's within this of it. A degree of
+#: latitude is at most 60.4 nm (NIMA TR8350.2's ellipsoid), so an answer
+#: can differ from the planner's only within 0.006 nm (37 ft) of the line
+#: the FAA draws -- under a tenth of the width of the line a sectional
+#: prints at 1:500,000. The NASR file draws its arcs a point every few
+#: feet: 199 MB of airspace becomes 11.6 MB (measured 2026-11-02).
+PHONE_TOLERANCE_DEG = 0.0001
+PHONE_WORST_NM = round(PHONE_TOLERANCE_DEG * 60.4, 4)
+#: A phone pack's region: a square of this many degrees, named by its
+#: south-west corner ("n44w096"), so a phone keeps the packs its routes
+#: cross as it keeps their chart.
+REGION_DEG = 4
 
 _BUILD_LOCK = threading.Lock()
 
@@ -326,3 +349,271 @@ def ensure(cache_dir, pack_dir=None) -> Path | None:
             and matches(pack, "urban", congested.URBAN_AREAS_PATH)):
         return None
     return build(cache_dir, pack_dir)
+
+
+# --- The phones' packs ---------------------------------------------------------
+
+
+def region_of(lat: float, lon: float) -> str:
+    """The name of the region holding a point: its south-west corner."""
+    south = int(np.floor(lat / REGION_DEG)) * REGION_DEG
+    west = int(np.floor(lon / REGION_DEG)) * REGION_DEG
+    return f"{'n' if south >= 0 else 's'}{abs(south):02d}{'e' if west >= 0 else 'w'}{abs(west):03d}"
+
+
+def region_bounds(name: str) -> tuple[float, float, float, float]:
+    """(west, south, east, north) of a region by its name."""
+    south = int(name[1:3]) * (1 if name[0] == "n" else -1)
+    west = int(name[4:7]) * (1 if name[3] == "e" else -1)
+    return float(west), float(south), float(west + REGION_DEG), float(south + REGION_DEG)
+
+
+def _rings(wkb: bytes) -> list[list[np.ndarray]]:
+    """A little-endian WKB Polygon's or MultiPolygon's rings, polygon by
+    polygon, in their order and direction."""
+    def polygon(at: int):
+        n = struct.unpack_from("<I", wkb, at + 5)[0]
+        at += 9
+        rings = []
+        for _ in range(n):
+            m = struct.unpack_from("<I", wkb, at)[0]
+            rings.append(np.frombuffer(wkb, "<f8", 2 * m, at + 4).reshape(-1, 2))
+            at += 4 + 16 * m
+        return rings, at
+
+    if wkb[0] != 1:
+        raise ValueError("a big-endian WKB")
+    kind = struct.unpack_from("<I", wkb, 1)[0]
+    if kind == 3:
+        return [polygon(0)[0]]
+    if kind != 6:
+        raise ValueError(f"WKB type {kind}, not a polygon")
+    polygons, at = [], 9
+    for _ in range(struct.unpack_from("<I", wkb, 5)[0]):
+        rings, at = polygon(at)
+        polygons.append(rings)
+    return polygons
+
+
+def _wkb(polygons: list[list[np.ndarray]]) -> bytes:
+    def polygon(rings):
+        return struct.pack("<BII", 1, 3, len(rings)) + b"".join(
+            struct.pack("<I", len(r)) + np.ascontiguousarray(r, "<f8").tobytes() for r in rings)
+    if len(polygons) == 1:
+        return polygon(polygons[0])
+    return struct.pack("<BII", 1, 6, len(polygons)) + b"".join(polygon(p) for p in polygons)
+
+
+def simplified(wkb: bytes, tolerance: float = PHONE_TOLERANCE_DEG) -> tuple[bytes, tuple | None]:
+    """The shape's rings each simplified (PHONE_TOLERANCE_DEG), in their
+    order and direction, and the box of what is left; a ring too small to
+    simplify kept as it is. (WKB, None) where no ring has a point."""
+    import shapely
+
+    polygons = []
+    for rings in _rings(wkb):
+        kept = []
+        for ring in rings:
+            if len(ring) >= 5:
+                line = shapely.simplify(shapely.linestrings(ring), tolerance, preserve_topology=False)
+                out = shapely.get_coordinates(line)
+                ring = out if len(out) >= 4 else ring
+            kept.append(ring)
+        polygons.append(kept)
+    points = [r for rings in polygons for r in rings if len(r)]
+    if not points:
+        return _wkb(polygons), None
+    every = np.concatenate(points)
+    return _wkb(polygons), (float(every[:, 0].min()), float(every[:, 1].min()),
+                            float(every[:, 0].max()), float(every[:, 1].max()))
+
+
+def _regions_of(box) -> list[str]:
+    """Every region a box (min lon, min lat, max lon, max lat) meets."""
+    w, s, e, n = box
+    lats = range(int(np.floor(s / REGION_DEG)), int(np.floor(n / REGION_DEG)) + 1)
+    lons = range(int(np.floor(w / REGION_DEG)), int(np.floor(e / REGION_DEG)) + 1)
+    return [region_of(a * REGION_DEG, o * REGION_DEG) for a in lats for o in lons]
+
+
+def _strings(texts: list[str]) -> tuple[list[tuple[int, int]], bytes]:
+    """Each text's (offset, length) in one UTF-8 run of them all."""
+    spans, run = [], bytearray()
+    for t in texts:
+        b = (t or "").encode()
+        spans.append((len(run), len(b)))
+        run += b
+    return spans, bytes(run)
+
+
+_FLOOR_REFS = {"SFC": 0, "AGL": 1, "MSL": 2}
+
+
+def _phone_shapes(pack: Pack) -> dict:
+    """Each layer's shapes for the phones, simplified, with their regions
+    and what each region's pack keeps of them."""
+    import shapely
+    from shapely.geometry.polygon import orient
+
+    from . import airspace_at, sua
+
+    layers = {}
+    volumes = [airspace_at._volume(a) for a in pack.attrs("airspace")]
+    shapes = [simplified(w) for w in pack.wkb("airspace")]
+    layers["airspace"] = [(w, box, v) for (w, box), v in zip(shapes, volumes)]
+    if "sua.attr" in pack.sections:
+        # The feature service's polygons, outer rings clockwise and holes
+        # counter-clockwise as a shapefile's are: the rule the engine
+        # reads rings by (crate::airspace).
+        areas = []
+        for props, geometry in zip(pack.attrs("sua"), pack.geometries("sua")):
+            if geometry.geom_type == "Polygon":
+                geometry = orient(geometry, sign=-1.0)
+            elif geometry.geom_type == "MultiPolygon":
+                geometry = shapely.MultiPolygon([orient(p, sign=-1.0) for p in geometry.geoms])
+            else:
+                continue
+            w, box = simplified(shapely.to_wkb(geometry, byte_order=1))
+            areas.append((w, box, sua._area(props or {})))
+        layers["sua"] = areas
+    if "urban.box" in pack.sections:
+        layers["urban"] = [(*simplified(w), None) for w in pack.wkb("urban")]
+    return layers
+
+
+def write_phone(pack: Pack, out_dir: Path, veil: list[dict]) -> dict:
+    """The phones' packs of the planner's pack, one a region with
+    anything in it, written whole into out_dir/<cycle>, with the index of
+    them (what /api/cycle-packs gives); any other cycle's removed."""
+    layers = _phone_shapes(pack)
+    regions: dict[str, dict[str, list[int]]] = {}
+    for name, shapes in layers.items():
+        for i, (_, box, _) in enumerate(shapes):
+            if box is not None:
+                for region in _regions_of(box):
+                    regions.setdefault(region, {}).setdefault(name, []).append(i)
+    tables = {name: pack.table(name) for name in COLUMNS if name in pack.sections}
+    veil_spans, veil_names = _strings([a.get("name") or "" for a in veil])
+    veil_pts = b"".join(struct.pack("<dd8sII", a["lat"], a["lon"], a["ident"].encode()[:8], *span)
+                        for a, span in zip(veil, veil_spans))
+    folder = out_dir / pack.cycle
+    part = out_dir / f"{pack.cycle}.part"
+    if part.exists():
+        for old in part.iterdir():
+            old.unlink()
+    part.mkdir(parents=True, exist_ok=True)
+    index = {"cycle": pack.cycle, "built_at": time.time(), "tolerance_deg": PHONE_TOLERANCE_DEG,
+             "worst_nm": PHONE_WORST_NM, "region_deg": REGION_DEG, "regions": []}
+    for region in sorted(regions):
+        west, south, east, north = region_bounds(region)
+        held = regions[region]
+        names = ["meta"]
+        for layer in ("airspace", "sua", "urban"):
+            if layer in held:
+                names += [f"{layer}.box", f"{layer}.off", f"{layer}.wkb"]
+        if "airspace" in held:
+            names += ["airspace.vol", "airspace.names"]
+        if "sua" in held:
+            names += ["sua.rec", "sua.json", "sua.names"]
+        names += ["veil.pts", "veil.names"] + list(tables)
+        path = part / f"{region}.pack"
+        with open(path, "w+b") as f:
+            w = _Writer(f, names)
+            w.put("meta", json.dumps({"format": VERSION, "cycle": pack.cycle, "flavour": "phone", "region": region,
+                                      "bounds": [west, south, east, north], "tolerance_deg": PHONE_TOLERANCE_DEG,
+                                      "worst_nm": PHONE_WORST_NM, "sources": pack.meta.get("sources")},
+                                     separators=(",", ":")).encode())
+            for layer in ("airspace", "sua", "urban"):
+                if layer in held:
+                    picked = [layers[layer][i] for i in held[layer]]
+                    _layer(w, layer, [box for _, box, _ in picked], [wkb for wkb, _, _ in picked], None)
+            if "airspace" in held:
+                volumes = [layers["airspace"][i][2] for i in held["airspace"]]
+                spans, run = _strings([v["name"] for v in volumes])
+                w.put("airspace.vol", b"".join(
+                    struct.pack("<BB6xddII", ord((v["class"] or "E")[0]), _FLOOR_REFS[v["floor_ref"]],
+                                v["floor_ft"], v["ceiling_ft"], *span) for v, span in zip(volumes, spans)))
+                w.put("airspace.names", run)
+            if "sua" in held:
+                areas = [layers["sua"][i][2] for i in held["sua"]]
+                blobs = [json.dumps(a, separators=(",", ":")) for a in areas]
+                blob_spans, blob_run = _strings(blobs)
+                name_spans, name_run = _strings([a["name"] for a in areas])
+                w.put("sua.rec", b"".join(
+                    struct.pack("<dIIII", float("nan") if a["floor_ft"] is None else a["floor_ft"], *b, *n)
+                    for a, b, n in zip(areas, blob_spans, name_spans)))
+                w.put("sua.json", blob_run)
+                w.put("sua.names", name_run)
+            w.put("veil.pts", veil_pts)
+            w.put("veil.names", veil_names)
+            for name, table in tables.items():
+                columns = table["columns"]
+                lat_at, lon_at = columns.index("LAT_DECIMAL"), columns.index("LONG_DECIMAL")
+
+                def inside(row, lat_at=lat_at, lon_at=lon_at):
+                    try:
+                        lat, lon = float(row[lat_at]), float(row[lon_at])
+                    except ValueError:
+                        return False
+                    return south <= lat < north and west <= lon < east
+                w.put(name, json.dumps({"columns": columns, "rows": [r for r in table["rows"] if inside(r)]},
+                                       separators=(",", ":")).encode())
+            w.finish(pack.cycle, time.time())
+            f.seek(36)
+            crc = struct.unpack("<I", f.read(4))[0]
+        index["regions"].append({"name": region, "west": west, "south": south, "east": east, "north": north,
+                                 "bytes": path.stat().st_size, "crc32": crc})
+    (part / "index.json").write_text(json.dumps(index, separators=(",", ":")))
+    if folder.exists():
+        for old in folder.iterdir():
+            old.unlink()
+        folder.rmdir()
+    part.replace(folder)
+    for other in out_dir.iterdir():
+        if other.is_dir() and other != folder:
+            for old in other.iterdir():
+                old.unlink()
+            other.rmdir()
+    return index
+
+
+def phone_index(pack_dir=None) -> dict | None:
+    """The phones' packs of the newest cycle on disk, as written; None
+    where there are none."""
+    folder = Path(pack_dir or PACK_DIR) / "phone"
+    found = sorted(p for p in folder.glob("*/index.json") if not p.parent.name.endswith(".part"))
+    if not found:
+        return None
+    try:
+        return json.loads(found[-1].read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def phone_pack_path(cycle: str, region: str, pack_dir=None) -> Path | None:
+    """A phone pack on disk by its cycle and region; None where there is
+    none (or the names are not a cycle's and a region's)."""
+    import re
+
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", cycle) or not re.fullmatch(r"[ns]\d{2}[ew]\d{3}", region):
+        return None
+    path = Path(pack_dir or PACK_DIR) / "phone" / cycle / f"{region}.pack"
+    return path if path.is_file() else None
+
+
+def ensure_phone(pack_dir=None) -> dict | None:
+    """The phones' packs built from the planner's pack where they are not
+    of its cycle; None where they already are, or there is no pack."""
+    from . import airspace_at
+
+    pack = current(pack_dir)
+    if pack is None:
+        return None
+    index = phone_index(pack_dir)
+    if index is not None and index.get("cycle") == pack.cycle and index.get("tolerance_deg") == PHONE_TOLERANCE_DEG:
+        return None
+    started = time.monotonic()
+    index = write_phone(pack, Path(pack_dir or PACK_DIR) / "phone", list(airspace_at.mode_c_airports()))
+    log.info("Phone packs for %s built in %.1f s: %d regions, %.1f MB", pack.cycle, time.monotonic() - started,
+             len(index["regions"]), sum(r["bytes"] for r in index["regions"]) / 1e6)
+    return index
