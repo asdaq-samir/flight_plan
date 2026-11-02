@@ -43,6 +43,15 @@ export abstract class ViewCanvasLayer extends L.Layer {
   /** What the last drawing covers, in the map's layer points. */
   private drawn: L.Bounds | null = null;
 
+  /** Drawn again at each step of a pinch (the airports' marks, which must
+   *  stay sharp and placed as the chart grows), or only once it ends,
+   *  scaled with the chart meanwhile, as Leaflet's own canvas is: a plate's
+   *  picture, whose every redraw was a large drawImage at high quality and
+   *  the map under a finger stuttered with one on it (the owner,
+   *  2026-11-02: "Why is the map so touchy when the procedure plate is
+   *  overlayed?"). */
+  protected redrawWhileZooming = true;
+
   constructor(pane: string, private readonly className = "") {
     super();
     // Leaflet's classes take their options in initialize, which an ES
@@ -132,7 +141,7 @@ export abstract class ViewCanvasLayer extends L.Layer {
       const at = map.project(this.topLeft, zoom).subtract(map.getPixelOrigin());
       L.DomUtil.setTransform(this.canvas, at, map.getZoomScale(zoom, this.drawnZoom));
     }
-    this.schedule();
+    if (this.redrawWhileZooming) this.schedule();
   }
 
   /** Through a zoom's animation the canvas scaled and moved where the map
@@ -158,10 +167,15 @@ export abstract class ViewCanvasLayer extends L.Layer {
     L.DomUtil.setPosition(canvas, origin);
     this.drawn = L.bounds(origin, origin.add(L.point(width, height)));
     const dpr = Math.min(window.devicePixelRatio || 1, MOST_DPR);
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(height * dpr);
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
+    // Resized only when the view's size changed: setting a canvas's size,
+    // even to the same, gives it new memory, at every redraw of a pan.
+    const deviceWidth = Math.round(width * dpr), deviceHeight = Math.round(height * dpr);
+    if (canvas.width !== deviceWidth || canvas.height !== deviceHeight) {
+      canvas.width = deviceWidth;
+      canvas.height = deviceHeight;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+    }
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.setTransform(dpr, 0, 0, dpr, pad.x * dpr, pad.y * dpr);

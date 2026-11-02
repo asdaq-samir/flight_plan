@@ -33,6 +33,8 @@ class PlateCanvasLayer extends ViewCanvasLayer {
 
   constructor(pane: string, url: string, private readonly bounds: L.LatLngBounds) {
     super(pane, "approach-plate");
+    // Scaled with the chart through a pinch, drawn sharp again as it ends.
+    this.redrawWhileZooming = false;
     // Decoded off the main thread before its first draw.
     this.picture.src = url;
     this.picture.decode().then(() => this.schedule(), () => {});
