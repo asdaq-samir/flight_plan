@@ -163,7 +163,7 @@ def test_a_restart_reads_the_areas_from_the_cycle_pack_as_downloaded(monkeypatch
     features = [_feature("R-4501", "R", BOX_ON_ROUTE)]
     with patch("vfr.sua.requests.get", return_value=_service(features)):
         first = sua.areas_in((44.0, -91.0, 47.0, -87.0))
-    held = sua._everything()
+    held = sua.everything()
     shp = tmp_path / "empty.shp"
     import shapefile
 

@@ -134,6 +134,10 @@ class Pack:
     def attrs(self, layer: str) -> list:
         return json.loads(bytes(self.section(f"{layer}.attr")))
 
+    def offsets(self, layer: str) -> np.ndarray:
+        """Where each of a layer's shapes starts in its WKB, and the end."""
+        return np.frombuffer(self.section(f"{layer}.off"), dtype="<u8")
+
     def wkb(self, layer: str) -> list[bytes]:
         offsets = np.frombuffer(self.section(f"{layer}.off"), dtype="<u8")
         data = self.section(f"{layer}.wkb")
@@ -284,7 +288,7 @@ def build(cache_dir, pack_dir=None) -> Path:
 
     cache_dir = Path(cache_dir)
     started = time.monotonic()
-    sua_held = sua._everything()
+    sua_held = sua.everything()
     path = write(Path(pack_dir or PACK_DIR), cycle_of(cache_dir) or time.strftime("%Y-%m-%d", time.gmtime()),
                  shp_path=Path(airspace.ensure_class_airspace_shapefile(cache_dir)),
                  sua_held=sua_held, sua_at=(sua._CACHE.get("all") or (time.time(), None))[0],
