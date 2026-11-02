@@ -56,6 +56,7 @@ last gate.
 | Flight plan items 15 and 16 (AIM Appendix 4; 14 CFR 91.121(a)(2)) | `lib/flightPlanForm.ts` | `FilingForm` in `Views/InFlightViews.swift` | `filingForm.json` |
 | Traffic's label and the 1,000 ft "near" (14 CFR 91.159's spacing) | `lib/map/traffic.ts` | `Traffic.label`, `Traffic.near` | `traffic.json` |
 | The logbook as CSV, out and in (ForeFlight Logbook Guide v14.0; 61.57(a), (b)) | `lib/logbookCsv.ts` | `LogbookCSV` in `PilotLogic.swift` | `logbookCsv.json` |
+| An ATC clearance heard, read into its items and the route it gives (AIM 4-4-3, 5-2-6; figures AIM 4-2-8, 4-2-9) | `lib/clearance.ts` | `Clearance` in `Clearance.swift` | `clearances.json` |
 
 Where the copies still differ, the fixtures leave the case out:
 

@@ -115,6 +115,9 @@ export type ChartPages = Schemas["ChartPages"];
 /** The mock oral's question, its answer graded, and what each is asked with. */
 export type OralQuestion = Schemas["OralQuestion"];
 export type OralQuestionRequest = Schemas["OralQuestionRequest"];
+export type ClearanceAsk = Schemas["ClearanceAsk"];
+export type ClearancePlaces = Schemas["ClearancePlaces"];
+export type ClearanceWords = Schemas["ClearanceWords"];
 export type OralGrade = Schemas["OralGrade"];
 export type OralGradeRequest = Schemas["OralGradeRequest"];
 export type OralCitation = Schemas["OralCitation"];

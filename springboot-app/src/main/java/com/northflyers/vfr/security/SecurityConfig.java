@@ -177,6 +177,9 @@ public class SecurityConfig {
                     // track and the segments ride in the body, and nothing
                     // on the planner changes (app.figures).
                     auth.requestMatchers(HttpMethod.POST, "/api/planner/debrief", "/api/planner/lost-comms").permitAll();
+                    // And a clearance heard: its words in the body, its
+                    // places found, nothing kept (app.routers.clearance).
+                    auth.requestMatchers(HttpMethod.POST, "/api/planner/clearance/places").permitAll();
                     // A download manager asks for a file's size first:
                     // ForeFlight's, for the checkpoints' pack.
                     auth.requestMatchers(HttpMethod.HEAD, "/api/planner/foreflight-pack/**").permitAll();
@@ -267,9 +270,10 @@ public class SecurityConfig {
                         // The Go / No-Go changes nothing, so a forged one
                         // gains nothing; the native app holds no cookie to
                         // echo (PlannerProxyController's go-no-go). The
-                        // debrief and lost comms change nothing either.
+                        // debrief, lost comms and a clearance's places
+                        // change nothing either.
                         .ignoringRequestMatchers("/api/client-errors", "/api/speed/field", "/api/speed/lab", "/api/planner/go-no-go",
-                                "/api/planner/debrief", "/api/planner/lost-comms"))
+                                "/api/planner/debrief", "/api/planner/lost-comms", "/api/planner/clearance/places"))
                 // The handler above resolves the token lazily and nothing
                 // server-rendered ever forces it, so without this filter
                 // the XSRF-TOKEN cookie is never written and every POST

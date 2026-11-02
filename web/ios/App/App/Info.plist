@@ -68,6 +68,10 @@
 	<true/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Wingtip Maps listens on the cockpit's Wi-Fi for your ADS-B receiver (Stratux, SkyEcho, Sentry) to show the traffic it hears.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Wingtip Maps listens to a clearance read on the radio and enters its route for you to check.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Wingtip Maps turns a clearance read on the radio into words, on your iPhone where it can, to enter its route.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Wingtip Maps shows your airplane on the chart and measures to the airports and airspace around you.</string>
 	<key>WKAppBoundDomains</key>

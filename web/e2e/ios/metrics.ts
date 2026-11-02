@@ -336,8 +336,9 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       // text field's clear (ClearButton), iOS's own 20-point circled cross
       // inside the field, which every field with words in it now wears.
       // Nor a list's disclosure (FPL's airport opened by the arrow by its
-      // fuel), iOS's small chevron, at the owner's ask.
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-disclosure], [data-point-mark]')) continue;
+      // fuel), iOS's small chevron, at the owner's ask. Nor the route box's
+      // microphone, a search field's own glyph beside its clear, as Maps'.
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-slot="field-mic"], [data-disclosure], [data-point-mark]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is

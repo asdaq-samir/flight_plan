@@ -59,6 +59,16 @@ private struct DrillsFixture: Decodable {
     let due: [Due]
 }
 
+private struct ClearancesFixture: Decodable {
+    struct Read: Decodable { let heard: String; let clearance: Clearance }
+    struct Number: Decodable { let heard: String; let num: String }
+    struct Route: Decodable { let dep: String; let stops: [String]; let dest: String }
+    struct Cleared: Decodable { let heard: String; let found: ClearancePlaces; let planned: Route; let route: Route; let typed: [Clearance.Typed] }
+    let read: [Read]
+    let numbers: [Number]
+    let routes: [Cleared]
+}
+
 private struct LostCommsFixture: Decodable {
     struct Route: Decodable { let key, label, rule: String }
     struct Leave: Decodable { let approachFix: Bool; let efc, eta, words: String }
@@ -201,6 +211,17 @@ struct SharedFixturesTests {
             #expect(read.entries.count == c.entries.count, "\(c.name)")
             for (got, want) in zip(read.entries, c.entries) { #expect(same(got, want), "\(c.name): \(want.flownOn)") }
             #expect(read.skipped == c.skipped.map { LogbookCSV.Skipped(line: $0.line, reason: $0.reason) }, "\(c.name)")
+        }
+    }
+
+    @Test func aClearanceIsReadAsTheWebReadsIt() throws {
+        let f = try fixture("clearances", as: ClearancesFixture.self)
+        for c in f.read { #expect(Clearance.read(c.heard) == c.clearance, "\(c.heard)") }
+        for c in f.numbers { #expect(Clearance.tokens(c.heard) == [Clearance.Token(word: c.heard, num: c.num)], "\(c.heard)") }
+        for c in f.routes {
+            let got = Clearance.read(c.heard).clearedRoute(c.found, dep: c.planned.dep, stops: c.planned.stops, dest: c.planned.dest)
+            #expect(got.dep == c.route.dep && got.stops == c.route.stops && got.dest == c.route.dest, "\(c.heard)")
+            #expect(got.typed == c.typed, "\(c.heard)")
         }
     }
 }

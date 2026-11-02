@@ -51,6 +51,10 @@ targets:
         # Read by Config at run time: the host the build was made for.
         WingtipHost: $(WINGTIP_HOST)
         NSLocationWhenInUseUsageDescription: Wingtip Maps shows your airplane on the chart and plans from where you are.
+        # A clearance read on the radio, heard by Apple's recognizer on the
+        # phone where it can be (ClearanceListener).
+        NSMicrophoneUsageDescription: Wingtip Maps listens to a clearance read on the radio and enters its route for you to check.
+        NSSpeechRecognitionUsageDescription: Wingtip Maps turns a clearance read on the radio into words, on your iPhone where it can, to enter its route.
         NSLocalNetworkUsageDescription: With Traffic on, Wingtip Maps listens on the cockpit's Wi-Fi for an ADS-B receiver (Stratux, SkyEcho, Sentry).
         ITSAppUsesNonExemptEncryption: false
     entitlements:

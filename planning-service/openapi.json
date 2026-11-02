@@ -3992,6 +3992,144 @@
         "title": "Classification",
         "type": "object"
       },
+      "ClearanceAsk": {
+        "description": "POST /api/clearance/places: the places a clearance heard named, in\nthe words the recognizer wrote (web lib/clearance), for the planner to\nfind as idents near `near`, the route's points as \"lat,lon;lat,lon\".\n`dep` and `dest`, the fields whose SID and STAR were said.",
+        "properties": {
+          "arrival": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpokenProcedureAsk"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dep": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dep"
+          },
+          "departure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpokenProcedureAsk"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dest"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "near": {
+            "default": "",
+            "title": "Near",
+            "type": "string"
+          },
+          "route": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Route",
+            "type": "array"
+          }
+        },
+        "title": "ClearanceAsk",
+        "type": "object"
+      },
+      "ClearancePlaces": {
+        "description": "The places a clearance named, as idents: its limit, each phrase of\nits route as the places in it in order, its SID and STAR.",
+        "properties": {
+          "arrival": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpokenProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "departure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpokenProcedure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SpokenPlace"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "route": {
+            "default": [],
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/SpokenPlace"
+              },
+              "type": "array"
+            },
+            "title": "Route",
+            "type": "array"
+          }
+        },
+        "title": "ClearancePlaces",
+        "type": "object"
+      },
+      "ClearanceWords": {
+        "description": "GET /api/clearance/words: the names a clearance near the route is\nlikely to say -- its navaids', its fixes' and its fields' SIDs' -- for\nthe phone's recognizer to listen for (iOS's contextualStrings,\nAndroid's biasing strings).",
+        "properties": {
+          "words": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Words",
+            "type": "array"
+          }
+        },
+        "required": [
+          "words"
+        ],
+        "title": "ClearanceWords",
+        "type": "object"
+      },
       "CorridorStatus": {
         "properties": {
           "candidates": {
@@ -13159,6 +13297,145 @@
         "title": "SpecialUseArea",
         "type": "object"
       },
+      "SpokenPlace": {
+        "description": "A place a clearance said, as found (vfr.spoken): `ident` None where\nnothing near was like it, `sure` false where it was found by its sound\nalone, for the pilot to check.",
+        "properties": {
+          "ident": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ident"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "airport",
+                  "navaid",
+                  "fix"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lon": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lon"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "said": {
+            "title": "Said",
+            "type": "string"
+          },
+          "sure": {
+            "default": false,
+            "title": "Sure",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "said"
+        ],
+        "title": "SpokenPlace",
+        "type": "object"
+      },
+      "SpokenProcedure": {
+        "description": "A SID or STAR said, as found among its field's: its coded\nidentifier (\"BUNYN1\") and the transition said, if one was.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "sure": {
+            "default": false,
+            "title": "Sure",
+            "type": "boolean"
+          },
+          "transition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transition"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "SpokenProcedure",
+        "type": "object"
+      },
+      "SpokenProcedureAsk": {
+        "description": "A SID or STAR as a clearance said it: \"Bunyan\" \"1\", its\ntransition's words where one was said (\"Duluth\").",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "string"
+          },
+          "transition": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transition"
+          }
+        },
+        "required": [
+          "name",
+          "number"
+        ],
+        "title": "SpokenProcedureAsk",
+        "type": "object"
+      },
       "Status": {
         "properties": {
           "charts": {
@@ -16604,6 +16881,96 @@
           }
         },
         "summary": "Classify"
+      }
+    },
+    "/api/clearance/places": {
+      "post": {
+        "description": "The places a clearance said, found near the route: its limit (an\nairport by its name, AIM 4-4-3 a), each phrase of its route as the\npoints in it, and its SID and STAR among its fields' own. A place\nfound by its sound alone is not `sure`; one not found has no ident.",
+        "operationId": "clearance_places_api_clearance_places_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClearanceAsk"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearancePlaces"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clearance Places"
+      }
+    },
+    "/api/clearance/words": {
+      "get": {
+        "description": "The names a clearance near the route will likely say, for the\nphone's recognizer to listen for: the departure's SIDs as said, the\nnavaids' names, then the fixes' five letters as words, at most 100.",
+        "operationId": "clearance_words_api_clearance_words_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "near",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Near",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dep",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Dep",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClearanceWords"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clearance Words"
       }
     },
     "/api/course": {

@@ -186,6 +186,10 @@ public class PlannerProxyController {
             route("GET", FAA_CHART_PATH),
             route("GET", FAA_CHART_PATH + "/page/{source}/{edition}/{pdf}/{page}.png"),
             route("GET", "/api/aircraft-profiles"),
+            // An ATC clearance heard by the phone: its places found, and
+            // the names to listen for before it is said.
+            route("POST", "/api/clearance/places"),
+            route("GET", "/api/clearance/words"),
             route("GET", "/api/chart-tile/{kind}/{z}/{x}/{y}.png"),
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),

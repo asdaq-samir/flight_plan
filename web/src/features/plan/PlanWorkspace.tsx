@@ -147,6 +147,7 @@ const SaveFlightButton = fromRoutePanel("SaveFlightButton");
 const ReviewAskItem = fromRoutePanel("ReviewAskItem");
 const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
 const RouteBox = fromRoutePanel("RouteBox");
+const ClearanceButton = fromRoutePanel("ClearanceButton");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
 const AltitudeGroup = fromRoutePanel("AltitudeGroup");
@@ -1480,6 +1481,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_nearest: nearest ? "1" : null, altitude_choice: null }), { replace: true });
   }, [setAlt, setSearchParams]);
   const flyWheelAltitude = useCallback((ft: number, legal: boolean) => flyAltitude(ft, legal), [flyAltitude]);
+  // A clearance heard and read by the pilot (ClearanceCard): its route,
+  // its SID and STAR picked as typed ones are, and the altitude it gives.
+  const enterClearance = useCallback((parts: RouteParts, typed: TypedProcedure[], altitudeFt: number | null) => {
+    setRoute(parts);
+    if (typed.length) void typeProcedures(typed, { dep: parts.dep, dest: parts.dest });
+    if (altitudeFt) flyAltitude(altitudeFt);
+  }, [setRoute, typeProcedures, flyAltitude]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,
@@ -3051,6 +3059,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directTo={directParam} onDirectTo={directToPoint}
           onClear={clearRoute}
           footer={routeControls}
+          listen={<ClearanceButton route={{ dep: planned.dep, stops: planned.stops, dest: planned.dest }} onEnter={enterClearance} />}
         />
         </SearchNear.Provider>
         </Suspense>

@@ -205,6 +205,19 @@ enum Planner {
         try await fetch(ProcedureList.self, "/api/airport/\(ident)/procedures")
     }
 
+    /// An ATC clearance heard: the places it named, found near the route
+    /// (/api/clearance/places, vfr.spoken).
+    static func clearancePlaces(_ ask: ClearanceAsk) async throws -> ClearancePlaces {
+        try await postRead(ClearancePlaces.self, "/api/clearance/places", ask)
+    }
+
+    /// The names a clearance near the route will likely say, for the
+    /// recognizer's contextualStrings (/api/clearance/words).
+    static func clearanceWords(near: String, dep: String) async throws -> [String] {
+        struct Answer: Decodable { let words: [String] }
+        return try await fetch(Answer.self, "/api/clearance/words", ["near": near.isEmpty ? nil : near, "dep": dep.isEmpty ? nil : dep]).words
+    }
+
     /// An airplane by its N-number in the FAA's registry (/api/traffic/find).
     static func registered(_ tail: String) async throws -> AircraftRegistration? {
         struct Answer: Decodable { let registered: AircraftRegistration? }

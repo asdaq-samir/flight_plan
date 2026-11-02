@@ -10,6 +10,7 @@ export { default as NavLogView } from "./components/navlog/NavLogView";
 export { default as ProceduresRoute } from "./components/ProceduresRoute";
 export { default as FlightBriefingView, BriefingNotices, PlanningAidNote, ReviewAskItem, ReviewAskSheet, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 export { default as RouteBox } from "./components/RouteBox";
+export { default as ClearanceButton } from "./components/ClearanceButton";
 export { default as Kneeboard } from "./components/Kneeboard";
 export { default as FlightInputs } from "./components/navlog/FlightInputs";
 export { default as AltitudeGroup, AltitudeProfile } from "./components/navlog/AltitudeGroup";

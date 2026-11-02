@@ -65,6 +65,17 @@
          broadcast datagrams through while the app listens. -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- A clearance read on the radio, heard through the microphone by
+         Android's speech recognizer (SpeechPlugin), asked for when the
+         pilot first taps Listen; and the recognizer's service seen, which
+         Android 11 and later hide from an app that does not say so. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- A tablet without GPS still installs it, and plans without own ship. -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

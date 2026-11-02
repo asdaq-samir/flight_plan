@@ -9,6 +9,7 @@ struct FPLView: View {
 
     enum Field { case dep, dest, altitude }
     @State private var altitude = ""
+    @State private var hearing = false
 
     /// The hundreds typed, flown; nothing typed, the planner's own pick.
     private func flyAltitude() {
@@ -27,6 +28,10 @@ struct FPLView: View {
                         routeField("From", text: $plan.dep, field: .dep)
                         Image(systemName: "arrow.right").foregroundStyle(.secondary)
                         routeField("To", text: $plan.dest, field: .dest)
+                        // A clearance heard into the route (ClearanceSheet).
+                        Button { focused = nil; hearing = true } label: { Image(systemName: "mic") }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel("Listen to a clearance")
                         Button("Plan") { focused = nil; plan.plan() }
                             .buttonStyle(.borderedProminent)
                             .disabled(!plan.routed || plan.planning)
@@ -186,6 +191,9 @@ struct FPLView: View {
                 }
             }
             .toolbar { RouteToolbar(plan: plan) }
+            .sheet(isPresented: $hearing) {
+                ClearanceSheet().presentationDetents([.medium, .large])
+            }
         }
     }
 
