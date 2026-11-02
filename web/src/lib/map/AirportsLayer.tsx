@@ -8,6 +8,7 @@ import { closeSheetCards } from "../sheetCards";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { AirportMarksLayer, type CanvasMark } from "./AirportCanvas";
+import { useCardRings } from "./Halo";
 import { selectionIcon } from "./icons";
 import { useDrawnAirports } from "./declutter";
 import { boxOf, hovers } from "./view";
@@ -324,6 +325,8 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // aside: its ring (below) went round nothing on a small field further
   // out than SHOWN_FROM.
   const selectedIdent = selected?.ident ?? null;
+  // Its ring given up while a map card opened over it wears one.
+  const ringCovered = useCardRings(s => s.open > 0);
   const shown = useMemo(() => {
     if (!reports) return [];
     const kept = data.filter(a => !exclude.has(a.ident) && (zoom >= shownFrom(a) || a.ident === selectedIdent) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
@@ -369,7 +372,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
           mark. Over the course line and the chart (the overlay pane, 400);
           the route's and the Class B fields' marks, in the marker pane
           (600), lie in it as these do. */}
-      {selected && (
+      {selected && !ringCovered && (
         <Pane name="selected-airport" style={{ zIndex: 445 }}>
           <Marker
             position={[selected.lat, selected.lon]} icon={selectionIcon()}

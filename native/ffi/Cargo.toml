@@ -1,0 +1,15 @@
+[package]
+name = "wingtip-ffi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The engine's C functions, for the phones: a static library the iOS app links (native/ffi/build-xcframework.sh)"
+
+[lib]
+name = "wingtip_ffi"
+crate-type = ["staticlib"]
+
+# None but the engine: a plain C interface rather than UniFFI, whose
+# bindgen brings dozens of crates with it for five functions.
+[dependencies]
+wingtip-engine = { path = "../engine" }

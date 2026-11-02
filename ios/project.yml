@@ -32,6 +32,12 @@ targets:
       # as acs.json (AcsTable.bundled), not a copy kept beside it.
       - path: ../web/src/lib/acs.json
         buildPhase: resources
+    dependencies:
+      # The engine (native/ffi/build-xcframework.sh, built on the runner
+      # before this project is made): the airspace at a point from the
+      # phone's cycle packs, with no network. A static library, linked in.
+      - framework: Frameworks/WingtipEngine.xcframework
+        embed: false
     info:
       path: Wingtip/Info.plist
       properties:
@@ -83,6 +89,10 @@ targets:
       # by its vitest tests and by SharedFixturesTests, so a copy that
       # drifts from the other fails CI.
       - path: ../web/src/lib/fixtures
+        buildPhase: resources
+      # The engine's: the Chicago phone packs and the planner's answers at
+      # each tap (tests/test_native.py holds them to the planner's code).
+      - path: ../tests/fixtures/native/phone
         buildPhase: resources
     dependencies:
       - target: Wingtip

@@ -71,14 +71,15 @@ def test_a_label_sits_on_its_own_shelf_not_in_the_hole(chicago):
     assert shelf.contains(Point(ord_["label_lon"], ord_["label_lat"]))
 
 
-def test_a_volume_cut_by_the_box_has_no_line_along_the_boxs_edge(chicago):
-    # The box's west edge cuts the shelf at -88.0: the lines run to it,
-    # never along it, so a kept answer draws no false airspace line.
-    ord_ = next(v for v in airspace_map.volumes_in(chicago, 41.0, -88.0, 43.0, -87.0) if v["ident"] == "ORD")
-    on_edge = [p for line in ord_["lines"] for p in line if p[1] == -88.0]
-    assert on_edge and all(p[0] in (41.5, 41.8, 42.2, 42.5) for p in on_edge)
-    # And its label is in the box, on the part of the shelf in it.
-    assert ord_["label_lon"] >= -88.0
+def test_a_volume_reaching_past_the_box_is_drawn_whole(chicago):
+    # The box's west edge at -88.0 crosses the shelf, which runs to -88.5:
+    # its lines are all of it, the same as from a box holding it all, so a
+    # kept answer never shows it cut at an old box's edge during a pan.
+    cut = next(v for v in airspace_map.volumes_in(chicago, 41.0, -88.0, 43.0, -87.0) if v["ident"] == "ORD")
+    whole = next(v for v in airspace_map.volumes_in(chicago, 41.0, -89.5, 43.0, -87.0) if v["ident"] == "ORD")
+    assert min(p[1] for line in cut["lines"] for p in line) == -88.5
+    assert cut["id"] == whole["id"]
+    assert (cut["label_lat"], cut["label_lon"]) == (whole["label_lat"], whole["label_lon"])
 
 
 def test_a_box_far_out_is_simplified_further_than_one_close_in():

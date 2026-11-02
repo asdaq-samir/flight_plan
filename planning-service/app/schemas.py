@@ -3082,3 +3082,32 @@ class ClearanceWords(BaseModel):
     Android's biasing strings)."""
 
     words: list[str]
+
+
+class CyclePackRegion(BaseModel):
+    """One region's phone pack (vfr.pack's write_phone): its bounds in
+    degrees, its size in bytes and its CRC-32 (zlib's), for the phone to
+    check it whole."""
+
+    name: str
+    west: float
+    south: float
+    east: float
+    north: float
+    bytes: int
+    crc32: int
+
+
+class CyclePacks(BaseModel):
+    """The phones' packs of the FAA cycle the planner holds: the regions
+    there are, each fetched at /api/cycle-pack/{cycle}/{name}.pack; how
+    far the packs' lines may stray from the FAA's (degrees, and the worst
+    in nm); and how big a region is (degrees)."""
+
+    cycle: str
+    built_at: float
+    tolerance_deg: float
+    worst_nm: float
+    region_deg: int
+    regions: list[CyclePackRegion]
+

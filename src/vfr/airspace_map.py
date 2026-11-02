@@ -56,8 +56,8 @@ def tolerance_for(south: float, north: float) -> float:
 
 
 def _lines(geometry) -> list[list[list[float]]]:
-    """Every line of a clipped boundary as [lat, lon] points, rounded to
-    five places (a metre): the points and empties a clip can leave are
+    """Every line of a boundary as [lat, lon] points, rounded to five
+    places (a metre): any point or empty a simplification leaves is
     dropped."""
     lines = []
     for part in shapely.get_parts(geometry):
@@ -70,8 +70,14 @@ def _lines(geometry) -> list[list[list[float]]]:
 
 
 def volumes_in(shp_path, south: float, west: float, north: float, east: float, classes: str = "BCD") -> tuple[dict, ...]:
-    """The Class B, C and D volumes inside the box, each one's lines
-    clipped to it, simplified under a pixel, and a point for its label.
+    """The Class B, C and D volumes that reach into the box, each one's
+    lines whole, simplified under a pixel, and a point for its label.
+
+    Whole, not clipped to the box: the map keeps one box's answer on
+    screen while it asks for the next, and a clipped ring showed cut off
+    at the old box's edge all through a pan (the owner's screenshot,
+    2026-11-02, Minneapolis' Class B half drawn). A Class B, C or D is a
+    few dozen miles across, so a whole one costs little more.
 
     Worked out once per box and airspace file: the map asks on a
     half-degree grid (the web's aheadOf), so a pan back over the same
@@ -101,15 +107,12 @@ def _volumes_in(shp_path: str, _mtime: float, south: float, west: float, north: 
         geometry = shapely.orient_polygons(shapely.force_2d(polygon["geometry"]))
         if not geometry.intersects(view):
             continue
-        lines = _lines(geometry.boundary.intersection(view).simplify(tolerance, preserve_topology=False))
+        lines = _lines(geometry.boundary.simplify(tolerance, preserve_topology=False))
         if not lines:
             continue
-        # On the volume itself, a shelf's label inside the shelf: the
-        # whole volume's point where it is in the box, so it stays put as
-        # the map pans; else the point of the part that is.
+        # On the volume itself, a shelf's label inside the shelf, the same
+        # point from every box, so it stays put as the map pans.
         label = geometry.representative_point()
-        if not view.contains(label):
-            label = geometry.intersection(view).representative_point()
         floor = polygon["floor_ft_msl"]
         found.append({
             "id": f"{polygon['ident'] or polygon['class']}-{number}",

@@ -12,7 +12,7 @@ import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "./ui/
  * similar"), on shadcn's Carousel (Embla). The dots over its foot say which
  * page is in sight, as iOS's page control does; with one page, none.
  */
-export function PictureSlides({ slides, className, testId, label, flush = false }: {
+export function PictureSlides({ slides, className, testId, label, flush = false, dots = true, onPage }: {
   slides: ReactNode[];
   className?: string;
   testId?: string;
@@ -22,16 +22,20 @@ export function PictureSlides({ slides, className, testId, label, flush = false 
    *  own, and the dots in its bottom right corner, clear of the name set
    *  over its foot. */
   flush?: boolean;
+  /** The dots drawn; a head showing its picture alone leaves them out. */
+  dots?: boolean;
+  /** Which page is in sight, as it changes. */
+  onPage?: (page: number) => void;
 }) {
   const [api, setApi] = useState<CarouselApi>();
   const [page, setPage] = useState(0);
   useEffect(() => {
     if (!api) return;
-    const select = () => setPage(api.selectedScrollSnap());
+    const select = () => { setPage(api.selectedScrollSnap()); onPage?.(api.selectedScrollSnap()); };
     api.on("select", select);
     api.on("reInit", select);
     return () => { api.off("select", select); api.off("reInit", select); };
-  }, [api]);
+  }, [api, onPage]);
   const shown = slides.filter(Boolean);
   return (
     <Carousel setApi={setApi} aria-label={label} className={cn("relative min-h-0 overflow-hidden", !flush && "rounded-xl", className)} data-testid={testId}>
@@ -42,8 +46,8 @@ export function PictureSlides({ slides, className, testId, label, flush = false 
           <CarouselItem key={i} className="relative h-full pl-0">{slide}</CarouselItem>
         ))}
       </CarouselContent>
-      {shown.length > 1 && (
-        <div aria-hidden="true" className={cn("pointer-events-none absolute flex gap-1", flush ? "right-4 bottom-[1.125rem]" : "inset-x-0 bottom-1 justify-center")} data-testid={testId && `${testId}-dots`}>
+      {dots && shown.length > 1 && (
+        <div aria-hidden="true" className={cn("pointer-events-none absolute z-10 flex gap-1", flush ? "right-4 bottom-[1.125rem]" : "inset-x-0 bottom-1 justify-center")} data-testid={testId && `${testId}-dots`}>
           {shown.map((_, i) => (
             <span key={i} className={cn("size-1.5 rounded-full shadow-[0_0_2px_rgba(0,0,0,.6)]", i === page ? "bg-white" : "bg-white/45")} />
           ))}
@@ -56,7 +60,8 @@ export function PictureSlides({ slides, className, testId, label, flush = false 
 /**
  * A photo filling a page of the box, its credit over its corner as its
  * licence asks: a tap opens it full screen (`onOpen`), or its source's page
- * (`href`), as each card's does.
+ * (`href`), as each card's does; with neither, in a card's head, the head
+ * opens it (PhotoHead's HeadSlide).
  */
 export function PhotoSlide({ src, alt, credit, href, onOpen, label, testId, creditTestId, flush = false }: {
   src: string;
@@ -80,8 +85,12 @@ export function PhotoSlide({ src, alt, credit, href, onOpen, label, testId, cred
     <>
       {href ? (
         <a href={href} target="_blank" rel="noopener" aria-label={label} className={tap} data-testid={testId}>{picture}</a>
-      ) : (
+      ) : onOpen ? (
         <button type="button" onClick={onOpen} aria-label={label} className={tap} data-testid={testId}>{picture}</button>
+      ) : (
+        // In a card's head, whose tap shows it alone and whose full-screen
+        // button opens it (PhotoHead): a picture, not a control.
+        <div role="img" aria-label={label} className="absolute inset-0" data-testid={testId}>{picture}</div>
       )}
       {credit && <span
         className={cn("pointer-events-none absolute max-w-[90%] truncate rounded bg-black/55 px-1 text-white", flush ? "top-3 left-3 max-w-[55%]" : "right-1 bottom-3.5", TEXT.caption)}

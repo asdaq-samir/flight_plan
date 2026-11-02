@@ -612,10 +612,17 @@ test("an airplane's photo is across its card's top, the photographer named on it
   await settle(page);
   const card = page.getByTestId("flight-card");
   const photo = card.getByTestId("flight-photo");
-  await expect(photo).toHaveAttribute("href", "https://www.planespotters.net/photo/1773250/n14511", { timeout: slow(15_000) });
-  await expect(photo).toHaveAttribute("target", "_blank");
-  await expect(photo).not.toHaveAttribute("rel", /nofollow/);
+  await expect(photo).toBeVisible({ timeout: slow(15_000) });
   await expect(card.getByTestId("flight-photo-credit")).toHaveText("© Jane Spotter · Planespotters");
+  // A tap shows it alone, its credit kept, and its full-screen button is
+  // the link to its page, as Planespotters' terms ask.
+  await photo.click();
+  const link = card.getByTestId("flight-photo-open");
+  await expect(link).toHaveAttribute("href", "https://www.planespotters.net/photo/1773250/n14511");
+  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(link).not.toHaveAttribute("rel", /nofollow/);
+  await expect(card.getByTestId("flight-photo-credit")).toBeVisible();
+  await photo.click();
   // The photo first, as Maps opens a place on its photos; where it has
   // flown a page across.
   await expect(photo).toBeInViewport({ ratio: 0.9 });
