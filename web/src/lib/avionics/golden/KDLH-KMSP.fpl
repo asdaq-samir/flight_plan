@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<flight-plan xmlns="http://www8.garmin.com/xmlschemas/FlightPlan/v1">
+  <created>2026-11-02T12:00:00Z</created>
+  <waypoint-table>
+    <waypoint>
+      <identifier>KDLH</identifier>
+      <type>AIRPORT</type>
+      <country-code>K3</country-code>
+      <lat>46.842091</lat>
+      <lon>-92.193649</lon>
+      <comment>DULUTH INTERNATIONAL AIRP</comment>
+    </waypoint>
+    <waypoint>
+      <identifier>DLH</identifier>
+      <type>VOR</type>
+      <country-code>K3</country-code>
+      <lat>46.802164</lat>
+      <lon>-92.202869</lon>
+      <comment>DULUTH</comment>
+    </waypoint>
+    <waypoint>
+      <identifier>GEP</identifier>
+      <type>VOR</type>
+      <country-code>K3</country-code>
+      <lat>45.145685</lat>
+      <lon>-93.373181</lon>
+      <comment>GOPHER</comment>
+    </waypoint>
+    <waypoint>
+      <identifier>MEDICI</identifier>
+      <type>USER WAYPOINT</type>
+      <country-code></country-code>
+      <lat>45.008000</lat>
+      <lon>-93.417000</lon>
+      <comment>MEDICINE LAKE AND BEACH</comment>
+    </waypoint>
+    <waypoint>
+      <identifier>KMSP</identifier>
+      <type>AIRPORT</type>
+      <country-code>K3</country-code>
+      <lat>44.881956</lat>
+      <lon>-93.221767</lon>
+      <comment>MINNEAPOLIS ST PAUL INTL/</comment>
+    </waypoint>
+  </waypoint-table>
+  <route>
+    <route-name>KDLH TO KMSP VIA MEDICINE</route-name>
+    <flight-plan-index>1</flight-plan-index>
+    <route-point>
+      <waypoint-identifier>KDLH</waypoint-identifier>
+      <waypoint-type>AIRPORT</waypoint-type>
+      <waypoint-country-code>K3</waypoint-country-code>
+    </route-point>
+    <route-point>
+      <waypoint-identifier>DLH</waypoint-identifier>
+      <waypoint-type>VOR</waypoint-type>
+      <waypoint-country-code>K3</waypoint-country-code>
+    </route-point>
+    <route-point>
+      <waypoint-identifier>GEP</waypoint-identifier>
+      <waypoint-type>VOR</waypoint-type>
+      <waypoint-country-code>K3</waypoint-country-code>
+    </route-point>
+    <route-point>
+      <waypoint-identifier>MEDICI</waypoint-identifier>
+      <waypoint-type>USER WAYPOINT</waypoint-type>
+      <waypoint-country-code></waypoint-country-code>
+    </route-point>
+    <route-point>
+      <waypoint-identifier>KMSP</waypoint-identifier>
+      <waypoint-type>AIRPORT</waypoint-type>
+      <waypoint-country-code>K3</waypoint-country-code>
+    </route-point>
+  </route>
+</flight-plan>
