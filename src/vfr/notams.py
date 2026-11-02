@@ -47,10 +47,16 @@ NS = {
 #: the Pacific islands PG/PK/PW..., Puerto Rico TJ, the Virgin Islands TI
 #: and American Samoa NS (NSTU).
 US_PREFIXES = ("K", "P", "TJ", "TI", "NS")
+#: The ICAO form's place, its item A) ("A) KBJC").
+_ICAO_PLACE = re.compile(r"\bA\)\s*([A-Z]{4})\b")
 #: The ICAO form's number ("A1643/26"), and the one a NOTAMR or NOTAMC names.
 _ICAO_ID = re.compile(r"\b([A-Z]\d{4}/\d{2})\s+NOTAM[NRC]\b(?:\s+([A-Z]\d{4}/\d{2}))?")
-#: The domestic form's location and number ("!BJC 10/060").
-_DOMESTIC_ID = re.compile(r"^!(\w+)\s+(\d{1,2}/\d{1,4})")
+#: The domestic form's location and number ("!BJC 10/060"), a military
+#: one's its base's and its own series ("!KEDG M0061/26").
+_DOMESTIC_ID = re.compile(r"^!(\w+)\s+([A-Z]?\d{1,4}/\d{1,4})")
+#: The store's layout: 1 since a NOTAM known only by its ICAO number is
+#: kept by its place and number, not the number alone (_upgrade).
+STORE_VERSION = 1
 
 _LOCK = threading.Lock()
 _db: sqlite3.Connection | None = None
@@ -71,7 +77,42 @@ def _connection() -> sqlite3.Connection:
             CREATE INDEX IF NOT EXISTS notams_icao_id ON notams (icao_id);
             CREATE TABLE IF NOT EXISTS heard (since REAL);
         """)
+        _upgrade(_db)
     return _db
+
+
+def _upgrade(db: sqlite3.Connection) -> None:
+    """A store kept by an earlier layout, put in this one.
+
+    Before version 1 a NOTAM with no domestic form, or a military one
+    ("!KEDG M0061/26", whose number the domestic pattern did not take), was
+    kept by its ICAO number alone. Those numbers are each issuer's own: a
+    base's M series, a country's A series, so KEDG's M0061/26 was written
+    over KAPG's, a row with one's place and the other's words (15 of the
+    4,011 kept so on 2026-11-02). Each is kept again by its place and
+    number, its place read from its own words where they give one; the
+    NOTAM it was written over is gone until the feed sends it again."""
+    if db.execute("PRAGMA user_version").fetchone()[0] >= STORE_VERSION:
+        return
+    rows = db.execute("SELECT id, location, icao_location, raw FROM notams WHERE id NOT LIKE '% %'").fetchall()
+    for old, location, icao_location, raw in rows:
+        domestic = _DOMESTIC_ID.match(raw or "")
+        place = _ICAO_PLACE.search(raw or "")
+        if domestic:
+            key, fix = f"{domestic.group(1)} {domestic.group(2)}", {"icao_location": domestic.group(1)}
+            # Its location is the word after the number, as the domestic form writes it.
+            words = (raw or "").split()
+            if len(words) > 2:
+                fix["location"] = words[2]
+        elif place:
+            key, fix = f"{place.group(1)} {old}", {"icao_location": place.group(1)}
+        else:
+            key, fix = f"{icao_location or location} {old}", {}
+        db.execute("DELETE FROM notams WHERE id = ? AND EXISTS (SELECT 1 FROM notams WHERE id = ?)", (old, key))
+        db.execute("UPDATE notams SET id = ?, location = COALESCE(?, location), icao_location = COALESCE(?, icao_location)"
+                   " WHERE id = ?", (key, fix.get("location"), fix.get("icao_location"), old))
+    db.execute(f"PRAGMA user_version = {STORE_VERSION}")
+    db.commit()
 
 
 def reset() -> None:
@@ -138,12 +179,19 @@ def notams(xml: str) -> list[dict]:
         series, number, year = get("series"), get("number"), get("year")
         icao_id = icao_match.group(1) if icao_match else (
             f"{series}{number.zfill(4)}/{year[-2:]}" if series and number and year else None)
-        domestic_match = _DOMESTIC_ID.match(domestic or "")
-        key = f"{domestic_match.group(1)} {domestic_match.group(2)}" if domestic_match else icao_id
-        if not key:
-            continue
         extension = event.find("event:extension/fnse:EventExtension", NS)
         ext = lambda tag: ((extension.findtext(f"fnse:{tag}", namespaces=NS) if extension is not None else None) or "").strip() or None  # noqa: E731
+        # Kept by its place and number, as a briefing names it ("BJC 10/060",
+        # "KEDG M0061/26"): an ICAO number alone is each issuer's own -- a
+        # base's M series, a country's A series -- and two places' were one
+        # row (2026-11-02).
+        domestic_match = _DOMESTIC_ID.match(domestic or "")
+        icao_place = _ICAO_PLACE.search(icao or text)
+        place = icao_place.group(1) if icao_place else ext("icaoLocation") or get("location") or None
+        key = (f"{domestic_match.group(1)} {domestic_match.group(2)}" if domestic_match
+               else f"{place} {icao_id}" if icao_id and place else None)
+        if not key:
+            continue
         starts, _ = _utc(get("effectiveStart"))
         ends, estimated = _utc(get("effectiveEnd"))
         lifetime = _iso(event.findtext("aixm:featureLifetime/gml:TimePeriod/gml:endPosition", namespaces=NS))
@@ -180,7 +228,10 @@ def heard(xml: str, now: float | None = None) -> int:
             db.execute("INSERT INTO heard VALUES (?)", (now,))
         for n in found:
             if n["names"]:
-                db.execute("UPDATE notams SET ended = 1 WHERE icao_id = ?", (n["names"],))
+                # The one it names at its own place: another place's NOTAM
+                # may have the same number.
+                db.execute("UPDATE notams SET ended = 1 WHERE icao_id = ? AND (location = ? OR icao_location = ?)",
+                           (n["names"], n["location"], n["icao_location"]))
             if n["type"] == "C":
                 # A cancellation is no NOTAM a pilot reads: it ends the one it names.
                 continue
