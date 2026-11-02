@@ -14,15 +14,31 @@
 //! - phone: the planner's airspace-at-a-point answer from a phone's pack;
 //! - clearance: an ATC clearance heard, read into its items, and a call
 //!   to us by its call sign (the web's lib/clearance and lib/heardCall);
-//! - spoken: the places a clearance names, found in the phone's packs.
+//! - spoken: the places a clearance names, found in the phone's packs;
+//! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
+//! - wmm: magnetic variation from the World Magnetic Model;
+//! - validity: when a weather report stops counting;
+//! - metar, taf, winds, notam, tfr: the weather and NOTAM products as
+//!   sent, read strictly (xml: the small XML reader they share; time:
+//!   UTC dates).
 
 pub mod airspace;
 pub mod clearance;
+pub mod flight;
 pub mod geo;
 pub mod grid;
+pub mod metar;
+pub mod notam;
 mod json;
 pub mod pack;
 pub mod phone;
 pub mod rules;
 pub mod spoken;
+pub mod taf;
+pub mod tfr;
+pub mod time;
 pub mod sums;
+pub mod validity;
+pub mod winds;
+pub mod wmm;
+pub mod xml;

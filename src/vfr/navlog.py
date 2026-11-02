@@ -13,6 +13,8 @@ don't carry one). Magnetic heading is as far as this goes for now.
 import math
 from itertools import accumulate, pairwise
 
+import vfr_native
+
 from . import ifr, performance
 from .geo import bearing_deg, destination_point, distance_nm
 from .magnetic import magnetic_variation_deg
@@ -25,18 +27,15 @@ def wind_correction_angle_deg(true_course_deg: float, wind_dir_true_deg: float, 
     vfr.weather.wind_at_altitude returns. Positive WCA means correct to
     the right of true course (add to get true heading); negative, left.
     """
-    relative_wind_deg = wind_dir_true_deg - true_course_deg
-    ratio = (wind_speed_kt / tas_kt) * math.sin(math.radians(relative_wind_deg))
-    ratio = max(-1.0, min(1.0, ratio))  # guard float noise at the asin domain edge
-    return math.degrees(math.asin(ratio))
+    # The engine's (wingtip_engine::flight), the phones' same triangle.
+    return vfr_native.wind_correction_deg(true_course_deg, wind_dir_true_deg, wind_speed_kt, tas_kt)
 
 
 def groundspeed_kt(true_course_deg: float, wind_dir_true_deg: float, wind_speed_kt: float, tas_kt: float, wca_deg: float) -> float:
     """True airspeed minus the wind's component along the course, once
     wca_deg (the wind correction angle) has already pointed the aircraft's
     nose to hold that course -- standard wind-triangle groundspeed."""
-    relative_wind_deg = wind_dir_true_deg - true_course_deg
-    return tas_kt * math.cos(math.radians(wca_deg)) - wind_speed_kt * math.cos(math.radians(relative_wind_deg))
+    return vfr_native.groundspeed_kt(true_course_deg, wind_dir_true_deg, wind_speed_kt, tas_kt, wca_deg)
 
 
 def assemble_leg(
@@ -186,9 +185,10 @@ def totals(leg_list: list) -> dict:
 # --- Fuel: the trip plus the reserve, against the tanks -----------------
 
 # 14 CFR 91.151: VFR needs fuel to the destination plus 30 minutes at
-# normal cruise by day, 45 at night.
-DAY_RESERVE_MIN = 30.0
-NIGHT_RESERVE_MIN = 45.0
+# normal cruise by day, 45 at night -- the engine's figures
+# (wingtip_engine::flight), the phones' same.
+DAY_RESERVE_MIN = vfr_native.reserve_min(False, False)
+NIGHT_RESERVE_MIN = vfr_native.reserve_min(False, True)
 
 
 #: Fuel for engine start, taxi and takeoff, where a profile has no figure

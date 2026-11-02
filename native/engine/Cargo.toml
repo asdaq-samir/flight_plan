@@ -15,4 +15,7 @@ name = "wingtip_engine"
 # Python reads as well.
 [dev-dependencies]
 flate2 = "1.1"
+# The parsers' fuzz tests (tests/fuzz.rs): stable Rust, where cargo-fuzz
+# needs nightly.
+proptest = { version = "1.7", default-features = false, features = ["std"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }

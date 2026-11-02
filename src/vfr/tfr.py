@@ -15,6 +15,7 @@ the highest ceiling of them.
 """
 from __future__ import annotations
 
+import json
 import math
 import threading
 import time
@@ -23,6 +24,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import requests
+import vfr_native
 from cachetools import LRUCache, TTLCache
 from shapely.geometry import LineString, Point, shape
 
@@ -44,20 +46,8 @@ SHAPES_TTL_S = 10 * 60
 NEAR_NM = 5.0
 _NM_PER_DEG = 60.0
 
-#: The rule each kind of TFR is issued under, in words.
-RULES = {
-    "91.137(a)(1)": "disaster or hazard (91.137(a)(1))",
-    "91.137(a)(2)": "relief aircraft operations (91.137(a)(2))",
-    "91.137(a)(3)": "sightseeing congestion over an incident or event (91.137(a)(3))",
-    "91.138": "national disaster in Hawaii (91.138)",
-    "91.139": "emergency air traffic rules (91.139)",
-    "91.141": "VIP movement (91.141)",
-    "91.143": "space operations (91.143)",
-    "91.144": "high barometric pressure (91.144)",
-    "91.145": "aerial demonstration or sporting event (91.145)",
-    "99.7": "special security instructions (99.7)",
-    "44812": "unmanned aircraft near a public gathering",
-}
+# The rules a TFR is issued under, named for a pilot, are the engine's
+# (wingtip_engine::tfr's RULES), with the rest of its detail.
 
 _SHAPES: TTLCache = TTLCache(maxsize=1, ttl=SHAPES_TTL_S)
 _DETAILS: LRUCache = LRUCache(maxsize=1024)
@@ -96,62 +86,24 @@ def fetched_at() -> float | None:
     return _FETCHED_AT
 
 
-def _utc(text: str | None) -> str | None:
-    """An XNOTAM time (UTC, no zone) as ISO 8601 with its Z."""
-    if not text:
-        return None
-    try:
-        return datetime.fromisoformat(text).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
-    except ValueError:
-        return None
-
-
-def _sentence(text: str | None) -> str | None:
-    """A NOTAM's words as a sentence: in capitals they are made lower
-    case after the first letter; otherwise kept as written."""
-    text = (text or "").strip()
-    if not text:
-        return None
-    return text.capitalize() if text.isupper() else text
-
-
-def _height(area, side: str) -> tuple[float | None, str | None]:
-    """An area's floor ("Lower") or ceiling ("Upper") in feet, and MSL or
-    AGL; a flight level in feet, MSL."""
-    value, uom, code = (area.findtext(f"{k}DistVer{side}") for k in ("val", "uom", "code"))
-    try:
-        feet = float(value) * (100 if uom == "FL" else 1)
-    except (TypeError, ValueError):
-        return None, None
-    return feet, "AGL" if code == "HEI" else "MSL"
-
-
 def parse_detail(xml_bytes: bytes) -> dict:
     """What a NOTAM's XNOTAM file says a pilot needs: {"effective",
     "expires" (ISO UTC; None until further notice), "rule", "purpose",
-    "floor_ft", "floor_ref", "ceiling_ft", "ceiling_ref"}."""
-    root = ET.fromstring(xml_bytes)
-    notam = root.find(".//Not")
-    if notam is None:
+    "floor_ft", "floor_ref", "ceiling_ft", "ceiling_ref"} -- the lowest
+    floor and the highest ceiling over its areas, a flight level in feet
+    MSL. Read by the engine (wingtip_engine::tfr), the phones' same code;
+    a file that is not XML raises ElementTree's ParseError, as it did."""
+    try:
+        got = vfr_native.tfr_detail_json(xml_bytes.decode("utf-8-sig"))
+    except (UnicodeDecodeError, ValueError) as e:
+        raise ET.ParseError(str(e)) from e
+    if got is None:
         return {}
-    rule_code = (root.findtext(".//TfrNot/codeType") or "").strip()
-    floors, ceilings = [], []
-    for area in root.iter("aseTFRArea"):
-        floor, ceiling = _height(area, "Lower"), _height(area, "Upper")
-        if floor[0] is not None:
-            floors.append(floor)
-        if ceiling[0] is not None:
-            ceilings.append(ceiling)
-    floor = min(floors, key=lambda h: h[0]) if floors else (None, None)
-    ceiling = max(ceilings, key=lambda h: h[0]) if ceilings else (None, None)
-    return {
-        "effective": _utc(notam.findtext("dateEffective")),
-        "expires": _utc(notam.findtext("dateExpire")),
-        "rule": RULES.get(rule_code, rule_code or None),
-        "purpose": _sentence(notam.findtext("txtDescrPurpose")),
-        "floor_ft": floor[0], "floor_ref": floor[1],
-        "ceiling_ft": ceiling[0], "ceiling_ref": ceiling[1],
-    }
+    detail = json.loads(got)
+    for key in ("floor_ft", "ceiling_ft"):
+        if detail[key] is not None:
+            detail[key] = float(detail[key])
+    return detail
 
 
 def _detail(notam_id: str, modified: str) -> dict:

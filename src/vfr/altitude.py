@@ -25,6 +25,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from itertools import pairwise
 
+import vfr_native
+
 from . import airspace, ifr, performance, sua, terrain, weather
 from .geo import along_track_distance_nm, bearing_deg, distance_nm, track_distances_nm
 from .magnetic import magnetic_variation_deg
@@ -130,7 +132,7 @@ def is_eastbound(course_deg: float) -> bool:
     000-179 flies odd thousands plus 500, 180-359 even thousands plus
     500. Sent with the altitude breakdown, so the page names the rule it
     was given rather than working it out again."""
-    return 0 <= course_deg % 360 < 180
+    return vfr_native.is_eastbound(course_deg)
 
 
 def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> float:
@@ -157,16 +159,8 @@ def lowest_vfr_cruising_altitude(floor_ft: float, route_bearing_deg: float) -> f
     higher -- smoother air, glide range, a tailwind aloft -- can say so,
     or take the highest or fastest of the four plans the nav log offers.
     """
-    eastbound = is_eastbound(route_bearing_deg)
-    thousands = int(floor_ft // 1000)
-    if eastbound and thousands % 2 == 0:
-        thousands += 1
-    elif not eastbound and thousands % 2 == 1:
-        thousands += 1
-    candidate_ft = thousands * 1000 + 500
-    while candidate_ft < floor_ft:
-        candidate_ft += 2000  # next legal altitude in the same hemispheric band
-    return float(candidate_ft)
+    # The engine's (wingtip_engine::flight), the phones' same rule.
+    return vfr_native.lowest_vfr_cruising_altitude(floor_ft, route_bearing_deg)
 
 
 def _leg_course_magnetic_deg(a: tuple, b: tuple) -> float:

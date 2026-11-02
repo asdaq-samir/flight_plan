@@ -23,17 +23,19 @@ disk: it's live/current-conditions data, and a copy older than an hour
 or two is stale, not "the current cycle".
 """
 import gzip
+import json
 import logging
 import re
 import threading
 import time
 import xml.etree.ElementTree as ET
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from itertools import pairwise
 from typing import NamedTuple
 
 import numpy as np
 import requests
+import vfr_native
 
 from .config import REQUEST_HEADERS as HEADERS
 from .performance import isa_temp_c
@@ -86,62 +88,6 @@ def _fd_stations(fcst_hr: str = "06") -> dict:
     return _dataset(f"winds-{fcst_hr}")
 
 
-def _parse_fd_station_row(row: str, alt_positions: list) -> tuple:
-    """A station's wind/temp groups aren't fixed-width at the byte level
-    -- a group for an altitude below the station's own elevation is
-    omitted entirely (not blank-padded), which shifts every later token
-    left. So tokens are matched to altitude columns by nearest character
-    position to the header's own column position, not by slice or
-    token-count -- verified against real FD output including rows with
-    skipped low-altitude columns (e.g. a high-elevation station with no
-    3000ft/6000ft groups at all).
-    """
-    station_id = row[0:3].strip()
-    groups = {}
-    for m in re.finditer(r"\S+", row[3:]):
-        pos = m.start() + 3
-        nearest_alt = min(alt_positions, key=lambda ap: abs(ap[0] - pos))[1]
-        groups[nearest_alt] = m.group()
-    return station_id, groups
-
-
-def _decode_temp_c(group: str) -> float | None:
-    """Extract the temperature from a wind/temp group. The 3000ft column
-    never carries a temperature (none is forecast at 3,000 ft, nor within
-    2,500 ft of the station: the Aviation Weather Handbook, FAA-H-8083-28A,
-    Winds and Temperatures Aloft Forecast), so it is 4 chars, e.g. "3220". 6000-24000ft groups are 7 chars
-    with an explicit sign (e.g. "3028+18"). 30000ft+ groups are 6 chars,
-    unsigned, and always negative (the product's own header states
-    "TEMPS NEG ABV 24000" -- the sign is omitted because it's implied).
-    """
-    if len(group) == 7 and group[4] in "+-":
-        return float(group[4:7])
-    if len(group) == 6 and group[4:6].isdigit():
-        return -float(group[4:6])
-    return None
-
-
-def _decode_wind(group: str) -> tuple[float | None, float | None] | None:
-    """(wind_dir_true_deg, wind_speed_kt) from a group's first 4 chars
-    (DDFF -- direction in tens of degrees true, speed in knots); None if
-    the group's too short to contain a wind code at all. "9900" is the
-    product's own light-and-variable convention -- direction isn't
-    meaningful, so it's returned as None rather than guessed, with speed
-    treated as calm (0kt). Wind >=100kt is encoded by adding 50 to the
-    direction code and subtracting 100 from the speed code -- both undone
-    here (e.g. "7520" -> 250 deg / 120kt).
-    """
-    if len(group) < 4 or not group[:4].isdigit():
-        return None
-    wind_part = group[:4]
-    if wind_part == "9900":
-        return None, 0.0
-    dir_code, speed_code = int(wind_part[:2]), int(wind_part[2:4])
-    if dir_code >= 51:
-        return float((dir_code - 50) * 10), float(speed_code + 100)
-    return float(dir_code * 10), float(speed_code)
-
-
 class FdStations(dict):
     """A winds/temps product's stations (parse_fd_text), and the period it
     is for: `period` is {"valid_at", "use_from", "use_to"}, ISO UTC, from
@@ -151,73 +97,38 @@ class FdStations(dict):
     period: dict | None = None
 
 
-def _fd_period(lines: list[str], now: datetime | None = None) -> dict | None:
-    """The period a winds/temps product is for, from its header: valid at
-    "VALID ddhhmmZ", for use "FOR USE hhmm-hhmmZ" around it (AC 00-45H,
-    the Winds and Temperatures Aloft Forecast (FB): each product is for
-    use over a window round its valid time, the 24-hour one's through
-    midnight). The header gives the day alone: the month is the
-    one that puts that day nearest `now`."""
-    for line in lines:
-        m = re.search(r"VALID\s+(\d{2})(\d{2})(\d{2})Z\s+FOR USE\s+(\d{2})(\d{2})-(\d{2})(\d{2})Z", line)
-        if not m:
-            continue
-        day, hour, minute, from_h, from_m, to_h, to_m = (int(g) for g in m.groups())
-        now = now or datetime.now(timezone.utc)
-        valid = None
-        for months in (0, -1, 1):
-            year, month = now.year + (now.month - 1 + months) // 12, (now.month - 1 + months) % 12 + 1
-            try:
-                candidate = datetime(year, month, day, hour, minute, tzinfo=timezone.utc)
-            except ValueError:
-                continue
-            if valid is None or abs(candidate - now) < abs(valid - now):
-                valid = candidate
-        if valid is None:
-            return None
-        start = valid.replace(hour=from_h % 24, minute=from_m)
-        if start > valid:
-            start -= timedelta(days=1)
-        end = valid.replace(hour=to_h % 24, minute=to_m)
-        if end < valid:
-            end += timedelta(days=1)
-        iso = lambda t: t.isoformat().replace("+00:00", "Z")  # noqa: E731
-        return {"valid_at": iso(valid), "use_from": iso(start), "use_to": iso(end)}
-    return None
-
-
 def parse_fd_text(text: str, now: datetime | None = None) -> FdStations:
     """{station_id: {altitude_ft: {"wind_dir_true_deg", "wind_speed_kt", "temp_c"}}}
     for every station/altitude group in the FD text with a decodable wind
     (temp_c is None for wind-only groups, e.g. the 3000ft column near a
-    station's own elevation), and the period it is for (FdStations).
-    """
-    lines = text.splitlines()
-    header_idx = next((i for i, line in enumerate(lines) if line.startswith("FT ")), None)
-    if header_idx is None:
-        # A body with no altitude header -- an error page, a truncated
-        # answer -- is not a product. It used to escape as StopIteration,
-        # which no caller catches.
-        raise WeatherServiceError("the winds/temps product has no altitude header")
-    alt_positions = [(m.start(), int(m.group())) for m in re.finditer(r"\d+", lines[header_idx])]
+    station's own elevation), and the period it is for (FdStations): valid
+    at "VALID ddhhmmZ", for use "FOR USE hhmm-hhmmZ" round it, the day's
+    month the one nearest `now`.
 
+    Read by the engine (wingtip_engine::winds), the phones' same reader,
+    as AC 00-45H codes the product: DDFF wind in tens of degrees true and
+    knots, 50 added to the direction at 100 kt and over, 9900 light and
+    variable (no direction, calm); a signed temperature to 24,000 ft and
+    an unsigned, negative one above ("TEMPS NEG ABV 24000"); a group
+    under a station's own height left out, so each group is placed by the
+    nearest column of the "FT" header.
+    """
+    now = now or datetime.now(timezone.utc)
+    got = vfr_native.winds_json(text, int(now.timestamp()))
+    if got is None:
+        # A body with no altitude header -- an error page, a truncated
+        # answer -- is not a product.
+        raise WeatherServiceError("the winds/temps product has no altitude header")
+    product = json.loads(got)
     stations = FdStations()
-    stations.period = _fd_period(lines[:header_idx], now)
-    for line in lines[header_idx + 1 :]:
-        if not line.strip():
-            continue
-        station_id, groups = _parse_fd_station_row(line, alt_positions)
-        if not station_id:
-            continue
-        decoded = {}
-        for alt, g in groups.items():
-            wind = _decode_wind(g)
-            if wind is None:
-                continue
-            wind_dir, wind_speed = wind
-            decoded[alt] = {"wind_dir_true_deg": wind_dir, "wind_speed_kt": wind_speed, "temp_c": _decode_temp_c(g)}
-        if decoded:
-            stations[station_id] = decoded
+    stations.period = product["period"]
+    as_float = lambda v: None if v is None else float(v)  # noqa: E731
+    for ident, levels in product["stations"].items():
+        stations[ident] = {
+            int(alt): {"wind_dir_true_deg": as_float(g["wind_dir_true_deg"]), "wind_speed_kt": float(g["wind_speed_kt"]),
+                       "temp_c": as_float(g["temp_c"])}
+            for alt, g in levels.items()
+        }
     return stations
 
 

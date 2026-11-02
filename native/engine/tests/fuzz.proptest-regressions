@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc a69c8c4e1a128319e0a7adb7950c3fc043eaf0a3db68720f22f61587c8adf1f3 # shrinks to text = "METAR KDLH 021355Z A27015G25KT 1 1/2SM -RA BR BKN008 OVC015 𐀀M02/M04 A2992 RMK AO2 T10171039"
