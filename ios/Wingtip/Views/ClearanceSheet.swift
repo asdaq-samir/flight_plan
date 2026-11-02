@@ -19,15 +19,19 @@ struct ClearanceSheet: View {
     @State private var foundFor: String?
     @State private var lookupProblem: String?
 
-    /// The route's ends and the pilot's position, for the planner to look
-    /// near (its `near`).
-    private var near: String {
+    /// The route's ends and the pilot's position, to look near.
+    private var nearPoints: [(Double, Double)] {
         var points: [(Double, Double)] = []
         if let course = plan.course {
             points += [(course.departure.lat, course.departure.lon), (course.destination.lat, course.destination.lon)]
         }
         if let fix = ownShip.fix { points.append((fix.coordinate.latitude, fix.coordinate.longitude)) }
-        return points.map { String(format: "%.4f,%.4f", $0.0, $0.1) }.joined(separator: ";")
+        return points
+    }
+
+    /// The same, as the planner's `near`.
+    private var near: String {
+        nearPoints.map { String(format: "%.4f,%.4f", $0.0, $0.1) }.joined(separator: ";")
     }
 
     private var clearance: Clearance { Clearance.read(text) }
@@ -165,7 +169,19 @@ struct ClearanceSheet: View {
                     foundFor = heard
                     lookupProblem = nil
                 } catch {
-                    lookupProblem = "The places in it could not be looked up; check the connection and try again."
+                    // No signal: found by the engine among the places of
+                    // the regions kept for the air, SIDs and STARs left
+                    // as said.
+                    let packs = CyclePacks.shared.keptPacks()
+                    let offline = Engine.hear(heard, tail: nil, packs: packs, near: nearPoints,
+                                              dep: plan.dep, stops: plan.stops, dest: plan.dest)
+                    if let offline, !packs.isEmpty {
+                        found = offline.found
+                        foundFor = heard
+                        lookupProblem = "No signal: places found among the regions kept for the air."
+                    } else {
+                        lookupProblem = "The places in it could not be looked up; check the connection and try again."
+                    }
                 }
             }
         }

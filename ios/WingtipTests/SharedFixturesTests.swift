@@ -61,11 +61,9 @@ private struct DrillsFixture: Decodable {
 
 private struct ClearancesFixture: Decodable {
     struct Read: Decodable { let heard: String; let clearance: Clearance }
-    struct Number: Decodable { let heard: String; let num: String }
     struct Route: Decodable { let dep: String; let stops: [String]; let dest: String }
     struct Cleared: Decodable { let heard: String; let found: ClearancePlaces; let planned: Route; let route: Route; let typed: [Clearance.Typed] }
     let read: [Read]
-    let numbers: [Number]
     let routes: [Cleared]
 }
 
@@ -223,7 +221,6 @@ struct SharedFixturesTests {
     @Test func aClearanceIsReadAsTheWebReadsIt() throws {
         let f = try fixture("clearances", as: ClearancesFixture.self)
         for c in f.read { #expect(Clearance.read(c.heard) == c.clearance, "\(c.heard)") }
-        for c in f.numbers { #expect(Clearance.tokens(c.heard) == [Clearance.Token(word: c.heard, num: c.num)], "\(c.heard)") }
         for c in f.routes {
             let got = Clearance.read(c.heard).clearedRoute(c.found, dep: c.planned.dep, stops: c.planned.stops, dest: c.planned.dest)
             #expect(got.dep == c.route.dep && got.stops == c.route.stops && got.dest == c.route.dest, "\(c.heard)")

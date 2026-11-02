@@ -130,7 +130,16 @@ struct RadioCallBanner: View {
             plan.directTo(ident, from: ownShip.fix)
             listener.seen = call.id
         } catch {
-            problem = "The place could not be looked up; check the connection."
+            // No signal: found by the engine among the places of the
+            // regions kept for the air.
+            let offline = Engine.hear(call.text, tail: nil, packs: CyclePacks.shared.keptPacks(), near: points,
+                                      dep: plan.dep, stops: plan.stops, dest: plan.dest)
+            guard let ident = offline?.directFound?.ident else {
+                problem = "No signal, and “\(said)” is not in the regions kept for the air."
+                return
+            }
+            plan.directTo(ident, from: ownShip.fix)
+            listener.seen = call.id
         }
     }
 }

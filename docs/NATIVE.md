@@ -56,8 +56,9 @@ last gate.
 | Flight plan items 15 and 16 (AIM Appendix 4; 14 CFR 91.121(a)(2)) | `lib/flightPlanForm.ts` | `FilingForm` in `Views/InFlightViews.swift` | `filingForm.json` |
 | Traffic's label and the 1,000 ft "near" (14 CFR 91.159's spacing) | `lib/map/traffic.ts` | `Traffic.label`, `Traffic.near` | `traffic.json` |
 | The logbook as CSV, out and in (ForeFlight Logbook Guide v14.0; 61.57(a), (b)) | `lib/logbookCsv.ts` | `LogbookCSV` in `PilotLogic.swift` | `logbookCsv.json` |
-| An ATC clearance heard, read into its items and the route it gives (AIM 4-4-3, 5-2-6; figures AIM 4-2-8, 4-2-9) | `lib/clearance.ts` | `Clearance` in `Clearance.swift` | `clearances.json` |
-| A transmission said to us by its call sign, and where its "direct" sends us (AIM 4-2-4) | `lib/heardCall.ts` | `HeardCall` in `HeardCall.swift` | `heardCalls.json` |
+| An ATC clearance heard, read into its items and the route it gives (AIM 4-4-3, 5-2-6; figures AIM 4-2-8, 4-2-9) | `lib/clearance.ts` | the engine's `clearance.rs` (`Engine.hear`); the route assembled online in `Clearance.clearedRoute` | `clearances.json` |
+| A transmission said to us by its call sign, and where its "direct" sends us (AIM 4-2-4) | `lib/heardCall.ts` | the engine's `clearance.rs` (`HeardCall`, through `Engine`) | `heardCalls.json` |
+| A clearance's places found with no signal, among the kept regions' airports, navaids and fixes (the planner's vfr.spoken) | `vfr/spoken.py` | the engine's `spoken.rs` (`Engine.hear` on `CyclePacks.keptPacks`) | the engine's own tests, test_spoken.py's cases |
 
 Where the copies still differ, the fixtures leave the case out:
 

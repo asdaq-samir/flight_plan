@@ -3,8 +3,8 @@
 //! for the call, and a string it returns is the caller's to give back
 //! with `wt_string_free`.
 
-use std::ffi::{c_char, CString};
-use wingtip_engine::{pack::Pack, phone};
+use std::ffi::{c_char, CStr, CString};
+use wingtip_engine::{clearance::Route, pack::Pack, phone, spoken};
 
 /// SAFETY: the caller passes `len` readable bytes at `ptr` (or a null
 /// pointer and 0), alive for the call.
@@ -69,6 +69,79 @@ pub unsafe extern "C" fn wt_pack_cycle(ptr: *const u8, len: usize) -> *mut c_cha
 #[no_mangle]
 pub extern "C" fn wt_region_of(lat: f64, lon: f64) -> *mut c_char {
     give(phone::region_of(lat, lon))
+}
+
+/// A C string the caller passed, or None for null (or not UTF-8).
+///
+/// SAFETY: `s` is null or a NUL-terminated string alive for the call.
+unsafe fn text<'a>(s: *const c_char) -> Option<&'a str> {
+    if s.is_null() {
+        None
+    } else {
+        CStr::from_ptr(s).to_str().ok()
+    }
+}
+
+/// What the radio said, all the phone can make of it with no signal, as
+/// JSON (wingtip_engine::spoken::hear): the clearance read into its
+/// items, whether it was said to `tail` (null: no airplane picked) and
+/// where its "direct" sends us, the places it named found in the `count`
+/// kept packs (`packs[i]`, `lens[i]` bytes each; one not a pack is passed
+/// over), and the route it gives from `dep`, `stops` (comma-joined) and
+/// `dest`. `near_lat` and `near_lon`, `near_count` points of the route,
+/// put the nearer of two places alike first.
+///
+/// # Safety
+/// The strings are null or NUL-terminated; `packs` and `lens` hold
+/// `count` entries, each pack readable for its length; `near_lat` and
+/// `near_lon` hold `near_count` each. All alive for the call.
+#[no_mangle]
+pub unsafe extern "C" fn wt_clearance_hear(
+    heard: *const c_char,
+    tail: *const c_char,
+    packs: *const *const u8,
+    lens: *const usize,
+    count: usize,
+    near_lat: *const f64,
+    near_lon: *const f64,
+    near_count: usize,
+    dep: *const c_char,
+    stops: *const c_char,
+    dest: *const c_char,
+) -> *mut c_char {
+    let Some(heard) = text(heard) else { return std::ptr::null_mut() };
+    let mut places = Vec::new();
+    if !packs.is_null() && !lens.is_null() {
+        for i in 0..count {
+            if let Ok(pack) = Pack::read(bytes(*packs.add(i), *lens.add(i))) {
+                places.extend(spoken::places_of(&pack));
+            }
+        }
+    }
+    let near: Vec<(f64, f64)> = if near_lat.is_null() || near_lon.is_null() {
+        Vec::new()
+    } else {
+        (0..near_count).map(|i| (*near_lat.add(i), *near_lon.add(i))).collect()
+    };
+    let planned = Route {
+        dep: text(dep).unwrap_or("").to_owned(),
+        stops: text(stops).unwrap_or("").split(',').filter(|s| !s.is_empty()).map(str::to_owned).collect(),
+        dest: text(dest).unwrap_or("").to_owned(),
+    };
+    give(spoken::hear(heard, text(tail), places, &near, &planned))
+}
+
+/// Whether a transmission was said to the airplane `tail` ("N123AB"),
+/// by AIM 4-2-4's forms of its call sign: 1 yes, 0 no.
+///
+/// # Safety
+/// Both strings null or NUL-terminated, alive for the call.
+#[no_mangle]
+pub unsafe extern "C" fn wt_our_call(heard: *const c_char, tail: *const c_char) -> i32 {
+    match (text(heard), text(tail)) {
+        (Some(h), Some(t)) => wingtip_engine::clearance::our_call(h, t) as i32,
+        _ => 0,
+    }
 }
 
 /// A string one of these returned, given back.

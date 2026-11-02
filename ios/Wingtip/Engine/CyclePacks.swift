@@ -110,6 +110,14 @@ final class CyclePacks: @unchecked Sendable {
         return Set(files.filter { $0.pathExtension == "pack" }.map { $0.deletingPathExtension().lastPathComponent })
     }
 
+    /// Every pack the phone keeps of the cycle, mapped: the regions its
+    /// routes cross, for a clearance's places to be found in the air
+    /// (Engine.hear).
+    func keptPacks() -> [Data] {
+        guard let index else { return [] }
+        return keptRegions(index.cycle).sorted().compactMap { try? Data(contentsOf: path(cycle: index.cycle, region: $0), options: .alwaysMapped) }
+    }
+
     /// The airspace over a point from the packs on the phone; nil where
     /// its region's pack was never kept. A region the list has no pack of
     /// has nothing drawn in it, and is answered by the rules alone.

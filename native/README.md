@@ -16,6 +16,11 @@ Wingtip's Rust, in two crates:
   engine's. The planner's image builds it (planning-service/Dockerfile)
   and cannot start without it.
 
+- The engine also reads an ATC clearance heard into its items and a call
+  to us by its call sign (`clearance.rs`, the web's lib/clearance and
+  lib/heardCall, held to their fixtures in `web/src/lib/fixtures`), and
+  finds the places it names in the phone's kept packs with no signal
+  (`spoken.rs`, vfr.spoken's matching): `wt_clearance_hear`.
 - `ffi/` (`wingtip-ffi`): the engine's C functions for the phones
   (`ffi/include/wingtip_engine.h`), a static library: the airspace over a
   point from a phone's cycle pack, as the planner's /api/airspace/at

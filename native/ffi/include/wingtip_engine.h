@@ -20,6 +20,13 @@ int32_t wt_pack_verify(const uint8_t *ptr, size_t len);
 char *wt_pack_cycle(const uint8_t *ptr, size_t len);
 /// The name of the region whose pack holds a point ("n40w088").
 char *wt_region_of(double lat, double lon);
+/// What the radio said, read and its places found in the kept packs, as
+/// JSON (wingtip_engine::spoken::hear); NULL where heard is NULL.
+char *wt_clearance_hear(const char *heard, const char *tail, const uint8_t *const *packs, const size_t *lens, size_t count,
+                        const double *near_lat, const double *near_lon, size_t near_count,
+                        const char *dep, const char *stops, const char *dest);
+/// 1 where the transmission was said to tail by its call sign, 0 not.
+int32_t wt_our_call(const char *heard, const char *tail);
 void wt_string_free(char *s);
 
 #ifdef __cplusplus

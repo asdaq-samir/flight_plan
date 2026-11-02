@@ -34,6 +34,46 @@ enum Engine {
         taken(wt_region_of(lat, lon)) ?? ""
     }
 
+    /// What the radio said, all the phone can make of it with no signal
+    /// (wingtip_engine::spoken::hear): the clearance read into its items,
+    /// whether it was said to `tail`, where its "direct" sends us, the
+    /// places it named found in the kept packs, and the route it gives
+    /// from the one planned. Its SID and STAR are the planner's to find.
+    struct Heard: Decodable {
+        struct Route: Decodable, Equatable { let dep: String; let stops: [String]; let dest: String }
+        let clearance: Clearance
+        let forUs: Bool
+        let direct: String?
+        let directFound: ClearancePlaces.Place?
+        let found: ClearancePlaces
+        let route: Route
+        let typed: [Clearance.Typed]
+    }
+
+    static func hear(_ heard: String, tail: String?, packs: [Data], near: [(Double, Double)],
+                     dep: String, stops: [String], dest: String) -> Heard? {
+        let lats = near.map(\.0), lons = near.map(\.1)
+        // Each pack's bytes held for the call, as one array of pointers.
+        func with(_ i: Int, _ pointers: [UnsafePointer<UInt8>?], _ lens: [Int], _ body: ([UnsafePointer<UInt8>?], [Int]) -> String?) -> String? {
+            guard i < packs.count else { return body(pointers, lens) }
+            return packs[i].withUnsafeBytes { raw in
+                with(i + 1, pointers + [raw.bindMemory(to: UInt8.self).baseAddress], lens + [raw.count], body)
+            }
+        }
+        let json = with(0, [], []) { pointers, lens in
+            taken(wt_clearance_hear(heard, tail, pointers, lens, packs.count, lats, lons, near.count,
+                                    dep, stops.joined(separator: ","), dest))
+        }
+        guard let json else { return nil }
+        return try? JSONDecoder().decode(Heard.self, from: Data(json.utf8))
+    }
+
+    /// Whether a transmission was said to `tail` by its call sign
+    /// (AIM 4-2-4), as the engine hears it.
+    static func ourCall(_ heard: String, tail: String) -> Bool {
+        wt_our_call(heard, tail) == 1
+    }
+
     /// A string the engine returned, read and given back.
     private static func taken(_ pointer: UnsafeMutablePointer<CChar>?) -> String? {
         guard let pointer else { return nil }
