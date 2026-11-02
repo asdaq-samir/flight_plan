@@ -6,7 +6,7 @@ import { Button } from "../../../../components/ui/button";
 import PullDown from "../../../../components/PullDown";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { InlineField } from "../../../../components/InlineField";
-import { useDryRunButton } from "../../../../lib/dryRunButton";
+import { useProfileOpener } from "../../../../lib/profileOpener";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -177,7 +177,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
       endRoom={dotShown ? "w-[1.125rem]" : "w-0"}
       // No button of its own at its end, at the owner's ask (2026-10-27: "No
       // need for a separate profile button"): the profile opens with its
-      // dry run from the map's Play (DryRunButton). Its amber dot stays, at
+      // from the route's ••• menu (Profile). Its amber dot stays, at
       // the field's end, on a caution on the pilot's own altitude or a tight
       // one -- a warning is never dropped -- and what the altitude is and
       // why, in its name for VoiceOver.
@@ -185,11 +185,11 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
         <span className={dotShown ? "relative mr-2.5 flex size-2 shrink-0" : "relative flex size-0 shrink-0"}>
           <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" className="absolute inset-0" />
           {/* The dot opens the profile where the caution is said, as the
-              map's Play does (the owner, 2026-10-27: "just open the same
-              profile view as the play button"); 44 points round it. */}
+              route's ••• menu does (the owner, 2026-10-27: "just open the
+              same profile view as the play button"); 44 points round it. */}
           {dotShown && (
             <button
-              type="button" onClick={() => useDryRunButton.getState().play?.()}
+              type="button" onClick={() => useProfileOpener.getState().open?.()}
               aria-label={cautions.length > 0 ? "Your altitude has a caution: open the profile" : "Your altitude is tight: open the profile"}
               className="relative size-2 rounded-full bg-caution outline-none after:absolute after:-inset-[18px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
               data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}

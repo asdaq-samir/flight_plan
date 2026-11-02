@@ -452,22 +452,14 @@ export async function openNavLog(page: Page) {
 }
 
 /** The side view, a card over FPL, with the altitude's wheel in its
- *  corner: opened by the map's Play, its dry run stopped where it would
- *  fly, so the side view is at rest (the owner, 2026-10-27: the profile's
- *  button "would be the profile demo button"). */
+ *  corner: opened at rest from the route's ••• menu (Profile), where the
+ *  map's Play was until the owner took it off the map (2026-11-02). */
 export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
   if (!(await card.isVisible())) {
-    // The map's buttons ride over the sheet up to half: all the way up,
-    // down to half for them.
-    if ((page.viewportSize()?.width ?? 0) < 768 && await sideDrawer(page).getAttribute("data-panel") === "full") await grabberTo(page, "half");
-    const play = page.locator("[data-map-food]").getByTestId("dry-run-button");
-    await play.click({ timeout: slow(60_000) });
-    await expect(card).toBeVisible();
-    // Stopped once it flies (a route with no legal altitude opens the
-    // profile with no run): the wheel is put away while a run plays.
-    if (await expect(play).toHaveAttribute("aria-pressed", "true", { timeout: 3000 }).then(() => true, () => false)) await play.click();
+    await sideDrawer(page).getByTestId("share-route").click({ timeout: slow(60_000) });
+    await page.getByTestId("route-profile").click();
   }
   await expect(card).toBeVisible();
   return card;

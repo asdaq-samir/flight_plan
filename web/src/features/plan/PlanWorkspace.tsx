@@ -76,7 +76,7 @@ import ProfileCard from "./components/ProfileCard";
 import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
-import { useDryRunButton } from "../../lib/dryRunButton";
+import { useProfileOpener } from "../../lib/profileOpener";
 import { useWindPicks } from "../../lib/windPicks";
 import { useStopsAlong } from "../../lib/stopsAlong";
 import { usePointActions } from "../../lib/map/pointActions";
@@ -2314,24 +2314,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (dryRunning && !profileShown) clearPastFlight();
   }, [dryRunning, profileShown]);
   if (runFrom !== null && !dryRunHeld) setRunFrom(null);
-  // The map's Play (DryRunButton): the profile opened and the route flown
-  // on it, at the owner's ask (2026-10-27), where the profile had a button
-  // of its own in the route box. Through refs, so the button's store is
-  // set as the run's state changes, not at every render.
-  const playRef = useRef(() => {});
-  const stopRef = useRef(() => {});
+  // The Profile opened, at rest, from the route's ••• menu and the
+  // altitude's caution dot, where the map's Play opened it and flew its
+  // dry run at once until the owner took Play off the map (2026-11-02:
+  // "I don't want the play button there, just the mic"); the run is the
+  // profile's own Dry run button. With a route to draw it for: the side
+  // view is drawn only then (sideView).
+  const profileReady = routed && !!course && !s.local;
+  const openProfile = useCallback(() => {
+    setTabPick("fpl");
+    openProfileCard();
+  }, [setTabPick, openProfileCard]);
   useEffect(() => {
-    // The profile opened either way: a route with no legal altitude has no
-    // run to fly, and its profile is where its way round is offered.
-    playRef.current = () => { setTabPick("fpl"); openProfileCard(); if (dryRunReady) startDryRun(); };
-    stopRef.current = stopDryRun;
-  });
-  const flyingNow = !!dryRunning;
-  const playable = routed && !!course;
-  useEffect(() => {
-    useDryRunButton.setState({ ready: playable, flying: flyingNow, play: () => playRef.current(), stop: () => stopRef.current() });
-  }, [playable, flyingNow]);
-  useEffect(() => () => useDryRunButton.setState({ ready: false, flying: false, play: null, stop: null }), []);
+    useProfileOpener.setState({ open: profileReady ? openProfile : null });
+  }, [profileReady, openProfile]);
+  useEffect(() => () => useProfileOpener.setState({ open: null }), []);
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
@@ -2651,6 +2648,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
       onShowFuel={card === undefined && hiddenHere.length ? showFuelStops : undefined}
+      onProfile={card === undefined && profileReady ? openProfile : undefined}
     />
   );
 
