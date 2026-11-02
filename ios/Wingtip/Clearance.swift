@@ -212,7 +212,7 @@ extension Clearance {
 
     /// Words for a place as the planner looks them up: a run of the ICAO
     /// alphabet's words (with figures after them) is the letters it spells.
-    private static func placeWords(_ toks: [Token]) -> String {
+    static func placeWords(_ toks: [Token]) -> String {
         var out: [String] = []
         var i = 0
         while i < toks.count {

@@ -9,7 +9,11 @@ struct ClearanceSheet: View {
     @Environment(Plan.self) private var plan
     @Environment(OwnShip.self) private var ownShip
     @Environment(\.dismiss) private var dismiss
-    @State private var listener = ClearanceListener()
+    private var listener: ClearanceListener { ClearanceListener.shared }
+    /// The words read: the newest transmission settled while listening,
+    /// until the pilot picks one from the log or types.
+    @State private var text = ""
+    @State private var following = true
     @State private var words: [String] = []
     @State private var found: ClearancePlaces?
     @State private var foundFor: String?
@@ -26,7 +30,7 @@ struct ClearanceSheet: View {
         return points.map { String(format: "%.4f,%.4f", $0.0, $0.1) }.joined(separator: ";")
     }
 
-    private var clearance: Clearance { Clearance.read(listener.heard) }
+    private var clearance: Clearance { Clearance.read(text) }
 
     private var wantsPlaces: Bool {
         let asked = clearance.asked(near: "", dep: "", dest: "")
@@ -34,7 +38,7 @@ struct ClearanceSheet: View {
     }
 
     private var ready: Bool {
-        clearance.heardAny && !listener.listening && (!wantsPlaces || foundFor == listener.heard)
+        clearance.heardAny && (!wantsPlaces || foundFor == text)
     }
 
     private static func altitude(_ ft: Int) -> String {
@@ -71,13 +75,13 @@ struct ClearanceSheet: View {
     }
 
     var body: some View {
-        @Bindable var listener = listener
         let clearance = clearance
         NavigationStack {
             Form {
                 Section {
-                    TextField("Tap Listen and hold the phone to the speaker, or type the clearance.", text: $listener.heard, axis: .vertical)
-                        .lineLimit(3...6).disabled(listener.listening)
+                    TextField("Tap Listen and hold the phone to the speaker, or type the clearance.",
+                              text: Binding(get: { text }, set: { text = $0; following = false }), axis: .vertical)
+                        .lineLimit(3...6)
                     if let problem = listener.problem ?? lookupProblem {
                         Text(problem).font(.footnote).foregroundStyle(.red)
                     }
@@ -104,19 +108,39 @@ struct ClearanceSheet: View {
                         if let squawk = clearance.squawk { LabeledContent("Squawk", value: squawk) }
                     }
                 }
+                // The radio as heard, newest first, a call to us in the
+                // tint: a tap reads that one above.
+                let log = listener.heard.filter(\.final).reversed().prefix(10)
+                if !log.isEmpty {
+                    Section("Heard") {
+                        ForEach(Array(log)) { t in
+                            Button {
+                                text = t.text
+                                following = false
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(t.text).foregroundStyle(t.forUs ? Color.accentColor : Color.primary).fontWeight(t.forUs ? .semibold : .regular)
+                                    Text(t.at, style: .time).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            .navigationTitle("Clearance")
+            .navigationTitle("Radio")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { listener.stop(); dismiss() }
+                    // Listening goes on with the sheet put away: the
+                    // captions over the map carry it, and Stop ends it.
+                    Button("Close") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Enter Route") { enter() }.disabled(!ready)
                 }
                 ToolbarItem(placement: .bottomBar) {
                     Button {
-                        if listener.listening { listener.stop() } else { Task { await listener.start(words: words) } }
+                        if listener.listening { listener.stop() } else { following = true; Task { await listener.start(words: words) } }
                     } label: {
                         Label(listener.listening ? "Stop" : "Listen", systemImage: listener.listening ? "stop.circle.fill" : "mic.fill")
                     }
@@ -126,10 +150,14 @@ struct ClearanceSheet: View {
             .task {
                 words = (try? await Planner.clearanceWords(near: near, dep: plan.dep)) ?? []
             }
-            .task(id: listener.listening ? "" : listener.heard) {
+            .onAppear { if let given = listener.sheetText { text = given; following = false } }
+            .onChange(of: listener.heard.last(where: \.final)?.text) { _, newest in
+                if following, let newest { text = newest }
+            }
+            .task(id: text) {
                 // Once the words stop changing, their places looked up.
-                guard !listener.listening, wantsPlaces else { return }
-                let heard = listener.heard
+                guard wantsPlaces else { return }
+                let heard = text
                 try? await Task.sleep(for: .milliseconds(400))
                 guard !Task.isCancelled else { return }
                 do {

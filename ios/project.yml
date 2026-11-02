@@ -53,8 +53,11 @@ targets:
         NSLocationWhenInUseUsageDescription: Wingtip Maps shows your airplane on the chart and plans from where you are.
         # A clearance read on the radio, heard by Apple's recognizer on the
         # phone where it can be (ClearanceListener).
-        NSMicrophoneUsageDescription: Wingtip Maps listens to a clearance read on the radio and enters its route for you to check.
-        NSSpeechRecognitionUsageDescription: Wingtip Maps turns a clearance read on the radio into words, on your iPhone where it can, to enter its route.
+        NSMicrophoneUsageDescription: Wingtip Maps listens to the radio to show what ATC says, tell you when ATC calls you, and enter a clearance's route for you to check.
+        NSSpeechRecognitionUsageDescription: Wingtip Maps turns what ATC says on the radio into words, on your iPhone where it can.
+        # The radio heard on with the phone locked, as the owner asked
+        # (2026-11-02): the microphone kept open (ClearanceListener).
+        UIBackgroundModes: [audio]
         NSLocalNetworkUsageDescription: With Traffic on, Wingtip Maps listens on the cockpit's Wi-Fi for an ADS-B receiver (Stratux, SkyEcho, Sentry).
         ITSAppUsesNonExemptEncryption: false
     entitlements:

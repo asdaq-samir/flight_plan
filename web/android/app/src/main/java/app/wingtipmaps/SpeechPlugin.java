@@ -21,13 +21,15 @@ import java.util.List;
 import org.json.JSONException;
 
 /**
- * An ATC clearance heard through the microphone by Android's speech
- * recognizer (SpeechRecognizer), the words handed to the page as they
- * come, which reads them into the route (web/src/lib/listen,
- * lib/clearance) -- the iOS app's SpeechPlugin, Apple's recognizer there.
- * Told the names near the route to listen for, where Android takes them
- * (EXTRA_BIASING_STRINGS, Android 13 and later), and to let the pauses
- * between a clearance's items go by.
+ * The radio heard through the microphone by Android's speech recognizer
+ * (SpeechRecognizer), a transmission at a time, each handed to the page as
+ * it is said (web/src/lib/listen, lib/atcRadio) -- the iOS app's
+ * SpeechPlugin, Apple's recognizer there. Android's recognizer hears one
+ * utterance and stops, so it is started again after each until the pilot
+ * stops it; while the app is open only (listening in the background takes
+ * a foreground service, not built). Told the names near the route to
+ * listen for, where Android takes them (EXTRA_BIASING_STRINGS, Android 13
+ * and later), and to let the pauses within a transmission go by.
  */
 @CapacitorPlugin(name = "Speech", permissions = { @Permission(strings = { Manifest.permission.RECORD_AUDIO }, alias = "microphone") })
 public class SpeechPlugin extends Plugin {
@@ -37,6 +39,10 @@ public class SpeechPlugin extends Plugin {
     private static final int QUIET_MS = 4000;
 
     private SpeechRecognizer recognizer;
+    private Intent intent;
+    private boolean listening;
+    /** The transmission being heard, numbered on from the first. */
+    private int id;
 
     @PluginMethod
     public void start(PluginCall call) {
@@ -73,7 +79,7 @@ public class SpeechPlugin extends Plugin {
             end();
             recognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
             recognizer.setRecognitionListener(new Heard());
-            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US");
             intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
@@ -82,25 +88,32 @@ public class SpeechPlugin extends Plugin {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !words.isEmpty()) {
                 intent.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, words);
             }
+            listening = true;
             recognizer.startListening(intent);
             call.resolve();
         });
     }
 
-    /** Stops listening: what was heard comes as the results, then the end. */
+    /** The next transmission, heard afresh. */
+    private void again() {
+        id++;
+        if (listening && recognizer != null) {
+            recognizer.startListening(intent);
+        }
+    }
+
     @PluginMethod
     public void stop(PluginCall call) {
         getActivity().runOnUiThread(() -> {
-            if (recognizer == null) {
-                notifyListeners("ended", new JSObject());
-            } else {
-                recognizer.stopListening();
-            }
+            listening = false;
+            end();
+            notifyListeners("ended", new JSObject());
             call.resolve();
         });
     }
 
     private void end() {
+        listening = false;
         if (recognizer != null) {
             recognizer.destroy();
             recognizer = null;
@@ -113,6 +126,7 @@ public class SpeechPlugin extends Plugin {
             return;
         }
         JSObject data = new JSObject();
+        data.put("id", id);
         data.put("text", texts.get(0));
         data.put("final", last);
         notifyListeners("heard", data);
@@ -152,12 +166,16 @@ public class SpeechPlugin extends Plugin {
         @Override
         public void onResults(Bundle results) {
             heard(results, true);
-            end();
-            notifyListeners("ended", new JSObject());
+            again();
         }
 
         @Override
         public void onError(int error) {
+            // Quiet is no failure while listening to a radio: heard again.
+            if (listening && (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT)) {
+                again();
+                return;
+            }
             end();
             JSObject data = new JSObject();
             data.put("error", errorOf(error));

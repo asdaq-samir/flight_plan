@@ -47,7 +47,7 @@ export interface Clearance {
 }
 
 /** The ICAO alphabet (AIM 4-2-7, TBL 4-2-7), as a recognizer writes it. */
-const LETTERS: Record<string, string> = {
+export const LETTERS: Record<string, string> = {
   alpha: "A", alfa: "A", bravo: "B", charlie: "C", delta: "D", echo: "E", foxtrot: "F", golf: "G", hotel: "H",
   india: "I", juliet: "J", juliett: "J", kilo: "K", lima: "L", mike: "M", november: "N", oscar: "O", papa: "P",
   quebec: "Q", romeo: "R", sierra: "S", tango: "T", uniform: "U", victor: "V", whiskey: "W", whisky: "W",
@@ -55,7 +55,7 @@ const LETTERS: Record<string, string> = {
 };
 
 /** Figures said one by one (AIM 4-2-7: "tree", "fife", "niner"). */
-const DIGITS: Record<string, string> = {
+export const DIGITS: Record<string, string> = {
   zero: "0", one: "1", two: "2", three: "3", tree: "3", four: "4", fower: "4", five: "5", fife: "5",
   six: "6", seven: "7", eight: "8", ait: "8", nine: "9", niner: "9",
 };
@@ -75,7 +75,7 @@ const AIRWAY_WORDS: Record<string, string> = {
 };
 
 /** A word, or a number made of the figures said in a row. */
-interface Token { word: string; num?: string }
+export interface Token { word: string; num?: string }
 
 const isDigit = (word: string) => word in DIGITS || /^\d$/.test(word);
 const digitOf = (word: string) => DIGITS[word] ?? word;
@@ -192,7 +192,7 @@ function altitudeAt(toks: Token[], i: number): { ft: number; used: number } | nu
 /** Words for a place as the planner looks them up: a run of the ICAO
  *  alphabet's words (with figures after them) is the letters it spells,
  *  "kilo delta lima hotel" KDLH, "charlie eight one" C81. */
-function placeWords(toks: Token[]): string {
+export function placeWords(toks: Token[]): string {
   const out: string[] = [];
   for (let i = 0; i < toks.length;) {
     let j = i, spelled = "";

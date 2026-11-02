@@ -1,6 +1,10 @@
+import { lazy, Suspense } from "react";
 import AircraftAlerts from "./AircraftAlerts";
 import AlertsBanner from "./AlertsBanner";
 import ProblemBanner from "./ProblemBanner";
+import { useAtcRadio } from "../lib/atcRadio";
+
+const RadioLayer = lazy(() => import("./RadioLayer"));
 
 /**
  * The map's lines: at the top, the screen's width, over a panel at the
@@ -20,13 +24,18 @@ import ProblemBanner from "./ProblemBanner";
  * the sheet leaves, as the map's buttons stand: centred on the screen, a
  * could-not line went under the sheet's foot and the Stops button (the
  * iOS audit, landscape, 2026-10-28).
+ *
+ * The radio's (RadioLayer) after what is ahead: a call to us with its
+ * actions, and the captions while the app listens, once it first has.
  */
 export default function MapBanners() {
+  const radio = useAtcRadio(s => s.listening || !!s.error || s.heard.length > 0);
   return (
     <div
       className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px)+3.25rem)] z-[1000] flex flex-col items-center gap-2 nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:right-[max(1rem,env(safe-area-inset-right))] nav-bottom:left-[calc(max(1rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] nav-bottom:bottom-auto"
     >
       <AlertsBanner />
+      {radio && <Suspense fallback={null}><RadioLayer /></Suspense>}
       <AircraftAlerts />
       <ProblemBanner />
     </div>

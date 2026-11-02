@@ -124,7 +124,12 @@ struct RootView: View {
             MapButtons(following: $following, routeAway: routeAway && plan.course != nil, fitRoute: { fitRequest += 1 })
         }
         .overlay(alignment: .top) {
-            AlertsBanner(alerts: ownShip.ahead).padding(.trailing, 64)
+            VStack(spacing: 8) {
+                AlertsBanner(alerts: ownShip.ahead)
+                // The radio, while the app listens or a call to us waits.
+                RadioOverlay()
+            }
+            .padding(.trailing, 64)
         }
         .overlay(alignment: .topLeading) {
             VStack(alignment: .leading, spacing: 8) {
