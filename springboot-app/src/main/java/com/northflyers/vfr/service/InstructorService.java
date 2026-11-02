@@ -14,6 +14,7 @@ import com.northflyers.vfr.dto.InstructorDto;
 import com.northflyers.vfr.dto.InstructorRequest;
 import com.northflyers.vfr.dto.SignRequest;
 import com.northflyers.vfr.dto.StudentDto;
+import com.northflyers.vfr.repository.ApproachLessonRepository;
 import com.northflyers.vfr.repository.CrossCountryReviewRepository;
 import com.northflyers.vfr.repository.EndorsementRepository;
 import com.northflyers.vfr.repository.FlightRepository;
@@ -84,12 +85,14 @@ public class InstructorService {
     private final EndorsementRepository recorded;
     private final FlightRepository flights;
     private final LogbookRepository logbook;
+    private final ApproachLessonRepository lessons;
     private final Mailer mail;
     private final String publicBaseUrl;
 
     public InstructorService(PilotRepository pilots, InstructorLinkRepository links, SignedEndorsementRepository signed,
                              CrossCountryReviewRepository reviews, EndorsementRepository recorded, FlightRepository flights,
-                             LogbookRepository logbook, Mailer mail, @Value("${app.public-base-url:}") String publicBaseUrl) {
+                             LogbookRepository logbook, ApproachLessonRepository lessons, Mailer mail,
+                             @Value("${app.public-base-url:}") String publicBaseUrl) {
         this.pilots = pilots;
         this.links = links;
         this.signed = signed;
@@ -97,6 +100,7 @@ public class InstructorService {
         this.recorded = recorded;
         this.flights = flights;
         this.logbook = logbook;
+        this.lessons = lessons;
         this.mail = mail;
         this.publicBaseUrl = publicBaseUrl.replaceAll("/+$", "");
     }
@@ -367,11 +371,13 @@ public class InstructorService {
     }
 
     /** A link ended, by either: the reviews still waiting between the two
-     *  go with it. */
+     *  go with it, and the approach lessons the instructor set (V30), which
+     *  neither could open again. */
     private void end(InstructorLink l) {
         if (l.isAccepted()) {
             reviews.findByStudentIdAndInstructorIdOrderByAskedAtDesc(l.getStudent().getId(), l.getInstructor().getId()).stream()
                     .filter(r -> !r.isAnswered()).forEach(reviews::delete);
+            lessons.deleteByStudentIdAndInstructorId(l.getStudent().getId(), l.getInstructor().getId());
         }
         links.delete(l);
     }
@@ -401,13 +407,13 @@ public class InstructorService {
                 Stream.of(f.getDestinationIdent())).toList();
     }
 
-    private String openLine() {
+    String openLine() {
         return publicBaseUrl.isBlank() ? "" : "\n\n" + publicBaseUrl + "/";
     }
 
     /** An email of these; one that cannot be sent is logged and the rest
      *  goes on, the app holding everything it says. */
-    private void send(String to, String subject, String body) {
+    void send(String to, String subject, String body) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(to);
         message.setSubject("Wingtip Maps: " + subject);

@@ -46,14 +46,16 @@ public class TrainingService {
     private final SignedEndorsementRepository signed;
     private final InstructorLinkRepository links;
     private final CrossCountryReviewRepository reviews;
+    private final LessonService lessons;
 
     public TrainingService(EndorsementRepository endorsements, PilotRepository pilots, SignedEndorsementRepository signed,
-                           InstructorLinkRepository links, CrossCountryReviewRepository reviews) {
+                           InstructorLinkRepository links, CrossCountryReviewRepository reviews, LessonService lessons) {
         this.endorsements = endorsements;
         this.pilots = pilots;
         this.signed = signed;
         this.links = links;
         this.reviews = reviews;
+        this.lessons = lessons;
     }
 
     /** The pilot's own record. */
@@ -85,7 +87,7 @@ public class TrainingService {
                 paper.stream().map(e -> new EndorsementDto(e.getKey().code(), e.getEndorsedOn(),
                         EndorsementRecords.until(e.getKey().code(), e.getEndorsedOn()))).toList(),
                 theirs.stream().map(EndorsementRecords::dto).toList(),
-                InstructorService.kinds(), pilot.getFullName(), instructors, asked);
+                InstructorService.kinds(), pilot.getFullName(), instructors, asked, lessons.lessonsOf(pilot, instructor));
     }
 
     @Transactional

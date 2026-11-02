@@ -7,8 +7,10 @@ import com.northflyers.vfr.dto.AskReviewRequest;
 import com.northflyers.vfr.dto.EndorsementRequest;
 import com.northflyers.vfr.dto.FullNameRequest;
 import com.northflyers.vfr.dto.KnowledgeTestRequest;
+import com.northflyers.vfr.dto.LessonProgressRequest;
 import com.northflyers.vfr.dto.TrainingDto;
 import com.northflyers.vfr.service.InstructorService;
+import com.northflyers.vfr.service.LessonService;
 import com.northflyers.vfr.service.LogbookService;
 import com.northflyers.vfr.service.PilotService;
 import com.northflyers.vfr.service.TrainingService;
@@ -32,7 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
  * experience from the logbook, the knowledge test report's ACS codes, and
  * the endorsements given -- each set or taken out one at a time -- with
  * their name as their certificate gives it, the instructors they ask in,
- * and the solo cross-countries they put to them (InstructorService).
+ * the solo cross-countries they put to them (InstructorService), and
+ * how far they have come with the approaches set them (LessonService).
  * Pilot-scoped as the logbook is: 401 signed out.
  */
 @RestController
@@ -41,12 +44,15 @@ public class TrainingController {
 
     private final TrainingService training;
     private final InstructorService instructors;
+    private final LessonService lessons;
     private final LogbookService logbook;
     private final PilotService pilots;
 
-    public TrainingController(TrainingService training, InstructorService instructors, LogbookService logbook, PilotService pilots) {
+    public TrainingController(TrainingService training, InstructorService instructors, LessonService lessons, LogbookService logbook,
+                              PilotService pilots) {
         this.training = training;
         this.instructors = instructors;
+        this.lessons = lessons;
         this.logbook = logbook;
         this.pilots = pilots;
     }
@@ -126,6 +132,17 @@ public class TrainingController {
     @DeleteMapping("/reviews/{id}")
     public ResponseEntity<TrainingDto> withdrawReview(Authentication authentication, @PathVariable Long id) {
         return PilotResponses.withPilot(pilots, authentication, pilot -> instructors.withdrawReview(pilot, id)
+                ? ResponseEntity.ok(trainingOf(pilot))
+                : ResponseEntity.notFound().build());
+    }
+
+    /** How far they have come with an approach set them: its brief
+     *  finished, flown to its end, its quiz as far as answered. 404 for a
+     *  lesson not theirs. */
+    @PostMapping("/lessons/{id}/progress")
+    public ResponseEntity<TrainingDto> lessonProgress(Authentication authentication, @PathVariable Long id,
+                                                      @Valid @RequestBody LessonProgressRequest request) {
+        return PilotResponses.withPilot(pilots, authentication, pilot -> lessons.progress(pilot, id, request, Instant.now())
                 ? ResponseEntity.ok(trainingOf(pilot))
                 : ResponseEntity.notFound().build());
     }
