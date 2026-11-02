@@ -114,14 +114,16 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
           <CloseButton onClick={() => { if (!closeTopCard()) onClose(); }} className={cn(!past && OVER_PICTURE)} data-testid={closeTestId} />
         </div>
       </div>
-      <div ref={head} className="relative -mx-4 shrink-0 overflow-hidden bg-muted" style={{ height: HEAD_PX }} data-testid={testId} data-picture-head="">
+      <div ref={head} className="relative isolate -mx-4 shrink-0 overflow-hidden bg-muted" style={{ height: HEAD_PX }} data-testid={testId} data-picture-head="">
         <PictureSlides flush label={label} slides={shown} className="size-full" testId={`${testId}-pictures`} />
         {/* The name on a shade up from the pictures' foot, whatever the
             picture: as tall as the name's lines and more, so it grows with
-            them at a larger text size. */}
+            them at a larger text size. Raised over the slides by its own
+            z-index: Safari on the iPhone drew the carousel's moved (3D
+            transformed) track over it, an opaque slide hiding the name. */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 flex flex-col bg-linear-to-t from-black/85 via-black/55 to-transparent pt-14 pb-3.5 pl-4 text-white [text-shadow:0_1px_2px_rgba(0,0,0,.45)]",
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col bg-linear-to-t from-black/85 via-black/55 to-transparent pt-14 pb-3.5 pl-4 text-white [text-shadow:0_1px_2px_rgba(0,0,0,.45)]",
             shown.length > 1 ? "pr-16" : "pr-4",
           )}
         >

@@ -43,7 +43,7 @@ export function PictureSlides({ slides, className, testId, label, flush = false 
         ))}
       </CarouselContent>
       {shown.length > 1 && (
-        <div aria-hidden="true" className={cn("pointer-events-none absolute flex gap-1", flush ? "right-4 bottom-[1.125rem]" : "inset-x-0 bottom-1 justify-center")} data-testid={testId && `${testId}-dots`}>
+        <div aria-hidden="true" className={cn("pointer-events-none absolute z-10 flex gap-1", flush ? "right-4 bottom-[1.125rem]" : "inset-x-0 bottom-1 justify-center")} data-testid={testId && `${testId}-dots`}>
           {shown.map((_, i) => (
             <span key={i} className={cn("size-1.5 rounded-full shadow-[0_0_2px_rgba(0,0,0,.6)]", i === page ? "bg-white" : "bg-white/45")} />
           ))}
