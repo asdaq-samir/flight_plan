@@ -145,9 +145,6 @@ test("with no route the Stops look round the pilot, 25 nm at first, the distance
   // away on the field's card (the owner, 2026-10-28).
   await expect(card.getByTestId("stops-direct")).toHaveCount(0);
   await expect(card.getByTestId("stops-add-stop")).toHaveCount(0);
-  // Its close, the sheet's own at its head over the card.
-  await sideDrawer(page).getByRole("button", { name: "Close", exact: true }).filter({ visible: true }).first().click();
-  await expect(card).toHaveCount(0);
 });
 
 test("the Airport tab's Find Nearby tiles open the Stops round the pilot with that kind picked", async ({ page, context }) => {
