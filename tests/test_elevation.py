@@ -2,6 +2,8 @@
 is kept, and the file is never seen half-written."""
 import threading
 
+import numpy as np
+
 import pytest
 
 from vfr import elevation
@@ -118,3 +120,21 @@ def test_a_tile_is_named_by_its_north_west_corner():
     assert elevation._dem_name(42.3172, -88.0905) == "n43w089"
     assert elevation._dem_name(46.8421, -92.1936) == "n47w093"
     assert elevation._dem_name(-33.9, 151.2) is None
+
+
+def test_a_void_in_a_tile_reads_as_the_ground_beside_it(tmp_path, monkeypatch):
+    # Black, the encoding's -32,768 m, where the DEM had nothing: a point
+    # on it takes its nearest pixel's height, not 107,507 ft below the sea.
+    from PIL import Image
+
+    rgb = np.zeros((256, 256, 3), dtype=np.uint8)
+    rgb[:, :] = (128, 100, 0)                  # 100 m
+    rgb[120:136, 120:136] = (0, 0, 0)          # a void
+    path = tmp_path / "12" / "1" / "2.png"
+    path.parent.mkdir(parents=True)
+    Image.fromarray(rgb).save(path)
+    monkeypatch.setattr(elevation, "TERRAIN_TILE_DIR", tmp_path)
+    elevation._TERRAIN_TILES.clear()
+    heights = elevation._terrain_tile(12, 1, 2)
+    assert np.isfinite(heights).all()
+    assert heights[128, 128] == 100.0

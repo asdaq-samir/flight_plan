@@ -313,6 +313,81 @@ _TERRAIN_SESSION = requests.Session()
 _TERRAIN_SESSION.mount("https://", requests.adapters.HTTPAdapter(pool_connections=1, pool_maxsize=16))
 
 
+#: The lowest ground in North America: Badwater Basin, Death Valley, 282 ft
+#: below sea level (USGS; NPS). The tiles carry the sea floor too (their
+#: bathymetry, from ETOPO1/GEBCO), and below this a pixel is the sea's:
+#: under an airplane the surface there is the sea's, 0 ft, the ground
+#: 14 CFR 91.159's "3,000 feet above the surface" and a floor are taken
+#: from. The grid's lowest was 30,000 ft below the sea off Baja and in the
+#: Gulf of California, where rows of a tile read -12,849 m (2026-11-02).
+LOWEST_GROUND_M = -282 / 3.28084
+
+
+def terrarium_m(rgb: np.ndarray) -> np.ndarray:
+    """A terrarium tile's heights in metres, from its RGB: NaN where the
+    tile has no height (a void, the pixels round one, a spike), 0 (the
+    sea's surface) where it is the sea floor (LOWEST_GROUND_M).
+
+    The encoding (height = R * 256 + G + B / 256 - 32768) writes a void in
+    its source DEM as its two ends: black, -32,768 m, and white, +32,767.996
+    m. Read as heights they were the ground grid's 102 cells of 32,000 ft
+    (the clip of +107,503 ft) over the Everglades, the Navajo Nation and
+    some ninety more places, each with a lowest of -30,000 ft (2026-11-02:
+    tile 11/565/876's pixels round 26.41 N, 80.45 W alternate between the
+    two). No ground on earth is within a kilometre of either end."""
+    heights = rgb[:, :, 0] * 256 + rgb[:, :, 1] + rgb[:, :, 2] / 256 - 32768
+    void = (heights <= -32767) | (heights >= 32767)
+    if void.any():
+        # And the pixels round a void, drawn half from it: on the Navajo
+        # Nation's tile (11/395/812) they read as low as -219 m in ground of
+        # 1,690 m out to 10 pixels from one, and as the ground from 12 on
+        # (2026-11-02).
+        from scipy import ndimage
+
+        void |= ndimage.distance_transform_edt(~void) <= VOID_EDGE_PX
+    heights = np.where(void, np.nan, heights)
+    # And a pixel far off the ground round it, the tiles' own error: the
+    # ringing of their resampling at a coast, 4,933 m beside 72 m on
+    # Sonora's and 480 m (1,575 ft) on Florida's flat shore at St Marks
+    # (2026-11-02). No ground stands so far from the median of the 5 by 5
+    # pixels round it: 254 m at most on tiles over Yosemite's El Capitan
+    # and Half Dome, Zion, the Grand Canyon, Big Sur, Whitney, Rainier,
+    # Shasta, Hells Canyon, the Black Canyon and the Na Pali coast at
+    # zooms 11 and 12; the errors stand 391 to 4,860 m off.
+    heights[np.abs(heights - _neighbours_median(heights)) > SPIKE_M] = np.nan
+    return np.where(heights < LOWEST_GROUND_M, 0.0, heights)
+
+
+#: How far round a void the tiles' pixels are not the ground (terrarium_m).
+VOID_EDGE_PX = 11
+
+#: How far a pixel may stand from its neighbours' median before it is
+#: taken for the tiles' error (terrarium_m): above the steepest ground's
+#: 254 m, under the errors' 391.
+SPIKE_M = 300.0
+
+
+def _neighbours_median(heights: np.ndarray) -> np.ndarray:
+    """Each pixel's 5 by 5 median, a void taking its nearest pixel's
+    height for it."""
+    from scipy import ndimage
+
+    return ndimage.median_filter(_filled(heights), size=5, mode="nearest")
+
+
+def _filled(heights: np.ndarray) -> np.ndarray:
+    """A tile's voids filled from the nearest pixel that has a height, so
+    a point read on one has the ground beside it; a tile with none at all
+    is left as it is."""
+    void = np.isnan(heights)
+    if not void.any() or void.all():
+        return heights
+    from scipy import ndimage
+
+    nearest = ndimage.distance_transform_edt(void, return_distances=False, return_indices=True)
+    return heights[tuple(nearest)]
+
+
 def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
     """A terrarium tile's heights in metres, from disk or fetched once."""
     with _TERRAIN_LOCK:
@@ -337,8 +412,9 @@ def _terrain_tile(z: int, x: int, y: int) -> np.ndarray:
 
     rgb = np.asarray(Image.open(io.BytesIO(data)).convert("RGB")).astype(np.float64)
     # Worked in float64, kept in float32: a metre's 1/256 survives either
-    # at any height on earth, and the cache holds twice as many.
-    heights = (rgb[:, :, 0] * 256 + rgb[:, :, 1] + rgb[:, :, 2] / 256 - 32768).astype(np.float32)
+    # at any height on earth, and the cache holds twice as many. A void
+    # takes its nearest neighbour's height, not the encoding's -32,768 m.
+    heights = _filled(terrarium_m(rgb)).astype(np.float32)
     with _TERRAIN_LOCK:
         _TERRAIN_TILES[(z, x, y)] = heights
     return heights

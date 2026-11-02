@@ -35,6 +35,7 @@ from pathlib import Path
 import numpy as np
 import requests
 
+from .elevation import terrarium_m
 from .units import M_TO_FT
 
 #: The grid's extent: the lower 48 and a margin round it, degrees.
@@ -48,10 +49,15 @@ ZOOM = 11
 TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
 HEADERS = {"User-Agent": "wingtip-maps/0.1 (VFR flight planner; terrain floor)"}
 DIR = Path(__file__).resolve().parents[2] / "data" / "raw" / "ground_grid"
-HIGH_PATH = DIR / "high_ft.npy"
-LOW_PATH = DIR / "low_ft.npy"
+#: The grid's files, named for how its tiles were read: v2 since its
+#: voids, spikes and sea floor were read as vfr.elevation.terrarium_m
+#: reads them (2026-11-02), so a server holding the first grid, which had
+#: 32,000 ft cells over Florida, builds this one (infra/server/deploy.sh).
+VERSION = "v2"
+HIGH_PATH = DIR / f"high_ft.{VERSION}.npy"
+LOW_PATH = DIR / f"low_ft.{VERSION}.npy"
 #: The tile rows already read into the grid, for a build stopped part way.
-DONE_PATH = DIR / "rows_done.json"
+DONE_PATH = DIR / f"rows_done.{VERSION}.json"
 #: Added to a cell's highest: the zoom-11 tiles are drawn from the finer
 #: ones by averaging, and a peak's pixel at zoom 12 (vfr.elevation's) stood
 #: up to 119 ft above its cell's highest at 11, on 4,768 points every half
@@ -61,6 +67,14 @@ DONE_PATH = DIR / "rows_done.json"
 RESAMPLED_MARGIN_FT = 150
 #: A cell no tile reached (open sea past the tiles' own edge is 0 m).
 NONE = np.iinfo(np.int16).min
+
+#: No ground in the grid's extent stands higher than Mount Whitney,
+#: 14,505 ft (NGS datasheet GT1832, NAVD 88; USGS), the highest point of
+#: the lower 48 -- Mexico's within it, Cerro Potosi at 24.9 N, is 12,182
+#: ft (INEGI), and Canada's under 50 N lower still. A pixel above it is
+#: the tiles' own error: zoom 11's averaging rings at a steep coast, 16,184
+#: ft beside -3,294 ft on Sonora's at 27.95 N, 109.80 W (2026-11-02).
+HIGHEST_GROUND_FT = 14505
 
 _HELD: dict = {}
 _HELD_LOCK = threading.Lock()
@@ -169,7 +183,8 @@ def _fetch(session: requests.Session, x: int, y: int) -> np.ndarray | None:
                 return None
             resp.raise_for_status()
             rgb = np.asarray(Image.open(io.BytesIO(resp.content)).convert("RGB")).astype(np.float64)
-            return rgb[:, :, 0] * 256 + rgb[:, :, 1] + rgb[:, :, 2] / 256 - 32768
+            # Voids NaN, not the encoding's +-32,768 m (vfr.elevation).
+            return terrarium_m(rgb)
         except (requests.RequestException, OSError):
             if attempt == 3:
                 raise
@@ -178,7 +193,9 @@ def _fetch(session: requests.Session, x: int, y: int) -> np.ndarray | None:
 
 def _into(high: np.ndarray, low: np.ndarray, x: int, y: int, heights: np.ndarray) -> None:
     """A tile's pixels into the cells they fall in: each cell's highest
-    and lowest of its pixels."""
+    and lowest of its pixels. A pixel with no height (NaN, a void) or one
+    above HIGHEST_GROUND_FT counts for nothing; a cell of nothing else is
+    left unreached, and a floor there reads the tiles."""
     size = heights.shape[0]
     px = x + (np.arange(size) + 0.5) / size
     py = y + (np.arange(size) + 0.5) / size
@@ -192,8 +209,12 @@ def _into(high: np.ndarray, low: np.ndarray, x: int, y: int, heights: np.ndarray
         return
     ft = heights[np.ix_(keep_r, keep_c)] * M_TO_FT
     rr, cc = np.meshgrid(rows[keep_r], cols[keep_c], indexing="ij")
-    flat = rr.ravel() * COLS + cc.ravel()
-    values = np.clip(np.round(ft.ravel()), -30000, 32000).astype(np.int16)
+    ft = ft.ravel()
+    good = np.isfinite(ft) & (ft <= HIGHEST_GROUND_FT)
+    flat = (rr.ravel() * COLS + cc.ravel())[good]
+    if not flat.size:
+        return
+    values = np.clip(np.round(ft[good]), -30000, 32000).astype(np.int16)
     hi_flat, lo_flat = high.reshape(-1), low.reshape(-1)
     # Cells not yet reached hold NONE: the highest takes over from it, the
     # lowest is set where it is still NONE.
