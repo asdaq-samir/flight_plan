@@ -86,7 +86,9 @@ docker image prune -f > /dev/null
 # kept in the bucket for the next server. The planner reads the tiles as it
 # did until then, and takes the grid up within ten minutes of its being
 # there (LOOK_AGAIN_S), with no restart.
-if [ ! -f "$GRID/high_ft.npy" ] || [ -f "$GRID/rows_done.json" ]; then
+# Its files are named for how the tiles were read (vfr.ground_grid VERSION):
+# a server with only an older grid builds this one.
+if [ ! -f "$GRID/high_ft.v2.npy" ] || [ -f "$GRID/rows_done.v2.json" ]; then
   nohup sh -c "docker compose --env-file '$ENV_FILE' -f docker-compose.prod.yml run --rm --no-deps --entrypoint python planning-service -m vfr.ground_grid \
     && aws s3 sync --quiet '$GRID/' 's3://$SERVER_BUCKET/ground_grid/'" > /var/log/ground_grid.log 2>&1 &
 fi

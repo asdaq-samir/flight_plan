@@ -462,11 +462,6 @@ _SUA_REFS = {"SFC": 1, "AGL": 2, "MSL": 3}
 #: at the 90th percentile and 755 at the 99th, on the 22 million cells of
 #: the lower 48 (2026-11-02).
 TERRAIN_POOL = 2
-#: No ground in the lower 48 stands higher than Mount Whitney, 14,505 ft
-#: (USGS); the grid holds 102 cells far above it (32,000 ft in the
-#: Everglades), tiles misread, which the phones take as no ground known
-#: rather than warn of a mountain over Florida.
-HIGHEST_GROUND_FT = 14600
 
 
 def _terrain(region: str) -> bytes | None:
@@ -488,7 +483,11 @@ def _terrain(region: str) -> bytes | None:
     per = ground_grid.PER_DEG
     r0, c0 = round((south - ground_grid.SOUTH) * per), round((west - ground_grid.WEST) * per)
     block = np.asarray(high[r0:r0 + REGION_DEG * per, c0:c0 + REGION_DEG * per]).astype(np.int32)
-    block[block > HIGHEST_GROUND_FT] = ground_grid.NONE
+    # A guard, as vfr.ground_grid now leaves voids and impossible peaks
+    # out of its cells: one still above Mount Whitney (a grid built before
+    # that, not yet repaired) is no ground known to the phones rather than
+    # a 32,000 ft mountain over Florida.
+    block[block > ground_grid.HIGHEST_GROUND_FT] = ground_grid.NONE
     rows, cols = block.shape[0] // TERRAIN_POOL, block.shape[1] // TERRAIN_POOL
     tiles = block[:rows * TERRAIN_POOL, :cols * TERRAIN_POOL].reshape(rows, TERRAIN_POOL, cols, TERRAIN_POOL)
     known = tiles != ground_grid.NONE
@@ -570,7 +569,10 @@ def write_phone(pack: Pack, out_dir: Path, veil: list[dict]) -> dict:
             old.unlink()
     part.mkdir(parents=True, exist_ok=True)
     index = {"cycle": pack.cycle, "built_at": time.time(), "tolerance_deg": PHONE_TOLERANCE_DEG,
-             "worst_nm": PHONE_WORST_NM, "region_deg": REGION_DEG, "terrain_pool": TERRAIN_POOL, "regions": []}
+             "worst_nm": PHONE_WORST_NM, "region_deg": REGION_DEG, "terrain_pool": TERRAIN_POOL,
+             # The ground grid the terrain was read from: a new one (its voids
+             # read as no height, 2026-11-02) builds the phones' packs again.
+             "ground_grid": ground_grid_version(), "regions": []}
     for region in sorted(regions):
         west, south, east, north = region_bounds(region)
         held = regions[region]
@@ -676,6 +678,14 @@ def phone_pack_path(cycle: str, region: str, pack_dir=None) -> Path | None:
     return path if path.is_file() else None
 
 
+def ground_grid_version() -> str | None:
+    """The ground grid the phones' terrain is read from, by its version;
+    None where it is not built."""
+    from . import ground_grid
+
+    return ground_grid.VERSION if ground_grid._grids() is not None else None
+
+
 def ensure_phone(pack_dir=None) -> dict | None:
     """The phones' packs built from the planner's pack where they are not
     of its cycle; None where they already are, or there is no pack."""
@@ -686,7 +696,7 @@ def ensure_phone(pack_dir=None) -> dict | None:
         return None
     index = phone_index(pack_dir)
     if (index is not None and index.get("cycle") == pack.cycle and index.get("tolerance_deg") == PHONE_TOLERANCE_DEG
-            and index.get("terrain_pool") == TERRAIN_POOL):
+            and index.get("terrain_pool") == TERRAIN_POOL and index.get("ground_grid") == ground_grid_version()):
         return None
     started = time.monotonic()
     index = write_phone(pack, Path(pack_dir or PACK_DIR) / "phone", list(airspace_at.mode_c_airports()))
