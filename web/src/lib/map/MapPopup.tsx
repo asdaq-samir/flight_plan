@@ -5,7 +5,7 @@ import { Popup, useMap } from "react-leaflet";
 import { MapInsetsContext } from "../../components/mapChrome";
 import { SheetCard } from "../../components/SheetCard";
 import { useIsMobile } from "../../hooks/use-mobile";
-import { Halo } from "./Halo";
+import { CardHalo } from "./Halo";
 
 /**
  * Every popup a marker opens, on either map.
@@ -118,7 +118,7 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = tr
       {/* Leaflet's, for when the card is open; never in sight. */}
       <Popup ref={popup} {...props} className="hidden" autoPan={false} closeButton={false} eventHandlers={handlers} />
       {open && at && pans && <PanClear at={at} />}
-      {open && at && ring && <Halo at={at} />}
+      {open && at && ring && <CardHalo at={at} />}
       {open && <SheetCard onClose={() => popup.current?.close()}>{children}</SheetCard>}
     </>
   );

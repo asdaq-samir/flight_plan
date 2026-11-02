@@ -1,5 +1,7 @@
 import type { PathOptions } from "leaflet";
+import { useEffect } from "react";
 import { CircleMarker } from "react-leaflet";
+import { create } from "zustand";
 
 // Constants, not literals: react-leaflet restyles a path whenever its
 // pathOptions is a new object.
@@ -21,4 +23,19 @@ export function Halo({ at }: { at: { lat: number; lon: number } }) {
       <CircleMarker center={center} radius={19} pathOptions={RING} />
     </>
   );
+}
+
+/** How many map cards (MapPopup) wear their ring now: while one does, the
+ *  airport whose card is under it gives up its own (AirportsLayer), so one
+ *  thing is ringed at a time -- the owner's screenshot (2026-11-02) had
+ *  KLAS and the VPVSM waypoint opened over it ringed both. */
+export const useCardRings = create<{ open: number }>(() => ({ open: 0 }));
+
+/** A map card's ring, counted while it is drawn. */
+export function CardHalo({ at }: { at: { lat: number; lon: number } }) {
+  useEffect(() => {
+    useCardRings.setState(s => ({ open: s.open + 1 }));
+    return () => useCardRings.setState(s => ({ open: s.open - 1 }));
+  }, []);
+  return <Halo at={at} />;
 }
