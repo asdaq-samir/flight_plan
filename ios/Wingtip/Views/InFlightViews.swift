@@ -432,11 +432,9 @@ struct ShareMenu: View {
             ShareLink(item: RouteShare.link(plan)) { Label("Share Link", systemImage: "link") }
             ShareLink(item: RouteShare.navLogText(plan)) { Label("Nav Log as Text", systemImage: "list.number") }
             Button { pdf() } label: { Label("Nav Log as PDF", systemImage: "doc.richtext") }
-            Button { file("fpl", RouteShare.fpl(plan)) } label: { Label("Flight Plan (.fpl)", systemImage: "square.and.arrow.down") }
-            Button { file("gfp", RouteShare.gfp(plan)) } label: { Label("GTN Flight Plan (.gfp)", systemImage: "square.and.arrow.down") }
-            Button { gpx() } label: { Label("GPX Route (.gpx)", systemImage: "square.and.arrow.down") }
             // The .fpl to Garmin Pilot from the share sheet, which sends it
-            // on to a Connext panel (as the web app's ShareMenu).
+            // on to a Connext panel (as the web app's ShareMenu): wireless,
+            // no files for an SD card or a USB stick (the owner, 2026-11-02).
             Button { file("fpl", RouteShare.fpl(plan)) } label: { Label("Open in Garmin Pilot", systemImage: "paperplane") }
             Button { foreflight() } label: { Label("Open in ForeFlight", systemImage: "paperplane") }
         } label: {
@@ -452,17 +450,10 @@ struct ShareMenu: View {
         sharing = ShareItems(items: [url])
     }
 
-    /// A panel's file of the route, to the share sheet: Files for an SD
-    /// card, or Garmin Pilot.
+    /// The route's Garmin flight plan to the share sheet, for Garmin Pilot.
     private func file(_ ext: String, _ text: String) {
         let url = FileManager.default.temporaryDirectory.appending(path: "\(RouteShare.fileName(plan)).\(ext)")
         guard (try? text.write(to: url, atomically: true, encoding: .utf8)) != nil else { return }
-        sharing = ShareItems(items: [url])
-    }
-
-    private func gpx() {
-        let url = FileManager.default.temporaryDirectory.appending(path: "\(RouteShare.fileName(plan)).gpx")
-        guard (try? RouteShare.gpx(plan).write(to: url, atomically: true, encoding: .utf8)) != nil else { return }
         sharing = ShareItems(items: [url])
     }
 
@@ -528,10 +519,6 @@ enum RouteShare {
         return out
     }
 
-    private static func xml(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
-    }
-
     /// Text as a Garmin comment or route name takes it: capitals, figures,
     /// spaces and "/", 25 at most (FlightPlanv1.xsd), as the web's
     /// lib/avionics garminText.
@@ -586,38 +573,6 @@ enum RouteShare {
                       "      <waypoint-type>\(p.type)</waypoint-type>", "      <waypoint-country-code></waypoint-country-code>", "    </route-point>"]
         }
         lines += ["  </route>", "</flight-plan>", ""]
-        return lines.joined(separator: "\n")
-    }
-
-    /// A place as the GTN writes it: N44546W123001 is 44° 54.6' N,
-    /// 123° 0.1' W (190-01007-F0 2.4.1).
-    static func gtnPlace(_ lat: Double, _ lon: Double) -> String {
-        func part(_ value: Double, _ digits: Int, _ pos: String, _ neg: String) -> String {
-            let tenths = Int((abs(value) * 600).rounded())
-            return (value < 0 ? neg : pos) + String(format: "%0\(digits)d%03d", tenths / 600, tenths % 600)
-        }
-        return part(lat, 2, "N", "S") + part(lon, 3, "E", "W")
-    }
-
-    /// A GTN flight plan (.gfp, 190-01007-F0): one line, each point ":F:"
-    /// with its place, a checkpoint at its place alone. The web app's adds
-    /// airways and procedures.
-    static func gfp(_ plan: Plan) -> String {
-        "FPN/RI:" + garminPoints(plan).map { p in
-            p.type == "USER WAYPOINT" ? "F:\(gtnPlace(p.lat, p.lon))" : "F:\(p.id),\(gtnPlace(p.lat, p.lon))"
-        }.joined(separator: ":")
-    }
-
-    /// A GPX 1.1 route through the points.
-    static func gpx(_ plan: Plan) -> String {
-        let name = plan.idents.joined(separator: " → ")
-        var lines = ["<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
-                     "<gpx version=\"1.1\" creator=\"Wingtip Maps\" xmlns=\"http://www.topografix.com/GPX/1/1\">",
-                     "  <rte>", "    <name>\(xml(name))</name>"]
-        for point in points(plan) {
-            lines.append(String(format: "    <rtept lat=\"%.6f\" lon=\"%.6f\"><name>%@</name></rtept>", point.lat, point.lon, xml(point.name)))
-        }
-        lines += ["  </rte>", "</gpx>", ""]
         return lines.joined(separator: "\n")
     }
 
