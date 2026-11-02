@@ -127,7 +127,6 @@ export type WaypointsInView = Schemas["WaypointsInView"];
 /** The Class B, C and D in the map's view, and the VORs and fixes
  *  (AirspaceLayer, NavaidsLayer). */
 export type AirspaceVolume = Schemas["AirspaceVolume"];
-export type WaypointCodes = Schemas["WaypointCodes"];
 export type AirspaceInView = Schemas["AirspaceInView"];
 export type VorPin = Schemas["VorPin"];
 export type FixPin = Schemas["FixPin"];

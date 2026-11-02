@@ -2,10 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { settle, slow, controlsInSight } from "./helpers";
 
 /**
- * The route to another app, which sends it on to the panel's GPS
- * wirelessly: Garmin Pilot (a Garmin flight plan to the share sheet) and
- * ForeFlight (its own links); a file the browser cannot share is
- * downloaded.
+ * The route to ForeFlight, which sends it on to the panel's GPS
+ * wirelessly, by ForeFlight's own links.
  */
 
 /** C81 to KDLH, its checkpoints in, as the files go through them. */
@@ -17,33 +15,13 @@ async function routeWithCheckpoints(page: Page) {
   await controlsInSight(page);
 }
 
-/** A file the route's menu item downloads, its name and its text. */
-async function downloaded(page: Page, testId: string): Promise<{ name: string; text: string }> {
-  await page.getByTestId("share-route").click();
-  const download = page.waitForEvent("download");
-  await page.getByTestId(testId).click();
-  const file = await download;
-  return { name: file.suggestedFilename(), text: await (await file.createReadStream()).toArray().then(chunks => Buffer.concat(chunks).toString()) };
-}
-
-test("Open in Garmin Pilot hands the Garmin flight plan to the share sheet, here a download", async ({ page }) => {
+test("the route goes to the panel through ForeFlight, with no Garmin Pilot item and no files for an SD card or a USB stick", async ({ page }) => {
   await routeWithCheckpoints(page);
-  const file = await downloaded(page, "open-garmin-pilot");
-  expect(file.name).toBe("C81-KDLH.fpl");
-  const text = file.text;
-  expect(text).toContain(`<flight-plan xmlns="http://www8.garmin.com/xmlschemas/FlightPlan/v1">`);
-  expect(text).toContain("<waypoint-identifier>C81</waypoint-identifier>");
-  expect(text).toContain("<waypoint-identifier>KDLH</waypoint-identifier>");
-  // Each field's ICAO region from the FAA's CIFP, which tells a panel
-  // which of two of a name is meant; a checkpoint a user waypoint named
-  // from its own name, its region empty, as the schema asks.
-  expect(text).toContain("<identifier>KDLH</identifier>\n      <type>AIRPORT</type>\n      <country-code>K3</country-code>");
-  expect(text).toMatch(/<identifier>[A-Z0-9]{1,6}<\/identifier>\n {6}<type>USER WAYPOINT<\/type>\n {6}<country-code><\/country-code>/);
-  // The route's name and comments in Garmin's characters.
-  for (const m of text.matchAll(/<(comment|route-name)>([^<]*)</g)) expect(m[2]).toMatch(/^[A-Z0-9 /]{0,25}$/);
-  // No files for an SD card or a USB stick: the owner's call (2026-11-02).
   await page.getByTestId("share-route").click();
-  for (const id of ["export-fpl", "export-gfp", "export-gpx", "export-user-wpt", "export-dynon"]) await expect(page.getByTestId(id)).toHaveCount(0);
+  await expect(page.getByTestId("open-foreflight")).toBeVisible();
+  // The owner's calls (2026-11-02): wireless through ForeFlight, which
+  // most pilots have; no Garmin Pilot, no SD card or USB stick.
+  for (const id of ["open-garmin-pilot", "export-fpl", "export-gfp", "export-gpx", "export-user-wpt", "export-dynon"]) await expect(page.getByTestId(id)).toHaveCount(0);
 });
 
 test("the route goes to ForeFlight in one button: its checkpoints' pack the first time, then the route by their names", async ({ page }) => {
