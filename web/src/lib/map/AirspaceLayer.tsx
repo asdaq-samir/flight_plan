@@ -102,8 +102,13 @@ export function AirspaceLayer() {
 }
 
 /** One volume's lines, drawn again only when its answer changes. */
+// Not clipped to the view (noClip): Leaflet cuts a line at its renderer's
+// bounds, the view and a tenth round it, and draws it again only once a
+// pan ends, so all through a pan a ring was cut straight where the view
+// had been (the owner's screenshots, 2026-11-02, Minneapolis' and Kansas
+// City's Class B). A volume's line is a few hundred points at most.
 const VolumeLines = memo(function VolumeLines({ volume }: { volume: AirspaceVolume }) {
-  return <Polyline positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_LINE[volume.airspace_class]} interactive={false} />;
+  return <Polyline positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_LINE[volume.airspace_class]} interactive={false} noClip />;
 });
 
 /** The words along the lines: 11 px bold, the map's smallest type, each
@@ -232,7 +237,7 @@ const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagati
 const VolumeTap = memo(function VolumeTap({ volume }: { volume: AirspaceVolume }) {
   return (
     <Polyline
-      positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_TAP[volume.airspace_class]} eventHandlers={STOP_CLICK}
+      positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_TAP[volume.airspace_class]} eventHandlers={STOP_CLICK} noClip
       // Its class as an option of its own: react-leaflet gives pathOptions
       // to setStyle, which sets no class, so the browser tests found none.
       className={AIRSPACE_TAP[volume.airspace_class].className}
