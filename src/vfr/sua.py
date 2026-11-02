@@ -17,6 +17,7 @@ import logging
 import pickle
 import threading
 import time
+from functools import lru_cache
 from pathlib import Path
 
 import requests
@@ -154,9 +155,34 @@ def _everything() -> list:
         return held
 
 
+class _InPack:
+    """An area's shape left in the cycle pack, read when a query reaches
+    it: the pack is mapped, so its shapes are not held in the planner's
+    memory twice. The same WKB the planner read into shapes before, so
+    the same shapes and the same answers."""
+
+    __slots__ = ("pack", "index")
+
+    def __init__(self, pack, index: int):
+        self.pack, self.index = pack, index
+
+
+@lru_cache(maxsize=512)
+def _read_in_pack(pack, index: int):
+    offsets = pack.offsets("sua")
+    return shapely.from_wkb(bytes(pack.section("sua.wkb")[offsets[index]:offsets[index + 1]]))
+
+
+def _shape(geometry):
+    """An area's shape, read from the pack where it was left there."""
+    return _read_in_pack(geometry.pack, geometry.index) if isinstance(geometry, _InPack) else geometry
+
+
 def _read_disk() -> tuple[float, list] | None:
     """The areas kept on disk, when kept within the day: the cycle pack's
-    (vfr.pack), unless a download since has been kept beside it."""
+    (vfr.pack), unless a download since has been kept beside it -- its
+    shapes left in the mapped pack (_InPack), which held 39 MB of shapes
+    in each planner process (2026-11-02)."""
     from . import pack as cycle_pack
 
     packed = cycle_pack.current()
@@ -164,9 +190,8 @@ def _read_disk() -> tuple[float, list] | None:
         fetched_at = packed.meta.get("sua_fetched_at") or 0.0
         newer = _DISK.exists() and _DISK.stat().st_mtime > packed.built_at
         if 0 <= time.time() - fetched_at < HOLD_S and not newer:
-            shapes = packed.geometries("sua")
-            return fetched_at, [({"properties": p}, g, tuple(float(v) for v in b))
-                                for p, g, b in zip(packed.attrs("sua"), shapes, packed.boxes("sua"))]
+            return fetched_at, [({"properties": p}, _InPack(packed, i), tuple(float(v) for v in b))
+                                for i, (p, b) in enumerate(zip(packed.attrs("sua"), packed.boxes("sua")))]
     try:
         with _DISK.open("rb") as f:
             fetched_at, properties, wkb, bounds = pickle.load(f)
@@ -201,9 +226,15 @@ def _shapes_in(bbox: tuple) -> list:
     max_lon), [(feature, shape)]."""
     min_lat, min_lon, max_lat, max_lon = bbox
     return [
-        (feature, geometry) for feature, geometry, (w, s, e, n) in _everything()
+        (feature, _shape(geometry)) for feature, geometry, (w, s, e, n) in _everything()
         if w <= max_lon and e >= min_lon and s <= max_lat and n >= min_lat
     ]
+
+
+def everything() -> list:
+    """Every area, its shape read: [(feature, shape, bounds)], for a pack
+    written from them (vfr.pack)."""
+    return [(feature, _shape(geometry), bounds) for feature, geometry, bounds in _everything()]
 
 
 def along_route(route_start: tuple, route_end: tuple, fixes: list | None = None) -> list:
