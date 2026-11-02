@@ -177,14 +177,12 @@ interface EdgeWords { key: string; x: number; y: number; angle: number; text: st
  * airports' marks. One SVG for all of them, in the map's pixels at this
  * zoom: a pan moves it with the pane and costs nothing, and the words are
  * worked out again only when the zoom, the volumes or the airports drawn
- * change. Hidden while a zoom or pinch is under way, when its pixels are
- * the zoom's before, and shown again at the new zoom's once it ends.
+ * change; under a pinch each is moved to where its ring now is.
  */
 const EdgeLabels = memo(function EdgeLabels({ volumes, zoom }: { volumes: AirspaceVolume[]; zoom: number }) {
   const map = useMap();
   const fields = useDrawnAirports(s => s.fields);
   const holder = useRef<HTMLDivElement>(null);
-  const zooming = useRef(false);
   const words = useMemo(() => {
     const at = (lat: number, lon: number) => map.project([lat, lon], zoom);
     const clear: Box[] = fields.map(f => {
@@ -211,21 +209,35 @@ const EdgeLabels = memo(function EdgeLabels({ volumes, zoom }: { volumes: Airspa
   }, [map, volumes, zoom, fields]);
 
   // The SVG's corner at the world's pixel origin, so the words' world
-  // pixels land where the pane's own do; shown only once they are this
-  // zoom's.
+  // pixels land where the pane's own do; each word at its spot scaled to
+  // the zoom the map is at now, its size kept, so that through a pinch
+  // the words stay on their rings and are not taken away until the
+  // fingers lift (the owner, 2026-11-02: the overlays "seem to be
+  // recalculating every time I put my finger on the map or zoom or pan").
+  // Hidden only through a zoom's animation (a wheel's step, a double
+  // tap), whose chart the stylesheet eases, and shown again as it ends.
+  const svg = useRef<SVGSVGElement>(null);
+  const animating = useRef(false);
   const place = useCallback(() => {
     const el = holder.current;
-    if (!el || zooming.current || words.zoom !== map.getZoom()) return;
+    if (!el || animating.current) return;
     L.DomUtil.setPosition(el, map.getPixelOrigin().multiplyBy(-1));
+    const scale = map.getZoomScale(map.getZoom(), words.zoom);
+    const texts = svg.current?.children ?? [];
+    for (let i = 0; i < texts.length; i++) {
+      const w = words.out[i];
+      if (w) texts[i]!.setAttribute("transform", spotAt(w, scale));
+    }
     el.style.visibility = "";
   }, [map, words]);
   useMapEvents(useMemo(() => ({
-    zoomstart: () => {
-      zooming.current = true;
+    zoomanim: () => {
+      animating.current = true;
       if (holder.current) holder.current.style.visibility = "hidden";
     },
+    zoom: place,
     zoomend: () => {
-      zooming.current = false;
+      animating.current = false;
       place();
     },
     viewreset: place,
@@ -234,10 +246,10 @@ const EdgeLabels = memo(function EdgeLabels({ volumes, zoom }: { volumes: Airspa
 
   return (
     <div ref={holder} className="pointer-events-none absolute left-0 top-0" style={HOLDER_STYLE}>
-      <svg width="1" height="1" overflow="visible" aria-hidden="true" style={EDGE_STYLE}>
+      <svg ref={svg} width="1" height="1" overflow="visible" aria-hidden="true" style={EDGE_STYLE}>
         {words.out.map(w => (
           <text
-            key={w.key} data-airspace-edge-label="" x={w.x} y={w.y} transform={`rotate(${w.angle} ${w.x} ${w.y})`}
+            key={w.key} data-airspace-edge-label="" transform={spotAt(w, 1)}
             fill={w.ink} textAnchor="middle" dominantBaseline="central"
           >{w.text}</text>
         ))}
@@ -245,6 +257,12 @@ const EdgeLabels = memo(function EdgeLabels({ volumes, zoom }: { volumes: Airspa
     </div>
   );
 });
+
+/** A word's place, at its spot in the world's pixels at the words' zoom
+ *  times `scale`, and turned along its line. */
+function spotAt(w: EdgeWords, scale: number): string {
+  return `translate(${w.x * scale} ${w.y * scale}) rotate(${w.angle})`;
+}
 
 /** Hidden until it is placed at this zoom (EdgeLabels' place). */
 const HOLDER_STYLE = { visibility: "hidden" } as const;
