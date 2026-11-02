@@ -13,6 +13,7 @@
  * head and off the chart while flying the airplane.
  */
 import type { Leg } from "./api/types";
+import { stopwatchTime } from "./clock";
 import { angleBetween, deg, normalizeDeg, rad } from "./geo";
 
 /** The figures a student estimates, and how far off is still reasonable. */
@@ -75,5 +76,5 @@ export function reasonable(key: EstimateKey, typed: number, exact: number): bool
 /** Minutes and seconds, as a stopwatch shows them: "2:07". */
 export function stopwatch(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  return stopwatchTime(s);
 }
