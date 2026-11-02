@@ -705,6 +705,14 @@ html[data-tv] .leaflet-container:focus {
   50%, 100% { background-color: var(--light-b); }
 }
 
+/* The microphone's pill while it listens (RadioLayer's Waveform): its
+   bars rising and falling, as Siri's waveform does; still, low, where
+   the reader has asked for less motion (motion-safe). */
+@keyframes wave {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
 /* The toasts in the app's typeface: sonner sets its own system stack,
    so on an iPhone they read in San Francisco beside an app in Inter.
    The html selector outranks sonner's, which is injected after this. */

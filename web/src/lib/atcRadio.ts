@@ -34,10 +34,17 @@ interface AtcRadio {
   /** Where the route is, its ends' "lat,lon;lat,lon", for the places the
    *  radio names to be looked for near (/api/clearance). */
   near: string;
+  /** How it listens: once, from the map's microphone, as Siri does (the
+   *  owner's pick A, 2026-11-02), or on and on from the Radio card, with
+   *  the captions over the map. */
+  mode: "once" | "radio" | null;
+  /** The microphone's pill over the map: listening, then what was heard
+   *  with what it offers, until put away. */
+  pill: { listening: boolean; text: string; error: string | null } | null;
 }
 
 export const useAtcRadio = create<AtcRadio>(() => ({
-  listening: false, error: null, heard: [], seen: null, cardOpen: false, cardText: null, tail: null, near: "",
+  listening: false, error: null, heard: [], seen: null, cardOpen: false, cardText: null, tail: null, near: "", mode: null, pill: null,
 }));
 
 /** The newest call to us not yet put away, settled. */
