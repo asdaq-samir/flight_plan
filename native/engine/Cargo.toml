@@ -1,0 +1,18 @@
+[package]
+name = "wingtip-engine"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The planner's figures in Rust, with no network and no Python: route options' straight lines, the airspace at a point, the cycle pack"
+
+[lib]
+name = "wingtip_engine"
+
+# None: the engine is plain Rust, so the phone can carry it as it is.
+[dependencies]
+
+# The shared fixtures (tests/fixtures/native) are gzip and JSON, which the
+# Python reads as well.
+[dev-dependencies]
+flate2 = "1.1"
+serde_json = { version = "1.0", features = ["float_roundtrip"] }

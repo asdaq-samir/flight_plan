@@ -95,7 +95,9 @@ jobs:
       # vfr.airspace_at import: built with the runner's own Rust, in the
       # light `ci` profile (the image's is the release one; the sums are
       # the same either way, as nothing here is built for fast maths).
-      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      # The engine's own tests, on the shared fixtures the Python reads too.
+      - run: cargo test --profile ci --manifest-path native/Cargo.toml -p wingtip-engine
       - run: ruff check src/vfr tests
       - run: pytest tests/ -v
       # vfr's API documentation, from its docstrings. pdoc imports every
@@ -221,7 +223,7 @@ jobs:
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       # The planner imports vfr's Rust extension (native/), as in the test job.
-      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
       - run: ruff check app tests
       - run: pytest tests/ -v
 

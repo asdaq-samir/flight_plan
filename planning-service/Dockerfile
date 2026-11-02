@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# vfr's Rust extension (native/): route options' straight lines and the
-# airspace at a point, which the planner imports and cannot start without.
+# vfr's Rust extension (native/py, over wingtip-engine in native/engine):
+# route options' straight lines, the airspace at a point and the cycle
+# pack, which the planner imports and cannot start without.
 # Built here, with Rust copied in from its own image, so the image the
 # planner runs carries the wheel and none of the toolchain.
 FROM python:3.13-slim AS native
@@ -15,7 +16,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
 COPY native /native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    maturin build --release --compatibility linux -m /native/Cargo.toml -o /wheels
+    maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
 
 FROM python:3.13-slim
 

@@ -14,7 +14,9 @@ whether each holds it. The file's own bbox filter read every shape's
 header from the top for each tap, 15 to 56 seconds on the live planner
 (2026-10-28); pyshp parsing each candidate's vertices and shapely
 building it from lists was 75 to 95 ms a tap and the index 8.5 s at the
-start (2026-11-01).
+start (2026-11-01). Where the cycle pack (vfr.pack) was made from this very
+file, a tap asks the engine of the pack instead: the same rings, kept as
+WKB, the boxes and the walk in Rust, and nothing to index at the start.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ import numpy as np
 import shapefile
 import vfr_native
 
+from . import pack as cycle_pack
 from .geo import distance_nm
 from .once import once
 
@@ -113,10 +116,40 @@ def _volumes_index(path: str, _mtime: float) -> tuple[np.ndarray, list[tuple[int
     return boxes, volumes, mapped
 
 
+@once(maxsize=2)
+def _pack_fields(path: str, _mtime: float) -> list[dict]:
+    """Each volume's fields in the pack's airspace layer."""
+    return cycle_pack.current().attrs("airspace")
+
+
+def _packed(shp_path: Path):
+    """The cycle pack and its volumes' fields, where it was made from this
+    shapefile; None where it was not."""
+    pack = cycle_pack.current()
+    if not cycle_pack.matches(pack, "airspace", shp_path):
+        return None
+    return pack, _pack_fields(str(pack.path), pack.path.stat().st_mtime)
+
+
 def preload(shp_path) -> None:
-    """The volumes' boxes read now, at the planner's start, not at a tap."""
+    """The volumes' boxes read now, at the planner's start, not at a tap:
+    the pack's fields, or the shapefile's index where there is no pack."""
     path = Path(shp_path)
-    _volumes_index(str(path), path.stat().st_mtime)
+    if _packed(path) is None:
+        _volumes_index(str(path), path.stat().st_mtime)
+
+
+def _volume(record: dict) -> dict:
+    floor_ft, floor_ref = _floor(record)
+    return {
+        "class": (record.get("CLASS") or "").strip(),
+        "local_type": record.get("LOCAL_TYPE") or "",
+        "name": record.get("NAME") or "",
+        "ident": (record.get("IDENT") or "").strip().upper(),
+        "floor_ft": floor_ft,
+        "floor_ref": floor_ref,
+        "ceiling_ft": _ceiling(record),
+    }
 
 
 def volumes_at(lat: float, lon: float, shp_path) -> list[dict]:
@@ -124,24 +157,14 @@ def volumes_at(lat: float, lon: float, shp_path) -> list[dict]:
     "local_type", "name", "ident", "floor_ft", "floor_ref", "ceiling_ft"}
     with the ceiling in feet MSL."""
     path = Path(shp_path)
+    packed = _packed(path)
+    if packed is not None:
+        pack, fields = packed
+        return [_volume(fields[k]) for k in vfr_native.pack_holding(pack.mapped, "airspace", float(lon), float(lat))]
     boxes, volumes, mapped = _volumes_index(str(path), path.stat().st_mtime)
     near = np.flatnonzero((boxes[:, 0] <= lon) & (boxes[:, 2] >= lon) & (boxes[:, 1] <= lat) & (boxes[:, 3] >= lat))
-    found = []
-    for k in near:
-        start, length, record = volumes[k]
-        if not vfr_native.shape_holds(mapped[start:start + length], float(lon), float(lat)):
-            continue
-        floor_ft, floor_ref = _floor(record)
-        found.append({
-            "class": (record.get("CLASS") or "").strip(),
-            "local_type": record.get("LOCAL_TYPE") or "",
-            "name": record.get("NAME") or "",
-            "ident": (record.get("IDENT") or "").strip().upper(),
-            "floor_ft": floor_ft,
-            "floor_ref": floor_ref,
-            "ceiling_ft": _ceiling(record),
-        })
-    return found
+    return [_volume(volumes[k][2]) for k in near
+            if vfr_native.shape_holds(mapped[volumes[k][0]:volumes[k][0] + volumes[k][1]], float(lon), float(lat))]
 
 
 def minimums(klass: str, floor_msl: float, agl: float) -> dict | None:

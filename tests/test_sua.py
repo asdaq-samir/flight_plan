@@ -155,3 +155,24 @@ def test_a_restart_within_the_day_reads_the_areas_kept_on_disk(monkeypatch):
     with patch("vfr.sua.requests.get", return_value=_service([])) as get:
         assert sua.areas_in((44.0, -91.0, 47.0, -87.0)) == []
     assert get.called
+
+
+def test_a_restart_reads_the_areas_from_the_cycle_pack_as_downloaded(monkeypatch, tmp_path):
+    from vfr import pack as cycle_pack
+
+    features = [_feature("R-4501", "R", BOX_ON_ROUTE)]
+    with patch("vfr.sua.requests.get", return_value=_service(features)):
+        first = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    held = sua._everything()
+    shp = tmp_path / "empty.shp"
+    import shapefile
+
+    with shapefile.Writer(str(shp), shapeType=shapefile.POLYGON) as w:
+        w.field("CLASS", "C")
+    cycle_pack.write(cycle_pack.PACK_DIR, "2026-10-29", shp_path=shp, sua_held=held,
+                     sua_at=sua._CACHE["all"][0], urban=[], urban_path=None, tables={})
+    sua._CACHE.clear()  # a new process
+    sua._DISK.unlink()
+    with patch("vfr.sua.requests.get", side_effect=AssertionError("asked the service again")):
+        again = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    assert [(a, s.wkt) for a, s in again] == [(a, s.wkt) for a, s in first]

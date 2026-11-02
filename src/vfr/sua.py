@@ -155,7 +155,18 @@ def _everything() -> list:
 
 
 def _read_disk() -> tuple[float, list] | None:
-    """The areas kept on disk, when kept within the day."""
+    """The areas kept on disk, when kept within the day: the cycle pack's
+    (vfr.pack), unless a download since has been kept beside it."""
+    from . import pack as cycle_pack
+
+    packed = cycle_pack.current()
+    if packed is not None and "sua.attr" in packed.sections:
+        fetched_at = packed.meta.get("sua_fetched_at") or 0.0
+        newer = _DISK.exists() and _DISK.stat().st_mtime > packed.built_at
+        if 0 <= time.time() - fetched_at < HOLD_S and not newer:
+            shapes = packed.geometries("sua")
+            return fetched_at, [({"properties": p}, g, tuple(float(v) for v in b))
+                                for p, g, b in zip(packed.attrs("sua"), shapes, packed.boxes("sua"))]
     try:
         with _DISK.open("rb") as f:
             fetched_at, properties, wkb, bounds = pickle.load(f)
