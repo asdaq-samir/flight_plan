@@ -6,10 +6,7 @@ import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import type { Candidate, Course } from "../../../lib/api/types";
 import type { RouteCard } from "../../../lib/openCards";
-import { foreflightRoute, shareFile, type PlanPoint } from "../../../lib/flightPlanFiles";
-import { api } from "../../../lib/api/client";
-import { fplOf } from "../../../lib/avionics/fpl";
-import { panelFileName } from "../../../lib/avionics/points";
+import { foreflightRoute, type PlanPoint } from "../../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../../lib/foreflightPack";
 import { routeName } from "../../../lib/identSchema";
 import { showError } from "../../../lib/problems";
@@ -108,21 +105,6 @@ export default function ShareMenu({
     }];
   }), [course, selected]);
 
-  // The route to Garmin Pilot, which sends it on to the panel over
-  // Bluetooth (Connext): a Garmin flight plan to the share sheet. The
-  // owner's call (2026-11-02): wireless, no files for an SD card or a USB
-  // stick.
-  const toGarminPilot = useCallback(async () => {
-    if (!points.length) return;
-    const name = routeName(planned.dep, planned.dest, planned.stops);
-    try {
-      // Each point's Garmin type and ICAO region, which tell a panel which
-      // of two of a name is meant; without them a panel goes by the name.
-      await shareFile(`${panelFileName(name)}.fpl`, "application/xml", fplOf(await withCodes(points), name));
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") showError("Could not send the route", (err as Error).message);
-    }
-  }, [points, planned.dep, planned.dest, planned.stops]);
 
   // The checkpoints as a ForeFlight content pack, built by the planner
   // (lib/foreflightPack): each a waypoint with its own page, and the course
@@ -174,9 +156,10 @@ export default function ShareMenu({
             <>
               {routed && (
                 <>
-                  {/* The .fpl to Garmin Pilot from the share sheet, which sends
-                      it on to a Connext panel (Flight Stream, GTX 345, G3X). */}
-                  <DropdownMenuItem onSelect={() => void toGarminPilot()} data-testid="open-garmin-pilot"><Send />Open in Garmin Pilot</DropdownMenuItem>
+                  {/* ForeFlight sends the route on to the panel wirelessly
+                      (Garmin's Connext, Avidyne, Dynon): the owner's pick
+                      (2026-11-02), as most pilots have ForeFlight and not
+                      Garmin Pilot, and no files for an SD card or a USB stick. */}
                   {/* Links, not handlers: ForeFlight opens from a tap on its
                       own link, and a download needs one too. */}
                   {points.length > 0 && (packHref && !sentPack ? (
@@ -236,18 +219,4 @@ export default function ShareMenu({
       {askingReview && reviewSheet(() => setAskingReview(false))}
     </ResponsivePopover>
   );
-}
-
-/** The points with their Garmin types and ICAO regions, from the planner;
- *  as they are where it cannot say. */
-async function withCodes(points: PlanPoint[]): Promise<PlanPoint[]> {
-  const asked = points.filter(p => p.kind !== "checkpoint" && /^[A-Z0-9]{1,7}$/i.test(p.ident));
-  if (!asked.length) return points;
-  try {
-    const codes = await api.waypointCodes(asked.map(p => `${p.kind === "airport" ? "A" : "F"}:${p.ident.toUpperCase()}:${p.lat.toFixed(5)}:${p.lon.toFixed(5)}`).join(","));
-    const byPoint = new Map(asked.map((p, i) => [p, codes[i]]));
-    return points.map(p => (byPoint.get(p) ? { ...p, code: { type: byPoint.get(p)!.type ?? null, region: byPoint.get(p)!.region ?? null } } : p));
-  } catch {
-    return points;
-  }
 }

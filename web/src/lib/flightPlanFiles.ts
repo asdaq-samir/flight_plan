@@ -1,11 +1,20 @@
 /**
- * The route to another app: ForeFlight's own link, and a file to the
- * share sheet. The files themselves -- Garmin's .fpl and .gfp, GPX, the
- * panels' user waypoints -- are lib/avionics.
+ * The route to ForeFlight, which sends it on to the panel's GPS
+ * wirelessly (Garmin's Connext, Avidyne, Dynon): its own link. Files for
+ * an SD card or a USB stick, and Garmin Pilot, went at the owner's calls
+ * (2026-11-02).
  */
-import type { PlanPoint } from "./avionics/points";
 
-export type { PlanPoint };
+export interface PlanPoint {
+  ident: string;
+  /** What the log calls it: the airport's name, the checkpoint's. */
+  name: string;
+  kind: "airport" | "fix" | "checkpoint";
+  lat: number;
+  lon: number;
+  /** A checkpoint's waypoint in the route's ForeFlight pack (LAKE_ZURICH). */
+  waypoint?: string | null;
+}
 
 /** ForeFlight's own link to the route (https://foreflight.com/support/app-urls/):
  *  it opens ForeFlight on its map with the flight plan filled in, airports
