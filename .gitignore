@@ -66,3 +66,6 @@ ios/Wingtip.xcodeproj
 ios/.build
 ios/Wingtip/Info.plist
 ios/Wingtip/Wingtip.entitlements
+
+# The Rust extension's build output (native/, built by maturin)
+native/target/

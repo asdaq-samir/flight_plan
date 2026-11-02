@@ -253,6 +253,25 @@ def _arc_nm(chord: np.ndarray) -> np.ndarray:
     return 2 * EARTH_RADIUS_NM * np.arcsin(np.clip(chord / 2, 0.0, 1.0))
 
 
+def nearest(lat, lon, to_lat, to_lon) -> np.ndarray:
+    """For each point, the index of the nearest of the `to` points, the
+    first of them where two are as near: what np.argmin of distance_nm
+    from every point to every one gives, without PROJ asked every pair.
+    The unit vectors' dot products rank them (the nearer, the larger, on
+    the sphere); PROJ is asked only between those within rounding of the
+    nearest, so it still decides, and a tie still goes to the first. Route
+    options asked PROJ for each cell's distance to every winds-aloft
+    station and each sample of the way to every field: over half their
+    second (2026-11-02)."""
+    lat, lon = np.asarray(lat, dtype=float).reshape(-1), np.asarray(lon, dtype=float).reshape(-1)
+    to_lat, to_lon = np.asarray(to_lat, dtype=float).reshape(-1), np.asarray(to_lon, dtype=float).reshape(-1)
+    cosine = _unit_sphere(lat, lon) @ _unit_sphere(to_lat, to_lon).T
+    rows, cols = np.nonzero(cosine >= cosine.max(axis=1, keepdims=True) - 1e-9)
+    nm = np.full(cosine.shape, np.inf)
+    nm[rows, cols] = distance_nm(lat[rows], lon[rows], to_lat[cols], to_lon[cols])
+    return np.argmin(nm, axis=1)
+
+
 def nearest_neighbour_nm(lat, lon) -> np.ndarray:
     """Great-circle distance from each point to its closest *other*
     point, in input order -- "clutter". Two landmarks a tenth of a mile

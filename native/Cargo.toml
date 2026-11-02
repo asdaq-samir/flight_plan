@@ -1,0 +1,24 @@
+[package]
+name = "vfr_native"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+name = "vfr_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.25", features = ["extension-module", "abi3-py311"] }
+numpy = "0.25"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+# CI's tests build this rather than the release profile: a quicker
+# compile, the same answers.
+[profile.ci]
+inherits = "release"
+lto = false
+codegen-units = 16

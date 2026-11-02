@@ -159,3 +159,23 @@ def test_every_pair_at_once_matches_one_at_a_time_on_the_real_obstacles_round_ch
     got = congested.congested(lats, lons)
     assert got.tolist() == _one_at_a_time(tree, lats, lons).tolist()
     assert 0 < got.sum() < lats.size
+
+
+def test_the_urban_areas_are_read_back_from_their_wkb_as_drawn(monkeypatch, tmp_path):
+    import zipfile
+
+    import shapefile
+
+    base = tmp_path / "ua"
+    with shapefile.Writer(str(base), shapeType=shapefile.POLYGON) as w:
+        w.field("NAME", "C")
+        w.poly([[[-93.3, 44.9], [-93.2, 44.9], [-93.2, 45.0], [-93.3, 45.0], [-93.3, 44.9]]])
+        w.record("Minneapolis")
+    archive = tmp_path / "ua.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for part in ("shp", "shx", "dbf"):
+            z.write(base.with_suffix(f".{part}"), f"ua.{part}")
+    monkeypatch.setattr(congested, "URBAN_AREAS_PATH", archive)
+    drawn = congested._urban_areas()
+    monkeypatch.setattr(shapefile, "Reader", None)  # the shapefile is not read again
+    assert [a.wkt for a in congested._urban_areas()] == [a.wkt for a in drawn]
