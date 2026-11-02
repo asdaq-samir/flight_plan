@@ -35,6 +35,8 @@ book figures, and the handbook governs.
 from functools import lru_cache
 from typing import NamedTuple
 
+import vfr_native
+
 #: The altitude a profile's cruise TAS and fuel burn are the aeroplane's
 #: at, on a standard day: the middle of where a light single cruises
 #: across country, and a row of every handbook's cruise table.
@@ -80,20 +82,19 @@ _HIGHEST_FT = 60000.0
 
 def isa_temp_c(altitude_ft: float) -> float:
     """A standard day's temperature at a pressure altitude."""
-    return ISA_SEA_LEVEL_C - ISA_LAPSE_C_PER_FT * altitude_ft
+    return vfr_native.isa_temp_c(altitude_ft)
 
 
 def density_ratio(altitude_ft: float, oat_c: float) -> float:
     """Sigma: the air's density at a pressure altitude and temperature,
     over a standard day's at sea level."""
-    altitude_ft = min(max(altitude_ft, _LOWEST_FT), _HIGHEST_FT)
-    pressure_ratio = (1 - _LAPSE_OVER_T0_PER_FT * altitude_ft) ** _PRESSURE_EXPONENT
-    return pressure_ratio * _SEA_LEVEL_K / (oat_c + 273.15)
+    # The engine's (wingtip_engine::flight), the same atmosphere.
+    return vfr_native.density_ratio(altitude_ft, oat_c)
 
 
 def density_altitude_ft(sigma: float) -> float:
     """The altitude at which a standard day's air has density sigma."""
-    return (1 - sigma ** (1 / (_PRESSURE_EXPONENT - 1))) / _LAPSE_OVER_T0_PER_FT
+    return vfr_native.density_altitude_ft(sigma)
 
 
 def full_throttle_power(sigma: float) -> float:

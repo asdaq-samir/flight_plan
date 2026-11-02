@@ -32,5 +32,5 @@ pyshp==3.1.6        # vfr.airspace reads the FAA Class Airspace shapefile
 pyproj==3.8.0       # vfr.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
 pydantic==2.13.5    # vfr.narrative -- the agents' request model; what planning-service's FastAPI resolves too
 scipy==1.18.1       # vfr.geo's cluster_points KD-tree (imported at vfr.geo's module level)
-pygeomag==1.1.0     # vfr.magnetic -- the World Magnetic Model, evaluated locally
+pygeomag==1.1.0     # the oracle tests/test_flight_rules.py holds the engine's WMM-2025 (vfr.magnetic) to
 astral==3.2         # vfr.sun -- civil twilight, which sets the night fuel reserve

@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::HashSet;
 use wingtip_engine::grid::{self, Cell, Costs, Geom, Point, StraightError, Straighten, Values};
-use wingtip_engine::{airspace, geo, pack, phone};
+use wingtip_engine::{airspace, flight, geo, metar, notam, pack, phone, taf, tfr, validity, winds, wmm};
 
 /// A C-contiguous array's elements, numpy's own memory read in place.
 struct Ro<'a, T: Element>(&'a [ReadOnlyCell<T>]);
@@ -169,6 +169,126 @@ fn distance_nm(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     geo::distance_nm(lat1, lon1, lat2, lon2)
 }
 
+// The flight's figures (wingtip_engine::flight, wmm, validity): one copy
+// for the planner and the phones.
+
+#[pyfunction]
+fn wind_correction_deg(true_course_deg: f64, wind_from_deg: f64, wind_kt: f64, tas_kt: f64) -> f64 {
+    flight::wind_correction_deg(true_course_deg, wind_from_deg, wind_kt, tas_kt)
+}
+
+#[pyfunction]
+fn groundspeed_kt(true_course_deg: f64, wind_from_deg: f64, wind_kt: f64, tas_kt: f64, wca_deg: f64) -> f64 {
+    flight::groundspeed_kt(true_course_deg, wind_from_deg, wind_kt, tas_kt, wca_deg)
+}
+
+#[pyfunction]
+fn wind_triangle(true_course_deg: f64, tas_kt: f64, wind_from_deg: f64, wind_kt: f64) -> Option<(f64, f64, f64)> {
+    flight::wind_triangle(true_course_deg, tas_kt, wind_from_deg, wind_kt)
+}
+
+#[pyfunction]
+fn is_eastbound(magnetic_course_deg: f64) -> bool {
+    flight::is_eastbound(magnetic_course_deg)
+}
+
+#[pyfunction]
+fn lowest_vfr_cruising_altitude(floor_ft: f64, magnetic_course_deg: f64) -> f64 {
+    flight::lowest_vfr_cruising_altitude(floor_ft, magnetic_course_deg)
+}
+
+#[pyfunction]
+fn reserve_min(ifr: bool, night: bool) -> f64 {
+    flight::reserve_min(ifr, night)
+}
+
+#[pyfunction]
+fn isa_temp_c(altitude_ft: f64) -> f64 {
+    flight::isa_temp_c(altitude_ft)
+}
+
+#[pyfunction]
+fn density_ratio(altitude_ft: f64, oat_c: f64) -> f64 {
+    flight::density_ratio(altitude_ft, oat_c)
+}
+
+#[pyfunction]
+fn density_altitude_ft(sigma: f64) -> f64 {
+    flight::density_altitude_ft(sigma)
+}
+
+#[pyfunction]
+fn pressure_altitude_ft(elevation_ft: f64, altimeter_inhg: f64) -> f64 {
+    flight::pressure_altitude_ft(elevation_ft, altimeter_inhg)
+}
+
+#[pyfunction]
+fn declination(lat: f64, lon: f64, year: f64) -> f64 {
+    wmm::declination(lat, lon, year)
+}
+
+fn product(name: &str) -> PyResult<validity::Product> {
+    Ok(match name {
+        "metar" => validity::Product::Metar,
+        "speci" => validity::Product::Speci,
+        "taf" => validity::Product::Taf,
+        "winds" => validity::Product::WindsAloft,
+        "advisory" => validity::Product::Advisory,
+        _ => return Err(PyValueError::new_err("metar, speci, taf, winds or advisory")),
+    })
+}
+
+#[pyfunction]
+#[pyo3(signature = (product_name, observed=None, last_routine=None, valid_to=None))]
+fn weather_expires_at(product_name: &str, observed: Option<i64>, last_routine: Option<i64>, valid_to: Option<i64>) -> PyResult<Option<i64>> {
+    Ok(validity::expires_at(product(product_name)?, observed, last_routine, valid_to))
+}
+
+#[pyfunction]
+#[pyo3(signature = (product_name, now, observed=None, last_routine=None, valid_from=None, valid_to=None))]
+fn weather_in_force(product_name: &str, now: i64, observed: Option<i64>, last_routine: Option<i64>,
+                    valid_from: Option<i64>, valid_to: Option<i64>) -> PyResult<bool> {
+    Ok(validity::in_force(product(product_name)?, now, observed, last_routine, valid_from, valid_to))
+}
+
+// The products as sent, read by the engine: each answer JSON in the
+// planner's own names, None where the text is no such product.
+
+#[pyfunction]
+fn metar_json(raw: &str) -> Option<String> {
+    metar::parse(raw).map(|m| metar::to_json(&m))
+}
+
+#[pyfunction]
+fn taf_json(raw: &str, near: i64) -> Option<String> {
+    taf::parse(raw, near).map(|t| taf::to_json(&t))
+}
+
+#[pyfunction]
+fn winds_json(text: &str, now: i64) -> Option<String> {
+    winds::parse(text, now).map(|p| winds::to_json(&p))
+}
+
+/// A TFR's detail; ValueError where the file is not XML, None where it
+/// holds no NOTAM.
+#[pyfunction]
+fn tfr_detail_json(text: &str) -> PyResult<Option<String>> {
+    if let Err(e) = wingtip_engine::xml::parse(text) {
+        return Err(PyValueError::new_err(format!("not XML: {} at {}", e.what, e.at)));
+    }
+    Ok(tfr::parse_detail(text).map(|d| tfr::to_json(&d)))
+}
+
+#[pyfunction]
+fn notams_json(text: &str) -> String {
+    notam::to_json(&notam::from_fns(text))
+}
+
+#[pyfunction]
+fn notam_text_json(raw: &str) -> Option<String> {
+    notam::from_text(raw).map(|n| notam::to_json(&[n]))
+}
+
 #[pymodule]
 fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(line_cells, m)?)?;
@@ -183,5 +303,16 @@ fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(airspace_at_json, m)?)?;
     m.add_function(wrap_pyfunction!(distance_nm, m)?)?;
     m.add_function(wrap_pyfunction!(region_of, m)?)?;
+    for f in [
+        wrap_pyfunction!(wind_correction_deg, m)?, wrap_pyfunction!(groundspeed_kt, m)?, wrap_pyfunction!(wind_triangle, m)?,
+        wrap_pyfunction!(is_eastbound, m)?, wrap_pyfunction!(lowest_vfr_cruising_altitude, m)?, wrap_pyfunction!(reserve_min, m)?,
+        wrap_pyfunction!(isa_temp_c, m)?, wrap_pyfunction!(density_ratio, m)?, wrap_pyfunction!(density_altitude_ft, m)?,
+        wrap_pyfunction!(pressure_altitude_ft, m)?, wrap_pyfunction!(declination, m)?,
+        wrap_pyfunction!(weather_expires_at, m)?, wrap_pyfunction!(weather_in_force, m)?,
+        wrap_pyfunction!(metar_json, m)?, wrap_pyfunction!(taf_json, m)?, wrap_pyfunction!(winds_json, m)?,
+        wrap_pyfunction!(tfr_detail_json, m)?, wrap_pyfunction!(notams_json, m)?, wrap_pyfunction!(notam_text_json, m)?,
+    ] {
+        m.add_function(f)?;
+    }
     Ok(())
 }

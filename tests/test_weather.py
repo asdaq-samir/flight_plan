@@ -17,48 +17,58 @@ import requests
 from vfr import weather
 from vfr.weather import (
     WeatherServiceError,
-    _decode_temp_c,
-    _decode_wind,
     ceiling_visibility_along_route,
     hazards_along_route,
     metar_for_idents,
 )
 
 
+FD_HEADER = "FT  3000    6000    9000   12000   18000   24000  30000  34000  39000"
+
+
+def _group(group: str, column: str) -> dict | None:
+    """One FD group, set under its column of a product's header, as the
+    engine reads it (wingtip_engine::winds): its wind and temperature, or
+    None where the group holds no wind."""
+    at = FD_HEADER.index(column)
+    product = weather.parse_fd_text(f"{FD_HEADER}\nDLH{' ' * (at - 3)}{group}\n")
+    return product.get("DLH", {}).get(int(column))
+
+
 def test_decode_wind_normal_group():
-    assert _decode_wind("2712") == (270.0, 12.0)
+    assert _group("2712", "3000") == {"wind_dir_true_deg": 270.0, "wind_speed_kt": 12.0, "temp_c": None}
 
 
 def test_decode_wind_speed_offset_above_100kt():
     # dir_code 70 >= 51 -> actual dir (70-50)*10=200, actual speed 20+100=120
-    assert _decode_wind("7020") == (200.0, 120.0)
+    assert _group("7020", "3000")["wind_speed_kt"] == 120.0
+    assert _group("7020", "3000")["wind_dir_true_deg"] == 200.0
 
 
 def test_decode_wind_light_and_variable():
-    assert _decode_wind("9900") == (None, 0.0)
+    assert _group("9900", "3000") == {"wind_dir_true_deg": None, "wind_speed_kt": 0.0, "temp_c": None}
 
 
 def test_decode_wind_from_a_temp_bearing_group():
     # first 4 chars are still a valid wind code even when a temp follows
-    assert _decode_wind("3028+18") == (300.0, 28.0)
+    assert _group("3028+18", "6000") == {"wind_dir_true_deg": 300.0, "wind_speed_kt": 28.0, "temp_c": 18.0}
 
 
 def test_decode_wind_too_short_returns_none():
-    assert _decode_wind("12") is None
+    assert _group("12", "3000") is None
 
 
 def test_decode_temp_c_signed_seven_char_group():
-    assert _decode_temp_c("3028+18") == 18.0
-    assert _decode_temp_c("3028-05") == -5.0
+    assert _group("3028-05", "6000")["temp_c"] == -5.0
 
 
 def test_decode_temp_c_unsigned_six_char_group_is_always_negative():
     # header states "TEMPS NEG ABV 24000" -- sign is implied, not written
-    assert _decode_temp_c("270162") == -62.0
+    assert _group("270162", "30000")["temp_c"] == -62.0
 
 
 def test_decode_temp_c_wind_only_four_char_group_has_no_temp():
-    assert _decode_temp_c("2712") is None
+    assert _group("2712", "3000")["temp_c"] is None
 
 
 # --- the cache files -------------------------------------------------------
