@@ -185,6 +185,10 @@ extension Clearance {
     /// figures 0 to 7.
     static func isSquawk(_ code: String) -> Bool { matches(code, "^[0-7]{4}$") }
 
+    /// "Cleared ILS approach", "cleared visual": an approach, not a route.
+    static let approachWords = ["ils", "rnp", "rnav", "gps", "loc", "visual", "approach", "vor", "ndb"]
+    /// Whose a frequency is, said before it.
+    static let facilities: Set<String> = ["departure", "center", "approach", "tower", "ground", "clearance", "information", "apron", "radio", "unicom", "director"]
     static let altitudeWords: Set<String> = ["climb", "maintain", "descend", "cruise", "expect"]
     static let afterRoute: Set<String> = altitudeWords.union(["squawk", "contact", "transponder"])
     static let limitEnds: Set<String> = afterRoute.union(["via", "as", "then", "radar", "vectors", "direct", "fly", "heading"])
@@ -289,14 +293,18 @@ extension Clearance {
         let toks = tokens(text)
         func tok(_ k: Int) -> Token? { k >= 0 && k < toks.count ? toks[k] : nil }
         var out = Clearance()
-        var rest = 0
+        // Where the limit and the route were read, which the rest is not
+        // looked for in: the altitudes, frequency and code are said before
+        // "cleared" too.
+        var from = toks.count, rest = 0
         if let cleared = toks.firstIndex(where: { $0.word == "cleared" || $0.word == "clear" }) {
+            from = cleared
             var i = cleared + 1
             if ["into", "through"].contains(tok(i)?.word ?? "") {
                 out.classB = toks[i..<min(i + 5, toks.count)].contains { $0.word == "bravo" || $0.word == "b" }
                 if let airspace = toks.indices.first(where: { $0 > i && toks[$0].word == "airspace" }) { i = airspace + 1 } else { i += 4 }
-            } else if ["for", "on"].contains(tok(i)?.word ?? "") || (tok(i)?.word == "to" && tok(i + 1)?.word == "land") {
-                i = toks.count
+            } else if (["for", "on"] + approachWords).contains(tok(i)?.word ?? "") || (tok(i)?.word == "to" && tok(i + 1)?.word == "land") {
+                // No route in it, the altitudes after it still read.
             } else {
                 if tok(i)?.word == "to" || tok(i)?.num == "2" { i += 1 }
                 let start = i
@@ -314,11 +322,16 @@ extension Clearance {
             }
             rest = i
         }
-        var i = rest
+        var i = 0
         while i < toks.count {
+            if i >= from && i < rest { i = rest }
+            guard i < toks.count else { break }
             let t = toks[i]
-            if (t.word == "maintain" || t.word == "cruise") && out.maintainFt == nil {
+            if ["maintain", "cruise", "climb", "descend"].contains(t.word) && out.maintainFt == nil {
+                // "Climb and maintain" is read at its "maintain"; "climb to
+                // five thousand" at the verb.
                 var k = i + 1
+                while t.word == "climb" || t.word == "descend", ["to", "initially", "altitude"].contains(tok(k)?.word ?? "") { k += 1 }
                 if tok(k)?.word == "vfr" { out.vfr = true; k += 1 }
                 if tok(k)?.word == "at", tok(k + 1)?.word == "or", let side = tok(k + 2)?.word, side == "below" || side == "above" {
                     out.maintainLimit = "at or \(side)"
@@ -344,8 +357,8 @@ extension Clearance {
                 }
             } else if let num = t.num, out.frequency == nil {
                 let said = toks[max(0, i - 4)..<i].map(\.word)
-                let facility = said.reversed().first { ["departure", "center", "approach", "tower", "ground", "clearance"].contains($0) }
-                if let frequency = frequencyOf(num), facility != nil || said.contains("contact") || said.contains("frequency") {
+                let facility = said.reversed().first { facilities.contains($0) }
+                if let frequency = frequencyOf(num), facility != nil || said.contains("contact") || said.contains("monitor") || said.contains("frequency") {
                     out.frequency = frequency
                     out.facility = facility
                 }
