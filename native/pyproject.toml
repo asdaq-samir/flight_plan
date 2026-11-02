@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.8,<2"]
+build-backend = "maturin"
+
+[project]
+name = "vfr-native"
+version = "0.1.0"
+requires-python = ">=3.11"
+description = "vfr's hot loops in Rust: route options' straight lines and the airspace at a point"
+
+[tool.maturin]
+module-name = "vfr_native"
+features = ["pyo3/extension-module"]

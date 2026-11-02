@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import logging
 import math
+import pickle
 import threading
 import time
 from pathlib import Path
@@ -85,11 +86,33 @@ def _urban_areas() -> list:
         part = URBAN_AREAS_PATH.with_suffix(".part")
         part.write_bytes(resp.content)
         part.replace(URBAN_AREAS_PATH)
+    # Kept beside the download as WKB, keyed by its size and time: pyshp
+    # and shapely building every outline from lists was 3 to 4 CPU-seconds
+    # of each planner start, where WKB is read back in a fraction of one
+    # (2026-11-01).
+    stat = URBAN_AREAS_PATH.stat()
+    key = (stat.st_size, stat.st_mtime)
+    kept = URBAN_AREAS_PATH.with_suffix(".wkb.pkl")
+    try:
+        with kept.open("rb") as f:
+            kept_key, wkb = pickle.load(f)
+        if kept_key == key:
+            return list(shapely.from_wkb(wkb))
+    except Exception:  # noqa: BLE001 -- missing or damaged: read from the shapefile again
+        pass
     import shapefile
     from shapely.geometry import shape
 
     with shapefile.Reader(str(URBAN_AREAS_PATH)) as reader:
-        return [shape(s.__geo_interface__) for s in reader.iterShapes()]
+        areas = [shape(s.__geo_interface__) for s in reader.iterShapes()]
+    part = kept.with_suffix(".part")
+    try:
+        with part.open("wb") as f:
+            pickle.dump((key, shapely.to_wkb(areas)), f, protocol=pickle.HIGHEST_PROTOCOL)
+        part.replace(kept)
+    except OSError as err:
+        logger.warning("Census urban areas not kept as WKB: %s", err)
+    return areas
 
 
 def _places() -> list:

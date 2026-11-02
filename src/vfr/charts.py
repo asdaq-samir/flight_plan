@@ -722,6 +722,43 @@ _SMOOTH_MARGIN_PX = 5
 _SMOOTH_FILTER = Image.Resampling.LANCZOS
 
 
+# Each thread's sheets kept open, the newest few: opening one read its
+# CRS and built PROJ a database context afresh, 14% of a tile's time in
+# proj.db's sqlite (2026-11-01). A dataset is not to be shared between
+# threads, hence one set a thread. Keyed by the file's size and time, so
+# a sheet swapped in by a refresh is opened anew.
+_OPEN = threading.local()
+_OPEN_PER_THREAD = 6
+
+
+def _opened(path) -> object:
+    """The raster at `path`, open, from this thread's few."""
+    import rasterio
+
+    held = getattr(_OPEN, "held", None)
+    if held is None:
+        held = _OPEN.held = {}
+    stat = os.stat(path)
+    key = (str(path), stat.st_size, stat.st_mtime_ns)
+    src = held.pop(key, None)
+    if src is None or src.closed:
+        src = rasterio.open(path)
+        while len(held) >= _OPEN_PER_THREAD:
+            held.pop(next(iter(held))).close()
+    held[key] = src  # the newest last
+    return src
+
+
+def _web_mercator():
+    """EPSG:3857 parsed once, not at every warp."""
+    from rasterio.crs import CRS
+
+    crs = getattr(_web_mercator, "crs", None)
+    if crs is None:
+        crs = _web_mercator.crs = CRS.from_epsg(3857)
+    return crs
+
+
 def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat: float,
               mask: Path | None = None, face: Box | None = None) -> tuple:
     """Part of a raster, reprojected to web mercator: (height, width,
@@ -752,16 +789,14 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
     it is a fraction rather than a yes or no because two sheets that
     meet inside one pixel each cover less than half of it: a yes-or-no
     at half left such a pixel to nobody, a hairline along the seam."""
-    import rasterio
-
     xmin, ymin, xmax, ymax = bbox_3857
-    with rasterio.open(path) as src:
-        ground_m_per_px = (xmax - xmin) / width * math.cos(math.radians(centre_lat))
-        upsample = float(src.res[0]) / ground_m_per_px
-        if upsample >= _SMOOTH_FROM:
-            return _warp_smooth(src, bbox_3857, width, height, upsample, mask, face)
-        oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
-        rgb, inside = _warp_grid(src, bbox_3857, width * oversample, height * oversample, mask)
+    src = _opened(path)
+    ground_m_per_px = (xmax - xmin) / width * math.cos(math.radians(centre_lat))
+    upsample = float(src.res[0]) / ground_m_per_px
+    if upsample >= _SMOOTH_FROM:
+        return _warp_smooth(src, bbox_3857, width, height, upsample, mask, face)
+    oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
+    rgb, inside = _warp_grid(src, bbox_3857, width * oversample, height * oversample, mask)
     if oversample == 1:
         return rgb, inside.astype(np.float32)
     # Box-filter the covered samples alone (the others zeroed, the
@@ -780,7 +815,6 @@ def _warp_grid(src, bbox_3857: tuple, w: int, h: int, mask: Path | None) -> tupl
     """The raster warped nearest-neighbour onto a (h, w) web-mercator
     grid over `bbox_3857`: its RGB, and which of the grid's pixels it
     covers (less any collar `mask` cuts out and the pale rim of the scan)."""
-    import rasterio
     from rasterio.enums import Resampling
     from rasterio.transform import from_bounds
     from rasterio.vrt import WarpedVRT
@@ -789,13 +823,13 @@ def _warp_grid(src, bbox_3857: tuple, w: int, h: int, mask: Path | None) -> tupl
     # No nodata value: with one, GDAL "protects" it by rewriting
     # every source pixel of that index to the next one, and index
     # 0 is the chart's paper. add_alpha gives the mask instead.
-    grid = dict(crs="EPSG:3857", transform=from_bounds(xmin, ymin, xmax, ymax, w, h), width=w, height=h,
+    grid = dict(crs=_web_mercator(), transform=from_bounds(xmin, ymin, xmax, ymax, w, h), width=w, height=h,
                 resampling=Resampling.nearest)
     with WarpedVRT(src, add_alpha=True, **grid) as vrt:
         rgb = chart_faces.read_rgb(vrt)
         alpha = vrt.read(src.count + 1)
     if mask is not None:
-        with rasterio.open(mask) as mask_src, WarpedVRT(mask_src, **grid) as vrt:
+        with WarpedVRT(_opened(mask), **grid) as vrt:
             alpha = np.minimum(alpha, vrt.read(1))
     return rgb, chart_faces.without_raster_rim(alpha >= 128, rgb, src, bbox_3857)
 

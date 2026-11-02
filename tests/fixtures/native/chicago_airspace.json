@@ -1,0 +1,415 @@
+{
+ "O'Hare": {
+  "at": [
+   41.9786,
+   -87.9048
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "B",
+    "local_type": "CLASS_B",
+    "name": "CHICAGO CLASS B",
+    "ident": "ORD",
+    "floor_ft": 3000.0,
+    "floor_ref": "MSL",
+    "ceiling_ft": 10000.0
+   },
+   {
+    "class": "B",
+    "local_type": "CLASS_B",
+    "name": "CHICAGO CLASS B",
+    "ident": "ORD",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 10000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "KDPA": {
+  "at": [
+   41.9078,
+   -88.2486
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "D",
+    "local_type": "CLASS_D",
+    "name": "CHICAGO, DUPAGE AIRPORT CLASS D",
+    "ident": "DPA",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 3300.0
+   },
+   {
+    "class": "B",
+    "local_type": "CLASS_B",
+    "name": "CHICAGO CLASS B",
+    "ident": "ORD",
+    "floor_ft": 4000.0,
+    "floor_ref": "MSL",
+    "ceiling_ft": 10000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Midway": {
+  "at": [
+   41.7868,
+   -87.7522
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "C",
+    "local_type": "CLASS_C",
+    "name": "CHICAGO CLASS C",
+    "ident": "MDW",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 3600.0
+   },
+   {
+    "class": "B",
+    "local_type": "CLASS_B",
+    "name": "CHICAGO CLASS B",
+    "ident": "ORD",
+    "floor_ft": 3000.0,
+    "floor_ref": "MSL",
+    "ceiling_ft": 10000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Midway's shelf": {
+  "at": [
+   41.7,
+   -87.6
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "C",
+    "local_type": "CLASS_C",
+    "name": "CHICAGO CLASS C",
+    "ident": "MDW",
+    "floor_ft": 1900.0,
+    "floor_ref": "MSL",
+    "ceiling_ft": 3600.0
+   },
+   {
+    "class": "B",
+    "local_type": "CLASS_B",
+    "name": "CHICAGO CLASS B",
+    "ident": "ORD",
+    "floor_ft": 3600.0,
+    "floor_ref": "MSL",
+    "ceiling_ft": 10000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Wheeling under O'Hare's shelf": {
+  "at": [
+   42.1222,
+   -87.9045
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "B",
+    "local_type": "CLASS_B",
+    "name": "CHICAGO CLASS B",
+    "ident": "ORD",
+    "floor_ft": 3000.0,
+    "floor_ref": "MSL",
+    "ceiling_ft": 10000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E2",
+    "name": "WHEELING CLASS E2",
+    "ident": "PWK",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "D",
+    "local_type": "CLASS_D",
+    "name": "WHEELING CLASS D",
+    "ident": "PWK",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 3000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Lake Michigan off Chicago": {
+  "at": [
+   41.9,
+   -87.4
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "B",
+    "local_type": "CLASS_B",
+    "name": "CHICAGO CLASS B",
+    "ident": "ORD",
+    "floor_ft": 3600.0,
+    "floor_ref": "MSL",
+    "ceiling_ft": 10000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Rockford": {
+  "at": [
+   42.1954,
+   -89.0972
+  ],
+  "volumes": [
+   {
+    "class": "D",
+    "local_type": "CLASS_D",
+    "name": "CHICAGO/ROCKFORD CLASS D",
+    "ident": "RFD",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 3200.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO/ROCKFORD CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Aurora": {
+  "at": [
+   41.7719,
+   -88.4757
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "D",
+    "local_type": "CLASS_D",
+    "name": "CHICAGO, AURORA MUNI AIRPORT CLASS D",
+    "ident": "ARR",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 3200.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Gary": {
+  "at": [
+   41.6163,
+   -87.4128
+  ],
+  "volumes": [
+   {
+    "class": "D",
+    "local_type": "CLASS_D",
+    "name": "GARY CLASS D",
+    "ident": "GYY",
+    "floor_ft": 0.0,
+    "floor_ref": "SFC",
+    "ceiling_ft": 3100.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "GARY CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "INDIANA CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "GRIFFITH CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ },
+ "Joliet": {
+  "at": [
+   41.52,
+   -88.18
+  ],
+  "volumes": [
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "CHICAGO CLASS E5",
+    "ident": "",
+    "floor_ft": 700.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   },
+   {
+    "class": "E",
+    "local_type": "CLASS_E5",
+    "name": "ILLINOIS CLASS E5",
+    "ident": "",
+    "floor_ft": 1200.0,
+    "floor_ref": "AGL",
+    "ceiling_ft": 18000.0
+   }
+  ]
+ }
+}
