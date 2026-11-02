@@ -155,7 +155,7 @@ export default function ClearanceCard({ onDone }: {
       <div className={cn("grid gap-2", canListen() ? "grid-cols-2" : "grid-cols-1")}>
         {canListen() && (
           <CardAction
-            icon={listening ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />} label={listening ? "Stop" : "Listen"}
+            icon={listening ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />} label={listening ? "Stop" : "Keep Listening"}
             pressed={listening} onClick={toggle} testId="clearance-toggle"
           />
         )}
