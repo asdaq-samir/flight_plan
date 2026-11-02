@@ -517,10 +517,11 @@ test("an airplane's card is laid out as an airport's: its pictures across the to
   expect(line.y + line.height).toBeLessThanOrEqual(head.y + head.height);
 });
 
-test("an airplane's card has Follow, Alert, Debrief and the star in a row, Share and the close on its pictures, its flight's state and height in its summary, and its airport a tap away", async ({ page }) => {
+test("an airplane's card has Follow, Alert and Debrief in a row, Share at the left of its pictures and the star beside the close, its flight's state and height in its summary, and its airport a tap away", async ({ page }) => {
   // The owner's pick of the redesign (A2): the actions a row under the
-  // pictures, Follow filled, as Maps' are under a place's; the star on the
-  // pictures beside the close since the owner's ask of 2026-10-29.
+  // pictures, Follow filled, as Maps' are under a place's -- three since
+  // the owner moved the star beside the close and Share to the pictures'
+  // top left (2026-10-29, 3d3fc388), as the airport card's are.
   await sky(page, { ...DETAIL, departed: { ident: "C81", name: "Campbell Airport", at: Date.now() / 1000 - 3600 } });
   await page.goto("/app/plan?flight=a0b7d8");
   await settle(page);
@@ -535,12 +536,17 @@ test("an airplane's card has Follow, Alert, Debrief and the star in a row, Share
   // Following it as it opens, said on its action.
   await expect(card.getByTestId("flight-follow")).toHaveAttribute("aria-pressed", "true");
   await expect(card.getByTestId("flight-follow")).toContainText("Following");
-  // Share and the close on the pictures, the bar's out of the pill.
+  // Share, the star and the close on the pictures, the bar's out of the
+  // pill: Share at the left, the star beside the close at the right.
   const head = (await card.getByTestId("flight-head").boundingBox())!;
-  for (const id of ["flight-share", "flight-favorite", "flight-close"]) {
+  const [share, star, close] = await Promise.all(["flight-share", "flight-favorite", "flight-close"].map(async id => {
     const button = (await card.getByTestId(id).boundingBox())!;
     expect(button.y >= head.y && button.y + button.height <= head.y + head.height, `${id} on the pictures`).toBe(true);
-  }
+    return button;
+  }));
+  expect(share!.x + share!.width, "Share at the left").toBeLessThan(head.x + head.width / 2);
+  expect(star!.x, "the star at the right").toBeGreaterThan(head.x + head.width / 2);
+  expect(star!.x + star!.width, "the star before the close").toBeLessThanOrEqual(close!.x);
   await expect(card.getByTestId("flight-share")).toHaveAccessibleName("Share UAL2088");
   // Descending 1,200 ft a minute, at 7,000 ft and 250 kt: said in its summary.
   await expect(card.getByTestId("flight-state")).toHaveText("DES");

@@ -101,6 +101,13 @@ body .leaflet-container {
   font-family: inherit;
 }
 
+/* Safari only, Leaflet's own stylesheet sets the tiles' image-rendering to
+   -webkit-optimize-contrast, which WebKit takes as crisp edges: past the
+   chart's last drawn zoom the tiles were blown up in hard blocks, undoing
+   the smooth enlargement the owner chose to match ForeFlight's close zoom
+   (2026-10-28). The browser's own smoothing, as everywhere else. */
+.leaflet-safari .chart-tiles .leaflet-tile { image-rendering: auto; }
+
 /* Clear of the map panel (MapPanel): its edge's corner controls sit
    past what the panel covers at rest (MapPage sets the insets), and past
    the home indicator, moving in the sheet's time (mapChrome's
@@ -488,8 +495,14 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
    luminance 0.21), the inks a touch deeper so its black type still reads
    5:1 on it, its colours kept so blue and magenta airspace stay told
    apart.
-   A GPU colour matrix, applied to each tile layer's own container. */
-html.dark[data-chart-night="dimmed"] .chart-tiles {
+   A GPU colour matrix, applied to each tile image, not to the tile
+   layer's container: Leaflet's container is a box of no size whose
+   tiles overflow it under a 3D transform, and Safari's engine drew a
+   filter there through an offscreen pass in bands, which showed on the
+   owner's iPhone as thin light lines straight across the chart about
+   150 points apart (2026-10-30); WebKit in the Playwright image left
+   that container undimmed altogether, and dims each tile. */
+html.dark[data-chart-night="dimmed"] .chart-tiles .leaflet-tile {
   filter: brightness(0.5) contrast(1.15);
 }
 /* The course over a dimmed chart in the palette's lighter magenta

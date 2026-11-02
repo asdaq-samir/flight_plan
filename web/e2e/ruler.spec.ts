@@ -1,5 +1,5 @@
 import { test, expect, type CDPSession, type Page } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { mapStill, settle, slow } from "./helpers";
 
 /**
  * The map's ruler (MapRuler), as ForeFlight's: two fingers held still on
@@ -30,6 +30,12 @@ test("two fingers held on the chart bring up the ruler, with its course magnetic
   test.skip(page.viewportSize()!.width >= 768, "a phone's fingers");
   await page.goto("/app/plan?place=C81");
   await settle(page);
+  // In at Campbell and still: on CI's runner the map was still on the
+  // country as the fingers came down, the ruler 1,105 nm across, and it
+  // went on in to C81 under them, so the level read after was not the one
+  // read before (run 41014180625).
+  await expect.poll(() => tileLevel(page), { timeout: slow(15000) }).toBeGreaterThan(4);
+  await mapStill(page);
   const { touch, map } = await fingers(page);
   // Over the chart, above the sheet.
   const y = map.y + 160;

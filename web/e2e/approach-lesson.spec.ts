@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openTab, settle, slow } from "./helpers";
+import { closeCard, openTab, settle, slow } from "./helpers";
 
 /**
  * An approach taught (ApproachLesson), at the owner's ask ("do it all",
@@ -98,7 +98,9 @@ test("a picked approach is taught: briefed a step at a time, flown fix by fix wi
   await expect(quiz.getByTestId("approach-lesson-progress")).toHaveText("2 of 8");
 
   // Closed, nothing of it left on the chart.
-  await lesson.getByTestId("approach-lesson-close").click();
+  // On a phone the tab bar's close, the card drawing none of its own
+  // under it (SheetCard); its own from md up.
+  await closeCard(page, "approach-lesson-close");
   await expect(lesson).toHaveCount(0);
   await expect(page.locator(".leaflet-lesson-pane path")).toHaveCount(0);
 });
