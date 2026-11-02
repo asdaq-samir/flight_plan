@@ -74,7 +74,9 @@ test("the imagery over the chart comes in under a finger's pan, before it lifts"
 test("a pinch brings in the airports and the VFR waypoints of each level it passes, before the fingers lift", async ({ page }) => {
   await openOnC81(page);
   // Fields with no report and VFR waypoints across every box asked for:
-  // at the region's zoom neither is drawn, from 8 both are.
+  // at the region's zoom neither is drawn, from 8 both are -- regional
+  // fields, as a small one's mark waits for 10 since the owner's "Do two
+  // levels up" (2026-10-29, 507308ae: AirportsLayer's SHOWN_FROM).
   const grid = (url: string, row: (i: number, j: number, lat: number, lon: number) => object) => {
     const q = new URL(url).searchParams;
     const [s, w, n, e] = ["south", "west", "north", "east"].map(k => Number(q.get(k)));
@@ -83,7 +85,7 @@ test("a pinch brings in the airports and the VFR waypoints of each level it pass
     return out;
   };
   await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => route.fulfill({ json: {
-    airports: grid(route.request().url(), (i, j, lat, lon) => ({ ident: `G${i}${j}`, name: "Grid", lat, lon, kind: "small", flight_category: null, military: null })),
+    airports: grid(route.request().url(), (i, j, lat, lon) => ({ ident: `G${i}${j}`, name: "Grid", lat, lon, kind: "medium", flight_category: null, military: null })),
   } }));
   await page.route(url => url.pathname.endsWith("/api/planner/waypoints/in-view"), route => route.fulfill({ json: {
     waypoints: grid(route.request().url(), (i, j, lat, lon) => ({ ident: `VPG${i}${j}`, lat, lon, description: null })),
@@ -98,14 +100,20 @@ test("a pinch brings in the airports and the VFR waypoints of each level it pass
   expect(await targets.count()).toBe(0);
   await expect(diamonds).toHaveCount(0);
   // Two fingers spreading from 60 to 180 points apart: three times as
-  // close, a level and a half in.
+  // close, a level and a half in. Each 6 points out at a step, so the
+  // second step is past the ruler's 10 (lib/map/ruler's STILL_PX): at 3 a
+  // step, on a busy runner the fourth came after the ruler's 400 ms hold,
+  // the ruler came up and took the pinch (MapRuler), and the map stayed
+  // at 7 (run 41014180625; here, the fourth move at 476 ms).
   const at = await chartMiddle(page);
   const touch = await fingers(page);
   await touch("touchStart", [[at.x - 30, at.y], [at.x + 30, at.y]]);
-  for (let i = 1; i <= 20; i++) {
-    await touch("touchMove", [[at.x - 30 - i * 3, at.y], [at.x + 30 + i * 3, at.y]]);
+  for (let i = 1; i <= 10; i++) {
+    await touch("touchMove", [[at.x - 30 - i * 6, at.y], [at.x + 30 + i * 6, at.y]]);
     await page.waitForTimeout(30);
   }
+  // A pinch, not a ruler.
+  await expect(page.getByTestId("map-ruler")).toHaveCount(0);
   // Still held: the fields' targets and the waypoints' diamonds drawn for
   // the level the pinch is at. They waited for the fingers to lift.
   await expect.poll(() => targets.count(), { timeout: slow(5_000) }).toBeGreaterThan(0);

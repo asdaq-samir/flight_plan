@@ -126,7 +126,9 @@ const INK: Record<AirspaceVolume["airspace_class"], string> = {
  *  the sheet's dark at night, so the words read over the chart's own
  *  print without a plate of their own (the owner, 2026-10-29). */
 const EDGE_STYLE = {
-  fontSize: EDGE_TEXT_PX, fontWeight: 700, fontVariantNumeric: "tabular-nums",
+  // iOS's Caption 2, 11 on 13 (TEXT.caption): set here, the SVG took the
+  // map's own 1.5 leading, 16.5, off the iOS scale (the audit's P3).
+  fontSize: EDGE_TEXT_PX, lineHeight: "13px", fontWeight: 700, fontVariantNumeric: "tabular-nums",
   stroke: "var(--airspace-halo)", strokeWidth: 3, strokeLinejoin: "round", paintOrder: "stroke",
 } as const;
 
