@@ -103,6 +103,24 @@ export function OwnShipLayer() {
     }),
     [map, setFollow],
   ));
+  // The pilot's own move of the map -- a drag, the wheel, a pinch, a
+  // double tap -- by the recentre it came after: the opening's recentre
+  // still waiting on its first fix is dropped then (below).
+  const movedAt = useRef(-1);
+  useEffect(() => {
+    const el = map.getContainer();
+    const moved = () => { movedAt.current = useOwnShip.getState().recentred; };
+    el.addEventListener("wheel", moved, { passive: true });
+    el.addEventListener("touchmove", moved, { passive: true });
+    el.addEventListener("dblclick", moved);
+    map.on("dragstart", moved);
+    return () => {
+      el.removeEventListener("wheel", moved);
+      el.removeEventListener("touchmove", moved);
+      el.removeEventListener("dblclick", moved);
+      map.off("dragstart", moved);
+    };
+  }, [map]);
   // Kept in the middle of what the panel leaves of the map, not of the
   // whole container under it (centreClear).
   // A tap's recentre waits for the first fix where the GPS has none yet,
@@ -115,6 +133,15 @@ export function OwnShipLayer() {
     const still = prefersReducedMotion();
     if (flown.current !== recentred) {
       flown.current = recentred;
+      // The page's own opening (locateOnOpen) with the pilot already at
+      // the map before the first fix came -- a Mac's can take ten seconds
+      // and more -- leaves the map where they put it, and does not follow:
+      // it jumped back out to the opening's zoom under them (the owner's
+      // recording, 2026-11-02).
+      if (recentreZoom === OPEN_ZOOM && movedAt.current === recentred) {
+        setFollow(false);
+        return;
+      }
       // The zoom asked for -- the region round it on opening (locateOnOpen's
       // OPEN_ZOOM) -- or the arrow's close in. From the whole country
       // straight there, as Maps opens on the position: a flight in from the
@@ -169,7 +196,7 @@ export function OwnShipLayer() {
     panClear(map, [fix.lat, fix.lon], simulated
       ? { animate: !still, duration: SIMULATED_FIX_MS / 1000, easeLinearity: 1 }
       : { animate: !still, duration: 0.5 });
-  }, [map, enabled, fix, follow, recentred, recentreZoom, simulated]);
+  }, [map, enabled, fix, follow, recentred, recentreZoom, simulated, setFollow]);
   // A dry run's airplane, its rings with it, glides from one fix to the
   // next over the time between them, at the owner's notice ("the dry run
   // movement on the map is not very smooth"): put at each fix, it moved
