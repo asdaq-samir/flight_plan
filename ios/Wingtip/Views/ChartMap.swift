@@ -185,14 +185,16 @@ struct ChartMap: UIViewRepresentable {
     }
 
     static func routePadding(in map: MKMapView) -> UIEdgeInsets {
-        // On the iPad the sidebar and the inspector are beside the map
-        // (their safe areas), the figures along its foot; on the iPhone
-        // the sheet covers the lower half.
-        if RootLayout.of(map.traitCollection.horizontalSizeClass == .regular ? .regular : .compact, pad: map.traitCollection.userInterfaceIdiom == .pad) == .split {
-            let safe = map.safeAreaInsets
+        // On the iPad and iPhone Duo open the sidebar and the inspector
+        // are beside the map (their safe areas), the figures along its
+        // foot; on the iPhone the sheet covers the lower half. The sides
+        // keep their own insets: iPhone Duo's differ left and right.
+        let safe = map.safeAreaInsets
+        let trait = map.traitCollection
+        if RootLayout.of(UserInterfaceSizeClass(trait.horizontalSizeClass), UserInterfaceSizeClass(trait.verticalSizeClass)) == .split {
             return UIEdgeInsets(top: safe.top + 80, left: safe.left + 40, bottom: safe.bottom + 120, right: safe.right + 40)
         }
-        return UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
+        return UIEdgeInsets(top: 80, left: safe.left + 40, bottom: map.bounds.height * 0.5 + 40, right: safe.right + 40)
     }
 
     /// A moving airplane's point brought back into the part of the map in
