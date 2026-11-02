@@ -149,7 +149,6 @@ const SaveFlightButton = fromRoutePanel("SaveFlightButton");
 const ReviewAskItem = fromRoutePanel("ReviewAskItem");
 const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
 const RouteBox = fromRoutePanel("RouteBox");
-const ClearanceButton = fromRoutePanel("ClearanceButton");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
 const AltitudeGroup = fromRoutePanel("AltitudeGroup");
@@ -1491,10 +1490,10 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // place a call said, found near the route, from where the airplane is,
   // and the altitude it gave flown.
   const callSign = aircraft.tail ?? (N_NUMBER.test(shortName(aircraft.label)) ? shortName(aircraft.label) : null);
-  useEffect(() => useAtcRadio.setState({ tail: callSign }), [callSign]);
   const nearNow = course
     ? [course.departure, course.destination].map(end => `${end.lat.toFixed(3)},${end.lon.toFixed(3)}`).join(";")
     : "";
+  useEffect(() => useAtcRadio.setState({ tail: callSign, near: nearNow }), [callSign, nearNow]);
   useEffect(() => {
     useRadioActions.setState({
       directTo: async said => {
@@ -1522,6 +1521,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     if (typed.length) void typeProcedures(typed, { dep: parts.dep, dest: parts.dest });
     if (altitudeFt) flyAltitude(altitudeFt);
   }, [setRoute, typeProcedures, flyAltitude]);
+  const plannedStops = planned.stops;
+  useEffect(() => {
+    useRadioActions.setState({ route: { dep: planned.dep, stops: plannedStops, dest: planned.dest }, enter: enterClearance });
+    return () => useRadioActions.setState({ enter: null });
+  }, [planned.dep, plannedStops, planned.dest, enterClearance]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,
@@ -1684,7 +1688,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The side view, a card over FPL as the nav log is (ProfileCard).
   const profileShown = profileOpen && tab === "fpl" && routed && !briefShown && !navLogShown;
   // The map's Stops (StopsCard), a card over FPL as the Profile is, opened
-  // from its button among the map's (StopsAlongButton).
+  // from the Airport tab's Find Nearby (its button among the map's gave its
+  // place to the radio's microphone, 2026-11-02).
   const stopsOpen = useStopsAlong(st => st.open);
   const setStopsOpen = useStopsAlong(st => st.setOpen);
   // With a route or none: with none, the stops are round the pilot.
@@ -3103,7 +3108,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           directTo={directParam} onDirectTo={directToPoint}
           onClear={clearRoute}
           footer={routeControls}
-          listen={<ClearanceButton route={{ dep: planned.dep, stops: planned.stops, dest: planned.dest }} onEnter={enterClearance} />}
         />
         </SearchNear.Provider>
         </Suspense>

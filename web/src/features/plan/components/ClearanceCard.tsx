@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Mic, Route as RouteGlyph, Square } from "lucide-react";
 import { cn } from "cn";
@@ -9,14 +9,11 @@ import { Textarea } from "../../../components/ui/textarea";
 import { api } from "../../../lib/api/client";
 import { clearedRoute, heardAny, placesAsked, readClearance, type ClearedItem, type Found, type FoundPlace } from "../../../lib/clearance";
 import { canListen } from "../../../lib/listen";
-import { useAtcRadio } from "../../../lib/atcRadio";
+import { useAtcRadio, useRadioActions } from "../../../lib/atcRadio";
 import { startRadio, stopRadio } from "../../../lib/atcListening";
 import { callPattern } from "../../../lib/heardCall";
 import { inNativeApp } from "../../../lib/native";
-import type { TypedProcedure } from "../../../lib/procedures";
-import { SearchNear } from "../../../lib/useAirportSearch";
 import { TEXT } from "../../../lib/text";
-import type { RouteParts } from "./RouteBox";
 
 /** The words once they have stopped changing for a moment, so the
  *  planner is not asked at each letter typed or word heard. */
@@ -78,12 +75,13 @@ function RouteWords({ items, asFiled, found }: { items: ClearedItem[]; asFiled: 
  * route, the expected altitude (else the one to maintain) flown. Nothing
  * heard changes the plan before that.
  */
-export default function ClearanceCard({ route, onEnter }: {
-  route: RouteParts;
-  onEnter: (route: RouteParts, typed: TypedProcedure[], altitudeFt: number | null) => void;
+export default function ClearanceCard({ onDone }: {
+  /** The card put away, the route entered. */
+  onDone: () => void;
 }) {
-  const near = useContext(SearchNear);
-  const { listening, error, heard, tail } = useAtcRadio();
+  const { listening, error, heard, tail, near } = useAtcRadio();
+  const route = useRadioActions(s => s.route);
+  const enter = useRadioActions(s => s.enter);
   const typed = useAtcRadio(s => s.cardText) ?? "";
   // While listening the card reads the newest transmission settled, until
   // the pilot picks one from the log or types.
@@ -162,8 +160,8 @@ export default function ClearanceCard({ route, onEnter }: {
           />
         )}
         <CardAction
-          icon={<RouteGlyph aria-hidden="true" />} label="Enter Route" filled disabled={!entered} busy={found.isFetching}
-          onClick={() => entered && onEnter(entered.route, entered.typed, altitudeFt)} testId="clearance-enter"
+          icon={<RouteGlyph aria-hidden="true" />} label="Enter Route" filled disabled={!entered || !enter} busy={found.isFetching}
+          onClick={() => { if (entered && enter) { enter(entered.route, entered.typed, altitudeFt); onDone(); } }} testId="clearance-enter"
         />
       </div>
       {/* The radio as heard, newest first, a call to us in the tint: a

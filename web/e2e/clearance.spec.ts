@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { openPanel, settle, sideDrawer, slow } from "./helpers";
 
 /**
- * A clearance into the route, from the route box's microphone: the
+ * A clearance into the route, from the map's microphone: the
  * browser here has no microphone, so it is typed as it was read, which
  * the card takes as well. Its items are shown -- the limit and the route
  * found as idents, the altitudes, the frequency and the code -- and only
@@ -14,7 +14,7 @@ test("a clearance read is shown in its items and entered as the route", async ({
   await settle(page);
   await openPanel(page);
   const box = sideDrawer(page).getByTestId("route-box");
-  await box.getByTestId("clearance-listen").click();
+  await page.getByTestId("radio-button").click();
   await page.getByTestId("clearance-text").fill(
     "Cessna one two three alpha bravo cleared to the Duluth airport via Gopher then as filed, climb and maintain three thousand, "
     + "expect seven thousand one zero minutes after departure, departure frequency one two five point three five, squawk four five two one",

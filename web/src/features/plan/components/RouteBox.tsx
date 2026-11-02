@@ -85,7 +85,7 @@ const LINE_OVER_PX = 8;
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
   procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop, holdFor,
-  footer, listen,
+  footer,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -143,8 +143,6 @@ export default function RouteBox({
    *  own under what is typed, at the owner's ask ("I want the route box
    *  with the buttons below it like this", 2026-10-21). */
   footer?: ReactNode;
-  /** At the box's end: the microphone a clearance is heard by. */
-  listen?: ReactNode;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -584,16 +582,8 @@ export default function RouteBox({
                 field's clear is (ClearButton) -- not while something is
                 typed, whose own clear is the one to see: two of them read
                 as one too many. */}
-            {/* The microphone, as Maps' search field has one at its end: a
-                clearance heard into the route (ClearanceButton). Not while
-                something is typed, as iOS's field puts its clear there
-                then; beside the route's clear, the two 44-point areas
-                meeting (24 between their 20s). */}
-            {!typed && (listen || (points.length > 0 && onClear)) && (
-              <div className="mt-2 flex shrink-0 items-center gap-6">
-                {listen}
-                {points.length > 0 && onClear && <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} />}
-              </div>
+            {points.length > 0 && onClear && !typed && (
+              <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-2" />
             )}
             {/* Its own taps, not the box's room (isRoom), which types at the
                 route's end; ten under the lines, the clear's 44-point area

@@ -8,6 +8,7 @@
  * with the card that starts it.
  */
 import { create } from "zustand";
+import type { TypedProcedure } from "./procedures";
 
 export interface Transmission {
   id: number;
@@ -30,10 +31,13 @@ interface AtcRadio {
   cardText: string | null;
   /** The airplane whose calls are ours (its registration), from the plan. */
   tail: string | null;
+  /** Where the route is, its ends' "lat,lon;lat,lon", for the places the
+   *  radio names to be looked for near (/api/clearance). */
+  near: string;
 }
 
 export const useAtcRadio = create<AtcRadio>(() => ({
-  listening: false, error: null, heard: [], seen: null, cardOpen: false, cardText: null, tail: null,
+  listening: false, error: null, heard: [], seen: null, cardOpen: false, cardText: null, tail: null, near: "",
 }));
 
 /** The newest call to us not yet put away, settled. */
@@ -42,10 +46,16 @@ export function callToUs(s: Pick<AtcRadio, "heard" | "seen">): Transmission | nu
   return last && last.id !== s.seen ? last : null;
 }
 
-/** What a call to us can be acted on with, from the plan (PlanWorkspace):
- *  a direct to a place as said, which answers why not where it cannot,
- *  and an altitude to fly. */
+/** A route as the plan has it: either end may be missing. */
+export interface PlannedRoute { dep: string; stops: string[]; dest: string }
+
+/** What the radio can be acted on with, from the plan (PlanWorkspace): a
+ *  direct to a place as said, which answers why not where it cannot; an
+ *  altitude to fly; and a clearance's route entered over the route
+ *  planned, with its SID and STAR and the altitude it gives. */
 export const useRadioActions = create<{
   directTo: ((said: string) => Promise<string | null>) | null;
   fly: ((ft: number) => void) | null;
-}>(() => ({ directTo: null, fly: null }));
+  route: PlannedRoute;
+  enter: ((route: PlannedRoute, typed: TypedProcedure[], altitudeFt: number | null) => void) | null;
+}>(() => ({ directTo: null, fly: null, route: { dep: "", stops: [], dest: "" }, enter: null }));
