@@ -69,6 +69,12 @@ private struct ClearancesFixture: Decodable {
     let routes: [Cleared]
 }
 
+private struct HeardCallsFixture: Decodable {
+    struct Case: Decodable { let heard: String; let forUs: Bool; let direct: String?; let maintainFt: Int? }
+    let tail: String
+    let cases: [Case]
+}
+
 private struct LostCommsFixture: Decodable {
     struct Route: Decodable { let key, label, rule: String }
     struct Leave: Decodable { let approachFix: Bool; let efc, eta, words: String }
@@ -222,6 +228,15 @@ struct SharedFixturesTests {
             let got = Clearance.read(c.heard).clearedRoute(c.found, dep: c.planned.dep, stops: c.planned.stops, dest: c.planned.dest)
             #expect(got.dep == c.route.dep && got.stops == c.route.stops && got.dest == c.route.dest, "\(c.heard)")
             #expect(got.typed == c.typed, "\(c.heard)")
+        }
+    }
+
+    @Test func aCallToUsIsHeardAsTheWebHearsIt() throws {
+        let f = try fixture("heardCalls", as: HeardCallsFixture.self)
+        for c in f.cases {
+            #expect(HeardCall.ourCall(c.heard, tail: f.tail) == c.forUs, "\(c.heard)")
+            #expect(HeardCall.directOf(c.heard) == c.direct, "\(c.heard)")
+            #expect(Clearance.read(c.heard).maintainFt == c.maintainFt, "\(c.heard)")
         }
     }
 }

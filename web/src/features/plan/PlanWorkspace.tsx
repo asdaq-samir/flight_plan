@@ -9,7 +9,7 @@ import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, procedureQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
-import { aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
+import { N_NUMBER, aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
@@ -80,6 +80,7 @@ import { useDryRunButton } from "../../lib/dryRunButton";
 import { useWindPicks } from "../../lib/windPicks";
 import { useStopsAlong } from "../../lib/stopsAlong";
 import { usePointActions } from "../../lib/map/pointActions";
+import { useAtcRadio, useRadioActions } from "../../lib/atcRadio";
 import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
@@ -1485,6 +1486,35 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_nearest: nearest ? "1" : null, altitude_choice: null }), { replace: true });
   }, [setAlt, setSearchParams]);
   const flyWheelAltitude = useCallback((ft: number, legal: boolean) => flyAltitude(ft, legal), [flyAltitude]);
+  // The radio's calls to us (lib/atcRadio): ours by the airplane's
+  // registration, the one picked or one of the pilot's own; Direct To the
+  // place a call said, found near the route, from where the airplane is,
+  // and the altitude it gave flown.
+  const callSign = aircraft.tail ?? (N_NUMBER.test(shortName(aircraft.label)) ? shortName(aircraft.label) : null);
+  useEffect(() => useAtcRadio.setState({ tail: callSign }), [callSign]);
+  const nearNow = course
+    ? [course.departure, course.destination].map(end => `${end.lat.toFixed(3)},${end.lon.toFixed(3)}`).join(";")
+    : "";
+  useEffect(() => {
+    useRadioActions.setState({
+      directTo: async said => {
+        const ship = useOwnShip.getState();
+        if (!ship.enabled || !ship.fix) return "Direct To flies from where the airplane is: turn on Show my position.";
+        const near = [nearNow, `${ship.fix.lat.toFixed(3)},${ship.fix.lon.toFixed(3)}`].filter(Boolean).join(";");
+        try {
+          const found = await api.clearancePlaces({ route: [said], near });
+          const ident = found.route?.[0]?.find(p => p.ident)?.ident;
+          if (!ident) return `“${said}” was not found near the route.`;
+          directToChartPoint({ ident });
+          return null;
+        } catch {
+          return "The place could not be looked up; check the connection.";
+        }
+      },
+      fly: ft => flyAltitude(ft),
+    });
+    return () => useRadioActions.setState({ directTo: null, fly: null });
+  }, [nearNow, directToChartPoint, flyAltitude]);
   // A clearance heard and read by the pilot (ClearanceCard): its route,
   // its SID and STAR picked as typed ones are, and the altitude it gives.
   const enterClearance = useCallback((parts: RouteParts, typed: TypedProcedure[], altitudeFt: number | null) => {

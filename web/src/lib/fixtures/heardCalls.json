@@ -1,0 +1,15 @@
+{
+  "about": "Transmissions heard, and whether each was said to N123AB (AIM 4-2-4: the registration whole, with its N or a type's name in its place, or the prefix and its last three) and where a direct sends it. lib/heardCall callOf, HeardCall in the native app.",
+  "tail": "N123AB",
+  "cases": [
+    { "heard": "November one two three alpha bravo proceed direct Gopher, climb and maintain seven thousand", "forUs": true, "direct": "gopher", "maintainFt": 7000 },
+    { "heard": "Cessna three alpha bravo turn right heading three six zero", "forUs": true, "direct": null, "maintainFt": null },
+    { "heard": "Cessna six three alpha bravo descend and maintain four thousand", "forUs": false, "direct": null, "maintainFt": 4000 },
+    { "heard": "climb and maintain seven thousand, three alpha bravo", "forUs": false, "direct": null, "maintainFt": 7000 },
+    { "heard": "N123AB cleared direct Farmington", "forUs": true, "direct": "farmington", "maintainFt": null },
+    { "heard": "Skyhawk one two three alpha bravo contact Minneapolis departure one two five point three five", "forUs": true, "direct": null, "maintainFt": null },
+    { "heard": "Delta four twelve contact departure one two five point three five", "forUs": false, "direct": null, "maintainFt": null },
+    { "heard": "November three alpha bravo direct kilo delta lima hotel, descend and maintain three thousand", "forUs": true, "direct": "KDLH", "maintainFt": 3000 },
+    { "heard": "three alpha bravo traffic twelve o'clock", "forUs": false, "direct": null, "maintainFt": null }
+  ]
+}

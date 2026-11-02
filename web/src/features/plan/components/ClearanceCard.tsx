@@ -1,5 +1,4 @@
-import { useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { create } from "zustand";
+import { useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Mic, Route as RouteGlyph, Square } from "lucide-react";
 import { cn } from "cn";
@@ -9,16 +8,15 @@ import { FieldError } from "../../../components/ui/field";
 import { Textarea } from "../../../components/ui/textarea";
 import { api } from "../../../lib/api/client";
 import { clearedRoute, heardAny, placesAsked, readClearance, type ClearedItem, type Found, type FoundPlace } from "../../../lib/clearance";
-import { canListen, listen } from "../../../lib/listen";
+import { canListen } from "../../../lib/listen";
+import { useAtcRadio } from "../../../lib/atcRadio";
+import { startRadio, stopRadio } from "../../../lib/atcListening";
+import { callPattern } from "../../../lib/heardCall";
 import { inNativeApp } from "../../../lib/native";
 import type { TypedProcedure } from "../../../lib/procedures";
 import { SearchNear } from "../../../lib/useAirportSearch";
 import { TEXT } from "../../../lib/text";
 import type { RouteParts } from "./RouteBox";
-
-/** What was last heard or typed, kept while the page is: the card opened
- *  again shows the clearance still, its squawk and frequency with it. */
-const useHeard = create<{ text: string }>(() => ({ text: "" }));
 
 /** The words once they have stopped changing for a moment, so the
  *  planner is not asked at each letter typed or word heard. */
@@ -85,12 +83,17 @@ export default function ClearanceCard({ route, onEnter }: {
   onEnter: (route: RouteParts, typed: TypedProcedure[], altitudeFt: number | null) => void;
 }) {
   const near = useContext(SearchNear);
-  const text = useHeard(s => s.text);
-  const [listening, setListening] = useState(false);
-  const [error, setError] = useState<string>();
-  const stopping = useRef<(() => void) | null>(null);
-  // Put away, the card stops listening.
-  useEffect(() => () => stopping.current?.(), []);
+  const { listening, error, heard, tail } = useAtcRadio();
+  const typed = useAtcRadio(s => s.cardText) ?? "";
+  // While listening the card reads the newest transmission settled, until
+  // the pilot picks one from the log or types.
+  const [following, setFollowing] = useState(true);
+  const newest = [...heard].reverse().find(t => t.final);
+  const text = listening && following && newest ? newest.text : typed;
+  const pick = (picked: string) => {
+    setFollowing(false);
+    useAtcRadio.setState({ cardText: picked });
+  };
   // The names to listen for, asked as the card opens, ready by the tap:
   // the apps' recognizers take them, a browser's cannot.
   const words = useQuery({
@@ -104,36 +107,30 @@ export default function ClearanceCard({ route, onEnter }: {
   const found = useQuery({
     queryKey: ["clearance-places", asked, near, route.dep, route.dest],
     queryFn: () => api.clearancePlaces({ ...asked, near, dep: route.dep || null, dest: route.dest || null }),
-    enabled: wantsPlaces && !listening, staleTime: 10 * 60_000,
+    enabled: wantsPlaces, staleTime: 10 * 60_000,
   });
   const places = found.data as Found | undefined;
-  const ready = heardAny(clearance) && !listening && settled === text && (!wantsPlaces || !!places);
+  const ready = heardAny(clearance) && settled === text && (!wantsPlaces || !!places);
   const entered = ready ? clearedRoute(clearance, places ?? {}, route) : null;
   const altitudeFt = clearance.vfr ? null : clearance.expectFt ?? clearance.maintainFt;
-
-  const toggle = async () => {
-    if (listening) {
-      stopping.current?.();
-      return;
+  // Listening goes on with the card put away: the captions over the map
+  // carry it (RadioLayer), and Stop here ends it.
+  const toggle = () => {
+    if (listening) stopRadio();
+    else {
+      setFollowing(true);
+      void startRadio(words.data ?? [], (tail && callPattern(tail)) || undefined);
     }
-    setError(undefined);
-    setListening(true);
-    useHeard.setState({ text: "" });
-    const { stop } = await listen(words.data ?? [], heard => useHeard.setState({ text: heard }), failed => {
-      setListening(false);
-      stopping.current = null;
-      if (failed) setError(failed);
-    });
-    stopping.current = stop;
   };
+  const log = [...heard].reverse().filter(t => t.final).slice(0, 10);
 
   const limit = clearance.classB ? "Class Bravo airspace" : places?.limit?.ident ? <Place place={places.limit} /> : clearance.limit && capital(clearance.limit);
   return (
     <div className="flex flex-col gap-3" data-testid="clearance-body">
       <Textarea
-        value={text} onChange={e => useHeard.setState({ text: e.target.value })} rows={3}
+        value={text} onChange={e => pick(e.target.value)} rows={3}
         placeholder={canListen() ? "Tap Listen and hold the phone to the speaker, or type the clearance." : "Type the clearance as it was read."}
-        aria-label="The clearance as heard" readOnly={listening} data-testid="clearance-text"
+        aria-label="The clearance as heard" data-testid="clearance-text"
         className={cn(TEXT.row, "resize-none")}
       />
       {error && <FieldError data-testid="clearance-error">{error}</FieldError>}
@@ -161,7 +158,7 @@ export default function ClearanceCard({ route, onEnter }: {
         {canListen() && (
           <CardAction
             icon={listening ? <Square aria-hidden="true" /> : <Mic aria-hidden="true" />} label={listening ? "Stop" : "Listen"}
-            pressed={listening} onClick={() => void toggle()} testId="clearance-toggle"
+            pressed={listening} onClick={toggle} testId="clearance-toggle"
           />
         )}
         <CardAction
@@ -169,6 +166,19 @@ export default function ClearanceCard({ route, onEnter }: {
           onClick={() => entered && onEnter(entered.route, entered.typed, altitudeFt)} testId="clearance-enter"
         />
       </div>
+      {/* The radio as heard, newest first, a call to us in the tint: a
+          tap reads that one above. */}
+      {log.length > 0 && (
+        <ListGroup title="Heard">
+          {log.map(t => (
+            <ListRow
+              key={t.id} onClick={() => pick(t.text)} data-testid="radio-log-row"
+              title={<span className={cn(t.forUs && "font-semibold text-tint")}>{t.text}</span>}
+              description={new Date(t.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            />
+          ))}
+        </ListGroup>
+      )}
     </div>
   );
 }
