@@ -91,6 +91,11 @@ jobs:
           python-version: "3.13"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
+      # vfr's Rust extension (native/), which vfr.route_options and
+      # vfr.airspace_at import: built with the runner's own Rust, in the
+      # light `ci` profile (the image's is the release one; the sums are
+      # the same either way, as nothing here is built for fast maths).
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
       - run: ruff check src/vfr tests
       - run: pytest tests/ -v
       # vfr's API documentation, from its docstrings. pdoc imports every
@@ -215,6 +220,8 @@ jobs:
           python-version: "3.13"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
+      # The planner imports vfr's Rust extension (native/), as in the test job.
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
       - run: ruff check app tests
       - run: pytest tests/ -v
 
@@ -363,6 +370,7 @@ jobs:
               - pyproject.toml
             test-root:
               - src/**
+              - native/**
               - tests/**
               - requirements-dev.txt
               # tests/test_requirements.py reads these
@@ -378,6 +386,7 @@ jobs:
             test-planning-service:
               - planning-service/**
               - src/**
+              - native/**
             test-model-service:
               - model-service/**
             test-nav-log-agent:
@@ -425,6 +434,7 @@ jobs:
             planning-service:
               - planning-service/**
               - src/**
+              - native/**
             model-service:
               - model-service/**
             # web/** rather than the files the Dockerfile copies: a file

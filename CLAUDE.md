@@ -49,6 +49,7 @@ It is headed for an iOS app. README.md has the services and the layout.
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
 | `planning-service/` | `ruff check app tests && pytest tests/` |
 | `src/vfr`, `tests/` | `ruff check src/vfr tests && pytest tests/` (repo root) |
+| `native/` (Rust, `vfr_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); the planner's image builds it, and the planner won't start without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
 | `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |

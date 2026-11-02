@@ -7,19 +7,23 @@ the altitude planner uses (vfr.airspace).
 Every Class B, C, D and E volume whose shape holds the point is read
 from the file itself: holding every Class E shape in memory was 8 million
 vertices and 200 MB for a question asked a tap at a time. What is held is
-each volume's box and fields, read once (_volumes_index); a tap reads
-only the shapes whose box holds the point, by their number in the file.
-The file's own bbox filter read every shape's header from the top for
-each tap, 15 to 56 seconds on the live planner (2026-10-28).
+each volume's box, fields and place in the file, read once
+(_volumes_index); a tap reads only the shapes whose box holds the point,
+straight from the mapped file, and asks the Rust extension (native/)
+whether each holds it. The file's own bbox filter read every shape's
+header from the top for each tap, 15 to 56 seconds on the live planner
+(2026-10-28); pyshp parsing each candidate's vertices and shapely
+building it from lists was 75 to 95 ms a tap and the index 8.5 s at the
+start (2026-11-01).
 """
 from __future__ import annotations
 
+import mmap
 from pathlib import Path
 
 import numpy as np
 import shapefile
-from shapely.geometry import Point
-from shapely.geometry import shape as shapely_shape
+import vfr_native
 
 from .geo import distance_nm
 from .once import once
@@ -80,21 +84,33 @@ def _ceiling(record: dict) -> float:
 
 
 @once(maxsize=2)
-def _volumes_index(path: str, _mtime: float) -> tuple[np.ndarray, list[tuple[int, dict]]]:
+def _volumes_index(path: str, _mtime: float) -> tuple[np.ndarray, list[tuple[int, int, dict]], mmap.mmap]:
     """Each Class B, C, D and E volume's box, (min_lon, min_lat, max_lon,
-    max_lat) a row, and its number in the file with its fields."""
-    boxes, volumes = [], []
+    max_lat) a row; where its shape's content starts in the .shp and how
+    long it is, with its fields; and the .shp mapped. The boxes are each
+    record's own (ESRI's shapefile technical description, 1998: the .shx
+    gives each record's offset and length in 16-bit words, big-endian, from
+    byte 100; a polygon's content is its type and then its box, four
+    little-endian doubles), read in one go rather than a shape at a time."""
+    shx = np.frombuffer(Path(path).with_suffix(".shx").read_bytes(), dtype=">i4", offset=100).reshape(-1, 2)
+    starts, lengths = shx[:, 0].astype(np.int64) * 2 + 8, shx[:, 1].astype(np.int64) * 2
+    with open(path, "rb") as f:
+        mapped = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+    shp = np.frombuffer(mapped, dtype=np.uint8)
     reader = shapefile.Reader(path)
+    keep, volumes = [], []
     try:
         for i, record in enumerate(reader.iterRecords()):
-            klass = (record.as_dict().get("CLASS") or "").strip()
-            if klass not in ("B", "C", "D", "E"):
+            fields = record.as_dict()
+            if (fields.get("CLASS") or "").strip() not in ("B", "C", "D", "E"):
                 continue
-            boxes.append(tuple(reader.shape(i).bbox))
-            volumes.append((i, record.as_dict()))
+            keep.append(i)
+            volumes.append((int(starts[i]), int(lengths[i]), fields))
     finally:
         reader.close()
-    return np.array(boxes, dtype=float).reshape(-1, 4), volumes
+    at = starts[keep, None] + 4 + np.arange(32)[None, :]
+    boxes = shp[at].copy().view("<f8").reshape(-1, 4) if keep else np.zeros((0, 4))
+    return boxes, volumes, mapped
 
 
 def preload(shp_path) -> None:
@@ -108,28 +124,23 @@ def volumes_at(lat: float, lon: float, shp_path) -> list[dict]:
     "local_type", "name", "ident", "floor_ft", "floor_ref", "ceiling_ft"}
     with the ceiling in feet MSL."""
     path = Path(shp_path)
-    boxes, volumes = _volumes_index(str(path), path.stat().st_mtime)
+    boxes, volumes, mapped = _volumes_index(str(path), path.stat().st_mtime)
     near = np.flatnonzero((boxes[:, 0] <= lon) & (boxes[:, 2] >= lon) & (boxes[:, 1] <= lat) & (boxes[:, 3] >= lat))
-    point = Point(lon, lat)
     found = []
-    reader = shapefile.Reader(str(path))
-    try:
-        for k in near:
-            number, record = volumes[k]
-            if not shapely_shape(reader.shape(number).__geo_interface__).contains(point):
-                continue
-            floor_ft, floor_ref = _floor(record)
-            found.append({
-                "class": (record.get("CLASS") or "").strip(),
-                "local_type": record.get("LOCAL_TYPE") or "",
-                "name": record.get("NAME") or "",
-                "ident": (record.get("IDENT") or "").strip().upper(),
-                "floor_ft": floor_ft,
-                "floor_ref": floor_ref,
-                "ceiling_ft": _ceiling(record),
-            })
-    finally:
-        reader.close()
+    for k in near:
+        start, length, record = volumes[k]
+        if not vfr_native.shape_holds(mapped[start:start + length], float(lon), float(lat)):
+            continue
+        floor_ft, floor_ref = _floor(record)
+        found.append({
+            "class": (record.get("CLASS") or "").strip(),
+            "local_type": record.get("LOCAL_TYPE") or "",
+            "name": record.get("NAME") or "",
+            "ident": (record.get("IDENT") or "").strip().upper(),
+            "floor_ft": floor_ft,
+            "floor_ref": floor_ref,
+            "ceiling_ft": _ceiling(record),
+        })
     return found
 
 

@@ -54,8 +54,14 @@ import logging
 import numpy as np
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import dijkstra
+# The straight lines over the grid are Rust's (native/, built into the
+# planner's image): a long route's straightening was 58% of its options'
+# seconds, Python and numpy's cost of a call on a dozen cells
+# (2026-11-01). tests/test_native.py holds them to the Python they were.
+import vfr_native
 
 from . import fixes, fuelstops, geo, magnetic, navlog, sun, terrain_detour, water, weather
+
 
 logger = logging.getLogger(__name__)
 
@@ -178,6 +184,8 @@ class _Grid:
         #: Each cell's floor, ft (_ground), once read.
         self.floor: np.ndarray | None = None
         self.ends: set = {self.cell(start), self.cell(end)}
+        #: Each line's cells, drawn once: a pair is asked again and again.
+        self._lines: dict = {}
 
     def bbox(self) -> tuple:
         return (self.lat0, self.lon0, self.lat0 + self.rows * CELL_DEG, self.lon0 + self.cols * CELL_DEG)
@@ -226,15 +234,14 @@ class _Grid:
         return self.closed[cell] < 0 or cell in self.ends
 
     def line_cells(self, a: tuple, b: tuple) -> list[tuple[int, int]]:
-        # Sampled a third of a cell apart, all at once: a point at a time,
-        # with a call per point, was a long route's second and a half.
-        steps = max(2, int(max(abs(b[0] - a[0]), abs(b[1] - a[1])) / (CELL_DEG / 3)) + 1)
-        t = np.linspace(0.0, 1.0, steps)
-        rows = np.clip(((a[0] + (b[0] - a[0]) * t - self.lat0) / CELL_DEG).astype(int), 0, self.rows - 1)
-        cols = np.clip(((a[1] + (b[1] - a[1]) * t - self.lon0) / CELL_DEG).astype(int), 0, self.cols - 1)
-        keep = np.ones(steps, dtype=bool)
-        keep[1:] = (rows[1:] != rows[:-1]) | (cols[1:] != cols[:-1])
-        return list(zip(rows[keep].tolist(), cols[keep].tolist()))
+        """The cells a straight line crosses, in order: sampled a third of a
+        cell apart, each cell once. Drawn once a pair."""
+        key = (a[0], a[1], b[0], b[1])
+        cells = self._lines.get(key)
+        if cells is None:
+            cells = self._lines[key] = vfr_native.line_cells((a[0], a[1]), (b[0], b[1]), self.lat0, self.lon0, CELL_DEG,
+                                                             self.rows, self.cols)
+        return cells
 
     def line_open(self, a: tuple, b: tuple) -> bool:
         return all(self.open(c) for c in self.line_cells(a, b))
@@ -469,8 +476,7 @@ def _groundspeeds(grid: _Grid, floor: np.ndarray, top_ft: float, tas_kt: float, 
     flat_lat, flat_lon = grid.lat_grid.ravel(), grid.lon_grid.ravel()
     nearest = np.empty(flat_lat.size, dtype=int)
     for k in range(0, flat_lat.size, 2048):
-        d = geo.distance_nm(flat_lat[k:k + 2048, None], flat_lon[k:k + 2048, None], lats[None, :], lons[None, :])
-        nearest[k:k + 2048] = np.argmin(d, axis=1)
+        nearest[k:k + 2048] = geo.nearest(flat_lat[k:k + 2048], flat_lon[k:k + 2048], lats, lons)
     nearest = nearest.reshape(grid.rows, grid.cols)
     cell_wd, cell_ws = wd[nearest], ws[nearest]          # rows x cols x altitudes
     allowed = altitudes[None, None, :] >= np.maximum(floor, LOWEST_CRUISE_FT)[:, :, None]
@@ -557,14 +563,9 @@ def _line_minutes(grid: _Grid, gs: np.ndarray, a: tuple, b: tuple, marginal_cost
     nm = float(geo.distance_nm(a[0], a[1], b[0], b[1]))
     if nm == 0:
         return 0.0
-    bearing = math.atan2((b[1] - a[1]) * math.cos(math.radians((a[0] + b[0]) / 2)), b[0] - a[0])
-    # The nearest of the eight ways: |cos| or |sin| is at least 0.71, so
-    # one of the two rounds to a whole step.
-    k = _step_index(round(math.cos(bearing)), round(math.sin(bearing)))
-    cells = grid.line_cells(a, b)
-    rate = [(1.0 + grid.dear[c] + (marginal_cost if grid.marginal[c] >= 0 else 0.0) + water_cost * grid.offshore[c]) / gs[c[0], c[1], k]
-            for c in cells]
-    return nm * float(np.mean(rate)) * 60.0
+    # The way nearest the line's, each cell's rate averaged (vfr_native).
+    return vfr_native.line_minutes((a[0], a[1]), (b[0], b[1]), nm, grid.lat0, grid.lon0, CELL_DEG, grid.marginal,
+                                   grid.dear, grid.offshore, gs, marginal_cost, water_cost)
 
 
 def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cost: float,
@@ -572,39 +573,17 @@ def _straightened(grid: _Grid, gs: np.ndarray, points: list[tuple], marginal_cos
     """The way's turns: from each point the farthest on along it a straight
     line reaches over open cells -- over no more closed ones than the way
     itself crossed, where it had to -- no more than `slower_min` slower."""
-    out, i = [points[0]], 0
-    legs = [_line_minutes(grid, gs, points[k], points[k + 1], marginal_cost, water_cost) for k in range(len(points) - 1)]
-
-    def marginal_cells(a, b) -> int:
-        return sum(1 for c in grid.line_cells(a, b) if grid.marginal[c] >= 0)
-
-    def closed_cells(a, b) -> int:
-        return sum(1 for c in grid.line_cells(a, b) if not grid.open(c))
-
-    # Each leg's closed cells, once: asked again for every pair of points.
-    leg_closed = [{c for c in grid.line_cells(points[k], points[k + 1]) if not grid.open(c)} for k in range(len(points) - 1)]
-
-    def clear_enough(i: int, j: int) -> bool:
-        # The way's closed cells as a set: the cell at a turn is on both
-        # its legs, and counted twice let a shortcut through one more.
-        crossed = set().union(*leg_closed[i:j])
-        return grid.line_open(points[i], points[j]) or closed_cells(points[i], points[j]) <= len(crossed)
-
-    while i < len(points) - 1:
-        j = len(points) - 1
-        while j > i + 1:
-            # The best weather's way kept off marginal cells its own way
-            # kept off: a short cut across the corner of one is the
-            # weather it was drawn round.
-            if clear_enough(i, j) and \
-                    _line_minutes(grid, gs, points[i], points[j], marginal_cost, water_cost) <= sum(legs[i:j]) + slower_min and \
-                    (not marginal_cost or marginal_cells(points[i], points[j])
-                     <= sum(marginal_cells(points[k], points[k + 1]) for k in range(i, j))):
-                break
-            j -= 1
-        out.append(points[j])
-        i = j
-    return out
+    # The walk in Rust; the miles are vfr.geo's, from each turn to every
+    # point in one call, asked only where a line is clear enough.
+    lats = np.array([p[0] for p in points], dtype=float)
+    lons = np.array([p[1] for p in points], dtype=float)
+    leg_nm = np.asarray(geo.distance_nm(lats[:-1], lons[:-1], lats[1:], lons[1:]), dtype=float).reshape(-1)
+    turns = vfr_native.straightened(
+        [(float(p[0]), float(p[1])) for p in points], grid.lat0, grid.lon0, CELL_DEG, grid.closed, grid.marginal,
+        grid.dear, grid.offshore, gs, list(grid.ends), leg_nm,
+        lambda i: np.asarray(geo.distance_nm(lats[i], lons[i], lats, lons), dtype=float), marginal_cost, slower_min,
+        water_cost)
+    return [points[k] for k in turns]
 
 
 def _crossed(grid: _Grid, points: list[tuple], marginal: bool = False) -> list[int]:
@@ -665,9 +644,10 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
     fields = near
     # Each field's nearest point on the way: how far along, how far off.
     lat_f, lon_f = fields["lat"].to_numpy(float), fields["lon"].to_numpy(float)
-    # The way sampled every 5 nm, every sample against every field in one
-    # call: a call a sample was a long route's second (2026-10-27). The
-    # first sample of the nearest distance wins, as it did one by one.
+    # The way sampled every 5 nm, each field's nearest sample found for all
+    # of them at once (geo.nearest): a call a sample was a long route's
+    # second (2026-10-27). The first sample of the nearest distance wins,
+    # as it did one by one.
     s_lat, s_lon, s_at = [], [], []
     for k, (a, b) in enumerate(zip(way, way[1:])):
         seg = along_nm[k + 1] - along_nm[k]
@@ -675,9 +655,8 @@ def _stops(grid: _Grid, gs: np.ndarray, way: list[tuple], profile: dict, fields,
             s_lat.append(a[0] + (b[0] - a[0]) * t)
             s_lon.append(a[1] + (b[1] - a[1]) * t)
             s_at.append(along_min[k] + (along_min[k + 1] - along_min[k]) * t)
-    off = np.asarray(geo.distance_nm(np.asarray(s_lat)[:, None], np.asarray(s_lon)[:, None], lat_f[None, :], lon_f[None, :]))
-    nearest = np.argmin(off, axis=0)
-    best_off = off[nearest, np.arange(len(lat_f))]
+    nearest = geo.nearest(lat_f, lon_f, s_lat, s_lon)
+    best_off = np.asarray(geo.distance_nm(np.asarray(s_lat)[nearest], np.asarray(s_lon)[nearest], lat_f, lon_f), dtype=float)
     best_at = np.asarray(s_at)[nearest]
     # Where on the way each is nearest, for its way in and out.
     best_lat = np.asarray(s_lat)[nearest]

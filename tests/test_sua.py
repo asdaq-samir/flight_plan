@@ -22,8 +22,9 @@ BOX_OFF_ROUTE = [[-88.2, 45.4], [-87.8, 45.4], [-87.8, 45.6], [-88.2, 45.6], [-8
 
 
 @pytest.fixture(autouse=True)
-def _fresh_cache(monkeypatch):
+def _fresh_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(sua, "_CACHE", {})
+    monkeypatch.setattr(sua, "_DISK", tmp_path / "sua.pkl")
 
 
 def _service(features):
@@ -65,6 +66,7 @@ def test_an_areas_times_are_read_in_the_zone_the_faa_gives_it():
                                 (("-10", "0"), "Pacific/Honolulu"), (("10", "0"), "Pacific/Guam"), ((None, None), None),
                                 (("-7", None), None)]:
         sua._CACHE.clear()
+        sua._DISK.unlink(missing_ok=True)
         with patch("vfr.sua.requests.get", return_value=_service([zoned(offset, dst)])) as get:
             (area,) = sua.along_route((45.0, -90.0), (46.0, -90.0))
         assert area["time_zone"] == zone, (offset, dst)
@@ -136,3 +138,20 @@ def test_the_whole_set_is_read_page_by_page():
         names = sorted(area["name"] for area, _ in sua.areas_in((44.0, -91.0, 47.0, -87.0)))
     assert names == ["R-1", "R-2"]
     assert [c.kwargs["params"]["resultOffset"] for c in get.call_args_list] == [0, 1]
+
+
+def test_a_restart_within_the_day_reads_the_areas_kept_on_disk(monkeypatch):
+    features = [_feature("R-4501", "R", BOX_ON_ROUTE)]
+    with patch("vfr.sua.requests.get", return_value=_service(features)):
+        first = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    sua._CACHE.clear()  # a new process
+    with patch("vfr.sua.requests.get", side_effect=AssertionError("asked the service again")):
+        again = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    assert [(a["name"], s.wkt) for a, s in again] == [(a["name"], s.wkt) for a, s in first]
+    # A day on, the service is asked again.
+    sua._CACHE.clear()
+    now = sua.time.time()
+    monkeypatch.setattr(sua.time, "time", lambda: now + sua.HOLD_S + 1)
+    with patch("vfr.sua.requests.get", return_value=_service([])) as get:
+        assert sua.areas_in((44.0, -91.0, 47.0, -87.0)) == []
+    assert get.called

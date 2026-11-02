@@ -13,10 +13,15 @@ already says so and links to a real briefing service.
 """
 from __future__ import annotations
 
+import logging
+import pickle
 import threading
+import time
+from pathlib import Path
 
 import requests
 from cachetools import TTLCache
+import shapely
 from shapely.geometry import LineString, Point, shape
 
 from .geo import along_track_distance_nm, corridor_bbox
@@ -47,6 +52,8 @@ TYPES = {
 #: changes on the same days and hour (15 U.S.C. 260a), so any one zone of
 #: an offset stands for all of them. A pair not here is no zone: the web
 #: then leaves an area's local hours for the pilot to read.
+logger = logging.getLogger(__name__)
+
 TIME_ZONES = {
     ("-4", "0"): "America/Puerto_Rico",
     ("-5", "1"): "America/New_York",
@@ -66,7 +73,13 @@ TIME_ZONES = {
 # 22 MB, read in half a minute once (`preload`, at the planner's start).
 # TTLCache is not thread-safe and the planner asks from its request
 # threads, hence the lock.
-_CACHE: TTLCache = TTLCache(maxsize=4, ttl=24 * 3600)
+HOLD_S = 24 * 3600
+_CACHE: TTLCache = TTLCache(maxsize=4, ttl=HOLD_S)
+#: The day's areas kept on disk too, (fetched_at, [(properties, WKB,
+#: bounds)]): a restart within the day reads them back in under a second,
+#: where the download and building the shapes from GeoJSON was half a
+#: minute and 3 CPU-seconds of every planner start (2026-11-01).
+_DISK = Path(__file__).resolve().parents[2] / "data" / "raw" / "sua" / "special_use.v1.pkl"
 _CACHE_LOCK = threading.Lock()
 # One download at a time: a second asker waits for it.
 _FETCH_LOCK = threading.Lock()
@@ -97,13 +110,19 @@ def _everything() -> list:
     (min_lon, min_lat, max_lon, max_lat))], held a day."""
     with _CACHE_LOCK:
         hit = _CACHE.get("all")
-    if hit is not None:
-        return hit
+    if hit is not None and time.time() - hit[0] < HOLD_S:
+        return hit[1]
     with _FETCH_LOCK:
         with _CACHE_LOCK:
             hit = _CACHE.get("all")
-        if hit is not None:
-            return hit
+        if hit is not None and time.time() - hit[0] < HOLD_S:
+            return hit[1]
+        kept = _read_disk()
+        if kept is not None:
+            with _CACHE_LOCK:
+                _CACHE["all"] = kept
+            return kept[1]
+        fetched_at = time.time()
         features, offset = [], 0
         while True:
             params = {
@@ -130,8 +149,35 @@ def _everything() -> list:
                 continue
             held.append((feature, geometry, geometry.bounds))
         with _CACHE_LOCK:
-            _CACHE["all"] = held
+            _CACHE["all"] = (fetched_at, held)
+        _write_disk(fetched_at, held)
         return held
+
+
+def _read_disk() -> tuple[float, list] | None:
+    """The areas kept on disk, when kept within the day."""
+    try:
+        with _DISK.open("rb") as f:
+            fetched_at, properties, wkb, bounds = pickle.load(f)
+    except Exception:  # noqa: BLE001 -- missing or damaged: downloaded again
+        return None
+    if not 0 <= time.time() - fetched_at < HOLD_S:
+        return None
+    shapes = shapely.from_wkb(wkb)
+    return fetched_at, [({"properties": p}, g, tuple(b)) for p, g, b in zip(properties, shapes, bounds)]
+
+
+def _write_disk(fetched_at: float, held: list) -> None:
+    payload = (fetched_at, [f.get("properties") for f, _, _ in held], shapely.to_wkb([g for _, g, _ in held]),
+               [b for _, _, b in held])
+    part = _DISK.with_suffix(".part")
+    try:
+        _DISK.parent.mkdir(parents=True, exist_ok=True)
+        with part.open("wb") as f:
+            pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+        part.replace(_DISK)
+    except OSError as err:
+        logger.warning("Special-use airspace not kept on disk: %s", err)
 
 
 def preload() -> None:

@@ -1,4 +1,22 @@
 # syntax=docker/dockerfile:1
+
+# vfr's Rust extension (native/): route options' straight lines and the
+# airspace at a point, which the planner imports and cannot start without.
+# Built here, with Rust copied in from its own image, so the image the
+# planner runs carries the wheel and none of the toolchain.
+FROM python:3.13-slim AS native
+COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
+COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
+ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev
+RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
+COPY native /native
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    maturin build --release --compatibility linux -m /native/Cargo.toml -o /wheels
+
 FROM python:3.13-slim
 
 WORKDIR /workspace/planning-service
@@ -23,6 +41,8 @@ RUN useradd -m appuser && mkdir -p /workspace/data && chown appuser:appuser /wor
 COPY src/requirements.txt src/requirements-charts.txt /workspace/src/
 COPY planning-service/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+COPY --from=native /wheels /tmp/wheels
+RUN pip install --no-cache-dir --no-deps /tmp/wheels/*.whl && rm -rf /tmp/wheels
 
 COPY planning-service/app ./app
 COPY src /workspace/src
@@ -35,7 +55,7 @@ ENV PYTHONPATH=/workspace/src
 # new import in vfr left both agents and both pipeline stages unable to
 # start, and every build passed. The lazy imports are named too, as
 # importing the entry module does not reach them.
-RUN python -B -c "import app.main, rasterio.vrt, rasterio.warp, rasterio.features, affine, scipy.ndimage, boto3, pyarrow.parquet, shapely.ops"
+RUN python -B -c "import app.main, vfr_native, rasterio.vrt, rasterio.warp, rasterio.features, affine, scipy.ndimage, boto3, pyarrow.parquet, shapely.ops"
 # GDAL's block cache defaults to 5% of the machine's RAM and holds
 # decoded chart raster blocks across tile renders; bounded, so that
 # rendering a screenful of zoomed-out tiles (each reading a wide window
