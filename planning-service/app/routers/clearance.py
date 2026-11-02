@@ -3,6 +3,7 @@ lib/clearance and the app's Clearance read the words the recognizer
 wrote into the clearance's items (AIM 4-4-3), and ask here for the
 idents of the places it named (vfr.spoken), near the route. Before
 listening, the names the recognizer is told to expect."""
+import math
 import re
 
 from fastapi import APIRouter, Query, Response
@@ -29,7 +30,13 @@ def _places(near: tuple) -> list[dict]:
     lats, lons = [p[0] for p in near], [p[1] for p in near]
     south, north, west, east = min(lats) - PAD_DEG, max(lats) + PAD_DEG, min(lons) - PAD_DEG * 1.4, max(lons) + PAD_DEG * 1.4
     found = [{**f, "what": "navaid" if f.get("navaid") else "fix"} for f in fixes.within(south, west, north, east)]
-    return found + [{**a, "what": "airport"} for a in airports.places_in(south, west, north, east, limit=500)]
+    found += [{**a, "what": "airport"} for a in airports.places_in(south, west, north, east, limit=500)]
+    # The nearest to the route's points first: of two fixes that sound the
+    # same, PYKLA by Duluth and PICLE in Iowa, the one by the route
+    # (vfr.spoken keeps this order between equals).
+    # Flat-earth distances do for an order, at a thousandth of the cost.
+    squeeze = math.cos(math.radians(sum(lats) / len(lats)))
+    return sorted(found, key=lambda p: min((p["lat"] - lat) ** 2 + ((p["lon"] - lon) * squeeze) ** 2 for lat, lon in near))
 
 
 def _exact(said: str, near: tuple) -> list[dict]:
