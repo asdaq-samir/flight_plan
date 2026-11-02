@@ -86,13 +86,25 @@ public class FlightService {
     /** The flight's saved track, where it is this pilot's flight and has
      *  one. */
     public Optional<TrackDto> track(Pilot pilot, Long id) {
-        return get(pilot, id).flatMap(f -> tracks.findById(f.getId())).map(t -> {
+        return get(pilot, id).flatMap(f -> trackOf(f.getId()));
+    }
+
+    /** A flight's saved track, whoever's it is: for a caller that has
+     *  already found the reader may see it (an instructor's, of a flight
+     *  put to them: LessonService). */
+    public Optional<TrackDto> trackOf(Long flightId) {
+        return tracks.findById(flightId).map(t -> {
             try {
                 return new TrackDto(t.getSource(), JSON.readValue(t.getPoints(), POINTS));
             } catch (JsonProcessingException e) {
-                throw new IllegalStateException("Flight " + id + "'s saved track is not JSON", e);
+                throw new IllegalStateException("Flight " + flightId + "'s saved track is not JSON", e);
             }
         });
+    }
+
+    /** Whether the flight has a track saved with it. */
+    public boolean hasTrack(Long flightId) {
+        return tracks.existsById(flightId);
     }
 
     /** Saves a track with this pilot's flight, replacing one saved before;
