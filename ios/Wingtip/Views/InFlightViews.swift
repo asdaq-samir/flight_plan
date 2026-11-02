@@ -432,7 +432,12 @@ struct ShareMenu: View {
             ShareLink(item: RouteShare.link(plan)) { Label("Share Link", systemImage: "link") }
             ShareLink(item: RouteShare.navLogText(plan)) { Label("Nav Log as Text", systemImage: "list.number") }
             Button { pdf() } label: { Label("Nav Log as PDF", systemImage: "doc.richtext") }
+            Button { file("fpl", RouteShare.fpl(plan)) } label: { Label("Flight Plan (.fpl)", systemImage: "square.and.arrow.down") }
+            Button { file("gfp", RouteShare.gfp(plan)) } label: { Label("GTN Flight Plan (.gfp)", systemImage: "square.and.arrow.down") }
             Button { gpx() } label: { Label("GPX Route (.gpx)", systemImage: "square.and.arrow.down") }
+            // The .fpl to Garmin Pilot from the share sheet, which sends it
+            // on to a Connext panel (as the web app's ShareMenu).
+            Button { file("fpl", RouteShare.fpl(plan)) } label: { Label("Open in Garmin Pilot", systemImage: "paperplane") }
             Button { foreflight() } label: { Label("Open in ForeFlight", systemImage: "paperplane") }
         } label: {
             Image(systemName: "square.and.arrow.up")
@@ -444,6 +449,14 @@ struct ShareMenu: View {
 
     private func pdf() {
         guard let url = Kneeboard.pdf(plan) else { return }
+        sharing = ShareItems(items: [url])
+    }
+
+    /// A panel's file of the route, to the share sheet: Files for an SD
+    /// card, or Garmin Pilot.
+    private func file(_ ext: String, _ text: String) {
+        let url = FileManager.default.temporaryDirectory.appending(path: "\(RouteShare.fileName(plan)).\(ext)")
+        guard (try? text.write(to: url, atomically: true, encoding: .utf8)) != nil else { return }
         sharing = ShareItems(items: [url])
     }
 
@@ -517,6 +530,82 @@ enum RouteShare {
 
     private static func xml(_ s: String) -> String {
         s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    /// Text as a Garmin comment or route name takes it: capitals, figures,
+    /// spaces and "/", 25 at most (FlightPlanv1.xsd), as the web's
+    /// lib/avionics garminText.
+    static func garminText(_ text: String, max: Int = 25) -> String {
+        let upper = text.uppercased().replacingOccurrences(of: "&", with: " AND ")
+            .replacingOccurrences(of: "[^A-Z0-9 /]+", with: " ", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        return String(upper.prefix(max)).trimmingCharacters(in: .whitespaces)
+    }
+
+    /// Each point's identifier and Garmin type: a checkpoint a user
+    /// waypoint named from its own name, six characters a GTN keeps
+    /// (190-01007-F0 3.2), none the same as another's.
+    static func garminPoints(_ plan: Plan) -> [(id: String, type: String, name: String, lat: Double, lon: Double)] {
+        let all = points(plan)
+        var taken = Set(all.filter { $0.checkpoint == nil }.map { $0.name.uppercased() })
+        let ends = [plan.course?.departure].compactMap { $0 } + (plan.course?.stops ?? []) + [plan.course?.destination].compactMap { $0 }
+        let fixes = Set(ends.filter { $0.kind == "fix" }.map { $0.ident.uppercased() })
+        return all.map { point in
+            guard point.checkpoint != nil else {
+                let id = point.name.uppercased()
+                let type = !fixes.contains(id) ? "AIRPORT" : id.range(of: "^VP[A-Z0-9]{3}$", options: .regularExpression) != nil ? "INT-VRP" : "INT"
+                return (id, type, id, point.lat, point.lon)
+            }
+            let base = String(garminText(point.name).replacingOccurrences(of: "[^A-Z0-9]", with: "", options: .regularExpression).prefix(6))
+            let start = base.isEmpty ? "CP" : base
+            var id = start
+            var n = 1
+            while taken.contains(id) { id = String(start.prefix(6 - String(n).count)) + String(n); n += 1 }
+            taken.insert(id)
+            return (id, "USER WAYPOINT", point.name, point.lat, point.lon)
+        }
+    }
+
+    /// A Garmin flight plan (.fpl, FlightPlan v1): each point once in its
+    /// table, then the route through them.
+    static func fpl(_ plan: Plan) -> String {
+        let named = garminPoints(plan)
+        var seen = Set<String>()
+        var lines = ["<?xml version=\"1.0\" encoding=\"utf-8\"?>",
+                     "<flight-plan xmlns=\"http://www8.garmin.com/xmlschemas/FlightPlan/v1\">", "  <waypoint-table>"]
+        for p in named where seen.insert("\(p.id):\(p.type)").inserted {
+            lines += ["    <waypoint>", "      <identifier>\(p.id)</identifier>", "      <type>\(p.type)</type>",
+                      "      <country-code></country-code>", String(format: "      <lat>%.6f</lat>", p.lat),
+                      String(format: "      <lon>%.6f</lon>", p.lon), "      <comment>\(garminText(p.name))</comment>", "    </waypoint>"]
+        }
+        lines += ["  </waypoint-table>", "  <route>", "    <route-name>\(garminText(plan.idents.joined(separator: " ")))</route-name>",
+                  "    <flight-plan-index>1</flight-plan-index>"]
+        for p in named {
+            lines += ["    <route-point>", "      <waypoint-identifier>\(p.id)</waypoint-identifier>",
+                      "      <waypoint-type>\(p.type)</waypoint-type>", "      <waypoint-country-code></waypoint-country-code>", "    </route-point>"]
+        }
+        lines += ["  </route>", "</flight-plan>", ""]
+        return lines.joined(separator: "\n")
+    }
+
+    /// A place as the GTN writes it: N44546W123001 is 44° 54.6' N,
+    /// 123° 0.1' W (190-01007-F0 2.4.1).
+    static func gtnPlace(_ lat: Double, _ lon: Double) -> String {
+        func part(_ value: Double, _ digits: Int, _ pos: String, _ neg: String) -> String {
+            let tenths = Int((abs(value) * 600).rounded())
+            return (value < 0 ? neg : pos) + String(format: "%0\(digits)d%03d", tenths / 600, tenths % 600)
+        }
+        return part(lat, 2, "N", "S") + part(lon, 3, "E", "W")
+    }
+
+    /// A GTN flight plan (.gfp, 190-01007-F0): one line, each point ":F:"
+    /// with its place, a checkpoint at its place alone. The web app's adds
+    /// airways and procedures.
+    static func gfp(_ plan: Plan) -> String {
+        "FPN/RI:" + garminPoints(plan).map { p in
+            p.type == "USER WAYPOINT" ? "F:\(gtnPlace(p.lat, p.lon))" : "F:\(p.id),\(gtnPlace(p.lat, p.lon))"
+        }.joined(separator: ":")
     }
 
     /// A GPX 1.1 route through the points.

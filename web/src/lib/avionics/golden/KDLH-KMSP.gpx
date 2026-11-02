@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Wingtip Maps" xmlns="http://www.topografix.com/GPX/1/1">
+  <rte>
+    <name>KDLH to KMSP</name>
+    <rtept lat="46.842091" lon="-92.193649"><name>KDLH</name><desc>Duluth International Airport</desc></rtept>
+    <rtept lat="46.802164" lon="-92.202869"><name>DLH</name><desc>Duluth</desc></rtept>
+    <rtept lat="45.145685" lon="-93.373181"><name>GEP</name><desc>Gopher</desc></rtept>
+    <rtept lat="45.008000" lon="-93.417000"><name>MEDICI</name><desc>Medicine Lake &amp; beach</desc></rtept>
+    <rtept lat="44.881956" lon="-93.221767"><name>KMSP</name><desc>Minneapolis-St Paul Intl/Wold-Chamberlain</desc></rtept>
+  </rte>
+</gpx>
