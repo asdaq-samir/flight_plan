@@ -146,7 +146,7 @@ test("with no route the Stops look round the pilot, 25 nm at first, the distance
   await expect(card.getByTestId("stops-direct")).toHaveCount(0);
   await expect(card.getByTestId("stops-add-stop")).toHaveCount(0);
   // Its close, the sheet's own at its head over the card.
-  await sideDrawer(page).getByRole("button", { name: "Close", exact: true }).first().click();
+  await sideDrawer(page).getByRole("button", { name: "Close", exact: true }).filter({ visible: true }).first().click();
   await expect(card).toHaveCount(0);
 });
 
