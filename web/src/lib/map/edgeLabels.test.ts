@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { EVERY_PX, INSIDE_PX, edgeSpots, spotBox, type EdgeSpot } from "./edgeLabels";
+import { EVERY_PX, INSIDE_PX, edgeAnchors, spotBox, type EdgeSpot } from "./edgeLabels";
+
+/** A line's labels where they are at the airspace's first zoom, 8: the
+ *  line given in that zoom's pixels. */
+const edgeSpots = (line: { x: number; y: number }[], textPx: number): EdgeSpot[] =>
+  edgeAnchors(line, textPx, 8).map(a => ({ x: a.x + a.dx, y: a.y + a.dy, angle: a.angle }));
 
 /** A line's one label, which each test here expects it to have. */
 function first(spots: EdgeSpot[]): EdgeSpot {
@@ -57,6 +62,22 @@ describe("a volume's altitudes along its own line", () => {
       expect(Math.hypot(s.x - 300, s.y - 300)).toBeLessThan(200);
       expect(Math.abs(s.angle)).toBeLessThanOrEqual(90);
     }
+  });
+
+  it("keeps each label where it was as the map zooms in, and adds more between", () => {
+    // A line 900 px long at zoom 8: three labels, 300 apart. Given at
+    // zoom 10, four times as long, the same three at 8 and six more,
+    // two between each, from 10.
+    const line = (k: number) => [{ x: 0, y: 0 }, { x: 900 * k, y: 0 }];
+    const at8 = edgeAnchors(line(1), 40, 8);
+    expect(at8.map(a => a.x)).toEqual([150, 450, 750]);
+    const at10 = edgeAnchors(line(4), 40, 10);
+    expect(at10.filter(a => a.from === 8).map(a => a.x / 4)).toEqual([150, 450, 750]);
+    expect(at10.filter(a => a.from === 10).map(a => a.x / 4)).toEqual([50, 250, 350, 550, 650, 850]);
+    // Its words the same distance off the line at every zoom.
+    expect(at10.every(a => a.dy === INSIDE_PX)).toBe(true);
+    // A line too short at 8 is written from the zoom it is long enough.
+    expect(edgeAnchors([{ x: 0, y: 0 }, { x: 400, y: 0 }], 40, 10).map(a => a.from)).toEqual([9]);
   });
 
   it("leaves out words that would stand across a sharp corner", () => {

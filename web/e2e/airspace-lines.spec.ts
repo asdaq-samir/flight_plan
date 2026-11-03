@@ -11,7 +11,13 @@ import { airportMark, openMapSettings, slow } from "./helpers";
  */
 
 const lines = (page: Page) => page.locator(".leaflet-airspace-pane path");
-const labels = (page: Page) => page.locator(".leaflet-airspace-labels-pane [data-airspace-edge-label]");
+/** The altitudes along the lines, as their canvas writes what it drew
+ *  (AirspaceLabelsLayer): each label's words and angle. */
+const labels = async (page: Page): Promise<{ text: string; angle: number }[]> => {
+  const canvas = page.locator(".leaflet-airspace-labels-pane canvas[data-airspace-edge-labels]");
+  if (!(await canvas.count())) return [];
+  return JSON.parse((await canvas.getAttribute("data-airspace-edge-labels")) ?? "[]");
+};
 const vors = (page: Page) => page.locator(".leaflet-navaids-pane [data-vor]");
 
 test("Chicago's airspace is drawn over the chart with its altitudes, and the switch takes it off", async ({ page }) => {
@@ -34,16 +40,15 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   // ceiling alone. In sight, and turned to read upright.
   // O'Hare's shelves' "100/…": the surface area's "100/SFC" is a small
   // ring round KORD's own mark, its label skipped where the mark is.
-  await expect(labels(page).filter({ hasText: /^100\/(SFC|\d+)$/ }).first()).toBeAttached({ timeout: slow(15000) });
-  await expect(labels(page).filter({ hasText: /^-?\d+$/ }).first()).toBeAttached();
-  await expect(labels(page).filter({ hasText: /^\d+\/\d+$/ }).first()).toBeVisible();
+  await expect.poll(async () => (await labels(page)).some(l => /^100\/(SFC|\d+)$/.test(l.text)), { timeout: slow(15000) }).toBe(true);
+  const written = await labels(page);
+  expect(written.some(l => /^-?\d+$/.test(l.text))).toBe(true);
+  expect(written.some(l => /^\d+\/\d+$/.test(l.text))).toBe(true);
   await expect(page.locator(".leaflet-airspace-labels-pane [data-airspace-label]")).toHaveCount(0);
-  const angles = await labels(page).evaluateAll(texts =>
-    texts.map(t => Number(/rotate\((-?[\d.]+)/.exec(t.getAttribute("transform") ?? "")?.[1])));
-  expect(angles.length).toBeGreaterThan(3);
+  expect(written.length).toBeGreaterThan(3);
   // Upright: a line straight up and down reads bottom to top, either
   // end of the half-turn.
-  expect(angles.every(a => a >= -90 && a <= 90)).toBe(true);
+  expect(written.every(l => l.angle >= -90 && l.angle <= 90)).toBe(true);
   // And the VORs about it: Northbrook's, north of the field.
   await expect(vors(page).and(page.locator('[data-vor="OBK"]'))).toBeAttached({ timeout: slow(15000) });
 
@@ -52,7 +57,7 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   await page.getByTestId("navaids-toggle").click();
   await page.keyboard.press("Escape");
   await expect(lines(page)).toHaveCount(0);
-  await expect(labels(page)).toHaveCount(0);
+  await expect.poll(async () => (await labels(page)).length).toBe(0);
   await expect(vors(page)).toHaveCount(0);
 });
 
