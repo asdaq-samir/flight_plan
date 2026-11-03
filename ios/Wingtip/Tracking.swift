@@ -224,7 +224,14 @@ final class Tracking {
     func watching(_ hex: String, _ kind: AirplaneWatch.Kind) -> Bool { watches.contains { $0.hex == hex.lowercased() && $0.kind == kind } }
 
     func toggleWatch(_ watch: AirplaneWatch) {
-        if watches.contains(watch) { remove(watch) } else { context.insert(AirplaneWatchRecord(watch)) }
+        if watches.contains(watch) {
+            remove(watch)
+        } else {
+            context.insert(AirplaneWatchRecord(watch))
+            // A watch is asked for so as to be told: the moment to ask for
+            // notifications, where the pilot sees what they are for.
+            Task { await Notifications.allow() }
+        }
         saved()
     }
 
@@ -308,8 +315,11 @@ final class Tracking {
             for watch in watches where watch.hex == hex {
                 if let words = Self.fired(watch, before: before, now: now, status: status) {
                     Log.records.notice("watch went off: \(words, privacy: .public)")
+                    // The banner over the map and the voice in the app; a
+                    // time-sensitive notification with the app put away.
                     fired = words
                     SpokenAlerts.shared.say("\(words).", force: true)
+                    Notifications.tell(watch.kind == .takeoff ? "Took off" : "Landed", words, id: watch.id)
                     remove(watch)
                     saved()
                 }

@@ -106,6 +106,13 @@ owner, 2026-11-03):
   (`@SceneStorage` in `RootView`).
 - **A UI smoke test** (`WingtipUITests/LaunchTests`): the app launched
   and its first screen shown, run by the runner with the unit tests.
+- **Time-sensitive notifications** (`Wingtip/Notifications.swift`): a
+  call to us on the radio, traffic near own ship and a watched
+  airplane's takeoff or landing, told at Apple's time-sensitive level
+  only while the app is not in front (on the screen the banner, the
+  amber mark or the haptics say it), with permission asked in the
+  moment the pilot first asks for one. The entitlement is in
+  project.yml.
 
 Still open, as decisions rather than code: the app on the phone is the
 web app in a web view until this one is the product; local records

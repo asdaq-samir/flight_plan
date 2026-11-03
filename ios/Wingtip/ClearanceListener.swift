@@ -3,7 +3,6 @@ import Foundation
 import Observation
 import Speech
 import UIKit
-import UserNotifications
 
 /// The radio heard through the microphone by Apple's own recognizer (the
 /// Speech framework's SFSpeechRecognizer), a transmission at a time, as
@@ -14,8 +13,8 @@ import UserNotifications
 ///
 /// It goes on with the phone locked, as the owner asked (2026-11-02;
 /// project.yml's UIBackgroundModes audio keeps the microphone open), and a
-/// call to us (HeardCall) is said in a notification then, with the
-/// haptics in the app. Asked for with the system's own sheets
+/// call to us (HeardCall) is said in a notification then (Notifications),
+/// with the haptics in the app. Asked for with the system's own sheets
 /// (project.yml's usage strings).
 @MainActor
 @Observable
@@ -74,7 +73,7 @@ final class ClearanceListener {
             Log.radio.error("the microphone or speech recognition was refused")
             return
         }
-        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+        await Notifications.allow()
         guard let recognizer, recognizer.isAvailable else {
             problem = "Speech recognition is not available now."
             Log.radio.error("speech recognition is not available")
@@ -166,19 +165,12 @@ final class ClearanceListener {
         if forUs && final && !wasFinal { tell(text) }
     }
 
-    /// A call to us: the haptics in the app, a notification while it is
-    /// not in front.
+    /// A call to us: a time-sensitive notification while the app is not
+    /// in front, the haptics in the app (the call is on its screen).
     private func tell(_ text: String) {
-        if UIApplication.shared.applicationState == .active {
+        if !Notifications.tell("ATC called you", text) {
             UINotificationFeedbackGenerator().notificationOccurred(.warning)
-            return
         }
-        let content = UNMutableNotificationContent()
-        content.title = "ATC called you"
-        content.body = text
-        content.sound = .default
-        content.interruptionLevel = .timeSensitive
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
     func stop() {

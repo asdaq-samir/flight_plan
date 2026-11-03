@@ -101,6 +101,11 @@ targets:
         com.apple.developer.icloud-container-identifiers:
           - iCloud.$(PRODUCT_BUNDLE_IDENTIFIER)
         aps-environment: development
+        # A call to us on the radio, traffic near own ship and a watched
+        # airplane's takeoff or landing are time-sensitive notifications
+        # (Notifications.swift), the level that comes through a Focus;
+        # iOS 15 and later want this entitlement for it.
+        com.apple.developer.usernotifications.time-sensitive: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios

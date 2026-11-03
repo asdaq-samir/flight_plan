@@ -29,17 +29,28 @@ final class Traffic {
     /// rested.
     var mapCentre: CLLocationCoordinate2D?
     var mapRadiusNm = 30.0
+    /// The airplanes near own ship at the last answer, each told once.
+    private var nearHexes: Set<String> = []
 
-    /// Ask again and again while the map is shown, on the app's one clock.
-    func run(near ownShip: @escaping @MainActor () -> CLLocationCoordinate2D?) async {
+    /// An airplane within this of own ship, with its height within 1,000
+    /// ft (`near`), is told while the app is not in front. A design
+    /// choice, no rule: the amber mark says it on the screen out to the
+    /// map's edge, but a notification is for traffic a pilot looks for
+    /// now, so the horizontal bound keeps an airplane 40 nm off quiet.
+    static let tellWithinNm = 5.0
+
+    /// Ask again and again while the map is shown, on the app's one clock,
+    /// about own ship where there is a fix (its height tells which
+    /// airplanes are near), else about the middle of the map.
+    func run(near ownShip: @escaping @MainActor () -> OwnShip.Fix?) async {
         await Ticker.shared.run(every: Self.everyS) { [weak self] in
             await self?.ask(near: ownShip())
         }
     }
 
     /// One answer about a point, where traffic is on and there is one.
-    private func ask(near at: CLLocationCoordinate2D?) async {
-        guard on, let at = at ?? mapCentre else { return }
+    private func ask(near fix: OwnShip.Fix?) async {
+        guard on, let at = fix?.coordinate ?? mapCentre else { return }
         let radius = min(60, max(10, mapRadiusNm))
         let answer: TrafficAnswer
         do {
@@ -52,6 +63,39 @@ final class Traffic {
         planes = answer.aircraft.filter { ($0.seenS ?? 0) + (answer.ageS ?? 0) <= Self.staleS }
         source = answer.source
         heardAt = Date().addingTimeInterval(-(answer.ageS ?? 0))
+        await tellNear(fix)
+    }
+
+    /// The airplanes near own ship (the engine's `traffic_marks`, the
+    /// amber mark: within 1,000 ft of its height) and within
+    /// `tellWithinNm`, each told once as it comes near, as a
+    /// time-sensitive notification while the app is not in front
+    /// (Notifications); on the screen the amber mark says it, so nothing
+    /// is sent then. Permission is asked the first time traffic is near
+    /// with the app in front, the moment the pilot sees what it is for.
+    private func tellNear(_ fix: OwnShip.Fix?) async {
+        guard let fix, let ownFt = fix.altitudeFt else {
+            nearHexes = []
+            return
+        }
+        let marks = Self.marks(planes, ownFt: ownFt)
+        var near: Set<String> = []
+        for (plane, mark) in zip(planes, marks) where mark.near {
+            let here = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
+            let nm = Flight.nm(from: fix.coordinate, to: here)
+            guard nm <= Self.tellWithinNm else { continue }
+            near.insert(plane.hex)
+            guard !nearHexes.contains(plane.hex) else { continue }
+            if Notifications.inFront {
+                await Notifications.allow()
+                continue
+            }
+            let name = plane.callsign ?? plane.registration ?? plane.hex
+            let against = plane.altitudeFt.map { ", \(FlightWords.against($0 - ownFt))" } ?? ""
+            let place = "\(Formats.nm(nm, decimals: 0)) \(AirportWords.compassPoint(Flight.bearing(from: fix.coordinate, to: here))) of you"
+            Notifications.tell("Traffic near you", "\(name), \(place)\(against)", id: "traffic-\(plane.hex)")
+        }
+        nearHexes = near
     }
 
     /// What is drawn under an airplane: its height against own ship's in

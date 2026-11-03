@@ -158,7 +158,9 @@ struct RootView: View {
             }
             .padding(.leading, 12).padding(.top, 12)
         }
-        .task { await traffic.run { [ownShip] in ownShip.fix?.coordinate } }
+        // About own ship's real fix, never the dry run's: the traffic near
+        // it is told in a notification (Traffic.tellNear).
+        .task { await traffic.run { [ownShip] in ownShip.fix } }
         // The airplane tracked, its reports from the map's answers and its
         // own; the watches set; the alerts ahead said aloud where asked.
         .task { await Tracking.shared.run() }
