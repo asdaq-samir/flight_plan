@@ -12,6 +12,7 @@ import { canListen } from "../../../lib/listen";
 import { useAtcRadio, useRadioActions } from "../../../lib/atcRadio";
 import { startRadio, stopRadio } from "../../../lib/atcListening";
 import { callPattern } from "../../../lib/heardCall";
+import { altitudeWords } from "../../../lib/readback";
 import { inNativeApp } from "../../../lib/native";
 import { TEXT } from "../../../lib/text";
 
@@ -24,12 +25,6 @@ function useSettled(text: string, ms: number): string {
     return () => window.clearTimeout(id);
   }, [text, ms]);
   return settled;
-}
-
-/** An altitude as ATC says it (AIM 4-2-9): feet below 18,000, a flight
- *  level from there up. */
-function altitudeWords(ft: number): string {
-  return ft >= 18000 ? `FL${Math.round(ft / 100)}` : `${ft.toLocaleString("en-US")} ft`;
 }
 
 const capital = (words: string) => words.replace(/\b[a-z]/g, ch => ch.toUpperCase());

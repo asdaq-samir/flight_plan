@@ -12,6 +12,7 @@
  * stops anything.
  */
 import { placeWords, readClearance, tokens, type Clearance } from "./clearance";
+import { grouped } from "./units";
 
 export interface ReadbackItem {
   item: "limit" | "route" | "altitude" | "expect" | "frequency" | "squawk";
@@ -21,8 +22,8 @@ export interface ReadbackItem {
 }
 
 /** An altitude as ATC says it (AIM 4-2-9): feet below 18,000, a flight
- *  level from there up. */
-export const altitudeWords = (ft: number) => (ft >= 18000 ? `FL${Math.round(ft / 100)}` : `${ft.toLocaleString("en-US")} ft`);
+ *  level from there up. The clearance card writes its altitudes with it. */
+export const altitudeWords = (ft: number) => (ft >= 18000 ? `FL${Math.round(ft / 100)}` : `${grouped(ft)} ft`);
 
 /** A place's words as they are compared: lower case, "the" and
  *  "airport" left out. */

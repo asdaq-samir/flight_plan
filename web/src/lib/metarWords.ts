@@ -1,4 +1,5 @@
 import type { Metar } from "./api/types";
+import { grouped } from "./units";
 
 /**
  * A field's METAR as a briefer says it over the phone (lib/speech), for
@@ -19,7 +20,7 @@ export function metarWords(name: string, m: Metar): string {
     const sm = m.visibility_sm;
     parts.push(`visibility ${sm === 0.25 ? "a quarter" : sm === 0.5 ? "half a" : sm === 0.75 ? "three quarters of a" : sm} mile${sm > 1 ? "s" : ""}`);
   }
-  parts.push(m.ceiling_ft === null || m.ceiling_ft === undefined ? "no ceiling" : `ceiling ${m.ceiling_ft.toLocaleString("en-US")} feet`);
+  parts.push(m.ceiling_ft === null || m.ceiling_ft === undefined ? "no ceiling" : `ceiling ${grouped(m.ceiling_ft)} feet`);
   if (m.temp_c !== null && m.temp_c !== undefined) {
     parts.push(`temperature ${m.temp_c}${m.dewpoint_c !== null && m.dewpoint_c !== undefined ? `, dew point ${m.dewpoint_c}` : ""}`);
   }

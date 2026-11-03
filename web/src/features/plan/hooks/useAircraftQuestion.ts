@@ -6,6 +6,7 @@ import { type AircraftFilter, filtering, inEmergency, keptFilter, matches, relat
 import { distanceNm, type LatLon } from "../../../lib/geo";
 import { nmAway } from "../../../lib/useAway";
 import { usePreferences } from "../../../lib/preferences";
+import { grouped } from "../../../lib/units";
 import { airportQuery } from "../../../lib/queryClient";
 
 const NONE: TrafficAircraft[] = [];
@@ -126,7 +127,7 @@ export function strip(q: Question, planes: TrafficAircraft[], from: LatLon | nul
     }
     if (q === "around") {
       const above = plane.altitude_ft != null && field ? plane.altitude_ft - (field.elevation_ft ?? 0) : null;
-      return { plane, key: above ?? Infinity, detail: above == null ? "" : `${(Math.round(above / 100) * 100).toLocaleString("en-US")} AGL` };
+      return { plane, key: above ?? Infinity, detail: above == null ? "" : `${grouped(Math.round(above / 100) * 100)} AGL` };
     }
     if (q === "inbound") {
       const out = nm(field, plane);
