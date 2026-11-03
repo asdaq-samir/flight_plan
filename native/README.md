@@ -28,6 +28,13 @@ Wingtip's Rust, in four crates:
   app.figures only carries the dicts across; the phones get the
   planner's very answers from `wt_debrief`, `wt_diversion`, `wt_holding`
   and `wt_lost_comms`.
+- The pilot's own records and text are the engine's too (`pilot/`): a
+  checklist typed as text, the logbook to and from a CSV file
+  (ForeFlight's export among them, papaparse's reading ported step for
+  step), a handbook page's figures read off its photo, and endorsements
+  (in force, an instructor's lapsed date under 14 CFR 61.197, the words
+  signed, a knowledge test's ACS codes), held to the web's fixtures
+  `checklist.json` and `logbookCsv.json`.
 - `ffi/` (`wingtip-ffi`): the engine's C functions for the phones
   (`ffi/include/wingtip_engine.h`), a static library: the airspace over a
   point from a phone's cycle pack, as the planner's /api/airspace/at

@@ -5,7 +5,11 @@
  * endorsement's words as they will be signed. The endorsements themselves
  * -- AC 61-65K's samples, their 14 CFR sections and how long each is good
  * for -- are the webapp's (EndorsementKind), sent with the record.
+ *
+ * The words and the codes are the shared engine's (native/engine/src/
+ * pilot/endorsements.rs, through lib/engine), as the iPhone app's are.
  */
+import { callEngine } from "./engine/engine";
 
 /**
  * An endorsement's words with the student's name and the fields filled
@@ -15,24 +19,14 @@
  * are not what it makes of the same fields.
  */
 export function renderEndorsement(template: string, student: string, fields: Record<string, string>): string {
-  return template
-    .replace(/\{([A-Za-z]+)\}/g, (_, key: string) => (key === "student" ? student : (fields[key] ?? "")))
-    .replace(/\s+/g, " ")
-    .trim();
+  return callEngine<string>("endorsement_render", { template, student, fields });
 }
 
-const CODE = /\b(PA|IR)\.([IVX]{1,4})\.([A-Z])\.([KRS])(\d{1,2})([A-Z]?)\b/g;
-
 /** The ACS codes in what was pasted -- a report's text, a list, codes
- *  typed in lower case -- each once, in the order given. */
+ *  typed in lower case -- each once, in the order given; a sub-element's
+ *  letter lower case, as the ACS writes it: K1a. */
 export function acsCodesIn(text: string): string[] {
-  const found: string[] = [];
-  for (const m of text.toUpperCase().matchAll(CODE)) {
-    // A sub-element's letter is lower case, as the ACS writes it: K1a.
-    const code = `${m[1]}.${m[2]}.${m[3]}.${m[4]}${m[5]}${m[6]!.toLowerCase()}`;
-    if (!found.includes(code)) found.push(code);
-  }
-  return found;
+  return callEngine<string[]>("acs_codes", { text });
 }
 
 /** The ACS's own table (lib/acs.json, from the FAA's PDFs). */
