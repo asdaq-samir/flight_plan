@@ -100,3 +100,11 @@ struct AircraftView: View {
         Task { await plan.fly(tail: tail, own: own, profiles: profiles) }
     }
 }
+
+#Preview("AircraftView") {
+    let plan = Plan()
+    plan.tail = "N3429J"
+    return AircraftView()
+        .environment(plan)
+        .environment(Session())
+}

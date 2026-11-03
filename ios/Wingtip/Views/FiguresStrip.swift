@@ -94,3 +94,15 @@ struct RouteToolbar: ToolbarContent {
         }
     }
 }
+
+#Preview("FiguresStrip") {
+    // The totals come with the planner's nav log, so the figures past the
+    // destination show as dashes here.
+    let plan = Plan()
+    plan.dep = "KDLH"
+    plan.dest = "KHIB"
+    return FiguresStrip()
+        .environment(plan)
+        .environment(OwnShip())
+        .environment(DryRun())
+}

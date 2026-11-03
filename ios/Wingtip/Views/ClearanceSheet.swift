@@ -208,3 +208,9 @@ struct ClearanceSheet: View {
         dismiss()
     }
 }
+
+#Preview("ClearanceSheet") {
+    ClearanceSheet()
+        .environment(Plan())
+        .environment(OwnShip())
+}

@@ -291,3 +291,61 @@ struct StopServicesSections: View {
         }
     }
 }
+
+private enum PreviewData {
+    static let runways = [
+        Runway(ends: "09/27", lengthFt: 10162, widthFt: 150, surface: "ASPH", lighted: true,
+               wind: RunwayWind(end: "27", headwindKt: 9, crosswindKt: 4),
+               runwayEnds: [RunwayEnd(ident: "09", headingTrueDeg: 92, lat: 46.8415, lon: -92.2140),
+                            RunwayEnd(ident: "27", headingTrueDeg: 272, lat: 46.8425, lon: -92.1733, traffic: "right")]),
+        Runway(ends: "03/21", lengthFt: 5719, widthFt: 150, surface: "ASPH", lighted: true,
+               runwayEnds: [RunwayEnd(ident: "03", headingTrueDeg: 33, lat: 46.8355, lon: -92.2005),
+                            RunwayEnd(ident: "21", headingTrueDeg: 213, lat: 46.8490, lon: -92.1880)]),
+    ]
+}
+
+#Preview("RowBadge") {
+    HStack(spacing: 12) {
+        RowBadge(systemImage: "building.columns", colour: Badge.tower)
+        RowBadge(systemImage: "cloud.sun", colour: Badge.weather)
+        RowBadge(systemImage: "fuelpump", colour: Badge.fuel)
+        RowBadge(systemImage: "exclamationmark.shield", colour: Badge.hazard)
+    }
+    .padding()
+}
+
+#Preview("CardRow") {
+    List {
+        CardRow(badge: RowBadge(systemImage: "fuelpump", colour: Badge.fuel), title: "100LL, Jet A", detail: "Self-serve, 24 h")
+        CardRow(badge: RowBadge(systemImage: "cloud", colour: Badge.weather), title: "Ceiling") { Text("3,500 ft").fontWeight(.semibold) }
+        CardRow(title: "Landing fee") { Text("None").foregroundStyle(.secondary) }
+    }
+}
+
+#Preview("FrequencyRowView") {
+    List {
+        FrequencyRowView(frequency: Frequency(type: "TWR", description: "DULUTH TOWER", frequencyMhz: 118.3))
+        FrequencyRowView(frequency: Frequency(type: "GND", description: "GROUND", frequencyMhz: 121.9))
+        FrequencyRowView(frequency: Frequency(type: "CTAF", description: "CTAF", frequencyMhz: 122.8))
+        FrequencyRowView(frequency: Frequency(type: "ATIS", description: "ATIS"))
+    }
+}
+
+#Preview("RunwayRowView") {
+    List { ForEach(Array(PreviewData.runways.enumerated()), id: \.offset) { _, runway in RunwayRowView(runway: runway) } }
+}
+
+#Preview("RunwaySketch") {
+    RunwaySketch(runways: PreviewData.runways)
+        .frame(width: 300, height: 300)
+}
+
+#Preview("CardActionLabel") {
+    HStack(spacing: 8) {
+        Button {} label: { CardActionLabel(title: "Fly Here", systemImage: "location.north.line") }.buttonStyle(.borderedProminent)
+        Button {} label: { CardActionLabel(title: "Add Stop", systemImage: "mappin.and.ellipse") }.buttonStyle(.bordered)
+        Button {} label: { CardActionLabel(title: "Call", systemImage: "phone") }.buttonStyle(.bordered)
+        Button {} label: { CardActionLabel(title: "Address", systemImage: "map") }.buttonStyle(.bordered)
+    }
+    .padding()
+}

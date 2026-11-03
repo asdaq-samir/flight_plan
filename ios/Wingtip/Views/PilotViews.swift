@@ -71,3 +71,9 @@ struct FlightsView: View {
         }
     }
 }
+
+#Preview("FlightsView") {
+    NavigationStack { FlightsView() }
+        .environment(Plan())
+        .environment(Session())
+}

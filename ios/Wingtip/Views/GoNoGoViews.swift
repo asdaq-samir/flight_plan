@@ -323,3 +323,25 @@ struct RiskView: View {
 
     private func colour(_ level: String) -> Color { FindingStyle.colour(finding(level)) }
 }
+
+#Preview("GoNoGoSection") {
+    // The planner's answer comes with a route, so the section is at its
+    // "Checking the flight…" state here, with the minimums under it.
+    NavigationStack {
+        List { GoNoGoSection { _ in } }
+    }
+    .environment(Verdict())
+}
+
+#Preview("VerdictRow") {
+    List {
+        VerdictRow(item: VerdictItem(key: "weather", label: "Weather", finding: "ok", detail: "VFR along the route, KDLH 10 sm, few at 4,500 ft", tab: "brief"))
+        VerdictRow(item: VerdictItem(key: "fuel", label: "Fuel", finding: "caution", detail: "8.4 gal at landing, 1.9 gal over the reserve", tab: "navlog"))
+        VerdictRow(item: VerdictItem(key: "airspace", label: "Airspace", finding: "stop", detail: "TFR over KHIB until 15:00", tab: "brief"))
+    }
+}
+
+#Preview("MinimumsView") {
+    NavigationStack { MinimumsView() }
+        .environment(Verdict())
+}

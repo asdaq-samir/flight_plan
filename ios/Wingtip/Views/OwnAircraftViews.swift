@@ -609,3 +609,50 @@ struct SquawksView: View {
         } catch { problem = error.localizedDescription }
     }
 }
+
+private enum PreviewData {
+    static let airplane = OwnAircraftRecord(
+        id: 4, tailNumber: "N3429J", typeDesignator: "P28A", cruiseTasKt: 112, fuelBurnGph: 8.5, usableFuelGal: 48, cruisePowerPct: 65,
+        climbTasKt: 76, climbFuelBurnGph: 11, equipment: "SDFGRY", surveillance: "B1", colour: "White, blue stripe",
+        inspections: Inspections(annualOn: "2026-06-14", annualGoodThrough: "2027-06-30", staticCheckOn: "2025-03-02", staticCheckGoodThrough: "2027-03-31",
+                                 transponderCheckOn: "2025-03-02", transponderCheckGoodThrough: "2027-03-31", eltInspectedOn: "2026-06-14",
+                                 eltInspectionGoodThrough: "2027-06-30", eltBatteryDueOn: "2028-02-01", hoursNow: 4312.4, hundredHourAtHours: 4280,
+                                 hundredHourDueAtHours: 4380),
+        openSquawks: [Squawk(id: 9, reportedOn: "2026-10-30", text: "Left landing light out", inoperative: true, deferredFor: "VFR_DAY")],
+        vorCheck: VorCheck(checkedOn: "2026-10-25", errorDeg: 2, goodThrough: "2026-11-24", kind: "VOT", limitDeg: 4, place: "KDLH VOT", withinLimit: true))
+}
+
+#Preview("AircraftFormView") {
+    NavigationStack { AircraftFormView(record: nil) { _ in } }
+}
+
+#Preview("OwnAircraftPage") {
+    NavigationStack { OwnAircraftPage(record: PreviewData.airplane) {} }
+}
+
+#Preview("OptionalDayRow") {
+    @Previewable @State var day: String? = "2026-06-14"
+    @Previewable @State var none: String? = nil
+    List {
+        OptionalDayRow(title: "Flight review", day: $day, upTo: Date())
+        OptionalDayRow(title: "Medical expires", day: $none)
+    }
+}
+
+#Preview("StandingText") {
+    List {
+        StandingText(through: "2027-06-30")
+        StandingText(through: "2026-01-31")
+        StandingText(through: "2028-02-01", good: "By", past: "Due since")
+    }
+}
+
+#Preview("InspectionsSection") {
+    @Previewable @State var record = PreviewData.airplane
+    List { InspectionsSection(record: $record) {} }
+}
+
+#Preview("VorCheckSection") {
+    @Previewable @State var record = PreviewData.airplane
+    List { VorCheckSection(record: $record) {} }
+}

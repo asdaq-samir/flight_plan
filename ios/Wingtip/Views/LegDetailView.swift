@@ -50,3 +50,12 @@ struct LegDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+#Preview("LegDetailView") {
+    NavigationStack {
+        LegDetailView(leg: Leg(from: "KDLH", to: "KHIB", distanceNm: 62.4, altitudeFt: 4500, trueCourseDeg: 318, magneticHeadingDeg: 315,
+                               wcaDeg: -4, trueHeadingDeg: 314, magneticVariationDeg: -1, climbMin: 6, groundspeedKt: 104, eteMin: 36,
+                               fuelGal: 5.1, tasKt: 112, wind: Leg.Wind(directionDeg: 270, speedKt: 12),
+                               toc: Leg.TopOfClimb(alongNm: 9.2), tod: Leg.TopOfDescent(alongNm: 50.1)))
+    }
+}

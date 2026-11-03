@@ -90,3 +90,14 @@ struct DeleteAccountButton: View {
         ProblemLine(problem)
     }
 }
+
+#Preview("ContactView") {
+    NavigationStack { ContactView() }
+        .environment(Session())
+}
+
+#Preview("DeleteAccountButton") {
+    List { DeleteAccountButton() }
+        .environment(Session())
+        .environment(Plan())
+}

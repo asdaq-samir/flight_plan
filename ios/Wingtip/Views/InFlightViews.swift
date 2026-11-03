@@ -673,3 +673,57 @@ struct WatchBanner: View {
         }
     }
 }
+
+private enum PreviewData {
+    static let legs = [
+        Leg(from: "KDLH", to: "KHIB", distanceNm: 62.4, altitudeFt: 4500, trueCourseDeg: 318, magneticHeadingDeg: 315, wcaDeg: -4,
+            trueHeadingDeg: 314, magneticVariationDeg: -1, climbMin: 6, groundspeedKt: 104, eteMin: 36, fuelGal: 5.1, tasKt: 112),
+        Leg(from: "KHIB", to: "KGPZ", distanceNm: 31.8, altitudeFt: 4500, trueCourseDeg: 296, magneticHeadingDeg: 293, wcaDeg: -4,
+            trueHeadingDeg: 292, magneticVariationDeg: -1, climbMin: 6, groundspeedKt: 106, eteMin: 18, fuelGal: 3.3, tasKt: 112),
+    ]
+    static let totals = Totals(distanceNm: 94.2, eteMin: 54, fuelGal: 8.4, fuelRequiredGal: 12.4, fuelMarginGal: 35.6, usableFuelGal: 48)
+}
+
+#Preview("DiversionView") {
+    NavigationStack { DiversionView() }
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+}
+
+#Preview("CheckpointNotesView") {
+    NavigationStack { CheckpointNotesView() }
+        .environment(Plan())
+}
+
+#Preview("FlightServiceView") {
+    let plan = Plan()
+    plan.dep = "KDLH"
+    plan.dest = "KHIB"
+    return NavigationStack { FlightServiceView() }
+        .environment(plan)
+        .environment(Session())
+}
+
+#Preview("ShareMenu") {
+    ShareMenu()
+        .environment(Plan())
+}
+
+#Preview("Kneeboard") {
+    Kneeboard(route: "KDLH → KHIB → KGPZ", aircraft: "N3429J", totals: PreviewData.totals, legs: PreviewData.legs)
+}
+
+#Preview("SpokenAlertsToggle") {
+    Form { SpokenAlertsToggle() }
+}
+
+#Preview("ForgetNotesButton") {
+    Form { ForgetNotesButton() }
+}
+
+#Preview("WatchBanner") {
+    Tracking.shared.fired = "N3429J is in the air from KDLH"
+    return WatchBanner()
+        .padding()
+}

@@ -247,3 +247,27 @@ struct LostCommsView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+#Preview("PilotGuideView") {
+    NavigationStack { PilotGuideView() }
+}
+
+#Preview("AirplaneInTheAirView") {
+    NavigationStack { AirplaneInTheAirView() }
+}
+
+#Preview("LampView") {
+    List {
+        LampView(colours: [.green], flashing: false)
+        LampView(colours: [.red], flashing: true)
+        LampView(colours: [.red, .green], flashing: true)
+    }
+}
+
+#Preview("DrillView") {
+    NavigationStack { DrillView(deck: Drills.lightGun) }
+}
+
+#Preview("LostCommsView") {
+    NavigationStack { LostCommsView() }
+}

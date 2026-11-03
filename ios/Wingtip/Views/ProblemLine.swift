@@ -12,3 +12,7 @@ struct ProblemLine: View {
         if let problem { Text(problem).foregroundStyle(.red).font(.footnote) }
     }
 }
+
+#Preview("ProblemLine") {
+    List { ProblemLine("The planner could not be reached.") }
+}

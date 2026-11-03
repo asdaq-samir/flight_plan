@@ -271,3 +271,27 @@ struct SheetView: View {
         .modifier(FlightSheets())
     }
 }
+
+#Preview("RootView") {
+    RootView()
+        .environment(Session())
+        .environment(Charts())
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+        .environment(Traffic())
+        .environment(Verdict())
+}
+
+#Preview("SheetView") {
+    @Previewable @State var tab: RootView.Tabs = .fpl
+    @Previewable @State var airports: [String] = []
+    SheetView(tab: $tab, airports: $airports, pill: false)
+        .environment(Session())
+        .environment(Charts())
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+        .environment(Traffic())
+        .environment(Verdict())
+}

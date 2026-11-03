@@ -38,3 +38,15 @@ struct UndoBar: View {
         }
     }
 }
+
+#Preview("UndoBar") {
+    // The bar only shows after an edit took something away: a route
+    // planned, then cleared, is "Route cleared".
+    let plan = Plan()
+    plan.dep = "KPAO"
+    plan.dest = "KMOD"
+    plan.plan()
+    plan.clear()
+    return UndoBar()
+        .environment(plan)
+}

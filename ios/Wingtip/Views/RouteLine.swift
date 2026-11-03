@@ -150,3 +150,16 @@ private struct RouteChipButton: View {
         .accessibilityAddTraits(picked ? .isSelected : [])
     }
 }
+
+#Preview("RouteLineRow") {
+    List { RouteLineRow() }
+        .environment(Plan())
+}
+
+#Preview("RouteChipButton") {
+    HStack(spacing: 6) {
+        RouteChipButton(label: "None", picked: false) {}
+        RouteChipButton(label: "Around the weather", picked: true) {}
+    }
+    .padding()
+}

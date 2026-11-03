@@ -57,3 +57,8 @@ struct SignInView: View {
         }
     }
 }
+
+#Preview("SignInView") {
+    SignInView()
+        .environment(Session())
+}

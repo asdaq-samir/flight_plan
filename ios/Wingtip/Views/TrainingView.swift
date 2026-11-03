@@ -322,3 +322,39 @@ struct ReviewAskView: View {
 
     private var chosen: InstructorLink? { instructors.first { $0.id == instructorId } ?? instructors.first }
 }
+
+#Preview("TrainingView") {
+    NavigationStack { TrainingView() }
+        .environment(Session())
+}
+
+#Preview("ExperienceSection") {
+    List {
+        ExperienceSection(items: [
+            ExperienceItem(key: "total", label: "Flight training", rule: "61.109(a): 40 h", unit: "h", have: 32.4, need: 40),
+            ExperienceItem(key: "solo-xc", label: "Solo cross-country", rule: "61.109(a)(5): 5 h", unit: "h", have: 5.2, need: 5, met: true),
+            ExperienceItem(key: "night-landings", label: "Night landings", rule: "61.109(a)(2)(ii): 10", unit: "landings", have: 10, need: 10, met: true),
+        ])
+    }
+}
+
+#Preview("GoodToText") {
+    List {
+        GoodToText(until: "2027-01-11")
+        GoodToText(until: "2025-01-11")
+    }
+}
+
+#Preview("SignedEndorsementRow") {
+    List {
+        SignedEndorsementRow(label: "Solo flight (first 90 days)", rule: "61.87(n)", e: SignedEndorsement(
+            id: 1, code: "A.4", text: "I certify that Avery B. Student has received the required training of § 61.87 in a Cessna 172.",
+            signedOn: "2026-10-14", until: "2027-01-12", signature: "/s/ Jordan Lee 4123456 CFI exp 2028-03-31"))
+    }
+}
+
+#Preview("ReviewAskView") {
+    NavigationStack {
+        ReviewAskView(instructors: [InstructorLink(id: 7, email: "cfi@example.com", name: "Jordan Lee", accepted: true, certificate: "CFI 4123456")]) { _ in }
+    }
+}

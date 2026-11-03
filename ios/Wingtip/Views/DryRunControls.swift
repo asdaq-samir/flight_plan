@@ -34,3 +34,9 @@ struct DryRunControls: View {
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 }
+
+#Preview("DryRunControls") {
+    DryRunControls()
+        .environment(DryRun())
+        .padding()
+}

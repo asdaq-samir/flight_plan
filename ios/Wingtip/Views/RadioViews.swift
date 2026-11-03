@@ -151,3 +151,12 @@ struct RadioCallBanner: View {
         }
     }
 }
+
+#Preview("RadioCallBanner") {
+    RadioCallBanner(call: ClearanceListener.Transmission(
+        id: 1, at: Date(), text: "Skyhawk one two three alpha bravo, proceed direct Livermore, maintain four thousand five hundred",
+        final: true, forUs: true))
+        .padding()
+        .environment(Plan())
+        .environment(OwnShip())
+}

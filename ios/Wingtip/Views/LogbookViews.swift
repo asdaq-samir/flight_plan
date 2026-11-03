@@ -341,3 +341,27 @@ struct LogbookEntryForm: View {
         }
     }
 }
+
+#Preview("UntilText") {
+    List {
+        UntilText(date: "2027-06-30")
+        UntilText(date: "2026-01-31")
+        UntilText(date: nil)
+    }
+}
+
+#Preview("LogbookView") {
+    // Signed out, the logbook asks for the account; its entries come
+    // from the gateway once signed in.
+    NavigationStack { LogbookView() }
+        .environment(Session())
+        .environment(Plan())
+}
+
+#Preview("LogbookEntryForm") {
+    NavigationStack {
+        LogbookEntryForm(entry: LogbookEntryRequest(flownOn: "2026-10-28", aircraft: "N3429J", aircraftType: "P28A", route: "KDLH KHIB",
+                                                    totalHours: 1.2, crossCountryHours: 1.2, dayLandings: 2, distanceNm: 62.4, longestLegNm: 62.4),
+                         isNew: false) { _ in }
+    }
+}

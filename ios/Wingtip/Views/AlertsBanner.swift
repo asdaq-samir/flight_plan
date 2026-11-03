@@ -34,3 +34,19 @@ struct AlertsBanner: View {
         }
     }
 }
+
+#Preview("AlertsBanner") {
+    VStack(spacing: 0) {
+        AlertsBanner(alerts: [
+            AheadAlert(id: "sua-R-4305", kind: "sua", level: "stop", name: "R-4305",
+                       need: "Restricted: keep out unless the controlling agency clears you", seconds: 180, distanceNm: 3.4, lat: 46.9, lon: -92.4),
+            AheadAlert(id: "airspace-D-KDLH", kind: "airspace", level: "caution", name: "Duluth Class D",
+                       need: "Two-way radio contact with the tower before entering", seconds: 240, distanceNm: 4.6, lat: 46.84, lon: -92.19, airspaceClass: "D"),
+        ])
+        AlertsBanner(alerts: [
+            AheadAlert(id: "terrain", kind: "terrain", level: "caution", name: "Terrain",
+                       need: "Within 500 ft of the ground in a minute", seconds: 50, distanceNm: 1.5, lat: 46.9, lon: -92.4, clearanceFt: 420),
+        ])
+        Spacer()
+    }
+}

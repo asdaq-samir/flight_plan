@@ -330,3 +330,37 @@ struct NearestRow: View {
             .compactMap { $0 }.joined(separator: ", "))
     }
 }
+
+private enum PreviewData {
+    static let nearest = [
+        NearestAirport(ident: "KDLH", name: "Duluth Intl", lat: 46.842, lon: -92.194, kind: "large_airport", distanceNm: 3.2, bearingDeg: 312,
+                       municipality: "Duluth", flightCategory: "VFR", longestRunwayFt: 10162),
+        NearestAirport(ident: "KSUW", name: "Richard I Bong", lat: 46.690, lon: -92.095, kind: "medium_airport", distanceNm: 8.9, bearingDeg: 174,
+                       municipality: "Superior", flightCategory: "MVFR", longestRunwayFt: 5100),
+        NearestAirport(ident: "KTWM", name: "Richard B Helgeson", lat: 47.049, lon: -91.745, kind: "small_airport", distanceNm: 22.7, bearingDeg: 52,
+                       municipality: "Two Harbors", longestRunwayFt: 4000),
+    ]
+}
+
+#Preview("AirportSearchView") {
+    @Previewable @State var path: [String] = []
+    AirportSearchView(path: $path)
+        .environment(OwnShip())
+}
+
+#Preview("AirportDestination") {
+    NavigationStack { AirportDestination(route: .list(.nearest), nearest: PreviewData.nearest) }
+}
+
+#Preview("AirportStrip") {
+    AirportShelf.shared.show(.nearest)
+    return List { AirportStrip(nearest: PreviewData.nearest, open: { _ in }) }
+}
+
+#Preview("AirportListView") {
+    NavigationStack { AirportListView(shows: .nearest, nearest: PreviewData.nearest) }
+}
+
+#Preview("NearestRow") {
+    List { ForEach(PreviewData.nearest) { NearestRow(field: $0) } }
+}

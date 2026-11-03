@@ -29,3 +29,8 @@ struct MapButtons: View {
         .padding(.top, 12)
     }
 }
+
+#Preview("MapButtons") {
+    @Previewable @State var following = true
+    MapButtons(following: $following, routeAway: false) {}
+}

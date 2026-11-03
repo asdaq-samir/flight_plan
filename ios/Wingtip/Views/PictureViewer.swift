@@ -222,3 +222,19 @@ final class PagesScrollView: UIScrollView, UIScrollViewDelegate {
         }
     }
 }
+
+#Preview("PictureViewer") {
+    // A picture drawn here, so the viewer shows a page without the planner.
+    PictureViewer(picture: ShownPicture(title: "Airport diagram", credit: "FAA") {
+        [UIGraphicsImageRenderer(size: CGSize(width: 600, height: 800)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 600, height: 800))
+            UIColor.darkGray.setFill()
+            context.fill(CGRect(x: 120, y: 80, width: 60, height: 640))
+        }]
+    })
+}
+
+#Preview("ZoomablePictures") {
+    ZoomablePictures(images: [UIImage(systemName: "airplane") ?? UIImage()])
+}

@@ -487,3 +487,52 @@ struct FAARecordSection: View {
         }
     }
 }
+
+private enum PreviewData {
+    static let plane = TrafficAircraft(hex: "a8c2e1", lat: 46.84, lon: -92.19, callsign: "N3429J", registration: "N3429J", type: "P28A",
+                                       altitudeFt: 4500, trackDeg: 215, speedKt: 112, verticalFpm: 0, squawk: "1200")
+    static let faa = FAARecord(nNumber: "N3429J", airworthiness: "Standard", airworthinessDate: "1998-04-02", city: "Duluth",
+                               engine: "Lycoming O-320", engineType: "Reciprocating", expires: "2028-06-30", horsepower: 150,
+                               manufacturer: "Piper", model: "PA-28-140", owner: "Lake Superior Flying Club", ownerType: "Corporation",
+                               seats: 4, standing: "current", state: "MN", status: "Valid", year: 1968)
+    static let detail = FlightDetail(hex: "a8c2e1", departed: FlightDeparted(at: 1_762_180_000, ident: "KDLH", name: "Duluth Intl"),
+                                     description: "PIPER PA-28-140", `operator`: "LAKE SUPERIOR FLYING CLUB", registration: "N3429J",
+                                     type: "P28A", year: "1968", faa: faa)
+    static let route = FlightRoute(airports: [RouteAirport(ident: "KDLH", location: "Duluth", name: "Duluth Intl"),
+                                              RouteAirport(ident: "KBRD", location: "Brainerd", name: "Brainerd Lakes Rgnl")], plausible: true)
+    static let flight = PastFlightSummary(id: 1, inAir: false, landed: true, maxAltFt: 5500, off: 1_762_000_000, on: 1_762_003_120,
+                                          origin: PastFlightField(ident: "KDLH", city: "Duluth", name: "Duluth Intl", region: "US-MN"),
+                                          destination: PastFlightField(ident: "KBRD", city: "Brainerd", name: "Brainerd Lakes Rgnl", region: "US-MN"))
+}
+
+#Preview("NowFlightRow") {
+    List { NowFlightRow(plane: PreviewData.plane, detail: PreviewData.detail, route: PreviewData.route) }
+        .environment(OwnShip())
+}
+
+#Preview("PastFlightRow") {
+    List {
+        PastFlightRow(flight: PreviewData.flight, type: "P28A")
+        PastFlightRow(flight: PastFlightSummary(id: 2, inAir: true, landed: false, maxAltFt: 4500, off: 1_762_180_000, on: 1_762_182_400,
+                                                origin: PastFlightField(ident: "KDLH", city: "Duluth", region: "US-MN")), type: "P28A")
+    }
+}
+
+#Preview("PastFlightCard") {
+    NavigationStack { PastFlightCard(hex: "a8c2e1", flight: PreviewData.flight) }
+}
+
+#Preview("FlightProfileChart") {
+    let start = 1_762_000_000.0
+    let points = (0..<40).map { i in
+        Replay.Point(t: start + Double(i) * 60, lat: 46.84 - Double(i) * 0.01, lon: -92.19 - Double(i) * 0.015,
+                     altFt: 1400 + Double(min(i, 20)) * 250, gsKt: 95 + Double(i % 7) * 3)
+    }
+    return FlightProfileChart(points: points, cursor: points[15])
+        .frame(height: 180)
+        .padding()
+}
+
+#Preview("FAARecordSection") {
+    List { FAARecordSection(faa: PreviewData.faa) }
+}

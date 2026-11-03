@@ -234,3 +234,26 @@ struct SplitLayout<Map: View>: View {
         }
     }
 }
+
+#Preview("CardLink") {
+    NavigationStack {
+        List {
+            CardLink(.profile) { Text("Profile") }
+            CardLink(.brief) { Text("Brief") }
+        }
+    }
+}
+
+#Preview("SplitLayout") {
+    @Previewable @State var tab: RootView.Tabs = .fpl
+    @Previewable @State var airports: [String] = []
+    @Previewable @State var card: SideCard? = nil
+    SplitLayout(map: Color(.secondarySystemBackground).ignoresSafeArea(), tab: $tab, airports: $airports, card: $card)
+        .environment(Session())
+        .environment(Charts())
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+        .environment(Traffic())
+        .environment(Verdict())
+}

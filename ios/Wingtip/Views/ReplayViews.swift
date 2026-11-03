@@ -91,3 +91,14 @@ struct ReplaySection: View {
          here.trackDeg.map(SpokenFigures.compass)].compactMap { $0 }.joined(separator: ", ")
     }
 }
+
+#Preview("ReplaySection") {
+    List {
+        ReplaySection(points: [
+            Replay.Point(t: 1_762_200_000, lat: 37.461, lon: -122.115, altFt: 50, gsKt: 0, trackDeg: 310),
+            Replay.Point(t: 1_762_200_300, lat: 37.520, lon: -122.050, altFt: 2500, gsKt: 95, trackDeg: 45),
+            Replay.Point(t: 1_762_200_900, lat: 37.650, lon: -121.850, altFt: 4500, gsKt: 112, trackDeg: 62),
+            Replay.Point(t: 1_762_201_500, lat: 37.693, lon: -121.820, altFt: 400, gsKt: 70, trackDeg: 250),
+        ], key: "preview")
+    }
+}

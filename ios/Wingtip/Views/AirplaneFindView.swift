@@ -47,3 +47,11 @@ struct AirplaneRow: View {
         return parts.joined(separator: " · ")
     }
 }
+
+#Preview("AirplaneRow") {
+    List {
+        AirplaneRow(plane: TrafficAircraft(hex: "a8c2e1", lat: 46.84, lon: -92.19, callsign: "N3429J", registration: "N3429J", type: "P28A",
+                                           altitudeFt: 4500, trackDeg: 215, speedKt: 112))
+        AirplaneRow(plane: TrafficAircraft(hex: "a1b2c3", lat: 46.90, lon: -92.30, registration: "N172SP", type: "C172", altitudeFt: 3000, trackDeg: 40, speedKt: 98))
+    }
+}

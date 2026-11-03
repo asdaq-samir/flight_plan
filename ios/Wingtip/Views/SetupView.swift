@@ -89,3 +89,11 @@ struct SetupView: View {
         }
     }
 }
+
+#Preview("SetupView") {
+    SetupView()
+        .environment(Session())
+        .environment(Charts())
+        .environment(Traffic())
+        .environment(Plan())
+}

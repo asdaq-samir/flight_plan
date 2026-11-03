@@ -191,3 +191,33 @@ struct ProfileChart: View {
         .accessibilityLabel("The route from the side: the ground, the airspace and the altitude flown")
     }
 }
+
+private enum PreviewData {
+    static let profile = RouteProfile(
+        lengthNm: 62,
+        terrain: [
+            ProfileGround(alongNm: 0, groundFt: 5), ProfileGround(alongNm: 20, groundFt: 1800),
+            ProfileGround(alongNm: 40, groundFt: 2600), ProfileGround(alongNm: 62, groundFt: 95),
+        ],
+        airspace: [ProfileAirspace(name: "San Francisco Class B", airspaceClass: "B", fromNm: 0, toNm: 14, floorFt: 1500, ceilingFt: 10_000)]
+    )
+    static let legs = [
+        Leg(from: "KPAO", to: "KLVK", distanceNm: 28, altitudeFt: 4500, trueCourseDeg: 62, magneticHeadingDeg: 51,
+            groundspeedKt: 108, eteMin: 16, fuelGal: 2.3, tasKt: 112),
+        Leg(from: "KLVK", to: "KMOD", distanceNm: 34, altitudeFt: 4500, trueCourseDeg: 105, magneticHeadingDeg: 94,
+            groundspeedKt: 118, eteMin: 17, fuelGal: 2.4, tasKt: 112),
+    ]
+}
+
+#Preview("ProfileCard") {
+    NavigationStack { ProfileCard() }
+        .environment(Plan())
+        .environment(DryRun())
+}
+
+#Preview("ProfileChart") {
+    ProfileChart(profile: PreviewData.profile, legs: PreviewData.legs, altitudeFt: 4500,
+                 selection: AltitudeSelection(recommendedFt: 4500, candidatesFt: [3500, 4500, 5500]))
+        .frame(height: 200)
+        .padding()
+}

@@ -139,3 +139,10 @@ extension Figures {
         return out
     }
 }
+
+#Preview("AirplaneFiguresView") {
+    let plan = Plan()
+    plan.tail = "N3429J"
+    return NavigationStack { AirplaneFiguresView() }
+        .environment(plan)
+}

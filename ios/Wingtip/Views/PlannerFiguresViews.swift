@@ -607,3 +607,35 @@ struct LostCommsSegmentsSections: View {
         }
     }
 }
+
+#Preview("WithinMark") {
+    HStack(spacing: 12) {
+        WithinMark(ok: true)
+        WithinMark(ok: false)
+    }
+}
+
+#Preview("DiversionDrillView") {
+    NavigationStack { DiversionDrillView() }
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+}
+
+#Preview("HoldingView") {
+    NavigationStack { HoldingView() }
+}
+
+#Preview("HoldDiagram") {
+    // Arriving on 220 to a hold inbound 360, right turns: from the fix the
+    // airplane comes from 040, the parallel sector (AIM 5-3-8).
+    HoldDiagram(inbound: 360, heading: 220, turns: "right", entry: "parallel", from: 40)
+        .padding()
+}
+
+#Preview("LostCommsSegmentsSections") {
+    @Previewable @State var leave: String? = nil
+    List {
+        LostCommsSegmentsSections(leave: $leave, approachFix: false, efc: "", eta: "1435Z")
+    }
+}

@@ -159,3 +159,15 @@ struct KeptRow: View {
         .accessibilityElement(children: .combine)
     }
 }
+
+#Preview("TrafficFindView") {
+    NavigationStack { TrafficFindView() }
+        .environment(Traffic())
+}
+
+#Preview("KeptRow") {
+    List {
+        KeptRow(kept: KeptAirplane(hex: "a1b2c3", name: "N174HA", type: "C172"))
+        KeptRow(kept: KeptAirplane(hex: "a93f1e", name: "UAL2088"))
+    }
+}
