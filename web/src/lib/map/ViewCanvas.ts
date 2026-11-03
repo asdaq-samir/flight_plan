@@ -68,6 +68,8 @@ export abstract class ViewCanvasLayer extends L.Layer {
   private drawnMoving = false;
   /** The zoom being animated to, and when it started, while one is. */
   private zoomingTo: { zoom: number; center: L.LatLng; start: number } | null = null;
+  /** A drawing asked for while Leaflet animated a zoom, owed as it ends. */
+  private deferred = false;
 
   /** Drawn again at each step of a pinch (the airports' marks, which must
    *  stay sharp and placed as the chart grows), or only once it ends,
@@ -224,6 +226,10 @@ export abstract class ViewCanvasLayer extends L.Layer {
   }
 
   private animated(): void {
+    if (this.deferred) {
+      this.deferred = false;
+      this.schedule();
+    }
     if (!this.zoomingTo) return;
     this.zoomingTo = null;
     cancelAnimationFrame(this.frame);
@@ -250,6 +256,21 @@ export abstract class ViewCanvasLayer extends L.Layer {
     const map = this._map;
     const canvas = this.canvas;
     if (!map || !canvas) return;
+    // Not while Leaflet animates a zoom (a double tap, a wheel's step, a
+    // fitted route; _animatingZoom, the pane's .leaflet-zoom-anim), for a
+    // layer scaled through it (animate): drawn then, the canvas is placed
+    // for the zoom the map still has, a plain translate, and the
+    // stylesheet transitions it there from where the animation had it
+    // over the animation's own 0.25 s -- a plate fetched mid-animation, or
+    // a redraw the sheet's follow ends with, glided across the screen
+    // (Session1's probe, 2026-11-03: the airspace's canvas placed under the
+    // animation in 4 of 14 frames of a zoom from 5 to 7 over KOKC, the
+    // owner's recording of Dallas's Class B carried past KOKC and back).
+    // Owed instead, and drawn as the zoom ends (animated).
+    if (!this.redrawWhileZooming && (map as L.Map & { _animatingZoom?: boolean })._animatingZoom) {
+      this.deferred = true;
+      return;
+    }
     const size = map.getSize();
     const pad = size.multiplyBy(PAD).round();
     const from = L.point(-pad.x, -pad.y);
