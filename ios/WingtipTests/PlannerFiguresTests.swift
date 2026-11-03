@@ -92,6 +92,25 @@ struct PlannerFiguresTests {
         #expect(answer.segments[1].fly == nil && answer.leave.hasSuffix("1435Z."))
     }
 
+    /// The hold and lost comms are the engine's on the phone now, with no
+    /// network: its answer reads as the planner's would (call.rs's own
+    /// test, a teardrop for 360° inbound arriving on 112°).
+    @Test func theHoldAndLostCommsAreWorkedOnThePhone() throws {
+        let hold = try Engine.holding(inbound: 360, heading: 112, turns: "right", tasKt: nil, windFrom: nil, windKt: nil, altitudeFt: nil)
+        #expect(hold.entry == "teardrop" && hold.either == "direct" && hold.wind == nil)
+        let windy = try Engine.holding(inbound: 360, heading: 220, turns: "right", tasKt: 100, windFrom: 300, windKt: 15, altitudeFt: 5000)
+        #expect(windy.wind?.legMin == 1)
+        let lost = try Engine.lostComms(LostCommsAsk(segments: [LostCommsSegmentAsk(name: "SWEDE to RAYMO", minimumFt: 5000)],
+                                                     assignedFt: 4000, expectedFt: 6000, expectedFrom: 0, approachFix: false, efc: "",
+                                                     eta: "1435Z"))
+        #expect(lost.segments.map(\.fly) == [6000])
+        #expect(lost.leave.contains("1435Z"))
+        // A shape the rule cannot read is the engine's words, thrown.
+        #expect(throws: Engine.Refused.self) {
+            let _: HoldingAnswer = try Engine.call("holding", json: ["inbound": 360])
+        }
+    }
+
     @Test func thePlannersFiguresAreWrittenAsAPilotWritesThem() {
         #expect(AirportWords.bearing(0) == "360°")
         #expect(AirportWords.bearing(4.6) == "005°")
