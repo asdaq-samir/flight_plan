@@ -46,6 +46,39 @@ pub fn opt_string(out: &mut String, s: Option<&str>) {
     }
 }
 
+/// Any value written back as JSON: an object's members in their order,
+/// numbers as `number` writes them.
+pub fn value(out: &mut String, v: &Value) {
+    match v {
+        Value::Null => out.push_str("null"),
+        Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
+        Value::Number(n) => number(out, *n),
+        Value::String(s) => string(out, s),
+        Value::Array(items) => {
+            out.push('[');
+            for (i, item) in items.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                value(out, item);
+            }
+            out.push(']');
+        }
+        Value::Object(members) => {
+            out.push('{');
+            for (i, (k, item)) in members.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                string(out, k);
+                out.push(':');
+                value(out, item);
+            }
+            out.push('}');
+        }
+    }
+}
+
 /// A phone pack's table: its columns, and each row's cells as strings.
 pub struct Table {
     pub columns: Vec<String>,

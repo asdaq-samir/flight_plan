@@ -8,6 +8,7 @@
  * Nothing here leaves the device: a track is the pilot's, kept in this
  * browser (keepTrack) unless they save it to their account.
  */
+import { callEngine } from "./engine/engine";
 import { keptStore, wasKept } from "./storage";
 
 export interface TrackPoint {
@@ -19,70 +20,25 @@ export interface TrackPoint {
   altFt: number | null;
 }
 
-const FEET_PER_METRE = 3.28084;
-
 /** Something the file is not, in words for the pilot. */
 export class TrackError extends Error {}
 
-function valid(p: TrackPoint): boolean {
-  return Number.isFinite(p.t) && Math.abs(p.lat) <= 90 && Math.abs(p.lon) <= 180 && !(p.lat === 0 && p.lon === 0);
-}
-
-function elevation(text: string | null | undefined): number | null {
-  if (text == null || text.trim() === "") return null;
-  const metres = Number(text);
-  return Number.isFinite(metres) ? metres * FEET_PER_METRE : null;
-}
-
-function gpx(doc: Document): TrackPoint[] {
-  return [...doc.getElementsByTagNameNS("*", "trkpt")].map(el => ({
-    t: Date.parse(el.getElementsByTagNameNS("*", "time")[0]?.textContent ?? ""),
-    lat: Number(el.getAttribute("lat")),
-    lon: Number(el.getAttribute("lon")),
-    altFt: elevation(el.getElementsByTagNameNS("*", "ele")[0]?.textContent),
-  }));
-}
-
-/** KML's gx:Track: its `when`s and its `gx:coord`s ("lon lat alt"), in
- *  step. A plain LineString has no times, and no use here. */
-function kml(doc: Document): TrackPoint[] {
-  const points: TrackPoint[] = [];
-  for (const track of doc.getElementsByTagNameNS("*", "Track")) {
-    const whens = [...track.getElementsByTagNameNS("*", "when")];
-    const coords = [...track.getElementsByTagNameNS("*", "coord")];
-    whens.forEach((when, i) => {
-      const [lon, lat, alt] = (coords[i]?.textContent ?? "").trim().split(/\s+/).map(Number);
-      points.push({ t: Date.parse(when.textContent ?? ""), lat: lat ?? NaN, lon: lon ?? NaN, altFt: alt == null || Number.isNaN(alt) ? null : alt * FEET_PER_METRE });
-    });
-  }
-  return points;
-}
-
 /** A track file's points in time order, the unreadable ones dropped;
- *  a TrackError where it has none to use. */
+ *  a TrackError where it has none to use. Read by the shared engine
+ *  (native/engine/src/motion/track.rs), the phone's reader too: GPX's
+ *  trkpt and KML's gx:Track, times in UTC as GPX 1.1 sets them. */
 export function readTrack(text: string): TrackPoint[] {
-  const doc = new DOMParser().parseFromString(text, "application/xml");
-  if (doc.getElementsByTagName("parsererror").length) throw new TrackError("This file is not a GPX or KML track.");
-  const root = doc.documentElement.localName.toLowerCase();
-  const raw = root === "gpx" ? gpx(doc) : root === "kml" ? kml(doc) : null;
-  if (!raw) throw new TrackError("This file is not a GPX or KML track.");
-  const points = raw.filter(valid).sort((a, b) => a.t - b.t);
-  if (points.length < 2) {
-    throw new TrackError(raw.length
-      ? "The track's points have no times: export it with them (a GPX track, or ForeFlight's KML track log)."
-      : "There is no track in this file.");
-  }
-  return points.filter((p, i) => i === 0 || p.t > points[i - 1]!.t);
+  const read = callEngine<{ points?: { t: number; lat: number; lon: number; alt_ft: number | null }[]; error?: string }>("read_track", { text });
+  if (read.error || !read.points) throw new TrackError(read.error ?? "This file is not a GPX or KML track.");
+  return read.points.map(p => ({ t: p.t, lat: p.lat, lon: p.lon, altFt: p.alt_ft }));
 }
 
 /** A track thinned to at most `most` points, the first and the last
  *  kept: for keeping it, where a second-by-second log of two hours is
  *  seven thousand. Even steps through it, which keep its shape at a
- *  light airplane's speeds. */
+ *  light airplane's speeds (the engine's thin_track). */
 export function thin(points: TrackPoint[], most = 4000): TrackPoint[] {
-  if (points.length <= most) return points;
-  const step = (points.length - 1) / (most - 1);
-  return Array.from({ length: most }, (_, i) => points[Math.round(i * step)]!);
+  return callEngine<TrackPoint[]>("thin_track", { points, most });
 }
 
 type KeptTrack = { source: string; points: TrackPoint[] } | null;

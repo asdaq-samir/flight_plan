@@ -35,6 +35,19 @@ pub fn bearing_deg(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     py_mod(y.atan2(x).to_degrees(), 360.0)
 }
 
+/// Where a great circle from a point on a true bearing reaches `nm` out,
+/// (lat, lon) in degrees, the longitude within -180 to 180: the web's
+/// lib/geo destination, written as it is (`deg * PI / 180`).
+pub fn destination(lat: f64, lon: f64, bearing: f64, nm: f64) -> (f64, f64) {
+    use std::f64::consts::PI;
+    let d = nm / EARTH_RADIUS_NM;
+    let b = bearing * PI / 180.0;
+    let (lat1, lon1) = (lat * PI / 180.0, lon * PI / 180.0);
+    let lat2 = (lat1.sin() * d.cos() + lat1.cos() * d.sin() * b.cos()).asin();
+    let lon2 = lon1 + (b.sin() * d.sin() * lat1.cos()).atan2(d.cos() - lat1.sin() * lat2.sin());
+    (lat2 * 180.0 / PI, (lon2 * 180.0 / PI + 540.0) % 360.0 - 180.0)
+}
+
 /// How far apart two directions are, degrees 0 to 180, either way round
 /// the compass (358 is 4 from 002): vfr.geo.angle_between.
 pub fn angle_between(a: f64, b: f64) -> f64 {

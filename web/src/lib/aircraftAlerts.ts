@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { FlightStatus } from "./api/types";
 import { clockTime } from "./clock";
 import { compassPoint, saidPoint } from "./compass";
-import { bearingDeg, distanceNm } from "./geo";
+import { callEngine } from "./engine/engine";
 import { altFt } from "./units";
 
 /**
@@ -57,24 +57,22 @@ export interface FiredAlert {
   at: number;
 }
 
-/** Unheard this long, s, and not known to have landed, an airplane not
- *  heard taking off is taken to be on the ground: parked out of the
- *  receivers' hearing, not flying out of it. */
-const PARKED_UNHEARD_S = 30 * 60;
-
 /**
  * Whether the airplane is in the air, from its state and what was known
  * before: in the air where it is heard there; on the ground where it has
  * landed somewhere, or where nothing was known and it has not been heard
- * for a long while or ever; else what was known, as an airplane gone
- * quiet in the pattern has not landed until it is known to have.
+ * for half an hour or ever (parked out of the receivers' hearing); else
+ * what was known, as an airplane gone quiet in the pattern has not landed
+ * until it is known to have. The shared engine's rule
+ * (native/engine/src/motion/alerts.rs), the phone's too.
  */
 export function airborneNow(before: boolean | null, now: FlightStatus): boolean | null {
-  if (now.airborne) return true;
-  if (now.arrived) return false;
-  if (before === null) return now.heard_s == null || now.heard_s >= PARKED_UNHEARD_S ? false : null;
-  return before;
+  return callEngine<boolean | null>("airborne_now", { before, airborne: !!now.airborne, arrived: !!now.arrived, heard_s: now.heard_s ?? null });
 }
+
+/** The engine's word on an alert (alert_fires): whether it goes off, and,
+ *  near something, whether it is that near and how far which way. */
+interface Fires { fires: boolean; inside: boolean | null; nm: number | null; bearing_deg: number | null }
 
 /** "N654FL took off from 10C", "N654FL landed at KDAW", "N654FL is 8 nm
  *  from you": the banner's and the voice's words for one alert, or null
@@ -86,8 +84,20 @@ export function fired(
   const id = `${alertKey(alert)}:${at}`;
   const base = { id, hex: alert.hex, name: alert.name, at };
   const when = clockTime(new Date(at));
+  const nearMe = alert.kind === "near-me";
+  // Near something: where it is now, against own ship or the airport.
+  const plane = now.aircraft;
+  const to = nearMe ? me : alert.airport ?? null;
+  // When it goes off is the shared engine's (alert_fires); the words are
+  // the page's.
+  const go = callEngine<Fires>("alert_fires", {
+    kind: alert.kind === "takeoff" || alert.kind === "land" ? alert.kind : "near",
+    before_airborne: before.airborne, was_inside: !!before.inside[alertKey(alert)], airborne, arrived: !!now.arrived,
+    plane: plane ? { lat: plane.lat, lon: plane.lon } : null, to: to ? { lat: to.lat, lon: to.lon } : null,
+    limit_nm: nearMe ? alert.nm ?? NEAR_ME_DEFAULT_NM : NEAR_AIRPORT_NM,
+  });
   if (alert.kind === "takeoff") {
-    if (before.airborne !== false || airborne !== true) return { alert: null };
+    if (!go.fires) return { alert: null };
     const from = now.departed;
     return {
       alert: {
@@ -99,7 +109,7 @@ export function fired(
     };
   }
   if (alert.kind === "land") {
-    if (before.airborne !== true || airborne !== false || !now.arrived) return { alert: null };
+    if (!go.fires || !now.arrived) return { alert: null };
     const field = now.arrived;
     return {
       alert: {
@@ -110,25 +120,19 @@ export function fired(
       },
     };
   }
-  // Near something: where it is now, against own ship or the airport.
-  const plane = now.aircraft;
-  const to = alert.kind === "near-me" ? me : alert.airport ?? null;
-  if (!plane || !to) return { alert: null };
-  const nm = distanceNm(to, plane);
-  const limit = alert.kind === "near-me" ? alert.nm ?? NEAR_ME_DEFAULT_NM : NEAR_AIRPORT_NM;
-  const inside = nm <= limit;
-  if (!inside || before.inside[alertKey(alert)]) return { alert: null, inside };
-  const miles = Math.max(1, Math.round(nm));
-  const way = compassPoint(bearingDeg(to, plane));
+  if (go.inside === null) return { alert: null };
+  if (!go.fires || !plane || go.nm === null || go.bearing_deg === null) return { alert: null, inside: go.inside };
+  const miles = Math.max(1, Math.round(go.nm));
+  const way = compassPoint(go.bearing_deg);
   const height = plane.altitude_ft == null ? null : `${altFt(Math.round(plane.altitude_ft / 100) * 100)} ft`;
-  const where = alert.kind === "near-me" ? "you" : alert.airport!.ident;
+  const where = nearMe ? "you" : alert.airport!.ident;
   return {
-    inside,
+    inside: true,
     alert: {
       ...base,
       title: `${alert.name} is ${miles} nm from ${where}`,
-      detail: [`${way} of ${alert.kind === "near-me" ? "you" : alert.airport!.ident}`, height, when].filter(Boolean).join(" · "),
-      spoken: alert.kind === "near-me"
+      detail: [`${way} of ${nearMe ? "you" : alert.airport!.ident}`, height, when].filter(Boolean).join(" · "),
+      spoken: nearMe
         ? `${alert.name}, ${miles} miles ${saidPoint(way)}${height ? `, ${height.replace(" ft", " feet")}` : ""}.`
         : `${alert.name} is ${miles} miles from ${alert.airport!.name ?? alert.airport!.ident}.`,
     },
