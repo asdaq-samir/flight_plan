@@ -1,4 +1,5 @@
 import { degreesMinutes } from "./coords";
+import { callEngine } from "./engine/engine";
 
 /** An airport ident, normalized (trimmed, uppercased) and shape-checked
  *  -- the same 3-4 alphanumeric character rule springboot-app's own
@@ -17,29 +18,37 @@ export function identOf(value: string | null | undefined): string {
   return normalized(value, /^[A-Z0-9]{3,4}$/);
 }
 
+/** What a point is by its form, as the shared engine tells it
+ *  (crate::route::points, which the planner's query and the phones ask
+ *  too): a fix's or a field's ident, the pilot's own point, or null. */
+const pointKind = (ident: string) => callEngine<"fix" | "own" | null>("point_kind", { text: ident });
+
 /** A stop's ident: an airport's, or a named fix's -- a VFR waypoint
  *  (VPBNG), a GPS waypoint -- two to five letters and digits; or the
  *  pilot's own point off a fix, its magnetic course or radial and its
  *  distance, nm, "VPBNG/090/30" (the planner's vfr.fixes.parse_frd), or
  *  packed as a flight plan writes it, "DLH090030"; or "". */
 export function stopOf(value: string | null | undefined): string {
-  return normalized(value, /^[A-Z0-9]{2,5}(\/\d{3}\/\d{1,3}(\.\d)?)?$|^[A-Z]{2,5}\d{6}$/);
+  const ident = (value ?? "").trim().toUpperCase();
+  return ident && pointKind(ident) ? ident : "";
 }
 
 /** A fix's or a field's bare ident, two to five letters and digits: a
  *  stop (stopOf) with no course and distance after it. */
-export const isFixIdent = (ident: string) => /^[A-Z0-9]{2,5}$/.test(ident);
+export const isFixIdent = (ident: string) => pointKind(ident) === "fix";
 
 /** A stop that is the pilot's own point off a fix (stopOf): its fix,
- *  course and distance; null for any other. */
+ *  course (0 to 359, north 0) and distance, as the planner places it
+ *  (vfr.fixes.parse_frd); null for any other, or one whose course is past
+ *  360 or whose distance is nothing or past 999 nm. */
 export function frdOf(ident: string): { base: string; course: number; distanceNm: number } | null {
-  const m = /^([A-Z0-9]{2,5})\/(\d{3})\/(\d{1,3}(?:\.\d)?)$/.exec(ident) ?? /^([A-Z]{2,5})(\d{3})(\d{3})$/.exec(ident);
-  return m ? { base: m[1]!, course: Number(m[2]), distanceNm: Number(m[3]) } : null;
+  const frd = callEngine<{ base: string; course: number; distance_nm: number } | null>("frd_read", { text: ident });
+  return frd && { base: frd.base, course: frd.course, distanceNm: frd.distance_nm };
 }
 
 /** The pilot's point as the route writes it: "VPBNG/090/30". */
 export const frdIdent = (base: string, course: number, distanceNm: number) =>
-  `${base.toUpperCase()}/${String(Math.round(course) % 360).padStart(3, "0")}/${Math.round(distanceNm * 10) / 10}`;
+  callEngine<string>("frd_write", { base, course, distance_nm: distanceNm });
 
 /** A present position as a route's departure, "@42.3246,-88.0741" (the
  *  planner's app.common.position_of): Fly Here's Direct-To from where the

@@ -10,6 +10,7 @@ A route may land at stops on the way (`stops`, "KDSM,KLNK"): each flight
 between two landings -- a hop -- is planned as a route of its own, with
 its own chart read, altitude plan, climb from the field and fuel check,
 the hops planned at once, and the nav log runs on through each stop."""
+import json
 import logging
 import math
 import re
@@ -21,6 +22,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import numpy as np
+import vfr_native
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
@@ -189,7 +191,7 @@ class PlanQuery:
         out = {}
         for part in filter(None, (p.strip() for p in self.altitudes.split(","))):
             ident, _, feet = part.partition(":")
-            if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) <= top:
+            if not point_figure(part) or not 0 < float(feet) <= top:
                 raise HTTPException(422, f"{part!r} is not a point's altitude: an ident and feet, as VPBNG:4500.")
             out[point_key(ident)] = float(feet)
         return out
@@ -199,15 +201,14 @@ class PlanQuery:
         """`procedures`, each the field, the procedure, its transition
         (None, an approach from vectors) and the fix flown direct to (None,
         as charted); a 422 for one that is not
-        "FIELD:PROCEDURE[:TRANSITION[:DIRECT]]"."""
+        "FIELD:PROCEDURE[:TRANSITION[:DIRECT]]" -- the engine's reading
+        (wingtip_engine::route::picks), the web app's lib/procedures too."""
         out = []
-        for part in filter(None, (p.strip() for p in self.procedures.split(","))):
-            if not PROCEDURE_PICK.fullmatch(part):
-                raise HTTPException(422, f"{part!r} is not a procedure: a field, a procedure and a transition, as KDLH:I09:ANDOE.")
-            ident, procedure, *rest = part.upper().split(":")
-            transition = rest[0] if rest and rest[0] else None
-            direct = rest[1] if len(rest) > 1 else None
-            out.append((ident, procedure, transition, direct))
+        for read in engine("procedures_read", text=self.procedures):
+            if not read["exact"]:
+                raise HTTPException(422, f"{read['part']!r} is not a procedure: a field, a procedure and a transition, as KDLH:I09:ANDOE.")
+            pick = read["pick"]
+            out.append((pick["ident"], pick["id"], pick["transition"], pick["direct"]))
         return out
 
     def own_crossings(self) -> dict[str, float]:
@@ -217,7 +218,7 @@ class PlanQuery:
         out = {}
         for part in filter(None, (p.strip() for p in self.crossings.split(","))):
             ident, _, feet = part.partition(":")
-            if not POINT_ALTITUDE.fullmatch(part) or not 0 < float(feet) <= top:
+            if not point_figure(part) or not 0 < float(feet) <= top:
                 raise HTTPException(422, f"{part!r} is not a fix's crossing altitude: a fix and feet, as BXCMB:3000.")
             out[ident.upper()] = float(feet)
         return out
@@ -226,8 +227,7 @@ class PlanQuery:
         """`holds`, each as vfr.holds.parse reads it; a 422 for one that is
         not a hold."""
         out = []
-        for part in filter(None, (p.strip() for p in self.holds.split(","))):
-            hold = vfr_holds.parse(part)
+        for part, hold in vfr_holds.parse_all(self.holds):
             if hold is None:
                 raise HTTPException(422, f"{part!r} is not a hold: a point, its inbound course, R or L, its legs and how long, "
                                          "as VPBNG:270:R:1M:2T.")
@@ -240,30 +240,18 @@ class PlanQuery:
         out = {}
         for part in filter(None, (p.strip() for p in self.ground.split(","))):
             ident, _, minutes = part.partition(":")
-            if not POINT_ALTITUDE.fullmatch(part) or not 0 <= float(minutes) <= 24 * 60:
+            if not point_figure(part) or not 0 <= float(minutes) <= 24 * 60:
                 raise HTTPException(422, f"{part!r} is not a stop's time on the ground: an ident and minutes, as KJVL:45.")
             out[point_key(ident)] = float(minutes)
         return out
 
     def departure_runways(self) -> dict[str, str]:
         """The runway each field is left from (`runways`), by its ident."""
-        out = {}
-        for part in filter(None, (p.strip() for p in self.runways.split(","))):
-            ident, _, runway = part.partition(":")
-            if not re.fullmatch(r"[A-Za-z0-9]{2,5}", ident) or not re.fullmatch(r"\d{1,2}[LRC]?", runway.upper()):
-                raise HTTPException(422, f"{part!r} is not a runway left from: an ident and a runway, as KSTL:30R.")
-            out[_bare_field(ident.upper())] = runway.upper()
-        return out
+        return runway_picks(self.runways, "is not a runway left from: an ident and a runway, as KSTL:30R.")
 
     def landing_runways(self) -> dict[str, str]:
         """The runway each field is landed on (`patterns`), by its ident."""
-        out = {}
-        for part in filter(None, (p.strip() for p in self.patterns.split(","))):
-            ident, _, runway = part.partition(":")
-            if not re.fullmatch(r"[A-Za-z0-9]{2,5}", ident) or not re.fullmatch(r"\d{1,2}[LRC]?", runway.upper()):
-                raise HTTPException(422, f"{part!r} is not a runway landed on: an ident and a runway, as KUGN:23.")
-            out[_bare_field(ident.upper())] = runway.upper()
-        return out
+        return runway_picks(self.patterns, "is not a runway landed on: an ident and a runway, as KUGN:23.")
 
     def drawn_procedures(self) -> list[tuple[str, dict]]:
         """The procedures picked (procedure_picks), each its field and its
@@ -287,12 +275,20 @@ class PlanQuery:
         return out
 
 
-#: A point of the route as the address names it: an ident, or the pilot's
-#: own point off a fix, "VPBNG/090/30" or packed "DLH090030" (vfr.fixes
-#: parse_frd) -- as the saved flight's SaveFlightRequest.POINT takes it,
-#: where an altitude set on such a point was a 422 for the whole log.
-POINT = r"(?:[A-Za-z0-9]{2,5}(?:/\d{3}/\d{1,3}(?:\.\d)?)?|[A-Za-z]{2,5}\d{6})"
-POINT_ALTITUDE = re.compile(POINT + r":\d{1,5}")
+def engine(name: str, **ask):
+    """The shared engine's rule `name` (wingtip_engine::call) on `ask`."""
+    return json.loads(vfr_native.call(name, json.dumps(ask)))
+
+
+def point_figure(part: str) -> bool:
+    """Whether `part` is a point of the route and a figure, "VPBNG:4500":
+    an ident, or the pilot's own point off a fix, "VPBNG/090/30" or packed
+    "DLH090030", by the engine's form of one (wingtip_engine::route::points,
+    which the web app's lib/identSchema asks too, either case here) -- as the
+    saved flight's SaveFlightRequest.POINT takes it, where an altitude set
+    on such a point was a 422 for the whole log -- and up to five figures."""
+    ident, _, figure = part.partition(":")
+    return ident.isascii() and engine("point_kind", text=ident.upper()) is not None and re.fullmatch(r"\d{1,5}", figure) is not None
 
 
 def point_key(ident: str) -> str:
@@ -300,8 +296,20 @@ def point_key(ident: str) -> str:
     fix in its one written form (vfr.fixes.frd_ident), packed or not."""
     parts = fixes.parse_frd(ident)
     return fixes.frd_ident(*parts) if parts else ident.upper()
-# As lib/procedures' proceduresOf reads them from the address.
-PROCEDURE_PICK = re.compile(r"[A-Za-z0-9]{2,5}:[A-Za-z0-9-]{1,6}(:[A-Za-z0-9]{1,5}|:[A-Za-z0-9]{0,5}:[A-Za-z0-9]{2,5})?")
+
+
+def runway_picks(text: str, not_one: str) -> dict[str, str]:
+    """The runways picked at fields, "KSTL:30R,KMSN:36", by the field's FAA
+    ident (_bare_field), as the engine reads them
+    (wingtip_engine::route::picks); a 422 for one that is not "IDENT:RUNWAY",
+    `not_one` saying what it is not."""
+    out = {}
+    for read in engine("runways_read", text=text):
+        if read["pick"] is None:
+            raise HTTPException(422, f"{read['part']!r} {not_one}")
+        out[read["pick"]["field"]] = read["pick"]["runway"]
+    return out
+
 
 # How often the nav log stream says it is still working while the
 # altitude plans are being made.
@@ -785,8 +793,9 @@ def approach_end(flight: Route, drawn: list[tuple[str, dict]],
 
 def _bare_field(ident: str) -> str:
     """A field's FAA ident: the CIFP names it by its ICAO ident (KDLH)
-    where the route may have the FAA's (DLH), as lib/procedures' sameField."""
-    return ident[1:] if len(ident) == 4 and ident.startswith("K") else ident
+    where the route may have the FAA's (DLH), as lib/procedures' sameField:
+    the engine's (wingtip_engine::route::points)."""
+    return engine("bare_field", ident=ident)
 
 
 def _picked(drawn: list[tuple[str, dict]], kind: str, field: str) -> dict | None:

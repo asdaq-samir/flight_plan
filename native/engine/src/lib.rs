@@ -21,6 +21,9 @@
 //! - figures: the debrief of a flown track (ACS PA.VI.A), the diversion
 //!   drill (PA.VI.C), a hold's entry and wind (AIM 5-3-8) and lost
 //!   communications' altitudes (14 CFR 91.185), with their words;
+//! - route: the route's pilot-made pieces as the address writes them
+//!   and the planner reads them -- the pilot's own point off a fix, holds,
+//!   procedures and runways picked;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
 //! - validity: when a weather report stops counting;
@@ -41,6 +44,7 @@ pub mod notam;
 mod json;
 pub mod pack;
 pub mod phone;
+pub mod route;
 pub mod rules;
 pub mod spoken;
 pub mod taf;
