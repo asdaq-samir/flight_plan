@@ -1,5 +1,6 @@
 import L from "leaflet";
 import type { AirspaceClass } from "../preferences";
+import { prefersReducedMotion } from "../motion";
 import { AIRPORT_MARK, airportMarkSvg } from "./airportMark";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
 
@@ -68,6 +69,11 @@ function spriteOf(mark: CanvasMark, dpr: number, loaded: () => void): HTMLCanvas
   return sprite;
 }
 
+/** How long a field's mark takes to come in, ms: faded in, as Maps'
+ *  labels are, where a zoom that brought in a few dozen fields at once
+ *  had them all appear in one frame (the owner's audit, 2026-11-02). */
+const FADE_MS = 200;
+
 /** Room round an ident's sprite for its halo, points. */
 const HALO_ROOM = 3;
 /** The most idents kept drawn: a few screens' worth, then begun again. */
@@ -123,6 +129,9 @@ export class AirportMarksLayer extends ViewCanvasLayer {
   private font = "";
   /** Whether the fields written on the canvas are older than its marks. */
   private unwritten = true;
+  /** When each field coming in got its mark, while it fades in. */
+  private readonly born = new Map<string, number>();
+  private chipped = new Set<string>();
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
@@ -131,6 +140,15 @@ export class AirportMarksLayer extends ViewCanvasLayer {
   }
 
   setMarks(marks: CanvasMark[]): void {
+    const chipped = new Set(marks.filter(m => m.chip).map(m => m.ident));
+    // A field wearing a mark it did not before fades in; under Reduce
+    // Motion it is there at once.
+    if (!prefersReducedMotion()) {
+      const now = performance.now();
+      for (const ident of chipped) if (!this.chipped.has(ident)) this.born.set(ident, now);
+    }
+    for (const ident of this.born.keys()) if (!chipped.has(ident)) this.born.delete(ident);
+    this.chipped = chipped;
     this.marks = marks;
     this.unwritten = true;
     this.schedule();
@@ -157,6 +175,8 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     // slow pinch. The container's point is the layer's less the canvas's
     // layer origin, plus where the canvas starts (`from`).
     const pixelOrigin = map.getPixelOrigin();
+    const now = performance.now();
+    let fading = false;
     for (const mark of this.marks) {
       const at = map.project([mark.lat, mark.lon]).subtract(pixelOrigin).subtract(origin).add(from);
       // Every field written, in sight or not, as every marker was in the
@@ -169,13 +189,25 @@ export class AirportMarksLayer extends ViewCanvasLayer {
       // Through a zoom's animation, where the chart has it at this frame.
       const shown = warp(at);
       if (shown.x < -pad.x - half || shown.y < -pad.y - half || shown.x > size.x + pad.x + half || shown.y > size.y + pad.y + half) continue;
+      const born = this.born.get(mark.ident);
+      if (born !== undefined) {
+        const alpha = (now - born) / FADE_MS;
+        if (alpha >= 1) this.born.delete(mark.ident);
+        else {
+          ctx.globalAlpha = Math.max(0, alpha);
+          fading = true;
+        }
+      }
       const sprite = spriteOf(mark, dpr, () => this.schedule());
       if (sprite) ctx.drawImage(sprite, px(shown.x - half - SHADOW_ROOM), px(shown.y - half - SHADOW_ROOM), sprite.width / dpr, sprite.height / dpr);
       // The ident one point clear of the mark, dark on a white halo, as
       // the chart letters a field.
       const label = labelOf(ctx, mark.ident, this.font, dpr);
       if (label) ctx.drawImage(label, px(shown.x + half + 1 - HALO_ROOM), px(shown.y - label.height / dpr / 2), label.width / dpr, label.height / dpr);
+      ctx.globalAlpha = 1;
     }
+    // Drawn again next frame while any is still coming in.
+    if (fading) this.schedule();
     // Written for the tests as the marks change and as the map comes to
     // rest, not at each frame of a zoom: a thousand fields' places made
     // into a string and set on the page every frame.

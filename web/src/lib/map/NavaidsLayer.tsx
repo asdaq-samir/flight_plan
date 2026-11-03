@@ -15,7 +15,7 @@ import { api } from "../api/client";
 import type { FixPin, VorPin } from "../api/types";
 import { usePreferences } from "../preferences";
 import { enrouteFixIcon, vorIcon } from "./airspaceMarks";
-import { airportBox, ownShipBox, useDrawnAirports, vorTagSide, type TagSide } from "./declutter";
+import { airportBox, overlaps, ownShipBox, useDrawnAirports, vorTagBoxes, vorTagSide, type TagSide } from "./declutter";
 import { useOwnShipNear } from "./ownShip";
 import { useAhead, useLiveZoom } from "./useView";
 import { MapCard } from "./MapCard";
@@ -54,9 +54,17 @@ const NO_FIXES: FixPin[] = [];
 
 const vorKey = (v: VorPin) => `${v.ident}-${v.lat}`;
 
-/** Which side of each VOR's hexagon its tag goes at this zoom, clear of
- *  the airports' marks and own ship's airplane where it can be (declutter):
- *  own ship is never moved for a VOR. Own ship as it moves a few hundred
+/** Each VOR's tag's side as first chosen, kept: chosen afresh at each
+ *  zoom against the airports' marks there, a tag went from right to left
+ *  to gone and back as the map zoomed (the owner's audit, 2026-11-02:
+ *  the overlay "very dynamic while zooming in"). A tag with no room on
+ *  either side is chosen again until it has some. */
+const keptSides = new Map<string, TagSide>();
+
+/** Which side of each VOR's hexagon its tag goes, clear of the airports'
+ *  marks where it can be (declutter) the first time it is drawn, and on
+ *  that side from then on -- but off own ship's airplane, which is never
+ *  moved for a VOR, as it flies past. Own ship as it moves a few hundred
  *  metres (useOwnShipNear), not at every fix. */
 function useTagSides(vors: VorPin[], zoom: number): Map<string, TagSide> {
   const map = useMap();
@@ -65,8 +73,25 @@ function useTagSides(vors: VorPin[], zoom: number): Map<string, TagSide> {
   return useMemo(() => {
     const at = (lat: number, lon: number) => map.project([lat, lon], zoom);
     const blockers = fields.map(f => airportBox(at(f.lat, f.lon), f.ident));
-    if (ship) blockers.push(ownShipBox(at(ship.lat, ship.lon)));
-    return new Map(vors.map(v => [vorKey(v), vorTagSide(at(v.lat, v.lon), v.ident, blockers)]));
+    const shipBox = ship ? ownShipBox(at(ship.lat, ship.lon)) : null;
+    return new Map(vors.map(v => {
+      const key = vorKey(v);
+      const here = at(v.lat, v.lon);
+      let side = keptSides.get(key);
+      if (!side || side === "none") {
+        side = vorTagSide(here, v.ident, blockers);
+        keptSides.set(key, side);
+      }
+      // Own ship over the kept side: the other, if it is clear of it.
+      if (shipBox && side !== "none") {
+        const boxes = vorTagBoxes(here, v.ident);
+        if (overlaps(shipBox, boxes[side])) {
+          const other = side === "right" ? "left" : "right";
+          side = overlaps(shipBox, boxes[other]) ? "none" : other;
+        }
+      }
+      return [key, side];
+    }));
   }, [map, vors, zoom, fields, ship]);
 }
 

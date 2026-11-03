@@ -58,6 +58,11 @@ const PAD = 0.3;
  *  handful on the screen rather than every strip in half a state.
  *  Further out they keep an invisible target. */
 const NO_REPORT_FROM_ZOOM = 10;
+/** A private field with no report a zoom later again: at 10 the fields
+ *  with no report came in all at once, 27 marks round Kansas City to 194
+ *  (the owner's audit of the map's overlays, 2026-11-02), the public ones
+ *  and the private strips together. */
+const PRIVATE_FROM_ZOOM = 11;
 
 /** The most fields the planner answers with at once. */
 const AIRPORTS_LIMIT = 1000;
@@ -349,7 +354,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // wears one, its look from its airspace, its use and its METAR's colour.
   const marks = useMemo((): CanvasMark[] => shown.map(a => ({
     ident: a.ident, lat: a.lat, lon: a.lon,
-    chip: !!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM,
+    chip: !!a.flight_category || zoom >= (a.private ? PRIVATE_FROM_ZOOM : NO_REPORT_FROM_ZOOM),
     space: a.airspace_class ?? null, weather: colourOf(a.flight_category),
     use: a.military === "military" ? "military" : a.private ? "private" : null,
   })), [shown, zoom]);

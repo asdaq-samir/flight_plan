@@ -38,14 +38,21 @@ const VOR_TAG_HEIGHT = 14;
 
 export type TagSide = "right" | "left" | "none";
 
+/** Where a VOR's ident tag would be on either side of its hexagon. */
+export function vorTagBoxes(at: Point, ident: string): Record<"right" | "left", Box> {
+  const width = ident.length * LETTER_PX + 8;
+  const y0 = at.y - VOR_TAG_HEIGHT / 2, y1 = at.y + VOR_TAG_HEIGHT / 2;
+  return {
+    right: { x0: at.x + VOR_TAG_GAP, y0, x1: at.x + VOR_TAG_GAP + width, y1 },
+    left: { x0: at.x - VOR_TAG_GAP - width, y0, x1: at.x - VOR_TAG_GAP, y1 },
+  };
+}
+
 /** Which side of its hexagon a VOR's ident tag goes: the right, as the
  *  chart's, unless that is on an airport's mark or own ship and the left
  *  is clear; neither where both are blocked. */
 export function vorTagSide(at: Point, ident: string, blockers: Box[]): TagSide {
-  const width = ident.length * LETTER_PX + 8;
-  const y0 = at.y - VOR_TAG_HEIGHT / 2, y1 = at.y + VOR_TAG_HEIGHT / 2;
-  const right = { x0: at.x + VOR_TAG_GAP, y0, x1: at.x + VOR_TAG_GAP + width, y1 };
-  const left = { x0: at.x - VOR_TAG_GAP - width, y0, x1: at.x - VOR_TAG_GAP, y1 };
+  const { right, left } = vorTagBoxes(at, ident);
   if (!blockers.some(b => overlaps(b, right))) return "right";
   if (!blockers.some(b => overlaps(b, left))) return "left";
   return "none";
