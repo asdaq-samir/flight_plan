@@ -35,6 +35,9 @@
 //!   procedures and runways picked;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
+//! - wording: the FAA's own words in the app's -- its capitals in sentence
+//!   case, names, the advisories' intensities, a field's radio and fuel, a
+//!   VOR's radial, Morse and service volume;
 //! - validity: when a weather report stops counting;
 //! - metar, taf, winds, notam, tfr: the weather and NOTAM products as
 //!   sent, read strictly (xml: the small XML reader they share; time:
@@ -67,4 +70,5 @@ pub mod sums;
 pub mod validity;
 pub mod winds;
 pub mod wmm;
+pub mod wording;
 pub mod xml;

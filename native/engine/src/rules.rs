@@ -110,6 +110,61 @@ pub fn entry(class: char) -> &'static str {
     }
 }
 
+/// What a pilot needs to fly into a Class B, C or D airspace area, and the
+/// speeds in and under it, each a rule and the section of 14 CFR part 91
+/// it comes from (eCFR, current on 2026-10-30), for the airspace's card:
+/// the band's `entry`, `equipment` and `speed_kt` itemised. VFR, in the 48
+/// states, for a civil airplane with an engine-driven electrical system:
+/// the exceptions for gliders, balloons and the rest (91.215(b)(3),
+/// 91.225(e)) are left out. The figures are this file's own, so the card
+/// and the band cannot disagree on them. Empty for any other class.
+pub fn entry_rules(class: char) -> Vec<(String, &'static str)> {
+    use crate::figures::words::grouped;
+    let ten = grouped(TEN_THOUSAND_FT);
+    // 91.117(b): at or below 2,500 ft above the surface within 4 nm of the
+    // primary airport of a Class C or D.
+    let near_field = format!("200 kt at or below {} ft above the surface within 4 nm of its primary airport", grouped(TRANSPONDER_EXEMPT_AGL_FT));
+    match class {
+        'B' => vec![
+            ("An ATC clearance before you enter".to_owned(), "14 CFR 91.131(a)(1)"),
+            ("A two-way radio for ATC's frequencies".to_owned(), "14 CFR 91.131(c)(2)"),
+            (
+                format!(
+                    "A transponder with altitude reporting and ADS-B Out, in it, above it to {ten} ft MSL, and within {} nm of its primary airport",
+                    MODE_C_VEIL_NM
+                ),
+                "14 CFR 91.215(b), 91.225(d)",
+            ),
+            (
+                "At least a private pilot certificate, or a student, sport or recreational pilot's endorsement for it".to_owned(),
+                "14 CFR 91.131(b)(1)",
+            ),
+            (format!("200 kt under its shelves and in a VFR corridor through it; 250 kt below {ten} ft MSL in it"), "14 CFR 91.117(a), (c)"),
+        ],
+        'C' => vec![
+            ("Two-way radio contact with ATC before you enter".to_owned(), "14 CFR 91.130(c)(1)"),
+            (
+                format!("A transponder with altitude reporting and ADS-B Out, in it and above it to {ten} ft MSL"),
+                "14 CFR 91.130(d), 91.215(b), 91.225(d)",
+            ),
+            (near_field, "14 CFR 91.117(b)"),
+        ],
+        'D' => vec![("Two-way radio contact with the tower before you enter".to_owned(), "14 CFR 91.129(c)(1)"), (near_field, "14 CFR 91.117(b)")],
+        _ => Vec::new(),
+    }
+}
+
+/// The frequencies to call before entering, by the primary airport's
+/// types (NASR FRQ): approach for a Class B or C (91.131(a)(1),
+/// 91.130(c)(1)), the tower for a Class D (91.129(c)(1)).
+pub fn call_types(class: char) -> &'static [&'static str] {
+    if class == 'D' {
+        &["TWR"]
+    } else {
+        &["APP", "TWR"]
+    }
+}
+
 const TRANSPONDER: &str = "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).";
 
 /// What the airplane must carry to be there (91.215, 91.225), or None

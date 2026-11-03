@@ -1,7 +1,7 @@
 /** How the airspace over a point is written (AirspaceCard). */
 import type { VfrMinimums } from "./api/types";
+import { callEngine } from "./engine/engine";
 import type { LatLon } from "./geo";
-import { titleCase } from "./advisories";
 import { altFt } from "./units";
 
 export { degreesMinutes } from "./coords";
@@ -14,9 +14,10 @@ export function minimumsLine(m: VfrMinimums): string {
   return `${m.visibility_sm} sm, ${altFt(m.below_ft)} below, ${altFt(m.above_ft)} above, ${horizontal} horizontal`;
 }
 
-/** "CHICAGO, DUPAGE AIRPORT CLASS D" as "Chicago, Dupage Airport". */
+/** "CHICAGO, DUPAGE AIRPORT CLASS D" as "Chicago, Dupage Airport": the
+ *  shared engine's (native/engine/src/wording), the iPhone's same. */
 export function shortAirspaceName(name: string): string {
-  return titleCase(name.replace(/\s+CLASS\s+[A-G]\d?$/i, ""));
+  return callEngine<string>("short_airspace_name", { name });
 }
 
 

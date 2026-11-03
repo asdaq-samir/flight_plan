@@ -198,6 +198,42 @@
 //! - `bare_field`: a field's FAA ident, from `{"ident"}`; `same_field`:
 //!   whether `{"a", "b"}` name one field.
 //!
+//! The FAA's words in the app's (crate::wording, the web's lib/advisories,
+//! lib/frequencies, lib/stopServices, lib/airspace and lib/navaid):
+//!
+//! - `faa_words`: the FAA's capitals in sentence case, its codes kept (AIM
+//!   3-2-1's "Class B"), from `{"text"?}`, or each of `{"texts": [text]}`
+//!   as a list, a long list's rows in one call; `title_case` and
+//!   `place_name` (a town as it is spelt, "McCook") the same way;
+//! - `sigmet_hazard` from `{"hazard"?, "kind"?}`; `gairmet_title` from
+//!   `{"hazard", "severity"?}`; `pirep_conditions`, a string or null, from
+//!   `{"turbulence"?, "icing"?}`;
+//! - `sua_altitudes`: a special-use area's limits, STD a flight level (14
+//!   CFR 1.1), from `{"floor_ft"?, "floor_ref"?, "ceiling_ft"?,
+//!   "ceiling_ref"?, "mid_sentence"?}`;
+//! - `fuel_names` from `{"types": [code]}`; `short_airspace_name` from
+//!   `{"name"}`;
+//! - `airspace_entry_rules`: `{"rules": [{"rule", "cite"}], "call":
+//!   [type]}`, a Class B, C or D's entry, equipment and speed rules (14 CFR
+//!   91.117, 91.129-91.131, 91.215, 91.225) and whom to call, from
+//!   `{"class"}`;
+//! - `frequency_line`: `{"name", "kind", "detail"}`, from `{"type"?,
+//!   "description"?}`; `frequency_of`: the index of the first frequency
+//!   of the first of `types` listed, or null, from `{"frequencies":
+//!   [{"type"?, "description"?, "frequency_mhz"?}], "types"}`; `ctaf_of`:
+//!   the CTAF's index, or MULTICOM's 122.9 where none is listed (AC 90-66C
+//!   9.6), `{"type": "MULTICOM", "description", "frequency_mhz"}`, from
+//!   `{"frequencies"}`; `kneeboard_radio`: `[[name, mhz]]` from
+//!   `{"frequencies"}`;
+//! - `radial_of`: `{"radial", "to_course", "nm"}` or null, from
+//!   `{"station": {"ident"?, "lat", "lon", "mag_var"?}, "at": {"lat",
+//!   "lon"}}`; `fix_radial_distance`: "JOT 045° 12 nm" or null (AIM
+//!   5-1-6), from `{"at", "stations"}`; `morse` (AIM 1-1-3) from
+//!   `{"ident"}`; `service_volume` (AIM 1-1-8 TBL 1-1-1) from `{"code"?}`;
+//!   `navaid_hours` from `{"hours"?}`;
+//! - `magnetic_variation`: degrees east, the World Magnetic Model's (wmm,
+//!   as vfr.magnetic), from `{"lat", "lon", "date": "YYYY-MM-DD"}`.
+//!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
@@ -433,6 +469,24 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             Ok(out)
         }
         "readback_check" => Ok(crate::readback::check_json(ask.str("cleared")?, ask.str("said")?)),
+        "magnetic_variation" => {
+            let date = ask.str("date")?;
+            let bad = || format!("magnetic_variation: \"date\" is not YYYY-MM-DD: {date:?}");
+            let mut parts = date.splitn(3, '-').map(|p| p.parse::<i64>().map_err(|_| bad()));
+            let (year, month, day) = (parts.next().ok_or_else(bad)??, parts.next().ok_or_else(bad)??, parts.next().ok_or_else(bad)??);
+            if !(1..=12).contains(&month) || day < 1 || day > crate::time::days_in_month(year, month as u32) as i64 {
+                return Err(bad());
+            }
+            // The model's time, a decimal year, as vfr.magnetic works it out.
+            let start = crate::time::days_from_civil(year, 1, 1);
+            let of_year = crate::time::days_from_civil(year + 1, 1, 1) - start;
+            let day_of_year = crate::time::days_from_civil(year, month as u32, day as u32) - start + 1;
+            let decimal = crate::wmm::decimal_year(year as i32, day_of_year as u32, of_year as u32);
+            let mut out = String::new();
+            json::number(&mut out, crate::wmm::declination(ask.num("lat")?, ask.num("lon")?, decimal));
+            Ok(out)
+        }
+        _ if crate::wording::NAMES.contains(&name) => crate::wording::answer(name, ask.v),
         _ if crate::route::answers::NAMES.contains(&name) => crate::route::answers::answer(name, ask.v),
         // The things that move (motion::call), then the Go / No-Go's, by
         // their own names (gonogo::calls), last.
