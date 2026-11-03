@@ -16,10 +16,18 @@ const OVERLAY_Z = 6;
 /** How much of the overlay shows over the chart, by its strength. */
 const OPACITY: Record<OverlayStrength, number> = { faint: 0.35, half: 0.6, full: 1 };
 
+/** Drawn as the chart's own tiles are (index.css's chart-tiles): dimmed
+ *  with the chart at night, where at Full the imagery was the brightest
+ *  thing on a night screen, and enlarged smoothly on Safari past the
+ *  imagery's last zoom, where Leaflet's own rule blew its tiles up in
+ *  hard blocks. */
+const OVERLAY_CLASS = "chart-tiles";
+
 /** The USGS's aerial imagery of the United States (The National Map's
  *  orthoimagery, a public-domain work), its tiles to zoom 16 and the
- *  chart's upscaling past it. */
-const USGS_URL = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}";
+ *  chart's upscaling past it: z/y/x, as the Map menu's picture of it
+ *  is cut from (MapSettings). */
+export const USGS_URL = "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}";
 const USGS_CREDIT = 'Imagery <a href="https://www.usgs.gov/programs/national-geospatial-program/national-map" target="_blank" rel="noopener">USGS The National Map</a>';
 
 /**
@@ -47,7 +55,7 @@ function Usgs({ opacity }: { opacity: number }) {
     const credit = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(USGS_CREDIT).addTo(map);
     return () => { credit.remove(); };
   }, [map]);
-  return <TileLayer url={USGS_URL} maxNativeZoom={16} maxZoom={20} opacity={opacity} zIndex={OVERLAY_Z} {...LIVE_TILES} />;
+  return <TileLayer url={USGS_URL} maxNativeZoom={16} maxZoom={20} opacity={opacity} zIndex={OVERLAY_Z} className={OVERLAY_CLASS} {...LIVE_TILES} />;
 }
 
 function Google({ kind, opacity, overlay }: { kind: "map" | "satellite"; opacity: number; overlay: MapOverlay }) {
@@ -85,7 +93,7 @@ function Google({ kind, opacity, overlay }: { kind: "map" | "satellite"; opacity
     <TileLayer
       key={`${overlay}-${session.session}`}
       url={`${GOOGLE}/v1/2dtiles/{z}/{x}/{y}?session=${encodeURIComponent(session.session)}&key=${encodeURIComponent(google.key)}`}
-      maxNativeZoom={kind === "map" ? 22 : 20} maxZoom={22} opacity={opacity} zIndex={OVERLAY_Z} {...LIVE_TILES}
+      maxNativeZoom={kind === "map" ? 22 : 20} maxZoom={22} opacity={opacity} zIndex={OVERLAY_Z} className={OVERLAY_CLASS} {...LIVE_TILES}
     />
   );
 }

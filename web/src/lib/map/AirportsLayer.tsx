@@ -263,7 +263,12 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       // (SheetCard), as any tap on the chart puts them away: this tap goes
       // no further, so their own dismissal never hears it.
       closeSheetCards();
-      e.stopPropagation();
+      // Immediate: a tap on the chart lands on the map's container itself
+      // (every pane lets the pointer through), where Leaflet listens too,
+      // and a plain stop let its click through after this one -- the field
+      // picked twice, and the rings' tap answering it as the ring through
+      // the field (Session1's probe, 2026-11-03).
+      e.stopImmediatePropagation();
       selectRef.current(best.ident);
     };
     container.addEventListener("click", caught, true);

@@ -11,6 +11,7 @@ import { placeWords } from "../../../lib/advisories";
 import type { Candidate, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
+import { airportBox, overlaps, useDrawnAirports } from "../../../lib/map/declutter";
 import { useAfterPaint } from "../../../hooks/use-after-paint";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
@@ -637,23 +638,30 @@ const PILL_ROOM = { x: 58, y: 26 };
 function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props["onSelectPoint"] }) {
   // Each pill where it has room, in route order: zoomed out, a short
   // climb's TOC and the next leg's lay on one another (the style audit,
-  // 2026-10-26); closer in, every one.
+  // 2026-10-26); closer in, every one. And none over an airport's mark or
+  // its ident (declutter's fields): zoomed out to a region, a stop's TOD
+  // and the next flight's TOC lay on KENW and C81, and KMSN's ident under
+  // its TOD (a probe on the phone viewport, 2026-11-03).
   const map = useMap();
   const zoom = useRestZoom();
+  const fields = useDrawnAirports(s => s.fields);
   const roomy = useMemo(() => {
     const kept: L.Point[] = [];
     const out = new Set<string>();
+    const marks = fields.map(f => airportBox(map.project([f.lat, f.lon], zoom), f.ident));
     legs.forEach((leg, i) => {
       for (const [key, at] of [[`toc-${i}`, leg.toc], [`tod-${i}`, leg.tod]] as const) {
         if (!at) continue;
         const p = map.project([at.lat, at.lon], zoom);
         if (kept.some(k => Math.abs(k.x - p.x) < PILL_ROOM.x && Math.abs(k.y - p.y) < PILL_ROOM.y)) continue;
+        const pill = { x0: p.x - PILL_ROOM.x / 2, y0: p.y - PILL_ROOM.y / 2, x1: p.x + PILL_ROOM.x / 2, y1: p.y + PILL_ROOM.y / 2 };
+        if (marks.some(m => overlaps(m, pill))) continue;
         kept.push(p);
         out.add(key);
       }
     });
     return out;
-  }, [legs, map, zoom]);
+  }, [legs, map, zoom, fields]);
   return (
     <>
       {legs.flatMap((leg, i) => [

@@ -64,6 +64,15 @@ export function ChartTiles({ chart, previewing }: Props) {
     document.documentElement.dataset.chartNight = chartNight;
   }, [chartNight]);
   const { base: baseLayer, overlay } = useMemo(() => chartPair(chart.chart_layers, base), [chart.chart_layers, base]);
+  // The map no further in than the chart goes (OVERZOOM): left to its
+  // layers, an overlay's own reach (the imagery's 20, Google's 22) took
+  // the map past the chart's last level, where the chart was no longer
+  // drawn and only the overlay was left over grey (a probe on the phone
+  // viewport, 2026-11-03: 14 with no overlay, 20 with the imagery on).
+  const lastZoom = baseLayer ? baseLayer.max_zoom + OVERZOOM : null;
+  useEffect(() => {
+    if (lastZoom !== null) map.setMaxZoom(lastZoom);
+  }, [map, lastZoom]);
   const baseRef = useRef<L.TileLayer>(null);
   const overlayRef = useRef<L.TileLayer>(null);
   useHeldLevels(baseRef, baseLayer?.kind);

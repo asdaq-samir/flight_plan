@@ -1474,6 +1474,19 @@ function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, seconds,
   const painted = useRef(false);
   const said = useRef(landed);
   useEffect(() => { said.current = landed; });
+  // A move's keyframes made again where what the sheet holds is laid out
+  // afresh while it runs (a commit mid-way), told by a ResizeObserver
+  // after the browser's own layout: measured at every commit of a turn
+  // instead, it forced three or four layouts of the whole sheet in each,
+  // 5 to 106 ms apiece on the phone viewport unthrottled (2026-11-03).
+  const relaid = useRef<(() => void) | null>(null);
+  useLayoutEffect(() => {
+    const { panel, head, body, foot } = partsOf();
+    if (typeof ResizeObserver === "undefined") return;
+    const watch = new ResizeObserver(() => relaid.current?.());
+    for (const el of [panel, head, body, foot]) if (el) watch.observe(el);
+    return () => watch.disconnect();
+  }, [partsOf]);
   useLayoutEffect(() => {
     const { panel, head, body, foot } = partsOf();
     if (!panel) return;
@@ -1534,6 +1547,18 @@ function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, seconds,
       const paints = at.map(t => paintOf(lookBetween(m.from, m.to, t), m.height, m.side, m.laid, m.pinned));
       return (part: Part) => paints.map((p, i) => ({ offset: at[i], ...p[part] })) as Keyframe[];
     };
+    const rekey = (m: Move) => {
+      const frames = keyframes(m);
+      for (const { part, run } of m.runs) (run.effect as KeyframeEffect | null)?.setKeyframes(frames(part));
+    };
+    relaid.current = () => {
+      const m = move.current;
+      if (!m || !m.runs.length) return;
+      const laid = measure();
+      if (sameLaid(laid, m.laid)) return;
+      m.laid = laid;
+      rekey(m);
+    };
     // The sheet's edge for the map, where its look has it now, and the
     // move it is on by itself.
     const edgeOf = (m: Move, at: Look) => m.laid.edge - at.gap - at.h;
@@ -1574,15 +1599,13 @@ function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, seconds,
       return;
     }
     if (m && m.runs.length && sameLook(m.to, look)) {
-      // On its way where it was going: the keyframes again only should
-      // what it holds have been laid out afresh since (a commit mid-way).
-      const laid = measure();
-      if (!sameLaid(laid, m.laid) || m.pinned !== pinned) {
-        m.laid = laid;
+      // On its way where it was going: the keyframes again only should it
+      // now be pinned or not; what it holds laid out afresh is the
+      // ResizeObserver's (relaid).
+      if (m.pinned !== pinned) {
         m.pinned = pinned;
         clip(pinned);
-        const frames = keyframes(m);
-        for (const { part, run } of m.runs) (run.effect as KeyframeEffect | null)?.setKeyframes(frames(part));
+        rekey(m);
       }
       return;
     }

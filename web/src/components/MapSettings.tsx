@@ -9,6 +9,7 @@ import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { BASE_CHARTS, usePreferences, type BaseChart, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
+import { USGS_URL } from "../lib/map/OverlayTiles";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { OWN_SHIP_LOOKS, ownShipSvg, type OwnShipLook } from "../lib/map/ownShipLook";
 import { tileUrl } from "../lib/map/tiles";
@@ -197,8 +198,8 @@ export default function MapSettings() {
  *  towns and Class B, the IFR charts' airways), so the pictures tell the
  *  charts apart as Apple Maps' tell its maps apart. */
 const PICTURE_TILE = [9, 130, 190] as const;
-/** The USGS's imagery of the same tile (OverlayTiles' service: z/y/x). */
-const USGS_PICTURE = `https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/${PICTURE_TILE[0]}/${PICTURE_TILE[2]}/${PICTURE_TILE[1]}`;
+/** The USGS's imagery of the same tile (OverlayTiles' service). */
+const USGS_PICTURE = USGS_URL.replace("{z}", String(PICTURE_TILE[0])).replace("{x}", String(PICTURE_TILE[1])).replace("{y}", String(PICTURE_TILE[2]));
 
 /** A pick of one of a few, each a picture over its word, as Apple Maps'
  *  map types are: the stock ToggleGroup underneath, so each is a radio to

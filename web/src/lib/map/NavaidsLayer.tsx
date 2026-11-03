@@ -78,7 +78,11 @@ function useTagSides(vors: VorPin[], zoom: number): Map<string, TagSide> {
       const key = vorKey(v);
       const here = at(v.lat, v.lon);
       let side = keptSides.get(key);
-      if (!side || side === "none") {
+      // Chosen again where an airport's mark has come onto it since: a
+      // tag drawn before the fields' marks came in (or came into view, as
+      // a zoom in brings a Class D's) kept its side under them, DPA's
+      // under KDPA's for the rest of the session (a probe, 2026-11-03).
+      if (!side || side === "none" || blockers.some(b => overlaps(b, vorTagBoxes(here, v.ident)[side as "right" | "left"]))) {
         side = vorTagSide(here, v.ident, blockers);
         keptSides.set(key, side);
       }
