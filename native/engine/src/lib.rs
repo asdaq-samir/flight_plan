@@ -40,6 +40,11 @@
 //!   run, the quiz) and debriefed against the procedure flown;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
+//! - forecast: a field's flight category from what is known of its
+//!   ceiling and visibility, and an hour of its TAF from the groups then;
+//! - aircraft: the traffic list's filters (an airplane's kind, height,
+//!   operator, emergency, how it stands to a field) and an airplane by its
+//!   N-number, on its type's stock profile;
 //! - wording: the FAA's own words in the app's -- its capitals in sentence
 //!   case, names, the advisories' intensities, a field's radio and fuel, a
 //!   VOR's radial, Morse and service volume;
@@ -49,12 +54,14 @@
 //!   UTC dates).
 
 pub mod ahead;
+pub mod aircraft;
 pub mod airspace;
 pub mod approach;
 pub mod call;
 pub mod clearance;
 pub mod figures;
 pub mod flight;
+pub mod forecast;
 pub mod geo;
 pub mod gonogo;
 pub mod grid;
