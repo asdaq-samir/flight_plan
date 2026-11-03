@@ -57,7 +57,7 @@ final class Verdict {
             dep: plan.dep, dest: plan.dest, stops: plan.stops.joined(separator: ","), aircraft: plan.aircraft,
             altitudeFt: plan.ownAltitudeFt, altitudeNearest: plan.ownAltitudeFt != nil && plan.ownAltitudeLegal,
             altitudeChoice: plan.altitudeChoice ?? "fastest",
-            procedures: plan.procedures.filter { plan.idents.contains($0.ident) }.map(\.param).joined(separator: ","),
+            procedures: ProcedurePick.text(plan.procedures.filter { plan.idents.contains($0.ident) }),
             cruiseTasKt: figures.cruiseTasKt, fuelBurnGph: figures.fuelBurnGph, usableFuelGal: figures.usableFuelGal,
             cruisePowerPct: figures.cruisePowerPct, climbTasKt: figures.climbTasKt, climbFuelBurnGph: figures.climbFuelBurnGph,
             serviceCeilingFt: figures.serviceCeilingFt,

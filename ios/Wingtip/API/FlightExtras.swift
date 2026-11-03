@@ -177,15 +177,30 @@ struct ProcedureFix: Codable, Equatable, Sendable, Identifiable {
     /// The chart's altitude in words, as an approach chart sets it (the
     /// FAA's Aeronautical Chart User's Guide: a minimum altitude
     /// underlined, a maximum overlined, a mandatory both): "at 3,000 ft",
-    /// "at or above 2,400 ft", "between 3,000 and 4,000 ft".
+    /// "at or above 2,400 ft", "between 3,000 and 4,000 ft". Which of the
+    /// four it is, and its lines top first, are the engine's
+    /// `altitude_lines`, as the web app draws them; the words are the
+    /// app's.
     var charted: String? {
-        switch (minFt, maxFt) {
-        case let (low?, high?) where low == high: return "at \(low.formatted()) ft"
-        case let (low?, high?): return "between \(low.formatted()) and \(high.formatted()) ft"
-        case let (low?, nil): return "at or above \(low.formatted()) ft"
-        case let (nil, high?): return "at or below \(high.formatted()) ft"
+        let set: AltitudeLines? = try? Engine.call("altitude_lines", json: ["min_ft": minFt, "max_ft": maxFt])
+        guard let set, let crossing = set.crossing, let top = set.lines.first else { return nil }
+        let feet = { (ft: Double) in "\(Int(ft).formatted()) ft" }
+        switch crossing {
+        case "at": return "at \(feet(top.ft))"
+        case "between": return "between \(Int(set.lines.last?.ft ?? top.ft).formatted()) and \(feet(top.ft))"
+        case "at_or_above": return "at or above \(feet(top.ft))"
+        case "at_or_below": return "at or below \(feet(top.ft))"
         default: return nil
         }
+    }
+
+    /// A fix's crossing altitudes as the chart sets them (the engine's
+    /// `altitude_lines`): "at", "between", "at_or_above" or "at_or_below",
+    /// and each line's feet, underlined or overlined, the top line first.
+    struct AltitudeLines: Decodable {
+        struct Line: Decodable { let ft: Double; let under: Bool; let over: Bool }
+        let crossing: String?
+        let lines: [Line]
     }
 }
 

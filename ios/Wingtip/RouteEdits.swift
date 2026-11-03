@@ -6,7 +6,8 @@ import Foundation
 /// (vfr.holds, the web app's lib/holds): the point, its inbound course
 /// (magnetic), R or L, its legs by minutes ("1M") or nm ("4N"), and how
 /// long, turns ("2T") or minutes ("10M"): "VPBNG/090/30:270:R:1M:2T". The
-/// planner works out the entry and adds its time and fuel.
+/// engine reads and writes it (crate::route::holds); the planner works
+/// out the entry and adds its time and fuel.
 struct Hold: Codable, Hashable, Sendable, Identifiable {
     var fix: String
     /// The inbound course to the fix, magnetic degrees, 0 to 359.
@@ -22,17 +23,26 @@ struct Hold: Codable, Hashable, Sendable, Identifiable {
     var id: String { fix }
 
     /// The legs' minutes where none is picked: a minute at or below
-    /// 14,000 ft MSL, a minute and a half above (AIM 5-3-8, holding
-    /// pattern leg lengths).
-    static func legMinutes(altitudeFt: Double) -> Double { altitudeFt > 14_000 ? 1.5 : 1 }
+    /// 14,000 ft MSL, a minute and a half above (AIM 5-3-8 j.4(a)), the
+    /// engine's `holding_leg_minutes`. A minute where it cannot answer,
+    /// which is only for an altitude that is no number.
+    static func legMinutes(altitudeFt: Double) -> Double {
+        let minutes: Double? = try? Engine.call("holding_leg_minutes", json: ["altitude_ft": altitudeFt])
+        return minutes ?? 1
+    }
 
     private static func figure(_ value: Double) -> String { String(format: "%g", value) }
 
-    /// As the planner reads it, the course in three figures, 000 for north.
+    /// As the planner reads it, the course in three figures, 000 for north
+    /// (the engine's `hold_write`): legs of 4 nm and 10 minutes held where
+    /// neither is set, as the pages open on.
     var text: String {
-        let leg = legMin.map { "\(Self.figure($0))M" } ?? "\(Self.figure(legNm ?? 4))N"
-        let length = turns.map { "\($0)T" } ?? "\(minutes ?? 10)M"
-        return "\(fix):\(String(format: "%03d", inbound % 360)):\(right ? "R" : "L"):\(leg):\(length)"
+        var hold = self
+        hold.inbound = ((inbound % 360) + 360) % 360
+        if hold.legMin != nil { hold.legNm = nil } else if hold.legNm == nil { hold.legNm = 4 }
+        if hold.turns != nil { hold.minutes = nil } else if hold.minutes == nil { hold.minutes = 10 }
+        let written: String? = try? Engine.call("hold_write", ["hold": hold], encoder: Planner.snakeEncoder)
+        return written ?? ""
     }
 
     /// "Right turns · 270° inbound · 1 min legs · 2 turns", north as 360°.
@@ -43,26 +53,11 @@ struct Hold: Codable, Hashable, Sendable, Identifiable {
         return "\(right ? "Right" : "Left") turns · \(String(format: "%03d", course))° inbound · \(leg) · \(length)"
     }
 
-    /// The planner's own pattern for one (vfr.holds _HOLD, the web app's
-    /// lib/holds HOLD): a point of letters, figures, "/" and ".", a course
-    /// of one to three figures, R or L, legs under 100 to a tenth, and a
-    /// length of one to three figures. One the planner would not read is
-    /// not read here either (web/src/lib/fixtures/holds.json).
-    private static let pattern = try! NSRegularExpression(
-        pattern: "^([A-Z0-9/.]+):([0-9]{1,3}):([RL]):([0-9]{1,2}(?:\\.[0-9])?)([MN]):([0-9]{1,3})([TM])$")
-
-    /// One read back from its text, or nil for one that is not.
+    /// One read back from its text, or nil for one that is not, as the
+    /// planner reads it (the engine's `hold_read`; vfr.holds, the web
+    /// app's lib/holds, web/src/lib/fixtures/holds.json).
     static func parse(_ text: String) -> Hold? {
-        let s = text.trimmingCharacters(in: .whitespaces).uppercased()
-        let ns = s as NSString
-        guard let m = pattern.firstMatch(in: s, range: NSRange(location: 0, length: ns.length)) else { return nil }
-        func group(_ i: Int) -> String { ns.substring(with: m.range(at: i)) }
-        guard let course = Int(group(2)), course <= 360, let leg = Double(group(4)), leg > 0,
-              let length = Int(group(6)), length > 0 else { return nil }
-        var hold = Hold(fix: group(1), inbound: course % 360, right: group(3) == "R")
-        if group(5) == "M" { hold.legMin = leg } else { hold.legNm = leg }
-        if group(7) == "T" { hold.turns = length } else { hold.minutes = length }
-        return hold
+        do { return try Engine.call("hold_read", ["text": text], decoder: Planner.snakeCase) } catch { return nil }
     }
 }
 
@@ -105,10 +100,7 @@ struct RouteExtras: Equatable, Sendable {
         if let crossings = Self.pairs(crossings) { query["crossings"] = crossings }
         if !holds.isEmpty { query["holds"] = holds.map(\.text).joined(separator: ",") }
         if !procedureDirect.isEmpty, !procedures.isEmpty {
-            query["procedures"] = procedures.map { pick in
-                guard let fix = procedureDirect["\(pick.ident):\(pick.id)"] else { return pick.param }
-                return "\(pick.ident):\(pick.id):\(pick.transition ?? ""):\(fix)"
-            }.joined(separator: ",")
+            query["procedures"] = ProcedurePick.text(procedures, direct: procedureDirect)
         }
         return query
     }
@@ -124,9 +116,12 @@ struct RouteExtras: Equatable, Sendable {
 
     /// A point off a fix, as a flight plan writes a fix/radial/distance
     /// (FAA Form 7233-4, item 10; AIM 5-1-8) and the planner reads it
-    /// (vfr.fixes.frd_ident): "VPBNG/090/30".
+    /// (vfr.fixes.frd_ident): "VPBNG/090/30", the engine's `frd_write` --
+    /// the course to the degree, 000 for north, the distance to a tenth of
+    /// a mile.
     static func frd(_ base: String, courseDeg: Int, nm: Double) -> String {
-        "\(base.uppercased())/\(String(format: "%03d", ((courseDeg % 360) + 360) % 360))/\(String(format: "%g", nm))"
+        let written: String? = try? Engine.call("frd_write", json: ["base": base, "course": courseDeg, "distance_nm": nm])
+        return written ?? ""
     }
 
     /// Where a point goes into the route so it bends it least: after the

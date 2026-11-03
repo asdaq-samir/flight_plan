@@ -420,7 +420,20 @@ struct ProcedurePick: Codable, Equatable, Sendable, Identifiable {
     var name: String
     var transition: String?
 
-    var param: String { [ident, id].joined(separator: ":") + (transition.map { ":" + $0 } ?? "") }
+    /// As the planner reads it, "KORD:WYNDE3:ZZIPR".
+    var param: String { Self.text([self]) }
+
+    /// Picks as the planner reads them (PlanQuery.procedures), each fix
+    /// flown direct, by "FIELD:PROCEDURE" in `direct`, after a fourth
+    /// colon: "KELD:I22::BXCMB". The engine's `procedures_write`, as the
+    /// web app writes its address.
+    static func text(_ picks: [ProcedurePick], direct: [String: String] = [:]) -> String {
+        let asked: [[String: String?]] = picks.map {
+            ["ident": $0.ident, "id": $0.id, "transition": $0.transition, "direct": direct["\($0.ident):\($0.id)"]]
+        }
+        let written: String? = try? Engine.call("procedures_write", json: ["picks": asked])
+        return written ?? ""
+    }
 }
 
 /// A field's card (AirportPlace).

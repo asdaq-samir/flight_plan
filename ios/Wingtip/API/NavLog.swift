@@ -219,7 +219,7 @@ enum NavLog {
             "aircraft": aircraft,
             // The procedures picked, which the legs are flown by and
             // the descents planned to.
-            "procedures": procedures.isEmpty ? nil : procedures.map(\.param).joined(separator: ","),
+            "procedures": procedures.isEmpty ? nil : ProcedurePick.text(procedures),
             "altitude_ft": altitudeFt.map { String(Int($0)) },
             // Picked on the wheel: each leg at its nearest legal
             // altitude where the pick is one of the planner's.
