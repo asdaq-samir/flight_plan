@@ -1,4 +1,3 @@
-import L from "leaflet";
 import { memo, useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Marker, Pane } from "react-leaflet";
@@ -7,7 +6,7 @@ import { hovers } from "./view";
 import { useAhead, useLiveZoom } from "./useView";
 import { diamondIcon } from "./icons";
 import { MapCard } from "./MapCard";
-import { MapPopup } from "./MapPopup";
+import { MapPopup, useTapPopup } from "./MapPopup";
 import { MAGENTA } from "../useAirspace";
 import { MapTooltip } from "./MapTooltip";
 import { PointWhere } from "./PointWhere";
@@ -56,10 +55,6 @@ export function WaypointsLayer({ exclude }: { exclude: Set<string> }) {
   );
 }
 
-/** A tap on a diamond kept off the map under it. A constant: react-leaflet
- *  binds a marker's handlers again whenever they are a new object. */
-const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagation(e) };
-
 /** One VFR waypoint's diamond and its card, drawn again only when the
  *  waypoint changes: made inline, every diamond had a new position and new
  *  handlers at every draw of the map -- each placed on the page again, its
@@ -68,17 +63,20 @@ const WaypointMark = memo(function WaypointMark({ waypoint: w }: {
   waypoint: { ident: string; lat: number; lon: number; description?: string | null };
 }) {
   const position = useMemo<[number, number]>(() => [w.lat, w.lon], [w.lat, w.lon]);
+  const [made, tapRef, tapHandlers] = useTapPopup();
   return (
-    <Marker position={position} icon={diamondIcon()} eventHandlers={STOP_CLICK}>
+    <Marker ref={tapRef} position={position} icon={diamondIcon()} eventHandlers={tapHandlers}>
       {/* In Leaflet's own panes, not this one: a popup in the
           diamonds' pane had the diamonds after it drawn over it. */}
       {hovers && <MapTooltip pane="tooltipPane">{w.ident} · VFR waypoint{w.description ? ` ${w.description}` : ""}</MapTooltip>}
-      <MapPopup pane="popupPane" panOnce>
-        {/* No name of its own: what it is beside its ident, and where it
-            is on a line of its own (the planner's vfr.places), at the
-            pilot's ask -- on one line the card ran the screen's width. */}
-        <WaypointCard waypoint={w} />
-      </MapPopup>
+      {made && (
+        <MapPopup pane="popupPane" panOnce>
+          {/* No name of its own: what it is beside its ident, and where it
+              is on a line of its own (the planner's vfr.places), at the
+              pilot's ask -- on one line the card ran the screen's width. */}
+          <WaypointCard waypoint={w} />
+        </MapPopup>
+      )}
     </Marker>
   );
 });

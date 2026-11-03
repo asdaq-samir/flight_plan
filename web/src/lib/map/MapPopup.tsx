@@ -1,4 +1,4 @@
-import type L from "leaflet";
+import L from "leaflet";
 import type { LeafletEventHandlerFnMap } from "leaflet";
 import { useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { Popup, useMap } from "react-leaflet";
@@ -85,6 +85,35 @@ type Props = ComponentProps<typeof Popup> & {
  * opening, and by the map's closePopup -- drawn as nothing, its content in
  * the card instead; the card's close, Escape and Back put it away.
  */
+/**
+ * A tap target's popup made only once the target is first tapped, and
+ * opened then: for the marks that come and go by the dozen with the zoom
+ * (the VORs', the fixes', the VFR waypoints'), each of which made and bound
+ * its popup as it came into view -- 18 to 26 ms of a zoom's 44 in Leaflet's
+ * adding and removing layers (profiled on the phone viewport, 2026-11-03).
+ * The marker takes the ref and the handlers (which keep the tap off the
+ * map under it), and draws its MapPopup only once made.
+ */
+export function useTapPopup() {
+  const ref = useRef<L.Marker>(null);
+  const [made, setMade] = useState(false);
+  const handlers = useMemo<LeafletEventHandlerFnMap>(() => ({
+    click: e => {
+      L.DomEvent.stopPropagation(e);
+      setMade(true);
+    },
+  }), []);
+  // The tap that made it came before it was there to open: opened as it
+  // is first bound (the popup's own effect, a grandchild's, runs first).
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!made || opened.current) return;
+    opened.current = true;
+    ref.current?.openPopup();
+  }, [made]);
+  return [made, ref, handlers] as const;
+}
+
 export function MapPopup(props: Props) {
   return useIsMobile() ? <PopupCard {...props} /> : <PopupOver {...props} />;
 }
