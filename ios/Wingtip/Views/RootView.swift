@@ -170,6 +170,11 @@ struct RootView: View {
         // and the Edit menu (PlanHistory).
         .onAppear { plan.undoManager = undoManager }
         .onChange(of: undoManager) { _, manager in plan.undoManager = manager }
+        // Siri listens for the fields the shortcuts' airport entity
+        // suggests (the kept route's: AirportQuery.suggestedEntities), so
+        // the phrases are told again when the route changes.
+        .onAppear { WingtipShortcuts.updateAppShortcutParameters() }
+        .onChange(of: plan.idents) { _, _ in WingtipShortcuts.updateAppShortcutParameters() }
         // Siri's or a Shortcut's ask, taken as it comes and as the app
         // opens with one waiting (the intents run before this has drawn).
         .task(id: pending.command) { await apply(pending.take()) }
@@ -220,6 +225,27 @@ struct RootView: View {
             if detent != .medium { detent = .medium }
         case .weather(let ident):
             open(ident)
+        case .planRoute(let dep, let stops, let dest):
+            // A route shared from the site, planned here as it was there.
+            plan.dep = dep; plan.stops = stops; plan.dest = dest
+            tab = .fpl
+            if detent != .medium { detent = .medium }
+            plan.plan()
+        case .aircraft(let hex):
+            // The airplane's card, tracked from its next report on.
+            Tracking.shared.track(hex)
+            FlightUI.shared.card = .airplane(hex)
+        case .track(let url):
+            // A GPX or KML file handed over from Files or Mail: its track
+            // flown again on the map (Replay), at the replay's pace, as a
+            // saved flight's is from its card. A file with no timed points
+            // is left alone; the card's own import says why.
+            let reading = url.startAccessingSecurityScopedResource()
+            defer { if reading { url.stopAccessingSecurityScopedResource() } }
+            guard let data = try? Data(contentsOf: url), let points = GPXTrack.points(data), !points.isEmpty else { return }
+            Replay.shared.load(Replay.points(points), key: url.lastPathComponent)
+            Replay.shared.play()
+            if detent != RootView.pill { detent = RootView.pill }
         }
     }
 }

@@ -86,8 +86,22 @@ owner, 2026-11-03):
 
 - **App Intents** (`Wingtip/Intents/`): plan a trip to a place, the
   nearest airports, the weather at a field and direct to a place, as
-  Siri, Shortcuts and Spotlight phrases (`WingtipShortcuts`). An intent
-  that needs the app sets `PendingCommand`, which `RootView` applies.
+  Siri, Shortcuts and Spotlight phrases (`WingtipShortcuts`). The airport
+  is an App Entity (`AirportEntity`: the kept route's, the Favorites and
+  the Recents suggested, the planner's search behind them), so "Plan a
+  trip to KLAS in Wingtip Maps" goes in one breath. An intent that needs
+  the app sets `PendingCommand`, which `RootView` applies.
+- **Home Screen widgets** (`WingtipWidgets/FlightWidgets.swift`,
+  `Wingtip/WidgetFeed.swift`, `Wingtip/Shared/WidgetSnapshot.swift`): the
+  next flight's route, figures, Go / No-Go and departure weather on the
+  Home Screen and the Lock Screen, from a snapshot the app writes to the
+  App Group (`group.app.wingtipmaps`) only as it changes, so the widget
+  never asks the planner and never spends its redraw budget idly.
+- **Universal links and files** (`Wingtip/Intents/Links.swift`): a route,
+  a field or an airplane shared from the site (`/app/plan?dep=…&dest=…`,
+  `?place=`, `?flight=`) opens in the app as a `PendingCommand`, and a GPX
+  or KML track from Files or Mail is flown again on the map (the document
+  types in project.yml). The sign-in link stays `Session.open`'s.
 - **A Live Activity** (`Wingtip/FlightActivity.swift`, the
   `WingtipWidgets` extension, `Wingtip/Shared/FlightActivityAttributes`):
   a flight in progress on the Lock Screen and in the Dynamic Island with
@@ -113,6 +127,35 @@ owner, 2026-11-03):
   amber mark or the haptics say it), with permission asked in the
   moment the pilot first asks for one. The entitlement is in
   project.yml.
+
+## The Apple Watch app
+
+`ios/WingtipWatch/` (the owner's ask, 2026-11-03) is a companion of the
+iOS app, bundle id `app.wingtipmaps.ios.watchkitapp`, watchOS 10 and
+later, embedded in the phone's app and installed with it: three pages,
+Timers (a flight timer and a hold/approach timer, each a `Stopwatch`
+worked out from the clock at each draw under a `TimelineView`, so it is
+right when the display wakes), Checklist (the picked airplane's sections
+and items, ticked on the wrist, a section reset by a swipe) and Nearest
+(the fields nearest the watch's own fix, or the phone's).
+
+The watch links no engine (the XCFramework has no watchOS slice) and
+calls no server. The phone (`Wingtip/WatchLink.swift`) sends the
+airplane's checklist, as the gateway gave it, and the pilot's fix as the
+WatchConnectivity application context, and answers the watch's nearest
+question from the planner (`Planner.nearest`; the cycle packs give the
+airspace at a point only, so offline the watch is told the planner is
+out of reach). Every message is a small Codable struct in
+`Wingtip/Shared/WatchMessages.swift`, compiled into both apps and
+round-tripped in `WingtipWatchTests`. No complication yet.
+
+The workflow does not build the watch scheme yet: the `Wingtip` scheme
+builds the watch app as the embedded companion, and `WingtipWatch`'s
+tests need a watch simulator paired with the iPhone one, picked as a
+pair (`xcrun simctl list pairs`) and given as `-destination
+"platform=watchOS Simulator,id=…"`. In the developer account the watch
+app needs its own app id (`app.wingtipmaps.ios.watchkitapp`) and a
+provisioning profile beside the phone's for TestFlight.
 
 Still open, as decisions rather than code: the app on the phone is the
 web app in a web view until this one is the product; local records
