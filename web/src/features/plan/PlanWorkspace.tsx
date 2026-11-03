@@ -84,6 +84,7 @@ import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { useDryRun } from "./hooks/useDryRun";
 import { procedureKind, useRouteEdits } from "./hooks/useRouteEdits";
+import { useSuggestedStops, withStopsAfter } from "./hooks/useSuggestedStops";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan, type PlanParams } from "./hooks/usePlan";
@@ -205,13 +206,6 @@ const WAY_CHIP_SHARES = [0.2, 0.4, 0.6, 0.8];
 
 interface FuelCard { stops: string[]; added: string[]; nm: number; air: number; ground: number; landings: number }
 
-function withStopsAfter(dep: string, stops: string[], after: string, idents: string[]): { stops: string[]; added: string[] } | null {
-  const room = MAX_STOPS - stops.length;
-  if (room <= 0 || idents.length === 0) return null;
-  const at = sameField(dep, after) ? 0 : stops.findIndex(stop => sameField(stop, after)) + 1 || stops.length;
-  const added = idents.slice(0, room);
-  return { stops: [...stops.slice(0, at), ...added, ...stops.slice(at)], added };
-}
 
 /** The suggested stop at a field, where it is one of the planner's
  *  (the totals' fuel_stops): the field its flight leaves, and its figures
@@ -260,8 +254,6 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
 /** The flight rules a route is planned under, as the Profile card's switch
  *  offers them. */
 const FLIGHT_RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
-const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
-const NO_IDENTS: string[] = [];
 
 /** The route as the address has it, "dep|stops|dest", kept as a Direct to
  *  goes in (directToPoint) for its Cancel. */
@@ -1211,54 +1203,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const { setRoute, addStop, setPointAltitude, setStops, removeStop, insertStopAfter, acceptClassB, avoidClassB, flyAltitude } = useRouteEdits({
     planned, routePoints, setSearchParams,
   });
-  // The fuel stops the planner suggests for a flight too long for its
-  // tanks (the totals' fuel_stops), kept: put in after the flight's
-  // departure, in order, as many as the planner takes.
-  const allFuelStops = s.local ? NO_FUEL_STOPS : s.totals?.fuel_stops ?? NO_FUEL_STOPS;
-  // Suggested fuel stops the pilot took out of the route box (its chip's
-  // Remove), for this route: left out of the box, the list and the map,
-  // and put back by the route menu's Show Fuel Stops, at the owner's ask
-  // ("Fuel stops should also have a way to delete them and add them back
-  // as pleased", 2026-10-24). FPL's Routes keep their own card for them.
-  const fuelRoute = `${planned.dep}|${planned.stops.join(",")}|${planned.dest ?? ""}`;
-  const [hiddenFuel, setHiddenFuel] = useState<{ route: string; idents: string[] }>({ route: "", idents: [] });
-  const hiddenHere = hiddenFuel.route === fuelRoute ? hiddenFuel.idents : NO_IDENTS;
-  const fuelStops = useMemo(() => (hiddenHere.length
-    ? allFuelStops.map(f => ({ ...f, stops: f.stops.filter(x => !hiddenHere.includes(x.ident)) })).filter(f => f.stops.length)
-    : allFuelStops), [allFuelStops, hiddenHere]);
-  const hideFuelStop = useCallback((ident: string) => setHiddenFuel(was => ({
-    route: fuelRoute, idents: [...(was.route === fuelRoute ? was.idents : []), ident],
-  })), [fuelRoute]);
-  const showFuelStops = useCallback(() => setHiddenFuel({ route: "", idents: [] }), []);
-  // The tanks for FPL's fuel at each point: the fuel check's usable fuel,
-  // allowance and reserve, the first flight's where the route has stops
-  // (each is filled again), the strictest reserve of them.
-  const tankFigures = useMemo(() => {
-    const t = s.local ? null : s.totals;
-    const flights = t?.hops?.length ? t.hops.map(h => h.totals) : t ? [t] : [];
-    const usable = flights[0]?.usable_fuel_gal;
-    if (!usable) return null;
-    return {
-      usableGal: usable, taxiGal: flights[0]?.taxi_gal ?? 0,
-      reserveGal: Math.max(0, ...flights.map(f => f.reserve_gal ?? 0)),
-    };
-  }, [s.local, s.totals]);
-  // Their pins on the map, every flight's.
-  const fuelStopPins = useMemo(() => fuelStops.flatMap(f => f.stops.map(({ ident, lat, lon }) => ({ ident, lat, lon, reason: f.reason }))), [fuelStops]);
-  // A break the planner suggests on a long flight its tanks hold is the
-  // pilot's own stop once kept, not a fuel stop (useFuelStops).
-  const keepFuelStops = useCallback((after: string, idents: string[]) => {
-    const next = withStopsAfter(planned.dep, planned.stops, after, idents);
-    const isBreak = fuelStops.some(f => f.reason === "break" && [...f.stops, ...(f.choices ?? [])].some(c => idents.includes(c.ident)));
-    if (next) setStops(next.stops, isBreak ? [] : next.added);
-  }, [setStops, planned.dep, planned.stops, fuelStops]);
-  // A field from the map's Stops put in the route after its flight's
-  // departure, the pilot's own stop: by the route's own points, not its
-  // course, which a tap before the course was in found missing.
-  const addStopField = useCallback((field: { ident: string; departure?: string | null }) => {
-    const next = withStopsAfter(planned.dep, planned.stops, field.departure ?? planned.dep, [field.ident]);
-    if (next) setStops(next.stops);
-  }, [setStops, planned.dep, planned.stops]);
+  // The stops the planner suggests, and keeping them (useSuggestedStops).
+  const { fuelStops, fuelHidden, hideFuelStop, showFuelStops, tankFigures, fuelStopPins, keepFuelStops, addStopField } = useSuggestedStops({
+    totals: s.totals, local: s.local, planned, setStops,
+  });
   // The suggested stop the airport's card is open on, where it is one: its
   // figures at the card's top, and Add Stop keeps it at its place
   // (PlaceCard's `stop`).
@@ -2449,7 +2397,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       // Plan again in the route's own menu, at the owner's pick ("A") to
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
-      onShowFuel={card === undefined && hiddenHere.length ? showFuelStops : undefined}
+      onShowFuel={card === undefined && fuelHidden ? showFuelStops : undefined}
       onProfile={card === undefined && profileReady ? openProfile : undefined}
     />
   );
