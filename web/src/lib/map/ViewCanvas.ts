@@ -208,7 +208,18 @@ export abstract class ViewCanvasLayer extends L.Layer {
       this.step();
       return;
     }
-    const scale = map.getZoomScale(e.zoom, map.getZoom());
+    // Scaled from the zoom the drawing is for, not the map's: as a pinch's
+    // fingers lift, Leaflet animates from the pinch's own zoom (pinch.ts,
+    // no snap), where the canvas, drawn before the pinch and scaled with
+    // it since, was set back to scale 1 under the stylesheet's transition
+    // -- the rings shrank towards the canvas's top left for a quarter
+    // second after a pinch in, grew out of it after a pinch out, and
+    // jumped back as the redraw came (the owner, 2026-11-03: "when zooming
+    // in, the rings slide from top left and when zooming out, the rings
+    // slide from bottom right"; Session1's probe, scale 2.44 to 1 over
+    // three frames, the canvas 1474 to 626 points wide on screen, then
+    // drawn again at 604).
+    const scale = map.getZoomScale(e.zoom, this.drawnZoom);
     L.DomUtil.setTransform(this.canvas, map._latLngToNewLayerPoint(this.topLeft, e.zoom, e.center), scale);
   }
 
