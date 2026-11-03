@@ -1,6 +1,5 @@
 import L from "leaflet";
 import type { AirspaceVolume } from "../api/types";
-import { prefersReducedMotion } from "../motion";
 import { AIRSPACE_LINE } from "./airspaceMarks";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
 
@@ -16,10 +15,6 @@ const RING_DASHES = 24;
  *  dashes are this, fewer of them, rather than a grey blur. */
 const SHORTEST_DASH_PX = 6;
 const NO_DASH: number[] = [];
-/** How long a volume's lines take to come in, ms, as the marks do. */
-const FADE_MS = 200;
-/** The most volumes remembered as drawn: a few states' worth. */
-const MOST_KEPT = 3000;
 
 /** Whether the map is animating a zoom (Leaflet's own flag, as the
  *  OwnShipLayer reads it). */
@@ -78,8 +73,10 @@ function projectedOf(map: L.Map, volume: AirspaceVolume): Projected {
  * only as a move ends -- at the owner's screenshots of 2026-11-02
  * (Minneapolis' and Kansas City's Class B, through a pan) and 2026-11-03
  * (Chicago's, cut down the middle of the screen at rest after a pinch).
- * A volume's lines coming in for the first time fade in, as the marks do;
- * at once under Reduce Motion. What is drawn is written on the canvas for
+ * A volume's lines come in at once, with the chart's tiles, not faded in
+ * as the marks are: the fade was a fifth of a second more before the
+ * rings were there after every zoom (the owner, 2026-11-03: "why do the
+ * rings take a while to redraw?"). What is drawn is written on the canvas for
  * the browser tests (`data-airspace-lines`: how many volumes of each
  * class). Not a target: the taps are AirspaceLayer's own unseen lines.
  */
@@ -91,10 +88,6 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
   protected override redrawWhileZooming = false;
   private volumes: AirspaceVolume[] = [];
   private written = "";
-  /** The volumes drawn once, which come in without a fade again. */
-  private readonly drawnOnce = new Set<string>();
-  /** When each volume was first drawn, while it fades in. */
-  private readonly born = new Map<string, number>();
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
@@ -139,29 +132,13 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     // A zoom-0 point p is at p * k - (ox, oy) on this canvas.
     const ox = pixelOrigin.x + origin.x - from.x, oy = pixelOrigin.y + origin.y - from.y;
     const left = -pad.x, top = -pad.y, right = size.x + pad.x, bottom = size.y + pad.y;
-    const now = performance.now();
-    let fading = false;
     const counts = { B: 0, C: 0, D: 0 };
     ctx.lineJoin = "round";
     for (const volume of this.volumes) {
       const { lines, box, longest } = projectedOf(map, volume);
       if (box.x1 * k - ox < left || box.x0 * k - ox > right || box.y1 * k - oy < top || box.y0 * k - oy > bottom) continue;
       const style = AIRSPACE_LINE[volume.airspace_class];
-      if (!this.drawnOnce.has(volume.id)) {
-        if (this.drawnOnce.size > MOST_KEPT) this.drawnOnce.clear();
-        this.drawnOnce.add(volume.id);
-        if (!prefersReducedMotion()) this.born.set(volume.id, now);
-      }
-      const born = this.born.get(volume.id);
-      let alpha = 1;
-      if (born !== undefined) {
-        alpha = (now - born) / FADE_MS;
-        if (alpha >= 1) {
-          this.born.delete(volume.id);
-          alpha = 1;
-        } else fading = true;
-      }
-      ctx.globalAlpha = (style.opacity ?? 1) * Math.max(0, alpha);
+      ctx.globalAlpha = style.opacity ?? 1;
       ctx.strokeStyle = style.color!;
       ctx.lineWidth = style.weight!;
       if (volume.airspace_class === "D") {
@@ -184,7 +161,6 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     }
     ctx.globalAlpha = 1;
     ctx.setLineDash(NO_DASH);
-    if (fading) this.schedule();
     // Written down for the tests as what is drawn changes, not at every
     // drawing: each write restyled the page.
     const written = JSON.stringify(counts);

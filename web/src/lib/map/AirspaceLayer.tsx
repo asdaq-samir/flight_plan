@@ -1,6 +1,6 @@
 import L from "leaflet";
-import { memo, useEffect, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { memo, useEffect, useMemo, useState } from "react";
+import { keepPreviousData, QueryObserver, useQuery } from "@tanstack/react-query";
 import { Pane, Polyline, useMap } from "react-leaflet";
 import { api } from "../api/client";
 import type { AirspaceVolume } from "../api/types";
@@ -18,10 +18,11 @@ import { Button } from "../../components/ui/button";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { callTypes, entryRules } from "../airspaceRules";
 import { mhzText } from "../frequencies";
-import { airportQuery } from "../queryClient";
+import { airportQuery, queryClient } from "../queryClient";
 import { usePointActions } from "./pointActions";
 import { MapPopup } from "./MapPopup";
 import { useAhead, useLiveZoom } from "./useView";
+import type { Box } from "./view";
 
 /** From this zoom in, as the airports' and the VFR waypoints', the Class
  *  C and D and every label: further out they are a scatter of small rings
@@ -101,20 +102,14 @@ export function AirspaceLayer() {
   const on = show && zoom >= CLASS_B_FROM_ZOOM;
   const near = zoom >= FROM_ZOOM;
   const classes = near ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
-  const { data } = useQuery({
-    queryKey: ["airspaceInView", asked.key, classes],
-    queryFn: () => api.airspaceInView({ ...asked.box, classes }).then(volumes => kept(volumes, asked.box)),
-    enabled: on,
-    staleTime: Infinity,
-    placeholderData: keepPreviousData,
-    meta: { silent: true },
-  });
+  const query = useMemo(() => airspaceQuery(asked, classes), [asked, classes]);
+  const { data } = useQuery({ ...query, enabled: on, placeholderData: keepPreviousData });
   const volumes = data ?? NONE;
   if (!on) return null;
   return (
     <>
       <Pane name="airspace" style={LINES_PANE}>
-        <Lines volumes={volumes} />
+        <Lines query={query} />
       </Pane>
       <Pane name="airspace-labels" style={LABELS_PANE}>
         {near && <EdgeLabels volumes={volumes} />}
@@ -132,18 +127,43 @@ export function AirspaceLayer() {
  * is moved, where Leaflet's SVG cut a ring straight at its renderer's
  * box (the owner's screenshots, 2026-11-02 and 2026-11-03).
  */
-function Lines({ volumes }: { volumes: AirspaceVolume[] }) {
+function Lines({ query }: { query: AirspaceQuery }) {
   const map = useMap();
   const [layer] = useState(() => new AirspaceLinesLayer("airspace"));
   useEffect(() => {
     layer.addTo(map);
     return () => { layer.remove(); };
   }, [map, layer]);
+  // The box's answer goes straight to the layer as it comes, through an
+  // observer of the same cached query, not after React has rendered all
+  // else the zoom changed -- the airports' answer merged into its marks,
+  // the lists, the altitudes and the taps below. Set from an effect, the
+  // rings for the new view came 0.4 to 1.2 s after the zoom's animation
+  // had ended on a busy main thread (a probe on the phone viewport at CPU
+  // 4x, 2026-11-03, Chicago from 7 to 9: the planner's answer back at
+  // 0.6 s, mid-animation; the Class D rings drawn at 1.9 s), at the
+  // owner's "why do the rings take a while to redraw?". The layer keeps
+  // the last box's rings until the next box's come.
   useEffect(() => {
-    layer.set(volumes);
-  }, [layer, volumes]);
+    const observer = new QueryObserver(queryClient, query);
+    const apply = ({ data }: { data?: AirspaceVolume[] }) => { if (data) layer.set(data); };
+    apply(observer.getCurrentResult());
+    return observer.subscribe(apply);
+  }, [layer, query]);
   return null;
 }
+
+/** The planner asked for a box's volumes, once per box and classes (the
+ *  query cache): the lines' layer, the altitudes and the taps share it. */
+function airspaceQuery(asked: Box, classes: string) {
+  return {
+    queryKey: ["airspaceInView", asked.key, classes],
+    queryFn: () => api.airspaceInView({ ...asked.box, classes }).then(volumes => kept(volumes, asked.box)),
+    staleTime: Infinity,
+    meta: { silent: true },
+  };
+}
+type AirspaceQuery = ReturnType<typeof airspaceQuery>;
 
 /** The words' width on the screen, each letter guessed a little wide
  *  (declutter's), for where they fit along a line. */
