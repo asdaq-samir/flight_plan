@@ -105,26 +105,20 @@ export function ChartTiles({ chart, previewing }: Props) {
       if (prefetched.current.size > PREFETCH_KEPT) prefetched.current.delete(prefetched.current.values().next().value!);
       void fetch(url, { priority: "low" }).catch(() => { /* a miss now is a miss later, nothing to do */ });
     };
-    const range = {
-      minX: Math.floor(pixelBounds.min!.x / size) - 1, maxX: Math.floor(pixelBounds.max!.x / size) + 1,
-      minY: Math.floor(pixelBounds.min!.y / size) - 1, maxY: Math.floor(pixelBounds.max!.y / size) + 1,
-    };
-    for (let x = range.minX; x <= range.maxX; x++) {
-      for (let y = range.minY; y <= range.maxY; y++) {
-        const edge = x === range.minX || x === range.maxX || y === range.minY || y === range.maxY;
-        if (edge) ask(x, y, zoom);
-      }
-    }
-    // The levels above too (PARENT_LEVELS), each the screen's worth of
+    // The levels above first (PARENT_LEVELS), each the screen's worth of
     // tiles round the view's middle at that zoom -- what a zoom out shows,
     // a dozen tiles a level: a zoom out (the location arrow's, a flick)
     // asked for its coarser tiles only once it had crossed the level, and
     // held the chart at the region's blur until they came, 1.0 to 1.3 s
     // on the phone viewport for the twelve tiles of zoom 7 over Chicago (a
     // probe, 2026-11-03). Asked for at rest they are in the browser's or
-    // the service worker's cache when the zoom comes. Only the parents of
-    // the view's own tiles were asked for at first, a tile or two of the
-    // dozen the zoomed-out screen needs, and the zoom out gained nothing.
+    // the service worker's cache when the zoom comes (a tile fetched ahead
+    // reaches Leaflet's image from the cache in 3 ms, measured). Before
+    // the ring, which the browser fetches six at a time: asked for after
+    // it, the parents were still coming when a zoom out came six seconds
+    // later on a loaded Mac. Only the parents of the view's own tiles were
+    // asked for at first, a tile or two of the dozen the zoomed-out
+    // screen needs, and the zoom out gained nothing.
     const centre = map.getCenter();
     const half = map.getSize().divideBy(2);
     for (let up = 1; up <= PARENT_LEVELS; up++) {
@@ -133,6 +127,16 @@ export function ChartTiles({ chart, previewing }: Props) {
       const middle = map.project(centre, z);
       for (let x = Math.floor((middle.x - half.x) / size); x <= Math.floor((middle.x + half.x) / size); x++) {
         for (let y = Math.floor((middle.y - half.y) / size); y <= Math.floor((middle.y + half.y) / size); y++) ask(x, y, z);
+      }
+    }
+    const range = {
+      minX: Math.floor(pixelBounds.min!.x / size) - 1, maxX: Math.floor(pixelBounds.max!.x / size) + 1,
+      minY: Math.floor(pixelBounds.min!.y / size) - 1, maxY: Math.floor(pixelBounds.max!.y / size) + 1,
+    };
+    for (let x = range.minX; x <= range.maxX; x++) {
+      for (let y = range.minY; y <= range.maxY; y++) {
+        const edge = x === range.minX || x === range.maxX || y === range.minY || y === range.maxY;
+        if (edge) ask(x, y, zoom);
       }
     }
   }, [map, baseLayer, chart]);
