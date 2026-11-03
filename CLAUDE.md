@@ -1,6 +1,6 @@
 # Wingtip Maps — for agents
 
-A VFR flight planner for pilots: the FAA chart on a map that works like
+A flight planner for pilots, VFR and IFR: the FAA chart on a map that works like
 Maps on an iPhone, and the route, checkpoints and nav log for a flight.
 It is headed for an iOS app. README.md has the services and the layout.
 
