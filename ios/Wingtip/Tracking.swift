@@ -1,6 +1,8 @@
+import CoreData
 import CoreLocation
 import Foundation
 import Observation
+import SwiftData
 import UIKit
 
 /// A point of a flown path: when (s since 1970), where, how high (feet;
@@ -47,16 +49,15 @@ final class Tracking {
     var past: [PathPoint] = []
     /// The pilot's own flown track, shown from a saved flight.
     var flown: [PathPoint] = []
-    /// The Favorites, kept where the Aircraft tab has always kept them.
-    private(set) var favorites: [KeptAirplane] = UserDefaults.standard.decoded([KeptAirplane].self, forKey: KeptAirplane.key) ?? [] {
-        didSet { UserDefaults.standard.setEncoded(favorites, forKey: KeptAirplane.key) }
-    }
-    private(set) var recents: [KeptAirplane] = UserDefaults.standard.decoded([KeptAirplane].self, forKey: "recentAircraft") ?? [] {
-        didSet { UserDefaults.standard.setEncoded(recents, forKey: "recentAircraft") }
-    }
-    private(set) var watches: [AirplaneWatch] = UserDefaults.standard.decoded([AirplaneWatch].self, forKey: "aircraftWatches") ?? [] {
-        didSet { UserDefaults.standard.setEncoded(watches, forKey: "aircraftWatches") }
-    }
+    /// The Favorites, the Recents (newest first) and the watches, as the
+    /// store holds them (Records): read whole after each change and when
+    /// iCloud brings another device's, since the lists are a dozen rows
+    /// and the views want arrays.
+    private(set) var favorites: [KeptAirplane] = []
+    private(set) var recents: [KeptAirplane] = []
+    private(set) var watches: [AirplaneWatch] = []
+    @ObservationIgnored private let context: ModelContext
+    @ObservationIgnored private var remote: Task<Void, Never>?
     /// The last watch that went off, for the banner over the map.
     var fired: String?
     /// Whether each watched airplane was in the air, where known.
@@ -67,6 +68,42 @@ final class Tracking {
     static let pathPoints = 2000
     /// Recents kept, newest first.
     static let recentCount = 12
+
+    /// The app's store, and the UserDefaults the lists were in before
+    /// it, taken in on the first launch after the change; a test gives
+    /// its own of each.
+    init(container: ModelContainer = Records.container, defaults: UserDefaults = .standard) {
+        context = container.mainContext
+        Records.migrate(from: defaults, into: context)
+        reload()
+        // Another device's change, brought by iCloud, read in as it lands.
+        remote = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .NSPersistentStoreRemoteChange) {
+                self?.reload()
+            }
+        }
+    }
+
+    /// The lists from the store. Two devices that each kept the same
+    /// airplane before they met have two records of it: they are folded
+    /// into one here, with both lists' flags, so neither shows twice.
+    func reload() {
+        let kept = (try? context.fetch(FetchDescriptor<KeptAirplaneRecord>(sortBy: [SortDescriptor(\.addedAt)]))) ?? []
+        var one: [String: KeptAirplaneRecord] = [:]
+        for record in kept {
+            guard let first = one[record.hex] else { one[record.hex] = record; continue }
+            first.favorite = first.favorite || record.favorite
+            first.recent = first.recent || record.recent
+            first.recentAt = [first.recentAt, record.recentAt].compactMap { $0 }.max()
+            context.delete(record)
+        }
+        let planes = one.values.sorted { $0.addedAt < $1.addedAt }
+        favorites = planes.filter(\.favorite).map(\.kept)
+        recents = planes.filter(\.recent).sorted { ($0.recentAt ?? .distantPast) > ($1.recentAt ?? .distantPast) }.map(\.kept)
+        let watched = (try? context.fetch(FetchDescriptor<AirplaneWatchRecord>(sortBy: [SortDescriptor(\.setAt)]))) ?? []
+        watches = watched.compactMap(\.watch)
+        if context.hasChanges { try? context.save() }
+    }
 
     /// A flight tracked from now, the map following it; its report where
     /// the one picking it has it, so its card and the map have it at once.
@@ -110,15 +147,76 @@ final class Tracking {
     func isFavorite(_ hex: String) -> Bool { favorites.contains { $0.hex == hex.lowercased() } }
 
     func toggleFavorite(_ kept: KeptAirplane) {
-        if isFavorite(kept.hex) { favorites.removeAll { $0.hex == kept.hex } } else { favorites.append(kept) }
+        let record = self.record(kept)
+        record.favorite.toggle()
+        if record.favorite { record.addedAt = Date() }
+        prune(record)
+        saved()
     }
 
     func remember(_ kept: KeptAirplane) {
-        recents = Array(([kept] + recents.filter { $0.hex != kept.hex }).prefix(Self.recentCount))
+        let record = self.record(kept)
+        record.recent = true
+        record.recentAt = Date()
+        record.name = kept.name
+        record.type = kept.type ?? record.type
+        // The oldest beyond a dozen leave the Recents, and the store
+        // where they were only recent.
+        let recent = ((try? context.fetch(FetchDescriptor<KeptAirplaneRecord>(predicate: #Predicate { $0.recent == true }))) ?? [])
+            .sorted { ($0.recentAt ?? .distantPast) > ($1.recentAt ?? .distantPast) }
+        for old in recent.dropFirst(Self.recentCount) {
+            old.recent = false
+            prune(old)
+        }
+        saved()
     }
 
     func forget(recent hex: String) {
-        recents.removeAll { $0.hex == hex }
+        for record in records(hex) {
+            record.recent = false
+            prune(record)
+        }
+        saved()
+    }
+
+    /// Signing out: the Favorites are the pilot's own, the Recents the
+    /// device's (Session.forgetPilot).
+    func forgetFavorites() {
+        for record in (try? context.fetch(FetchDescriptor<KeptAirplaneRecord>(predicate: #Predicate { $0.favorite == true }))) ?? [] {
+            record.favorite = false
+            prune(record)
+        }
+        saved()
+    }
+
+    /// The account deleted: every record, here and on iCloud.
+    func erase() {
+        Records.erase(in: context)
+        reload()
+    }
+
+    private func records(_ hex: String) -> [KeptAirplaneRecord] {
+        let hex = hex.lowercased()
+        return (try? context.fetch(FetchDescriptor<KeptAirplaneRecord>(predicate: #Predicate { $0.hex == hex }))) ?? []
+    }
+
+    /// The airplane's record, made where it has none.
+    private func record(_ kept: KeptAirplane) -> KeptAirplaneRecord {
+        if let had = records(kept.hex).first { return had }
+        let record = KeptAirplaneRecord(hex: kept.hex.lowercased(), name: kept.name, type: kept.type)
+        context.insert(record)
+        return record
+    }
+
+    /// A record in neither list is no record.
+    private func prune(_ record: KeptAirplaneRecord) {
+        if !record.favorite, !record.recent { context.delete(record) }
+    }
+
+    /// A change kept, and the lists read back from it.
+    private func saved() {
+        try? context.save()
+        reload()
     }
 
     // MARK: Watches
@@ -126,7 +224,15 @@ final class Tracking {
     func watching(_ hex: String, _ kind: AirplaneWatch.Kind) -> Bool { watches.contains { $0.hex == hex.lowercased() && $0.kind == kind } }
 
     func toggleWatch(_ watch: AirplaneWatch) {
-        if watches.contains(watch) { watches.removeAll { $0 == watch } } else { watches.append(watch) }
+        if watches.contains(watch) { remove(watch) } else { context.insert(AirplaneWatchRecord(watch)) }
+        saved()
+    }
+
+    /// A watch let go: gone off, or turned off on the card.
+    private func remove(_ watch: AirplaneWatch) {
+        let (hex, kind) = (watch.hex, watch.kind.rawValue)
+        let found = (try? context.fetch(FetchDescriptor<AirplaneWatchRecord>(predicate: #Predicate { $0.hex == hex && $0.kind == kind }))) ?? []
+        for record in found { context.delete(record) }
     }
 
     /// Whether the airplane is in the air (the engine's `airborne_now`,
@@ -185,7 +291,8 @@ final class Tracking {
                         if let words = Self.fired(watch, before: before, now: now, status: status) {
                             fired = words
                             SpokenAlerts.shared.say("\(words).", force: true)
-                            watches.removeAll { $0 == watch }
+                            remove(watch)
+                            saved()
                         }
                     }
                     if let now { airborne[hex] = now }

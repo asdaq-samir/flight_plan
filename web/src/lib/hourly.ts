@@ -4,6 +4,7 @@ import {
   type Forecast, type IAbstractWeatherContainer, type IForecastContainer,
 } from "metar-taf-parser";
 import type { Metar } from "./api/types";
+import { callEngine } from "./engine/engine";
 import { categoryOf } from "./map/flightCategory";
 import { clockTime } from "./clock";
 import { altFt } from "./units";
@@ -24,10 +25,11 @@ import { altFt } from "./units";
  * which is right only when it gets worse); a TEMPO, PROB or INTER group
  * weather that comes and goes, which is not the hour's bar but its
  * "at times" (`atTimes`), drawn lighter under it and said in the
- * sentence. The ceiling is 14 CFR 1.1's -- the lowest layer broken or
+ * sentence -- that reading the shared engine's (native/engine/src/
+ * forecast), the parser only finding the groups. The ceiling is 14 CFR 1.1's -- the lowest layer broken or
  * overcast, or the vertical visibility into an obscuration -- and the
  * flight category AIM 7-1-7's, by the one rule the app has for it
- * (categoryOf).
+ * (categoryOf, the engine's too).
  */
 
 const HOUR_MS = 3_600_000;
@@ -76,6 +78,8 @@ export interface Hour {
   atTimesChance: boolean;
 }
 
+/** The categories from best to worst, for the sentence's "lowering" and
+ *  "improving" (the hour's own reading ranks them in the engine). */
 const RANK: Record<string, number> = { VFR: 0, MVFR: 1, IFR: 2, LIFR: 3 };
 const rank = (category: string | null) => (category ? RANK[category] ?? -1 : -1);
 
@@ -152,7 +156,22 @@ export function tafOf(raw: string | null | undefined, now: number): IForecastCon
   }
 }
 
-/** The TAF's hour starting `at`; null outside its validity. */
+/** What of a group's figures the hour's reading turns on. */
+const held = (f: ReturnType<typeof figuresOf>) => ({ category: f.category, gust_kt: f.windGustKt, thunder: f.precip === "thunder" });
+
+/** The engine's "taf_hour" answer. */
+interface HourRead {
+  before_worse: boolean;
+  at_times: string | null;
+  at_times_gust_kt: number | null;
+  at_times_thunder: boolean;
+  at_times_chance: boolean;
+}
+
+/** The TAF's hour starting `at`; null outside its validity. The parser
+ *  finds the groups in force; what they make of the hour -- a BECMG under
+ *  way the worse of before and after, a TEMPO's or PROB's worse weather at
+ *  times -- is the shared engine's (native/engine/src/forecast). */
 function hourAt(taf: IForecastContainer, at: number): Omit<Hour, "now"> | null {
   let composite;
   try {
@@ -161,26 +180,22 @@ function hourAt(taf: IForecastContainer, at: number): Omit<Hour, "now"> | null {
     return null;
   }
   const { prevailing, supplemental } = composite;
-  let figures = figuresOf(prevailing);
-  // A BECMG still under way: the worse of the weather before and after.
-  if (prevailing.type === WeatherChangeType.BECMG && at < prevailing.by.getTime()) {
-    const before = taf.forecast.filter(f => prevails(f) && f.start.getTime() < prevailing.start.getTime()).at(-1);
-    const was = before && figuresOf(before);
-    if (was && rank(was.category) > rank(figures.category)) figures = { ...was, windDirTrueDeg: figures.windDirTrueDeg, windSpeedKt: figures.windSpeedKt, windGustKt: figures.windGustKt };
-  }
-  let atTimes: string | null = null, atTimesGustKt: number | null = null, atTimesThunder = false, atTimesChance = false;
-  for (const group of supplemental) {
-    const then = figuresOf(group, prevailing);
-    // A PROB30 or PROB40 group, alone or before a TEMPO, carries its
-    // per cent; a plain TEMPO none.
-    const chance = "probability" in group && group.probability != null;
-    if (rank(then.category) > rank(figures.category) && rank(then.category) > rank(atTimes)) { atTimes = then.category; atTimesChance = chance; }
-    else if (then.category === atTimes && !chance) atTimesChance = false;
-    const gust = then.windGustKt;
-    if (gust != null && gust > (figures.windGustKt ?? 0) && gust > (atTimesGustKt ?? 0)) atTimesGustKt = gust;
-    if (then.precip === "thunder" && figures.precip !== "thunder") atTimesThunder = true;
-  }
-  return { at, ...figures, atTimes, atTimesGustKt, atTimesThunder, atTimesChance };
+  const figures = figuresOf(prevailing);
+  const becoming = prevailing.type === WeatherChangeType.BECMG && at < prevailing.by.getTime();
+  const before = becoming ? taf.forecast.filter(f => prevails(f) && f.start.getTime() < prevailing.start.getTime()).at(-1) : undefined;
+  const was = before && figuresOf(before);
+  const read = callEngine<HourRead>("taf_hour", {
+    prevailing: held(figures), becoming, before: was ? held(was) : null,
+    // A PROB30 or PROB40 group, alone or before a TEMPO, carries its per
+    // cent; a plain TEMPO none.
+    supplemental: supplemental.map(group => ({ ...held(figuresOf(group, prevailing)), chance: "probability" in group && group.probability != null })),
+  });
+  // The weather before, where worse, with the new group's wind.
+  const hour = read.before_worse && was ? { ...was, windDirTrueDeg: figures.windDirTrueDeg, windSpeedKt: figures.windSpeedKt, windGustKt: figures.windGustKt } : figures;
+  return {
+    at, ...hour,
+    atTimes: read.at_times, atTimesGustKt: read.at_times_gust_kt, atTimesThunder: read.at_times_thunder, atTimesChance: read.at_times_chance,
+  };
 }
 
 /** Now, from the field's METAR: its figures as the planner (or own

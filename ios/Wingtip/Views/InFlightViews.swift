@@ -332,9 +332,22 @@ struct FlownTrackView: View {
                     }
                 } else if loaded {
                     ContentUnavailableView("No track kept", systemImage: "point.topleft.down.to.point.bottomright.curvepath",
-                                           description: Text("Put in the flight's track from a GPX file."))
+                                           description: Text(OwnTrail.shared.points.count > 1
+                                                             ? "Keep the path this iPhone flew, or put in a GPX file."
+                                                             : "Put in the flight's track from a GPX file."))
                 }
                 Section {
+                    // The path the phone flew (OwnTrail), kept as the flight's
+                    // track with no file to find: the debrief from the
+                    // airplane's own GPS, as ForeFlight's track logs are.
+                    if OwnTrail.shared.points.count > 1 {
+                        Button("Keep the Path This iPhone Flew") {
+                            let saved = OwnTrail.shared.asSavedTrack
+                            Task {
+                                do { try await Gateway.saveTrack(flight, saved); track = saved; problem = nil } catch { problem = error.localizedDescription }
+                            }
+                        }
+                    }
                     Button("Put In a GPX File…") { importing = true }
                     ProblemLine(problem)
                 }

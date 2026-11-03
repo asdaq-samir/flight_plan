@@ -1,3 +1,5 @@
+import { callEngine } from "../engine/engine";
+
 /** The FAA's own categories, in the colours a pilot already reads them
  *  in: green good, blue marginal, red instrument, magenta worse than
  *  that. Grey where the field filed no report -- which is not "fine",
@@ -14,25 +16,27 @@ const CATEGORY_COLOURS: Record<string, string> = {
 };
 const UNKNOWN_COLOUR = "#8fa3b0";
 
+/** JSON has no Infinity or NaN: an unlimited figure goes as the largest
+ *  number, and NaN, which every bound passes as it passes Infinity, the
+ *  same. */
+function figure(x: number | null | undefined): number | null {
+  if (x == null) return null;
+  if (Number.isNaN(x) || x === Infinity) return Number.MAX_VALUE;
+  return x === -Infinity ? -Number.MAX_VALUE : x;
+}
+
 /** The category a ceiling and a visibility fall in, by the FAA's own
  *  bounds (AIM 7-1-7, "Categorical Outlooks"; the worse of the two
- *  decides): LIFR "ceiling less than 500 feet and/or visibility less
- *  than 1 mile", IFR 500 to less than 1,000 ft or 1 to less than 3,
- *  MVFR "1,000 to 3,000 feet and/or visibility 3 to 5 miles inclusive",
- *  VFR above both -- statute miles, as US reports give visibility. No
- *  ceiling is no limit. With no visibility only a ceiling under 500 ft
- *  decides it, LIFR whatever the visibility is: over that the visibility
- *  could still make it worse, and a category said then is a guess (a TAF
- *  period's read gave one, a METAR heard over FIS-B none). A METAR from
- *  the planner comes with its category; a TAF period's figures and a
- *  METAR's text read here do not. */
+ *  decides), worked out by the shared engine (native/engine/src/forecast,
+ *  through lib/engine), the very rule the planner's modelled weather and
+ *  the phones use: the bounds and their sources live there. No ceiling is
+ *  no limit; with no visibility only a ceiling under 500 ft decides it,
+ *  LIFR, and over that there is no category -- the visibility could still
+ *  make it worse (a TAF period's read gave one, a METAR heard over FIS-B
+ *  none). A METAR from the planner comes with its category; a TAF
+ *  period's figures and a METAR's text read here do not. */
 export function categoryOf(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string | null {
-  const ceiling = ceilingFt ?? Infinity;
-  if (visibilitySm == null) return ceiling < 500 ? "LIFR" : null;
-  if (ceiling < 500 || visibilitySm < 1) return "LIFR";
-  if (ceiling < 1000 || visibilitySm < 3) return "IFR";
-  if (ceiling <= 3000 || visibilitySm <= 5) return "MVFR";
-  return "VFR";
+  return callEngine<string | null>("flight_category", { ceiling_ft: figure(ceilingFt), visibility_sm: figure(visibilitySm) });
 }
 
 export function colourOf(category: string | null | undefined): string {

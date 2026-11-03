@@ -28,6 +28,17 @@ struct WingtipApp: App {
                 .task { await session.refresh() }
                 .task { await charts.load() }
                 .task { plan.restore() }
+                // The flight in progress on the Lock Screen and in the
+                // Dynamic Island (FlightActivity, a Live Activity: the
+                // owner's ask, 2026-11-03, as Apple recommends for anything
+                // ongoing), watched every few seconds: the dry run's, or
+                // own ship's with a route planned.
+                .task {
+                    while !Task.isCancelled {
+                        FlightActivity.shared.observe(plan: plan, dryRun: dryRun, ownShip: ownShip)
+                        try? await Task.sleep(for: .seconds(5))
+                    }
+                }
                 // The sign-in link from Mail opens the app (Associated
                 // Domains): its token is handed to the gateway here, and
                 // the pilot is signed in without a browser.
