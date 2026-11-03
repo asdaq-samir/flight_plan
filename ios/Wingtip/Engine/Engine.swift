@@ -86,21 +86,21 @@ enum Engine {
     /// the answer decoded with the decoder the rule's keys want.
     static func call<Out: Decodable>(_ name: String, _ input: some Encodable, encoder: JSONEncoder = JSONEncoder(),
                                      decoder: JSONDecoder = JSONDecoder()) throws -> Out {
-        let asked = String(decoding: try encoder.encode(input), as: UTF8.self)
-        return try decoder.decode(Out.self, from: Data(try called(name, asked).utf8))
+        let asked = try String(decoding: encoder.encode(input), as: UTF8.self)
+        return try decoder.decode(Out.self, from: Data(called(name, asked).utf8))
     }
 
     /// The same with the input as a JSON object written out in place, for
     /// an input with members of several types; nil is JSON's null, which
     /// the engine reads as a member left out.
     static func call<Out: Decodable>(_ name: String, json input: [String: Any?], decoder: JSONDecoder = JSONDecoder()) throws -> Out {
-        try decoder.decode(Out.self, from: Data(try called(name, written(input)).utf8))
+        try decoder.decode(Out.self, from: Data(called(name, written(input)).utf8))
     }
 
     /// The answer as JSONSerialization reads it, for an answer with no
     /// fixed shape worth a type.
     static func callJSON(_ name: String, _ input: [String: Any?]) throws -> Any {
-        try JSONSerialization.jsonObject(with: Data(try called(name, written(input)).utf8), options: .fragmentsAllowed)
+        try JSONSerialization.jsonObject(with: Data(called(name, written(input)).utf8), options: .fragmentsAllowed)
     }
 
     /// The engine's answer as text, or its complaint thrown.
@@ -117,7 +117,7 @@ enum Engine {
     private static func written(_ input: [String: Any?]) throws -> String {
         let object = plain(input)
         guard JSONSerialization.isValidJSONObject(object) else { throw Refused(message: "The engine's input is not JSON: \(input)") }
-        return String(decoding: try JSONSerialization.data(withJSONObject: object), as: UTF8.self)
+        return try String(decoding: JSONSerialization.data(withJSONObject: object), as: UTF8.self)
     }
 
     /// A value with every nil inside it, at any depth, made NSNull.
