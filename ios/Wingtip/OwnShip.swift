@@ -29,7 +29,13 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var asking: Task<Void, Never>?
-    private var lastAsked: Date = .distantPast
+    /// The ahead question's place on the app's clock (Ticker), while the
+    /// position is being read.
+    private var aheadEvery: Ticker.Registration?
+    /// How often what is ahead is asked while moving, s; the planner looks
+    /// five minutes along the track (vfr.alerts), so twice this with the
+    /// app put away still leaves minutes.
+    static let aheadEveryS: TimeInterval = 10
 
     override init() {
         super.init()
@@ -49,10 +55,16 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
     func start() {
         manager.requestWhenInUseAuthorization()
         manager.startUpdatingLocation()
+        if aheadEvery == nil {
+            aheadEvery = Ticker.shared.every(Self.aheadEveryS) { [weak self] in self?.askAhead() }
+        }
     }
 
     func stop() {
         manager.stopUpdatingLocation()
+        aheadEvery?.cancel()
+        aheadEvery = nil
+        asking?.cancel()
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -81,10 +93,14 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
         // on the ground the reading stops with the app, as any map's does.
         let flying = OwnTrail.shared.took(fix)
         if manager.allowsBackgroundLocationUpdates != flying { manager.allowsBackgroundLocationUpdates = flying }
-        // What is ahead, asked every ten seconds while moving: the planner
-        // looks five minutes along the track (vfr.alerts).
-        guard let track = fix.trackDeg, let gs = fix.groundspeedKt, gs > 20, Date().timeIntervalSince(lastAsked) > 10 else { return }
-        lastAsked = Date()
+    }
+
+    /// What is ahead, asked of the latest fix every ten seconds while
+    /// moving (the clock's, Ticker): the planner looks five minutes along
+    /// the track (vfr.alerts). The asking is a task of its own, so the
+    /// next question cancels one still unanswered.
+    private func askAhead() {
+        guard let fix, let track = fix.trackDeg, let gs = fix.groundspeedKt, gs > 20 else { return }
         asking?.cancel()
         asking = Task { [weak self] in
             let (lat, lon) = (fix.coordinate.latitude, fix.coordinate.longitude)

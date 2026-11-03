@@ -1,10 +1,22 @@
 import Foundation
 import WingtipEngine
+import os
 
 /// wingtip-engine, the planner's own Rust, through its C functions
 /// (native/ffi): the same figures the planner works out, here with no
 /// network. Each pack is handed over mapped for the call alone.
 enum Engine {
+    /// The coders every call shares, made once: a JSONEncoder and a
+    /// JSONDecoder were made for each call, and a fix a second asks the
+    /// engine several times (underway, the traffic's marks). Keys as
+    /// written; the planner's snake-case pair is Planner.snakeEncoder and
+    /// Planner.snakeCase.
+    static let encoder = JSONEncoder()
+    static let decoder = JSONDecoder()
+    /// Each call an interval in Instruments ("engine", the rule's name),
+    /// under the app's subsystem beside the tiles' ("tile").
+    private static let signposter = OSSignposter(subsystem: "app.wingtipmaps.ios", category: "engine")
+
     /// The planner's AirspaceAt for a point, from the region's phone pack
     /// (nil for a region with no pack: nothing is drawn there), as
     /// /api/airspace/at answers it but for what a pack cannot hold -- the
@@ -65,7 +77,7 @@ enum Engine {
                                     dep, stops.joined(separator: ","), dest))
         }
         guard let json else { return nil }
-        return try? JSONDecoder().decode(Heard.self, from: Data(json.utf8))
+        return try? decoder.decode(Heard.self, from: Data(json.utf8))
     }
 
     // MARK: - Any rule by its name
@@ -84,8 +96,8 @@ enum Engine {
     /// mostly snake case, camel case where the gateway's are -- so the
     /// input is encoded as written unless the caller says otherwise, and
     /// the answer decoded with the decoder the rule's keys want.
-    static func call<Out: Decodable>(_ name: String, _ input: some Encodable, encoder: JSONEncoder = JSONEncoder(),
-                                     decoder: JSONDecoder = JSONDecoder()) throws -> Out {
+    static func call<Out: Decodable>(_ name: String, _ input: some Encodable, encoder: JSONEncoder = Engine.encoder,
+                                     decoder: JSONDecoder = Engine.decoder) throws -> Out {
         let asked = try String(decoding: encoder.encode(input), as: UTF8.self)
         return try decoder.decode(Out.self, from: Data(called(name, asked).utf8))
     }
@@ -93,7 +105,7 @@ enum Engine {
     /// The same with the input as a JSON object written out in place, for
     /// an input with members of several types; nil is JSON's null, which
     /// the engine reads as a member left out.
-    static func call<Out: Decodable>(_ name: String, json input: [String: Any?], decoder: JSONDecoder = JSONDecoder()) throws -> Out {
+    static func call<Out: Decodable>(_ name: String, json input: [String: Any?], decoder: JSONDecoder = Engine.decoder) throws -> Out {
         try decoder.decode(Out.self, from: Data(called(name, written(input)).utf8))
     }
 
@@ -105,6 +117,8 @@ enum Engine {
 
     /// The engine's answer as text, or its complaint thrown.
     private static func called(_ name: String, _ input: String) throws -> String {
+        let interval = signposter.beginInterval("engine", id: signposter.makeSignpostID(), "\(name, privacy: .public)")
+        defer { signposter.endInterval("engine", interval) }
         let answer = wt_call(name, input)
         guard let text = taken(answer.text) else { throw Refused(message: "\(name): the engine gave no answer") }
         guard answer.ok == 1 else { throw Refused(message: text) }

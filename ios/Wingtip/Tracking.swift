@@ -274,32 +274,40 @@ final class Tracking {
 
     /// While the map is shown: the tracked airplane's state every ten
     /// seconds, where the map's own answers do not have it (it is out of
-    /// their radius), and each watched airplane's every fifteen.
+    /// their radius), and each watched airplane's every fifteen; both on
+    /// the app's one clock (Ticker), twice as slow with the app put away.
     func run() async {
-        var tick = 0
-        while !Task.isCancelled {
-            if let hex, latestAt.map({ Date().timeIntervalSince($0) > 10 }) ?? true,
-               let status = try? await Planner.flightStatus(hex), let plane = status.aircraft {
-                reported(plane, at: Date().addingTimeInterval(-(plane.seenS ?? 0)))
-            }
-            if tick % 3 == 0 {
-                for hex in Set(watches.map(\.hex)) {
-                    guard let status = try? await Planner.flightStatus(hex) else { continue }
-                    let before = airborne[hex]
-                    let now = Self.airborneNow(before: before, status)
-                    for watch in watches where watch.hex == hex {
-                        if let words = Self.fired(watch, before: before, now: now, status: status) {
-                            fired = words
-                            SpokenAlerts.shared.say("\(words).", force: true)
-                            remove(watch)
-                            saved()
-                        }
-                    }
-                    if let now { airborne[hex] = now }
+        let tracked = Ticker.shared.every(5) { [weak self] in await self?.askTracked() }
+        let watched = Ticker.shared.every(15) { [weak self] in await self?.askWatched() }
+        defer {
+            tracked.cancel()
+            watched.cancel()
+        }
+        await Ticker.untilCancelled()
+    }
+
+    /// The tracked airplane's report, where none has come in ten seconds.
+    private func askTracked() async {
+        guard let hex, latestAt.map({ Date().timeIntervalSince($0) > 10 }) ?? true,
+              let status = try? await Planner.flightStatus(hex), let plane = status.aircraft else { return }
+        reported(plane, at: Date().addingTimeInterval(-(plane.seenS ?? 0)))
+    }
+
+    /// Each watched airplane's state, and any watch that goes off on it.
+    private func askWatched() async {
+        for hex in Set(watches.map(\.hex)) {
+            guard let status = try? await Planner.flightStatus(hex) else { continue }
+            let before = airborne[hex]
+            let now = Self.airborneNow(before: before, status)
+            for watch in watches where watch.hex == hex {
+                if let words = Self.fired(watch, before: before, now: now, status: status) {
+                    fired = words
+                    SpokenAlerts.shared.say("\(words).", force: true)
+                    remove(watch)
+                    saved()
                 }
             }
-            tick += 1
-            try? await Task.sleep(for: .seconds(5))
+            if let now { airborne[hex] = now }
         }
     }
 }

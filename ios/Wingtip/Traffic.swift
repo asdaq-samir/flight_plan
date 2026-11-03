@@ -11,8 +11,9 @@ import Observation
 @Observable
 final class Traffic {
     /// The planner asks adsb.lol about a region at most every five
-    /// seconds (vfr.traffic), so no sooner than that.
-    static let every: Duration = .seconds(5)
+    /// seconds (vfr.traffic), so no sooner than that; twice that with the
+    /// app put away (Ticker).
+    static let everyS: TimeInterval = 5
     /// No newer report than this, s, and the airplane is not drawn: the
     /// web app's CARRY_S.
     static let staleS = 30.0
@@ -29,19 +30,21 @@ final class Traffic {
     var mapCentre: CLLocationCoordinate2D?
     var mapRadiusNm = 30.0
 
-    /// Ask again and again while the map is shown.
+    /// Ask again and again while the map is shown, on the app's one clock.
     func run(near ownShip: @escaping @MainActor () -> CLLocationCoordinate2D?) async {
-        while !Task.isCancelled {
-            if on, let at = ownShip() ?? mapCentre {
-                let radius = min(60, max(10, mapRadiusNm))
-                if let answer = try? await Planner.traffic(lat: at.latitude, lon: at.longitude, radiusNm: radius), on {
-                    planes = answer.aircraft.filter { ($0.seenS ?? 0) + (answer.ageS ?? 0) <= Self.staleS }
-                    source = answer.source
-                    heardAt = Date().addingTimeInterval(-(answer.ageS ?? 0))
-                }
-            }
-            try? await Task.sleep(for: Self.every)
+        await Ticker.shared.run(every: Self.everyS) { [weak self] in
+            await self?.ask(near: ownShip())
         }
+    }
+
+    /// One answer about a point, where traffic is on and there is one.
+    private func ask(near at: CLLocationCoordinate2D?) async {
+        guard on, let at = at ?? mapCentre else { return }
+        let radius = min(60, max(10, mapRadiusNm))
+        guard let answer = try? await Planner.traffic(lat: at.latitude, lon: at.longitude, radiusNm: radius), on else { return }
+        planes = answer.aircraft.filter { ($0.seenS ?? 0) + (answer.ageS ?? 0) <= Self.staleS }
+        source = answer.source
+        heardAt = Date().addingTimeInterval(-(answer.ageS ?? 0))
     }
 
     /// What is drawn under an airplane: its height against own ship's in
