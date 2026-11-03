@@ -33,6 +33,9 @@
 //! - route: the route's pilot-made pieces as the address writes them
 //!   and the planner reads them -- the pilot's own point off a fix, holds,
 //!   procedures and runways picked;
+//! - runway: runways, the wind on them and the traffic pattern -- the end
+//!   flown, its pattern's side, entry, altitude and legs, a POH's
+//!   short-field distances and how an end suits the airplane;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
 //! - validity: when a weather report stops counting;
@@ -59,6 +62,7 @@ pub mod pilot;
 pub mod readback;
 pub mod route;
 pub mod rules;
+pub mod runway;
 pub mod spoken;
 pub mod taf;
 pub mod tfr;

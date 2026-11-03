@@ -198,6 +198,51 @@
 //! - `bare_field`: a field's FAA ident, from `{"ident"}`; `same_field`:
 //!   whether `{"a", "b"}` name one field.
 //!
+//! Runways, the wind on them and the traffic pattern (crate::runway, the
+//! web's lib/wind, lib/pattern, lib/runwayFit, lib/takeoffLanding and
+//! lib/trafficPattern, and vfr.runway_wind and vfr.pattern), a runway as
+//! the planner sends one, `{"closed"?, "surface"?, "length_ft"?,
+//! "runway_ends": [{"ident", "heading_true_deg"?, "traffic"?, "lat"?,
+//! "lon"?}], "wind"?: {"end", "headwind_kt", "crosswind_kt",
+//! "gust_crosswind_kt"?, "in_use"?}}`:
+//!
+//! - `wind_components`: `{"headwind_kt", "crosswind_kt"}` (a tailwind
+//!   negative, a crosswind from the right positive), from `{"from_deg",
+//!   "kt", "heading_deg"}`; `wind_steady_or_gust` from `{"steady_kt",
+//!   "gust_kt"?}`; `runway_crosswind` and `runway_calm` from `{"wind"}`;
+//!   `wind_calm` (AIM 7-1-28) from `{"speed_kt"?}`;
+//! - `runway_end_heading`: an end's true heading or null, from `{"ident"?,
+//!   "heading_true_deg"?, "variation_deg"}`; `runway_favoured_end`: the
+//!   planner's RunwayWind or null, from `{"ends": [[ident, heading]],
+//!   "metar"?: {"wind_dir_true_deg"?, "wind_speed_kt"?, "wind_gust_kt"?},
+//!   "variation_deg", "recent"?: {"wind_dir_true_deg", "wind_speed_kt"}}`;
+//!   `runway_with_winds`: each runway's, from `{"runways": [{"end_headings":
+//!   [[ident, heading]]}], "metar"?, "variation_deg", "recent"?}`;
+//! - `wind_pick`: lib/pattern's WindPick (snake_case) or null, from
+//!   `{"runways", "nearby"?: {"station", "distance_nm", "dir_true_deg"?,
+//!   "speed_kt"?, "gust_kt"?}, "forecast_at"?}`;
+//! - `runway_end_key` from `{"ident"?}`, `faa_ids` from `{"ident"}`;
+//!   `pattern_side` (14 CFR 91.126(b)(1)) from `{"heading_true_deg"?,
+//!   "traffic"?}`, `compass_word` from `{"bearing_deg"}`, `pattern_entry`
+//!   (AC 90-66C 11.3) `{"from", "pattern_side", "words"}` from `{"end",
+//!   "course_deg"}`, `pattern_exit` (11.8) from `{"traffic"?}`,
+//!   `pattern_altitude` `{"agl_ft", "altitude_ft", "published"}` from
+//!   `{"elevation_ft"?, "published_agl_ft"?}`; `runway_ends_traffic`: each
+//!   end's `{"ident", "heading_true_deg", "traffic"}`, from
+//!   `{"end_headings", "variation_deg", "right": [end key]}`;
+//! - `runway_end_fit`: `{"crosswind_kt", "crosswind_over", "needed_ft",
+//!   "length_ft", "short", "close"}` (SAFO 19001's 15 per cent), from
+//!   `{"aircraft"?: {"takeoff"?, "landing"?, "crosswind"?:
+//!   {"demonstrated_kt"?}}, "runway", "end": {"heading_true_deg"?},
+//!   "wind"?: {"dir_true_deg"?, "speed_kt"?, "gust_kt"?}, "elevation_ft",
+//!   "altimeter_in_hg"?, "temp_c"?, "weight_lb"?, "kind"}`;
+//! - `traffic_pattern` and `departure_pattern`: lib/trafficPattern's
+//!   TrafficPattern (snake_case) or null, from `{"ident", "runway",
+//!   "end_ident", "altitude_ft"?, "toward"?: {"lat", "lon"}}`;
+//!   `arrival_circuit` `{"points": [[lat, lon]]}` and `departure_circuit`
+//!   `{"points", "exit_deg"}` or null, the planner's, from `{"runway",
+//!   "end_ident", "toward": [lat, lon]}`.
+//!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
@@ -433,6 +478,13 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             Ok(out)
         }
         "readback_check" => Ok(crate::readback::check_json(ask.str("cleared")?, ask.str("said")?)),
+        // Runways, the wind on them and the traffic pattern (runway::calls).
+        "wind_components" | "wind_steady_or_gust" | "runway_crosswind" | "wind_calm" | "runway_calm" | "runway_end_heading"
+        | "runway_favoured_end" | "runway_with_winds" | "wind_pick" | "runway_end_key" | "faa_ids" | "pattern_side" | "compass_word"
+        | "pattern_entry" | "pattern_exit" | "pattern_altitude" | "runway_ends_traffic" | "runway_end_fit" | "traffic_pattern"
+        | "departure_pattern" | "arrival_circuit" | "departure_circuit" => {
+            crate::runway::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}")))
+        }
         _ if crate::route::answers::NAMES.contains(&name) => crate::route::answers::answer(name, ask.v),
         // The things that move (motion::call), then the Go / No-Go's, by
         // their own names (gonogo::calls), last.

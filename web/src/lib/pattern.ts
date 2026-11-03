@@ -6,19 +6,21 @@
  * it from the way the route arrives -- the 45° to the downwind abeam
  * midfield at pattern altitude from the pattern's side, or over the
  * field 500 ft above it and back to the 45 from the other.
+ *
+ * Worked out by the shared engine (native/engine/src/runway/pick.rs and
+ * wind.rs, through lib/engine), the very code behind the planner's
+ * vfr.pattern and vfr.runway_wind and the phones' wt_call: the rules and
+ * their AC 90-66C and 14 CFR sources live there. Only the shapes the
+ * pages read are made here.
  */
 import type { Runway } from "./api/types";
-import { angleBetween, normalizeDeg } from "./geo";
-import { sameField } from "./procedures";
-import { calmOnRunway, crosswindKt, headwindKt, isCalm } from "./wind";
+import { callEngine } from "./engine/engine";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
 
-const POINTS = ["north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest"] as const;
-
 /** A true bearing as a pilot says a direction: "southwest". */
 export function compassWord(bearingDeg: number): string {
-  return POINTS[Math.round(normalizeDeg(bearingDeg) / 45) % 8]!;
+  return callEngine<string>("compass_word", { bearing_deg: bearingDeg });
 }
 
 export interface InUse {
@@ -29,34 +31,23 @@ export interface InUse {
   byWind: boolean;
 }
 
-/** A runway paved, asphalt or concrete (OurAirports' surface codes),
- *  where an unpaved strip may be listed longer: C81's 06/24 is listed at
- *  3,573 ft of "COP" beside 09/27's 3,270 of asphalt, the one flown (the
- *  owner's "runway 6 is not the longest or the most used"). */
-const paved = (r: Runway) => /asp|con|bit|pem|paved/i.test(r.surface ?? "");
+/** The engine's runway flown, by index. */
+interface Flown { runway: number; end: number; by_wind: boolean }
 
-/** Paved first, then the longer: the runway a field's traffic uses most,
- *  as far as its data says. */
-const mostUsed = (a: Runway, b: Runway) => Number(paved(b)) - Number(paved(a)) || (b.length_ft ?? 0) - (a.length_ft ?? 0);
+const inUse = (runways: Runway[], f: Flown | null): InUse | null => {
+  if (!f) return null;
+  const runway = runways[f.runway]!;
+  return { runway, end: runway.runway_ends![f.end]!, byWind: f.by_wind };
+};
 
-/** The runway end a pilot would take off from and land on: of the ends the reported wind
- *  favours on each runway (vfr.runway_wind), the one with the most
- *  headwind -- AC 90-66C 11.5's runway most nearly into the wind -- or,
- *  with no wind reported, the runway most used's (paved, then the longest) first end. Only ends with
- *  a heading: a helipad has no pattern to draw. */
+/** The runway end a pilot would take off from and land on: of the ends
+ *  the reported wind favours on each runway (vfr.runway_wind), the one
+ *  with the most headwind -- AC 90-66C 11.5's runway most nearly into the
+ *  wind -- or, with no wind reported, the runway most used's (paved, then
+ *  the longest) first end. Only ends with a heading: a helipad has no
+ *  pattern to draw. */
 export function runwayInUse(runways: Runway[]): InUse | null {
-  const open = runways.filter(r => !r.closed && (r.runway_ends ?? []).some(e => e.heading_true_deg != null));
-  const winded = open
-    .filter(r => r.wind)
-    // Calm, the one the field's last wind favoured first (in_use).
-    .sort((a, b) => Number(!!b.wind!.in_use) - Number(!!a.wind!.in_use) || b.wind!.headwind_kt - a.wind!.headwind_kt || mostUsed(a, b));
-  for (const runway of winded) {
-    const end = runway.runway_ends?.find(e => e.ident === runway.wind!.end && e.heading_true_deg != null);
-    if (end) return { runway, end, byWind: true };
-  }
-  const longest = [...open].sort(mostUsed)[0];
-  const end = longest?.runway_ends?.find(e => e.heading_true_deg != null);
-  return longest && end ? { runway: longest, end, byWind: false } : null;
+  return inUse(runways, callEngine<Flown | null>("gonogo_runway_in_use", { runways }));
 }
 
 /** The runways the pilot picked in FPL, by field, as the address keeps
@@ -73,9 +64,9 @@ export interface RunwayPicks {
  *  planner); null with no pick. */
 export function pickedEnd(picks: RunwayPicks | null | undefined, ident: string, kind: "takeoff" | "landing", departure: boolean): string | null {
   if (!picks) return null;
-  const map = kind === "takeoff" && !departure ? picks.takeoff : picks.pattern;
-  for (const [field, end] of map) if (sameField(field, ident)) return end === "NONE" ? null : end;
-  return null;
+  return callEngine<string | null>("gonogo_picked_end", {
+    picks: { pattern: [...picks.pattern], takeoff: [...picks.takeoff] }, ident, kind, departure,
+  });
 }
 
 /** The runway end flown at a field: the pilot's pick in FPL where they
@@ -85,13 +76,7 @@ export function pickedEnd(picks: RunwayPicks | null | undefined, ident: string, 
  *  chose their own and never saw the pilot's pick: the runway checked for
  *  length could be a long one while a short one was picked. */
 export function runwayFlown(runways: Runway[], picked: string | null | undefined): InUse | null {
-  if (picked) {
-    for (const runway of runways.filter(r => !r.closed)) {
-      const end = runway.runway_ends?.find(e => runwayNumber(e.ident) === runwayNumber(picked) && e.heading_true_deg != null);
-      if (end) return { runway, end, byWind: runway.wind?.end === end.ident };
-    }
-  }
-  return runwayInUse(runways);
+  return inUse(runways, callEngine<Flown | null>("gonogo_runway_flown", { runways, picked: picked ?? null }));
 }
 
 /** The wind a field's runways are chosen by: the end it favours as
@@ -141,58 +126,33 @@ export interface ReportedWind {
  * 2026-10-20), the report now set aside.
  */
 export function windPick(runways: Runway[], nearby?: ReportedWind | null, forecastAt?: number): WindPick | null {
-  // A forecast's wind is worked out here alone: the planner's runway winds
-  // are the field's report now.
-  const own = forecastAt == null ? runwayInUse(runways) : null;
-  if (own?.byWind && own.runway.wind) {
-    const w = own.runway.wind;
-    const calm = calmOnRunway(w);
-    return {
-      ident: runwayNumber(own.end.ident), headwindKt: w.headwind_kt, crosswindKt: w.crosswind_kt, gustCrosswindKt: w.gust_crosswind_kt ?? null,
-      calm, ...(calm && w.in_use ? { inUse: true } : {}), from: null,
-    };
-  }
-  if (!nearby || nearby.speedKt == null) return null;
-  // Its own TAF, at the field, is said as the field's; another's by name.
-  const from = nearby.distanceNm === 0 ? null : { ident: nearby.station, nm: Math.round(nearby.distanceNm) };
-  const forecast = forecastAt != null ? { forecastAt } : {};
-  const ends = runways
-    .filter(r => !r.closed)
-    .flatMap(r => (r.runway_ends ?? []).filter(e => e.heading_true_deg != null).map(e => ({ runway: r, end: e, heading: e.heading_true_deg! })));
-  if (ends.length === 0) return null;
-  if (isCalm(nearby.speedKt)) {
-    const longest = runwayInUse(runways);
-    return { ident: longest ? runwayNumber(longest.end.ident) : "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null, calm: true, from, ...forecast };
-  }
-  if (nearby.dirTrueDeg == null) {
-    // A variable wind (VRB, FAA Order JO 7900.5) has no direction to land
-    // into: the runway in use or the longest, as calm, at the owner's
-    // screenshot (C81 under KUGN's VRB06KT left with no runway at all).
-    const longest = runwayInUse(runways);
-    return {
-      ident: longest ? runwayNumber(longest.end.ident) : "", headwindKt: 0, crosswindKt: 0, gustCrosswindKt: null,
-      calm: true, variableKt: Math.round(nearby.speedKt), from, ...forecast,
-    };
-  }
-  const dir = nearby.dirTrueDeg, speed = nearby.speedKt;
-  const best = [...ends].sort((a, b) => headwindKt(dir, speed, b.heading) - headwindKt(dir, speed, a.heading)
-    || (b.runway.length_ft ?? 0) - (a.runway.length_ft ?? 0))[0]!;
+  const p = callEngine<{
+    ident: string; headwind_kt: number; crosswind_kt: number; gust_crosswind_kt: number | null; calm: boolean;
+    variable_kt?: number; in_use?: boolean; from: { ident: string; nm: number } | null; forecast_at?: number;
+  } | null>("wind_pick", {
+    runways,
+    nearby: nearby
+      ? { station: nearby.station, distance_nm: nearby.distanceNm, dir_true_deg: nearby.dirTrueDeg ?? null, speed_kt: nearby.speedKt ?? null, gust_kt: nearby.gustKt ?? null }
+      : null,
+    forecast_at: forecastAt ?? null,
+  });
+  if (!p) return null;
   return {
-    ident: runwayNumber(best.end.ident), headwindKt: Math.round(headwindKt(dir, speed, best.heading)),
-    crosswindKt: Math.round(crosswindKt(dir, speed, best.heading)),
-    gustCrosswindKt: nearby.gustKt ? Math.round(crosswindKt(dir, nearby.gustKt, best.heading)) : null, calm: false, from, ...forecast,
+    ident: p.ident, headwindKt: p.headwind_kt, crosswindKt: p.crosswind_kt, gustCrosswindKt: p.gust_crosswind_kt, calm: p.calm,
+    ...(p.variable_kt != null ? { variableKt: p.variable_kt } : {}), ...(p.in_use ? { inUse: true } : {}), from: p.from,
+    ...(p.forecast_at != null ? { forecastAt: p.forecast_at } : {}),
   };
 }
 
 /** The true bearing from the runway to its downwind: off the left of
  *  the landing direction for left traffic, the right for right. */
 export function patternSideDeg(end: RunwayEnd): number {
-  return normalizeDeg((end.heading_true_deg ?? 0) + (end.traffic === "right" ? 90 : -90));
+  return callEngine<number>("pattern_side", { heading_true_deg: end.heading_true_deg ?? null, traffic: end.traffic });
 }
 
 /** A runway end as written: "9" for "09", as a US runway is painted. */
 export function runwayNumber(ident: string): string {
-  return ident.replace(/^0+(?=\d)/, "");
+  return callEngine<string>("gonogo_runway_number", { ident });
 }
 
 export interface Entry {
@@ -214,21 +174,15 @@ export interface Entry {
  * straight onto the downwind.
  */
 export function entryFor(end: RunwayEnd, courseDeg: number): Entry {
-  const fromDeg = (courseDeg + 180) % 360;
-  const patternSide = angleBetween(fromDeg, patternSideDeg(end)) < 90;
-  const downwind = `${end.traffic} downwind for runway ${runwayNumber(end.ident)}`;
-  const from = compassWord(fromDeg);
-  return {
-    from, patternSide,
-    words: patternSide
-      ? `From the ${from}, on the pattern's side: join the 45° to the ${downwind}, abeam midfield at pattern altitude.`
-      : `From the ${from}, across the field from the pattern: cross midfield 500 ft above pattern altitude, descend to it well clear, and turn back to join the 45° to the ${downwind}. With no traffic, crossing midfield at pattern altitude onto the downwind will do.`,
-  };
+  const e = callEngine<{ from: string; pattern_side: boolean; words: string }>("pattern_entry", {
+    end: { ident: end.ident, heading_true_deg: end.heading_true_deg ?? null, traffic: end.traffic }, course_deg: courseDeg,
+  });
+  return { from: e.from, patternSide: e.pattern_side, words: e.words };
 }
 
 /** How to leave the pattern from `end` (AC 90-66C 11.8): straight out,
  *  or a 45° turn the pattern's way once past the departure end at
  *  pattern altitude. */
 export function exitFor(end: RunwayEnd): string {
-  return `Straight out, or a 45° ${end.traffic} turn once past the departure end at pattern altitude.`;
+  return callEngine<string>("pattern_exit", { traffic: end.traffic });
 }

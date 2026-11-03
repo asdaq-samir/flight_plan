@@ -26,14 +26,14 @@ def steady_or_gust_kt(steady_kt: float, gust_kt: float | None) -> float:
     """The crosswind a wind is judged by, steady or in the gusts,
     whichever is more, unsigned (lib/wind steadyOrGustKt): a pilot meets
     the gust's crosswind in the flare -- a design choice that errs toward
-    the stronger wind."""
-    return max(abs(steady_kt), abs(gust_kt or 0))
+    the stronger wind. The engine's (wingtip_engine::runway::wind)."""
+    return ask("wind_steady_or_gust", steady_kt=steady_kt, gust_kt=gust_kt)
 
 
 def runway_crosswind_kt(wind: dict) -> float:
     """A runway's wind as the planner works it out (vfr.runway_wind),
     judged by steady_or_gust_kt."""
-    return steady_or_gust_kt(wind["crosswind_kt"], wind.get("gust_crosswind_kt"))
+    return ask("runway_crosswind", wind={"crosswind_kt": wind["crosswind_kt"], "gust_crosswind_kt": wind.get("gust_crosswind_kt")})
 
 
 def best_crosswind(runways: list[dict], reported: dict | None = None) -> dict | None:

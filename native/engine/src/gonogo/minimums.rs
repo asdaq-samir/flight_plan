@@ -27,32 +27,10 @@ pub const MINIMUM_CHOICES: [(&str, &[i64]); 4] = [
     ("wind_kt", &[10, 15, 20, 25, 30, 35]),
 ];
 
-/// A runway's wind as the planner works it out (vfr.runway_wind): the end
-/// it favours as painted, and its components, knots -- the crosswind
-/// signed, the gusts' None where none are reported.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct RunwayWind {
-    pub end: String,
-    pub headwind_kt: f64,
-    pub crosswind_kt: f64,
-    pub gust_crosswind_kt: Option<f64>,
-    /// Calm now: the end the field's last wind favoured, the one in use.
-    pub in_use: bool,
-}
-
-/// The crosswind a wind is judged by, steady or in the gusts, whichever
-/// is more, unsigned (lib/wind steadyOrGustKt): a pilot meets the gust's
-/// crosswind in the flare, so that is the one held against the
-/// demonstrated crosswind or a personal minimum -- a design choice that
-/// errs toward the stronger wind.
-pub fn steady_or_gust_kt(steady_kt: f64, gust_kt: Option<f64>) -> f64 {
-    steady_kt.abs().max(gust_kt.unwrap_or(0.0).abs())
-}
-
-/// A runway's wind judged by steady_or_gust_kt (lib/wind runwayCrosswindKt).
-pub fn runway_crosswind_kt(wind: &RunwayWind) -> f64 {
-    steady_or_gust_kt(wind.crosswind_kt, wind.gust_crosswind_kt)
-}
+// A runway's wind and the crosswind it is judged by are the runway
+// module's (crate::runway::wind, lib/wind), shared with the runway pick,
+// the runway fit and the check.
+pub use crate::runway::wind::{runway_crosswind_kt, steady_or_gust_kt, RunwayWind};
 
 /// The crosswind on the field's best open runway for the wind -- the
 /// least, the gusts' where they are more -- and that runway's favoured

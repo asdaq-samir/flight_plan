@@ -7,34 +7,55 @@ where not, the runway's number -- its magnetic heading in tens of
 degrees -- turned true with the field's magnetic variation. A METAR's
 wind is true, so the two are compared as they are. A helipad ("H1") or
 an end with no number has no heading, and no wind of its own.
+
+The rules are the shared engine's (wingtip_engine::runway::wind, through
+vfr_native.call), the very code the web app (lib/wind, lib/pattern) and
+the phones (wt_call) ask; these keep their names and dicts and only carry
+them across.
 """
-import math
-import re
+import json
+
+import vfr_native
 
 from .magnetic import magnetic_variation_deg
 
-#: A runway end's number, and the L, C or R of a parallel.
-_NUMBERED = re.compile(r"^(\d{1,2})[LCR]?$")
+
+def _ask(name: str, **given):
+    """The engine's rule `name` on the input given, its answer parsed."""
+    return json.loads(vfr_native.call(name, json.dumps(given)))
 
 
 def end_heading_true_deg(ident: str | None, heading_true_deg: float | None, variation_deg: float) -> float | None:
     """A runway end's true heading: the table's, or its number's magnetic
     heading turned true (variation east positive). None where it has
     neither."""
-    if heading_true_deg is not None and not math.isnan(heading_true_deg):
-        return heading_true_deg % 360
-    match = _NUMBERED.match((ident or "").strip().upper())
-    if not match:
-        return None
-    return (int(match.group(1)) * 10 + variation_deg) % 360
+    return _ask("runway_end_heading", ident=ident, heading_true_deg=_ends([(ident, heading_true_deg)])[0][1],
+                variation_deg=variation_deg)
 
 
 def components_kt(wind_dir_true_deg: float, wind_speed_kt: float, heading_true_deg: float) -> tuple[float, float]:
     """(headwind, crosswind) of a wind from `wind_dir_true_deg` on a
     runway heading `heading_true_deg`: the headwind negative for a
     tailwind, the crosswind positive from the right."""
-    angle = math.radians(wind_dir_true_deg - heading_true_deg)
-    return wind_speed_kt * math.cos(angle), wind_speed_kt * math.sin(angle)
+    c = _ask("wind_components", from_deg=wind_dir_true_deg, kt=wind_speed_kt, heading_deg=heading_true_deg)
+    return c["headwind_kt"], c["crosswind_kt"]
+
+
+def _ends(ends: list) -> list:
+    """[ident, true heading] pairs, a NaN heading none."""
+    return [[ident, None if heading is None or heading != heading else heading] for ident, heading in ends]
+
+
+def _slim(runways: list) -> list:
+    """The runways as the engine reads them (pattern.with_traffic's), and
+    nothing else of them."""
+    return [{"closed": bool(r.get("closed")), "surface": r.get("surface"), "length_ft": r.get("length_ft"), "wind": r.get("wind") or None,
+             "runway_ends": [{"ident": e.get("ident"), "heading_true_deg": e.get("heading_true_deg")} for e in r.get("runway_ends") or []]}
+            for r in runways]
+
+
+def _report(metar: dict | None) -> dict | None:
+    return {k: metar.get(k) for k in ("wind_dir_true_deg", "wind_speed_kt", "wind_gust_kt")} if metar else None
 
 
 def favoured_end(ends: list, metar: dict | None, variation_deg: float, recent: dict | None = None) -> dict | None:
@@ -46,53 +67,18 @@ def favoured_end(ends: list, metar: dict | None, variation_deg: float, recent: d
     favoured (`recent`, vfr.weather.recent_wind), the runway in use, said
     so ("in_use"), else the first one named. None with no report, a
     variable wind or no end with a heading."""
-    if not metar or metar.get("wind_speed_kt") is None:
-        return None
-    speed = metar["wind_speed_kt"]
-    headed = [(ident, heading) for ident, heading in
-              ((ident, end_heading_true_deg(ident, heading, variation_deg)) for ident, heading in ends)
-              if heading is not None]
-    if not headed:
-        return None
-    if speed == 0:
-        if recent:
-            kept = max(headed, key=lambda end: components_kt(recent["wind_dir_true_deg"], recent["wind_speed_kt"], end[1])[0])[0]
-            return {"end": kept, "headwind_kt": 0.0, "crosswind_kt": 0.0, "gust_crosswind_kt": None, "in_use": True}
-        return {"end": headed[0][0], "headwind_kt": 0.0, "crosswind_kt": 0.0, "gust_crosswind_kt": None}
-    direction = metar.get("wind_dir_true_deg")
-    if direction is None:
-        return None
-    ident, heading = max(headed, key=lambda end: components_kt(direction, speed, end[1])[0])
-    head, cross = components_kt(direction, speed, heading)
-    gust = metar.get("wind_gust_kt")
-    return {
-        "end": ident, "headwind_kt": round(head), "crosswind_kt": round(cross),
-        "gust_crosswind_kt": round(components_kt(direction, gust, heading)[1]) if gust else None,
-    }
+    return _ask("runway_favoured_end", ends=_ends(ends), metar=_report(metar), variation_deg=variation_deg,
+                recent=recent or None)
 
 
 def with_winds(runways: list, metar: dict | None, lat: float, lon: float, recent: dict | None = None) -> list:
     """vfr.airports.get_runways' runways, each with the reported wind on
     the end it favours (`wind`, favoured_end), at a field at (lat, lon);
-    `recent`, the field's last wind, for a calm one."""
-    variation = magnetic_variation_deg(lat, lon)
-    out = [{**r, "wind": favoured_end(r.get("end_headings", []), metar, variation)} for r in runways]
-    if not recent or not metar or metar.get("wind_speed_kt") != 0:
-        return out
-    # Calm: the one runway the last wind favoured most is the one in use,
-    # on its end into that wind; the rest stay calm on their first end.
-    def into_last(r: dict) -> float:
-        headings = [end_heading_true_deg(i, h, variation) for i, h in r.get("end_headings", [])]
-        return max((components_kt(recent["wind_dir_true_deg"], recent["wind_speed_kt"], h)[0] for h in headings if h is not None),
-                   default=float("-inf"))
-    best = max(range(len(out)), key=lambda k: into_last(out[k]), default=None)
-    if best is not None and out[best]["wind"]:
-        out[best] = {**out[best], "wind": favoured_end(out[best].get("end_headings", []), metar, variation, recent)}
-    return out
-
-
-def _paved(runway: dict) -> bool:
-    return bool(re.search(r"asp|con|bit|pem|paved", runway.get("surface") or "", re.I))
+    `recent`, the field's last wind, for a calm one: the one runway it
+    favoured most is the one in use."""
+    winds = _ask("runway_with_winds", runways=[{"end_headings": _ends(r.get("end_headings", []))} for r in runways],
+                 metar=_report(metar), variation_deg=magnetic_variation_deg(lat, lon), recent=recent or None)
+    return [{**r, "wind": w} for r, w in zip(runways, winds)]
 
 
 def runway_in_use(runways: list, most_used: bool = False) -> str | None:
@@ -108,21 +94,10 @@ def runway_in_use(runways: list, most_used: bool = False) -> str | None:
     Over pattern.with_traffic's runways: open, with an end that has a
     heading. `most_used`: with no wind on any, the runway used most's first
     end, as the web's does (a calm or a variable forecast's)."""
-    open_ = [r for r in runways if not r.get("closed")
-             and any(e.get("heading_true_deg") is not None for e in r.get("runway_ends") or [])]
-    winded = sorted((r for r in open_ if r.get("wind")),
-                    key=lambda r: (not r["wind"].get("in_use"), -r["wind"]["headwind_kt"],
-                                   not _paved(r), -(r.get("length_ft") or 0)))
-    for runway in winded:
-        end = next((e for e in runway.get("runway_ends") or []
-                    if e.get("ident") == runway["wind"]["end"] and e.get("heading_true_deg") is not None), None)
-        if end:
-            return end["ident"].lstrip("0") or end["ident"]
-    if not most_used or not open_:
+    found = _ask("gonogo_runway_in_use", runways=_slim(runways))
+    if not found or not (found["by_wind"] or most_used):
         return None
-    first = min(open_, key=lambda r: (not _paved(r), -(r.get("length_ft") or 0)))
-    end = next(e for e in first["runway_ends"] if e.get("heading_true_deg") is not None)
-    return end["ident"].lstrip("0") or end["ident"]
+    return _ask("gonogo_runway_number", ident=runways[found["runway"]]["runway_ends"][found["end"]]["ident"])
 
 
 def wind_pick(runways: list, wind: dict | None) -> str | None:
@@ -135,15 +110,10 @@ def wind_pick(runways: list, wind: dict | None) -> str | None:
     runway on a tie; calm or variable, the runway in use (runway_in_use,
     most used with none). The web's windPick with a forecast or a nearby
     report (lib/pattern). None with no wind."""
-    if not wind or wind.get("speed_kt") is None:
+    if not wind:
         return None
-    direction, speed = wind.get("dir_true_deg"), wind["speed_kt"]
-    if speed == 0 or direction is None:
-        return runway_in_use(runways, most_used=True)
-    ends = [(e, r) for r in runways if not r.get("closed")
-            for e in r.get("runway_ends") or [] if e.get("heading_true_deg") is not None]
-    if not ends:
-        return None
-    end, _ = max(ends, key=lambda er: (round(components_kt(direction, speed, er[0]["heading_true_deg"])[0], 9),
-                                       er[1].get("length_ft") or 0))
-    return end["ident"].lstrip("0") or end["ident"]
+    # As a forecast's, so the field's own report is set aside: the caller
+    # has asked runway_in_use of it first.
+    nearby = {"station": "", "distance_nm": 0, "dir_true_deg": wind.get("dir_true_deg"), "speed_kt": wind.get("speed_kt")}
+    pick = _ask("wind_pick", runways=_slim(runways), nearby=nearby, forecast_at=0)
+    return (pick or {}).get("ident") or None

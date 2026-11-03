@@ -26,6 +26,7 @@ from urllib.parse import urljoin
 import numpy as np
 import pandas as pd
 import requests
+import vfr_native
 
 # FAA's site 403s a bare python-requests User-Agent.
 from .config import FAA_HEADERS
@@ -310,12 +311,6 @@ def _read_apt_base(apt_csv_path) -> pd.DataFrame:
     entries, so the one it replaces is dropped rather than held.
     """
     return _read_apt_base_cached(str(apt_csv_path), Path(apt_csv_path).stat().st_mtime)
-
-
-#: A field's traffic pattern above it where the FAA publishes none: AC
-#: 90-66C's 1,000 ft for a propeller aeroplane (1,500 for a large or
-#: turbine one, which no profile here is).
-PATTERN_AGL_FT = 1000.0
 
 
 @once(maxsize=2)
@@ -668,9 +663,12 @@ def airport_frequencies(ident: str, cache_dir) -> list[dict] | None:
 
 def pattern_agl_ft(ident: str, cache_dir) -> float:
     """How high above the field its traffic pattern is flown: the TPA
-    the FAA publishes (published_pattern_agl_ft), else PATTERN_AGL_FT."""
+    the FAA publishes (published_pattern_agl_ft), else AC 90-66C's 1,000
+    ft for a propeller airplane -- the shared engine's rule
+    (wingtip_engine::runway::pick::pattern_altitude, through
+    vfr_native.call), as vfr.pattern and the phones ask it."""
     published = published_pattern_agl_ft(ident, cache_dir)
-    return PATTERN_AGL_FT if published is None else published
+    return json.loads(vfr_native.call("pattern_altitude", json.dumps({"published_agl_ft": published})))["agl_ft"]
 
 
 def load_route_airports(apt_csv_path, bbox: tuple, exclude_idents: tuple = ()) -> pd.DataFrame:

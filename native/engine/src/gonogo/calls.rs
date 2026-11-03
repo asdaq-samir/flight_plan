@@ -21,16 +21,16 @@ type R<T> = Result<T, String>;
 
 /// A rule's reading of its input, with its name in each complaint.
 #[derive(Clone, Copy)]
-struct In<'a> {
-    name: &'a str,
+pub(crate) struct In<'a> {
+    pub(crate) name: &'a str,
 }
 
 impl In<'_> {
-    fn err<T>(&self, key: &str, what: &str) -> R<T> {
+    pub(crate) fn err<T>(&self, key: &str, what: &str) -> R<T> {
         Err(format!("{}: \"{key}\" {what}", self.name))
     }
 
-    fn opt_num(&self, v: &Value, key: &str) -> R<Option<f64>> {
+    pub(crate) fn opt_num(&self, v: &Value, key: &str) -> R<Option<f64>> {
         match v.get(key) {
             None | Some(Value::Null) => Ok(None),
             Some(Value::Number(n)) => Ok(Some(*n)),
@@ -38,11 +38,11 @@ impl In<'_> {
         }
     }
 
-    fn num(&self, v: &Value, key: &str) -> R<f64> {
+    pub(crate) fn num(&self, v: &Value, key: &str) -> R<f64> {
         self.opt_num(v, key)?.map_or_else(|| self.err(key, "is missing"), Ok)
     }
 
-    fn opt_str(&self, v: &Value, key: &str) -> R<Option<String>> {
+    pub(crate) fn opt_str(&self, v: &Value, key: &str) -> R<Option<String>> {
         match v.get(key) {
             None | Some(Value::Null) => Ok(None),
             Some(Value::String(s)) => Ok(Some(s.clone())),
@@ -50,11 +50,11 @@ impl In<'_> {
         }
     }
 
-    fn str(&self, v: &Value, key: &str) -> R<String> {
+    pub(crate) fn str(&self, v: &Value, key: &str) -> R<String> {
         self.opt_str(v, key)?.map_or_else(|| self.err(key, "is missing"), Ok)
     }
 
-    fn strings(&self, v: &Value, key: &str) -> R<Vec<String>> {
+    pub(crate) fn strings(&self, v: &Value, key: &str) -> R<Vec<String>> {
         match v.get(key) {
             None | Some(Value::Null) => Ok(vec![]),
             Some(Value::Array(items)) => {
@@ -64,7 +64,7 @@ impl In<'_> {
         }
     }
 
-    fn list<'v>(&self, v: &'v Value, key: &str) -> R<&'v [Value]> {
+    pub(crate) fn list<'v>(&self, v: &'v Value, key: &str) -> R<&'v [Value]> {
         match v.get(key) {
             None | Some(Value::Null) => Ok(&[]),
             Some(Value::Array(items)) => Ok(items),
@@ -72,12 +72,12 @@ impl In<'_> {
         }
     }
 
-    fn nums(&self, v: &Value, key: &str) -> R<Vec<f64>> {
+    pub(crate) fn nums(&self, v: &Value, key: &str) -> R<Vec<f64>> {
         self.list(v, key)?.iter().map(|x| x.as_f64().map_or_else(|| self.err(key, "holds a non-number"), Ok)).collect()
     }
 
     /// An object member, None where it is missing or null.
-    fn obj<'v>(&self, v: &'v Value, key: &str) -> R<Option<&'v Value>> {
+    pub(crate) fn obj<'v>(&self, v: &'v Value, key: &str) -> R<Option<&'v Value>> {
         match v.get(key) {
             None | Some(Value::Null) => Ok(None),
             Some(o @ Value::Object(_)) => Ok(Some(o)),
@@ -88,7 +88,7 @@ impl In<'_> {
 
 /// JavaScript's truth of a member: false where it is missing, null,
 /// false, 0, NaN or ""; an object or a list, even an empty one, is true.
-fn truth(v: &Value, key: &str) -> bool {
+pub(crate) fn truth(v: &Value, key: &str) -> bool {
     truthy(v.get(key))
 }
 
@@ -345,7 +345,7 @@ fn with_alternate_rule(i: In, v: &Value) -> R<String> {
 
 // --- minimums ---------------------------------------------------------------
 
-fn runway_wind(i: In, v: &Value) -> R<Option<RunwayWind>> {
+pub(crate) fn runway_wind(i: In, v: &Value) -> R<Option<RunwayWind>> {
     let Some(w) = i.obj(v, "wind")? else { return Ok(None) };
     Ok(Some(RunwayWind {
         end: i.str(w, "end")?,
@@ -356,7 +356,7 @@ fn runway_wind(i: In, v: &Value) -> R<Option<RunwayWind>> {
     }))
 }
 
-fn runway(i: In, r: &Value) -> R<Runway> {
+pub(crate) fn runway(i: In, r: &Value) -> R<Runway> {
     Ok(Runway {
         surface: i.opt_str(r, "surface")?,
         length_ft: i.opt_num(r, "length_ft")?,
@@ -370,7 +370,7 @@ fn runway(i: In, r: &Value) -> R<Runway> {
     })
 }
 
-fn runway_list(i: In, v: &Value, key: &str) -> R<Vec<Runway>> {
+pub(crate) fn runway_list(i: In, v: &Value, key: &str) -> R<Vec<Runway>> {
     i.list(v, key)?.iter().map(|r| runway(i, r)).collect()
 }
 
@@ -554,7 +554,7 @@ fn frat_input(i: In, v: &Value) -> R<frat::Input> {
 
 // --- runways ----------------------------------------------------------------
 
-fn table(i: In, t: &Value) -> R<ShortField> {
+pub(crate) fn table(i: In, t: &Value) -> R<ShortField> {
     let grids = |key: &str| -> R<Vec<Vec<Vec<f64>>>> {
         i.list(t, "tables")?
             .iter()

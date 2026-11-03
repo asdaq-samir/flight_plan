@@ -36,6 +36,16 @@ Wingtip's Rust, in four crates:
   (`gonogo_verdict`, `gonogo_risk`, `gonogo_runway_checks` ...), asked by
   the web app (callEngine), the planner's app.gonogo (vfr_native.call)
   and the phones (wt_call).
+- Runways, the wind on them and the traffic pattern are the engine's too
+  (`runway/`): a wind along and across a runway and the end it favours,
+  the runway flown (the pilot's pick, else into the wind, AC 90-66C
+  11.5), the pattern's side, entry, exit and altitude, a POH's
+  short-field distances and how an end suits the airplane, and the
+  pattern's legs on the map and as the planner flies them (the web's
+  lib/wind, lib/pattern, lib/runwayFit, lib/takeoffLanding and
+  lib/trafficPattern; vfr.runway_wind and vfr.pattern), each a name in
+  `call.rs` (`wind_pick`, `runway_end_fit`, `traffic_pattern` ...). The
+  Go / No-Go's runway check goes by the same.
 - The pilot's own records and text are the engine's too (`pilot/`): a
   checklist typed as text, the logbook to and from a CSV file
   (ForeFlight's export among them, papaparse's reading ported step for

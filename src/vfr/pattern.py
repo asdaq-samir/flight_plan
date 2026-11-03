@@ -11,18 +11,25 @@ at a towered field the tower says which.
 
 UGN, Waukegan, for one: runway 23 is right traffic, and 5, 14 and 32
 left.
+
+The rules -- which way an end is flown, how high, and the pattern's
+corners and legs -- are the shared engine's (wingtip_engine::runway, through
+vfr_native.call), the very code the web app's map (lib/trafficPattern,
+lib/pattern) and the phones (wt_call) ask; this reads the FAA's files they
+are fed from and carries the dicts across.
 """
 from __future__ import annotations
 
 import csv
-import re
+import json
 import threading
 from pathlib import Path
 
-from . import faa_data, geo
+import vfr_native
+
+from . import faa_data
 from .config import DATA_DIR
 from .magnetic import magnetic_variation_deg
-from .runway_wind import end_heading_true_deg
 from .once import once
 
 FAA_CACHE_DIR = DATA_DIR / "raw" / "faa_nasr"
@@ -30,18 +37,22 @@ FAA_CACHE_DIR = DATA_DIR / "raw" / "faa_nasr"
 _LOCK = threading.Lock()
 
 
+def _ask(name: str, **given):
+    """The engine's rule `name` on the input given, its answer parsed."""
+    return json.loads(vfr_native.call(name, json.dumps(given)))
+
+
 def end_key(ident: str | None) -> str:
     """A runway end as both tables can be matched on: NASR writes "09"
     where OurAirports may write "9", and either may write "09L"."""
-    return re.sub(r"^0+(?=\d)", "", (ident or "").strip().upper())
+    return _ask("runway_end_key", ident=ident)
 
 
 def faa_ids(ident: str) -> list[str]:
     """The FAA identifiers an airport may go by in NASR, which keys its
     runways by its own (RFD, not KRFD): a K or P ICAO ident's last three
     letters first, then the ident as given."""
-    ident = ident.strip().upper()
-    return [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
+    return _ask("faa_ids", ident=ident)
 
 
 @once(maxsize=2)
@@ -101,22 +112,19 @@ def with_traffic(runways: list, ident: str, lat: float, lon: float, cache_dir=FA
     and where it is -- NASR's surveyed threshold, else OurAirports' (its
     `end_positions`), else None -- for the card's sketch of the field."""
     variation = magnetic_variation_deg(lat, lon)
-    right = right_traffic_ends(ident, cache_dir)
+    right = sorted(right_traffic_ends(ident, cache_dir))
     at = end_positions(ident, cache_dir)
 
-    def position(runway: dict, end: str) -> tuple:
-        found = at.get(end_key(end)) or (runway.get("end_positions") or {}).get(end)
+    def position(runway: dict, end: dict) -> tuple:
+        found = at.get(end_key(end["ident"])) or (runway.get("end_positions") or {}).get(end["ident"])
         return (round(found[0], 6), round(found[1], 6)) if found else (None, None)
 
-    return [
-        {**r, "runway_ends": [
-            {"ident": end, "heading_true_deg": end_heading_true_deg(end, heading, variation),
-             "traffic": "right" if end_key(end) in right else "left",
-             **dict(zip(("lat", "lon"), position(r, end)))}
-            for end, heading in r.get("end_headings", [])
-        ]}
-        for r in runways
-    ]
+    out = []
+    for r in runways:
+        headings = [[end, None if heading is None or heading != heading else heading] for end, heading in r.get("end_headings", [])]
+        ends = _ask("runway_ends_traffic", end_headings=headings, variation_deg=variation, right=right)
+        out.append({**r, "runway_ends": [{**e, **dict(zip(("lat", "lon"), position(r, e)))} for e in ends]})
+    return out
 
 
 def pattern_at(ident: str, elevation_ft: float | None, cache_dir=FAA_CACHE_DIR) -> dict:
@@ -128,83 +136,32 @@ def pattern_at(ident: str, elevation_ft: float | None, cache_dir=FAA_CACHE_DIR) 
         published = faa_data.published_pattern_agl_ft(faa_id, cache_dir)
         if published is not None:
             break
-    agl = faa_data.PATTERN_AGL_FT if published is None else published
-    return {
-        "agl_ft": agl,
-        "altitude_ft": None if elevation_ft is None else round(elevation_ft + agl),
-        "published": published is not None,
-    }
+    return _ask("pattern_altitude", elevation_ft=elevation_ft, published_agl_ft=published)
 
 
-#: The downwind's distance out from the runway, three-quarters of a
-#: statute mile in nm: the middle of the Airplane Flying Handbook's "1/2
-#: to 1 mile" (FAA-H-8083-3, "Airport Traffic Patterns"), as the map draws
-#: it (web lib/trafficPattern's DOWNWIND_NM).
-CIRCUIT_DOWNWIND_NM = 0.75 * 0.868976
-#: How far out the 45° entry starts, and the departure's exit runs, from
-#: the downwind or the upwind's end, nm: the map's ENTRY_NM.
-CIRCUIT_ENTRY_NM = 1.2
+def _circuit_runway(runway: dict) -> dict:
+    """A runway as the engine draws its pattern: its length and its ends."""
+    return {"length_ft": runway.get("length_ft"), "runway_ends": [
+        {k: e.get(k) for k in ("ident", "heading_true_deg", "traffic", "lat", "lon")} for e in runway.get("runway_ends") or []]}
 
 
-def _turn(frm: float, to: float) -> float:
-    """The signed turn from one bearing to another, -180 to 180."""
-    return ((to - frm) % 360 + 540) % 360 - 180
-
-
-def _circuit_corners(runway: dict, end_ident: str) -> dict | None:
-    """The corners of the pattern for landing on (or leaving from)
-    `end_ident` of a runway as with_traffic gives it, as the map draws
-    them (web lib/trafficPattern): the threshold, the far end, where the
-    upwind ends, the downwind abeam midfield and abeam the final's start,
-    and the final's start; and the pattern's side. None where the end's
-    threshold or heading is not known."""
-    ends = runway.get("runway_ends") or []
-    key = end_key(end_ident)
-    end = next((e for e in ends if end_key(e.get("ident")) == key), None)
-    if not end or end.get("lat") is None or end.get("lon") is None or end.get("heading_true_deg") is None:
-        return None
-    threshold = (end["lat"], end["lon"])
-    other = next((e for e in ends if e is not end and e.get("lat") is not None and e.get("lon") is not None), None)
-    if other:
-        far = (other["lat"], other["lon"])
-        along = float(geo.bearing_deg(*threshold, *far))
-    elif runway.get("length_ft"):
-        along = float(end["heading_true_deg"])
-        far = geo.destination_point(*threshold, along, runway["length_ft"] / 6076.12)
-    else:
-        return None
-    back = (along + 180) % 360
-    # Every turn to the left unless the FAA says right (14 CFR
-    # 91.126(b)(1)): the downwind on that side of the runway.
-    side = (along + (90 if end.get("traffic") == "right" else -90)) % 360
-    out = CIRCUIT_DOWNWIND_NM
-    final_start = geo.destination_point(*threshold, back, out)
-    upwind_end = geo.destination_point(*far, along, out)
-    length = float(geo.distance_nm(*threshold, *far))
-    midfield = geo.destination_point(*geo.destination_point(*threshold, along, length / 2), side, out)
-    return {
-        "threshold": threshold, "far": far, "upwind_end": upwind_end,
-        "midfield": midfield, "downwind_end": geo.destination_point(*final_start, side, out),
-        "final_start": final_start, "along": along, "side": side,
-    }
+def _points(points: list) -> list:
+    return [tuple(p) for p in points]
 
 
 def arrival_circuit(runway: dict, end_ident: str, tpa_ft: float | None, field_ft: float | None) -> dict | None:
     """The pattern flown to land on `end_ident`, as a piece of a leg
     (vfr.procedure_paths.flown): in at 45° to the downwind abeam midfield
     (AIM 4-3-3, AC 90-66C 11.3), along the downwind at the pattern's
-    altitude, then base and final down to the threshold. The heights are
-    the pattern altitude on the entry and the downwind, the field's at
-    the threshold (None where either is not known). None where the end
-    cannot be drawn."""
-    c = _circuit_corners(runway, end_ident)
-    if c is None:
+    altitude, then base and final down to the threshold -- the corners the
+    map draws (web lib/trafficPattern). The heights are the pattern
+    altitude on the entry and the downwind, the field's at the threshold
+    (None where either is not known). None where the end cannot be drawn:
+    its threshold or heading not known."""
+    flown = _ask("arrival_circuit", runway=_circuit_runway(runway), end_ident=end_ident)
+    if flown is None:
         return None
-    # From out on the pattern's side, behind the downwind's direction: the
-    # bisector of the landing direction and the pattern's side.
-    entry = geo.destination_point(*c["midfield"], (c["along"] + _turn(c["along"], c["side"]) / 2) % 360, CIRCUIT_ENTRY_NM)
-    points = [entry, c["midfield"], c["downwind_end"], c["final_start"], c["threshold"]]
-    return {"points": points, "ft": [tpa_ft, tpa_ft, tpa_ft, None, field_ft], "holds": []}
+    return {"points": _points(flown["points"]), "ft": [tpa_ft, tpa_ft, tpa_ft, None, field_ft], "holds": []}
 
 
 def departure_circuit(runway: dict, end_ident: str, toward: tuple) -> dict | None:
@@ -213,12 +170,8 @@ def departure_circuit(runway: dict, end_ident: str, toward: tuple) -> dict | Non
     upwind past its end, then out of the pattern straight on or with a 45°
     turn to the pattern's side, the two AIM 4-3-3 gives, whichever is the
     nearer the way on to `toward`. None where the end cannot be drawn."""
-    c = _circuit_corners(runway, end_ident)
-    if c is None:
+    flown = _ask("departure_circuit", runway=_circuit_runway(runway), end_ident=end_ident, toward=list(toward))
+    if flown is None:
         return None
-    on = float(geo.bearing_deg(*c["upwind_end"], *toward))
-    exits = [c["along"], (c["along"] + _turn(c["along"], c["side"]) / 2) % 360]
-    out = min(exits, key=lambda b: abs(_turn(b, on)))
-    exit_at = geo.destination_point(*c["upwind_end"], out, CIRCUIT_ENTRY_NM)
-    points = [c["threshold"], c["far"], c["upwind_end"], exit_at]
-    return {"points": points, "ft": [None] * len(points), "holds": [], "exit_deg": round(out, 1)}
+    points = _points(flown["points"])
+    return {"points": points, "ft": [None] * len(points), "holds": [], "exit_deg": round(flown["exit_deg"], 1)}
