@@ -2,13 +2,13 @@ import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
-import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
+import { navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, procedureQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
-import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
 import { N_NUMBER, aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
@@ -35,7 +35,6 @@ import type { PanelState } from "../../components/mapChrome";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePlanHistory } from "../../hooks/use-plan-history";
-import { rebasedRoute } from "../../lib/routeRebase";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
 import type { RouteCard } from "../../lib/openCards";
@@ -73,7 +72,6 @@ import FplStrip from "./components/FplStrip";
 import { RecentRoutesPage } from "./components/RecentRoutes";
 import MiniProfile from "./components/navlog/MiniProfile";
 import ProfileCard from "./components/ProfileCard";
-import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
 import { useProfileOpener } from "../../lib/profileOpener";
@@ -84,7 +82,8 @@ import { useAtcRadio, useRadioActions } from "../../lib/atcRadio";
 import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
-import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
+import { useDryRun } from "./hooks/useDryRun";
+import { procedureKind, useRouteEdits } from "./hooks/useRouteEdits";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan, type PlanParams } from "./hooks/usePlan";
@@ -292,8 +291,6 @@ function renamed(params: URLSearchParams, from: string, to: string): URLSearchPa
 /** A procedure's kind, where its drawing has been asked for (procedureQuery):
  *  what prunedFieldLists needs to keep an approach only where the route
  *  lands. Unknown, it is kept. */
-const procedureKind = (p: PickedProcedure) =>
-  queryClient.getQueryData<ProcedureDrawing>(["procedure", p.ident, p.id, p.transition])?.kind;
 
 /** `auto` where no runway is picked for the wind: the pilot's own all. */
 const NO_AUTO = "-";
@@ -1210,96 +1207,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   }, [fromFor, depart, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules, setLoad]);
 
 
-  // The route, changed in its box (RouteBox): in the address at once,
-  // which re-plans, as the airplane and the time do -- the departure,
-  // the stops, the destination.
-  // Either end may be missing -- taken out in the box, half a route with
-  // the other still to be typed -- and with neither, there is no route:
-  // FPL's box empty to type another in, the panel left the height it was,
-  // as the route's close leaves it (clearRoute).
-  // An edit is worked out from the route this render drew; made while the
-  // address is a change ahead of it, it is carried onto the address's
-  // route (lib/routeRebase), never written over it.
-  const drawnDep = planned.dep, drawnDest = planned.dest;
-  const setRoute = useCallback((parts: RouteParts, fuelAdded: string[] = [], keepLists = false) => {
-    const { dep, dest } = parts;
-    const drawn = { dep: drawnDep, stops, dest: drawnDest };
-    if (!dep && !dest) {
-      setSearchParams({}, { replace: true });
-      return;
-    }
-    // The course asked for now, as the route goes in, not once the page
-    // has drawn it: the draw is half a second of a phone's before the
-    // plan's own requests went (measured 2026-10-07), and the course's
-    // answer starts the planner's chart read and ground (app.prefetch).
-    const via = stopsOf(parts.stops.join(","));
-    const whole = routeOf(dep, dest, via);
-    if (whole) void queryClient.prefetchQuery(courseQuery(whole.dep, whole.dest, via));
-    setSearchParams(prev => {
-      const { dep, stops, dest } = rebasedRoute(drawn, parts, { dep: departureOf(prev.get("dep")), stops: stopsOf(prev.get("stops")), dest: identOf(prev.get("dest")) });
-      // What was picked at a field goes with it out of the route -- its
-      // runways, procedures, altitude, time on the ground and hold -- in
-      // the same change, so the planner is not asked once with them.
-      // Not while the Routes' cards are browsed (`keepLists`): a way in
-      // sight that skips a stop took the stop's approach and ground time
-      // with it, and Your Route came back without them.
-      const lists = fieldListsOf(prev);
-      const kept = keepLists ? lists : prunedFieldLists(lists, { dep, stops, dest }, procedureKind);
-      // A route changed by hand is the route: a Direct to's own is kept,
-      // and Cancel has nothing to go back to.
-      // The fuel stops among the stops (useFuelStops): those added now, and
-      // those before that are stops still.
-      const fuel = [...(prev.get("fuel") ?? "").split(","), ...fuelAdded]
-        .filter((id, i, all) => id && all.indexOf(id) === i && stops.some(stop => sameField(stop, id)));
-      return patched(prev, { dep, dest, stops: stops.join(","), ...fieldListParams(kept), direct: null, was: null, fuel: fuel.length ? fuel.join(",") : null });
-    }, { replace: true });
-  }, [setSearchParams, drawnDep, stops, drawnDest]);
-  // An airport's card's Add Stop, at the pilot's ask: the field the
-  // route's next stop, after the ones it makes and before its destination
-  // (it was Add to Route, the field the new destination); with half a
-  // route, the end it lacks; with none, the first point of one, its box
-  // asking for the destination next (RouteBox). The card put away for the
-  // route under it.
-  const addStop = useCallback((to: { ident: string }) => {
-    const points = [...routePoints];
-    if (points.includes(to.ident)) return;
-    if (planned.dep && planned.dest) points.splice(-1, 0, to.ident);
-    else if (planned.dest) points.unshift(to.ident);
-    else points.push(to.ident);
-    // One change of the address: two in a row, the second read the first's
-    // address from before it.
-    setSearchParams(prev => {
-      return patched(prev, {
-        dep: points[0]!,
-        stops: points.length > 2 ? points.slice(1, -1).join(",") : null,
-        dest: points.length > 1 ? points.at(-1)! : null,
-        place: null, direct: null, was: null,
-      });
-    }, { replace: true });
-  }, [routePoints, planned.dep, planned.dest, setSearchParams]);
-  // A point's own altitude set, or (null) given back to the plan.
-  const setPointAltitude = useCallback((ident: string, feet: number | null) => {
-    setSearchParams(prev => {
-      const own = altitudesOf(prev.get("altitudes"));
-      if (feet === null) delete own[ident];
-      else own[ident] = feet;
-      return patched(prev, { altitudes: altitudesParam(own) });
-    }, { replace: true });
-  }, [setSearchParams]);
-  const setStops = useCallback(
-    (stops: string[], fuelAdded?: string[], keepLists = false) => setRoute({ dep: planned.dep, stops, dest: planned.dest }, fuelAdded, keepLists),
-    [setRoute, planned.dep, planned.dest]);
-  // A stop taken out from its menu in FPL's list, as from its pill's.
-  const removeStop = useCallback(
-    (ident: string) => setStops(planned.stops.filter(stop => !sameField(stop, ident))), [setStops, planned.stops]);
-  // The pilot's own point (FixFromDialog), flown over straight after the
-  // point it was made off: the first stop after the departure, before the
-  // destination off the destination. Past the planner's most stops, none.
-  const insertStopAfter = useCallback((after: string, ident: string) => {
-    if (planned.stops.length >= MAX_STOPS) return;
-    const at = sameField(planned.dep, after) ? 0 : planned.stops.findIndex(stop => sameField(stop, after)) + 1 || planned.stops.length;
-    setStops([...planned.stops.slice(0, at), ident, ...planned.stops.slice(at)]);
-  }, [setStops, planned.dep, planned.stops]);
+  // The route's edits, each a change of the address (useRouteEdits).
+  const { setRoute, addStop, setPointAltitude, setStops, removeStop, insertStopAfter, acceptClassB, avoidClassB, flyAltitude } = useRouteEdits({
+    planned, routePoints, setSearchParams,
+  });
   // The fuel stops the planner suggests for a flight too long for its
   // tanks (the totals' fuel_stops), kept: put in after the flight's
   // departure, in order, as many as the planner takes.
@@ -1404,18 +1315,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   }, [setSearchParams]);
   // The map's VOR and fix cards' Add to Route and Direct To, while there
   // is a route (lib/map/pointActions).
-  // Allowed again: the waypoint Avoid Class B put round it (class_b_via)
-  // taken out of the stops too, where it still is -- left in, the route
-  // still bent round the Class B it was now planned through.
-  const acceptClassB = useCallback((accept: boolean) => {
-    setSearchParams(prev => {
-      const via = prev.get("class_b_via");
-      const stops = stopsOf(prev.get("stops")).filter(stop => !accept || stop !== via);
-      return patched(prev, {
-        class_b: accept ? null : "0", class_b_via: accept ? null : via, stops: stops.length ? stops.join(",") : null,
-      });
-    }, { replace: true });
-  }, [setSearchParams]);
   const hasFix = useOwnShip(st => st.enabled && st.fix !== null);
   const classBAvoided = searchParams.get("class_b") === "0";
   useEffect(() => {
@@ -1427,31 +1326,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     });
     return () => usePointActions.setState({ addToRoute: null, directTo: null, avoidClassB: null, courseLine: null });
   }, [course, planned.stops.length, addStopAt, directToChartPoint, hasFix, classBAvoided, acceptClassB]);
-  // "Avoid Class B": the planner's waypoint round it put in the stops where
-  // it says (Detour.stop_index, before that stop), and the clearance taken
-  // back, so the rest is planned under or round it; with no waypoint in
-  // reach, the clearance alone. One change of the address.
-  // The waypoint only where the route has room for another stop
-  // (MAX_STOPS): a ninth was refused by the planner (422), the clearance
-  // alone taken back then. Its ident kept (class_b_via), for Allow.
-  const avoidClassB = useCallback((detour: Detour | null) => {
-    setSearchParams(prev => {
-      const stops = stopsOf(prev.get("stops"));
-      const added = !!detour && !stops.includes(detour.ident) && stops.length < MAX_STOPS;
-      if (added) stops.splice(Math.min(detour.stop_index, stops.length), 0, detour.ident);
-      return patched(prev, { class_b: "0", class_b_via: added ? detour.ident : null, stops: stops.length ? stops.join(",") : null });
-    }, { replace: true });
-  }, [setSearchParams]);
-  // An altitude of the pilot's own, the rest of the address as it was.
-  // An altitude typed beside the airplane is flown on every leg, legal or
-  // not, with its cautions; one picked on the wheel (`nearest`) on each
-  // leg where that leg may fly it, else at the leg's nearest legal one, as
-  // the wheel's figures said -- flown on every leg, it could be under a
-  // leg's floor or on the wrong thousands for its course (14 CFR 91.119,
-  // 91.159).
-  const flyAltitude = useCallback((ft: number, nearest = false) => {
-    setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_nearest: nearest ? "1" : null, altitude_choice: null }), { replace: true });
-  }, [setSearchParams]);
   // The radio's calls to us (lib/atcRadio): ours by the airplane's
   // registration, the one picked or one of the pilot's own; Direct To the
   // place a call said, found near the route, from where the airplane is,
@@ -2238,77 +2112,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const descriptionsPaywall = useMemo(() => (paywalled ? (
     <PaidPrompt feature="CHECKPOINT_NOTES">A line for each checkpoint on what to look for from the air.</PaidPrompt>
   ) : undefined), [paywalled]);
-  // The flight flown on paper (dryRunOf), started from the side view's
-  // play, at the owner's ask ("a dry run of the flight with altitude and
-  // speed profile as well as the calculations at the bottom"): the replay's
-  // airplane flown along the course (DryRunLayer), its controls and chart
-  // in the side view's place, its figures as it goes under them. Put away
-  // with its close, or as the replay is another's (a past flight's).
-  // Flown from its start (seconds), the run itself made from the route as
-  // it is now, so it follows the route as it changes while it plays, at the
-  // owner's ask ("make sure to update the dry run if an approach is added
-  // or other route changes are added"): a procedure picked, a runway
-  // changed, a stop added or the legs come in again, it is flown again
-  // from the same start, its clock where it was, gone missed still if it
-  // had.
-  const [runFrom, setRunFrom] = useState<number | null>(null);
-  // Whether the approach picked has gone missed (the run's Go missed).
-  const [goMissed, setGoMissed] = useState(false);
-  // The rows it is flown along, the procedures picked flown as the legs are
-  // planned by them: out by a departure, in by an arrival and an approach.
-  const runRows = useMemo(() => (course ? navLogRows(course, selected, s.legs) : null), [course, selected, s.legs]);
-  const flownFrom = useMemo(() => (runFrom !== null && course && runRows ? dryRunOf(
-    runRows, runFrom, course.course_line, goMissed,
-  ) : null), [runFrom, course, runRows, goMissed]);
-  // The last run long enough to fly, held while new legs stream in.
-  const [lastRun, setLastRun] = useState<DryRun | null>(null);
-  if (flownFrom && flownFrom.points.length >= 2 && flownFrom !== lastRun) setLastRun(flownFrom);
-  const dryRun = runFrom === null ? null : lastRun;
-  const dryRunHeld = usePastFlight(p => p.hex === DRY_RUN);
-  const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
-  // The replay's points kept the run's as it changes, its clock where it
-  // was (within the new run).
-  useEffect(() => {
-    if (!dryRun || !usePastFlight.getState().hex || usePastFlight.getState().hex !== DRY_RUN) return;
-    usePastFlight.setState(p => (p.points === dryRun.points ? p
-      : { points: dryRun.points, at: p.at === null ? dryRun.points[0]!.t : Math.min(p.at, dryRun.points.at(-1)!.t) }));
-  }, [dryRun]);
-  // Played in the Profile card it was started from, in the side view's
-  // place, at the owner's ask ("profile should play the dry run within
-  // profile card"), and put away with it.
-  const startDryRun = () => {
-    if (!course || !runRows) return;
-    const from = Math.round((depart ? Date.parse(depart) : Date.now()) / 1000);
-    const run = dryRunOf(runRows, from, course.course_line);
-    if (run.points.length < 2) return;
-    setGoMissed(false);
-    setRunFrom(from);
-    setLastRun(run);
-    usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });
-  };
-  // Gone missed on the final (the run's Go missed): the run that does, the
-  // same up to the missed approach point, so it goes on from where it is.
-  const goMissedNow = () => setGoMissed(true);
-  // Flown once every leg is in: the side view is drawn before the legs
-  // have streamed in, and a tap on its Dry run then did nothing (the run
-  // too short to fly) -- seen as the dry-run spec's phone tapped it early.
-  // Its button waits for them, dimmed.
-  const dryRunReady = !!runRows && runRows.slice(1).every(row => !!legOf(row));
-  // Stopped, the side view it was flown over, the route's list a swipe
-  // back, at the owner's ask ("When stopping dry run it should become
-  // profile view and then swiping should take it back").
-  const stopDryRun = () => {
-    setRunFrom(null);
-    clearPastFlight();
-  };
-  // The run is the Profile card's: put away with it, at the owner's ask
-  // ("I still see dry run in fpl after I play it in profile card once") --
-  // it stayed at FPL's foot, over the route, once the card was closed. The
-  // replay let go; the run's own start with it, as with another replay's.
-  useEffect(() => {
-    if (dryRunning && !profileShown) clearPastFlight();
-  }, [dryRunning, profileShown]);
-  if (runFrom !== null && !dryRunHeld) setRunFrom(null);
+  // The flight flown on paper, from the Profile card (useDryRun).
+  const { running: dryRunning, goMissed, ready: dryRunReady, start: startDryRun, stop: stopDryRun, goMissedNow } = useDryRun({
+    course, selected, legs: s.legs, depart, routed, profileShown,
+  });
   // The Profile opened, at rest, from the route's ••• menu and the
   // altitude's caution dot, where the map's Play opened it and flew its
   // dry run at once until the owner took Play off the map (2026-11-02:
