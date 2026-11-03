@@ -14,6 +14,14 @@ struct WingtipApp: App {
     @State private var traffic = Traffic()
     @State private var verdict = Verdict()
 
+    init() {
+        // Apple's own measurements of this app on this phone -- launch,
+        // hangs, battery, crashes -- subscribed to from the first moment
+        // (Metrics), so the figures the owner steers speed by come from
+        // real flights rather than a simulator.
+        Metrics.shared.start()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()

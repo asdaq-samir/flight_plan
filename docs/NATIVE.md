@@ -112,6 +112,35 @@ web app in a web view until this one is the product; local records
 (plan history, kept airplanes, watches) in SwiftData with iCloud sync
 are the other session's batch.
 
+## Speed, and how it is measured
+
+The owner's ask (2026-11-03) for a fast app with no workarounds, done in
+these places:
+
+- **Tiles** (`Tiles/ChartTileOverlay`, `TileStore`, `KeepRoute`): the
+  overlay draws 512-point tiles composed from four of the pyramid's
+  256-pixel tiles, so a 3x screen scales a tile 1.5 times instead of 3
+  and needs about 18 of them instead of 55; a composed tile is kept in
+  memory (`TileCache`, 64 MB) in front of the disk store and the network,
+  concurrent loads of one tile are coalesced, and a kept route's tiles
+  bring their parents one and two levels up, so a zoom out is answered
+  from the phone. Each load is a signpost (`app.wingtipmaps.ios`, `tiles`).
+- **Marks** (`Views/ChartMap`, `Views/AirportMarks`): the airports'
+  annotations cluster and carry display priorities by the field's size
+  and airspace, so MapKit drops overlaps rather than drawing them; the
+  checkpoints' annotations are diffed, not removed and re-added.
+- **The map's data from the packs** (`PackMapData`): the airports,
+  airspace and navaids in view are asked of the engine's pack readers
+  first and of the planner only where no pack answers, so in flight the
+  map draws with no signal.
+- **Answers cached** (`API/Gateway`): the session keeps a URL cache
+  sized for a flight, honouring the planner's and the gateway's
+  Cache-Control, so a view come back to is answered from the phone.
+- **Measured**: `WingtipTests/PerformanceTests` keeps clock and memory
+  figures for the engine's readers and the map's decoding on the runner,
+  and `Metrics` subscribes to MetricKit, so launch, hang, battery and
+  crash reports come from real phones into the system log.
+
 ## Building
 
 The owner's Mac cannot run a current Xcode, so everything happens in

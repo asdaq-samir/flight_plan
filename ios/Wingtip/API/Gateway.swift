@@ -20,6 +20,17 @@ enum Gateway {
         let config = URLSessionConfiguration.default
         config.httpCookieAcceptPolicy = .always
         config.httpShouldSetCookies = true
+        // A cache of the answers the gateway and the planner say may be
+        // kept (Cache-Control: the chart's tiles for a cycle, the fields and
+        // airspace of a box, a field's card for minutes), so a view come
+        // back to is answered from the phone, and an answer with an ETag
+        // is revalidated in one short round trip. The default configuration
+        // had no cache at all: every pan and every card was a full fetch
+        // (the owner's ask for speed, 2026-11-03). Sized for a flight's
+        // worth of tiles and answers; the protocol's own policy, so an
+        // answer marked no-store is never kept.
+        config.urlCache = URLCache(memoryCapacity: 32 << 20, diskCapacity: 256 << 20, diskPath: "wingtip-answers")
+        config.requestCachePolicy = .useProtocolCachePolicy
         return URLSession(configuration: config)
     }()
 
