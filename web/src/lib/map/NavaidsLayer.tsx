@@ -19,7 +19,7 @@ import { airportBox, overlaps, ownShipBox, useDrawnAirports, vorTagBoxes, vorTag
 import { useOwnShipNear } from "./ownShip";
 import { useAhead, useLiveZoom } from "./useView";
 import { MapCard } from "./MapCard";
-import { MapPopup } from "./MapPopup";
+import { MapPopup, useTapPopup } from "./MapPopup";
 import { degreesMinutes } from "../coords";
 import { BLUE } from "../useAirspace";
 import { nmAway, useAwayWords } from "../useAway";
@@ -145,9 +145,6 @@ export function NavaidsLayer() {
   );
 }
 
-/** A tap on a mark kept off the map under it. A constant: react-leaflet
- *  binds a marker's handlers again whenever they are a new object. */
-const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagation(e) };
 
 /** A VOR's mark on its card: the sectional's blue hexagon. */
 const HEXAGON = (
@@ -177,11 +174,14 @@ const FIX_INK = "#1c1a17";
 
 const VorTap = memo(function VorTap({ vor }: { vor: VorPin }) {
   const position = useMemo<[number, number]>(() => [vor.lat, vor.lon], [vor.lat, vor.lon]);
+  const [made, tapRef, tapHandlers] = useTapPopup();
   return (
-    <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${vor.ident} ${vor.kind}`}>
-      <MapPopup pane="popupPane" panOnce>
-        <VorCard vor={vor} />
-      </MapPopup>
+    <Marker ref={tapRef} position={position} icon={HIT_ICON} eventHandlers={tapHandlers} title={`${vor.ident} ${vor.kind}`}>
+      {made && (
+        <MapPopup pane="popupPane" panOnce>
+          <VorCard vor={vor} />
+        </MapPopup>
+      )}
     </Marker>
   );
 });
@@ -248,11 +248,14 @@ function VorCard({ vor }: { vor: VorPin }) {
 
 const FixTap = memo(function FixTap({ fix, vors }: { fix: FixPin; vors: readonly VorPin[] }) {
   const position = useMemo<[number, number]>(() => [fix.lat, fix.lon], [fix.lat, fix.lon]);
+  const [made, tapRef, tapHandlers] = useTapPopup();
   return (
-    <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${fix.ident} fix`}>
-      <MapPopup pane="popupPane" panOnce>
-        <FixCard fix={fix} vors={vors} />
-      </MapPopup>
+    <Marker ref={tapRef} position={position} icon={HIT_ICON} eventHandlers={tapHandlers} title={`${fix.ident} fix`}>
+      {made && (
+        <MapPopup pane="popupPane" panOnce>
+          <FixCard fix={fix} vors={vors} />
+        </MapPopup>
+      )}
     </Marker>
   );
 });
