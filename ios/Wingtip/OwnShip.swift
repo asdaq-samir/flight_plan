@@ -36,6 +36,14 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.activityType = .airborne
+        // Kept going with the phone locked or the app put away while the
+        // airplane is at flying speed (took): the alerts ahead and the
+        // path flown (OwnTrail) went on only with the screen on, where a
+        // pilot's phone in a mount locks itself. Never paused by the
+        // system for a still airplane, which is a slow one. Apple's blue
+        // bar says the position is being read (the HIG asks for it).
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.showsBackgroundLocationIndicator = true
     }
 
     func start() {
@@ -68,6 +76,11 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
 
     private func took(_ fix: Fix) {
         self.fix = fix
+        // The path flown, and the phone's position kept in the background
+        // only while flying (the location background mode, project.yml):
+        // on the ground the reading stops with the app, as any map's does.
+        let flying = OwnTrail.shared.took(fix)
+        if manager.allowsBackgroundLocationUpdates != flying { manager.allowsBackgroundLocationUpdates = flying }
         // What is ahead, asked every ten seconds while moving: the planner
         // looks five minutes along the track (vfr.alerts).
         guard let track = fix.trackDeg, let gs = fix.groundspeedKt, gs > 20, Date().timeIntervalSince(lastAsked) > 10 else { return }

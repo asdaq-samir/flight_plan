@@ -75,6 +75,43 @@ Where the Swift copies still differ, the fixtures leave the case out:
   (2026-10-28); the route item files no departure or arrival
   procedure from the phone yet.
 
+## Apple's guidance, and where the app stands
+
+Apple names no architecture; for SwiftUI it asks for a declarative data
+flow: views as values of state, state owned once in `@Observable`
+models and handed down through the environment, the models asking the
+rules (here the engine) for the rest. The app follows that, and these
+pieces close the gaps a review against Apple's guidance found (the
+owner, 2026-11-03):
+
+- **App Intents** (`Wingtip/Intents/`): plan a trip to a place, the
+  nearest airports, the weather at a field and direct to a place, as
+  Siri, Shortcuts and Spotlight phrases (`WingtipShortcuts`). An intent
+  that needs the app sets `PendingCommand`, which `RootView` applies.
+- **A Live Activity** (`Wingtip/FlightActivity.swift`, the
+  `WingtipWidgets` extension, `Wingtip/Shared/FlightActivityAttributes`):
+  a flight in progress on the Lock Screen and in the Dynamic Island with
+  the next checkpoint, the ETA and the fuel, from the dry run or own ship
+  under way with a routed plan.
+- **The privacy manifest** (`Wingtip/PrivacyInfo.xcprivacy`): what is
+  collected and the required-reason APIs used; the session is cookies in
+  `HTTPCookieStorage`, and `UserDefaults` holds no secret.
+- **Strict concurrency** (`SWIFT_STRICT_CONCURRENCY: complete` in
+  project.yml): the compiler's data-race checks as warnings under Swift 5
+  mode; the language mode goes to 6 once a runner's log is clean.
+- **A string catalog** (`Wingtip/Localizable.xcstrings`,
+  `SWIFT_EMIT_LOC_STRINGS`): every `Text` gathered at build, so a second
+  language is a column, not a rewrite.
+- **Scene restoration**: the tab a scene was on comes back with it
+  (`@SceneStorage` in `RootView`).
+- **A UI smoke test** (`WingtipUITests/LaunchTests`): the app launched
+  and its first screen shown, run by the runner with the unit tests.
+
+Still open, as decisions rather than code: the app on the phone is the
+web app in a web view until this one is the product; local records
+(plan history, kept airplanes, watches) in SwiftData with iCloud sync
+are the other session's batch.
+
 ## Building
 
 The owner's Mac cannot run a current Xcode, so everything happens in

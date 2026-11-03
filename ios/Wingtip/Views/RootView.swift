@@ -18,7 +18,10 @@ struct RootView: View {
     @State private var detent: PresentationDetent = .medium
     @State private var sheetUp = true
     // The tab opened first; a launch argument (-tab airport) picks
-    // another, for CI's pictures of each.
+    // another, for CI's pictures of each. The tab a scene was on comes
+    // back with the scene (SceneStorage), as Apple restores state: a
+    // restored scene lands where the pilot left it, not on the plan.
+    @SceneStorage("tab") private var sceneTab: String?
     @State private var tab: Tabs = Tabs(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .fpl
     @State private var airports: [String] = []
     @State private var following = false
@@ -26,6 +29,10 @@ struct RootView: View {
     @State private var fitRequest = 0
     /// The iPad's inspector card (SplitLayout).
     @State private var sideCard: SideCard?
+    /// What Siri or a Shortcut asked for (the App Intents), done here once
+    /// the app is on the screen: the owner's ask, 2026-11-03, Siri and
+    /// Shortcuts through App Intents.
+    @State private var pending = PendingCommand.shared
     // Setup's map switches (MapExtrasInput.Keys).
     @AppStorage(MapExtrasInput.Keys.waypoints) private var waypointsOn = false
     @AppStorage(MapExtrasInput.Keys.classB) private var classBOn = false
@@ -55,20 +62,28 @@ struct RootView: View {
     private var layout: RootLayout { .of(sizeClass, verticalSizeClass) }
 
     var body: some View {
-        switch layout {
-        case .sheet:
-            map
-                .sheet(isPresented: $sheetUp) {
-                    SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
-                        .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
-                        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-                        .presentationBackground(.regularMaterial)
-                        .presentationCornerRadius(24)
-                        .interactiveDismissDisabled()
-                }
-        case .split:
-            SplitLayout(map: map, tab: $tab, airports: $airports, card: $sideCard)
+        Group {
+            switch layout {
+            case .sheet:
+                map
+                    .sheet(isPresented: $sheetUp) {
+                        SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
+                            .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
+                            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                            .presentationBackground(.regularMaterial)
+                            .presentationCornerRadius(24)
+                            .interactiveDismissDisabled()
+                    }
+            case .split:
+                SplitLayout(map: map, tab: $tab, airports: $airports, card: $sideCard)
+            }
         }
+        // The scene's tab kept and brought back (SceneStorage); a launch
+        // argument's tab (CI's pictures) wins over the kept one.
+        .onAppear {
+            if let raw = sceneTab, let kept = Tabs(rawValue: raw), !CommandLine.arguments.contains("-tab") { tab = kept }
+        }
+        .onChange(of: tab) { _, now in sceneTab = now.rawValue }
     }
 
     /// A field or a point opened from the map: in the Airport tab, half
@@ -153,6 +168,57 @@ struct RootView: View {
         // and the Edit menu (PlanHistory).
         .onAppear { plan.undoManager = undoManager }
         .onChange(of: undoManager) { _, manager in plan.undoManager = manager }
+        // Siri's or a Shortcut's ask, taken as it comes and as the app
+        // opens with one waiting (the intents run before this has drawn).
+        .task(id: pending.command) { await apply(pending.take()) }
+    }
+
+    /// Siri's or a Shortcut's command done in the app: a trip planned to
+    /// the field, direct to a place, the nearest airports, a field's card.
+    private func apply(_ command: PendingCommand.Command?) async {
+        guard let command else { return }
+        switch command {
+        case .planTo(let ident):
+            // From the route's departure, else from the field nearest the
+            // airplane; with neither, the FPL tab with the destination in
+            // for the pilot to give the departure.
+            plan.dest = ident
+            if plan.dep.isEmpty, let at = ownShip.fix?.coordinate,
+               let nearest = try? await Planner.nearest(lat: at.latitude, lon: at.longitude, limit: 1).first {
+                plan.dep = nearest.ident
+            }
+            tab = .fpl
+            if detent != .medium { detent = .medium }
+            plan.plan()
+        case .directTo(let said):
+            // The place found near the route as a clearance's is (the
+            // radio's Direct To does the same); not on the route, a
+            // diversion to it from where the airplane is.
+            var points: [(Double, Double)] = []
+            if let course = plan.course {
+                points += [(course.departure.lat, course.departure.lon), (course.destination.lat, course.destination.lon)]
+            }
+            if let fix = ownShip.fix { points.append((fix.coordinate.latitude, fix.coordinate.longitude)) }
+            let near = points.map { String(format: "%.3f,%.3f", $0.0, $0.1) }.joined(separator: ";")
+            let found = try? await Planner.clearancePlaces(ClearanceAsk(near: near, route: [said]))
+            guard let ident = found?.route?.first?.first(where: { $0.ident != nil })?.ident ?? (IntentLookups.looksLikeIdent(said) ? said.uppercased() : nil) else { return }
+            if plan.routed, plan.idents.contains(ident) {
+                plan.directTo(ident, from: ownShip.fix)
+            } else if let fix = ownShip.fix {
+                plan.divert(to: ident, from: fix)
+            } else {
+                plan.dest = ident
+                tab = .fpl
+                plan.plan()
+            }
+            if detent != .medium { detent = .medium }
+        case .nearest:
+            AirportShelf.shared.show(.nearest)
+            tab = .airport
+            if detent != .medium { detent = .medium }
+        case .weather(let ident):
+            open(ident)
+        }
     }
 }
 
