@@ -1,5 +1,6 @@
 import type { Aircraft, AircraftChoice, AircraftProfileSummary } from "./api/types";
 import { DEFAULT_AIRCRAFT } from "./preferences";
+import { callEngine } from "./engine/engine";
 
 /** One value per choice: a pilot's own by id, a stock profile by name.
  *  The nav log's picker keys its options on it, and the Library's Aircraft
@@ -8,40 +9,25 @@ export function aircraftKey(a: AircraftChoice): string {
   return a.aircraftId != null ? `mine:${a.aircraftId}` : a.tail ? `tail:${a.tail}` : `profile:${a.profile}`;
 }
 
-/** An N-number as a pilot types one: N, a figure 1 to 9, then up to four
- *  letters or figures (14 CFR 47.15). */
-export const N_NUMBER = /^N[1-9][0-9A-Z]{0,4}$/;
+/** An N-number as a pilot types one, as 14 CFR 47.15(b) shapes it: N,
+ *  then up to five figures, four and a letter, or three and two letters,
+ *  the first figure 1 to 9 and never the letters I or O. The shared
+ *  engine's test (native/engine/src/aircraft), the iPhone's too, asked as
+ *  a pattern's `test` was. */
+export const N_NUMBER = {
+  test: (text: string): boolean => callEngine<boolean>("n_number", { text }),
+};
 
 /** The stock profile an airplane the FAA's registry names flies on, by its
- *  maker and model (case, spaces and hyphens set aside), each from its
- *  type's handbook (data/aircraft, each file's `source`): any other none,
- *  its speed and burn the pilot's to give (Setup's Airplanes) rather than
- *  a guess. Kept out where a model shares a name but not the figures: a
- *  182RG or a turbo 182, a PA-28-151/160/180, an Arrow I, II or IV or a
- *  turbo Arrow, a turbo SR22T, the avgas DA40. A Bonanza A36 is out: its
- *  handbook gives no percent power for its cruise row. */
-const REGISTERED_TYPES: { maker: RegExp; model: RegExp; profile: string; before?: number }[] = [
-  { maker: /CESSNA/, model: /^F?A?150[A-M]?$|^FA150L$/, profile: "c150" },
-  { maker: /CESSNA/, model: /^[AF]?152$/, profile: "c152" },
-  { maker: /CESSNA/, model: /^172[A-Z]?$/, profile: "c172" },
-  { maker: /CESSNA/, model: /^182[ST]$/, profile: "c182" },
-  { maker: /PIPER/, model: /^PA28181/, profile: "pa28" },
-  // By year: the 1970 'D' handbook's 14,300 ft ceiling to 1972, the 1973
-  // Cruiser manual's 10,950 from 1973 (the owner's page, 2026-10-23).
-  { maker: /PIPER/, model: /^PA28140$/, profile: "pa28140", before: 1973 },
-  { maker: /PIPER/, model: /^PA28140$/, profile: "pa28140cruiser" },
-  { maker: /PIPER/, model: /^PA28161$/, profile: "pa28161" },
-  { maker: /PIPER/, model: /^PA28R201$/, profile: "pa28r201" },
-  { maker: /MOONEY/, model: /^M20J$/, profile: "m20j" },
-  { maker: /CIRRUS/, model: /^SR20$/, profile: "sr20" },
-  { maker: /CIRRUS/, model: /^SR22$/, profile: "sr22" },
-  { maker: /DIAMOND/, model: /^DA40NG$/, profile: "da40ng" },
-];
-
+ *  maker, model and year, each from its type's handbook (data/aircraft):
+ *  any other none, its speed and burn the pilot's to give (Setup's
+ *  Airplanes) rather than a guess. The shared engine's list
+ *  (native/engine/src/aircraft/registry.rs), which the iPhone's
+ *  Registered asks too. */
 export function profileOfRegistered(registered: { manufacturer?: string | null; model?: string | null; year?: number | null }): string | null {
-  const maker = (registered.manufacturer ?? "").toUpperCase(), model = (registered.model ?? "").toUpperCase().replace(/[\s-]+/g, "");
-  const year = registered.year ?? null;
-  return REGISTERED_TYPES.find(t => t.maker.test(maker) && t.model.test(model) && (t.before === undefined || (year !== null && year < t.before)))?.profile ?? null;
+  return callEngine<string | null>("registered_profile", {
+    manufacturer: registered.manufacturer ?? null, model: registered.model ?? null, year: registered.year ?? null,
+  });
 }
 
 /** A pilot's own airplane rides on the stock profile whose name

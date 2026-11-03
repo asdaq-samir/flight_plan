@@ -20,13 +20,17 @@ Lambert conformal projection, as eccodes' nearest-point search finds it
 """
 from __future__ import annotations
 
+import json
 import logging
+import math
+import sys
 import threading
 from datetime import datetime, timedelta, timezone
 
 import gribberish
 import numpy as np
 import requests
+import vfr_native
 from pyproj import Proj
 
 from .config import REQUEST_HEADERS as HEADERS
@@ -143,15 +147,18 @@ def _grids(now: datetime) -> tuple[_Grid, _Grid]:
 def flight_category(ceiling_ft: float | None, visibility_sm: float) -> str:
     """AIM 7-1-7's categories: LIFR under a 500 ft ceiling or 1 sm; IFR
     under 1,000 ft or 3 sm; MVFR at 3,000 ft or 5 sm and under; VFR above
-    both. No ceiling is no limit by ceiling."""
-    ceiling = float("inf") if ceiling_ft is None else ceiling_ft
-    if ceiling < 500 or visibility_sm < 1:
-        return "LIFR"
-    if ceiling < 1000 or visibility_sm < 3:
-        return "IFR"
-    if ceiling <= 3000 or visibility_sm <= 5:
-        return "MVFR"
-    return "VFR"
+    both. No ceiling is no limit by ceiling. Worked out by the engine
+    (wingtip_engine::forecast, through vfr_native), the one copy the web
+    app's categoryOf and the phones share."""
+    asked = {"ceiling_ft": None if ceiling_ft is None else _finite(ceiling_ft), "visibility_sm": _finite(visibility_sm)}
+    return json.loads(vfr_native.call("flight_category", json.dumps(asked)))
+
+
+def _finite(x: float) -> float:
+    """A figure as JSON can carry it (a grid's float32 as a float): an
+    unlimited one as the largest float, which every bound passes alike."""
+    x = float(x)
+    return x if math.isfinite(x) else (sys.float_info.max if x > 0 or math.isnan(x) else -sys.float_info.max)
 
 
 def at(lat: float, lon: float, now: datetime | None = None) -> dict | None:
