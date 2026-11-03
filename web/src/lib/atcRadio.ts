@@ -39,8 +39,10 @@ interface AtcRadio {
    *  the captions over the map. */
   mode: "once" | "radio" | null;
   /** The microphone's pill over the map: listening, then what was heard
-   *  with what it offers, until put away. */
-  pill: { listening: boolean; text: string; error: string | null } | null;
+   *  with what it offers, until put away. A readback is listened for with
+   *  the clearance it reads back (`readbackOf`, lib/readback); a timer the
+   *  pilot started by voice counts from `timerFrom`. */
+  pill: { listening: boolean; text: string; error: string | null; readbackOf?: string | null; timerFrom?: number | null } | null;
 }
 
 export const useAtcRadio = create<AtcRadio>(() => ({
@@ -58,11 +60,15 @@ export interface PlannedRoute { dep: string; stops: string[]; dest: string }
 
 /** What the radio can be acted on with, from the plan (PlanWorkspace): a
  *  direct to a place as said, which answers why not where it cannot; an
- *  altitude to fly; and a clearance's route entered over the route
- *  planned, with its SID and STAR and the altitude it gives. */
+ *  altitude to fly; a clearance's route entered over the route planned,
+ *  with its SID and STAR and the altitude it gives; and of the pilot's
+ *  own commands (lib/pilotCommand), the Nearest list and an approach's
+ *  page in the procedures sheet, which answers why not where it cannot. */
 export const useRadioActions = create<{
   directTo: ((said: string) => Promise<string | null>) | null;
   fly: ((ft: number) => void) | null;
   route: PlannedRoute;
   enter: ((route: PlannedRoute, typed: TypedProcedure[], altitudeFt: number | null) => void) | null;
-}>(() => ({ directTo: null, fly: null, route: { dep: "", stops: [], dest: "" }, enter: null }));
+  nearest: (() => void) | null;
+  showProcedure: ((ident: string, approach: string, runway: string | null) => Promise<string | null>) | null;
+}>(() => ({ directTo: null, fly: null, route: { dep: "", stops: [], dest: "" }, enter: null, nearest: null, showProcedure: null }));

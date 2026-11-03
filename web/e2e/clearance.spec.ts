@@ -83,6 +83,35 @@ test("the microphone listens once into a pill, and its chip flies the altitude s
   await expect(pill).toHaveCount(0);
 });
 
+test("the pilot's own words are chips: the nearest airports and a timer", async ({ page }) => {
+  await page.addInitScript(() => {
+    class Heard {
+      lang = ""; continuous = false; interimResults = false;
+      onresult: ((e: unknown) => void) | null = null; onerror: ((e: unknown) => void) | null = null; onend: (() => void) | null = null;
+      start() {
+        setTimeout(() => this.onresult?.({ resultIndex: 0, results: [Object.assign([{ transcript: "nearest airport and start the timer" }], { isFinal: true })] }), 300);
+      }
+      stop() { setTimeout(() => this.onend?.(), 50); }
+    }
+    Object.assign(window, { SpeechRecognition: Heard, webkitSpeechRecognition: Heard });
+  });
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const pill = page.getByTestId("radio-pill");
+  await expect(async () => {
+    if (!(await pill.count())) await page.getByTestId("radio-button").click();
+    await expect(pill).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: slow(20_000) });
+  await expect(pill).toContainText("nearest airport", { timeout: slow(10_000) });
+  // The timer counts in the pill once started, and stays as the chips go.
+  await pill.getByTestId("radio-timer").click();
+  await expect(pill.getByTestId("radio-timer-time")).toContainText(/Timer 0:0\d/);
+  // Nearest opens the list over Airport, and puts the words away.
+  await pill.getByTestId("radio-nearest").click();
+  await expect(page).toHaveURL(/[?&]near=1/);
+  await expect(pill).toHaveCount(0);
+});
+
 test("with nothing heard the pill stays and says so until put away", async ({ page }) => {
   // A recognizer that hears nothing and ends, as Safari's does in a quiet
   // cockpit.

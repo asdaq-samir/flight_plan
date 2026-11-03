@@ -54,10 +54,12 @@ export async function startRadio(words: string[], callPattern?: string) {
 }
 
 /** Listens once, the pill typing what is said: ended by a pause after
- *  words, by nothing said at all, or by the pilot's second tap. */
-export async function listenOnce(words: string[]) {
+ *  words, by nothing said at all, or by the pilot's second tap. For a
+ *  readback, `readbackOf` is the clearance it is checked against
+ *  (RadioLayer, lib/readback). */
+export async function listenOnce(words: string[], readbackOf: string | null = null) {
   if (useAtcRadio.getState().listening) return;
-  useAtcRadio.setState({ listening: true, mode: "once", error: null, pill: { listening: true, text: "", error: null } });
+  useAtcRadio.setState({ listening: true, mode: "once", error: null, pill: { listening: true, text: "", error: null, readbackOf } });
   const said = new Map<number, string>();
   let quiet = window.setTimeout(() => stopRadio(), NOTHING_MS);
   const longest = window.setTimeout(() => stopRadio(), LONGEST_MS);

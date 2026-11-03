@@ -1857,6 +1857,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { near: null, nearAt: null, nearName: null });
     }, { replace: true });
   }, [setSearchParams]);
+  // The microphone's own commands (lib/pilotCommand, RadioLayer): the
+  // Nearest list over Airport, and an approach's page in the procedures
+  // sheet, whose lists are the route's fields' alone.
+  useEffect(() => {
+    useRadioActions.setState({
+      nearest: () => {
+        setTabPick("airport");
+        openNearest();
+      },
+      showProcedure: async (ident, approach, runway) => {
+        if (![planned.dep, ...plannedStops, planned.dest].some(f => f && sameField(f, ident))) return `${ident} is not on the route: add it first.`;
+        setProceduresShown({ ident, kind: "approach", pick: { approach, runway } });
+        return null;
+      },
+    });
+    return () => useRadioActions.setState({ nearest: null, showProcedure: null });
+  }, [setTabPick, openNearest, planned.dep, plannedStops, planned.dest, setProceduresShown]);
   // The route's box and its nav log are FPL's, a route or none -- with none
   // the box is empty to type one in, at the pilot's ask.
   const started = tab === "fpl";

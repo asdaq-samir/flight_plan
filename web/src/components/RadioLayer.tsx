@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Mic, Radio } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
@@ -6,33 +6,53 @@ import { GLASS } from "./mapChrome";
 import { Button } from "./ui/button";
 import { api } from "../lib/api/client";
 import { callToUs, useAtcRadio, useRadioActions, type Transmission } from "../lib/atcRadio";
-import { clearedRoute, placesAsked, type Found } from "../lib/clearance";
+import { clearedRoute, heardAny, placesAsked, readClearance, type Found } from "../lib/clearance";
+import { stopwatch } from "../lib/diversion";
 import { callOf } from "../lib/heardCall";
+import { metarWords } from "../lib/metarWords";
+import { commandsOf } from "../lib/pilotCommand";
+import { altitudeWords, readbackCheck, readbackWords } from "../lib/readback";
+import { say } from "../lib/speech";
 import { TEXT } from "../lib/text";
 
-/** An altitude as ATC says it (AIM 4-2-9): feet below 18,000, a flight
- *  level from there up. */
-const altitudeWords = (ft: number) => (ft >= 18000 ? `FL${Math.round(ft / 100)}` : `${ft.toLocaleString("en-US")} ft`);
-
 const capital = (words: string) => words.replace(/\b[a-z]/g, ch => ch.toUpperCase());
+/** A place's words as a chip says them: spelled idents as they are. */
+const named = (words: string) => (/[a-z]/.test(words) ? capital(words) : words);
 
 const CHIP = "rounded-full text-tint";
+
+/** The listening code (lib/atcListening), fetched as the pill comes so a
+ *  chip's tap starts the readback at once: Safari lets a page listen only
+ *  straight from the tap (RadioButton loads it the same way). */
+let listening: typeof import("../lib/atcListening") | null = null;
+const load = () => import("../lib/atcListening").then(m => (listening = m));
 
 /**
  * What the app can do of something heard, a tap each -- Direct To the
  * place said (found near the route, flown from where the airplane is),
  * Enter Route for a clearance (its places found and the route it gives
  * entered, its SID and STAR picked, its altitude flown), Fly the
- * altitude, the frequency copied, the code shown. Nothing is done until
- * a chip is tapped; `done` puts what was heard away after one.
+ * altitude, the frequency copied, the code shown; and of the pilot's own
+ * words (lib/pilotCommand): the nearest airports, an approach's page,
+ * the weather at a field said aloud, a timer, and a clearance read back
+ * and checked (lib/readback). Nothing is done until a chip is tapped;
+ * `done` puts what was heard away after one.
  */
 function CallActions({ text, done }: { text: string; done: () => void }) {
-  const { directTo, fly, enter, route } = useRadioActions();
+  const { directTo, fly, enter, route, nearest, showProcedure } = useRadioActions();
   const near = useAtcRadio(s => s.near);
+  const mode = useAtcRadio(s => s.mode);
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  /** What a chip brought, kept in the pill: a field's report. */
+  const [note, setNote] = useState<string | null>(null);
   const heard = callOf(text, null);
   const { clearance } = heard;
+  const commands = useMemo(() => commandsOf(text), [text]);
+  const altitude = commands.find(c => c.kind === "altitude");
+  const procedure = commands.find(c => c.kind === "procedure");
+  const weather = commands.find(c => c.kind === "weather");
+  const timer = commands.find(c => c.kind === "timer");
   const routed = !!(clearance.limit || clearance.route.length || clearance.asFiled);
   const run = async (what: string, act: () => Promise<string | null>) => {
     setBusy(what);
@@ -42,12 +62,86 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
     if (why) setProblem(why);
     else done();
   };
+  // The field a command names, found by its words near the route; none
+  // named, the destination.
+  const fieldOf = async (field: string | null): Promise<{ ident: string } | { why: string }> => {
+    if (!field) return route.dest ? { ident: route.dest } : { why: "No destination: plan a route or name the field." };
+    try {
+      const found = await api.clearancePlaces({ limit: field, route: [], near, dep: route.dep || null, dest: route.dest || null });
+      const ident = found.limit?.kind === "airport" ? found.limit.ident : null;
+      return ident ? { ident } : { why: `“${field}” was not found near the route.` };
+    } catch {
+      return { why: "The field could not be looked up; check the connection." };
+    }
+  };
+  const tellWeather = async (field: string | null) => {
+    setBusy("weather");
+    setProblem(null);
+    const at = await fieldOf(field);
+    if ("why" in at) {
+      setBusy(null);
+      setProblem(at.why);
+      return;
+    }
+    try {
+      const airport = await api.airport(at.ident);
+      const metar = airport.metar;
+      if (!metar?.raw) setNote(`No report at ${at.ident}.`);
+      else {
+        setNote(`${at.ident}: ${metar.raw}`);
+        say(metarWords(airport.name || at.ident, metar));
+      }
+    } catch {
+      setProblem(`${at.ident}'s weather could not be had; check the connection.`);
+    }
+    setBusy(null);
+  };
+  const setTimer = (from: number | null) => useAtcRadio.setState(s => ({ pill: s.pill && { ...s.pill, timerFrom: from } }));
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 pt-1 pr-2">
         {heard.direct && directTo && (
           <Button size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-direct" onClick={() => void run("direct", () => directTo(heard.direct!))}>
-            Direct To {/[a-z]/.test(heard.direct) ? capital(heard.direct) : heard.direct}
+            Direct To {named(heard.direct)}
+          </Button>
+        )}
+        {commands.some(c => c.kind === "nearest") && nearest && (
+          <Button size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-nearest" onClick={() => { nearest(); done(); }}>
+            Nearest Airports
+          </Button>
+        )}
+        {altitude && clearance.maintainFt === null && fly && (
+          <Button size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-fly" onClick={() => { fly(altitude.ft); done(); }}>
+            Fly {altitudeWords(altitude.ft)}
+          </Button>
+        )}
+        {procedure && showProcedure && (
+          <Button
+            size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-procedure"
+            onClick={() => void run("procedure", async () => {
+              const at = await fieldOf(procedure.field);
+              return "why" in at ? at.why : showProcedure(at.ident, procedure.approach, procedure.runway);
+            })}
+          >
+            {procedure.approach}{procedure.runway ? ` ${procedure.runway}` : ""}{procedure.field ? ` at ${named(procedure.field)}` : ""}
+          </Button>
+        )}
+        {weather && (
+          <Button size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-weather" onClick={() => void tellWeather(weather.field)}>
+            Weather{weather.field ? ` at ${named(weather.field)}` : ""}
+          </Button>
+        )}
+        {timer && (
+          <Button size="sm" variant="secondary" className={CHIP} data-testid="radio-timer" onClick={() => setTimer(timer.start ? Date.now() : null)}>
+            {timer.start ? "Start Timer" : "Stop Timer"}
+          </Button>
+        )}
+        {heardAny(clearance) && mode === "once" && (
+          <Button
+            size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-readback"
+            onClick={() => (listening ? void listening.listenOnce([], text) : void load().then(m => m.listenOnce([], text)))}
+          >
+            Read Back
           </Button>
         )}
         {routed && enter && (
@@ -84,8 +178,35 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
         )}
         {clearance.squawk && <span className={cn("font-semibold", TEXT.detail)}>Squawk {clearance.squawk}</span>}
       </div>
+      {note && <p className={cn("pt-1 pr-2 font-mono", TEXT.note)} data-testid="radio-note">{note}</p>}
       {problem && <p className={cn("pt-1 pr-2 text-destructive-ink", TEXT.note)} role="status">{problem}</p>}
     </>
+  );
+}
+
+/** A clearance's readback checked against it (lib/readback): what was
+ *  missed or said differently as a warning line, never a stop. */
+function ReadbackLine({ cleared, said }: { cleared: string; said: string }) {
+  const items = useMemo(() => readbackCheck(readClearance(cleared), said), [cleared, said]);
+  return (
+    <p className={cn("pt-1 pr-2", items.length ? "text-caution-ink" : "text-muted-foreground", TEXT.note)} role="status" data-testid="radio-readback-check">
+      {readbackWords(items)}
+    </p>
+  );
+}
+
+/** The timer a pilot started by voice, counting in the pill until stopped. */
+function Timer({ from, onStop }: { from: number; onStop: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
+  return (
+    <div className="flex items-center gap-2 pt-1 pr-2">
+      <span className={cn("font-semibold tabular-nums", TEXT.detail)} data-testid="radio-timer-time">Timer {stopwatch(Math.max(0, now - from))}</span>
+      <Button size="sm" variant="secondary" className={CHIP} onClick={onStop} data-testid="radio-timer-stop">Stop</Button>
+    </div>
   );
 }
 
@@ -114,6 +235,8 @@ function Waveform() {
 function RadioPill() {
   const pill = useAtcRadio(s => s.pill)!;
   const away = () => useAtcRadio.setState({ pill: null });
+  useEffect(() => { void load(); }, []);
+  const readback = pill.readbackOf ?? null;
   return (
     <div className={cn(GLASS, "pointer-events-auto w-full max-w-md rounded-[22px] py-2 pr-1 pl-3")} data-testid="radio-pill">
       <div className="flex items-center gap-2">
@@ -124,12 +247,14 @@ function RadioPill() {
           onClick={() => useAtcRadio.setState({ cardOpen: true, cardText: pill.text || null })}
         >
           <span aria-live="polite" className={cn(!pill.text && "text-muted-foreground", pill.error && !pill.text && "text-caution-ink")}>
-            {pill.text || pill.error || "Listening…"}
+            {pill.text || pill.error || (readback ? "Read it back…" : "Listening…")}
           </span>
         </button>
         {!pill.listening && <CloseButton label="Put away" onClick={away} data-testid="radio-pill-close" />}
       </div>
-      {!pill.listening && pill.text && <CallActions text={pill.text} done={away} />}
+      {/* A readback heard: how it matched, in place of the chips. */}
+      {!pill.listening && pill.text && (readback ? <ReadbackLine cleared={readback} said={pill.text} /> : <CallActions text={pill.text} done={away} />)}
+      {pill.timerFrom != null && <Timer from={pill.timerFrom} onStop={() => useAtcRadio.setState(s => ({ pill: s.pill && { ...s.pill, timerFrom: null } }))} />}
     </div>
   );
 }
@@ -140,6 +265,14 @@ function RadioPill() {
  */
 function RadioCall({ call }: { call: Transmission }) {
   const done = () => useAtcRadio.setState({ seen: call.id });
+  // With the radio listened to on and on, the pilot's readback is the
+  // next transmission heard with a clearance's items in it, not to us:
+  // checked against the call as it settles (lib/readback).
+  const heard = useAtcRadio(s => s.heard);
+  const readback = useMemo(
+    () => (heardAny(readClearance(call.text)) ? heard.find(t => t.id > call.id && t.final && !t.forUs && heardAny(readClearance(t.text))) ?? null : null),
+    [heard, call],
+  );
   return (
     <div className={cn(GLASS, "pointer-events-auto w-full max-w-md rounded-[22px] py-2 pr-1 pl-3")} role="alert" data-testid="radio-call">
       <div className="flex items-start gap-2">
@@ -148,6 +281,7 @@ function RadioCall({ call }: { call: Transmission }) {
         <CloseButton label="Put away" onClick={done} data-testid="radio-call-close" />
       </div>
       <CallActions text={call.text} done={done} />
+      {readback && <ReadbackLine cleared={call.text} said={readback.text} />}
     </div>
   );
 }

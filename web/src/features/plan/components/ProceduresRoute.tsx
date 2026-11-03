@@ -98,7 +98,12 @@ export interface FitInputs {
 }
 
 /** Where the procedures' sheet is open: one kind of a field's. */
-export type ProceduresAt = { ident: string; kind: Kind } | null;
+/** Where the procedures sheet is open: a field's kind of procedure, and
+ *  one to open the page of as the list comes in, asked for by voice
+ *  (lib/pilotCommand: "the ILS one nine right at Milwaukee") -- the
+ *  approach as the FAA's names start ("ILS", "RNAV (GPS)") and its
+ *  runway ("19R"), or any runway's. */
+export type ProceduresAt = { ident: string; kind: Kind; pick?: { approach: string; runway: string | null } | null } | null;
 
 // No runway picked into the wind, one set for good (a new one at every
 // render would be a new intoWind for the effect).
@@ -899,6 +904,14 @@ export default function ProceduresRoute({
   const field = on ? airports.find(a => sameField(a.ident, on.ident)) : undefined;
   const list = on ? listOf(on.ident) : undefined;
   const chosen = on ? pickOf(on.ident, on.kind) : null;
+  // The procedure asked for by voice, its page once the field's list is
+  // in: the first of that kind whose name starts as the approach does, on
+  // the runway said where one was. Set as the sheet renders, as `kept`
+  // is above; once set, the page is this address's and it is not again.
+  const wanted = on?.pick && list && !(page && page.at === on)
+    ? list.procedures.filter(p => p.kind === on.kind && p.name.toUpperCase().startsWith(on.pick!.approach)).find(p => !on.pick!.runway || p.runway === on.pick!.runway) ?? null
+    : null;
+  if (wanted && on) setPage({ at: on, procedure: wanted });
   const stale = list?.stale ? `Out of date: the ${cycleDate(list.cycle)} cycle, as the current one could not be had` : null;
   return (
     <>
