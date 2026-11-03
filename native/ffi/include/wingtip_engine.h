@@ -58,6 +58,57 @@ int32_t wt_weather_in_force(int32_t kind, int64_t now, int64_t observed, int64_t
 char *wt_ahead(const uint8_t *const *ptrs, const size_t *lens, size_t count, double lat, double lon, double track_deg,
                double gs_kt, double alt_ft, double vs_fpm, int64_t now, const char *tfrs, int64_t tfrs_at);
 
+// The four pilot pages' figures, each JSON as the planner's endpoint
+// answers it; a figure not known is NAN. Free with wt_string_free.
+
+/// A hold's entry and its legs in the wind (AIM 5-3-8), as /api/holding:
+/// right 1 for right turns; the wind worked only where tas_kt,
+/// wind_from_deg, wind_kt and altitude_ft are all known.
+char *wt_holding(double inbound_deg, double heading_deg, int32_t right, double tas_kt, double wind_from_deg, double wind_kt,
+                 double altitude_ft);
+/// Two-way radio failure (14 CFR 91.185), as /api/lost-comms: count
+/// segments, names[i] (NULL or "" is "Segment") and minimums_ft[i]; the
+/// altitudes assigned and expected, expected from segment expected_from
+/// on; approach_fix 1 where the limit is a fix an approach begins from;
+/// efc and eta as written, or NULL.
+char *wt_lost_comms(const char *const *names, const double *minimums_ft, size_t count, double assigned_ft,
+                    double expected_ft, int64_t expected_from, int32_t approach_fix, const char *efc, const char *eta);
+/// The diversion drill (ACS PA.VI.C) in the leg's air (variation east
+/// positive; calm wind 0 and 0) to the field `to` distance_nm away on
+/// tc_deg, as /api/diversion's solved, steps, problem and checks; the
+/// student's estimates NAN where not given.
+char *wt_diversion(double tc_deg, double distance_nm, double tas_kt, double fuel_burn_gph, double magnetic_variation_deg,
+                   double wind_from_deg, double wind_kt, const char *to, double mh, double gs, double ete, double fuel);
+
+/// A point of the flown track: t ms since 1970; alt_ft GPS, NAN none.
+typedef struct {
+    double t;
+    double lat;
+    double lon;
+    double alt_ft;
+} WtTrackPoint;
+
+/// A saved flight's checkpoint; category "departure", "stop",
+/// "destination" or its own kind; the plan's figures NAN where not known.
+typedef struct {
+    int64_t sequence_no;
+    const char *name;
+    const char *category;
+    double lat;
+    double lon;
+    double along_track_nm;
+    double true_course_deg;
+    double ete_min;
+    double altitude_ft;
+} WtCheckpoint;
+
+/// A flight debriefed against its flown track (ACS PA.VI.A), as
+/// /api/debrief: {"debrief": marked or null, "tolerances"}. Points in any
+/// order; the fields' pattern altitudes, ft MSL, pattern_ft[i] for the
+/// ident pattern_idents[i]. NULL with fewer than two checkpoints.
+char *wt_debrief(const WtTrackPoint *points, size_t point_count, const WtCheckpoint *checkpoints, size_t checkpoint_count,
+                 const char *const *pattern_idents, const double *pattern_ft, size_t pattern_count);
+
 #ifdef __cplusplus
 }
 #endif

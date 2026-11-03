@@ -21,6 +21,13 @@ Wingtip's Rust, in two crates:
   lib/heardCall, held to their fixtures in `web/src/lib/fixtures`), and
   finds the places it names in the phone's kept packs with no signal
   (`spoken.rs`, vfr.spoken's matching): `wt_clearance_hear`.
+- The four pilot pages' figures are the engine's too (`figures/`): a
+  flight debriefed against its flown track (ACS PA.VI.A), the diversion
+  drill (PA.VI.C), a hold's entry and its legs in the wind (AIM 5-3-8)
+  and lost communications' altitudes (14 CFR 91.185), with their words.
+  app.figures only carries the dicts across; the phones get the
+  planner's very answers from `wt_debrief`, `wt_diversion`, `wt_holding`
+  and `wt_lost_comms`.
 - `ffi/` (`wingtip-ffi`): the engine's C functions for the phones
   (`ffi/include/wingtip_engine.h`), a static library: the airspace over a
   point from a phone's cycle pack, as the planner's /api/airspace/at

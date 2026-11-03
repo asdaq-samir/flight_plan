@@ -17,17 +17,14 @@ import math
 import re
 from dataclasses import dataclass
 
+import vfr_native
+
 from . import geo
 
 #: A standard-rate turn, degrees a second: a 180 degree turn at either end
 #: of the racetrack is a minute (FAA-H-8083-15B, Instrument Flying
 #: Handbook, ch. 7, "Standard Rate Turns").
 STANDARD_RATE_DEG_S = 3.0
-#: The inbound leg's time with none given, min: a minute at or below
-#: 14,000 ft MSL, a minute and a half above (AIM 5-3-8 j.4(a)).
-LEG_MIN_LOW = 1.0
-LEG_MIN_HIGH = 1.5
-LEG_MIN_CEILING_FT = 14_000
 
 #: "VPBNG/090/30:270:R:1M:2T": the point, the inbound course (magnetic),
 #: R or L, the legs (minutes "1M" or nm "4N"), and for how long (turns
@@ -76,18 +73,16 @@ def entry(arrival_deg: float, inbound_deg: float, right: bool) -> str:
     way an FMS reads them: for right turns, a course within 110 degrees
     right and 70 left of the inbound course direct, the next 70 round
     (110 to 180) teardrop, the 110 beyond parallel; left turns the
-    mirror."""
-    rel = (arrival_deg - inbound_deg) % 360
-    if not right:
-        rel = (360 - rel) % 360
-    if rel <= 110 or rel >= 290:
-        return "direct"
-    return "teardrop" if rel <= 180 else "parallel"
+    mirror. The engine's (wingtip_engine::figures::holding), the one copy
+    the hold's page and the phones use too."""
+    return vfr_native.hold_entry(arrival_deg, inbound_deg, right)
 
 
 def default_leg_min(altitude_ft: float | None) -> float:
-    """The inbound leg's minutes where the pilot gave none (AIM 5-3-8 j.4(a))."""
-    return LEG_MIN_HIGH if altitude_ft is not None and altitude_ft > LEG_MIN_CEILING_FT else LEG_MIN_LOW
+    """The inbound leg's minutes where the pilot gave none: a minute at or
+    below 14,000 ft MSL, a minute and a half above (AIM 5-3-8 j.4(a)), the
+    engine's rule."""
+    return vfr_native.holding_leg_minutes(altitude_ft)
 
 
 def turn_radius_nm(tas_kt: float) -> float:

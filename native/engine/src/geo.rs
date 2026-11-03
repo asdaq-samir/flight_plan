@@ -20,6 +20,41 @@ pub fn distance_nm(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     EARTH_RADIUS_NM * y.atan2(x)
 }
 
+/// The initial great-circle bearing from point one to point two, degrees
+/// 0 to 360 true (vfr.geo.bearing_deg, PROJ's forward azimuth on the same
+/// sphere). Zero for two points that coincide, as vfr.geo answers: PROJ's
+/// own 180 would give a zero-length leg a due-south course.
+pub fn bearing_deg(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
+    if distance_nm(lat1, lon1, lat2, lon2) == 0.0 {
+        return 0.0;
+    }
+    let (p1, p2) = (lat1.to_radians(), lat2.to_radians());
+    let dl = (lon2 - lon1).to_radians();
+    let y = dl.sin() * p2.cos();
+    let x = p1.cos() * p2.sin() - p1.sin() * p2.cos() * dl.cos();
+    py_mod(y.atan2(x).to_degrees(), 360.0)
+}
+
+/// How far apart two directions are, degrees 0 to 180, either way round
+/// the compass (358 is 4 from 002): vfr.geo.angle_between.
+pub fn angle_between(a: f64, b: f64) -> f64 {
+    (py_mod(a - b + 180.0, 360.0) - 180.0).abs()
+}
+
+/// Python's % on floats, which the planner's figures are written in: the
+/// remainder takes the divisor's sign, and a zero one is +0 for a
+/// positive divisor (CPython's float_rem).
+pub fn py_mod(a: f64, m: f64) -> f64 {
+    let r = a % m;
+    if r == 0.0 {
+        0.0_f64.copysign(m)
+    } else if (r < 0.0) != (m < 0.0) {
+        r + m
+    } else {
+        r
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -33,5 +68,18 @@ mod tests {
         let dlh_stl = distance_nm(46.8421, -92.1936, 38.7487, -90.37);
         assert!((dlh_stl - 492.489_160_876_009_75).abs() < 1e-9, "{dlh_stl}");
         assert_eq!(distance_nm(45.0, -93.0, 45.0, -93.0), 0.0);
+    }
+
+    #[test]
+    fn bearings_and_angles_are_vfr_geos() {
+        // pyproj.Geod(a=3440.065, f=0).inv's azimuth, O'Hare to Midway.
+        let b = bearing_deg(41.9786, -87.9048, 41.7868, -87.7522);
+        assert!((b - 149.308_659_909_716_54).abs() < 1e-9, "{b}");
+        assert_eq!(bearing_deg(45.0, -93.0, 45.0, -93.0), 0.0);
+        assert!((bearing_deg(42.0, -88.0, 43.0, -88.0) - 0.0).abs() < 1e-12);
+        assert_eq!(angle_between(358.0, 2.0), 4.0);
+        assert_eq!(angle_between(10.0, 190.0), 180.0);
+        assert_eq!(py_mod(-1e-20, 360.0), 360.0);
+        assert_eq!(py_mod(-30.0, 360.0), 330.0);
     }
 }
