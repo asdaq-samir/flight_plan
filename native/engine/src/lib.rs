@@ -21,6 +21,10 @@
 //! - figures: the debrief of a flown track (ACS PA.VI.A), the diversion
 //!   drill (PA.VI.C), a hold's entry and wind (AIM 5-3-8) and lost
 //!   communications' altitudes (14 CFR 91.185), with their words;
+//! - gonogo: the Brief's Go / No-Go -- its seven findings and the line
+//!   over them, the pilot's minimums, icing under IFR, the risk
+//!   assessment, the runway check, the weight and balance and the pass
+//!   times (the web's lib/verdict and the modules it is fed from);
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
 //! - validity: when a weather report stops counting;
@@ -35,6 +39,7 @@ pub mod clearance;
 pub mod figures;
 pub mod flight;
 pub mod geo;
+pub mod gonogo;
 pub mod grid;
 pub mod metar;
 pub mod notam;

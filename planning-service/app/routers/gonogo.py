@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from .. import planning as planning_module
 from ..common import load_route
-from ..gonogo.frat import HIGH_FROM, LEVEL_WORDS, SELF_CHECKS, assess, risk_line
+from ..gonogo.frat import assessment as risk_assessment, self_checks
 from ..gonogo.icing import icing_at_altitude, icing_line
 from ..gonogo.minimums import under_minimums
 from ..gonogo.pass_times import pass_time, sua_when, tfr_when
@@ -29,6 +29,9 @@ from .plan import NoWinds, PlanQuery, Unflyable, flown_as_picked, planned_within
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+
+#: A briefing that failed with nothing to say, as the web's useBrief says it.
+BRIEFING_FAILED = "could not load the briefing"
 
 #: PlanQuery's fields, which the ask carries first.
 ROUTE_FIELDS = (
@@ -92,13 +95,6 @@ def alternate_for(dest: str, eta: datetime, tas_kt: float, filed: str) -> dict |
         return None
 
 
-def _marked(factor: dict) -> dict:
-    """A risk factor with its mark (RiskAssessment.tsx): a stop where it
-    makes the flight unlawful or is high on its own, else a caution."""
-    stop = factor.get("stop", False)
-    return {**factor, "stop": stop, "finding": "stop" if stop or factor["points"] >= HIGH_FROM else "caution"}
-
-
 def _altitude_range(nav: dict) -> str:
     """The altitudes a plan flies as the nav log's header gives them: one
     figure, or its lowest and highest (FlightBriefingView altitudeRange)."""
@@ -125,7 +121,7 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
     and balance and the risk -- with where it is said in full, and the
     line over them; the risk assessment and the weight and balance it
     counted, for the Brief's own pages. The rules are web/src/lib/verdict's
-    and the modules it is fed from, ported to app.gonogo; the pilot's
+    and the modules it is fed from, the engine's in app.gonogo; the pilot's
     minimums, loading, ticks, currency and own airplane's records come in
     the ask."""
     q = PlanQuery(**{k: getattr(ask, k) for k in ROUTE_FIELDS})
@@ -136,13 +132,18 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
     try:
         briefing = brief_for(q, (totals or {}).get("ete_min"))
     except HTTPException as err:
-        briefing, failed = None, str(err.detail)
+        # The error's first line, as the web's describeError says it.
+        briefing, failed = None, str(err.detail).split("\n")[0] or BRIEFING_FAILED
     except Exception:   # noqa: BLE001 -- the web says a briefing that failed, whatever failed it
         log.exception("briefing for the Go / No-Go")
-        briefing, failed = None, "the briefing could not be fetched"
+        briefing, failed = None, BRIEFING_FAILED
 
     depart = q.depart if q.depart is None or q.depart.tzinfo else q.depart.replace(tzinfo=timezone.utc)
     depart = depart or planning_module.now()
+    # The pilot's own day is the client's to send: the planner has no
+    # device and so no time zone of its own, and takes the departure's UTC
+    # day, where the web takes the device's local one -- a date that
+    # lapses that evening can read differently. The apps send `day`.
     day = ask.day or depart.astimezone(timezone.utc).strftime("%Y-%m-%d")
     ifr = q.rules == "ifr"
     # Every airport the flight lands at, each once; a waypoint flown
@@ -164,15 +165,20 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
     def pass_at(along_nm: float):
         return pass_time(legs, depart, along_nm)
 
-    # The TFRs the route goes through while they are in force: when the
-    # flight gets there (half an hour either way), or at some time during
-    # the flight where that time is not known.
-    tfrs_crossed = []
-    for t in (briefing or {}).get("tfrs") or []:
-        if t.get("crosses"):
-            at = pass_at(t["along_track_nm"])
-            if not at or tfr_when(t, at) == "in-force":
-                tfrs_crossed.append(t)
+    # The TFRs the route goes through while they are in force: the
+    # briefing's word on it where it placed the TFR on the legs
+    # (`on_route`, app.exposure: in it at any time from entering to
+    # leaving, half an hour either way), else in force when the flight
+    # gets there, or at some time during the flight where that time is not
+    # known (FlightBriefingView's tfrInForce).
+    def tfr_in_force(t: dict) -> bool:
+        when = (t.get("on_route") or {}).get("when")
+        if when:
+            return when == "during"
+        at = pass_at(t["along_track_nm"])
+        return not at or tfr_when(t, at) == "in-force"
+
+    tfrs_crossed = [t for t in (briefing or {}).get("tfrs") or [] if t.get("crosses") and tfr_in_force(t)]
     special_use = []
     for area in selection.get("special_use") or []:
         at = pass_at(area["along_track_nm"])
@@ -201,7 +207,7 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
             risk_in["vor_check"] = own.vor_check.model_dump() if own.vor_check else None
             risk_in["inspections"] = own.inspections.model_dump() if own.inspections else None
             risk_in["squawks"] = [s.model_dump() for s in own.squawks]
-        assessment = assess(risk_in)
+        assessment = risk_assessment(risk_in)
 
     # The loading (lib/weightBalance): the pilot's, else the POH's sample
     # airplane with the usable fuel aboard.
@@ -260,7 +266,7 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
             "takeoff": f"{grouped(nav_loaded['takeoff']['weight_lb'])} lb at {to_fixed(nav_loaded['takeoff']['arm_in'])} in"
             if nav_loaded else None,
         },
-        "risk": {"level": assessment["level"], "line": risk_line(assessment)} if assessment else None,
+        "risk": {"level": assessment["level"], "line": assessment["line"]} if assessment else None,
     })
     # Under IFR, the alternate (14 CFR 91.169), its ETA the nav log's.
     if ifr and totals and totals.get("ete_min") is not None:
@@ -271,9 +277,8 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
     return GoNoGo(
         line=verdict_line(items),
         items=items,
-        risk={**assessment, "factors": [_marked(f) for f in assessment["factors"]], "line": risk_line(assessment),
-              "words": LEVEL_WORDS[assessment["level"]]} if assessment else None,
-        self_checks=[_marked(c) for c in SELF_CHECKS],
+        risk=assessment,
+        self_checks=self_checks(),
         loading=loading,
         balance={**loaded, "load": load} if loaded else None,
     )

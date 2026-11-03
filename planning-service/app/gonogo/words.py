@@ -51,9 +51,11 @@ def alt_ft(ft: float | None) -> str:
 
 
 def flight_level(ft: float | None) -> str:
-    """A cruising altitude as the owner asked it written, "FL045" for
-    4,500 ft, "FL---" with none yet (lib/units flightLevel)."""
-    return "FL---" if ft is None else f"FL{js_round(ft / 100):03d}"
+    """A cruising altitude as the owner asked it written, hundreds of feet
+    in three figures: "FL-045" for 4,500 ft, "FL----" with none yet
+    (lib/units flightLevel; the owner, 2026-10-27: "make it in the format
+    FL-***"), padded as String(n).padStart(3, "0") pads a minus sign."""
+    return "FL----" if ft is None else f"FL-{str(js_round(ft / 100)).rjust(3, '0')}"
 
 
 def ceiling_and_visibility(ceiling_ft: float | None, visibility_sm: float | None) -> str:

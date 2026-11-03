@@ -14,10 +14,16 @@
  * the pilot in command's (91.3, 91.103). What makes a flight unlawful --
  * alcohol within 8 hours, a lapsed flight review or medical, tanks that
  * do not hold the fuel, an annual past due -- is high whatever else is.
+ *
+ * The rules, their points and their sources are the shared engine's
+ * (native/engine/src/gonogo/frat.rs, through lib/engine), the planner's
+ * and the phones' own; SELF_CHECKS, the levels and their words stay here
+ * as the page's labels, held to the engine's by gonogoEngine.test.ts.
  */
 import { create } from "zustand";
 import type { Currency, Inspections, Squawk } from "./api/types";
-import { inspectionFactors, squawkFactors } from "./airworthiness";
+import { inspectionsInput, riskFactor, squawksInput, type EngineFactor } from "./airworthiness";
+import { callEngine } from "./engine/engine";
 
 export type RiskLevel = "low" | "caution" | "high";
 
@@ -85,56 +91,27 @@ export interface Assessment {
   factors: RiskFactor[];
 }
 
-/** What the briefing, the nav log and the logbook raise. */
-function found(input: FratInput): RiskFactor[] {
-  const factors: RiskFactor[] = [];
-  if (input.vfrNotRecommended) factors.push({ key: "vnr", label: "VFR flight not recommended", why: "The briefing (AIM 7-1-5)", points: HIGH_FROM });
-  if (input.underMinimums.length) factors.push({ key: "minimums", label: "Under your personal minimums", why: input.underMinimums[0], points: HIGH_FROM });
-  if (input.tfrOnRoute) factors.push({ key: "tfr", label: "A TFR on the route when you get there", why: "Route round it, or go another time", points: HIGH_FROM });
-  if (input.hazards > 0) factors.push({ key: "hazards", label: `${input.hazards} SIGMET or G-AIRMET${input.hazards === 1 ? "" : "s"} along the route`, why: "Adverse conditions", points: Math.min(6, 2 * input.hazards) });
-  if (input.night) factors.push({ key: "night", label: "At night", why: "PAVE: environment", points: 3 });
-  // Under IFR by VOR, a check within 30 days (91.171): without one, by GPS
-  // alone -- a caution, not a stop.
-  if (input.ifr && input.vorCheck !== undefined && !(input.vorCheck && input.vorCheck.withinLimit && input.vorCheck.goodThrough >= input.day)) {
-    factors.push({ key: "vor", label: "No VOR check in the last 30 days", why: "91.171: to navigate IFR by VOR", points: 2 });
-  }
-  if (input.inspections) factors.push(...inspectionFactors(input.inspections, input.day, !!input.ifr));
-  if (input.squawks) factors.push(...squawkFactors(input.squawks, input.night, !!input.ifr));
-  if (input.fuelMarginGal != null && input.fuelMarginGal < 0) {
-    factors.push({ key: "fuel", label: "The tanks do not hold the fuel and its reserve", why: input.ifr ? "91.167" : "91.151", points: 0, stop: true });
-  }
-  const c = input.currency;
-  if (c && c.flights > 0) {
-    if (c.flightReviewUntil && c.flightReviewUntil < input.day) factors.push({ key: "review", label: "Your flight review has lapsed", why: "61.56", points: 0, stop: true });
-    if (c.medicalExpiresOn && c.medicalExpiresOn < input.day) factors.push({ key: "medical", label: "Your medical has expired", why: "61.23", points: 0, stop: true });
-    // Under IFR: instrument currency (61.57(c)), or after six months more
-    // lapsed only a proficiency check (61.57(d)).
-    if (input.ifr && (!c.instrumentCurrentUntil || c.instrumentCurrentUntil < input.day)) {
-      factors.push({
-        key: "instrument", stop: true, points: 0,
-        label: c.ipcNeededAfter && c.ipcNeededAfter < input.day ? "Instrument currency lapsed: a proficiency check is needed" : "Not instrument current",
-        why: c.ipcNeededAfter && c.ipcNeededAfter < input.day ? "61.57(d)" : "61.57(c): 6 approaches, holding, tracking",
-      });
-    }
-    if (!c.dayPassengersUntil || c.dayPassengersUntil < input.day) factors.push({ key: "recent", label: "Not three takeoffs and landings in the last 90 days", why: "61.57(a)(1): same category and class; no passengers, and rusty", points: 3 });
-    if (input.night && (!c.nightPassengersUntil || c.nightPassengersUntil < input.day)) {
-      // `night` is 14 CFR 1.1's, from the end of civil twilight; 61.57(b)
-      // binds from an hour after sunset to an hour before sunrise, a
-      // little later, so this errs toward the caution and says the window.
-      factors.push({ key: "recent-night", label: "Not three night takeoffs and landings to a full stop in the last 90 days", why: "61.57(b): needed from 1 h after sunset to 1 h before sunrise", points: 3 });
-    }
-    if (c.totalHours < 100) factors.push({ key: "low-time", label: "Under 100 hours in your logbook", why: "PAVE: pilot", points: 2 });
-  }
-  return factors;
-}
-
 /** The whole assessment: the factors found and the ones ticked, their
  *  points, and the level they make. */
 export function assess(input: FratInput): Assessment {
-  const factors = [...found(input), ...SELF_CHECKS.filter(check => input.ticked[check.key])];
-  const score = factors.reduce((sum, f) => sum + f.points, 0);
-  const level: RiskLevel = factors.some(f => f.stop) || score >= HIGH_FROM ? "high" : score >= CAUTION_FROM ? "caution" : "low";
-  return { score, level, factors };
+  const c = input.currency;
+  const a = callEngine<{ score: number; level: RiskLevel; factors: EngineFactor[] }>("gonogo_risk", {
+    vfr_not_recommended: input.vfrNotRecommended, under_minimums: input.underMinimums, tfr_on_route: input.tfrOnRoute,
+    hazards: input.hazards, night: input.night, fuel_margin_gal: input.fuelMarginGal, ifr: input.ifr ?? false,
+    // Left out for a stock profile, which has none; null for the pilot's
+    // own airplane with none recorded.
+    ...(input.vorCheck !== undefined
+      ? { vor_check: input.vorCheck && { good_through: input.vorCheck.goodThrough, within_limit: input.vorCheck.withinLimit } } : {}),
+    inspections: input.inspections ? inspectionsInput(input.inspections) : null,
+    squawks: input.squawks ? squawksInput(input.squawks) : null,
+    currency: c && {
+      flights: c.flights, total_hours: c.totalHours, day_passengers_until: c.dayPassengersUntil ?? null,
+      night_passengers_until: c.nightPassengersUntil ?? null, instrument_current_until: c.instrumentCurrentUntil ?? null,
+      ipc_needed_after: c.ipcNeededAfter ?? null, flight_review_until: c.flightReviewUntil ?? null, medical_expires_on: c.medicalExpiresOn ?? null,
+    },
+    day: input.day, ticked: input.ticked,
+  });
+  return { score: a.score, level: a.level, factors: a.factors.map(riskFactor) };
 }
 
 export const LEVEL_TONE: Record<RiskLevel, string> = {
@@ -143,12 +120,10 @@ export const LEVEL_TONE: Record<RiskLevel, string> = {
   high: "text-destructive-ink",
 };
 
-const LEVEL_NAME: Record<RiskLevel, string> = { low: "Low", caution: "Raised", high: "High" };
-
 /** An assessment in a few words, for the section's title and a saved
  *  flight's row: "Raised · 8 points". */
 export function riskLine(a: { level: string; score: number }): string {
-  return `${LEVEL_NAME[a.level as RiskLevel] ?? a.level} · ${a.score} point${a.score === 1 ? "" : "s"}`;
+  return callEngine("gonogo_risk_line", { level: a.level, score: a.score });
 }
 
 export const LEVEL_WORDS: Record<RiskLevel, string> = {
