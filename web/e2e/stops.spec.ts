@@ -764,7 +764,16 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
   await expect(departure).toBeVisible({ timeout: slow(30000) });
   const box = (await departure.boundingBox())!;
+  // C81 dragged to the middle of the map first: the route's fit leaves it
+  // near the screen's foot, and VPBNG, 4 nm south-west, was zoomed in to
+  // past it, under the bottom edge (2026-11-03).
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const middle = { x: map.x + map.width / 2, y: map.y + map.height / 2 };
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(middle.x, middle.y, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
   for (let i = 0; i < 4; i++) {
     await page.mouse.wheel(0, -60);
     await page.waitForTimeout(400);
@@ -786,9 +795,10 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   // finishing could move the map under the first tap (its card never
   // came, now and then, on the phone's shard).
   const add = page.getByTestId("waypoint-add-stop");
+  // Not tapped again while its card is coming: the card, up, covers it.
   await expect(async () => {
-    await diamond.click({ timeout: 2000 });
-    await expect(add).toBeVisible({ timeout: 2000 });
+    if (!(await add.isVisible())) await diamond.click({ timeout: 2000 });
+    await expect(add).toBeVisible({ timeout: 3000 });
   }).toPass({ timeout: slow(15000) });
   // What it is beside its ident, where it is on a line of its own: in its
   // popup over the chart, or on a phone its card in the map's sheet
