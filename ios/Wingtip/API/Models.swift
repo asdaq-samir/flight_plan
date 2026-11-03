@@ -40,8 +40,11 @@ struct AirportPin: Codable, Equatable, Sendable {
     var airspaceClass: String?
     var military: String?
     var isPrivate: Bool? = false
-    /// The city this is the main airport of (the planner's primary_of), for
-    /// which mark to keep where two would collide (AirportMarks' tiers).
+    /// The class of airspace (B, C or D) this field is the primary airport
+    /// of, as the FAA's airspace file names it (the planner's primary_of:
+    /// O'Hare for Chicago's Class B, not Midway), for which mark to keep
+    /// where two would collide (AirportMarks' tiers). Nil for every other
+    /// field.
     var primaryOf: String?
 
     enum CodingKeys: String, CodingKey {

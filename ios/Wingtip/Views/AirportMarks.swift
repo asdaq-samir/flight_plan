@@ -11,6 +11,10 @@ final class AirportAnnotation: NSObject, MKAnnotation {
     /// The class of airspace at the field's surface (B, C, D, E, G), for
     /// how soon its mark must show.
     let airspaceClass: String?
+    /// The class of airspace (B, C, D) the field is the primary airport of
+    /// (AirportPin.primaryOf), or nil: the one mark the rings are named
+    /// for, kept before any other where they would collide.
+    let primaryOf: String?
     let coordinate: CLLocationCoordinate2D
     /// A field of the route (its ends and stops): always drawn, never
     /// folded into a cluster.
@@ -21,6 +25,7 @@ final class AirportAnnotation: NSObject, MKAnnotation {
         kind = pin.kind
         category = pin.flightCategory
         airspaceClass = pin.airspaceClass
+        primaryOf = pin.primaryOf
         coordinate = CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lon)
         self.onRoute = onRoute
     }
@@ -28,16 +33,25 @@ final class AirportAnnotation: NSObject, MKAnnotation {
     var title: String? { ident }
 
     /// Which marks MapKit keeps when they would overlap, as the web app's
-    /// AirportsLayer ranks the fields far out (shownFrom and KIND_RANK:
+    /// AirportsLayer ranks the fields far out (PRIMARY_RANK, shownFrom
+    /// and KIND_RANK: the field each class of airspace is named for
+    /// before every other, so Dallas's rings show DFW and not Love, then
     /// a Class B field from the country's zoom, a Class C from a few
     /// states', the airline airports before the regional ones, the small
     /// fields at the sectional's own scale): the route's fields always,
-    /// then the large and the Class B and C, then medium and Class D,
+    /// then the primaries of Class B and C, then the large and the Class B
+    /// and C, then the primary of a Class D, then medium and Class D,
     /// then the rest. Hundreds of views at a low zoom drew over each
     /// other with nothing dropping any (the owner, 2026-11-03).
     var priority: MKFeatureDisplayPriority {
         if onRoute { return .required }
+        switch primaryOf {
+        case "B": return MKFeatureDisplayPriority(rawValue: 900)
+        case "C": return MKFeatureDisplayPriority(rawValue: 800)
+        default: break
+        }
         if kind == "large" || airspaceClass == "B" || airspaceClass == "C" { return .defaultHigh }
+        if primaryOf == "D" { return MKFeatureDisplayPriority(rawValue: 700) }
         if kind == "medium" || airspaceClass == "D" { return MKFeatureDisplayPriority(rawValue: 500) }
         return .defaultLow
     }
