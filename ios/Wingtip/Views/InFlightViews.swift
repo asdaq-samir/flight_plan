@@ -531,7 +531,9 @@ enum RouteShare {
 /// the route, the airplane and the totals; the legs' altitude, heading,
 /// distance, ground speed, time and fuel, with ETA, ATA and fuel left to
 /// fill in; and the lines for the squawk and the clearance. Black on
-/// white whatever the theme (the web app's Kneeboard).
+/// white whatever the theme (the web app's Kneeboard). A printed page at
+/// a fixed size, rendered to PDF and never shown on screen, so its type
+/// is in points and does not follow Dynamic Type.
 struct Kneeboard: View {
     let route: String
     let aircraft: String
@@ -645,9 +647,13 @@ struct WatchBanner: View {
     var body: some View {
         if let words = Tracking.shared.fired {
             HStack(spacing: 8) {
-                Image(systemName: "bell.fill")
+                Image(systemName: "bell.fill").accessibilityHidden(true)
                 Text(words).font(.subheadline.weight(.semibold)).lineLimit(2)
-                Button { Tracking.shared.fired = nil } label: { Image(systemName: "xmark") }.accessibilityLabel("Dismiss")
+                Button { Tracking.shared.fired = nil } label: {
+                    // The 44-point hit area round the glyph, which does not grow.
+                    Image(systemName: "xmark").contentShape(Rectangle().inset(by: -12))
+                }
+                .accessibilityLabel("Dismiss")
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(.regularMaterial, in: Capsule())

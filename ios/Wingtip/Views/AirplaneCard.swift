@@ -258,10 +258,15 @@ struct NowFlightRow: View {
                 Text(route.flatMap { $0.airports.count > 1 ? $0.airports.last?.ident : nil } ?? "Now").font(.title3.bold())
             }
             Text(flying).font(.subheadline.monospacedDigit().weight(.semibold))
+                .accessibilityLabel(spokenFlying)
             if let squawk = plane.squawk {
+                // An emergency code says its meaning in words beside the
+                // red (FlightWords.squawks), so the colour is not the only
+                // sign of it.
                 Text("Squawk \(squawk)\(FlightWords.squawks[squawk].map { " · \($0)" } ?? "")")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(FlightWords.squawks[squawk] != nil ? Color.red : Color.secondary)
+                    .accessibilityLabel("Squawk \(SpokenFigures.digits(squawk))\(FlightWords.squawks[squawk].map { ", \($0)" } ?? "")")
             }
             if let fix = ownShip.fix {
                 Text(fromYou(fix)).font(.subheadline).foregroundStyle(.secondary)
@@ -280,6 +285,14 @@ struct NowFlightRow: View {
         let speed = plane.speedKt.map { "\(Int($0.rounded())) kt" } ?? "—"
         let track = plane.trackDeg.map { String(format: " · %03.0f° true", $0) } ?? ""
         return "\(height) \(climb) · \(speed)\(track)"
+    }
+
+    /// The same line in words: the arrows would be read as "up arrow".
+    private var spokenFlying: String {
+        let rate = plane.verticalFpm ?? 0
+        let climb = abs(rate) >= 100 ? "\(rate > 0 ? "climbing" : "descending") \(SpokenFigures.feetPerMinute((abs(rate) / 100).rounded() * 100))" : "level"
+        return [plane.altitudeFt.map { SpokenFigures.feet(($0 / 25).rounded() * 25) }, climb, plane.speedKt.map(SpokenFigures.knots),
+                plane.trackDeg.map { "track \(SpokenFigures.degrees($0)) true" }].compactMap { $0 }.joined(separator: ", ")
     }
 
     private func fromYou(_ fix: OwnShip.Fix) -> String {
@@ -432,7 +445,10 @@ struct FlightProfileChart: View {
         .onChange(of: picked) { _, date in
             if let date { onScrub?(date.timeIntervalSince1970) }
         }
-        .accessibilityLabel("Profile, highest \(Int(points.compactMap(\.altFt).max() ?? 0).formatted()) feet")
+        .accessibilityLabel("Profile, highest \(SpokenFigures.feet(points.compactMap(\.altFt).max() ?? 0))")
+        // Where the replay's airplane is, as the figures over the chart say
+        // it; the slider under the chart is the way to move it by VoiceOver.
+        .accessibilityValue(cursor.map { "\(ReplaySection.clock($0.t)), \(ReplaySection.spoken($0))" } ?? "")
     }
 }
 

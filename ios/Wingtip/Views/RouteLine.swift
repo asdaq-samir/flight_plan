@@ -39,6 +39,7 @@ enum RouteLine {
 /// is said under it, in the planner's words.
 struct RouteLineRow: View {
     @Environment(Plan.self) private var plan
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var open = false
     @State private var folding: Task<Void, Never>?
 
@@ -99,7 +100,8 @@ struct RouteLineRow: View {
                 }
             }
         }
-        .animation(.easeOut(duration: 0.25), value: open)
+        // The fold slides; with Reduce Motion on it just changes.
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: open)
         .onDisappear { folding?.cancel(); open = false }
     }
 
@@ -135,7 +137,8 @@ private struct RouteChipButton: View {
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, 12)
-                .frame(height: 32)
+                // 32 points at the default size; taller with larger type.
+                .frame(minHeight: 32)
                 .foregroundStyle(picked ? Color.accentColor : Color.primary)
                 .background(Capsule().fill(picked ? Color.accentColor.opacity(0.14) : Color(uiColor: .secondarySystemBackground)))
                 .overlay(Capsule().strokeBorder(picked ? Color.accentColor.opacity(0.3) : Color(uiColor: .separator), lineWidth: 1))

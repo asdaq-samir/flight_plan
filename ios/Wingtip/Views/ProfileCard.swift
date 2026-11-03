@@ -42,16 +42,20 @@ struct ProfileCard: View {
             Section("Altitude") {
                 Picker("Cruise altitude", selection: Binding(get: { picked ?? plan.altitudeFt ?? altitudes.last ?? 0 }, set: { fly($0) })) {
                     ForEach(altitudes, id: \.self) { altitude in
+                        let ete = plan.altitude?.altitudeFigures.first(where: { $0.altitudeFt == altitude })?.eteMin
                         HStack {
                             Text(flightLevel(altitude)).monospacedDigit().bold()
                             if let name = name(of: altitude) {
                                 Text(name).foregroundStyle(legal.contains(altitude) ? Color.secondary : Color.orange)
                             }
-                            if let figure = plan.altitude?.altitudeFigures.first(where: { $0.altitudeFt == altitude }), let ete = figure.eteMin {
+                            if let ete {
                                 Spacer()
                                 Text(hoursMinutes(ete)).foregroundStyle(.secondary).monospacedDigit()
                             }
                         }
+                        // "FL045" read as the feet it stands for.
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel([SpokenFigures.feet(altitude), name(of: altitude), ete.map(SpokenFigures.minutes)].compactMap { $0 }.joined(separator: ", "))
                         .tag(altitude)
                     }
                 }

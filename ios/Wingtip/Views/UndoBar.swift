@@ -8,6 +8,7 @@ import SwiftUI
 /// other step (PlanHistory).
 struct UndoBar: View {
     @Environment(Plan.self) private var plan
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if let note = plan.undoNote {
@@ -26,7 +27,8 @@ struct UndoBar: View {
             .background(.thickMaterial, in: Capsule())
             .shadow(color: .black.opacity(0.12), radius: 8, y: 2)
             .padding(.horizontal, 16)
-            .transition(.move(edge: .bottom).combined(with: .opacity))
+            // A slide up from the foot; a fade alone with Reduce Motion on.
+            .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
             .accessibilityElement(children: .contain)
             .task(id: note.id) {
                 AccessibilityNotification.Announcement(note.words).post()

@@ -12,6 +12,7 @@ struct BriefView: View {
     @Environment(Plan.self) private var plan
     @Environment(Verdict.self) private var verdict
     @Environment(Session.self) private var session
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The first of the weather's parts the Brief has, where the weather's
     /// finding opens: VFR not recommended, the hazards, the G-AIRMETs, else
@@ -33,7 +34,11 @@ struct BriefView: View {
         ScrollViewReader { reader in
             List {
                 if plan.routed {
-                    GoNoGoSection { anchor in withAnimation { reader.scrollTo(anchor, anchor: .top) } }
+                    // A finding scrolls the Brief to its part; a jump, not
+                    // a scroll, with Reduce Motion on.
+                    GoNoGoSection { anchor in
+                        if reduceMotion { reader.scrollTo(anchor, anchor: .top) } else { withAnimation { reader.scrollTo(anchor, anchor: .top) } }
+                    }
                 }
                 if let briefing = plan.briefing {
                     let weatherAt = weatherPart(briefing)

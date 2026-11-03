@@ -230,7 +230,17 @@ struct RoutePointMenu: View {
                 Image(systemName: "ellipsis.circle").foregroundStyle(.tint)
             }
         }
-        .accessibilityLabel("\(ident): more")
+        .accessibilityLabel(spoken)
+    }
+
+    /// The row's glyphs in words: "KHIB, four thousand five hundred feet,
+    /// hold set, flown direct: more".
+    private var spoken: String {
+        var parts = [ident]
+        if let feet = plan.extras.altitudes[ident.uppercased()] { parts.append(SpokenFigures.feet(Double(feet))) }
+        if plan.hold(at: ident) != nil { parts.append("hold set") }
+        if plan.extras.direct == ident { parts.append("flown direct") }
+        return parts.joined(separator: ", ") + ": more"
     }
 }
 
