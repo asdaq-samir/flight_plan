@@ -50,121 +50,24 @@ export interface Clearance {
   classB: boolean;
 }
 
-/** The ICAO alphabet (AIM 4-2-7, TBL 4-2-7), as a recognizer writes it. */
-export const LETTERS: Record<string, string> = {
-  alpha: "A", alfa: "A", bravo: "B", charlie: "C", delta: "D", echo: "E", foxtrot: "F", golf: "G", hotel: "H",
-  india: "I", juliet: "J", juliett: "J", kilo: "K", lima: "L", mike: "M", november: "N", oscar: "O", papa: "P",
-  quebec: "Q", romeo: "R", sierra: "S", tango: "T", uniform: "U", victor: "V", whiskey: "W", whisky: "W",
-  xray: "X", yankee: "Y", zulu: "Z",
-};
-
-/** Figures said one by one (AIM 4-2-7: "tree", "fife", "niner"). */
-export const DIGITS: Record<string, string> = {
-  zero: "0", one: "1", two: "2", three: "3", tree: "3", four: "4", fower: "4", five: "5", fife: "5",
-  six: "6", seven: "7", eight: "8", ait: "8", nine: "9", niner: "9",
-};
-/** An airway's number said whole (AIM 4-2-8: "Victor Twelve", "J Five
- *  Thirty-Three"), and minutes. */
-const TEENS: Record<string, string> = {
-  ten: "10", eleven: "11", twelve: "12", thirteen: "13", fourteen: "14", fifteen: "15", sixteen: "16",
-  seventeen: "17", eighteen: "18", nineteen: "19",
-};
-const TENS: Record<string, string> = {
-  twenty: "2", thirty: "3", forty: "4", fifty: "5", sixty: "6", seventy: "7", eighty: "8", ninety: "9",
-};
-
-
 /** A word, or a number made of the figures said in a row. */
 export interface Token { word: string; num?: string }
 
-const isDigit = (word: string) => word in DIGITS || /^\d$/.test(word);
-const digitOf = (word: string) => DIGITS[word] ?? word;
-
 /** The words, with each run of figures one number: "one two five point
- *  three five" is 125.35, "three thousand five hundred" 3500, "one zero
- *  thousand" 10000 (AIM 4-2-8, 4-2-9). After "thousand" only a "five
- *  hundred" goes on: "seven thousand one zero minutes" is 7000 and 10. */
+ *  three five" is 125.35, "five thousand" 5000, "flight level two one
+ *  zero" the words and 210 (AIM 4-2-8, 4-2-9), as the shared engine's
+ *  tokenizer reads them (clearance.rs tokens, the rule `tokens`): the
+ *  clearance reader's own words, which the pilot's commands
+ *  (lib/pilotCommand) are read with too. */
 export function tokens(text: string): Token[] {
-  const words = text.toLowerCase().replace(/x[- ]ray/g, "xray").replace(/(\d),(?=\d{3})/g, "$1")
-    .match(/\d+(?:\.\d+)?|[a-z]+(?:'[a-z]+)?/g) ?? [];
-  const out: Token[] = [];
-  let i = 0;
-  const isNumberWord = (w: string | undefined) => w !== undefined && (isDigit(w) || w in TEENS || w in TENS || /^\d+(\.\d+)?$/.test(w));
-  while (i < words.length) {
-    const w = words[i]!;
-    if (!isNumberWord(w)) {
-      out.push({ word: w });
-      i++;
-      continue;
-    }
-    let s = "", thousands = 0;
-    const start = i;
-    // A number written whole by the recognizer ("3000", "125.35") stands
-    // alone, but for a thousand or a hundred after it.
-    if (/^\d+(\.\d+)?$/.test(w) && !/^\d$/.test(w)) {
-      s = w;
-      i++;
-    } else {
-      while (i < words.length) {
-        const x = words[i]!;
-        if (isDigit(x) || (x === "oh" && s)) s += x === "oh" ? "0" : digitOf(x);
-        else if (x in TEENS) s += TEENS[x];
-        else if (x in TENS) {
-          const next = words[i + 1];
-          if (next && isDigit(next) && digitOf(next) !== "0") { s += TENS[x]! + digitOf(next); i++; }
-          else s += `${TENS[x]}0`;
-        } else break;
-        i++;
-      }
-    }
-    if (words[i] === "thousand") {
-      thousands = Number(s || "1") * 1000;
-      s = "";
-      i++;
-      // "four thousand five hundred": the hundreds go on, nothing else.
-      if (words[i] && isDigit(words[i]!) && words[i + 1] === "hundred") {
-        thousands += Number(digitOf(words[i]!)) * 100;
-        i += 2;
-      } else if (words[i] && /^\d00$/.test(words[i]!)) {
-        thousands += Number(words[i]);
-        i++;
-      }
-    } else if (words[i] === "hundred" && s) {
-      thousands = Number(s) * 100;
-      s = "";
-      i++;
-    }
-    if ((words[i] === "point" || words[i] === "decimal") && words[i + 1] && isDigit(words[i + 1]!) && !thousands) {
-      i++;
-      let fraction = "";
-      while (i < words.length && isDigit(words[i]!)) fraction += digitOf(words[i++]!);
-      s = `${s}.${fraction}`;
-    }
-    out.push({ word: words.slice(start, i).join(" "), num: thousands ? String(thousands + Number(s || 0)) : s });
-  }
-  return out;
+  return callEngine<Token[]>("tokens", { text });
 }
 
 /** Words for a place as the planner looks them up: a run of the ICAO
- *  alphabet's words (with figures after them) is the letters it spells,
- *  "kilo delta lima hotel" KDLH, "charlie eight one" C81. */
+ *  alphabet's words is the letters it spells ("kilo delta lima hotel" is
+ *  KDLH), other words as said, lower case (the engine's place_words). */
 export function placeWords(toks: Token[]): string {
-  const out: string[] = [];
-  for (let i = 0; i < toks.length;) {
-    let j = i, spelled = "";
-    while (j < toks.length && (toks[j]!.word in LETTERS || (spelled && toks[j]!.num && !toks[j]!.num!.includes(".")))) {
-      spelled += toks[j]!.num ?? LETTERS[toks[j]!.word];
-      j++;
-    }
-    if (j - i >= 2) {
-      out.push(spelled);
-      i = j;
-    } else {
-      out.push(toks[i]!.num ?? toks[i]!.word);
-      i++;
-    }
-  }
-  return out.join(" ");
+  return callEngine<string>("place_words", { tokens: toks });
 }
 
 /** The clearance in what was heard: everything after "cleared" (the

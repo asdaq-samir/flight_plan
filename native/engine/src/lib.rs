@@ -46,6 +46,7 @@ pub mod notam;
 mod json;
 pub mod pack;
 pub mod phone;
+pub mod readback;
 pub mod rules;
 pub mod spoken;
 pub mod taf;

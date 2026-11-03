@@ -11,7 +11,7 @@ import { stopwatch } from "../lib/diversion";
 import { callOf } from "../lib/heardCall";
 import { metarWords } from "../lib/metarWords";
 import { commandsOf } from "../lib/pilotCommand";
-import { altitudeWords, readbackCheck, readbackWords } from "../lib/readback";
+import { altitudeWords, readbackCheck } from "../lib/readback";
 import { say } from "../lib/speech";
 import { TEXT } from "../lib/text";
 
@@ -196,10 +196,10 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
 /** A clearance's readback checked against it (lib/readback): what was
  *  missed or said differently as a warning line, never a stop. */
 function ReadbackLine({ cleared, said }: { cleared: string; said: string }) {
-  const items = useMemo(() => readbackCheck(readClearance(cleared), said), [cleared, said]);
+  const { items, words } = useMemo(() => readbackCheck(cleared, said), [cleared, said]);
   return (
     <p className={cn("pt-1 pr-2", items.length ? "text-caution-ink" : "text-muted-foreground", TEXT.note)} role="status" data-testid="radio-readback-check">
-      {readbackWords(items)}
+      {words}
     </p>
   );
 }

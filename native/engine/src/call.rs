@@ -42,7 +42,17 @@
 //! - `our_call`: whether a transmission is said to the airplane `tail`
 //!   (AIM 4-2-4), from `{"text", "tail"}`;
 //! - `direct_of`: the place a "direct" sends us to, as words to find, or
-//!   null, from `{"text"}`.
+//!   null, from `{"text"}`;
+//! - `call_pattern`: our call sign as a regular expression over a
+//!   recognizer's words (AIM 4-2-4), for a locked phone's listener, or
+//!   null where `tail` is no registration, from `{"tail"}`;
+//! - `tokens`: the words heard with each run of figures one number (AIM
+//!   4-2-8, 4-2-9), `[{"word", "num"?}]`, from `{"text"}`;
+//! - `place_words`: words for a place as the planner looks them up, the
+//!   ICAO alphabet's spelled, from `{"tokens": [{"word", "num"?}]}`;
+//! - `readback_check`: a readback against the clearance heard (AIM
+//!   4-4-7), `{"items": [{"item", "cleared", "said"}], "words"}`, from
+//!   `{"cleared", "said"}`, both as heard.
 //!
 //! The Brief's Go / No-Go (crate::gonogo, the web's lib/verdict and the
 //! modules it is fed from), each from the planner's and the web's own
@@ -186,6 +196,42 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             json::opt_string(&mut out, crate::clearance::direct_of(ask.str("text")?).as_deref());
             Ok(out)
         }
+        "call_pattern" => {
+            let mut out = String::new();
+            json::opt_string(&mut out, crate::clearance::call_pattern(ask.str("tail")?).as_deref());
+            Ok(out)
+        }
+        "tokens" => {
+            let mut out = String::from("[");
+            for (i, t) in crate::clearance::tokens(ask.str("text")?).iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push_str("{\"word\":");
+                json::string(&mut out, &t.word);
+                if let Some(num) = &t.num {
+                    out.push_str(",\"num\":");
+                    json::string(&mut out, num);
+                }
+                out.push('}');
+            }
+            out.push(']');
+            Ok(out)
+        }
+        "place_words" => {
+            let toks = ask
+                .list("tokens")?
+                .iter()
+                .map(|t| {
+                    let word = t.get("word").and_then(Value::as_str).ok_or_else(|| "place_words: a token has no \"word\"".to_owned())?;
+                    Ok(crate::clearance::Token { word: word.to_owned(), num: t.get("num").and_then(Value::as_str).map(str::to_owned) })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let mut out = String::new();
+            json::string(&mut out, &crate::clearance::place_words(&toks));
+            Ok(out)
+        }
+        "readback_check" => Ok(crate::readback::check_json(ask.str("cleared")?, ask.str("said")?)),
         // The Go / No-Go's, by their own names (gonogo::calls).
         _ => crate::gonogo::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}"))),
     }

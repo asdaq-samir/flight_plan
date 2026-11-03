@@ -103,3 +103,34 @@ fn a_call_to_us_is_heard_as_the_web_hears_it() {
         assert_eq!(read(heard).maintain_ft, case["maintainFt"].as_i64(), "{heard}");
     }
 }
+
+#[test]
+fn a_readback_is_checked_as_the_web_checks_it() {
+    let f = fixture("readbacks.json");
+    let cleared = f["cleared"].as_str().unwrap();
+    for case in f["cases"].as_array().unwrap() {
+        let said = case["said"].as_str().unwrap();
+        let ours: Value = serde_json::from_str(&wingtip_engine::readback::check_json(cleared, said)).unwrap();
+        assert_eq!(ours["items"], case["items"], "{said}");
+        assert_eq!(ours["words"], case["words"], "{said}");
+    }
+    let fl = &f["flightLevel"];
+    for case in fl["cases"].as_array().unwrap() {
+        let said = case["said"].as_str().unwrap();
+        let ours: Value = serde_json::from_str(&wingtip_engine::readback::check_json(fl["cleared"].as_str().unwrap(), said)).unwrap();
+        assert_eq!(ours["items"], case["items"], "{said}");
+    }
+}
+
+#[test]
+fn the_call_signs_pattern_is_the_webs() {
+    // The web's test runs the pattern over heardCalls.json with the
+    // browser's own regular expressions; here that it is made for a
+    // registration and not for words that are none.
+    let f = fixture("heardCalls.json");
+    let pattern = wingtip_engine::clearance::call_pattern(f["tail"].as_str().unwrap()).unwrap();
+    assert!(pattern.starts_with("^\\W*(?:[a-z']+\\W+){0,3}?(?:"), "{pattern}");
+    assert!(pattern.contains("november"), "{pattern}");
+    assert_eq!(wingtip_engine::clearance::call_pattern("not a tail"), None);
+    assert_eq!(wingtip_engine::clearance::call_pattern("N"), None);
+}

@@ -11,31 +11,15 @@
  * as a clearance is (lib/clearance), and a "direct" to a place besides.
  *
  * The hearing is the shared engine's (native/engine/src/clearance.rs,
- * asked through lib/engine as our_call and direct_of), held to
- * fixtures/heardCalls.json as this module's tests are; the call sign's
- * pattern for the iOS app's locked-screen listener is still written here.
+ * asked through lib/engine as our_call, direct_of and call_pattern), held
+ * to fixtures/heardCalls.json as this module's tests are.
  */
-import { DIGITS, LETTERS, readClearance, type Clearance } from "./clearance";
+import { readClearance, type Clearance } from "./clearance";
 import { callEngine } from "./engine/engine";
 
-/** Words a pilot or controller puts before the registration in place of
- *  its N (AIM 4-2-4 b: "the aircraft type, model or manufacturer's
- *  name"), the common ones; "Tango" for an air taxi. */
-const TYPE_WORDS = new Set([
-  "cessna", "skyhawk", "skylane", "skylark", "centurion", "cardinal", "caravan", "citation", "piper", "cherokee", "warrior",
-  "archer", "arrow", "dakota", "lance", "saratoga", "seneca", "seminole", "aztec", "navajo", "malibu", "cub", "cirrus",
-  "mooney", "bonanza", "baron", "beech", "beechcraft", "king", "diamond", "katana", "grumman", "tiger", "cheetah", "yankee",
-  "experimental", "lancair", "glasair", "vans", "rv", "sport", "helicopter", "robinson", "tango", "november",
-]);
-
-/** How far into a transmission our call sign may begin and still be the
- *  one it is said to: a controller says it first; a pilot's readback ends
- *  with it. */
-const CALL_WITHIN = 3;
-
 /** Whether the transmission is said to the airplane `tail` ("N123AB"):
- *  the engine's our_call (clearance.rs), the runs of letters and figures
- *  heard against the registration's forms within the first words. */
+ *  the engine's our_call, the runs of letters and figures heard against
+ *  the registration's forms within the first words. */
 export function ourCall(text: string, tail: string): boolean {
   return callEngine<boolean>("our_call", { text, tail });
 }
@@ -60,16 +44,10 @@ export function callOf(text: string, tail: string | null): Call {
 
 /** Our call sign as a pattern over a recognizer's words, for the iOS
  *  app to tell a call to us while it is locked (SpeechPlugin.swift), as
- *  ourCall does here: the registration with its N, or a type's name in
- *  its place, or the prefix and its last three, within the first words.
- *  Null where `tail` is no registration. */
+ *  ourCall does: the registration with its N, or a type's name in its
+ *  place, or the prefix and its last three, within the first words. Null
+ *  where `tail` is no registration. The engine's call_pattern, so the
+ *  phone can ask for it through wt_call too. */
 export function callPattern(tail: string): string | null {
-  const full = tail.trim().toUpperCase();
-  if (!/^[A-Z0-9]{2,7}$/.test(full)) return null;
-  const said: Record<string, string[]> = {};
-  for (const [word, ch] of Object.entries({ ...LETTERS, ...DIGITS })) (said[ch] ??= []).push(word);
-  const sayChars = (chars: string) => [...chars].map(ch => `(?:${[ch.toLowerCase(), ...(said[ch] ?? [])].join("|")})`).join("[\\s,-]*");
-  const body = full.startsWith("N") ? full.slice(1) : full;
-  const n = sayChars("N"), types = [...TYPE_WORDS].join("|");
-  return `^\\W*(?:[a-z']+\\W+){0,${CALL_WITHIN}}?(?:(?:${n}[\\s,-]*)?${sayChars(body)}|${n}[\\s,-]*${sayChars(body.slice(-3))}|(?:${types})\\W+${sayChars(body.slice(-3))})\\b`;
+  return callEngine<string | null>("call_pattern", { tail });
 }
