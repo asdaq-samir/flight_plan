@@ -115,19 +115,24 @@ export function ChartTiles({ chart, previewing }: Props) {
         if (edge) ask(x, y, zoom);
       }
     }
-    // The levels above the view too (PARENT_LEVELS), a tile or two each:
-    // a zoom out -- the location arrow's, a flick -- asked for its coarser
-    // tiles only once it had crossed the level, and held the chart at the
-    // region's blur until they came, 1.0 to 1.3 s on the phone viewport
-    // for the twelve tiles of zoom 7 over Chicago (a probe, 2026-11-03);
-    // asked for at rest they are in the browser's or the service worker's
-    // cache when the zoom comes.
+    // The levels above too (PARENT_LEVELS), each the screen's worth of
+    // tiles round the view's middle at that zoom -- what a zoom out shows,
+    // a dozen tiles a level: a zoom out (the location arrow's, a flick)
+    // asked for its coarser tiles only once it had crossed the level, and
+    // held the chart at the region's blur until they came, 1.0 to 1.3 s
+    // on the phone viewport for the twelve tiles of zoom 7 over Chicago (a
+    // probe, 2026-11-03). Asked for at rest they are in the browser's or
+    // the service worker's cache when the zoom comes. Only the parents of
+    // the view's own tiles were asked for at first, a tile or two of the
+    // dozen the zoomed-out screen needs, and the zoom out gained nothing.
+    const centre = map.getCenter();
+    const half = map.getSize().divideBy(2);
     for (let up = 1; up <= PARENT_LEVELS; up++) {
       const z = zoom - up;
       if (z < baseLayer.min_zoom) break;
-      const k = 2 ** up;
-      for (let x = Math.floor((range.minX + 1) / k); x <= Math.floor((range.maxX - 1) / k); x++) {
-        for (let y = Math.floor((range.minY + 1) / k); y <= Math.floor((range.maxY - 1) / k); y++) ask(x, y, z);
+      const middle = map.project(centre, z);
+      for (let x = Math.floor((middle.x - half.x) / size); x <= Math.floor((middle.x + half.x) / size); x++) {
+        for (let y = Math.floor((middle.y - half.y) / size); y <= Math.floor((middle.y + half.y) / size); y++) ask(x, y, z);
       }
     }
   }, [map, baseLayer, chart]);
