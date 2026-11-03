@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
-import { LIVE_TILES, chartPair, tileTemplate } from "./tiles";
+import { LIVE_TILES, chartPair, tileTemplate, tileUrl } from "./tiles";
 
 /** The level of the chart kept under it (below): a region a tile, some
  *  eleven degrees of longitude, so a route's whole way is one or two. */
@@ -89,10 +89,15 @@ export function ChartTiles({ chart, previewing }: Props) {
     if (zoom < baseLayer.min_zoom || zoom > baseLayer.max_zoom) return;
     const size = 256;
     const pixelBounds = map.getPixelBounds();
+    // The tile's own address (tiles.ts), not the layer's getTileUrl, which
+    // writes the layer's present zoom into {z} whatever the coords say:
+    // the parents below came out as tiles of the view's zoom at the
+    // parents' x and y, far away, thirty-three wrong tiles asked for at
+    // every rest (the first after-measurement, 2026-11-03).
     const ask = (x: number, y: number, z: number) => {
       const n = 2 ** z;
       if (y < 0 || y >= n) return;
-      const url = layer.getTileUrl(Object.assign(L.point(((x % n) + n) % n, y), { z }) as L.Coords);
+      const url = tileUrl(chart, baseLayer.kind, z, ((x % n) + n) % n, y);
       // Once a tile: own ship followed ends a move at every fix, and the
       // ring was asked for again each time, twenty requests a second.
       if (prefetched.current.has(url)) return;
@@ -125,7 +130,7 @@ export function ChartTiles({ chart, previewing }: Props) {
         for (let y = Math.floor((range.minY + 1) / k); y <= Math.floor((range.maxY - 1) / k); y++) ask(x, y, z);
       }
     }
-  }, [map, baseLayer]);
+  }, [map, baseLayer, chart]);
 
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Memoized for the reason `AirportsLayer` spells out: a handlers
