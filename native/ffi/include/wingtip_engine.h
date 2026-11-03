@@ -58,6 +58,27 @@ int32_t wt_weather_in_force(int32_t kind, int64_t now, int64_t observed, int64_t
 char *wt_ahead(const uint8_t *const *ptrs, const size_t *lens, size_t count, double lat, double lon, double track_deg,
                double gs_kt, double alt_ft, double vs_fpm, int64_t now, const char *tfrs, int64_t tfrs_at);
 
+/// The map's view with no network, each as the planner's in-view endpoint
+/// answers it, JSON, from count packs (the regions the box meets) for the
+/// box south, west, north, east in degrees. Free with wt_string_free.
+/// AirspaceInView: the Class B, C and D reaching into the box, each whole
+/// (/api/airspace/in-view); a pack without airspace.attr has ident, the
+/// hours and the top's exclusion null and no primary fields.
+char *wt_airspace_in_view(const uint8_t *const *ptrs, const size_t *lens, size_t count, double south, double west,
+                          double north, double east);
+/// AirportsInView: the landing fields inside the box, the biggest first,
+/// at most 300 (/api/airports/in-view); flight_category always null (a
+/// live METAR's), military null from a pack without OWNERSHIP_TYPE_CODE,
+/// kind "other" from one without SIZE.
+char *wt_airports_in_view(const uint8_t *const *ptrs, const size_t *lens, size_t count, double south, double west,
+                          double north, double east);
+/// NavaidsInView: the VORs inside the box by ident, at most 500
+/// (/api/navaids/in-view); remarks always empty (NAV_RMK is not in a
+/// pack), service_volume and hours null from a pack without ALT_CODE and
+/// OPER_HOURS, and no fixes.
+char *wt_navaids_in_view(const uint8_t *const *ptrs, const size_t *lens, size_t count, double south, double west,
+                         double north, double east);
+
 /// wt_call's answer: ok 1 with the rule's JSON in text, or 0 with what
 /// was wrong in words; text freed with wt_string_free either way.
 typedef struct {

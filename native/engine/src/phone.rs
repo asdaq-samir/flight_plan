@@ -14,7 +14,16 @@
 //! - `sua.rec`, 24 bytes an area of the `sua` layer: its floor in feet
 //!   (f64, not a number where it has none), where its description (the
 //!   planner's SpecialUse, JSON) is in `sua.json` and where its name is
-//!   in `sua.names` (u32 offset and length each).
+//!   in `sua.names` (u32 offset and length each);
+//! - `airspace.attr`, a JSON array, one object a volume of the `airspace`
+//!   layer, for the map's volumes in view (crate::view): `ident`,
+//!   `number`, `ceiling_excluded`, `hours_code`, `hours_remark`. Since
+//!   2026-11-03; a pack without it still reads, with those unknown.
+//!
+//! The place tables (`airports`, `navaids`, `fixes`: crate::spoken,
+//! crate::view) are JSON, `{"columns": [...], "rows": [[...], ...]}` of
+//! strings, the NASR columns vfr.pack's COLUMNS names, read by name: a
+//! column a newer pack adds is unknown from an older one, not an error.
 //!
 //! What a pack cannot know is said so: the ground's height is not in it
 //! (the bands are measured from sea level, as the planner's are when it

@@ -15,6 +15,8 @@
 //! - geo: great-circle distances, as vfr.geo has them;
 //! - rules: the airspace over a point in bands, with the rules of each;
 //! - phone: the planner's airspace-at-a-point answer from a phone's pack;
+//! - view: the map's airspace, airports and VORs in view from the packs,
+//!   as the planner's in-view endpoints answer them;
 //! - clearance: an ATC clearance heard, read into its items, and a call
 //!   to us by its call sign (the web's lib/clearance and lib/heardCall);
 //! - spoken: the places a clearance names, found in the phone's packs;
@@ -82,6 +84,7 @@ pub mod tfr;
 pub mod time;
 pub mod sums;
 pub mod validity;
+pub mod view;
 pub mod winds;
 pub mod wmm;
 pub mod wording;
