@@ -36,6 +36,8 @@
 //! - runway: runways, the wind on them and the traffic pattern -- the end
 //!   flown, its pattern's side, entry, altitude and legs, a POH's
 //!   short-field distances and how an end suits the airplane;
+//! - approach: instrument approaches taught (the brief, the coached dry
+//!   run, the quiz) and debriefed against the procedure flown;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
 //! - wording: the FAA's own words in the app's -- its capitals in sentence
@@ -48,6 +50,7 @@
 
 pub mod ahead;
 pub mod airspace;
+pub mod approach;
 pub mod call;
 pub mod clearance;
 pub mod figures;

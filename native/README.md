@@ -46,6 +46,17 @@ Wingtip's Rust, in four crates:
   lib/trafficPattern; vfr.runway_wind and vfr.pattern), each a name in
   `call.rs` (`wind_pick`, `runway_end_fit`, `traffic_pattern` ...). The
   Go / No-Go's runway check goes by the same.
+- Instrument approaches are the engine's too (`approach/`): a flown
+  approach debriefed against its procedure -- the final it flew, full
+  scale off the course (AIM 1-1-9, 1-1-17), each fix's altitude (AIM
+  5-4-5), the glidepath, the lowest against the pilot's minimums (14 CFR
+  91.175(c), (e)), the missed approach or the landing -- and the lesson:
+  the briefing, the coached dry run's steps with the descent rate on the
+  path (the TPP's table), the side view and the quiz (the web's
+  lib/approachDebrief and lib/approachLesson), held to the web's fixture
+  `approachKbur.json`, so the iPhone can teach and debrief one offline
+  (`approach_find`, `approach_coaching`, `approach_quiz` ... in
+  `call.rs`).
 - The pilot's own records and text are the engine's too (`pilot/`): a
   checklist typed as text, the logbook to and from a CSV file
   (ForeFlight's export among them, papaparse's reading ported step for
