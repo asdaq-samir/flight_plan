@@ -12,15 +12,23 @@ options:
   generateEmptyDirectories: true
 settings:
   base:
-    # Swift 5 language mode under the Swift 6 compiler: the strict
-    # concurrency checks come on module by module as the app grows.
+    # Swift 5 language mode under the Swift 6 compiler, with the compiler's
+    # complete concurrency checking on (Apple's direction for new code,
+    # where a data race is a diagnostic): in this mode the checks are
+    # warnings, which CI's log shows; the language mode goes to 6, where
+    # they are errors, once a run is clean (the owner's ask, 2026-11-03,
+    # after the review of the app against Apple's guidance).
     SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    # Every Text and LocalizedStringResource gathered into the string
+    # catalog (Wingtip/Localizable.xcstrings) at build, Apple's way of
+    # localising since Xcode 15: English today, another language a column.
+    SWIFT_EMIT_LOC_STRINGS: YES
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
     # The site's host: the gateway, and the app's associated domain. CI
     # passes the repo's WINGTIP_URL host over this.
     WINGTIP_HOST: wingtipmaps.app
-    SWIFT_STRICT_CONCURRENCY: minimal
 targets:
   Wingtip:
     type: application
@@ -38,6 +46,9 @@ targets:
       # phone's cycle packs, with no network. A static library, linked in.
       - framework: Frameworks/WingtipEngine.xcframework
         embed: false
+      # The Live Activity's widget extension, embedded in the app.
+      - target: WingtipWidgets
+        embed: true
     info:
       path: Wingtip/Info.plist
       properties:
@@ -67,6 +78,10 @@ targets:
         # for the alerts ahead and the path flown (OwnTrail).
         UIBackgroundModes: [audio, location]
         NSLocalNetworkUsageDescription: With Traffic on, Wingtip Maps listens on the cockpit's Wi-Fi for an ADS-B receiver (Stratux, SkyEcho, Sentry).
+        # A flight in progress on the Lock Screen and in the Dynamic Island
+        # (FlightActivity, the WingtipWidgets extension): the next
+        # checkpoint, the ETA and the fuel, as Apple has ongoing things shown.
+        NSSupportsLiveActivities: true
         ITSAppUsesNonExemptEncryption: false
     entitlements:
       path: Wingtip/Wingtip.entitlements
@@ -81,6 +96,29 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_USER_SCRIPT_SANDBOXING: NO
+  # The Live Activity (WingtipWidgets/WingtipWidgets.swift): a flight in
+  # progress on the Lock Screen and in the Dynamic Island, drawn by this
+  # extension from the attributes the app shares with it (Wingtip/Shared).
+  # Its bundle identifier is the app's with a suffix, as embedding needs.
+  WingtipWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: WingtipWidgets
+      - path: Wingtip/Shared
+    info:
+      path: WingtipWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Wingtip Maps
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios.widgets
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
   WingtipTests:
     type: bundle.unit-test
     platform: iOS
@@ -101,16 +139,32 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  # One launch smoke test driven through the app as a pilot would be,
+  # XCUITest (WingtipUITests/LaunchTests): a build that compiles but
+  # cannot show its first screen fails on the runner.
+  WingtipUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: WingtipUITests
+    dependencies:
+      - target: Wingtip
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Wingtip
 schemes:
   Wingtip:
     build:
       targets:
         Wingtip: all
+        WingtipWidgets: all
         WingtipTests: [test]
+        WingtipUITests: [test]
     run:
       config: Debug
     test:
       config: Debug
-      targets: [WingtipTests]
+      targets: [WingtipTests, WingtipUITests]
     archive:
       config: Release
