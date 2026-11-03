@@ -243,6 +243,44 @@
 //!   `{"points", "exit_deg"}` or null, the planner's, from `{"runway",
 //!   "end_ident", "toward": [lat, lon]}`.
 //!
+//! Instrument approaches taught and debriefed (crate::approach, the web's
+//! lib/approachDebrief and lib/approachLesson), a drawing the planner's
+//! /api/procedure answer as it comes, a track's points `{"t", "lat",
+//! "lon", "alt_ft"?}` (t in ms), a debrief the web's ApproachDebrief in
+//! snake_case:
+//!
+//! - `approach_guidance`: "localizer", "gps" or "other", from `{"id"}`
+//!   (ARINC 424-18 5.10); `glidepath_ft`: the glidepath's height, ft MSL,
+//!   from `{"runway_path": {"lat", "lon", "ft", "deg"}, "nm_out"}`;
+//! - `approach_attempts`: `[{"faf", "from", "to"}]` point indices, from
+//!   `{"drawing", "points"}`;
+//! - `approach_debrief`: one attempt debriefed or null, from `{"drawing",
+//!   "points", "attempt"?: {"faf", "from", "to"}, "minimums_ft"?}`;
+//! - `approach_find`: the approaches flown, from `{"drawings", "points",
+//!   "picked"?, "minimums_ft"?}`; `approach_transition`: the transition's
+//!   debrief or null, from `{"drawings", "points", "faf_at", "passed",
+//!   "minimums_ft"?}` (the vectors' debrief's figures);
+//! - `approach_minimums`: the findings held to the pilot's minimums (14 CFR
+//!   91.175(c), (e)), from `{"findings": [{"tone", "text", "minimums"?}],
+//!   "lowest_ft"?, "outcome": "landed"|"missed"|"unknown", "minimums_ft"?}`;
+//! - `approach_descent_fpm` from `{"gs_kt", "angle_deg"}`,
+//!   `approach_rounded_fpm` from `{"fpm"}`, `approach_category` (14 CFR
+//!   97.3) "A".."E" or null from `{"vref_kt"?, "vso_kt"?}`,
+//!   `approach_minimums_kind` "DA", "MDA" or "DA or MDA" from `{"name"}`,
+//!   `approach_fix_name` from `{"ident"}`, `approach_missed_words` from
+//!   `{"legs"}`, `approach_brief_frequencies` from `{"frequencies"}`;
+//! - `approach_lesson_path`: `[{"lat", "lon"}]` from `{"drawing"}`;
+//!   `approach_path_between` from `{"path", "a", "b"}`; `approach_along_nm`
+//!   from `{"path", "at"}`;
+//! - `approach_brief`: `[{"key", "title", "lines", "focus": {"fix",
+//!   "segment"}}]` from `{"drawing", "frequencies"?, "vref_kt"?,
+//!   "vso_kt"?}`; `approach_coaching`: `[{"key", "title", "say", "why",
+//!   "at", "focus", "altitude_ft"}]` from `{"drawing", "gs_kt"}`;
+//!   `approach_profile`: `{"marks": [{"ident", "along_nm", "ft", "faf",
+//!   "map"}], "path": {"from": {"nm", "ft"}, "to"}|null}` from
+//!   `{"drawing"}`; `approach_quiz`: `[{"key", "prompt", "choices",
+//!   "answer", "explain", "focus"}]` from `{"drawing", "gs_kt"}`.
+//!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
@@ -485,6 +523,8 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
         | "departure_pattern" | "arrival_circuit" | "departure_circuit" => {
             crate::runway::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}")))
         }
+        // Instrument approaches taught and debriefed (approach::calls).
+        _ if crate::approach::calls::NAMES.contains(&name) => crate::approach::calls::call(name, ask.v),
         _ if crate::route::answers::NAMES.contains(&name) => crate::route::answers::answer(name, ask.v),
         // The things that move (motion::call), then the Go / No-Go's, by
         // their own names (gonogo::calls), last.
