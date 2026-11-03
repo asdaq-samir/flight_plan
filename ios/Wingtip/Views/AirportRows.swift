@@ -30,12 +30,15 @@ enum Badge {
 struct RowBadge: View {
     let systemImage: String
     let colour: Color
+    /// The badge grows with the type beside it, as Settings' do, so the
+    /// glyph is never clipped at the larger sizes.
+    @ScaledMetric(relativeTo: .subheadline) private var side = 28.0
 
     var body: some View {
         Image(systemName: systemImage)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(.white)
-            .frame(width: 28, height: 28)
+            .frame(width: side, height: side)
             .background(colour, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             .accessibilityHidden(true)
     }
@@ -89,6 +92,8 @@ struct FrequencyRowView: View {
         let glyph = Self.glyph(line.kind)
         CardRow(badge: RowBadge(systemImage: glyph.0, colour: glyph.1), title: line.name, detail: line.detail) {
             Text(frequency.frequencyMhz.map(AirportWords.mhz) ?? "—").fontWeight(.semibold).monospacedDigit()
+                // Figure by figure, as a frequency is read on the radio.
+                .accessibilityLabel(frequency.frequencyMhz.map(SpokenFigures.frequency) ?? "no frequency")
         }
     }
 }
@@ -99,16 +104,17 @@ struct FrequencyRowView: View {
 /// length and width at the right.
 struct RunwayRowView: View {
     let runway: Runway
+    @ScaledMetric(relativeTo: .subheadline) private var side = 28.0
 
     var body: some View {
         let heading = (runway.runwayEnds ?? []).compactMap(\.headingTrueDeg).first
         HStack(spacing: 12) {
             ZStack {
                 RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Badge.runway)
-                RoundedRectangle(cornerRadius: 1).fill(.white).frame(width: 5, height: 18)
+                RoundedRectangle(cornerRadius: 1).fill(.white).frame(width: side / 5.6, height: side * 0.64)
                     .rotationEffect(.degrees(heading ?? 0))
             }
-            .frame(width: 28, height: 28)
+            .frame(width: side, height: side)
             .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Runway \(runway.ends ?? "—")")
@@ -121,7 +127,11 @@ struct RunwayRowView: View {
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 2) {
                 Text(runway.lengthFt.map { "\(AirportWords.grouped(Double($0))) ft" } ?? "—").fontWeight(.semibold).monospacedDigit()
-                if let width = runway.widthFt { Text("\(width) ft wide").font(.footnote).foregroundStyle(.secondary) }
+                    .accessibilityLabel(runway.lengthFt.map { "\(SpokenFigures.feet(Double($0))) long" } ?? "length not listed")
+                if let width = runway.widthFt {
+                    Text("\(width) ft wide").font(.footnote).foregroundStyle(.secondary)
+                        .accessibilityLabel("\(SpokenFigures.feet(Double(width))) wide")
+                }
             }
         }
         .accessibilityElement(children: .combine)

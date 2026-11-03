@@ -97,7 +97,7 @@ extension ChartMap.Coordinator {
         }
         if let first = hazardLines.first {
             let rect = hazardLines.dropFirst().reduce(first.boundingMapRect) { $0.union($1.boundingMapRect) }
-            map.setVisibleMapRect(rect, edgePadding: ChartMap.routePadding(in: map), animated: true)
+            map.setVisibleMapRect(rect, edgePadding: ChartMap.routePadding(in: map), animated: MapMotion.animated)
         }
     }
 }

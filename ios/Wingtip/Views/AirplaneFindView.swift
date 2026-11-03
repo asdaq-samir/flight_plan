@@ -22,11 +22,20 @@ struct AirplaneRow: View {
     var body: some View {
         HStack {
             Image(systemName: "airplane").rotationEffect(.degrees((plane.trackDeg ?? 90) - 90)).foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(KeptAirplane.name(plane)).font(.headline)
                 Text(AirplaneRow.line(plane)).font(.footnote).foregroundStyle(.secondary)
+                    .accessibilityLabel(Self.spoken(plane))
             }
         }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The line as VoiceOver says it: the height and speed in words.
+    static func spoken(_ plane: TrafficAircraft) -> String {
+        [plane.type, plane.altitudeFt.map { SpokenFigures.feet(($0 / 100).rounded() * 100) }, plane.speedKt.map(SpokenFigures.knots)]
+            .compactMap { $0 }.joined(separator: ", ")
     }
 
     /// Its type, height in hundreds of feet as reported, and speed.

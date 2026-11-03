@@ -23,6 +23,18 @@ enum FindingStyle {
         default: .secondary
         }
     }
+
+    /// The finding in a word, for VoiceOver, where the mark's shape and
+    /// colour say it to the eye.
+    static func word(_ finding: String) -> String {
+        switch finding {
+        case "ok": "Clear"
+        case "caution": "Caution"
+        case "stop": "Stop"
+        case "pending": "Still being checked"
+        default: "Not worked out"
+        }
+    }
 }
 
 /// Where a finding opens: a section of the Brief by its anchor, or a page
@@ -64,8 +76,10 @@ struct GoNoGoSection: View {
                     Text(answer.line.words).font(.headline)
                 } icon: {
                     Image(systemName: FindingStyle.symbol(answer.line.finding))
+                        .accessibilityLabel(FindingStyle.word(answer.line.finding))
                 }
                 .foregroundStyle(FindingStyle.colour(answer.line.finding))
+                .accessibilityElement(children: .combine)
                 ForEach(answer.items) { item in row(item) }
             } else if let problem = verdict.problem {
                 Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
@@ -105,6 +119,7 @@ struct VerdictRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: FindingStyle.symbol(item.finding)).foregroundStyle(FindingStyle.colour(item.finding))
+                .accessibilityLabel(FindingStyle.word(item.finding))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.label).font(.body.weight(.semibold))
                 Text(item.detail).font(.subheadline)
@@ -152,6 +167,8 @@ struct LoadingView: View {
     @Environment(Verdict.self) private var verdict
     @Environment(Plan.self) private var plan
     @Environment(Session.self) private var session
+    /// The figure's field grows with the type, so a four-figure weight fits.
+    @ScaledMetric(relativeTo: .body) private var fieldWidth = 96.0
 
     var body: some View {
         Form {
@@ -204,7 +221,7 @@ struct LoadingView: View {
         LabeledContent {
             HStack(spacing: 4) {
                 TextField(title, value: Binding(get: { value }, set: { set(max(0, $0)) }), format: .number.precision(.fractionLength(0...2)))
-                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 96)
+                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: fieldWidth)
                 Text(unit).foregroundStyle(.secondary)
             }
         } label: {
@@ -229,9 +246,13 @@ struct RiskView: View {
             if let risk = verdict.answer?.risk {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(risk.line).font(.headline).foregroundStyle(colour(risk.level))
+                        // The level's mark with its colour, so the line reads
+                        // the same to a pilot who does not see the colour.
+                        Label(risk.line, systemImage: FindingStyle.symbol(finding(risk.level)))
+                            .font(.headline).foregroundStyle(colour(risk.level))
                         Text(risk.words)
                     }
+                    .accessibilityElement(children: .combine)
                 }
                 let own = Set((verdict.answer?.selfChecks ?? []).map(\.key))
                 let raised = (risk.factors ?? []).filter { !own.contains($0.key) }
@@ -251,8 +272,10 @@ struct RiskView: View {
                                 } icon: {
                                     Image(systemName: FindingStyle.symbol(factor.finding ?? "caution"))
                                         .foregroundStyle(FindingStyle.colour(factor.finding ?? "caution"))
+                                        .accessibilityLabel(FindingStyle.word(factor.finding ?? "caution"))
                                 }
                             }
+                            .accessibilityElement(children: .combine)
                         }
                     }
                 }
@@ -288,11 +311,15 @@ struct RiskView: View {
         return seen
     }
 
-    private func colour(_ level: String) -> Color {
+    /// The risk's level as a finding: low is clear, caution is caution,
+    /// anything higher a stop.
+    private func finding(_ level: String) -> String {
         switch level {
-        case "low": FindingStyle.colour("ok")
-        case "caution": FindingStyle.colour("caution")
-        default: FindingStyle.colour("stop")
+        case "low": "ok"
+        case "caution": "caution"
+        default: "stop"
         }
     }
+
+    private func colour(_ level: String) -> Color { FindingStyle.colour(finding(level)) }
 }

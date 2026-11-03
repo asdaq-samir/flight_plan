@@ -64,6 +64,9 @@ struct AirspaceCard: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    // Four actions across, as the airport card's: they stop
+                    // growing at the second accessibility size.
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                 }
             }
             if let here {
@@ -150,6 +153,8 @@ struct AirspaceCard: View {
 struct BandRow: View {
     let band: AirspaceBand
     let ground: Double?
+    /// The class's box grows with its letter, so it is never clipped.
+    @ScaledMetric(relativeTo: .subheadline) private var side = 28.0
 
     /// Solid blue for B, magenta for C, dashed blue for D, dashed
     /// magenta for E, as the sectional draws them.
@@ -185,7 +190,7 @@ struct BandRow: View {
             Text(band.airspaceClass)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(ink.solid ? Color.white : ink.colour)
-                .frame(width: 28, height: 28)
+                .frame(width: side, height: side)
                 .background(ink.solid ? ink.colour : Color.clear, in: RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(ink.colour, style: StrokeStyle(lineWidth: 2, dash: ink.dashed ? [3, 2] : [])))
                 .accessibilityHidden(true)

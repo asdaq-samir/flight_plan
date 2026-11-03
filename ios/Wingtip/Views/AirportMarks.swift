@@ -82,6 +82,11 @@ final class AirportMarkView: MKAnnotationView {
         addSubview(ring)
         addSubview(label)
         canShowCallout = false
+        // A tap opens the field's card, so VoiceOver has it as a button
+        // named with its weather, which the ring's colour alone would not
+        // tell.
+        isAccessibilityElement = true
+        accessibilityTraits = .button
     }
 
     @available(*, unavailable)
@@ -100,6 +105,7 @@ final class AirportMarkView: MKAnnotationView {
         guard let field = annotation as? AirportAnnotation else { return }
         ring.layer.borderColor = field.colour.cgColor
         label.text = field.ident
+        accessibilityLabel = "\(field.ident), \(SpokenFigures.flightCategory(field.category))"
         // MapKit folds marks that would overlap into one cluster view and
         // drops the lesser of two that collide, by these: the route's
         // fields stand on their own.
@@ -154,5 +160,8 @@ final class AirportClusterView: MKAnnotationView {
     private func show() {
         guard let cluster = annotation as? MKClusterAnnotation else { return }
         count.text = String(cluster.memberAnnotations.count)
+        // Read as one thing: "12 airports", opened by a zoom in.
+        isAccessibilityElement = true
+        accessibilityLabel = "\(cluster.memberAnnotations.count) airports"
     }
 }

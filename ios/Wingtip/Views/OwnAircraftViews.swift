@@ -29,7 +29,7 @@ struct OwnAircraftListView: View {
                                 Text(OwnAircraftPage.figuresLine(airplane)).font(.footnote).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if plan.tail == airplane.tailNumber.uppercased() { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                            if plan.tail == airplane.tailNumber.uppercased() { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Flying now") }
                         }
                     }
                 }
@@ -228,7 +228,11 @@ struct OptionalDayRow: View {
             HStack {
                 DatePicker(title, selection: Binding(get: { date }, set: { day = Day.string($0) }),
                            in: ...(upTo ?? .distantFuture), displayedComponents: .date)
-                Button { day = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                Button { day = nil } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        // The 44-point hit area round the glyph, which does not grow.
+                        .contentShape(Rectangle().inset(by: -12))
+                }
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Clear \(title.lowercased())")
             }

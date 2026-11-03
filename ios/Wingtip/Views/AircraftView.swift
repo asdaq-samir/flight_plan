@@ -52,7 +52,7 @@ struct AircraftView: View {
                                             .font(.footnote).foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    if plan.tail == airplane.tailNumber { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                                    if plan.tail == airplane.tailNumber { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Flying now") }
                                 }
                             }
                             .foregroundStyle(.primary)
@@ -76,8 +76,9 @@ struct AircraftView: View {
                                     .font(.footnote).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if profile.name == plan.aircraft { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                            if profile.name == plan.aircraft { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Flying now") }
                         }
+                        .accessibilityElement(children: .combine)
                     }
                 }
             }

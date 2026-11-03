@@ -21,7 +21,9 @@ struct PilotGuideView: View {
                     Label {
                         Text(b.words)
                     } icon: {
+                        // The band's colour beside its words, which say it.
                         Circle().fill(Color(uiColor: CheckpointAnnotation.colour(for: b.score))).frame(width: 12, height: 12)
+                            .accessibilityHidden(true)
                     }
                 }
             }

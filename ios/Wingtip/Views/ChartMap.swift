@@ -31,6 +31,10 @@ final class PlaneMarkView: MKAnnotationView {
         addSubview(arrow)
         displayPriority = .required
         isEnabled = false
+        // Not a button, but VoiceOver finds it on the map and says which
+        // way it points.
+        isAccessibilityElement = true
+        accessibilityTraits = .image
     }
 
     @available(*, unavailable)
@@ -38,6 +42,7 @@ final class PlaneMarkView: MKAnnotationView {
 
     func turn(to degrees: Double) {
         arrow.transform = CGAffineTransform(rotationAngle: degrees * .pi / 180)
+        accessibilityLabel = "The airplane, heading \(SpokenFigures.degrees(degrees))"
     }
 }
 
@@ -123,14 +128,16 @@ struct ChartMap: UIViewRepresentable {
         context.coordinator.extras.update(map, extras, tiles: context.coordinator.overlay)
         context.coordinator.setFollowing = { [self] on in following = on }
         context.coordinator.setRouteAway = { [self] away in if routeAway != away { routeAway = away } }
+        // Every move of the map here steps to its end with Reduce Motion
+        // on (MapMotion), as Maps' own do.
         if following, map.userTrackingMode != .follow {
-            map.setUserTrackingMode(.follow, animated: true)
+            map.setUserTrackingMode(.follow, animated: MapMotion.animated)
         } else if !following, map.userTrackingMode != .none {
             map.setUserTrackingMode(.none, animated: false)
         }
         if context.coordinator.fitted != fitRequest, let line = context.coordinator.courseLine {
             context.coordinator.fitted = fitRequest
-            map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
+            map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: MapMotion.animated)
         }
         if let template, context.coordinator.overlay?.template != template {
             if let current = context.coordinator.overlay { map.removeOverlay(current) }
@@ -197,7 +204,7 @@ struct ChartMap: UIViewRepresentable {
                 context.coordinator.courseLine = line
                 // The whole route in sight above the sheet, which covers
                 // the lower half: as the web app fits a route clear of it.
-                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
+                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: MapMotion.animated)
             }
         }
     }
@@ -229,7 +236,9 @@ struct ChartMap: UIViewRepresentable {
         let point = map.convert(at, toPointTo: map)
         guard clear.width > 0, clear.height > 0, !clear.contains(point) else { return }
         let middle = CGPoint(x: map.bounds.midX + point.x - clear.midX, y: map.bounds.midY + point.y - clear.midY)
-        map.setCenter(map.convert(middle, toCoordinateFrom: map), animated: true)
+        // A step, not a glide, with Reduce Motion on: the replay's and the
+        // dry run's airplane then jumps back into sight.
+        map.setCenter(map.convert(middle, toCoordinateFrom: map), animated: MapMotion.animated)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -385,7 +394,7 @@ struct ChartMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
             guard !followed, let at = userLocation.location else { return }
             followed = true
-            mapView.setRegion(MKCoordinateRegion(center: at.coordinate, latitudinalMeters: 300_000, longitudinalMeters: 300_000), animated: true)
+            mapView.setRegion(MKCoordinateRegion(center: at.coordinate, latitudinalMeters: 300_000, longitudinalMeters: 300_000), animated: MapMotion.animated)
         }
 
         /// The fields in view, asked for once the map has rested a third

@@ -9,6 +9,7 @@ import SwiftUI
 struct RadioOverlay: View {
     @Environment(Plan.self) private var plan
     @Environment(OwnShip.self) private var ownShip
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var listener: ClearanceListener { ClearanceListener.shared }
 
     var body: some View {
@@ -22,8 +23,11 @@ struct RadioOverlay: View {
                     listener.sheetShown = true
                 } label: {
                     HStack(alignment: .top, spacing: 8) {
+                        // The pulse says it is listening; with Reduce Motion
+                        // on the tint and the words say it instead.
                         Image(systemName: "mic.fill").foregroundStyle(listener.listening ? Color.accentColor : .secondary)
-                            .symbolEffect(.pulse, isActive: listener.listening)
+                            .symbolEffect(.pulse, isActive: listener.listening && !reduceMotion)
+                            .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
                             if let problem = listener.problem {
                                 Text(problem).foregroundStyle(.orange)
@@ -72,10 +76,14 @@ struct RadioCallBanner: View {
         let direct = HeardCall.directOf(call.text)
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "dot.radiowaves.left.and.right").foregroundStyle(Color.accentColor)
+                Image(systemName: "dot.radiowaves.left.and.right").foregroundStyle(Color.accentColor).accessibilityHidden(true)
                 Text(call.text).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading)
-                Button { listener.seen = call.id } label: { Image(systemName: "xmark") }
-                    .buttonStyle(.borderless).accessibilityLabel("Put away")
+                    .accessibilityLabel("A call to you: \(call.text)")
+                Button { listener.seen = call.id } label: {
+                    // The 44-point hit area round the glyph, which does not grow.
+                    Image(systemName: "xmark").contentShape(Rectangle().inset(by: -12))
+                }
+                .buttonStyle(.borderless).accessibilityLabel("Put away")
             }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {

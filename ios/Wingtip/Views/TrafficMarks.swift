@@ -42,6 +42,8 @@ final class TrafficMarkView: MKAnnotationView {
         // A tap opens its card (FlightMapLayer), not a callout.
         canShowCallout = false
         displayPriority = .defaultHigh
+        isAccessibilityElement = true
+        accessibilityTraits = .button
     }
 
     @available(*, unavailable)
@@ -52,6 +54,10 @@ final class TrafficMarkView: MKAnnotationView {
         chevron.tintColor = drawn?.near == true ? NightPalette.trafficNear : NightPalette.trafficFar
         chevron.transform = CGAffineTransform(rotationAngle: CGFloat((mark.plane.trackDeg ?? 0) * .pi / 180))
         label.text = drawn?.label ?? ""
-        accessibilityLabel = "\(mark.title ?? "Airplane"), \(label.text ?? "")"
+        // Its height against own ship in words, and "near" said where the
+        // amber alone says it on the screen.
+        let height = mark.plane.altitudeFt.map { ", \(SpokenFigures.feet($0))" } ?? ""
+        let against = mark.ownFt.flatMap { own in mark.plane.altitudeFt.map { ", " + FlightWords.against($0 - own) } } ?? ""
+        accessibilityLabel = "\(mark.title ?? "Airplane")\(height)\(against)\(drawn?.near == true ? ", near" : "")"
     }
 }
