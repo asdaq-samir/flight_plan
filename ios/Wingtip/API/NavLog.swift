@@ -118,12 +118,32 @@ struct Leg: Codable, Hashable, Sendable, Identifiable {
         var speedKt: Double?
     }
 
+    /// Where the climb tops out on the leg (TopOfClimb), and what the
+    /// climb to it takes: the dry run's rows (DryRun.rows) fly the climb
+    /// at its own speeds to its altitude. Optional all, as a plan kept
+    /// from before they were read has only the distance.
     struct TopOfClimb: Codable, Hashable, Sendable {
         var alongNm: Double?
+        var eteMin: Double?
+        var fuelGal: Double?
+        var altitudeFt: Double?
+        var lat: Double?
+        var lon: Double?
+        var tasKt: Double?
+        var groundspeedKt: Double?
     }
 
+    /// Where the descent starts on the leg (TopOfDescent), from what
+    /// altitude to what, and whether to the field's pattern.
     struct TopOfDescent: Codable, Hashable, Sendable {
         var alongNm: Double?
+        var eteMin: Double?
+        var fuelGal: Double?
+        var altitudeFt: Double?
+        var lat: Double?
+        var lon: Double?
+        var toFt: Double?
+        var pattern: Bool?
     }
 }
 
