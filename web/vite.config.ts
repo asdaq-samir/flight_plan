@@ -54,6 +54,24 @@ const tesseractFiles: Plugin = {
   },
 };
 
+// The shared engine's WebAssembly (lib/engine), asked for by the page's
+// <head> as the scripts are: main.tsx waits for it before the first
+// render, and found only once the entry script ran it was a round trip
+// after the scripts instead of beside them. `crossorigin` as fetch()
+// asks it (same-origin, credentials), so the fetch takes the preload.
+const preloadEngine: Plugin = {
+  name: "preload-engine",
+  apply: "build",
+  transformIndexHtml: {
+    order: "post",
+    handler(_html, ctx) {
+      const file = Object.keys(ctx.bundle ?? {}).find(f => /(^|\/)wingtip-engine-[^/]*\.wasm$/.test(f));
+      if (!file) return [];
+      return [{ tag: "link", attrs: { rel: "preload", href: `/app/${file}`, as: "fetch", type: "application/wasm", crossorigin: "anonymous" }, injectTo: "head" }];
+    },
+  },
+};
+
 // Built into Spring Boot's static resources, which is what makes it the
 // only public surface: the bundle and the API it calls arrive from one
 // origin, so there is one session, one set of access rules, and no second
@@ -62,6 +80,7 @@ export default defineConfig({
   plugins: [
     thisBuildOnly,
     tesseractFiles,
+    preloadEngine,
     react(),
     // The React Compiler, memoising each component and hook as it builds
     // them, at the owner's pick of the audit's recommendation: only its
@@ -118,7 +137,9 @@ export default defineConfig({
         // the precache (the first load after a deploy) must reach the
         // server, not fall back to the app shell.
         navigateFallbackDenylist: [/\/(privacy|terms|support)\.html$/],
-        globPatterns: ["**/*.{js,css,html,svg,woff2}"],
+        // wasm: the shared engine (lib/engine), which the page waits for
+        // before it draws, so it must be there with no network.
+        globPatterns: ["**/*.{js,css,html,svg,woff2,wasm}"],
         // Not kept ahead for every pilot, at the first load and after each
         // deploy: Inter's non-Latin subsets (170 KB), fetched by the browser
         // only for a glyph they hold, the developer's pages (77 KB), and the
@@ -311,5 +332,9 @@ export default defineConfig({
   // against the actually-running app -- vitest's default globs would
   // otherwise also pick up its *.spec.ts files and fail them here for
   // the wrong reason (no @playwright/test import resolves under vitest).
-  test: { environment: "node", exclude: ["**/node_modules/**", "e2e/**"] },
+  //
+  // The shared engine's WebAssembly is loaded before every test file
+  // (lib/engine/vitestSetup.ts), as main.tsx loads it before the first
+  // render, so a rule that asks the engine answers in a test too.
+  test: { environment: "node", exclude: ["**/node_modules/**", "e2e/**"], setupFiles: ["src/lib/engine/vitestSetup.ts"] },
 });

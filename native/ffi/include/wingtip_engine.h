@@ -58,6 +58,18 @@ int32_t wt_weather_in_force(int32_t kind, int64_t now, int64_t observed, int64_t
 char *wt_ahead(const uint8_t *const *ptrs, const size_t *lens, size_t count, double lat, double lon, double track_deg,
                double gs_kt, double alt_ft, double vs_fpm, int64_t now, const char *tfrs, int64_t tfrs_at);
 
+/// wt_call's answer: ok 1 with the rule's JSON in text, or 0 with what
+/// was wrong in words; text freed with wt_string_free either way.
+typedef struct {
+    int32_t ok;
+    char *text;
+} WtCalled;
+/// The engine's one way in, as the web app and the planner ask it too: a
+/// rule by name ("holding", "lost_comms", "diversion", "debrief", ...;
+/// native/engine/src/call.rs lists them), its input a JSON object, its
+/// answer JSON. name and input NUL-terminated UTF-8.
+WtCalled wt_call(const char *name, const char *input);
+
 // The four pilot pages' figures, each JSON as the planner's endpoint
 // answers it; a figure not known is NAN. Free with wt_string_free.
 

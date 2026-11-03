@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { leaveLimit, ROUTES, segmentAltitudes } from "./lostComms";
+import { callEngine } from "./engine/engine";
+import { leaveLimit, ROUTES, segmentAltitudes, type LostCommsAnswer } from "./lostComms";
 import lostCommsFixture from "./fixtures/lostComms.json";
 
 describe("two-way radio failure, 91.185", () => {
@@ -36,5 +37,11 @@ describe("the shared lost-comms fixture", () => {
 
   test.each(lostCommsFixture.leaveLimit)("approach fix $approachFix, EFC '$efc', ETA '$eta'", ({ approachFix, efc, eta, words }) => {
     expect(leaveLimit(approachFix, efc, eta)).toBe(words);
+  });
+});
+
+describe("the page's routes are the engine's", () => {
+  test("the same keys, labels and rules, in 91.185(c)(1)'s order", () => {
+    expect(callEngine<LostCommsAnswer>("lost_comms", { segments: [] }).routes).toEqual(ROUTES);
   });
 });

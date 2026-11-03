@@ -6,6 +6,8 @@
 //! is: no Python, no host-only crates, and the cycle pack read from bytes
 //! the caller maps.
 //!
+//! - call: one way in for every host, a rule asked by name with JSON in
+//!   and JSON out (the web app's wasm, vfr_native.call, wt_call);
 //! - grid: route options' straight lines over the grid;
 //! - ahead: the alerts ahead of the airplane from the phone's packs;
 //! - airspace: whether an airspace volume holds a point;
@@ -28,6 +30,7 @@
 
 pub mod ahead;
 pub mod airspace;
+pub mod call;
 pub mod clearance;
 pub mod figures;
 pub mod flight;

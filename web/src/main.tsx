@@ -20,6 +20,13 @@ import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
 import { followAppLinks, followBackButton, inNativeApp, nativePlatform } from "./lib/native";
 import { startTv, tvPlatform } from "./lib/tv";
+import { loadEngine } from "./lib/engine/engine";
+
+// The shared Rust engine (lib/engine), asked for first: the rules it
+// works out (the hold's entry, lost comms, the diversion, the debrief)
+// answer synchronously, so the first render waits for it below, while
+// everything else here runs. index.html preloads it beside the scripts.
+const engineLoaded = loadEngine();
 
 // The reader's text size from the iPhone's Settings, before the first
 // render, so the page is never drawn at the wrong size first.
@@ -165,7 +172,9 @@ window.addEventListener("vite:preloadError", event => {
 });
 
 // A render React could not finish takes the page down: reported too.
-ReactDOM.createRoot(document.getElementById("root")!, {
+// Drawn once the engine is there; drawn all the same where it failed to
+// load (reported), when only the pages that ask it a rule say so.
+const render = () => ReactDOM.createRoot(document.getElementById("root")!, {
   onUncaughtError: error => { sendReport(reportOf("render", error)); console.error(error); },
 }).render(
   <React.StrictMode>
@@ -193,3 +202,4 @@ ReactDOM.createRoot(document.getElementById("root")!, {
     </ThemeProvider>
   </React.StrictMode>,
 );
+void engineLoaded.catch(error => { sendReport(reportOf("error", error)); console.error(error); }).finally(render);

@@ -1,6 +1,6 @@
 # native
 
-Wingtip's Rust, in two crates:
+Wingtip's Rust, in four crates:
 
 - `engine/` (`wingtip-engine`): the figures that must come out the same
   wherever they are worked out -- route options' straight lines over the
@@ -36,6 +36,20 @@ Wingtip's Rust, in two crates:
   `ffi/build-xcframework.sh` builds it for the iPhone and the simulator
   into `ios/Frameworks/WingtipEngine.xcframework` (native-ios.yml, on
   GitHub's macOS runner), which the app imports as `WingtipEngine`.
+
+- `wasm/` (`wingtip-wasm`): the engine for the web app, as WebAssembly
+  with no wasm-bindgen. Every host asks a rule the same way, by name with
+  JSON in and JSON out (`engine/src/call.rs`, which lists the rules and
+  their inputs): the browser through `wt_call` in the module
+  (`web/src/lib/engine/engine.ts`, `callEngine`), the planner through
+  `vfr_native.call`, the phones through `wt_call` in the header. A rule
+  moved into the engine needs only a name there. The module's ABI is in
+  `wasm/src/lib.rs`. `scripts/build-engine-wasm.sh` builds it in Docker
+  (the Rust image pinned by digest, so the bytes are the same anywhere)
+  into `web/src/lib/engine/wingtip-engine.wasm`, which is committed, as
+  the web build has no Rust; CI's `test` job builds it again and fails
+  where it differs. Rebuild and commit it with any change under
+  `engine/` or `wasm/`.
 
 The tests share their fixtures with the Python's (`tests/fixtures/native`):
 

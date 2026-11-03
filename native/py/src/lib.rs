@@ -499,8 +499,18 @@ fn debrief_tolerances_json() -> String {
     debrief::tolerances_json()
 }
 
+/// The engine's one way in, as the web app and the phones ask it: a rule
+/// by name (wingtip_engine::call), its input and answer JSON text. A name
+/// not known or input not of the rule's shape is a ValueError with the
+/// engine's words.
+#[pyfunction]
+fn call(name: &str, input: &str) -> PyResult<String> {
+    wingtip_engine::call::call(name, input).map_err(PyValueError::new_err)
+}
+
 #[pymodule]
 fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(call, m)?)?;
     m.add_function(wrap_pyfunction!(line_cells, m)?)?;
     m.add_function(wrap_pyfunction!(line_minutes, m)?)?;
     m.add_function(wrap_pyfunction!(straightened, m)?)?;

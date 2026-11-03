@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Leg } from "./api/types";
-import { divert, reasonable, stopwatch, windTriangle } from "./diversion";
+import { callEngine } from "./engine/engine";
+import { ALLOWANCES, divert, reasonable, stopwatch, windTriangle } from "./diversion";
 
 const leg = {
   tas_kt: 110, fuel_burn_gph: 8.5, magnetic_variation_deg: -3,
@@ -36,5 +37,14 @@ describe("a diversion worked out", () => {
     expect(reasonable("ete", 13, 10)).toBe(true);
     expect(reasonable("fuel", 3.6, 2.5)).toBe(false);
     expect(stopwatch(127_400)).toBe("2:07");
+  });
+});
+
+describe("the drill's allowances are the engine's", () => {
+  test("the same keys, labels, units and allowances", () => {
+    const { checks } = callEngine<{ checks: { key: string; label: string; unit: string; allowance: number }[] }>("diversion", {
+      true_course_deg: 360, distance_nm: 18, tas_kt: 110, fuel_burn_gph: 8.5, magnetic_variation_deg: -3, wind: null,
+    });
+    expect(checks.map(({ key, label, unit, allowance }) => ({ key, label, unit, allowance }))).toEqual(ALLOWANCES);
   });
 });

@@ -287,3 +287,20 @@ def test_the_packs_rings_hold_what_the_shapefiles_hold(chicago, chicago_pack):
     for wkb, content, (x0, y0, x1, y1) in zip(wkbs, contents, boxes):
         for x, y in zip(rng.uniform(x0, x1, 200), rng.uniform(y0, y1, 200)):
             assert vfr_native.wkb_holds(wkb, float(x), float(y)) == vfr_native.shape_holds(content, float(x), float(y))
+
+
+def test_one_way_in_answers_a_rule_by_name_as_its_own_function_does():
+    """vfr_native.call, the engine's one way in that the web app's
+    WebAssembly and the phones' wt_call share (wingtip_engine::call): a
+    rule by name, JSON in and out, the answer the rule's own function
+    gives; a name not known or input of the wrong shape a ValueError."""
+    asked = json.loads(vfr_native.call("diversion", json.dumps({
+        "true_course_deg": 360, "distance_nm": 18, "tas_kt": 110, "fuel_burn_gph": 8.5, "magnetic_variation_deg": -3,
+        "wind": {"wind_dir_true_deg": 270, "wind_speed_kt": 20}, "to": "KDPA", "mh": 350,
+    })))
+    assert asked == json.loads(vfr_native.diversion_json(360, 18, 110, 8.5, -3, 270, 20, "KDPA", 350, None, None, None))
+    assert json.loads(vfr_native.call("holding_leg_minutes", '{"altitude_ft": 16000}')) == vfr_native.holding_leg_minutes(16000)
+    with pytest.raises(ValueError, match="no rule called"):
+        vfr_native.call("nope", "{}")
+    with pytest.raises(ValueError, match='"heading" is missing'):
+        vfr_native.call("holding", '{"inbound": 360}')
