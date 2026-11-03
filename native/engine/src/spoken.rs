@@ -287,7 +287,7 @@ pub fn find(limit: Option<&str>, runs: &[&str], places: &[Place]) -> FoundPlaces
 const NAVAID_KINDS: &[&str] = &["VORTAC", "VOR/DME", "VOR", "DME", "TACAN", "NDB/DME", "NDB"];
 
 /// "SIOUX FALLS" as "Sioux Falls", as Python's str.title() writes it.
-fn title(s: &str) -> String {
+pub fn title(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut start = true;
     for c in s.chars() {

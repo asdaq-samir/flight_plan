@@ -5,7 +5,7 @@
 
 use std::ffi::{c_char, CStr, CString};
 use wingtip_engine::figures::{debrief, diversion, holding, lost_comms};
-use wingtip_engine::{ahead, clearance::Route, flight, pack::Pack, phone, spoken, validity, wmm};
+use wingtip_engine::{ahead, clearance::Route, flight, pack::Pack, phone, spoken, validity, view, wmm};
 
 /// SAFETY: the caller passes `len` readable bytes at `ptr` (or a null
 /// pointer and 0), alive for the call.
@@ -19,6 +19,23 @@ unsafe fn bytes<'a>(ptr: *const u8, len: usize) -> &'a [u8] {
 
 fn give(s: String) -> *mut c_char {
     CString::new(s).map(CString::into_raw).unwrap_or(std::ptr::null_mut())
+}
+
+/// The `count` packs at `ptrs[i]`, `lens[i]` bytes each, read; one that is
+/// not a pack is passed over.
+///
+/// SAFETY: `ptrs` and `lens` are null or hold `count` entries, each
+/// readable for its length, alive for the call.
+unsafe fn packs<'a>(ptrs: *const *const u8, lens: *const usize, count: usize) -> Vec<Pack<'a>> {
+    let mut out = Vec::new();
+    if !ptrs.is_null() && !lens.is_null() {
+        for i in 0..count {
+            if let Ok(p) = Pack::read(bytes(*ptrs.add(i), *lens.add(i))) {
+                out.push(p);
+            }
+        }
+    }
+    out
 }
 
 /// The planner's AirspaceAt for the point as JSON, from a phone's pack:
@@ -247,18 +264,53 @@ pub extern "C" fn wt_weather_in_force(kind: i32, now: i64, observed: i64, last_r
 #[no_mangle]
 pub unsafe extern "C" fn wt_ahead(ptrs: *const *const u8, lens: *const usize, count: usize, lat: f64, lon: f64, track_deg: f64,
                                   gs_kt: f64, alt_ft: f64, vs_fpm: f64, now: i64, tfrs: *const c_char, tfrs_at: i64) -> *mut c_char {
-    let mut packs = Vec::new();
-    if !ptrs.is_null() && !lens.is_null() {
-        for i in 0..count {
-            if let Ok(p) = Pack::read(bytes(*ptrs.add(i), *lens.add(i))) {
-                packs.push(p);
-            }
-        }
-    }
+    let packs = packs(ptrs, lens, count);
     let lines = if tfrs.is_null() { None } else { CStr::from_ptr(tfrs).to_str().ok() };
     let alt = (!alt_ft.is_nan()).then_some(alt_ft);
     let at = (tfrs_at != i64::MIN).then_some(tfrs_at);
     give(ahead::ahead(&packs, lat, lon, track_deg, gs_kt, alt, vs_fpm, now, lines, at))
+}
+
+// The map's view with no network (wingtip_engine::view): the airspace,
+// the landing fields and the VORs inside a box, each as the planner's
+// in-view endpoint answers it, JSON, from the `count` packs at `ptrs[i]`,
+// `lens[i]` bytes each (the regions the box meets). The box is south,
+// west, north and east in degrees. Packs that are not packs are passed
+// over; a region with no pack has nothing in it. Free with
+// wt_string_free.
+
+/// The planner's AirspaceInView: the Class B, C and D reaching into the
+/// box, each whole.
+///
+/// # Safety
+/// `ptrs` and `lens` hold `count` entries, each as for every function here.
+#[no_mangle]
+pub unsafe extern "C" fn wt_airspace_in_view(ptrs: *const *const u8, lens: *const usize, count: usize, south: f64, west: f64,
+                                             north: f64, east: f64) -> *mut c_char {
+    give(view::airspace_in_view(&packs(ptrs, lens, count), south, west, north, east))
+}
+
+/// The planner's AirportsInView: the landing fields inside the box, the
+/// biggest first, at most its default 300; the live fields (a METAR's
+/// flight category) null.
+///
+/// # Safety
+/// As above.
+#[no_mangle]
+pub unsafe extern "C" fn wt_airports_in_view(ptrs: *const *const u8, lens: *const usize, count: usize, south: f64, west: f64,
+                                             north: f64, east: f64) -> *mut c_char {
+    give(view::airports_in_view(&packs(ptrs, lens, count), south, west, north, east))
+}
+
+/// The planner's NavaidsInView: the VORs inside the box by ident, at most
+/// its default 500, with no remarks and no fixes.
+///
+/// # Safety
+/// As above.
+#[no_mangle]
+pub unsafe extern "C" fn wt_navaids_in_view(ptrs: *const *const u8, lens: *const usize, count: usize, south: f64, west: f64,
+                                            north: f64, east: f64) -> *mut c_char {
+    give(view::navaids_in_view(&packs(ptrs, lens, count), south, west, north, east))
 }
 
 // The four pilot pages' figures (wingtip_engine::figures), each answered

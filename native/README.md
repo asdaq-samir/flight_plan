@@ -64,6 +64,12 @@ Wingtip's Rust, in four crates:
   (in force, an instructor's lapsed date under 14 CFR 61.197, the words
   signed, a knowledge test's ACS codes), held to the web's fixtures
   `checklist.json` and `logbookCsv.json`.
+- The map's overlays with no network are the engine's too (`view.rs`):
+  the Class B, C and D, the landing fields and the VORs inside the map's
+  box from the phone's kept packs, each as the planner's in-view endpoint
+  answers it (`wt_airspace_in_view`, `wt_airports_in_view`,
+  `wt_navaids_in_view`), with what a pack cannot hold -- a live METAR's
+  flight category, a navaid's remarks -- answered null or empty.
 - `ffi/` (`wingtip-ffi`): the engine's C functions for the phones
   (`ffi/include/wingtip_engine.h`), a static library: the airspace over a
   point from a phone's cycle pack, as the planner's /api/airspace/at

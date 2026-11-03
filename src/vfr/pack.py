@@ -26,7 +26,9 @@ The phones carry packs of their own (`write_phone`): the same format, one
 region of REGION_DEG degrees a pack, the rings simplified to
 PHONE_TOLERANCE_DEG, with what wingtip-engine's `phone` module reads to
 answer the airspace at a point with no network (its sections are set out
-there). They are built beside the planner's (`ensure_phone`), in
+there) and what its `view` module reads to draw the map's airspace,
+airports and VORs in view as the planner's endpoints answer them. They
+are built beside the planner's (`ensure_phone`), in
 data/raw/packs/phone/<cycle>, with an index the phone asks for first.
 """
 from __future__ import annotations
@@ -52,14 +54,21 @@ MAGIC = b"WTPK"
 VERSION = 1
 HEADER = 64
 ENTRY = 32
-#: The NASR rows a phone needs to name and find a place, kept as the FAA
-#: writes them (NASR's CSV subscription files, each with its EFF_DATE).
+#: The NASR rows a phone needs to name and find a place, and to draw the
+#: map's airports and VORs offline (wingtip-engine's `view`), kept as the
+#: FAA writes them (NASR's CSV subscription files, each with its
+#: EFF_DATE). OWNERSHIP_TYPE_CODE is the armed services' fields
+#: (vfr.faa_data.military_fields); ALT_CODE and OPER_HOURS a VOR's
+#: service volume and hours (vfr.fixes). A column added here is read by
+#: name, so an older pack without it answers that field as unknown.
 COLUMNS = {
     "airports": ("APT_BASE.csv", ("ARPT_ID", "ICAO_ID", "SITE_TYPE_CODE", "ARPT_NAME", "CITY", "STATE_CODE",
                                   "LAT_DECIMAL", "LONG_DECIMAL", "ELEV", "MAG_VARN", "MAG_HEMIS", "TPA",
-                                  "FACILITY_USE_CODE", "ARPT_STATUS", "TWR_TYPE_CODE", "FUEL_TYPES", "CHART_NAME")),
+                                  "FACILITY_USE_CODE", "ARPT_STATUS", "TWR_TYPE_CODE", "FUEL_TYPES", "CHART_NAME",
+                                  "OWNERSHIP_TYPE_CODE")),
     "navaids": ("NAV_BASE.csv", ("NAV_ID", "NAV_TYPE", "NAME", "CITY", "STATE_CODE", "NAV_STATUS",
-                                 "LAT_DECIMAL", "LONG_DECIMAL", "ELEV", "MAG_VARN", "MAG_VARN_HEMIS", "FREQ", "CHAN")),
+                                 "LAT_DECIMAL", "LONG_DECIMAL", "ELEV", "MAG_VARN", "MAG_VARN_HEMIS", "FREQ", "CHAN",
+                                 "ALT_CODE", "OPER_HOURS")),
     "fixes": ("FIX_BASE.csv", ("FIX_ID", "ICAO_REGION_CODE", "STATE_CODE", "LAT_DECIMAL", "LONG_DECIMAL",
                                "FIX_USE_CODE", "CHARTS")),
 }
@@ -275,10 +284,43 @@ def _airspace(shp_path: Path):
     return boxes, wkbs, fields
 
 
-def _table(path: Path, columns: tuple) -> bytes:
+def _table(path: Path, columns: tuple, sizes: dict[str, str] | None = None) -> bytes:
+    """The NASR file's rows under `columns`, as JSON; with `sizes`, a
+    SIZE column after them: OurAirports' size of each field (large, medium
+    or small, as the map draws its pins) by its ICAO or FAA ident, "" for
+    a field OurAirports has no landing field by."""
     with open(path, newline="", encoding="utf-8", errors="replace") as f:
         rows = [[row.get(c) or "" for c in columns] for row in csv.DictReader(f)]
-    return json.dumps({"columns": list(columns), "rows": rows}, separators=(",", ":")).encode()
+    names = list(columns)
+    if sizes is not None:
+        icao, faa = names.index("ICAO_ID"), names.index("ARPT_ID")
+        for r in rows:
+            r.append(sizes.get(r[icao].strip().upper()) or sizes.get(r[faa].strip().upper()) or "")
+        names.append("SIZE")
+    return json.dumps({"columns": names, "rows": rows}, separators=(",", ":")).encode()
+
+
+def airport_sizes() -> dict[str, str]:
+    """OurAirports' size of every US landing field (vfr.airports'
+    large, medium and small, which NASR has no column for) by each ident
+    it goes by, for the airports table's SIZE: what the phone's map sizes
+    a pin by, as the planner's /api/airports/in-view does. Empty where
+    OurAirports cannot be had, and every pin is then drawn alike."""
+    from . import airports
+
+    try:
+        us = airports._us_airports(airports.DEFAULT_CACHE_PATH)
+    except Exception:
+        log.warning("No OurAirports table for the pack's airport sizes; none written", exc_info=True)
+        return {}
+    kinds = us["type"].map(airports._FIELD_KINDS)
+    found: dict[str, str] = {}
+    for column in ("ident", "local_code", "icao_code", "gps_code"):
+        if column in us.columns:
+            for ident, kind in zip(us[column], kinds):
+                if isinstance(kind, str) and isinstance(ident, str) and ident.strip():
+                    found.setdefault(ident.strip().upper(), kind)
+    return found
 
 
 def build(cache_dir, pack_dir=None) -> Path:
@@ -293,16 +335,18 @@ def build(cache_dir, pack_dir=None) -> Path:
                  shp_path=Path(airspace.ensure_class_airspace_shapefile(cache_dir)),
                  sua_held=sua_held, sua_at=(sua._CACHE.get("all") or (time.time(), None))[0],
                  urban=congested._urban_areas(), urban_path=congested.URBAN_AREAS_PATH,
-                 tables={name: (cache_dir / file, columns) for name, (file, columns) in COLUMNS.items()})
+                 tables={name: (cache_dir / file, columns) for name, (file, columns) in COLUMNS.items()},
+                 sizes=airport_sizes())
     log.info("Cycle pack %s built in %.1f s, %.0f MB", path.name, time.monotonic() - started,
              path.stat().st_size / 1e6)
     return path
 
 
 def write(pack_dir: Path, cycle: str, *, shp_path: Path, sua_held: list, sua_at: float, urban: list,
-          urban_path: Path | None, tables: dict) -> Path:
+          urban_path: Path | None, tables: dict, sizes: dict[str, str] | None = None) -> Path:
     """The pack of these sources written to pack_dir, whole or not at all,
-    and any other pack there removed."""
+    and any other pack there removed. `sizes`, OurAirports' sizes by
+    ident (airport_sizes), gives the airports table its SIZE column."""
     import shapely
 
     sources = {"airspace": source_key(shp_path)}
@@ -332,7 +376,7 @@ def write(pack_dir: Path, cycle: str, *, shp_path: Path, sua_held: list, sua_at:
                [feature.get("properties") for feature, _, _ in sua_held])
         _layer(w, "urban", shapely.bounds(urban) if urban else [], list(shapely.to_wkb(urban, byte_order=1)), None)
         for name, (file, columns) in tables.items():
-            w.put(name, _table(file, columns))
+            w.put(name, _table(file, columns, sizes if name == "airports" else None))
         w.finish(cycle, time.time())
     part.replace(path)
     for old in pack_dir.glob("wingtip-*.pack"):
@@ -515,16 +559,47 @@ def _sua_alt(areas: list[dict]) -> tuple[bytes, bytes]:
     return rec, run
 
 
+def _controlled_numbers(pack: Pack) -> list[int | None]:
+    """Each airspace record's number among the Class B, C and D in the
+    national file's order -- what vfr.airspace_map numbers a volume's
+    `id` by, so the phone's map keys a volume as the planner does from
+    one box to the next -- and None for a Class E."""
+    from . import airspace
+
+    numbers: list[int | None] = []
+    for a in pack.attrs("airspace"):
+        controlled = (a.get("CLASS") or "").strip() in airspace.CONTROLLED_CLASSES
+        numbers.append(sum(n is not None for n in numbers) if controlled else None)
+    return numbers
+
+
+def _volume_drawn(record: dict, number: int | None) -> dict:
+    """vfr.airspace_at's volume, with what the map's volume in view
+    (vfr.airspace_map's AirspaceVolume) says of it besides: its number,
+    whether its top is "to but not including" its ceiling (UPPER_DESC
+    TNI) and when it is in effect (WKHR_CODE, WKHR_RMK, as vfr.airspace
+    reads them): the phone's `airspace.attr`."""
+    from . import airspace, airspace_at
+
+    return {
+        **airspace_at._volume(record),
+        "number": number,
+        "ceiling_excluded": (record.get("UPPER_DESC") or "").strip().upper() == "TNI",
+        "hours_code": airspace._text(record.get("WKHR_CODE")),
+        "hours_remark": airspace._text(record.get("WKHR_RMK")),
+    }
+
+
 def _phone_shapes(pack: Pack) -> dict:
     """Each layer's shapes for the phones, simplified, with their regions
     and what each region's pack keeps of them."""
     import shapely
     from shapely.geometry.polygon import orient
 
-    from . import airspace_at, sua
+    from . import sua
 
     layers = {}
-    volumes = [airspace_at._volume(a) for a in pack.attrs("airspace")]
+    volumes = [_volume_drawn(a, number) for a, number in zip(pack.attrs("airspace"), _controlled_numbers(pack))]
     shapes = [simplified(w) for w in pack.wkb("airspace")]
     layers["airspace"] = [(w, box, v) for (w, box), v in zip(shapes, volumes)]
     if "sua.attr" in pack.sections:
@@ -581,7 +656,7 @@ def write_phone(pack: Pack, out_dir: Path, veil: list[dict]) -> dict:
             if layer in held:
                 names += [f"{layer}.box", f"{layer}.off", f"{layer}.wkb"]
         if "airspace" in held:
-            names += ["airspace.vol", "airspace.names"]
+            names += ["airspace.vol", "airspace.names", "airspace.attr"]
         if "sua" in held:
             names += ["sua.rec", "sua.json", "sua.names", "sua.alt", "sua.times"]
         ground = _terrain(region)
@@ -606,6 +681,13 @@ def write_phone(pack: Pack, out_dir: Path, veil: list[dict]) -> dict:
                     struct.pack("<BB6xddII", ord((v["class"] or "E")[0]), _FLOOR_REFS[v["floor_ref"]],
                                 v["floor_ft"], v["ceiling_ft"], *span) for v, span in zip(volumes, spans)))
                 w.put("airspace.names", run)
+                # What the map's volume says besides (vfr.airspace_map), one
+                # object a volume, in the layer's order: the engine's `view`
+                # reads it, and answers each field null from a pack without it.
+                w.put("airspace.attr", json.dumps(
+                    [{"ident": v["ident"] or None, "number": v["number"], "ceiling_excluded": v["ceiling_excluded"],
+                      "hours_code": v["hours_code"], "hours_remark": v["hours_remark"]} for v in volumes],
+                    separators=(",", ":")).encode())
             if "sua" in held:
                 areas = [layers["sua"][i][2] for i in held["sua"]]
                 blobs = [json.dumps(a, separators=(",", ":")) for a in areas]
