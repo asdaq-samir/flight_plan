@@ -1,5 +1,38 @@
 import type { Inspections, Squawk } from "./api/types";
+import { callEngine } from "./engine/engine";
 import type { RiskFactor } from "./frat";
+
+/** A factor as the engine answers it, with its mark. */
+export interface EngineFactor {
+  key: string;
+  label: string;
+  why: string | null;
+  points: number;
+  stop: boolean;
+  group?: string;
+  finding: "caution" | "stop" | null;
+}
+
+/** A factor as the pages read it: `stop` only where it is one, the mark
+ *  theirs to draw (RiskAssessment), a self check's group kept. */
+export function riskFactor({ key, label, why, points, stop, group }: EngineFactor): RiskFactor & { group?: string } {
+  return { key, label, ...(why != null ? { why } : {}), points, ...(stop ? { stop } : {}), ...(group ? { group } : {}) };
+}
+
+/** The inspections as the engine reads them, in snake_case. */
+export function inspectionsInput(i: Inspections) {
+  return {
+    annual_good_through: i.annualGoodThrough ?? null, elt_inspection_good_through: i.eltInspectionGoodThrough ?? null,
+    elt_battery_due_on: i.eltBatteryDueOn ?? null, static_check_good_through: i.staticCheckGoodThrough ?? null,
+    transponder_check_good_through: i.transponderCheckGoodThrough ?? null,
+    hundred_hour_due_at_hours: i.hundredHourDueAtHours ?? null, hours_now: i.hoursNow ?? null,
+  };
+}
+
+/** The squawks as the engine reads them. */
+export function squawksInput(open: Squawk[]) {
+  return open.map(s => ({ text: s.text, inoperative: s.inoperative, deferred_for: s.deferredFor ?? null }));
+}
 
 /**
  * Whether the pilot's own airplane may be flown on the day, by the
@@ -21,37 +54,14 @@ import type { RiskFactor } from "./frat";
  * - The 100-hour (91.409(b)): owed only for hire, or for instruction in an
  *   airplane the instructor provides -- a caution, as the pilot knows
  *   which this flight is.
+ *
+ * The rules, their points and their sources are the shared engine's
+ * (native/engine/src/gonogo/frat.rs, through lib/engine), the planner's
+ * and the phones' own.
  */
 export function inspectionFactors(i: Inspections, day: string, ifr: boolean): RiskFactor[] {
-  const past = (goodThrough: string | null | undefined) => !!goodThrough && goodThrough < day;
-  const factors: RiskFactor[] = [];
-  if (past(i.annualGoodThrough)) {
-    factors.push({ key: "annual", label: "The airplane's annual inspection is past due", why: "91.409(a)", points: 0, stop: true });
-  }
-  if (past(i.eltInspectionGoodThrough)) {
-    factors.push({ key: "elt", label: "The ELT's inspection is past due", why: "91.207(d), but for 91.207(f)'s exceptions", points: 0, stop: true });
-  }
-  // The battery is to be replaced by the date marked: on it, it is due.
-  if (i.eltBatteryDueOn && i.eltBatteryDueOn <= day) {
-    factors.push({ key: "eltBattery", label: "The ELT's battery is past its replacement date", why: "91.207(c), but for 91.207(f)'s exceptions", points: 0, stop: true });
-  }
-  if (ifr && past(i.staticCheckGoodThrough)) {
-    factors.push({ key: "static", label: "The altimeter and static test is past due: no IFR in controlled airspace", why: "91.411(a)", points: 0, stop: true });
-  }
-  if (past(i.transponderCheckGoodThrough)) {
-    factors.push({
-      key: "transponder", label: "The transponder test is past due: stay out of the airspace that needs one", why: "91.413(a), 91.215(b)", points: 3,
-    });
-  }
-  if (i.hundredHourDueAtHours != null && i.hoursNow != null && i.hoursNow >= i.hundredHourDueAtHours) {
-    factors.push({ key: "hundredHour", label: "The 100-hour inspection is due", why: "91.409(b): carrying anyone for hire, or flight instruction for hire in an airplane you provide", points: 2 });
-  }
-  return factors;
+  return callEngine<EngineFactor[]>("gonogo_inspection_factors", { inspections: inspectionsInput(i), day, ifr }).map(riskFactor);
 }
-
-/** How far a 91.213(d) determination reaches: VFR by day, by day and
- *  night, or every kind of flight (91.205(b)-(d)). */
-const REACH = { VFR_DAY: 0, VFR: 1, ALL: 2 } as const;
 
 /**
  * The airplane's open squawks on the day: an instrument or equipment that
@@ -59,21 +69,8 @@ const REACH = { VFR_DAY: 0, VFR: 1, ALL: 2 } as const;
  * not required, removed or deactivated and placarded, no hazard -- was
  * made for this kind of flight (by day, at night, under IFR: what 91.205
  * does not ask by day it may at night or under IFR); the others are a
- * caution to read before flight.
+ * caution to read before flight (91.7(b)).
  */
 export function squawkFactors(open: Squawk[], night: boolean, ifr: boolean): RiskFactor[] {
-  const needs = ifr ? REACH.ALL : night ? REACH.VFR : REACH.VFR_DAY;
-  const grounding = open.filter(s => s.inoperative && (s.deferredFor == null || REACH[s.deferredFor] < needs));
-  const factors: RiskFactor[] = [];
-  if (grounding.length) {
-    factors.push({
-      key: "inoperative", label: `Inoperative and not deferred for this flight: ${grounding.map(s => s.text).join("; ")}`,
-      why: "91.213(d)", points: 0, stop: true,
-    });
-  }
-  const others = open.length - grounding.length;
-  if (others > 0) {
-    factors.push({ key: "squawks", label: `${others} open squawk${others === 1 ? "" : "s"}: read ${others === 1 ? "it" : "them"} before flight`, why: "91.7(b)", points: 1 });
-  }
-  return factors;
+  return callEngine<EngineFactor[]>("gonogo_squawk_factors", { squawks: squawksInput(open), night, ifr }).map(riskFactor);
 }

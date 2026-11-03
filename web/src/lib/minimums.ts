@@ -1,11 +1,12 @@
 import type { Briefing } from "./api/types";
-import { altFt } from "./units";
-import { runwayCrosswindKt, steadyOrGustKt } from "./wind";
+import { callEngine } from "./engine/engine";
 
 /**
  * A pilot's personal minimums -- the weather they have decided they will
  * not take off or land in, stricter than the rules -- and where the
- * briefing's weather is under them. Each off (null) until set.
+ * briefing's weather is under them. Each off (null) until set. The rules
+ * are the shared engine's (native/engine/src/gonogo/minimums.rs, through
+ * lib/engine), the planner's and the phones' own.
  */
 export interface Minimums {
   /** The lowest ceiling, feet above the field (a METAR's or TAF's). */
@@ -40,14 +41,9 @@ export function bestCrosswind(
   runways: Briefing["airports"][string]["runways"],
   reported?: { speedKt?: number | null; gustKt?: number | null } | null,
 ): { end: string | null; kt: number } | null {
-  const open = runways.filter(r => !r.closed);
-  const winds = open.flatMap(r => (r.wind ? [r.wind] : []));
-  if (winds.length === 0) {
-    const all = steadyOrGustKt(reported?.speedKt ?? 0, reported?.gustKt);
-    return all > 0 && open.length > 0 ? { end: null, kt: all } : null;
-  }
-  const best = winds.reduce((a, b) => (runwayCrosswindKt(b) < runwayCrosswindKt(a) ? b : a));
-  return { end: best.end, kt: runwayCrosswindKt(best) };
+  return callEngine("gonogo_best_crosswind", {
+    runways, reported: reported ? { speed_kt: reported.speedKt ?? null, gust_kt: reported.gustKt ?? null } : null,
+  });
 }
 
 /**
@@ -57,37 +53,10 @@ export function bestCrosswind(
  * the forecast along the route. Empty when it is not, or none is set.
  */
 export function underMinimums(m: Minimums, briefing: Briefing, landings: string[], dest: string): string[] {
-  const reasons: string[] = [];
-  const ceiling = (where: string, ft: number | null | undefined) => {
-    if (m.ceilingFt != null && ft != null && ft < m.ceilingFt) reasons.push(`${where} ceiling ${altFt(ft)} ft, under your ${altFt(m.ceilingFt)} ft`);
-  };
-  const visibility = (where: string, sm: number | null | undefined) => {
-    if (m.visibilitySm != null && sm != null && sm < m.visibilitySm) reasons.push(`${where} visibility ${sm} sm, under your ${m.visibilitySm} sm`);
-  };
-  for (const ident of landings) {
-    const metar = briefing.metars[ident];
-    if (metar) {
-      ceiling(ident, metar.ceiling_ft);
-      visibility(ident, metar.visibility_sm);
-      const wind = steadyOrGustKt(metar.wind_speed_kt ?? 0, metar.wind_gust_kt);
-      if (m.windKt != null && wind > m.windKt) {
-        const reported = metar.wind_gust_kt ? `${metar.wind_speed_kt}G${metar.wind_gust_kt}` : `${metar.wind_speed_kt}`;
-        reasons.push(`${ident} wind ${reported} kt, over your ${m.windKt} kt`);
-      }
-    }
-    const crosswind = bestCrosswind(briefing.airports[ident]?.runways ?? [], metar && { speedKt: metar.wind_speed_kt, gustKt: metar.wind_gust_kt });
-    if (m.crosswindKt != null && crosswind && crosswind.kt > m.crosswindKt) {
-      reasons.push(crosswind.end == null
-        ? `${ident} variable wind ${crosswind.kt} kt, which may all be crosswind, over your ${m.crosswindKt} kt`
-        : `${ident} crosswind ${crosswind.kt} kt on its best runway (${crosswind.end}), over your ${m.crosswindKt} kt`);
-    }
-  }
-  const destForecast = briefing.forecast.stations.find(s => s.icaoId === dest);
-  if (destForecast) {
-    ceiling(`${dest} forecast`, destForecast.ceiling_ft);
-    visibility(`${dest} forecast`, destForecast.visibility_sm);
-  }
-  ceiling("Along the route, forecast", briefing.forecast.min_ceiling_ft);
-  visibility("Along the route, forecast", briefing.forecast.min_visibility_sm);
-  return reasons;
+  return callEngine("gonogo_under_minimums", {
+    minimums: { ceiling_ft: m.ceilingFt, visibility_sm: m.visibilitySm, crosswind_kt: m.crosswindKt, wind_kt: m.windKt },
+    landings, dest, metars: briefing.metars,
+    airports: Object.fromEntries(landings.filter(i => briefing.airports[i]).map(i => [i, briefing.airports[i]])),
+    forecast: briefing.forecast,
+  });
 }

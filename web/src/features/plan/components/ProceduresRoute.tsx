@@ -805,7 +805,10 @@ export default function ProceduresRoute({
     // Never before it lands.
     const onGroundMin = row?.kind === "stop" ? row.groundMin : groundMinAt(ground, a.ident);
     const flownTo = row?.minutesFlown ?? landedAt(a.ident);
-    const landsMs = flownTo == null ? null : startMs + flownTo * 60_000;
+    // To the whole minute, as its picker shows it: with the seconds kept, a
+    // departure picked a quarter of an hour after the one shown was 44
+    // minutes on the ground, not 45 (the stops spec, 2026-11-03).
+    const landsMs = flownTo == null ? null : Math.floor((startMs + flownTo * 60_000) / 60_000) * 60_000;
     const leaves = landsMs === null ? null : (
       <DepartPicker
         value={new Date(landsMs + onGroundMin * 60_000).toISOString()} look="time" label={`Departure from ${a.ident}`} testId={`depart-date-${a.ident}`} leavesNow={false}

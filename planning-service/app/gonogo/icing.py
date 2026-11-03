@@ -5,10 +5,9 @@ AIRMET or SIGMET over it (the planner's `icing_possible`, vfr.altitude) --
 with the pilot reports of icing near the route (structural icing needs
 visible moisture at or below 0 °C, the Aviation Weather Handbook,
 FAA-H-8083-28A, Icing). Under VFR the flight stays clear of cloud (14 CFR
-91.155), and the freezing level is the altitude reasoning's line alone --
-though freezing rain or drizzle (FZRA, FZDZ) ices an airplane out of
-cloud, which this does not read."""
-from .words import grouped
+91.155). The rule is the engine's (wingtip_engine::gonogo::icing), asked
+by name through vfr_native.call."""
+from . import ask
 
 
 def icing_at_altitude(selection: dict, flown_ft: list[float], pireps: list[dict]) -> dict | None:
@@ -16,25 +15,14 @@ def icing_at_altitude(selection: dict, flown_ft: list[float], pireps: list[dict]
     level, whether the forecast is below freezing at its lowest altitude
     (`at_or_below`), and the pilot reports of icing near the route of any
     intensity but none; None where the flight is not planned into it."""
-    level = selection.get("freezing_level_ft")
-    if level is None or not selection.get("icing_possible") or not flown_ft:
-        return None
-    highest = max(flown_ft)
-    if not selection.get("freezing_level_at_or_below") and highest < level:
-        return None
-    # A report's intensity as sent: NEG (and NEGclr) is none.
-    reports = sum(1 for p in pireps if p.get("icing") and not p["icing"].upper().startswith("NEG"))
-    return {"altitude_ft": highest, "freezing_level_ft": level,
-            "at_or_below": bool(selection.get("freezing_level_at_or_below")), "reports": reports}
-
-
-def _ft(n: float) -> str:
-    return f"{grouped(n)} ft"
+    found = ask("gonogo_icing", selection={k: selection.get(k) for k in (
+        "freezing_level_ft", "icing_possible", "freezing_level_at_or_below")}, flown_ft=list(flown_ft),
+        pireps=[{"icing": p.get("icing")} for p in pireps])
+    if found is not None:
+        del found["line"]
+    return found
 
 
 def icing_line(icing: dict) -> str:
     """In a line, for the Go / No-Go."""
-    reports = icing["reports"]
-    near = f"; {reports} pilot report{'' if reports == 1 else 's'} of icing near the route" if reports else ""
-    return (f"Icing possible at {_ft(icing['altitude_ft'])}: the freezing level "
-            f"{'at or below' if icing['at_or_below'] else 'at'} {_ft(icing['freezing_level_ft'])}, in cloud{near}")
+    return ask("gonogo_icing_line", icing=icing)
