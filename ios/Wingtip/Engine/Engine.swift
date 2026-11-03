@@ -68,12 +68,6 @@ enum Engine {
         return try? JSONDecoder().decode(Heard.self, from: Data(json.utf8))
     }
 
-    /// Whether a transmission was said to `tail` by its call sign
-    /// (AIM 4-2-4), as the engine hears it.
-    static func ourCall(_ heard: String, tail: String) -> Bool {
-        wt_our_call(heard, tail) == 1
-    }
-
     // MARK: - Any rule by its name
 
     /// What the engine said was wrong with a call, in its own words (a
