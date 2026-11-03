@@ -11,6 +11,9 @@ const UNDERLAY_ZOOM = 5;
 /** The ring tiles remembered as asked for: about a flight's worth of
  *  views, the browser's cache holding the tiles themselves. */
 const PREFETCH_KEPT = 2000;
+/** How many levels above the view are asked for at rest, for a zoom out
+ *  (prefetchRing): two, the arrow's zoom and a flick's, a few tiles. */
+const PARENT_LEVELS = 2;
 /** How far past the chart's own last zoom the map goes, enlarging it: two
  *  levels, four times, where three (eight times) took it to a blur of
  *  squares ForeFlight never shows (the owner's audit, 2026-11-02). */
@@ -86,23 +89,40 @@ export function ChartTiles({ chart, previewing }: Props) {
     if (zoom < baseLayer.min_zoom || zoom > baseLayer.max_zoom) return;
     const size = 256;
     const pixelBounds = map.getPixelBounds();
+    const ask = (x: number, y: number, z: number) => {
+      const n = 2 ** z;
+      if (y < 0 || y >= n) return;
+      const url = layer.getTileUrl(Object.assign(L.point(((x % n) + n) % n, y), { z }) as L.Coords);
+      // Once a tile: own ship followed ends a move at every fix, and the
+      // ring was asked for again each time, twenty requests a second.
+      if (prefetched.current.has(url)) return;
+      prefetched.current.add(url);
+      if (prefetched.current.size > PREFETCH_KEPT) prefetched.current.delete(prefetched.current.values().next().value!);
+      void fetch(url, { priority: "low" }).catch(() => { /* a miss now is a miss later, nothing to do */ });
+    };
     const range = {
       minX: Math.floor(pixelBounds.min!.x / size) - 1, maxX: Math.floor(pixelBounds.max!.x / size) + 1,
       minY: Math.floor(pixelBounds.min!.y / size) - 1, maxY: Math.floor(pixelBounds.max!.y / size) + 1,
     };
-    const n = 2 ** zoom;
     for (let x = range.minX; x <= range.maxX; x++) {
       for (let y = range.minY; y <= range.maxY; y++) {
-        if (y < 0 || y >= n) continue;
         const edge = x === range.minX || x === range.maxX || y === range.minY || y === range.maxY;
-        if (!edge) continue;
-        const url = layer.getTileUrl(Object.assign(L.point(((x % n) + n) % n, y), { z: zoom }) as L.Coords);
-        // Once a tile: own ship followed ends a move at every fix, and the
-        // ring was asked for again each time, twenty requests a second.
-        if (prefetched.current.has(url)) continue;
-        prefetched.current.add(url);
-        if (prefetched.current.size > PREFETCH_KEPT) prefetched.current.delete(prefetched.current.values().next().value!);
-        void fetch(url, { priority: "low" }).catch(() => { /* a miss now is a miss later, nothing to do */ });
+        if (edge) ask(x, y, zoom);
+      }
+    }
+    // The levels above the view too (PARENT_LEVELS), a tile or two each:
+    // a zoom out -- the location arrow's, a flick -- asked for its coarser
+    // tiles only once it had crossed the level, and held the chart at the
+    // region's blur until they came, 1.0 to 1.3 s on the phone viewport
+    // for the twelve tiles of zoom 7 over Chicago (a probe, 2026-11-03);
+    // asked for at rest they are in the browser's or the service worker's
+    // cache when the zoom comes.
+    for (let up = 1; up <= PARENT_LEVELS; up++) {
+      const z = zoom - up;
+      if (z < baseLayer.min_zoom) break;
+      const k = 2 ** up;
+      for (let x = Math.floor((range.minX + 1) / k); x <= Math.floor((range.maxX - 1) / k); x++) {
+        for (let y = Math.floor((range.minY + 1) / k); y <= Math.floor((range.maxY - 1) / k); y++) ask(x, y, z);
       }
     }
   }, [map, baseLayer]);
@@ -114,7 +134,13 @@ export function ChartTiles({ chart, previewing }: Props) {
   useMapEvents(useMemo(() => ({
     moveend: () => {
       if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
-      prefetchTimer.current = setTimeout(prefetchRing, 250);
+      // Once the move's own work is done and the thread idle: every edge
+      // tile's address made and asked for took 16 ms at the move's end
+      // (Session2's profile, 2026-11-03), where the marks and rings draw.
+      prefetchTimer.current = setTimeout(() => {
+        if ("requestIdleCallback" in window) window.requestIdleCallback(prefetchRing, { timeout: 1000 });
+        else prefetchRing();
+      }, 250);
     },
   }), [prefetchRing]));
   useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current); }, []);
