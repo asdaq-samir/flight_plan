@@ -39,6 +39,70 @@ function pictureOf(mark: CanvasMark, loaded: () => void): HTMLImageElement {
   return picture;
 }
 
+/** Room round a mark's sprite for its shadow, points. */
+const SHADOW_ROOM = 2;
+
+/** Each look of mark drawn once with its drop shadow, at the canvas's
+ *  density: a shadow drawn with each mark is a blur of its own, and a
+ *  zoom draws every mark at every frame (ViewCanvas's redrawWhileZooming). */
+const sprites = new Map<string, HTMLCanvasElement>();
+
+function spriteOf(mark: CanvasMark, dpr: number, loaded: () => void): HTMLCanvasElement | null {
+  const key = `${mark.space ?? ""}|${mark.weather}|${mark.use ?? ""}|${dpr}`;
+  const made = sprites.get(key);
+  if (made) return made;
+  const picture = pictureOf(mark, loaded);
+  if (!picture.complete || !picture.naturalWidth) return null;
+  const side = AIRPORT_MARK + 2 * SHADOW_ROOM;
+  const sprite = document.createElement("canvas");
+  sprite.width = sprite.height = Math.ceil(side * dpr);
+  const ctx = sprite.getContext("2d");
+  if (!ctx) return null;
+  ctx.scale(dpr, dpr);
+  // airportMarkIcon's drop-shadow(0 1px 1px rgba(0,0,0,.35)).
+  ctx.shadowColor = "rgba(0,0,0,0.35)";
+  ctx.shadowBlur = dpr;
+  ctx.shadowOffsetY = dpr;
+  ctx.drawImage(picture, SHADOW_ROOM, SHADOW_ROOM, AIRPORT_MARK, AIRPORT_MARK);
+  sprites.set(key, sprite);
+  return sprite;
+}
+
+/** Room round an ident's sprite for its halo, points. */
+const HALO_ROOM = 3;
+/** The most idents kept drawn: a few screens' worth, then begun again. */
+const MOST_LABELS = 800;
+
+/** Each ident drawn once, dark on its white halo, at the canvas's density:
+ *  text drawn twice over (the halo, then the letters) for every field at
+ *  every frame of a zoom was most of the canvas's paint. */
+const labels = new Map<string, HTMLCanvasElement>();
+
+function labelOf(ctx: CanvasRenderingContext2D, ident: string, font: string, dpr: number): HTMLCanvasElement | null {
+  const key = `${ident}|${font}|${dpr}`;
+  const made = labels.get(key);
+  if (made) return made;
+  if (labels.size >= MOST_LABELS) labels.clear();
+  const width = ctx.measureText(ident).width + 2 * HALO_ROOM;
+  const height = LABEL_PX + 2 * HALO_ROOM;
+  const label = document.createElement("canvas");
+  label.width = Math.ceil(width * dpr);
+  label.height = Math.ceil(height * dpr);
+  const own = label.getContext("2d");
+  if (!own) return null;
+  own.scale(dpr, dpr);
+  own.font = font;
+  own.textBaseline = "middle";
+  own.lineJoin = "round";
+  own.strokeStyle = "#fff";
+  own.lineWidth = 3.5;
+  own.strokeText(ident, HALO_ROOM, height / 2);
+  own.fillStyle = LABEL_INK;
+  own.fillText(ident, HALO_ROOM, height / 2);
+  labels.set(key, label);
+  return label;
+}
+
 /**
  * The chart's airports on one canvas, where each was a Leaflet marker of
  * its own -- a div, an SVG and a label, and a 44-point SVG circle for the
@@ -57,6 +121,8 @@ function pictureOf(mark: CanvasMark, loaded: () => void): HTMLImageElement {
 export class AirportMarksLayer extends ViewCanvasLayer {
   private marks: CanvasMark[] = [];
   private font = "";
+  /** Whether the fields written on the canvas are older than its marks. */
+  private unwritten = true;
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
@@ -66,6 +132,7 @@ export class AirportMarksLayer extends ViewCanvasLayer {
 
   setMarks(marks: CanvasMark[]): void {
     this.marks = marks;
+    this.unwritten = true;
     this.schedule();
   }
 
@@ -73,8 +140,10 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     const canvas = this.canvas!;
     this.font ||= `700 ${LABEL_PX}px ${getComputedStyle(map.getContainer()).fontFamily || "system-ui, sans-serif"}`;
     ctx.font = this.font;
-    ctx.textBaseline = "middle";
-    ctx.lineJoin = "round";
+    const moving = warp(from) !== from || !!(map as L.Map & { touchZoom?: { _zooming?: boolean } }).touchZoom?._zooming;
+    // At rest each sprite on a whole device pixel, as crisp as the text it
+    // was drawn from; under a zoom at its exact place, as the marks were.
+    const px = (v: number) => (moving ? v : Math.round(v * dpr) / dpr);
     const half = AIRPORT_MARK / 2;
     const written: { ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string }[] = [];
     // Each mark at its exact place, to the fraction of a point, as the
@@ -100,24 +169,19 @@ export class AirportMarksLayer extends ViewCanvasLayer {
       // Through a zoom's animation, where the chart has it at this frame.
       const shown = warp(at);
       if (shown.x < -pad.x - half || shown.y < -pad.y - half || shown.x > size.x + pad.x + half || shown.y > size.y + pad.y + half) continue;
-      const picture = pictureOf(mark, () => this.schedule());
-      if (picture.complete && picture.naturalWidth) {
-        // airportMarkIcon's drop-shadow(0 1px 1px rgba(0,0,0,.35)).
-        ctx.shadowColor = "rgba(0,0,0,0.35)";
-        ctx.shadowBlur = 1 * dpr;
-        ctx.shadowOffsetY = 1 * dpr;
-        ctx.drawImage(picture, shown.x - half, shown.y - half, AIRPORT_MARK, AIRPORT_MARK);
-        ctx.shadowColor = "transparent";
-      }
+      const sprite = spriteOf(mark, dpr, () => this.schedule());
+      if (sprite) ctx.drawImage(sprite, px(shown.x - half - SHADOW_ROOM), px(shown.y - half - SHADOW_ROOM), sprite.width / dpr, sprite.height / dpr);
       // The ident one point clear of the mark, dark on a white halo, as
       // the chart letters a field.
-      const x = shown.x + half + 1;
-      ctx.strokeStyle = "#fff";
-      ctx.lineWidth = 3.5;
-      ctx.strokeText(mark.ident, x, shown.y);
-      ctx.fillStyle = LABEL_INK;
-      ctx.fillText(mark.ident, x, shown.y);
+      const label = labelOf(ctx, mark.ident, this.font, dpr);
+      if (label) ctx.drawImage(label, px(shown.x + half + 1 - HALO_ROOM), px(shown.y - label.height / dpr / 2), label.width / dpr, label.height / dpr);
     }
-    canvas.dataset.airportMarks = JSON.stringify(written);
+    // Written for the tests as the marks change and as the map comes to
+    // rest, not at each frame of a zoom: a thousand fields' places made
+    // into a string and set on the page every frame.
+    if (this.unwritten || !moving) {
+      canvas.dataset.airportMarks = JSON.stringify(written);
+      this.unwritten = false;
+    }
   }
 }
