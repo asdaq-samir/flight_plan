@@ -458,7 +458,7 @@ def _place_of(row) -> dict:
 
 #: The columns _place_of reads.
 _PLACE_COLUMNS = ("_display_ident", "ident", "name", "municipality", "iso_region",
-                  "latitude_deg", "longitude_deg", "elevation_ft", "type")
+                  "latitude_deg", "longitude_deg", "elevation_ft", "type", "local_code")
 
 
 def _places_of(frame: pd.DataFrame) -> list[dict]:

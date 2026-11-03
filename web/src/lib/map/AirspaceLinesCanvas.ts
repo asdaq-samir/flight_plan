@@ -19,6 +19,9 @@ const NO_DASH: number[] = [];
 /** Two points that give a frame's `warp` (paint). */
 const ORIGIN = L.point(0, 0);
 const UNIT = L.point(1, 0);
+/** How many points round each ring in sight are written down at rest for
+ *  the browser tests to tap (data-airspace-rings). */
+const RING_POINTS = 8;
 
 /** The square of how far (px, py) is from the segment (ax, ay)-(bx, by). */
 function segmentDistance2(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
@@ -129,9 +132,11 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     const map = this._map;
     if (!map) return null;
     const k = map.getZoomScale(map.getZoom(), 0);
-    const origin = map.getPixelOrigin().subtract(map.containerPointToLayerPoint(L.point(0, 0)));
-    // The point in zoom-0 pixels, and how far `withinPx` is there.
-    const px = (at.x + origin.x) / k, py = (at.y + origin.y) / k, within = withinPx / k;
+    // The point in zoom-0 pixels (its layer point plus the pixel origin
+    // is its projection at the map's zoom), and how far `withinPx` is there.
+    const layer = map.containerPointToLayerPoint(at);
+    const pixelOrigin = map.getPixelOrigin();
+    const px = (layer.x + pixelOrigin.x) / k, py = (layer.y + pixelOrigin.y) / k, within = withinPx / k;
     let best: { volume: AirspaceVolume; d2: number } | null = null;
     for (const volume of this.volumes) {
       const { lines, box } = projectedOf(map, volume);
@@ -169,16 +174,19 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
       const { lines, box, longest } = projectedOf(map, volume);
       if (box.x1 * k - ox < left || box.x0 * k - ox > right || box.y1 * k - oy < top || box.y0 * k - oy > bottom) continue;
       if (resting) {
+        // A few points round each ring, so one is clear of the marks and
+        // of a phone's sheet.
+        let kept = 0;
         for (const points of lines) {
-          let found = false;
-          for (let i = 0; i < points.length && !found; i += 2) {
+          const step = Math.max(2, Math.floor(points.length / RING_POINTS / 2) * 2);
+          for (let i = 0; i < points.length && kept < RING_POINTS; i += step) {
             const x = points[i]! * k - ox, y = points[i + 1]! * k - oy;
             if (x >= 0 && y >= 0 && x <= size.x && y <= size.y) {
               rings.push({ id: volume.id, class: volume.airspace_class, x: Math.round(x), y: Math.round(y) });
-              found = true;
+              kept++;
             }
           }
-          if (found) break;
+          if (kept >= RING_POINTS) break;
         }
       }
       const style = AIRSPACE_LINE[volume.airspace_class];

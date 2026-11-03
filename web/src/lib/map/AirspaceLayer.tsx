@@ -112,6 +112,9 @@ export function AirspaceLayer() {
 /** How near a tap must be to a ring's line to open its card, px each
  *  side: the unseen 20 px line that took it before. */
 const TAP_PX = 10;
+/** Within this of a field's mark a tap is the field's (AirportsLayer's
+ *  own reach, a finger's half-width). */
+const MARK_PX = 22;
 
 /**
  * The volumes' lines on a canvas kept on the chart (AirspaceLinesLayer),
@@ -141,11 +144,18 @@ function Lines({ query }: { query: AirspaceQuery }) {
     click: (e: L.LeafletMouseEvent) => {
       const target = e.originalEvent.target as Element | null;
       if (target?.closest(".leaflet-marker-icon, .leaflet-popup, path.leaflet-interactive")) return;
+      // Near a field's mark the tap is the field's: the fields' layer
+      // takes it first, but on the map's container itself (a tap on the
+      // chart, under which every pane lets the pointer through) its
+      // stopPropagation does not keep the click from Leaflet, which
+      // listens on the same element.
+      const near = useDrawnAirports.getState().fields.some(f => map.latLngToContainerPoint([f.lat, f.lon]).distanceTo(e.containerPoint) <= MARK_PX);
+      if (near) return;
       const volume = layer.volumeAt(e.containerPoint, TAP_PX);
       // The same ring tapped again keeps its card where it was.
       setPicked(was => (volume ? (was?.volume === volume ? was : { volume, at: e.latlng }) : null));
     },
-  }), [layer]));
+  }), [layer, map]));
   const closed = useMemo<L.LeafletEventHandlerFnMap>(() => ({ remove: () => setPicked(null) }), []);
   // The box's answer goes straight to the layer as it comes, through an
   // observer of the same cached query, not after React has rendered all
