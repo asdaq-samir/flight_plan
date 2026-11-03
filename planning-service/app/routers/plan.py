@@ -1382,15 +1382,18 @@ def planned_within_limit(r: Route, q: "PlanQuery", profile: dict) -> tuple[list,
     return scored, selected, runs, outcome
 
 
-def flown_as_picked(r: Route, runs: list[HopRun], outcome: Flown, q: "PlanQuery") -> tuple[Flown, list[dict]]:
+def flown_as_picked(r: Route, runs: list[HopRun], outcome: Flown, q: "PlanQuery",
+                    drawn: list[tuple[str, dict]] | None = None, own: dict[str, float] | None = None) -> tuple[Flown, list[dict]]:
     """The altitude chosen flown as the pilot picked it: the procedures
     and the runways (wind_picks), the holds, and each point's own
     altitude -- the plan's legs, one sequence for /api/plan, /api/navlog
     and the Go / No-Go, where the Go / No-Go's copy had missed the
-    landing runways."""
-    drawn = q.drawn_procedures()
+    landing runways. `drawn` and `own` where the caller read them already
+    (each procedure is loaded as it is read)."""
+    drawn = q.drawn_procedures() if drawn is None else drawn
+    own = q.own_altitudes() if own is None else own
     outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn, *wind_picks(r, outcome, q)), q.own_holds())
-    return outcome, flown_legs(r, runs, outcome, q.own_altitudes(), drawn, q.own_ground())
+    return outcome, flown_legs(r, runs, outcome, own, drawn, q.own_ground())
 
 
 @router.get("/api/plan")
@@ -1424,6 +1427,10 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     fuel reserve is the day or the night one.
     """
     r = load_route(q.dep, q.dest, q.stops)
+    # A procedure or a point's altitude that is not one is refused now, a
+    # 422, before any of the planning is done for it.
+    own = q.own_altitudes()
+    drawn = q.drawn_procedures()
     profile = q.profile()
     scored, selected, runs, outcome = planned_within_limit(r, q, profile)
     if isinstance(outcome, NoWinds):
@@ -1431,7 +1438,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    outcome, leg_list = flown_as_picked(r, runs, outcome, q)
+    outcome, leg_list = flown_as_picked(r, runs, outcome, q, drawn, own)
 
     return Plan(
         departure=r.departure,
@@ -1507,6 +1514,11 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     out, and an HTTP status can't change after that.
     """
     r = load_route(q.dep, q.dest, q.stops)
+    # Refused as a 422 here, before the stream starts: once its 200 has gone
+    # out, a bad procedure or altitude could only be an error line (the
+    # one planning sequence, 823822e7, had left them to it).
+    own = q.own_altitudes()
+    drawn = q.drawn_procedures()
 
     def lines():
         if q.checkpoints:
@@ -1594,7 +1606,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             class_b_detours=class_b_detours_of(runs, outcome, q),
             altitude_figures=list(outcome.figures),
         ))
-        outcome, legs = flown_as_picked(r, runs, outcome, q)
+        outcome, legs = flown_as_picked(r, runs, outcome, q, drawn, own)
         for leg in legs:
             yield line(NavLogLeg.model_validate(leg))
 
