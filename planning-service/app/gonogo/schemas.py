@@ -175,9 +175,13 @@ class RiskFactor(BaseModel):
     why: str | None = None
     points: int
     stop: bool = False
-    #: Its mark as the web's RiskAssessment draws it: a stop for one that
+    #: Its mark as the web's RiskAssessment draws it beside what the
+    #: briefing, the nav log and the logbook raised: a stop for one that
     #: makes the flight unlawful or is high on its own, else a caution.
-    finding: Literal["caution", "stop"] = "caution"
+    #: None on a self check, which the page ticks and draws no mark on.
+    finding: Literal["caution", "stop"] | None = None
+    #: A self check's group, where the factor is one ticked.
+    group: str | None = None
 
 
 class RiskCheck(RiskFactor):

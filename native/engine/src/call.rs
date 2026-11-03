@@ -31,7 +31,112 @@
 //!   pattern altitudes, which the planner looks up, as `"patterns":
 //!   {ident: ft}`;
 //! - `debrief_airborne`: the track's flights as [first, last] indices,
-//!   from `{"points"}`.
+//!   from `{"points"}`;
+//! - `read_clearance`: an ATC clearance heard, read into its items as the
+//!   web's lib/clearance read it (clearance.rs, AIM 4-4-3), from
+//!   `{"text"}`, the answer the web's Clearance (camelCase);
+//! - `cleared_route`: the route a clearance gives, `{"route": {"dep",
+//!   "stops", "dest"}, "typed": [{"name", "before", "after"}]}`, from
+//!   `{"text", "found"?: {"limit"?, "route"?, "departure"?, "arrival"?}
+//!   (the planner's ClearancePlaces), "planned": {"dep", "stops", "dest"}}`;
+//! - `our_call`: whether a transmission is said to the airplane `tail`
+//!   (AIM 4-2-4), from `{"text", "tail"}`;
+//! - `direct_of`: the place a "direct" sends us to, as words to find, or
+//!   null, from `{"text"}`;
+//! - `call_pattern`: our call sign as a regular expression over a
+//!   recognizer's words (AIM 4-2-4), for a locked phone's listener, or
+//!   null where `tail` is no registration, from `{"tail"}`;
+//! - `tokens`: the words heard with each run of figures one number (AIM
+//!   4-2-8, 4-2-9), `[{"word", "num"?}]`, from `{"text"}`;
+//! - `place_words`: words for a place as the planner looks them up, the
+//!   ICAO alphabet's spelled, from `{"tokens": [{"word", "num"?}]}`;
+//! - `readback_check`: a readback against the clearance heard (AIM
+//!   4-4-7), `{"items": [{"item", "cleared", "said"}], "words"}`, from
+//!   `{"cleared", "said"}`, both as heard.
+//!
+//! The Brief's Go / No-Go (crate::gonogo, the web's lib/verdict and the
+//! modules it is fed from), each from the planner's and the web's own
+//! objects in snake_case:
+//!
+//! - `gonogo_verdict`: POST /api/go-no-go's `line` and `items`, from
+//!   `{"verdict": VerdictInput, "alternate"?: /api/alternate's answer}`;
+//!   `gonogo_verdict_items` from a VerdictInput, `gonogo_verdict_line`
+//!   from `{"items"}`, `gonogo_alternate_finding` from `{"data"?}`,
+//!   `gonogo_with_alternate` from `{"items", "found"?}`. A VerdictInput
+//!   is `{"weather": {"pending", "failed"?, "vfr_not_recommended",
+//!   "under_minimums", "icing"?, "hazards", "unchecked", "worst"?},
+//!   "airspace": {"pending", "unchecked", "in_force", "near",
+//!   "special_use": [{"name", "when"}]}, "altitude": {"pending",
+//!   "problem"?, "cautions", "flown"?}, "fuel": {"pending", "margin_gal"?,
+//!   "required_gal"?, "reserve_min"?, "ifr"?}, "runways": {"pending",
+//!   "worked", "short", "crosswind"}, "balance": {"pending", "worked",
+//!   "problems", "takeoff"?}, "risk"?: {"level", "line"}};
+//! - `gonogo_under_minimums`: the sentences where the weather is under the
+//!   pilot's minimums, from `{"minimums": {"ceiling_ft"?, "visibility_sm"?,
+//!   "crosswind_kt"?, "wind_kt"?}, "landings": [ident], "dest", and the
+//!   briefing's "metars", "airports" and "forecast"}`;
+//!   `gonogo_best_crosswind` from `{"runways", "reported"?: {"speed_kt"?,
+//!   "gust_kt"?}}`;
+//! - `gonogo_icing`: icing at an altitude flown, with its line, or null,
+//!   from `{"selection": {"freezing_level_ft"?, "icing_possible",
+//!   "freezing_level_at_or_below"}, "flown_ft", "pireps": [{"icing"?}]}`;
+//!   `gonogo_icing_line` from `{"icing"}`;
+//! - `gonogo_risk`: the risk assessment, its line, what to do and every
+//!   factor marked, from a FratInput, `{"vfr_not_recommended",
+//!   "under_minimums", "tfr_on_route", "hazards", "night",
+//!   "fuel_margin_gal"?, "ifr"?, "vor_check"? (left out for a stock
+//!   profile, null for none recorded), "inspections"?, "squawks"?,
+//!   "currency"?, "day", "ticked": {key: true}}`;
+//!   `gonogo_inspection_factors` from `{"inspections", "day", "ifr"}`,
+//!   `gonogo_squawk_factors` from `{"squawks", "night", "ifr"}`,
+//!   `gonogo_self_checks` from `{}`, `gonogo_risk_line` from `{"level",
+//!   "score"}`;
+//! - `gonogo_runway_checks`: the runway check at every field, fields and
+//!   runways by index, from `{"aircraft": {"takeoff"?, "landing"?,
+//!   "crosswind"?}, "fields": [{"ident", "elevation_ft"?}], the briefing's
+//!   "metars" and "airports", "takeoff_lb"?, "landing_lb"?, "picks"?:
+//!   {"pattern", "takeoff"} (objects of field to end, or [field, end]
+//!   pairs)}`; `gonogo_short_field`, `gonogo_end_distance`,
+//!   `gonogo_density_altitude`, `gonogo_field_air`, `gonogo_soft_surface`
+//!   from `{"surface"?}`, `gonogo_runway_number` from `{"ident"}`,
+//!   `gonogo_runway_flown`
+//!   and `gonogo_runway_in_use` (runway and end by index),
+//!   `gonogo_picked_end`;
+//! - `gonogo_balance` from `{"loading", "load", "trip_fuel_gal"?}`,
+//!   `gonogo_default_load` from `{"loading", "fuel_gal"}`,
+//!   `gonogo_in_envelope` from `{"envelope", "arm", "weight"}`;
+//! - `gonogo_pass_minutes` (minutes after departure, or null) from
+//!   `{"legs": [{"distance_nm", "ete_min"?}], "along_nm"}`;
+//!   `gonogo_tfr_when` from `{"at_us", "effective_us"?, "expires_us"?}`
+//!   (microseconds since 1970); `gonogo_sua_when` from `{"times_of_use"?,
+//!   "utc": [day, minute], "local"?: [day, minute]}` (day 0 Sunday; the
+//!   host works the clocks out in the area's own time zone, which the
+//!   engine has no database of).
+//! - `checklist_read`: a checklist typed as text read into the gateway's
+//!   ChecklistDto, `{"sections": [{"title", "items": [{"challenge",
+//!   "response"}]}]}`, from `{"text"}`;
+//! - `checklist_write`: that checklist as text again, from `{"checklist"}`;
+//! - `csv_rows`: a CSV file's rows of fields, from `{"text"}`;
+//! - `logbook_csv_read`: a logbook CSV (ForeFlight's export or our own)
+//!   read into `{"entries": [LogbookEntryRequest], "skipped": [{"line",
+//!   "reason"}]}`, the entries camelCase as the gateway takes them, from
+//!   `{"text"}`;
+//! - `logbook_csv_write`: the logbook as a CSV file, from `{"entries":
+//!   [LogbookEntry]}`, the gateway's own (camelCase);
+//! - `handbook_figures`: a handbook specifications page's figures,
+//!   `{"cruiseTasKt"?, "cruisePowerPct"?, "fuelBurnGph"?, "usableFuelGal"?,
+//!   "climbTasKt"?, "serviceCeilingFt"?}` each `{"value", "words"}`, from
+//!   `{"text"}`, the text read off its photo;
+//! - `endorsement_lapse`: the warning an instructor sees once their date
+//!   has passed on the day of signing (14 CFR 61.197(a), (e)), or null,
+//!   from `{"until"?, "until_kind"?: "RE"|"EXP", "signed_on"}`, days as
+//!   "YYYY-MM-DD";
+//! - `endorsements_in_force`: the latest not voided of each code, as
+//!   `[[code, index]]` into the record (newest first), from `{"signed":
+//!   [{"code", "voided"?}]}`;
+//! - `endorsement_render`: an endorsement's words as they will be signed,
+//!   from `{"template", "student", "fields"?: {name: text}}`;
+//! - `acs_codes`: the ACS codes in pasted text, each once, from `{"text"}`.
 //!
 //! The route's pilot-made pieces (crate::route), as the address writes
 //! them and the planner's query reads them; a hold is `{"fix", "inbound",
@@ -69,6 +174,48 @@
 
 use crate::figures::{debrief, diversion, holding, lost_comms};
 use crate::json::{self, Value};
+use crate::pilot::{checklist, csv, endorsements, handbook, logbook};
+
+/// A list of strings as a JSON array.
+fn strings(out: &mut String, items: &[String]) {
+    out.push('[');
+    for (i, s) in items.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        json::string(out, s);
+    }
+    out.push(']');
+}
+
+/// A ChecklistDto's sections, `{"checklist": {"sections": [...]}}`.
+fn checklist_sections(ask: &Ask) -> Result<Vec<checklist::Section>, String> {
+    let bad = || "checklist_write: \"checklist\" is not {\"sections\": [{\"title\", \"items\": [{\"challenge\", \"response\"}]}]}".to_owned();
+    let sections = ask.v.get("checklist").and_then(|c| c.get("sections")).and_then(Value::as_array).ok_or_else(bad)?;
+    sections
+        .iter()
+        .map(|s| {
+            let title = s.get("title").and_then(Value::as_str).ok_or_else(bad)?.to_owned();
+            let items = s
+                .get("items")
+                .and_then(Value::as_array)
+                .ok_or_else(bad)?
+                .iter()
+                .map(|i| {
+                    Ok(checklist::Item {
+                        challenge: i.get("challenge").and_then(Value::as_str).ok_or_else(bad)?.to_owned(),
+                        response: match i.get("response") {
+                            None | Some(Value::Null) => None,
+                            Some(Value::String(r)) => Some(r.clone()),
+                            Some(_) => return Err(bad()),
+                        },
+                    })
+                })
+                .collect::<Result<_, String>>()?;
+            Ok(checklist::Section { title, items })
+        })
+        .collect()
+}
 
 /// The rule `name` worked on `input`, a JSON object; the answer as JSON.
 pub fn call(name: &str, input: &str) -> Result<String, String> {
@@ -137,8 +284,129 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             out.push(']');
             Ok(out)
         }
+        "checklist_read" => Ok(checklist::to_json(&checklist::read(ask.str("text")?))),
+        "checklist_write" => {
+            let sections = checklist_sections(&ask)?;
+            let mut out = String::new();
+            json::string(&mut out, &checklist::write(&sections));
+            Ok(out)
+        }
+        "csv_rows" => {
+            let mut out = String::from("[");
+            for (i, row) in csv::rows(ask.str("text")?).iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                strings(&mut out, row);
+            }
+            out.push(']');
+            Ok(out)
+        }
+        "logbook_csv_read" => Ok(logbook::read_json(ask.str("text")?)),
+        "logbook_csv_write" => {
+            let mut out = String::new();
+            json::string(&mut out, &logbook::write(ask.list("entries")?));
+            Ok(out)
+        }
+        "handbook_figures" => Ok(handbook::to_json(&handbook::figures_of_page(ask.str("text")?))),
+        "endorsement_lapse" => {
+            let text = |key: &str| match ask.v.get(key) {
+                None | Some(Value::Null) => Ok(None),
+                Some(Value::String(s)) => Ok(Some(s.as_str())),
+                Some(_) => Err(format!("endorsement_lapse: \"{key}\" is not a string")),
+            };
+            let warning = endorsements::lapse_warning(text("until")?, text("until_kind")?, ask.str("signed_on")?)?;
+            let mut out = String::new();
+            json::opt_string(&mut out, warning.as_deref());
+            Ok(out)
+        }
+        "endorsements_in_force" => {
+            let signed = ask
+                .list("signed")?
+                .iter()
+                .map(|e| {
+                    let code = e.get("code").and_then(Value::as_str).ok_or("endorsements_in_force: an endorsement's \"code\" is missing")?;
+                    let voided = matches!(e.get("voided"), Some(Value::Bool(true)));
+                    Ok((code.to_owned(), voided))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let mut out = String::from("[");
+            for (i, (code, at)) in endorsements::in_force(&signed).iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push('[');
+                json::string(&mut out, code);
+                out.push_str(&format!(",{at}]"));
+            }
+            out.push(']');
+            Ok(out)
+        }
+        "endorsement_render" => {
+            let fields = match ask.v.get("fields") {
+                None | Some(Value::Null) => None,
+                Some(f @ Value::Object(_)) => Some(f),
+                Some(_) => return Err("endorsement_render: \"fields\" is not an object of names to words".to_owned()),
+            };
+            let field = |key: &str| fields.and_then(|f| f.get(key)).and_then(Value::as_str).map(str::to_owned);
+            let mut out = String::new();
+            json::string(&mut out, &endorsements::render(ask.str("template")?, ask.opt_str("student")?, &field));
+            Ok(out)
+        }
+        "acs_codes" => {
+            let mut out = String::new();
+            strings(&mut out, &endorsements::acs_codes(ask.str("text")?));
+            Ok(out)
+        }
+        // The clearance reader (clearance.rs), the web's lib/clearance and
+        // lib/heardCall: held to the same fixtures as the web's tests.
+        "read_clearance" => Ok(crate::clearance::read(ask.str("text")?).to_json()),
+        "cleared_route" => cleared_route_rule(&ask),
+        "our_call" => Ok(if crate::clearance::our_call(ask.str("text")?, ask.str("tail")?) { "true" } else { "false" }.to_owned()),
+        "direct_of" => {
+            let mut out = String::new();
+            json::opt_string(&mut out, crate::clearance::direct_of(ask.str("text")?).as_deref());
+            Ok(out)
+        }
+        "call_pattern" => {
+            let mut out = String::new();
+            json::opt_string(&mut out, crate::clearance::call_pattern(ask.str("tail")?).as_deref());
+            Ok(out)
+        }
+        "tokens" => {
+            let mut out = String::from("[");
+            for (i, t) in crate::clearance::tokens(ask.str("text")?).iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push_str("{\"word\":");
+                json::string(&mut out, &t.word);
+                if let Some(num) = &t.num {
+                    out.push_str(",\"num\":");
+                    json::string(&mut out, num);
+                }
+                out.push('}');
+            }
+            out.push(']');
+            Ok(out)
+        }
+        "place_words" => {
+            let toks = ask
+                .list("tokens")?
+                .iter()
+                .map(|t| {
+                    let word = t.get("word").and_then(Value::as_str).ok_or_else(|| "place_words: a token has no \"word\"".to_owned())?;
+                    Ok(crate::clearance::Token { word: word.to_owned(), num: t.get("num").and_then(Value::as_str).map(str::to_owned) })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let mut out = String::new();
+            json::string(&mut out, &crate::clearance::place_words(&toks));
+            Ok(out)
+        }
+        "readback_check" => Ok(crate::readback::check_json(ask.str("cleared")?, ask.str("said")?)),
         _ if crate::route::answers::NAMES.contains(&name) => crate::route::answers::answer(name, ask.v),
-        _ => Err(format!("the engine has no rule called {name:?}")),
+        // The Go / No-Go's, by their own names (gonogo::calls).
+        _ => crate::gonogo::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}"))),
     }
 }
 
@@ -192,6 +460,94 @@ fn opt_num_in(name: &str, v: &Value, key: &str) -> Result<Option<f64>, String> {
 
 fn num_in(name: &str, v: &Value, key: &str) -> Result<f64, String> {
     opt_num_in(name, v, key)?.ok_or_else(|| format!("{name}: \"{key}\" is missing"))
+}
+
+/// The route a clearance gives (clearance::cleared_route) from the words
+/// heard, the planner's places for them and the route planned: the web's
+/// lib/clearance clearedRoute, its input the places as ClearancePlaces
+/// answers them.
+fn cleared_route_rule(ask: &Ask) -> Result<String, String> {
+    use crate::clearance::{self, Found, FoundPlaces, FoundProcedure, Route};
+    let name = ask.name;
+    let text = ask.str("text")?;
+    let str_in = |v: &Value, key: &str| -> Option<String> { v.get(key).and_then(Value::as_str).map(str::to_owned) };
+    let found_in = |v: &Value| -> Result<Found, String> {
+        let kind = match v.get("kind").and_then(Value::as_str) {
+            Some("airport") => Some("airport"),
+            Some("navaid") => Some("navaid"),
+            Some("fix") => Some("fix"),
+            _ => None,
+        };
+        let sure = match v.get("sure") {
+            Some(Value::Bool(b)) => *b,
+            _ => true,
+        };
+        Ok(Found { said: str_in(v, "said").unwrap_or_default(), ident: str_in(v, "ident"), name: str_in(v, "name"), kind, sure })
+    };
+    let procedure_in = |v: Option<&Value>| -> Result<Option<FoundProcedure>, String> {
+        match v {
+            None | Some(Value::Null) => Ok(None),
+            Some(p @ Value::Object(_)) => Ok(Some(FoundProcedure {
+                id: str_in(p, "id").ok_or_else(|| format!("{name}: a procedure found has no \"id\""))?,
+                transition: str_in(p, "transition"),
+            })),
+            Some(_) => Err(format!("{name}: a procedure found is not an object")),
+        }
+    };
+    let found = match ask.v.get("found") {
+        None | Some(Value::Null) => FoundPlaces::default(),
+        Some(f @ Value::Object(_)) => FoundPlaces {
+            limit: match f.get("limit") {
+                Some(l @ Value::Object(_)) => Some(found_in(l)?),
+                _ => None,
+            },
+            route: match f.get("route") {
+                Some(Value::Array(runs)) => runs
+                    .iter()
+                    .map(|run| run.as_array().unwrap_or(&[]).iter().map(found_in).collect::<Result<Vec<_>, _>>())
+                    .collect::<Result<Vec<_>, _>>()?,
+                _ => Vec::new(),
+            },
+            departure: procedure_in(f.get("departure"))?,
+            arrival: procedure_in(f.get("arrival"))?,
+        },
+        Some(_) => return Err(format!("{name}: \"found\" is not an object")),
+    };
+    let planned = match ask.v.get("planned") {
+        Some(p @ Value::Object(_)) => Route {
+            dep: str_in(p, "dep").unwrap_or_default(),
+            stops: p.get("stops").and_then(Value::as_array).map(|s| s.iter().filter_map(|v| v.as_str().map(str::to_owned)).collect()).unwrap_or_default(),
+            dest: str_in(p, "dest").unwrap_or_default(),
+        },
+        _ => return Err(format!("{name}: \"planned\" is missing or not an object")),
+    };
+    let (route, typed) = clearance::cleared_route(&clearance::read(text), &found, &planned);
+    let mut out = String::from("{\"route\":{\"dep\":");
+    json::string(&mut out, &route.dep);
+    out.push_str(",\"stops\":[");
+    for (i, stop) in route.stops.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        json::string(&mut out, stop);
+    }
+    out.push_str("],\"dest\":");
+    json::string(&mut out, &route.dest);
+    out.push_str("},\"typed\":[");
+    for (i, t) in typed.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str("{\"name\":");
+        json::string(&mut out, &t.name);
+        out.push_str(",\"before\":");
+        json::opt_string(&mut out, t.before.as_deref());
+        out.push_str(",\"after\":");
+        json::opt_string(&mut out, t.after.as_deref());
+        out.push('}');
+    }
+    out.push_str("]}");
+    Ok(out)
 }
 
 fn holding_rule(ask: &Ask) -> Result<String, String> {

@@ -21,6 +21,12 @@
 //! - figures: the debrief of a flown track (ACS PA.VI.A), the diversion
 //!   drill (PA.VI.C), a hold's entry and wind (AIM 5-3-8) and lost
 //!   communications' altitudes (14 CFR 91.185), with their words;
+//! - gonogo: the Brief's Go / No-Go -- its seven findings and the line
+//!   over them, the pilot's minimums, icing under IFR, the risk
+//!   assessment, the runway check, the weight and balance and the pass
+//!   times (the web's lib/verdict and the modules it is fed from);
+//! - pilot: the pilot's records and text -- a checklist, the logbook's
+//!   CSV file, a handbook page, endorsements and ACS codes;
 //! - route: the route's pilot-made pieces as the address writes them
 //!   and the planner reads them -- the pilot's own point off a fix, holds,
 //!   procedures and runways picked;
@@ -38,12 +44,15 @@ pub mod clearance;
 pub mod figures;
 pub mod flight;
 pub mod geo;
+pub mod gonogo;
 pub mod grid;
 pub mod metar;
 pub mod notam;
 mod json;
 pub mod pack;
 pub mod phone;
+pub mod pilot;
+pub mod readback;
 pub mod route;
 pub mod rules;
 pub mod spoken;

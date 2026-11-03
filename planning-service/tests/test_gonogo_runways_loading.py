@@ -186,3 +186,26 @@ def test_picked_end_by_the_fields_icao_or_faa_ident_alike_none_for_no_pick_or_th
     assert picked_end(PICKS, "KDLH", "landing", False) is None
     assert picked_end(PICKS, "KMSN", "landing", False) is None
     assert picked_end(None, "C81", "takeoff", True) is None
+
+
+def test_picked_end_matches_a_field_as_the_web_does_trimmed_any_case_k_only_before_three():
+    # lib/procedures sameField: trimmed, upper-cased, a K taken off only
+    # before three letters or figures.
+    picks = {"pattern": {" kues ": "10", "K-1A": "5"}, "takeoff": {}}
+    assert picked_end(picks, "UES", "landing", False) == "10"
+    assert picked_end(picks, "KUES", "landing", False) == "10"
+    assert picked_end(picks, "-1A", "landing", False) is None
+    assert picked_end(picks, "K-1A", "landing", False) == "5"
+
+
+def test_a_variable_wind_with_no_runway_component_is_all_crosswind_gusts_included():
+    # runwayCheck.ts: VRB (AIM 7-1-28) gives the runways no wind, and all of
+    # it may be across -- past the 172's demonstrated 15 kt, a caution.
+    vrb = {**BRIEFING, "metars": {"C81": {"temp_c": 15, "altimeter_in_hg": 29.92, "wind_dir_true_deg": None, "wind_speed_kt": 12,
+                                          "wind_gust_kt": 22}, "KDLH": None},
+           "airports": {**BRIEFING["airports"], "C81": {"runways": [runway(5000, 0, 0, wind=None)]}}}
+    start = runway_checks(C172, vrb, FIELDS, 2550, 2400)[0]
+    assert (start["crosswind_kt"], start["crosswind_over"], start["headwind_kt"]) == (22, True, 0)
+    # A wind with a direction gives every runway its components: none here.
+    steady = {**vrb, "metars": {"C81": {**vrb["metars"]["C81"], "wind_dir_true_deg": 270}}}
+    assert runway_checks(C172, steady, FIELDS, 2550, 2400)[0]["crosswind_kt"] == 0

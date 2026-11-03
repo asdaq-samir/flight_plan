@@ -27,6 +27,6 @@ describe("a clearance heard", () => {
 
 describe("the route a clearance gives", () => {
   test.each(fixture.routes)("$heard", ({ heard, found, planned, route, typed }) => {
-    expect(clearedRoute(readClearance(heard), found as Found, planned)).toEqual({ route, typed });
+    expect(clearedRoute(heard, found as Found, planned)).toEqual({ route, typed });
   });
 });

@@ -1,12 +1,60 @@
 //! How a figure is written in the pages' words, as the web app writes it
-//! (lib/units) and app.gonogo.words has it: JavaScript's rounding, not
-//! Rust's or Python's, so a figure reads the same on every screen.
+//! (lib/units, features/plan/format) and app.gonogo.words has it:
+//! JavaScript's rounding and its numbers in text, not Rust's or Python's,
+//! so a figure reads the same on every screen.
 
 use crate::geo::py_mod;
 
 /// JavaScript's Math.round: halves up, toward +infinity (words.js_round).
+/// Not floor(n + 0.5), whose sum rounds 0.49999999999999994 up to 1.
 pub fn js_round(n: f64) -> i64 {
-    (n + 0.5).floor() as i64
+    js_round_f(n) as i64
+}
+
+/// Math.round as a double, for figures past an i64's reach.
+pub fn js_round_f(n: f64) -> f64 {
+    let floor = n.floor();
+    if n - floor >= 0.5 {
+        floor + 1.0
+    } else {
+        floor
+    }
+}
+
+/// To a tenth, as lib/verdict's `one`: Math.round(n * 10) / 10.
+pub fn one(n: f64) -> f64 {
+    js_round_f(n * 10.0) / 10.0
+}
+
+/// A number as JavaScript writes it into a string (Number's toString, a
+/// template literal's `${n}`): 28 for 28.0, 2.3, 0.00001; an exponent
+/// below a millionth and from 1e21, "1e-7", "1.5e+21"; -0 as "0".
+pub fn js_num(n: f64) -> String {
+    if n.is_nan() {
+        return "NaN".to_owned();
+    }
+    if n.is_infinite() {
+        return if n > 0.0 { "Infinity" } else { "-Infinity" }.to_owned();
+    }
+    if n == 0.0 {
+        return "0".to_owned();
+    }
+    let magnitude = n.abs();
+    if (1e-6..1e21).contains(&magnitude) {
+        // Rust's Display is the shortest digits that read back the same,
+        // never with an exponent: JavaScript's, in this range.
+        return format!("{n}");
+    }
+    let e = format!("{n:e}");
+    match e.split_once('e') {
+        Some((mantissa, exp)) if !exp.starts_with('-') => format!("{mantissa}e+{exp}"),
+        _ => e,
+    }
+}
+
+/// An optional number in a template literal: "null" for none.
+pub fn js_opt(n: Option<f64>) -> String {
+    n.map_or_else(|| "null".to_owned(), js_num)
 }
 
 /// JavaScript's toFixed (words.to_fixed): the nearest, a tie to the
@@ -49,7 +97,7 @@ pub fn to_fixed(n: f64, digits: usize) -> String {
 /// the FAA writes altitudes (lib/units grouped): rounded on the
 /// magnitude, halves away from zero.
 pub fn grouped(n: f64) -> String {
-    let magnitude = (n.abs() + 0.5).floor() as u64;
+    let magnitude = js_round_f(n.abs()) as u64;
     let plain = magnitude.to_string();
     let mut digits = String::new();
     for (i, c) in plain.chars().enumerate() {
@@ -68,6 +116,39 @@ pub fn grouped(n: f64) -> String {
 /// "12,500"; an em dash for none (lib/units altFt).
 pub fn alt_ft(ft: Option<f64>) -> String {
     ft.map_or_else(|| "—".to_owned(), grouped)
+}
+
+/// The same with its unit, "12,500 ft" (lib/units feet).
+pub fn feet(ft: f64) -> String {
+    format!("{} ft", grouped(ft))
+}
+
+/// Pounds, "2,550 lb" (lib/units pounds).
+pub fn pounds(lb: f64) -> String {
+    format!("{} lb", grouped(lb))
+}
+
+/// A cruising altitude as the owner asked it written, hundreds of feet in
+/// three figures: "FL-045" for 4,500 ft, "FL----" with none yet (lib/units
+/// flightLevel; the owner, 2026-10-27: "make it in the format FL-***").
+/// The figures padded as String(n).padStart(3, "0") pads them, a minus
+/// sign and all.
+pub fn flight_level(ft: Option<f64>) -> String {
+    match ft {
+        None => "FL----".to_owned(),
+        Some(ft) => {
+            let hundreds = js_num(js_round_f(ft / 100.0));
+            format!("FL-{}{hundreds}", "0".repeat(3usize.saturating_sub(hundreds.chars().count())))
+        }
+    }
+}
+
+/// Ceiling and visibility the way a briefer says them, "3,500 ft · 6 sm",
+/// "no ceiling · —" (features/plan/format ceilingAndVisibility).
+pub fn ceiling_and_visibility(ceiling_ft: Option<f64>, visibility_sm: Option<f64>) -> String {
+    let ceiling = ceiling_ft.map_or_else(|| "no ceiling".to_owned(), |ft| format!("{} ft", alt_ft(Some(ft))));
+    let visibility = visibility_sm.map_or_else(|| "—".to_owned(), |sm| format!("{} sm", js_num(sm)));
+    format!("{ceiling} · {visibility}")
 }
 
 /// A direction as a pilot writes it, "005°", north "360°" (lib/units

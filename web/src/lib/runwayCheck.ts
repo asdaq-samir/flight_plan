@@ -6,21 +6,25 @@
  * the reported wind along and across it, and the POH's short-field
  * distances (lib/takeoffLanding) against that runway's length -- the
  * runway lengths and takeoff and landing distances 14 CFR 91.103(b)
- * asks a pilot to know.
+ * asks a pilot to know. Worked out by the shared engine
+ * (native/engine/src/gonogo/runways.rs, through lib/engine), the very
+ * code behind the planner's Go / No-Go and the phones'.
  */
 import type { AircraftProfile, Airport, Briefing, Course, Runway, ShortField } from "./api/types";
-import { pickedEnd, runwayFlown, type RunwayPicks } from "./pattern";
-import { isaTempC, pressureAltitudeFt, shortField, type Distances } from "./takeoffLanding";
-import { runwayCrosswindKt, steadyOrGustKt } from "./wind";
+import { callEngine } from "./engine/engine";
+import type { RunwayPicks } from "./pattern";
+import type { Distances } from "./takeoffLanding";
 
-/** The ICAO standard atmosphere's troposphere (ICAO Doc 7488): sea level
- *  288.15 K, the lapse rate 6.5 K a kilometre (0.0019812 K a foot), and
- *  the exponents its pressure and density fall off with height by --
- *  g/(R·L) and one less. */
-const T0_K = 288.15;
-const LAPSE_K_PER_FT = 0.0019812;
-const PRESSURE_EXP = 5.25588;
-const DENSITY_EXP = PRESSURE_EXP - 1;
+/** Distances as the engine answers them. */
+interface EngineDistances {
+  ground_roll_ft: number;
+  total_ft: number;
+  caveats: string[];
+  over: boolean;
+}
+
+const distances = (d: EngineDistances): Distances & { over: boolean } =>
+  ({ groundRollFt: d.ground_roll_ft, totalFt: d.total_ft, caveats: d.caveats, over: d.over });
 
 /**
  * Density altitude: the height in the standard atmosphere whose air is
@@ -28,25 +32,28 @@ const DENSITY_EXP = PRESSURE_EXP - 1;
  * worked out from the atmosphere itself rather than the 120 ft a degree
  * rule of thumb, which it agrees with to a few per cent near the ground.
  * What an airplane performs as if it were at (FAA-H-8083-25C, chapter 11).
+ * The engine's ICAO standard atmosphere (ICAO Doc 7488), the one the
+ * planner's cruise and climb are flown in.
  */
 export function densityAltitudeFt(pressureAltFt: number, tempC: number): number {
-  const pressure = (1 - (LAPSE_K_PER_FT * pressureAltFt) / T0_K) ** PRESSURE_EXP;
-  const density = pressure / ((tempC + 273.15) / T0_K);
-  return (T0_K / LAPSE_K_PER_FT) * (1 - density ** (1 / DENSITY_EXP));
+  return callEngine("gonogo_density_altitude", { pressure_alt_ft: pressureAltFt, temp_c: tempC });
 }
 
 /** A runway with a soft surface -- turf, grass, dirt or gravel, as
  *  OurAirports and NASR code it -- for the POH's correction to the ground
  *  roll on dry grass (lib/takeoffLanding). */
 export function softSurface(runway: Runway | undefined): boolean {
-  return /turf|grass|grs|dirt|gravel/i.test(runway?.surface ?? "");
+  return callEngine("gonogo_soft_surface", { surface: runway?.surface ?? null });
 }
 
 /** The air a field's distances are worked out in: its pressure altitude
  *  from the altimeter reported (a standard 29.92 without one) and the
  *  temperature reported, else a standard day's at its elevation. */
 export function fieldAir(elevationFt: number, altimeterInHg: number | null | undefined, tempC: number | null | undefined) {
-  return { pressureAltFt: pressureAltitudeFt(elevationFt, altimeterInHg), tempC: tempC ?? isaTempC(elevationFt) };
+  const air = callEngine<{ pressure_alt_ft: number; temp_c: number }>("gonogo_field_air", {
+    elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg ?? null, temp_c: tempC ?? null,
+  });
+  return { pressureAltFt: air.pressure_alt_ft, tempC: air.temp_c };
 }
 
 /**
@@ -60,8 +67,9 @@ export function fieldAir(elevationFt: number, altimeterInHg: number | null | und
  */
 export function endDistance(table: ShortField, runway: Runway | undefined, air: { pressureAltFt: number; tempC: number },
   weightLb: number | null | undefined, headwindKt: number): Distances & { over: boolean } {
-  const d = shortField(table, air.pressureAltFt, air.tempC, weightLb ?? Math.max(...table.weights_lb), headwindKt, softSurface(runway));
-  return { ...d, over: runway?.length_ft != null && d.totalFt > runway.length_ft };
+  return distances(callEngine<EngineDistances>("gonogo_end_distance", {
+    table, runway: runway ?? null, pressure_alt_ft: air.pressureAltFt, temp_c: air.tempC, weight_lb: weightLb ?? null, headwind_kt: headwindKt,
+  }));
 }
 
 export interface RunwayDistance extends Distances {
@@ -108,47 +116,30 @@ export function runwayChecks(aircraft: AircraftProfile | null | undefined, brief
   const takeoffTable = aircraft?.takeoff ?? null;
   const landingTable = aircraft?.landing ?? null;
   if (!briefing || !course || !takeoffTable || !landingTable) return [];
-  const fields = [course.departure, ...(course.stops ?? []).filter(s => s.kind !== "fix"), course.destination];
-  const demonstrated = aircraft?.crosswind?.demonstrated_kt ?? null;
-  return fields.map((field, i) => {
-    const metar = briefing.metars[field.ident] ?? null;
-    const runways = briefing.airports[field.ident]?.runways ?? [];
-    // The runway the wind favours most, or the longest without a wind.
-    const windward = [...runways].filter(r => !r.closed)
-      .sort((a, b) => (b.wind?.headwind_kt ?? -99) - (a.wind?.headwind_kt ?? -99) || (b.length_ft ?? 0) - (a.length_ft ?? 0))[0];
-    // The runway flown for a takeoff or a landing: the pilot's pick in FPL
-    // where there is one, checked whatever the wind -- a short runway
-    // picked was never checked, the long one into the wind was -- with the
-    // wind on the end picked (a tailwind on the far end of the wind's
-    // runway); else the wind's.
-    const flownFor = (kind: "takeoff" | "landing") => {
-      const flown = runwayFlown(runways, pickedEnd(picks, field.ident, kind, i === 0));
-      const picked = !!flown && !!pickedEnd(picks, field.ident, kind, i === 0);
-      const runway = picked ? flown!.runway : windward;
-      const w = runway?.wind;
-      const end = picked ? flown!.end.ident : w?.end ?? null;
-      const headwind = w ? (end != null && end !== w.end ? -w.headwind_kt : w.headwind_kt) : 0;
-      // A variable wind (VRB, AIM 7-1-28) gives the planner no runway
-      // components (vfr.runway_wind): all of it may be across, gusts
-      // included, as lib/minimums takes it.
-      const crosswind = w ? runwayCrosswindKt(w)
-        : metar?.wind_dir_true_deg == null && metar?.wind_speed_kt ? steadyOrGustKt(metar.wind_speed_kt, metar.wind_gust_kt) : 0;
-      return { runway, end, picked, headwind, crosswind };
-    };
-    const air = fieldAir(field.elevation_ft ?? 0, metar?.altimeter_in_hg, metar?.temp_c);
-    const last = i === fields.length - 1;
-    const kinds: ("takeoff" | "landing")[] = i === 0 ? ["takeoff"] : last ? ["landing"] : ["landing", "takeoff"];
-    const first = flownFor(kinds[0]!);
+  const fields: Airport[] = [course.departure, ...(course.stops ?? []).filter(s => s.kind !== "fix"), course.destination];
+  const idents = new Set(fields.map(f => f.ident));
+  const runwaysAt = (ident: string) => briefing.airports[ident]?.runways ?? [];
+  const checks = callEngine<{
+    field: number; role: string; runway: number | null; end: string | null; picked: boolean; pressure_alt_ft: number; density_alt_ft: number;
+    temp_c: number; reported: boolean; headwind_kt: number; crosswind_kt: number; crosswind_over: boolean; grass: boolean;
+    distances: (EngineDistances & { kind: "takeoff" | "landing"; runway: number | null; end: string | null })[];
+  }[]>("gonogo_runway_checks", {
+    aircraft: { takeoff: takeoffTable, landing: landingTable, crosswind: aircraft?.crosswind ?? null },
+    fields: fields.map(f => ({ ident: f.ident, elevation_ft: f.elevation_ft ?? null })),
+    metars: Object.fromEntries(Object.entries(briefing.metars).filter(([i]) => idents.has(i))),
+    airports: Object.fromEntries(Object.entries(briefing.airports).filter(([i]) => idents.has(i))),
+    takeoff_lb: takeoffLb, landing_lb: landingLb,
+    // The picks in the order they were made, as the Map holds them.
+    picks: picks ? { pattern: [...picks.pattern], takeoff: [...picks.takeoff] } : null,
+  });
+  return checks.map(c => {
+    const field = fields[c.field]!;
+    const on = (i: number | null) => (i == null ? undefined : runwaysAt(field.ident)[i]);
     return {
-      field, role: i === 0 ? "Departure" : last ? "Destination" : "Stop", runway: first.runway, end: first.end, picked: first.picked,
-      pressureAltFt: air.pressureAltFt, densityAltFt: densityAltitudeFt(air.pressureAltFt, air.tempC), tempC: air.tempC, reported: !!metar,
-      headwindKt: first.headwind, crosswindKt: first.crosswind, crosswindOver: demonstrated != null && first.crosswind > demonstrated,
-      grass: softSurface(first.runway),
-      distances: kinds.map(kind => {
-        const on = flownFor(kind);
-        const d = endDistance(kind === "takeoff" ? takeoffTable : landingTable, on.runway, air, kind === "takeoff" ? takeoffLb : landingLb, on.headwind);
-        return { kind, ...d, runway: on.runway, end: on.end };
-      }),
+      field, role: c.role, runway: on(c.runway), end: c.end, picked: c.picked, pressureAltFt: c.pressure_alt_ft, densityAltFt: c.density_alt_ft,
+      tempC: c.temp_c, reported: c.reported, headwindKt: c.headwind_kt, crosswindKt: c.crosswind_kt, crosswindOver: c.crosswind_over,
+      grass: c.grass,
+      distances: c.distances.map(d => ({ kind: d.kind, ...distances(d), runway: on(d.runway), end: d.end })),
     };
   });
 }
