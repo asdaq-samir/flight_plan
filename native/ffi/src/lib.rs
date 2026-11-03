@@ -4,6 +4,7 @@
 //! with `wt_string_free`.
 
 use std::ffi::{c_char, CStr, CString};
+use wingtip_engine::figures::{debrief, diversion, holding, lost_comms};
 use wingtip_engine::{ahead, clearance::Route, flight, pack::Pack, phone, spoken, validity, wmm};
 
 /// SAFETY: the caller passes `len` readable bytes at `ptr` (or a null
@@ -258,4 +259,145 @@ pub unsafe extern "C" fn wt_ahead(ptrs: *const *const u8, lens: *const usize, co
     let alt = (!alt_ft.is_nan()).then_some(alt_ft);
     let at = (tfrs_at != i64::MIN).then_some(tfrs_at);
     give(ahead::ahead(&packs, lat, lon, track_deg, gs_kt, alt, vs_fpm, now, lines, at))
+}
+
+// The four pilot pages' figures (wingtip_engine::figures), each answered
+// as the planner's endpoint answers it, so the phone shows the same words
+// and marks with no signal. A figure not known is NAN.
+
+fn known(v: f64) -> Option<f64> {
+    (!v.is_nan()).then_some(v)
+}
+
+/// A hold's entry and its legs in the wind (AIM 5-3-8), as the planner's
+/// /api/holding answers, JSON. `right` 1 for right turns, 0 left; the
+/// wind is worked only where `tas_kt`, `wind_from_deg`, `wind_kt` and
+/// `altitude_ft` are all known.
+#[no_mangle]
+pub extern "C" fn wt_holding(inbound_deg: f64, heading_deg: f64, right: i32, tas_kt: f64, wind_from_deg: f64, wind_kt: f64,
+                             altitude_ft: f64) -> *mut c_char {
+    give(holding::holding_json(inbound_deg, heading_deg, right != 0, known(tas_kt), known(wind_from_deg), known(wind_kt),
+                               known(altitude_ft)))
+}
+
+/// Two-way radio failure (14 CFR 91.185), as the planner's /api/lost-comms
+/// answers, JSON: `count` segments, `names[i]` (NULL or empty: "Segment")
+/// and `minimums_ft[i]` (NAN not known); the altitudes assigned and
+/// expected (NAN none), the segment the expected one applies from,
+/// `approach_fix` 1 where the clearance limit is a fix an approach begins
+/// from, and the EFC and ETA as the pilot wrote them (NULL none).
+///
+/// # Safety
+/// `names` and `minimums_ft` hold `count` entries (or are NULL), each name
+/// NULL or NUL-terminated; `efc` and `eta` NULL or NUL-terminated.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn wt_lost_comms(names: *const *const c_char, minimums_ft: *const f64, count: usize, assigned_ft: f64,
+                                       expected_ft: f64, expected_from: i64, approach_fix: i32, efc: *const c_char,
+                                       eta: *const c_char) -> *mut c_char {
+    let segments: Vec<(String, Option<f64>)> = (0..count)
+        .map(|i| {
+            let name = if names.is_null() { None } else { text(*names.add(i)) };
+            let min = if minimums_ft.is_null() { None } else { known(*minimums_ft.add(i)) };
+            (name.unwrap_or("").to_owned(), min)
+        })
+        .collect();
+    give(lost_comms::lost_comms_json(&segments, known(assigned_ft), known(expected_ft), expected_from, approach_fix != 0,
+                                     text(efc).unwrap_or(""), text(eta).unwrap_or("")))
+}
+
+/// The diversion drill (ACS PA.VI.C) in the leg's air the phone has (true
+/// airspeed, burn, variation east positive, the wind from, true, and its
+/// speed; calm 0 and 0) to a field `distance_nm` away on `tc_deg`, JSON
+/// {"solved", "steps", "problem", "checks"} as the planner's
+/// /api/diversion has them; `to` the field's ident for the problem's
+/// words; the student's estimates NAN where not given.
+///
+/// # Safety
+/// `to` NULL or NUL-terminated.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn wt_diversion(tc_deg: f64, distance_nm: f64, tas_kt: f64, fuel_burn_gph: f64, magnetic_variation_deg: f64,
+                                      wind_from_deg: f64, wind_kt: f64, to: *const c_char, mh: f64, gs: f64, ete: f64,
+                                      fuel: f64) -> *mut c_char {
+    let air = diversion::Air { tas_kt, fuel_burn_gph, magnetic_variation_deg, wind_from_deg, wind_kt };
+    give(diversion::diversion_json(&air, tc_deg, distance_nm, text(to).unwrap_or(""), [known(mh), known(gs), known(ete), known(fuel)]))
+}
+
+/// A point of the flown track: `t` ms since 1970, `alt_ft` GPS altitude,
+/// NAN where the file has none.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct WtTrackPoint {
+    pub t: f64,
+    pub lat: f64,
+    pub lon: f64,
+    pub alt_ft: f64,
+}
+
+/// A saved flight's checkpoint: `name` and `category` ("departure",
+/// "stop", "destination" or its own kind) NUL-terminated; the plan's
+/// figures into it NAN where not known.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct WtCheckpoint {
+    pub sequence_no: i64,
+    pub name: *const c_char,
+    pub category: *const c_char,
+    pub lat: f64,
+    pub lon: f64,
+    pub along_track_nm: f64,
+    pub true_course_deg: f64,
+    pub ete_min: f64,
+    pub altitude_ft: f64,
+}
+
+/// A flight debriefed against its flown track (ACS PA.VI.A), as the
+/// planner's /api/debrief answers, JSON {"debrief": marked or null,
+/// "tolerances"}: `point_count` points (any order; put in time order
+/// here), `checkpoint_count` checkpoints, and the fields' pattern
+/// altitudes, ft MSL, `pattern_idents[i]` at `pattern_ft[i]`, for
+/// `pattern_count` fields (a field with none is not graded). NULL where
+/// fewer than two checkpoints are given.
+///
+/// # Safety
+/// Each array holds its count of entries (or is NULL with a count of 0),
+/// every string NUL-terminated, all alive for the call.
+#[no_mangle]
+pub unsafe extern "C" fn wt_debrief(points: *const WtTrackPoint, point_count: usize, checkpoints: *const WtCheckpoint,
+                                    checkpoint_count: usize, pattern_idents: *const *const c_char, pattern_ft: *const f64,
+                                    pattern_count: usize) -> *mut c_char {
+    if checkpoints.is_null() || checkpoint_count < 2 {
+        return std::ptr::null_mut();
+    }
+    let track: Vec<debrief::Point> = if points.is_null() {
+        Vec::new()
+    } else {
+        std::slice::from_raw_parts(points, point_count)
+            .iter()
+            .map(|p| debrief::Point { t: p.t, lat: p.lat, lon: p.lon, alt_ft: known(p.alt_ft) })
+            .collect()
+    };
+    let cps: Vec<debrief::Checkpoint> = std::slice::from_raw_parts(checkpoints, checkpoint_count)
+        .iter()
+        .map(|c| debrief::Checkpoint {
+            sequence_no: c.sequence_no,
+            name: text(c.name).unwrap_or("").to_owned(),
+            category: text(c.category).unwrap_or("").to_owned(),
+            lat: c.lat,
+            lon: c.lon,
+            along_track_nm: c.along_track_nm,
+            true_course_deg: known(c.true_course_deg),
+            ete_min: known(c.ete_min),
+            altitude_ft: known(c.altitude_ft),
+        })
+        .collect();
+    let patterns: Vec<(String, f64)> = if pattern_idents.is_null() || pattern_ft.is_null() {
+        Vec::new()
+    } else {
+        (0..pattern_count)
+            .filter_map(|i| Some((text(*pattern_idents.add(i))?.to_owned(), known(*pattern_ft.add(i))?)))
+            .collect()
+    };
+    give(debrief::answer_json(&cps, &track, &patterns))
 }

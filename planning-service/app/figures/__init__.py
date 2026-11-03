@@ -4,6 +4,8 @@ out here for the native app, which computes no aviation figure of its own
 ACS PA.VI.A), the diversion drill's wind triangle (lib/diversion, ACS
 PA.VI.C), a hold's entry and its legs in the wind (lib/holding, AIM 5-3-8),
 and the altitude flown on each segment after a two-way radio failure
-(lib/lostComms, 14 CFR 91.185). Each module is its web file ported line for
-line, with the same words and sources; the two change together, and the
-web app keeps its own (as app.gonogo and lib/verdict)."""
+(lib/lostComms, 14 CFR 91.185). The rules and their words are the engine's
+(wingtip_engine::figures, through vfr_native), which the phones call too
+(native/ffi); each module here only carries the dicts across. The web app
+keeps its own TypeScript (as app.gonogo and lib/verdict), with the same
+words and sources, and the two change together."""

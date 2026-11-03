@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 use std::collections::HashSet;
 use wingtip_engine::grid::{self, Cell, Costs, Geom, Point, StraightError, Straighten, Values};
+use wingtip_engine::figures::{debrief, diversion, holding, lost_comms, words};
 use wingtip_engine::{ahead, airspace, flight, geo, metar, notam, pack, phone, taf, tfr, validity, winds, wmm};
 
 /// A C-contiguous array's elements, numpy's own memory read in place.
@@ -302,6 +303,183 @@ fn ahead_json(packs: Vec<PyBuffer<u8>>, lat: f64, lon: f64, track_deg: f64, gs_k
     Ok(ahead::ahead(&read, lat, lon, track_deg, gs_kt, alt_ft, vs_fpm, now, tfr_lines, tfrs_at))
 }
 
+// The four pilot pages' figures (wingtip_engine::figures): app.figures
+// carries only the dicts across, every rule and word is the engine's.
+
+/// A direction as a pilot writes it, "005°" (figures::words::bearing).
+#[pyfunction]
+fn figures_bearing(deg: f64) -> String {
+    words::bearing(deg)
+}
+
+/// A correction signed, "+8°", "−3°" (figures::words::wind_correction).
+#[pyfunction]
+fn figures_wind_correction(deg: f64) -> String {
+    words::wind_correction(deg)
+}
+
+fn hold_entry(key: &str) -> PyResult<holding::Entry> {
+    holding::Entry::from_key(key).ok_or_else(|| PyValueError::new_err("direct, teardrop or parallel"))
+}
+
+/// The entry by AIM 5-3-8's sectors and the other one near an edge, keys.
+#[pyfunction]
+fn holding_entry(inbound_deg: f64, heading_deg: f64, right: bool) -> (&'static str, Option<&'static str>) {
+    let (entry, either) = holding::holding_entry(inbound_deg, heading_deg, right);
+    (entry.key(), either.map(holding::Entry::key))
+}
+
+#[pyfunction]
+fn holding_entry_name(key: &str) -> PyResult<&'static str> {
+    Ok(hold_entry(key)?.name())
+}
+
+#[pyfunction]
+fn holding_approach_relative(inbound_deg: f64, heading_deg: f64) -> f64 {
+    holding::approach_relative(inbound_deg, heading_deg)
+}
+
+#[pyfunction]
+#[pyo3(signature = (altitude_ft=None))]
+fn holding_leg_minutes(altitude_ft: Option<f64>) -> f64 {
+    holding::leg_minutes(altitude_ft)
+}
+
+/// The legs in the wind and their words as JSON; None where the wind is
+/// stronger than the airplane (holding::holding_wind).
+#[pyfunction]
+fn holding_wind_json(inbound_deg: f64, tas_kt: f64, wind_from_deg: f64, wind_kt: f64, altitude_ft: f64) -> Option<String> {
+    holding::holding_wind(inbound_deg, tas_kt, wind_from_deg, wind_kt, altitude_ft).map(|w| {
+        let mut out = String::new();
+        holding::wind_json(&mut out, &w);
+        out
+    })
+}
+
+#[pyfunction]
+fn holding_entry_steps(entry: &str, inbound: f64, right: bool, altitude_ft: f64) -> PyResult<String> {
+    Ok(holding::entry_steps(hold_entry(entry)?, inbound, right, altitude_ft))
+}
+
+/// The rows' words for legs already worked out: inbound, outbound, time.
+#[pyfunction]
+fn holding_wind_words(leg_min: f64, inbound_wca: f64, inbound_gs: f64, outbound_wca: f64, rule_sec: f64) -> (String, String, String) {
+    let leg = |wca, gs| holding::HoldLeg { heading: 0.0, wca, gs };
+    holding::wind_words(&holding::HoldWind {
+        leg_min, inbound: leg(inbound_wca, inbound_gs), outbound: leg(outbound_wca, 0.0), outbound_sec: 0.0, rule_sec,
+    })
+}
+
+/// 91.185(c)(1)'s routes in order, (key, label, rule), and (b)'s words.
+#[pyfunction]
+fn lost_comms_routes() -> (Vec<(&'static str, &'static str, &'static str)>, &'static str) {
+    (lost_comms::ROUTES.to_vec(), lost_comms::VFR_WORDS)
+}
+
+/// Each segment's (name, altitude, why) by 91.185(c)(2).
+#[pyfunction]
+#[pyo3(signature = (segments, assigned_ft, expected_ft, expected_from))]
+fn lost_comms_altitudes(segments: Vec<(String, Option<f64>)>, assigned_ft: Option<f64>, expected_ft: Option<f64>,
+                        expected_from: i64) -> Vec<(String, Option<f64>, Option<&'static str>)> {
+    lost_comms::segment_altitudes(&segments, assigned_ft, expected_ft, expected_from)
+        .into_iter()
+        .map(|f| (f.name, f.fly.map(|f| f.0), f.fly.map(|f| f.1.key())))
+        .collect()
+}
+
+#[pyfunction]
+#[pyo3(signature = (fly, because))]
+fn lost_comms_fly_words(fly: Option<f64>, because: Option<&str>) -> PyResult<String> {
+    let flown = match (fly, because) {
+        (Some(ft), Some(b)) => Some((ft, lost_comms::Because::from_key(b)
+            .ok_or_else(|| PyValueError::new_err("assigned, minimum or expected"))?)),
+        _ => None,
+    };
+    Ok(lost_comms::fly_words(flown))
+}
+
+#[pyfunction]
+fn lost_comms_leave(approach_fix: bool, efc: &str, eta: &str) -> String {
+    lost_comms::leave_limit(approach_fix, efc, eta)
+}
+
+/// The drill's estimates and their allowances: (key, label, unit, allowance).
+#[pyfunction]
+fn diversion_allowances() -> Vec<(&'static str, &'static str, &'static str, f64)> {
+    diversion::ALLOWANCES.to_vec()
+}
+
+/// The diversion worked out, (tc, distance_nm, wca, th, mh, gs, ete,
+/// fuel); None where no heading holds the course (diversion::divert).
+#[pyfunction]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn diversion_divert(tc_deg: f64, distance_nm: f64, tas_kt: f64, fuel_burn_gph: f64, magnetic_variation_deg: f64,
+                    wind_from_deg: f64, wind_kt: f64) -> Option<(f64, f64, f64, f64, f64, f64, f64, f64)> {
+    let air = diversion::Air { tas_kt, fuel_burn_gph, magnetic_variation_deg, wind_from_deg, wind_kt };
+    diversion::divert(&air, tc_deg, distance_nm).map(|d| (d.tc, d.distance_nm, d.wca, d.th, d.mh, d.gs, d.ete, d.fuel))
+}
+
+/// The drill's wind triangle, (wca, th, gs); None where no heading holds.
+#[pyfunction]
+fn diversion_wind_triangle(tc: f64, tas: f64, wind_from_deg: f64, wind_kt: f64) -> Option<(f64, f64, f64)> {
+    diversion::wind_triangle(tc, tas, wind_from_deg, wind_kt)
+}
+
+#[pyfunction]
+fn diversion_reasonable(key: &str, typed: f64, exact: f64) -> PyResult<bool> {
+    diversion::reasonable(key, typed, exact).ok_or_else(|| PyValueError::new_err("mh, gs, ete or fuel"))
+}
+
+/// A track's point as app.figures passes it: (t ms, lat, lon, alt_ft).
+type TrackPoint = (f64, f64, f64, Option<f64>);
+/// A checkpoint: (sequence_no, name, category, lat, lon, along_track_nm,
+/// true_course_deg, ete_min, altitude_ft).
+type SavedCheckpoint = (i64, String, String, f64, f64, f64, Option<f64>, Option<f64>, Option<f64>);
+
+fn track(points: Vec<TrackPoint>) -> Vec<debrief::Point> {
+    points.into_iter().map(|(t, lat, lon, alt_ft)| debrief::Point { t, lat, lon, alt_ft }).collect()
+}
+
+/// The track's flights, (first, last) indices (debrief::airborne).
+#[pyfunction]
+fn debrief_airborne(points: Vec<TrackPoint>) -> Vec<(usize, usize)> {
+    debrief::airborne(&track(points))
+}
+
+/// The flight debriefed, unmarked, as JSON; None where the track never
+/// flew (debrief::debrief). The points in time order.
+#[pyfunction]
+fn debrief_json(checkpoints: Vec<SavedCheckpoint>, points: Vec<TrackPoint>, patterns: Vec<(String, f64)>) -> Option<String> {
+    let cps: Vec<debrief::Checkpoint> = checkpoints
+        .into_iter()
+        .map(|(sequence_no, name, category, lat, lon, along_track_nm, true_course_deg, ete_min, altitude_ft)| debrief::Checkpoint {
+            sequence_no, name, category, lat, lon, along_track_nm, true_course_deg, ete_min, altitude_ft,
+        })
+        .collect();
+    debrief::debrief(&cps, &track(points), &patterns).map(|d| debrief::to_json(&d, false))
+}
+
+/// Each finding's mark against PA.VI.A's tolerances: the legs' ok from
+/// (worst_alt_ft, worst_off_nm); the passes' (landed, late_min, ok) from
+/// (category, due_min, passed_min); the patterns' (off_ft, ok) from
+/// (alt_ft, pattern_ft).
+#[pyfunction]
+#[allow(clippy::type_complexity)]
+fn debrief_marks(legs: Vec<(Option<f64>, Option<f64>)>, passes: Vec<(String, Option<f64>, Option<f64>)>,
+                 patterns: Vec<(f64, f64)>) -> (Vec<bool>, Vec<(bool, Option<f64>, Option<bool>)>, Vec<(f64, bool)>) {
+    (
+        legs.into_iter().map(|(alt, off)| debrief::leg_ok(alt, off)).collect(),
+        passes.into_iter().map(|(category, due, passed)| debrief::pass_marks(&category, due, passed)).collect(),
+        patterns.into_iter().map(|(alt, pattern)| debrief::pattern_marks(alt, pattern)).collect(),
+    )
+}
+
+/// The tolerances the debrief holds a flight to, as JSON.
+#[pyfunction]
+fn debrief_tolerances_json() -> String {
+    debrief::tolerances_json()
+}
+
 #[pymodule]
 fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(line_cells, m)?)?;
@@ -324,6 +502,16 @@ fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         wrap_pyfunction!(weather_expires_at, m)?, wrap_pyfunction!(weather_in_force, m)?,
         wrap_pyfunction!(ahead_json, m)?, wrap_pyfunction!(metar_json, m)?, wrap_pyfunction!(taf_json, m)?, wrap_pyfunction!(winds_json, m)?,
         wrap_pyfunction!(tfr_detail_json, m)?, wrap_pyfunction!(notams_json, m)?, wrap_pyfunction!(notam_text_json, m)?,
+        wrap_pyfunction!(figures_bearing, m)?, wrap_pyfunction!(figures_wind_correction, m)?,
+        wrap_pyfunction!(holding_entry, m)?, wrap_pyfunction!(holding_entry_name, m)?, wrap_pyfunction!(holding_approach_relative, m)?,
+        wrap_pyfunction!(holding_leg_minutes, m)?, wrap_pyfunction!(holding_wind_json, m)?, wrap_pyfunction!(holding_entry_steps, m)?,
+        wrap_pyfunction!(holding_wind_words, m)?,
+        wrap_pyfunction!(lost_comms_routes, m)?, wrap_pyfunction!(lost_comms_altitudes, m)?, wrap_pyfunction!(lost_comms_fly_words, m)?,
+        wrap_pyfunction!(lost_comms_leave, m)?,
+        wrap_pyfunction!(diversion_allowances, m)?, wrap_pyfunction!(diversion_divert, m)?, wrap_pyfunction!(diversion_reasonable, m)?,
+        wrap_pyfunction!(diversion_wind_triangle, m)?,
+        wrap_pyfunction!(debrief_airborne, m)?, wrap_pyfunction!(debrief_json, m)?, wrap_pyfunction!(debrief_marks, m)?,
+        wrap_pyfunction!(debrief_tolerances_json, m)?,
     ] {
         m.add_function(f)?;
     }

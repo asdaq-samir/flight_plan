@@ -16,6 +16,9 @@
 //! - clearance: an ATC clearance heard, read into its items, and a call
 //!   to us by its call sign (the web's lib/clearance and lib/heardCall);
 //! - spoken: the places a clearance names, found in the phone's packs;
+//! - figures: the debrief of a flown track (ACS PA.VI.A), the diversion
+//!   drill (PA.VI.C), a hold's entry and wind (AIM 5-3-8) and lost
+//!   communications' altitudes (14 CFR 91.185), with their words;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
 //! - validity: when a weather report stops counting;
@@ -26,6 +29,7 @@
 pub mod ahead;
 pub mod airspace;
 pub mod clearance;
+pub mod figures;
 pub mod flight;
 pub mod geo;
 pub mod grid;
