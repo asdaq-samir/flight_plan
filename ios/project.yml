@@ -196,12 +196,12 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         # A single-target watch app (watchOS 7+), the phone app's companion.
         WKApplication: true
-        WKCompanionAppBundleIdentifier: app.wingtipmaps.ios
+        WKCompanionAppBundleIdentifier: $(WINGTIP_BUNDLE_ID)
         WKRunsIndependentlyOfCompanionApp: false
         NSLocationWhenInUseUsageDescription: Wingtip Maps finds the airports nearest you from where your watch is.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: $(WINGTIP_BUNDLE_ID).watchkitapp
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "4"
