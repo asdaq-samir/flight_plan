@@ -26,7 +26,8 @@ struct AirportCard: View {
         List {
             if let place {
                 Section {
-                    AirportHead(place: place)
+                    // The UI tests' sign the card is up (WingtipUITests/FlowTests).
+                    AirportHead(place: place).accessibilityIdentifier("airport-card-head")
                     AirportPictures(place: place, photos: photos, shown: $shown)
                         .listRowInsets(EdgeInsets())
                     actions(place)

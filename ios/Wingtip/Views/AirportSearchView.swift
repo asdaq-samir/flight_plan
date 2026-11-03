@@ -68,6 +68,8 @@ struct AirportSearchView: View {
                                             .font(.subheadline).foregroundStyle(.secondary)
                                     }
                                 }
+                                // The UI tests' handle on a result (WingtipUITests/FlowTests).
+                                .accessibilityIdentifier("airport-result-\(field.ident)")
                             }
                         }
                     }

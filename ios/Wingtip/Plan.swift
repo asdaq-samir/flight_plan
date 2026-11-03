@@ -102,7 +102,9 @@ final class Plan {
     /// The last plan kept, back on the page at launch: planned again when
     /// the planner answers, kept as it was when it does not.
     func restore() {
-        guard let kept = Kept.load() else { return }
+        // A UI test launched with -fresh starts with no route, whatever
+        // the simulator kept from the last run (WingtipUITests).
+        guard !CommandLine.arguments.contains("-fresh"), let kept = Kept.load() else { return }
         dep = kept.dep; dest = kept.dest; stops = kept.stops; aircraft = kept.aircraft
         ownAltitudeFt = kept.ownAltitudeFt; altitudeChoice = kept.altitudeChoice
         course = kept.course; checkpoints = kept.checkpoints; profile = kept.profile; altitude = kept.altitude

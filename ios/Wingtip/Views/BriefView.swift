@@ -168,6 +168,8 @@ struct BriefView: View {
         }
         .navigationTitle("Brief")
         .navigationBarTitleDisplayMode(.inline)
+        // The UI tests' sign the Brief is up (WingtipUITests/FlowTests).
+        .accessibilityIdentifier("brief")
         .task {
             if plan.briefing == nil, plan.routed {
                 await plan.brief(dep: plan.dep, dest: plan.dest, stops: plan.stops, eteMin: plan.totals?.eteMin)
