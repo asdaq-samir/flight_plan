@@ -8,11 +8,17 @@ final class TrafficAnnotation: NSObject, MKAnnotation {
     @objc dynamic var coordinate: CLLocationCoordinate2D
     var plane: TrafficAircraft
     var ownFt: Double?
+    /// Its mark as the engine drew it for the whole answer at once
+    /// (Traffic.marks, ChartMap's show): the view reads it, where each
+    /// view asked the engine for its one airplane and a screen of traffic
+    /// was a screen of calls (Session2's profile, 2026-11-03).
+    var drawn: Traffic.Mark?
 
-    init(_ plane: TrafficAircraft, ownFt: Double?) {
+    init(_ plane: TrafficAircraft, ownFt: Double?, drawn: Traffic.Mark? = nil) {
         hex = plane.hex
         self.plane = plane
         self.ownFt = ownFt
+        self.drawn = drawn
         coordinate = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
     }
 
@@ -50,7 +56,7 @@ final class TrafficMarkView: MKAnnotationView {
     required init?(coder: NSCoder) { nil }
 
     func show(_ mark: TrafficAnnotation) {
-        let drawn = Traffic.marks([mark.plane], ownFt: mark.ownFt).first
+        let drawn = mark.drawn
         chevron.tintColor = drawn?.near == true ? NightPalette.trafficNear : NightPalette.trafficFar
         chevron.transform = CGAffineTransform(rotationAngle: CGFloat((mark.plane.trackDeg ?? 0) * .pi / 180))
         label.text = drawn?.label ?? ""

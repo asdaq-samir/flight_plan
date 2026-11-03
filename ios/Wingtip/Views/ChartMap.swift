@@ -449,16 +449,24 @@ struct ChartMap: UIViewRepresentable {
             let gone = trafficShown.filter { fresh[$0.key] == nil }
             map.removeAnnotations(Array(gone.values))
             for hex in gone.keys { trafficShown[hex] = nil }
-            for (hex, plane) in fresh {
-                if let mark = trafficShown[hex] {
-                    guard mark.plane != plane || mark.ownFt != ownFt else { continue }
+            // Every airplane's mark in one call of the engine (traffic_marks
+            // takes the whole list), handed to each annotation: each view
+            // asked for its one airplane, a screen of traffic a screen of
+            // calls at every report (Session2's profile, 2026-11-03).
+            let ordered = Array(fresh.values)
+            let drawn = Traffic.marks(ordered, ownFt: ownFt)
+            for (i, plane) in ordered.enumerated() {
+                let its = i < drawn.count ? drawn[i] : nil
+                if let mark = trafficShown[plane.hex] {
+                    guard mark.plane != plane || mark.ownFt != ownFt || mark.drawn != its else { continue }
                     mark.plane = plane
                     mark.ownFt = ownFt
+                    mark.drawn = its
                     mark.coordinate = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
                     (map.view(for: mark) as? TrafficMarkView)?.show(mark)
                 } else {
-                    let mark = TrafficAnnotation(plane, ownFt: ownFt)
-                    trafficShown[hex] = mark
+                    let mark = TrafficAnnotation(plane, ownFt: ownFt, drawn: its)
+                    trafficShown[plane.hex] = mark
                     map.addAnnotation(mark)
                 }
             }
