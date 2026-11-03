@@ -32,6 +32,28 @@ const gone = new WeakMap<L.Map, { from: number; offset: number; at: number }>();
  *  (OwnShipLayer), a pan from a fix mid-way fighting it. */
 export const followingSheet = (map: L.Map) => following.has(map);
 
+/**
+ * Whether the map's pane may glide on the compositor (a Web Animation of
+ * its transform, below): not on Apple's WebKit -- every browser on an
+ * iPhone, Safari on a Mac. There, through the glide, the chart, the
+ * approach plate, the lines and the altitudes were each drawn 1.26 times
+ * their size about their own corner, the marks and labels at their own
+ * size, and all snapped back as the sheet landed (the owner's recording,
+ * 2026-11-03, KMKE's ILS 19R over the chart at a pinched zoom, half to
+ * the pill and back: the plate's localizer box 195 px across mid-glide
+ * against 155 at rest, KENW's mark off its ring). 1.26 is 2^(1/3), the
+ * CSS scale the chart's tiles carry at that zoom's third of a level
+ * (GridLayer._setZoomTransform): the compositor rasterises the pane's
+ * big layers at one scale while an ancestor's transform animates and at
+ * another at rest, and shows the one at the other. The same turn in
+ * Chromium and in Playwright's WebKit left every transform in the DOM
+ * as it was (transforms sampled each frame, zz-sheet probes), so the
+ * fault is the device's, not the page's. On Apple's WebKit the pane is
+ * moved frame by frame instead (put), from the sheet's own animation's
+ * progress, which is the frame being drawn.
+ */
+const COMPOSITED_GLIDE = typeof navigator === "undefined" || navigator.vendor !== "Apple Computer, Inc.";
+
 /** Frames the sheet's edge stays put, the finger off it, before the map
  *  is taken to have landed. */
 const STILL_FRAMES = 6;
@@ -87,7 +109,7 @@ export function followSheet(map: L.Map, sheet: {
   // (a key, a tap, a finger let go): the same curve, length and start as
   // the sheet's own animation (MapPanel's useSheetMotion), where moved
   // frame by frame it went a frame behind the sheet, and not at all in a
-  // frame the page was busy in.
+  // frame the page was busy in. Not on Apple's WebKit (COMPOSITED_GLIDE).
   let glide: { of: Animation; run: Animation } | null = null;
   // Read afresh each frame: the panel says it again at each of its renders.
   const said = () => sheetEdges.get(sheet.el);
@@ -159,8 +181,8 @@ export function followSheet(map: L.Map, sheet: {
       return;
     }
     // Moving by itself: in step on the compositor, until it lands or a
-    // finger takes it.
-    const move = pressed || landed ? null : said()?.move() ?? null;
+    // finger takes it -- not on Apple's WebKit (COMPOSITED_GLIDE).
+    const move = pressed || landed || !COMPOSITED_GLIDE ? null : said()?.move() ?? null;
     if (glide && glide.of !== move?.run) unglide();
     if (move && !glide) glideWith(move);
     if (landed) {
