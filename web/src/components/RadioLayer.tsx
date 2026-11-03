@@ -163,7 +163,7 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
                 const found = wants ? ((await api.clearancePlaces({ ...asked, near, dep: route.dep || null, dest: route.dest || null })) as Found) : {};
                 const unfound = [found.limit, ...(found.route ?? []).flat()].filter(p => p && !p.ident).map(p => `“${p!.said}”`);
                 if (unfound.length) return `${unfound.join(", ")} not found: open the log to check it.`;
-                const entered = clearedRoute(clearance, found, route);
+                const entered = clearedRoute(text, found, route);
                 enter(entered.route, entered.typed, clearance.vfr ? null : clearance.expectFt ?? clearance.maintainFt);
                 return null;
               } catch {

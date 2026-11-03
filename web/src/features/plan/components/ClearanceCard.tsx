@@ -104,7 +104,7 @@ export default function ClearanceCard({ onDone }: {
   });
   const places = found.data as Found | undefined;
   const ready = heardAny(clearance) && settled === text && (!wantsPlaces || !!places);
-  const entered = ready ? clearedRoute(clearance, places ?? {}, route) : null;
+  const entered = ready ? clearedRoute(settled, places ?? {}, route) : null;
   const altitudeFt = clearance.vfr ? null : clearance.expectFt ?? clearance.maintainFt;
   // Listening goes on with the card put away: the captions over the map
   // carry it (RadioLayer), and Stop here ends it.

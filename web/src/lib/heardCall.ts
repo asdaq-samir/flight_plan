@@ -10,10 +10,13 @@
  * else's: AIM 4-2-4 a.1 warns of exactly that. What it asks of us is read
  * as a clearance is (lib/clearance), and a "direct" to a place besides.
  *
- * The native app's Swift copy is `HeardCall` (ios/Wingtip/HeardCall.swift),
- * both checked against fixtures/heardCalls.json.
+ * The hearing is the shared engine's (native/engine/src/clearance.rs,
+ * asked through lib/engine as our_call and direct_of), held to
+ * fixtures/heardCalls.json as this module's tests are; the call sign's
+ * pattern for the iOS app's locked-screen listener is still written here.
  */
-import { DIGITS, LETTERS, placeWords, readClearance, tokens, type Clearance, type Token } from "./clearance";
+import { DIGITS, LETTERS, readClearance, type Clearance } from "./clearance";
+import { callEngine } from "./engine/engine";
 
 /** Words a pilot or controller puts before the registration in place of
  *  its N (AIM 4-2-4 b: "the aircraft type, model or manufacturer's
@@ -30,56 +33,18 @@ const TYPE_WORDS = new Set([
  *  with it. */
 const CALL_WITHIN = 3;
 
-/** The runs of letters and figures in what was heard, each where it
- *  starts and the word before it: "Cessna three alpha bravo" is "3AB"
- *  after "cessna". A word a recognizer wrote whole ("N123AB") is its own. */
-function runs(text: string): { run: string; at: number; before: string | null }[] {
-  const words = text.toLowerCase().replace(/x[- ]ray/g, "xray").match(/[a-z0-9]+/g) ?? [];
-  const mark = (w: string) => LETTERS[w] ?? DIGITS[w] ?? (/^\d+$/.test(w) || (/\d/.test(w) && /^[a-z0-9]+$/.test(w)) ? w.toUpperCase() : null);
-  const out: { run: string; at: number; before: string | null }[] = [];
-  for (let i = 0; i < words.length;) {
-    if (mark(words[i]!) === null) { i++; continue; }
-    let run = "", j = i;
-    while (j < words.length && mark(words[j]!) !== null) run += mark(words[j++]!);
-    out.push({ run, at: i, before: i > 0 ? words[i - 1]! : null });
-    i = j;
-  }
-  return out;
-}
-
-/** Whether the transmission is said to the airplane `tail` ("N123AB"). */
+/** Whether the transmission is said to the airplane `tail` ("N123AB"):
+ *  the engine's our_call (clearance.rs), the runs of letters and figures
+ *  heard against the registration's forms within the first words. */
 export function ourCall(text: string, tail: string): boolean {
-  const full = tail.trim().toUpperCase();
-  if (!/^[A-Z0-9]{2,7}$/.test(full)) return false;
-  const body = full.startsWith("N") ? full.slice(1) : full;
-  const last = body.slice(-3);
-  return runs(text).some(({ run, at, before }) => at <= CALL_WITHIN && (
-    run === full || run === `N${body}` || run === body || run === `N${last}`
-    // The last three alone only after a type's name.
-    || (run === last && before !== null && TYPE_WORDS.has(before))
-  ));
+  return callEngine<boolean>("our_call", { text, tail });
 }
-
-/** Words that end the place after "direct". */
-const AFTER_DIRECT = new Set([
-  "then", "climb", "maintain", "descend", "contact", "squawk", "expect", "cross", "at", "and", "when", "resume", "report",
-  "cleared", "fly", "heading", "intercept", "join", "hold", "for", "via", "own", "navigation", "after",
-]);
 
 /** The place a "direct" sends us to, as words for the planner to find
- *  ("gopher", "KDLH"), or null where none was said. */
+ *  ("gopher", "KDLH"), or null where none was said: the engine's
+ *  direct_of. */
 export function directOf(text: string): string | null {
-  const toks = tokens(text);
-  const at = toks.findIndex(t => t.word === "direct");
-  if (at < 0) return null;
-  const place: Token[] = [];
-  for (let i = at + 1; i < toks.length && place.length < 6; i++) {
-    const t = toks[i]!;
-    if (t.word === "to" || t.word === "the") { if (!place.length) continue; break; }
-    if (AFTER_DIRECT.has(t.word) || (t.num && !place.some(p => p.word in LETTERS))) break;
-    place.push(t);
-  }
-  return placeWords(place) || null;
+  return callEngine<string | null>("direct_of", { text });
 }
 
 /** A transmission heard, and what it asks of us. */
