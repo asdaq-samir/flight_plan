@@ -21,6 +21,7 @@ import { useAhead, useLiveZoom } from "./useView";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { degreesMinutes } from "../coords";
+import { BLUE } from "../useAirspace";
 import { nmAway, useAwayWords } from "../useAway";
 import { PointWhere } from "./PointWhere";
 
@@ -151,8 +152,8 @@ const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagati
 /** A VOR's mark on its card: the sectional's blue hexagon. */
 const HEXAGON = (
   <svg className="mx-1 shrink-0" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
-    <polygon points="15,8 11.5,14.06 4.5,14.06 1,8 4.5,1.94 11.5,1.94" fill="#fff" stroke="#1e5bb8" strokeWidth="2" />
-    <circle cx="8" cy="8" r="1.6" fill="#1e5bb8" />
+    <polygon points="15,8 11.5,14.06 4.5,14.06 1,8 4.5,1.94 11.5,1.94" fill="#fff" stroke={BLUE} strokeWidth="2" />
+    <circle cx="8" cy="8" r="1.6" fill={BLUE} />
   </svg>
 );
 /** An enroute fix's on its card: the low chart's triangle, as the map's. */
@@ -168,8 +169,10 @@ const Mark = memo(function Mark({ at, icon }: { at: { lat: number; lon: number }
   return <Marker position={position} icon={icon} interactive={false} keyboard={false} />;
 });
 
-/** The chart's colours of the two marks, the ground of their cards' pill. */
-const VOR_BLUE = "#1e5bb8";
+/** The chart's colours of the two marks, the ground of their cards' pill:
+ *  the VOR's the map's own blue (airspaceMarks' vorIcon), where the card's
+ *  was a shade deeper (the owner's pick, 2026-11-03). */
+const VOR_BLUE = BLUE;
 const FIX_INK = "#1c1a17";
 
 const VorTap = memo(function VorTap({ vor }: { vor: VorPin }) {
