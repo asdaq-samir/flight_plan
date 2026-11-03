@@ -106,11 +106,25 @@ it is the gateway's address and the App Links domain in the manifest.
 `ANDROID_NATIVE_APP_ID` would be the package name, once there is a Play
 lane for it.
 
-## What phase 0 leaves out
+## The flight pieces, and what is still to come
 
-Own ship and the location permission, the chart kept for the air (the
-tile store, the route's tiles, the cycle packs), traffic, the briefing,
-the checkpoints and the side view, the altitude wheel, the airplane by
-N-number, widgets, and the brand's own launcher icon: the launcher shows
-a plain airplane until `docs/brand/android-*.svg` are made vector
-drawables.
+The other session's batch the same evening brought the flight pieces
+under `flight/`, `engine/`, `records/` and `notify/`: own ship from the
+fused location provider, kept going in the air by a foreground service
+of the location type with Android's persistent notification; the path
+flown (OwnTrail); the airplane tracked and its watches (Tracking,
+Traffic); the cycle packs on the device and the engine's in-view readers
+through JNI entries appended to the shim (Packs.kt, CyclePacks,
+InView); the pilot's records in Room; and notification channels. The
+map draws own ship as the blue dot and the path under the route, with
+the location button over the map (`ui/MapButtons`) as Apple Maps has
+it: a tap turns the reading on and follows, a drag lets go, a tap again
+turns it off. The system's permission dialogs for location and for
+notifications are asked from `RootScreen`, the one screen, since a
+request needs an Activity.
+
+Still to come: the tile store and the route's tiles for the air, the
+briefing, the checkpoints and the side view, the altitude wheel, the
+airplane by N-number, widgets, and the brand's own launcher icon: the
+launcher shows a plain airplane until `docs/brand/android-*.svg` are
+made vector drawables.

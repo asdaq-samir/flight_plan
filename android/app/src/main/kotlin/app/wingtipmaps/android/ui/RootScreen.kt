@@ -1,5 +1,9 @@
 package app.wingtipmaps.android.ui
 
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -24,7 +28,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -32,7 +38,10 @@ import app.wingtipmaps.android.Charts
 import app.wingtipmaps.android.Links
 import app.wingtipmaps.android.Plan
 import app.wingtipmaps.android.Session
+import app.wingtipmaps.android.flight.OwnShip
+import app.wingtipmaps.android.flight.OwnTrail
 import app.wingtipmaps.android.map.ChartMap
+import app.wingtipmaps.android.notify.Notifications
 import kotlinx.coroutines.flow.StateFlow
 
 /** The sheet's four tabs, as the web app and the iOS app have them. */
@@ -61,6 +70,66 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
 
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var airport by rememberSaveable { mutableStateOf("") }
+
+    // The airplane on the chart (OwnShip, OwnTrail), on at the location
+    // button: the system's permission dialog needs an Activity, so the
+    // asks for location and for notifications are made from here, the
+    // one screen, and answered back to the pieces that wanted them.
+    val context = LocalContext.current
+    val ownShip = remember { OwnShip.of(context) }
+    val trail = remember { OwnTrail.of(context) }
+    val fix by ownShip.fix.collectAsStateWithLifecycle()
+    val flown by trail.points.collectAsStateWithLifecycle()
+    var ownShipOn by rememberSaveable { mutableStateOf(false) }
+    var following by rememberSaveable { mutableStateOf(false) }
+    val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true && ownShipOn) {
+            ownShip.start()
+            following = true
+        }
+        if (granted.containsKey(Manifest.permission.POST_NOTIFICATIONS)) Notifications.answered()
+    }
+    // Back after a rotation with own ship on: the reading goes on (start
+    // is idempotent), and the dot is drawn again.
+    LaunchedEffect(ownShipOn) { if (ownShipOn && ownShip.permitted) ownShip.start() }
+    // A watch set or traffic near asked for notifications (Notifications
+    // .allow): the system's dialog on Android 13 and later, nothing to ask
+    // before it.
+    val notificationsWanted by Notifications.wanted.collectAsStateWithLifecycle()
+    LaunchedEffect(notificationsWanted) {
+        if (!notificationsWanted) return@LaunchedEffect
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notifications.allowed(context)) {
+            permissions.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+        } else {
+            Notifications.answered()
+        }
+    }
+    // The location button as Apple Maps' is: off, then following, then
+    // let go; a drag of the map lets go too.
+    val ownShipMode = when {
+        !ownShipOn -> OwnShipMode.OFF
+        following -> OwnShipMode.FOLLOWING
+        else -> OwnShipMode.READING
+    }
+    val onOwnShip = {
+        when {
+            !ownShipOn -> {
+                ownShipOn = true
+                if (ownShip.permitted) {
+                    ownShip.start()
+                    following = true
+                } else {
+                    permissions.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION))
+                }
+            }
+            !following -> following = true
+            else -> {
+                following = false
+                ownShipOn = false
+                ownShip.stop()
+            }
+        }
+    }
 
     val link by pending.collectAsStateWithLifecycle()
     LaunchedEffect(link) {
@@ -105,12 +174,19 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
             }
         },
     ) {
-        ChartMap(
-            template = template,
-            minZoom = base?.minZoom ?: 5,
-            maxZoom = base?.maxZoom ?: 12,
-            line = state.course?.courseLine.orEmpty(),
-            modifier = Modifier.fillMaxSize(),
-        )
+        Box(Modifier.fillMaxSize()) {
+            ChartMap(
+                template = template,
+                minZoom = base?.minZoom ?: 5,
+                maxZoom = base?.maxZoom ?: 12,
+                line = state.course?.courseLine.orEmpty(),
+                modifier = Modifier.fillMaxSize(),
+                ownShip = if (ownShipOn) fix else null,
+                trail = flown,
+                follow = following,
+                onDragged = { following = false },
+            )
+            MapButtons(ownShip = ownShipMode, onOwnShip = onOwnShip, modifier = Modifier.align(Alignment.TopEnd))
+        }
     }
 }
