@@ -167,6 +167,36 @@
 //! - `read_track`: `{"points": [{"t", "lat", "lon", "alt_ft"}]}` or
 //!   `{"error"}`, a GPX or KML track read, from `{"text"}`; `thin_track`:
 //!   at most `most` (4,000) of `points`, from `{"points", "most"?}`.
+//! The route's pilot-made pieces (crate::route), as the address writes
+//! them and the planner's query reads them; a hold is `{"fix", "inbound",
+//! "right", "leg_min"|"leg_nm", "turns"|"minutes"}`, the others null:
+//!
+//! - `hold_read`: a hold, or null, from `{"text"}`
+//!   ("VPBNG/090/30:270:R:1M:2T");
+//! - `holds_read`: `[{"part", "hold"}]`, each piece of `{"text"}` trimmed,
+//!   the empty left out, its hold or null;
+//! - `hold_write`: the hold's text, from `{"hold"}`;
+//! - `hold_length_read`: `{"turns"}`, `{"minutes"}` or null, from
+//!   `{"text"}` ("2T", "10M"); `hold_length_write`: the code, from
+//!   `{"turns"|"minutes"}`;
+//! - `hold_figures`: `{"lap_min", "held_min", "turn_radius_nm"}`, from
+//!   `{"hold", "tas_kt"}`;
+//! - `procedures_read`: `[{"part", "pick": {"ident", "id", "transition",
+//!   "direct"}|null, "exact"}]` from `{"text"}`: the pick as the web app
+//!   reads it, and whether it is one exactly as the planner takes it;
+//!   `procedures_write`: the text, from `{"picks": [{"ident", "id",
+//!   "transition"?, "direct"?}]}`;
+//! - `runways_read`: `[{"part", "pick": {"field", "runway"}|null}]`, from
+//!   `{"text"}` ("KSTL:30R,KMSN:36");
+//! - `altitude_lines`: `{"crossing": "at"|"between"|"at_or_above"|
+//!   "at_or_below"|null, "lines": [{"ft", "under", "over"}]}`, from
+//!   `{"min_ft"?, "max_ft"?}`;
+//! - `point_kind`: "fix", "own" or null, from `{"text"}` as it is;
+//! - `frd_read`: `{"base", "course", "distance_nm"}` or null, from
+//!   `{"text"}`; `frd_write`: the point's ident, from `{"base", "course",
+//!   "distance_nm"}`;
+//! - `bare_field`: a field's FAA ident, from `{"ident"}`; `same_field`:
+//!   whether `{"a", "b"}` name one field.
 //!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
@@ -403,6 +433,7 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             Ok(out)
         }
         "readback_check" => Ok(crate::readback::check_json(ask.str("cleared")?, ask.str("said")?)),
+        _ if crate::route::answers::NAMES.contains(&name) => crate::route::answers::answer(name, ask.v),
         // The things that move (motion::call), then the Go / No-Go's, by
         // their own names (gonogo::calls), last.
         _ => match crate::motion::call(name, ask.v) {

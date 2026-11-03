@@ -30,6 +30,9 @@
 //!   times (the web's lib/verdict and the modules it is fed from);
 //! - pilot: the pilot's records and text -- a checklist, the logbook's
 //!   CSV file, a handbook page, endorsements and ACS codes;
+//! - route: the route's pilot-made pieces as the address writes them
+//!   and the planner reads them -- the pilot's own point off a fix, holds,
+//!   procedures and runways picked;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
 //! - validity: when a weather report stops counting;
@@ -54,6 +57,7 @@ pub mod pack;
 pub mod phone;
 pub mod pilot;
 pub mod readback;
+pub mod route;
 pub mod rules;
 pub mod spoken;
 pub mod taf;

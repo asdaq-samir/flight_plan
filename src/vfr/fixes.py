@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import bisect
 import csv
+import json
 import math
 import re
 import threading
 from pathlib import Path
+
+import vfr_native
 
 from . import faa_data, geo, magnetic
 from .config import DATA_DIR
@@ -331,35 +334,29 @@ def preload() -> None:
     _fixes()
 
 
-#: A point off a fix, as a flight plan writes one -- its fix, the
-#: magnetic course or radial from it and the distance, nm: "VPBNG/090/30"
-#: as ForeFlight's route takes it, or packed, "DLH090030", the FAA flight
-#: plan's fix/radial/distance (FAA Form 7233-4, item 15, route; AIM 5-1-6). The
-#: pilot's own point, at the owner's ask ("30 miles 090 radial of vpbng").
-_FRD = re.compile(r"^([A-Z0-9]{2,5})/(\d{3})/(\d{1,3}(?:\.\d)?)$")
-_FRD_PACKED = re.compile(r"^([A-Z]{2,5})(\d{3})(\d{3})$")
-
 #: The navaids whose bearings are radials, set to the station's own
 #: variation: the VORs and the military's TACANs.
 RADIAL_KINDS = ("VORTAC", "VOR/DME", "VOR", "TACAN")
 
 
 def parse_frd(ident: str) -> tuple[str, int, float] | None:
-    """A fix/radial/distance's parts -- the fix, the course, the nm -- or
-    None where `ident` is not one, or its course or distance cannot be."""
-    ident = ident.strip().upper()
-    match = _FRD.match(ident) or _FRD_PACKED.match(ident)
-    if match is None:
-        return None
-    course, distance = int(match[2]), float(match[3])
-    if not 0 <= course <= 360 or not 0 < distance <= 999:
-        return None
-    return match[1], course % 360, distance
+    """A point off a fix, as a flight plan writes one -- its fix, the
+    magnetic course or radial from it and the distance, nm: "VPBNG/090/30"
+    as ForeFlight's route takes it, or packed, "DLH090030", the FAA flight
+    plan's fix/radial/distance (FAA Form 7233-4, item 15, route; AIM
+    5-1-6); the pilot's own point, at the owner's ask ("30 miles 090 radial
+    of vpbng"). Its parts -- the fix, the course, the nm -- or None where
+    `ident` is not one, or its course is past 360 or its distance nothing
+    or past 999 nm: the engine's reading (wingtip_engine::route::points),
+    the web app's lib/identSchema frdOf too."""
+    frd = json.loads(vfr_native.call("frd_read", json.dumps({"text": ident})))
+    return None if frd is None else (frd["base"], int(frd["course"]), float(frd["distance_nm"]))
 
 
 def frd_ident(base: str, course: int, distance_nm: float) -> str:
-    """The point's ident as the route writes it: "VPBNG/090/30"."""
-    return f"{base.upper()}/{round(course) % 360:03d}/{distance_nm:g}"
+    """The point's ident as the route writes it: "VPBNG/090/30", the
+    course to the degree and the distance to a tenth (the engine's)."""
+    return json.loads(vfr_native.call("frd_write", json.dumps({"base": base, "course": course, "distance_nm": distance_nm})))
 
 
 def frd_point(ident: str, near: tuple = (), locate=None) -> dict | None:

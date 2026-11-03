@@ -13,23 +13,12 @@ the wind (its inbound leg is the timed one, its outbound adjusted to it).
 """
 from __future__ import annotations
 
-import math
-import re
+import json
 from dataclasses import dataclass
 
 import vfr_native
 
 from . import geo
-
-#: A standard-rate turn, degrees a second: a 180 degree turn at either end
-#: of the racetrack is a minute (FAA-H-8083-15B, Instrument Flying
-#: Handbook, ch. 7, "Standard Rate Turns").
-STANDARD_RATE_DEG_S = 3.0
-
-#: "VPBNG/090/30:270:R:1M:2T": the point, the inbound course (magnetic),
-#: R or L, the legs (minutes "1M" or nm "4N"), and for how long (turns
-#: "2T" or minutes "10M").
-_HOLD = re.compile(r"^([A-Z0-9/.]+):(\d{1,3}):([RL]):(\d{1,2}(?:\.\d)?)([MN]):(\d{1,3})([TM])$")
 
 
 @dataclass(frozen=True)
@@ -47,20 +36,35 @@ class Hold:
 
 
 def parse(text: str) -> Hold | None:
-    """One hold as the address writes it, or None where it is not one."""
-    match = _HOLD.match(text.strip().upper())
-    if match is None:
-        return None
-    inbound = int(match[2])
-    leg, length = float(match[4]), int(match[6])
-    if inbound > 360 or leg <= 0 or length <= 0:
-        return None
-    timed, by_turns = match[5] == "M", match[7] == "T"
+    """One hold as the address writes it, or None where it is not one: the
+    engine's reading (wingtip_engine::route::holds), the one the web app's
+    lib/holds and the phones ask too."""
+    read = json.loads(vfr_native.call("hold_read", json.dumps({"text": text})))
+    return None if read is None else _hold(read)
+
+
+def parse_all(text: str) -> list[tuple[str, Hold | None]]:
+    """The address's `holds`, "A,B": each piece trimmed, the empty ones
+    left out, with the hold it is, or None where it is not one."""
+    read = json.loads(vfr_native.call("holds_read", json.dumps({"text": text})))
+    return [(r["part"], None if r["hold"] is None else _hold(r["hold"])) for r in read]
+
+
+def _hold(h: dict) -> Hold:
     return Hold(
-        fix=match[1], inbound_deg=inbound % 360, right=match[3] == "R",
-        leg_min=leg if timed else None, leg_nm=None if timed else leg,
-        turns=length if by_turns else None, minutes=None if by_turns else float(length),
+        fix=h["fix"], inbound_deg=int(h["inbound"]), right=h["right"], leg_min=h["leg_min"], leg_nm=h["leg_nm"],
+        turns=None if h["turns"] is None else int(h["turns"]), minutes=None if h["minutes"] is None else float(h["minutes"]),
     )
+
+
+def _figures(hold: Hold | None, tas_kt: float) -> dict:
+    """The engine's figures of a hold at `tas_kt` (holds::lap_minutes,
+    held_minutes, turn_radius_nm)."""
+    legs = {"leg_min": 1} if hold is None else {
+        "leg_min": hold.leg_min, "leg_nm": None if hold.leg_min is not None else (hold.leg_nm or 0),
+        "turns": hold.turns, "minutes": hold.minutes,
+    }
+    return json.loads(vfr_native.call("hold_figures", json.dumps({"hold": legs, "tas_kt": tas_kt})))
 
 
 def entry(arrival_deg: float, inbound_deg: float, right: bool) -> str:
@@ -87,25 +91,22 @@ def default_leg_min(altitude_ft: float | None) -> float:
 
 def turn_radius_nm(tas_kt: float) -> float:
     """A standard-rate turn's radius at `tas_kt`: half a circle in a minute
-    flies TAS/60 nm, so the radius is TAS/(60 pi) -- 0.64 nm at 120 kt."""
-    return tas_kt / (60 * math.pi) * (3.0 / STANDARD_RATE_DEG_S)
+    flies TAS/60 nm, so the radius is TAS/(60 pi) -- 0.64 nm at 120 kt.
+    The engine's figure."""
+    return _figures(None, tas_kt)["turn_radius_nm"]
 
 
 def lap_minutes(hold: Hold, tas_kt: float) -> float:
     """One turn round the racetrack, min: its two legs and its two 180
-    degree turns at standard rate (a minute each). A distance leg is flown
-    at `tas_kt`."""
-    turns = 2 * 180 / STANDARD_RATE_DEG_S / 60
-    leg = hold.leg_min if hold.leg_min is not None else (hold.leg_nm or 0) / max(tas_kt, 1) * 60
-    return 2 * leg + turns
+    degree turns at standard rate (a minute each, FAA-H-8083-15B ch. 7). A
+    distance leg is flown at `tas_kt`. The engine's figure."""
+    return _figures(hold, tas_kt)["lap_min"]
 
 
 def held_minutes(hold: Hold, tas_kt: float) -> float:
     """How long the hold is flown, min: its turns round the racetrack, or
-    the minutes given."""
-    if hold.minutes is not None:
-        return hold.minutes
-    return (hold.turns or 1) * lap_minutes(hold, tas_kt)
+    the minutes given. The engine's figure."""
+    return _figures(hold, tas_kt)["held_min"]
 
 
 def racetrack(fix: tuple[float, float], inbound_true_deg: float, right: bool, tas_kt: float, leg_nm: float,

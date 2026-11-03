@@ -152,12 +152,18 @@ void queryClient.prefetchQuery({ ...chartQuery, meta: { silent: true } });
 const opening = new URLSearchParams(window.location.search);
 const openingDep = opening.get("dep")?.trim().toUpperCase();
 const openingDest = opening.get("dest")?.trim().toUpperCase();
-const openingStops = stopsOf(opening.get("stops"));
-if (routeOf(openingDep, openingDest, openingStops)) {
-  // Quiet: if the planner is down, the page's own course query says so
-  // once it mounts and asks again -- under the page's rule, not this one.
-  void queryClient.prefetchQuery({ ...courseQuery(openingDep!, openingDest!, openingStops), meta: { silent: true } });
-}
+const prefetchCourse = () => {
+  const openingStops = stopsOf(opening.get("stops"));
+  if (routeOf(openingDep, openingDest, openingStops)) {
+    // Quiet: if the planner is down, the page's own course query says so
+    // once it mounts and asks again -- under the page's rule, not this one.
+    void queryClient.prefetchQuery({ ...courseQuery(openingDep!, openingDest!, openingStops), meta: { silent: true } });
+  }
+};
+// A stop's form is the engine's (lib/identSchema stopOf), so a route with
+// stops is asked for once the engine is there; one without, at once.
+if (opening.get("stops")) void engineLoaded.then(prefetchCourse, () => {});
+else prefetchCourse();
 
 // A chunk that will not load -- the deploy after this page's own replaced
 // it, or no signal -- loads the page again, once a minute at most, as
