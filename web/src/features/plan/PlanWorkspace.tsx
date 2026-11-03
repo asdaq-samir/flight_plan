@@ -1478,9 +1478,33 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         }
       },
       fly: ft => flyAltitude(ft),
+      // "Plan a trip to Las Vegas": the place as the search finds it (a
+      // field, a town, an address), and the biggest field by it; from the
+      // route's departure, else from the field nearest the airplane.
+      planTo: async place => {
+        try {
+          const found = (await api.placesSearch(place))[0];
+          if (!found) return `“${place}” was not found.`;
+          const fields = await api.nearestAirports(found.lat, found.lon);
+          const dest = (found.kind === "airport" ? fields[0] : fields.find(f => f.kind === "large" || f.kind === "medium") ?? fields[0])?.ident;
+          if (!dest) return `No field was found near ${found.label}.`;
+          let dep = planned.dep;
+          if (!dep) {
+            const ship = useOwnShip.getState();
+            if (!ship.enabled || !ship.fix) return "No departure: plan a route from a field first, or turn on Show my position.";
+            dep = (await api.nearestAirports(ship.fix.lat, ship.fix.lon))[0]?.ident ?? "";
+            if (!dep) return "No field was found near the airplane.";
+          }
+          if (dep === dest) return `${dest} is the departure.`;
+          setRoute({ dep, stops: [], dest });
+          return null;
+        } catch {
+          return "The place could not be looked up; check the connection.";
+        }
+      },
     });
-    return () => useRadioActions.setState({ directTo: null, fly: null });
-  }, [nearNow, directToChartPoint, flyAltitude]);
+    return () => useRadioActions.setState({ directTo: null, fly: null, planTo: null });
+  }, [nearNow, directToChartPoint, flyAltitude, planned.dep, setRoute]);
   // A clearance heard and read by the pilot (ClearanceCard): its route,
   // its SID and STAR picked as typed ones are, and the altitude it gives.
   const enterClearance = useCallback((parts: RouteParts, typed: TypedProcedure[], altitudeFt: number | null) => {

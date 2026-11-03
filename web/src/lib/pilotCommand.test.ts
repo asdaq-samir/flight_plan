@@ -20,6 +20,10 @@ describe("what the pilot asked the microphone for", () => {
     ["start the timer", [{ kind: "timer", start: true }]],
     ["stop timer", [{ kind: "timer", start: false }]],
     ["direct Farmington and start timer", [{ kind: "direct", place: "farmington" }, { kind: "timer", start: true }]],
+    ["Plan a trip to Las Vegas", [{ kind: "destination", place: "las vegas" }]],
+    ["fly to Duluth please", [{ kind: "destination", place: "duluth" }]],
+    ["take me to kilo lima alpha sierra", [{ kind: "destination", place: "KLAS" }]],
+    ["go to the Milwaukee airport and the weather there", [{ kind: "weather", field: null }, { kind: "destination", place: "milwaukee" }]],
   ] as const)("%s", (said, expected) => {
     expect(commandsOf(said)).toEqual(expected);
   });

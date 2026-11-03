@@ -39,7 +39,7 @@ const load = () => import("../lib/atcListening").then(m => (listening = m));
  * `done` puts what was heard away after one.
  */
 function CallActions({ text, done }: { text: string; done: () => void }) {
-  const { directTo, fly, enter, route, nearest, showProcedure } = useRadioActions();
+  const { directTo, fly, enter, route, nearest, showProcedure, planTo } = useRadioActions();
   const near = useAtcRadio(s => s.near);
   const mode = useAtcRadio(s => s.mode);
   const [busy, setBusy] = useState<string | null>(null);
@@ -53,6 +53,7 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
   const procedure = commands.find(c => c.kind === "procedure");
   const weather = commands.find(c => c.kind === "weather");
   const timer = commands.find(c => c.kind === "timer");
+  const destination = commands.find(c => c.kind === "destination");
   const routed = !!(clearance.limit || clearance.route.length || clearance.asFiled);
   const run = async (what: string, act: () => Promise<string | null>) => {
     setBusy(what);
@@ -108,6 +109,14 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
         {commands.some(c => c.kind === "nearest") && nearest && (
           <Button size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-nearest" onClick={() => { nearest(); done(); }}>
             Nearest Airports
+          </Button>
+        )}
+        {/* "Plan a trip to Las Vegas": a route there, the chip saying so
+            where it would replace the route there is (the owner's
+            screenshot, 2026-11-03, the pill offering nothing for it). */}
+        {destination && planTo && (
+          <Button size="sm" variant="secondary" className={CHIP} disabled={!!busy} data-testid="radio-plan" onClick={() => void run("plan", () => planTo(destination.place))}>
+            {route.dest ? "Replace the route: plan to " : "Plan to "}{named(destination.place)}
           </Button>
         )}
         {altitude && clearance.maintainFt === null && fly && (

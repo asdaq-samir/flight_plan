@@ -29,12 +29,17 @@ function record(id: number, text: string, final: boolean) {
     // A call to us only while the radio is listened to on and on: once,
     // the pill is the pilot's own and offers its chips itself.
     const forUs = s.mode === "radio" && !!s.tail && ourCall(text, s.tail);
-    const was = s.heard.find(t => t.id === id);
-    const next = { id, at: was?.at ?? Date.now(), text, final, forUs };
+    // The same transmission under a new number -- Safari's recognizer
+    // gives a finished phrase again, and again after it restarts -- is
+    // the last one over again, not another (listenOnce the same way).
+    const last = s.heard.at(-1);
+    const again = !!last && last.id < id && !s.heard.some(t => t.id === id) && last.text.toLowerCase() === text.toLowerCase();
+    const was = again ? last : s.heard.find(t => t.id === id);
+    const next = { id: was?.id ?? id, at: was?.at ?? Date.now(), text, final, forUs };
     // A call to us, once settled: the phone buzzes where it can (not
     // Safari, which has no vibration).
     if (forUs && final && !was?.final && s.mode === "radio") navigator.vibrate?.(200);
-    return { heard: was ? s.heard.map(t => (t.id === id ? next : t)) : [...s.heard, next].slice(-KEPT) };
+    return { heard: was ? s.heard.map(t => (t.id === was.id ? next : t)) : [...s.heard, next].slice(-KEPT) };
   });
 }
 
@@ -66,6 +71,17 @@ export async function listenOnce(words: string[], readbackOf: string | null = nu
   const { stop } = await listen(words, undefined, (id, text) => {
     if (!text) return;
     record(id, text, true);
+    // The same words again under a new number, or the last words with
+    // more after them, are the last result over again, not a new one:
+    // Safari's recognizer gives a finished phrase again as a new result,
+    // and again after it starts itself afresh, and the pill read "Plan a
+    // trip to Las Vegas Plan a trip to Las Vegas" (the owner's screenshot,
+    // 2026-11-03).
+    const last = [...said.keys()].filter(k => k < id).sort((a, b) => b - a)[0];
+    if (last !== undefined) {
+      const before = said.get(last)!.toLowerCase(), now = text.toLowerCase();
+      if (now === before || now.startsWith(before) || before.startsWith(now)) said.delete(last);
+    }
     said.set(id, text);
     const typed = [...said.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]).join(" ");
     useAtcRadio.setState(s => ({ pill: s.pill && { ...s.pill, text: typed } }));

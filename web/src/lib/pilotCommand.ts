@@ -28,7 +28,11 @@ export type PilotCommand =
   | { kind: "procedure"; approach: string; runway: string | null; field: string | null }
   /** The weather at a field, said and shown; none, the destination's. */
   | { kind: "weather"; field: string | null }
-  | { kind: "timer"; start: boolean };
+  | { kind: "timer"; start: boolean }
+  /** "Plan a trip to Las Vegas", "fly to Duluth", "take me to kilo lima
+   *  alpha sierra": a route to the place, from the route's departure or
+   *  from where the airplane is (PlanWorkspace's planTo). */
+  | { kind: "destination"; place: string };
 
 const SIDES: Record<string, string> = { left: "L", right: "R", center: "C", centre: "C", l: "L", r: "R", c: "C" };
 const WEATHER_WORDS = new Set(["weather", "metar", "wx", "conditions"]);
@@ -105,5 +109,27 @@ export function commandsOf(text: string): PilotCommand[] {
   if (toks.some(t => t.word === "timer" || t.word === "stopwatch")) {
     out.push({ kind: "timer", start: !toks.some(t => t.word === "stop" || t.word === "reset" || t.word === "cancel") });
   }
+  const place = destinationOf(toks);
+  if (place && !direct) out.push({ kind: "destination", place });
   return out;
+}
+
+/** The words that ask for a route somewhere: "plan a trip to", "fly to",
+ *  "take me to", "go to", "route to", "flight to". */
+const TRIP_WORDS = new Set(["trip", "fly", "flight", "route", "go", "plan"]);
+
+/** The place a trip is asked to ("plan a trip to Las Vegas", "fly to
+ *  Duluth", "take me to kilo lima alpha sierra"), as words; null where
+ *  none is asked. The clearance's "cleared to" is the clearance reader's. */
+function destinationOf(toks: Token[]): string | null {
+  const to = toks.findIndex((t, i) => t.word === "to" && i > 0 && (TRIP_WORDS.has(toks[i - 1]!.word) || (toks[i - 1]!.word === "me" && toks[i - 2]?.word === "take")));
+  if (to < 0) return null;
+  const words: Token[] = [];
+  for (let i = to + 1; i < toks.length && words.length < FIELD_WORDS; i++) {
+    const t = toks[i]!;
+    if (t.word === "the" && !words.length) continue;
+    if (FIELD_ENDS.has(t.word) || t.word === "airport") break;
+    words.push(t);
+  }
+  return placeWords(words) || null;
 }

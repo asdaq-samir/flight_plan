@@ -71,4 +71,8 @@ export const useRadioActions = create<{
   enter: ((route: PlannedRoute, typed: TypedProcedure[], altitudeFt: number | null) => void) | null;
   nearest: (() => void) | null;
   showProcedure: ((ident: string, approach: string, runway: string | null) => Promise<string | null>) | null;
-}>(() => ({ directTo: null, fly: null, route: { dep: "", stops: [], dest: "" }, enter: null, nearest: null, showProcedure: null }));
+  /** A route planned to the place said ("plan a trip to Las Vegas"), from
+   *  the route's departure or from where the airplane is; answers why it
+   *  could not be. */
+  planTo: ((place: string) => Promise<string | null>) | null;
+}>(() => ({ directTo: null, fly: null, route: { dep: "", stops: [], dest: "" }, enter: null, nearest: null, showProcedure: null, planTo: null }));
