@@ -112,12 +112,79 @@
 //!   "utc": [day, minute], "local"?: [day, minute]}` (day 0 Sunday; the
 //!   host works the clocks out in the area's own time zone, which the
 //!   engine has no database of).
+//! - `checklist_read`: a checklist typed as text read into the gateway's
+//!   ChecklistDto, `{"sections": [{"title", "items": [{"challenge",
+//!   "response"}]}]}`, from `{"text"}`;
+//! - `checklist_write`: that checklist as text again, from `{"checklist"}`;
+//! - `csv_rows`: a CSV file's rows of fields, from `{"text"}`;
+//! - `logbook_csv_read`: a logbook CSV (ForeFlight's export or our own)
+//!   read into `{"entries": [LogbookEntryRequest], "skipped": [{"line",
+//!   "reason"}]}`, the entries camelCase as the gateway takes them, from
+//!   `{"text"}`;
+//! - `logbook_csv_write`: the logbook as a CSV file, from `{"entries":
+//!   [LogbookEntry]}`, the gateway's own (camelCase);
+//! - `handbook_figures`: a handbook specifications page's figures,
+//!   `{"cruiseTasKt"?, "cruisePowerPct"?, "fuelBurnGph"?, "usableFuelGal"?,
+//!   "climbTasKt"?, "serviceCeilingFt"?}` each `{"value", "words"}`, from
+//!   `{"text"}`, the text read off its photo;
+//! - `endorsement_lapse`: the warning an instructor sees once their date
+//!   has passed on the day of signing (14 CFR 61.197(a), (e)), or null,
+//!   from `{"until"?, "until_kind"?: "RE"|"EXP", "signed_on"}`, days as
+//!   "YYYY-MM-DD";
+//! - `endorsements_in_force`: the latest not voided of each code, as
+//!   `[[code, index]]` into the record (newest first), from `{"signed":
+//!   [{"code", "voided"?}]}`;
+//! - `endorsement_render`: an endorsement's words as they will be signed,
+//!   from `{"template", "student", "fields"?: {name: text}}`;
+//! - `acs_codes`: the ACS codes in pasted text, each once, from `{"text"}`.
 //!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
 use crate::figures::{debrief, diversion, holding, lost_comms};
 use crate::json::{self, Value};
+use crate::pilot::{checklist, csv, endorsements, handbook, logbook};
+
+/// A list of strings as a JSON array.
+fn strings(out: &mut String, items: &[String]) {
+    out.push('[');
+    for (i, s) in items.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        json::string(out, s);
+    }
+    out.push(']');
+}
+
+/// A ChecklistDto's sections, `{"checklist": {"sections": [...]}}`.
+fn checklist_sections(ask: &Ask) -> Result<Vec<checklist::Section>, String> {
+    let bad = || "checklist_write: \"checklist\" is not {\"sections\": [{\"title\", \"items\": [{\"challenge\", \"response\"}]}]}".to_owned();
+    let sections = ask.v.get("checklist").and_then(|c| c.get("sections")).and_then(Value::as_array).ok_or_else(bad)?;
+    sections
+        .iter()
+        .map(|s| {
+            let title = s.get("title").and_then(Value::as_str).ok_or_else(bad)?.to_owned();
+            let items = s
+                .get("items")
+                .and_then(Value::as_array)
+                .ok_or_else(bad)?
+                .iter()
+                .map(|i| {
+                    Ok(checklist::Item {
+                        challenge: i.get("challenge").and_then(Value::as_str).ok_or_else(bad)?.to_owned(),
+                        response: match i.get("response") {
+                            None | Some(Value::Null) => None,
+                            Some(Value::String(r)) => Some(r.clone()),
+                            Some(_) => return Err(bad()),
+                        },
+                    })
+                })
+                .collect::<Result<_, String>>()?;
+            Ok(checklist::Section { title, items })
+        })
+        .collect()
+}
 
 /// The rule `name` worked on `input`, a JSON object; the answer as JSON.
 pub fn call(name: &str, input: &str) -> Result<String, String> {
@@ -184,6 +251,80 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
                 out.push_str(&format!("[{a},{b}]"));
             }
             out.push(']');
+            Ok(out)
+        }
+        "checklist_read" => Ok(checklist::to_json(&checklist::read(ask.str("text")?))),
+        "checklist_write" => {
+            let sections = checklist_sections(&ask)?;
+            let mut out = String::new();
+            json::string(&mut out, &checklist::write(&sections));
+            Ok(out)
+        }
+        "csv_rows" => {
+            let mut out = String::from("[");
+            for (i, row) in csv::rows(ask.str("text")?).iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                strings(&mut out, row);
+            }
+            out.push(']');
+            Ok(out)
+        }
+        "logbook_csv_read" => Ok(logbook::read_json(ask.str("text")?)),
+        "logbook_csv_write" => {
+            let mut out = String::new();
+            json::string(&mut out, &logbook::write(ask.list("entries")?));
+            Ok(out)
+        }
+        "handbook_figures" => Ok(handbook::to_json(&handbook::figures_of_page(ask.str("text")?))),
+        "endorsement_lapse" => {
+            let text = |key: &str| match ask.v.get(key) {
+                None | Some(Value::Null) => Ok(None),
+                Some(Value::String(s)) => Ok(Some(s.as_str())),
+                Some(_) => Err(format!("endorsement_lapse: \"{key}\" is not a string")),
+            };
+            let warning = endorsements::lapse_warning(text("until")?, text("until_kind")?, ask.str("signed_on")?)?;
+            let mut out = String::new();
+            json::opt_string(&mut out, warning.as_deref());
+            Ok(out)
+        }
+        "endorsements_in_force" => {
+            let signed = ask
+                .list("signed")?
+                .iter()
+                .map(|e| {
+                    let code = e.get("code").and_then(Value::as_str).ok_or("endorsements_in_force: an endorsement's \"code\" is missing")?;
+                    let voided = matches!(e.get("voided"), Some(Value::Bool(true)));
+                    Ok((code.to_owned(), voided))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let mut out = String::from("[");
+            for (i, (code, at)) in endorsements::in_force(&signed).iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                out.push('[');
+                json::string(&mut out, code);
+                out.push_str(&format!(",{at}]"));
+            }
+            out.push(']');
+            Ok(out)
+        }
+        "endorsement_render" => {
+            let fields = match ask.v.get("fields") {
+                None | Some(Value::Null) => None,
+                Some(f @ Value::Object(_)) => Some(f),
+                Some(_) => return Err("endorsement_render: \"fields\" is not an object of names to words".to_owned()),
+            };
+            let field = |key: &str| fields.and_then(|f| f.get(key)).and_then(Value::as_str).map(str::to_owned);
+            let mut out = String::new();
+            json::string(&mut out, &endorsements::render(ask.str("template")?, ask.opt_str("student")?, &field));
+            Ok(out)
+        }
+        "acs_codes" => {
+            let mut out = String::new();
+            strings(&mut out, &endorsements::acs_codes(ask.str("text")?));
             Ok(out)
         }
         // The clearance reader (clearance.rs), the web's lib/clearance and

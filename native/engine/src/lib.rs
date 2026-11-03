@@ -25,6 +25,8 @@
 //!   over them, the pilot's minimums, icing under IFR, the risk
 //!   assessment, the runway check, the weight and balance and the pass
 //!   times (the web's lib/verdict and the modules it is fed from);
+//! - pilot: the pilot's records and text -- a checklist, the logbook's
+//!   CSV file, a handbook page, endorsements and ACS codes;
 //! - flight: the wind triangle, 91.159's altitudes, 91.151's reserve, the atmosphere;
 //! - wmm: magnetic variation from the World Magnetic Model;
 //! - validity: when a weather report stops counting;
@@ -46,6 +48,7 @@ pub mod notam;
 mod json;
 pub mod pack;
 pub mod phone;
+pub mod pilot;
 pub mod readback;
 pub mod rules;
 pub mod spoken;
