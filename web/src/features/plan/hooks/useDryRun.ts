@@ -30,6 +30,12 @@ export function useDryRun({ course, selected, legs, depart, routed, profileShown
   /** The Profile card is in sight: the run is its, and goes with it. */
   profileShown: boolean;
 }) {
+  // Not compiled: the React Compiler dropped the useMemo round the run
+  // (flownFrom) here, so each render made a new run, which the
+  // render-time hold of the last one set again -- "Too many re-renders" as
+  // a dry run started (the dry-run spec, 2026-11-03). Written inline in
+  // PlanWorkspace, which the compiler leaves as it is, it never did.
+  "use no memo";
   const [runFrom, setRunFrom] = useState<number | null>(null);
   // Whether the approach picked has gone missed (the run's Go missed).
   const [goMissed, setGoMissed] = useState(false);
