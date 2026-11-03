@@ -232,8 +232,6 @@ class PlannerProxyControllerTest {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/KDLH")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airports/in-view")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/waypoints/in-view")).isTrue();
-        // A route's points' types and regions, for the panel's flight plan files.
-        assertThat(PlannerProxyController.isForwarded("GET", "/api/waypoint-codes")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/airspace/in-view")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/navaids/in-view")).isTrue();
         assertThat(PlannerProxyController.isForwarded("GET", "/api/local-flight")).isTrue();

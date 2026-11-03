@@ -14859,58 +14859,6 @@
         "title": "VorPin",
         "type": "object"
       },
-      "WaypointCode": {
-        "description": "A route's point as a panel GPS finds it (vfr.waypoint_codes): its\nGarmin flight plan type and ICAO region, None where the FAA's data has\nno point of its identifier near it.",
-        "properties": {
-          "ident": {
-            "title": "Ident",
-            "type": "string"
-          },
-          "region": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Region"
-          },
-          "type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Type"
-          }
-        },
-        "required": [
-          "ident"
-        ],
-        "title": "WaypointCode",
-        "type": "object"
-      },
-      "WaypointCodes": {
-        "properties": {
-          "points": {
-            "items": {
-              "$ref": "#/components/schemas/WaypointCode"
-            },
-            "title": "Points",
-            "type": "array"
-          }
-        },
-        "required": [
-          "points"
-        ],
-        "title": "WaypointCodes",
-        "type": "object"
-      },
       "WaypointPin": {
         "description": "A VFR waypoint on the sectional (VPBNG), for the map's diamond: a\ntap names it, and with a route open puts it in the stops.",
         "properties": {
@@ -20150,49 +20098,6 @@
           }
         },
         "summary": "Traffic Route"
-      }
-    },
-    "/api/waypoint-codes": {
-      "get": {
-        "description": "Each point's Garmin type (AIRPORT, VOR, NDB, INT, INT-VRP) and ICAO\nregion (\"K3\"), in the order asked; both null where the FAA's data has\nno point of that identifier within 5 nm of it.",
-        "operationId": "waypoint_codes_of_api_waypoint_codes_get",
-        "parameters": [
-          {
-            "description": "The route's points in order, comma-separated, each A or F (an airport or any other point), its identifier and where the route has it: A:KDLH:46.8421:-92.1936,F:GEP:45.1455:-93.3732",
-            "in": "query",
-            "name": "points",
-            "required": true,
-            "schema": {
-              "description": "The route's points in order, comma-separated, each A or F (an airport or any other point), its identifier and where the route has it: A:KDLH:46.8421:-92.1936,F:GEP:45.1455:-93.3732",
-              "maxLength": 6000,
-              "title": "Points",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WaypointCodes"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Waypoint Codes Of"
       }
     },
     "/api/waypoints/in-view": {

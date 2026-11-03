@@ -1,6 +1,6 @@
 import { Fragment, memo } from "react";
 import L from "leaflet";
-import { Marker, Pane, Polyline } from "react-leaflet";
+import { Marker, Pane, Polyline, useMap } from "react-leaflet";
 import { bearingDeg, type LatLon } from "../geo";
 import type { TrafficPattern } from "../trafficPattern";
 import { altFt } from "../units";
@@ -44,9 +44,18 @@ function arrowIcon(bearing: number) {
   });
 }
 
+/** A name's width on the chart, px: 11 px bold, a letter a little wide. */
+const labelWidth = (words: string) => Math.ceil(words.length * 6.6) + 12;
+
+/** Whether two names centred at `a` and `b` (the map's pixels) would
+ *  touch, with a few points between. */
+function touching(a: L.Point, aWords: string, b: L.Point, bWords: string): boolean {
+  return Math.abs(a.x - b.x) < (labelWidth(aWords) + labelWidth(bWords)) / 2 + 4 && Math.abs(a.y - b.y) < 18 + 4;
+}
+
 /** A leg's name on the chart, white words on teal. */
 function labelIcon(words: string) {
-  const width = Math.ceil(words.length * 6.6) + 12;
+  const width = labelWidth(words);
   return L.divIcon({
     className: "", iconSize: [width, 18], iconAnchor: [width / 2, 9],
     html: `<span class="absolute inset-0 grid place-items-center whitespace-nowrap rounded-md text-[11px] leading-none font-bold text-white shadow-sm" style="background:${LABEL_TEAL}">${words.replace(/[<>&]/g, "")}</span>`,
@@ -56,6 +65,7 @@ function labelIcon(words: string) {
 export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns: TrafficPattern[] }) {
   // The names from their zoom as a pinch passes it, not once it ends.
   const zoom = useLiveZoom();
+  const map = useMap();
   if (patterns.length === 0) return null;
   const words = zoom >= WORDS_FROM_ZOOM;
   return (
@@ -63,6 +73,14 @@ export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns:
       {patterns.map(p => {
         const circuit = [p.legs[0]!.from, ...p.legs.map(l => l.to)].map(pair);
         const downwind = p.legs.find(l => l.name === "Downwind");
+        const downwindAt = downwind && along(downwind.from, downwind.to, 0.5);
+        const downwindWords = `${p.traffic === "right" ? "Right" : "Left"} downwind ${p.runway}${p.altitudeFt != null ? ` · ${altFt(p.altitudeFt)} ft` : ""}`;
+        const entryAt = p.kind === "departure" ? p.entry.to : p.entry.from;
+        const entryWords = p.kind === "departure" ? `${p.entry.name} · ${p.runway}` : p.entry.name;
+        // The entry's name left off where it would lie on the downwind's,
+        // as at KENW's 45° entry at zoom 11 (a probe, 2026-11-03): the
+        // dashed line still shows it, and closer in both have room.
+        const entryNamed = !downwindAt || !touching(map.project(pair(entryAt), zoom), entryWords, map.project(pair(downwindAt), zoom), downwindWords);
         return (
           <Fragment key={`${p.ident}-${p.runway}`}>
             <Polyline positions={circuit} pathOptions={LINE_CASING} interactive={false} />
@@ -77,16 +95,16 @@ export const PatternLayer = memo(function PatternLayer({ patterns }: { patterns:
                 interactive={false} keyboard={false} pane="patterns"
               />
             ))}
-            {words && downwind && <Marker
-              position={pair(along(downwind.from, downwind.to, 0.5))} interactive={false} keyboard={false} pane="patterns"
-              icon={labelIcon(`${p.traffic === "right" ? "Right" : "Left"} downwind ${p.runway}${p.altitudeFt != null ? ` · ${altFt(p.altitudeFt)} ft` : ""}`)}
+            {words && downwindAt && <Marker
+              position={pair(downwindAt)} interactive={false} keyboard={false} pane="patterns"
+              icon={labelIcon(downwindWords)}
             />}
             {/* Named at its outer end: where an entry starts, where an exit
                 goes. */}
-            {words && (
+            {words && entryNamed && (
               <Marker
-                position={pair(p.kind === "departure" ? p.entry.to : p.entry.from)} interactive={false} keyboard={false} pane="patterns"
-                icon={labelIcon(p.kind === "departure" ? `${p.entry.name} · ${p.runway}` : p.entry.name)}
+                position={pair(entryAt)} interactive={false} keyboard={false} pane="patterns"
+                icon={labelIcon(entryWords)}
               />
             )}
           </Fragment>

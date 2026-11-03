@@ -3051,18 +3051,3 @@ class CyclePacks(BaseModel):
     worst_nm: float
     region_deg: int
     regions: list[CyclePackRegion]
-
-
-
-class WaypointCode(BaseModel):
-    """A route's point as a panel GPS finds it (vfr.waypoint_codes): its
-    Garmin flight plan type and ICAO region, None where the FAA's data has
-    no point of its identifier near it."""
-
-    ident: str
-    type: str | None = None
-    region: str | None = None
-
-
-class WaypointCodes(BaseModel):
-    points: list[WaypointCode]
