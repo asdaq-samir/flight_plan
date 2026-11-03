@@ -23,16 +23,23 @@ type Pinching = L.LeafletEvent & { pinch?: boolean };
  */
 export function useLiveZoom(): number {
   const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents(useMemo(() => ({
-    zoomanim: (e: L.ZoomAnimEvent) => setZoom(e.zoom),
-    zoom: (e: Pinching) => {
-      if (!e.pinch) return;
-      const whole = Math.round(map.getZoom());
-      setZoom(was => (Math.round(was) === whole ? was : whole));
-    },
-    zoomend: () => setZoom(map.getZoom()),
-  }), [map]));
+  const [zoom, setZoom] = useState(() => Math.floor(map.getZoom()));
+  // The whole level the map is at, the same under a pinch as at rest:
+  // a pinch kept the nearest level and the map at rest its own, so at
+  // 7.7 the fingers drew the fields and altitudes of 8 and took them off
+  // again as they lifted (the owner, 2026-11-02, "still not static").
+  // Every layer draws by whole levels (zoom >= FROM_ZOOM), which the
+  // level below the map's own answers as the map's own does.
+  useMapEvents(useMemo(() => {
+    const level = (z: number) => setZoom(Math.floor(z + 1e-9));
+    return {
+      zoomanim: (e: L.ZoomAnimEvent) => level(e.zoom),
+      zoom: (e: Pinching) => {
+        if (e.pinch) level(map.getZoom());
+      },
+      zoomend: () => level(map.getZoom()),
+    };
+  }, [map]));
   return zoom;
 }
 
