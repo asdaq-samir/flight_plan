@@ -1,8 +1,8 @@
 import type { Frequency, ProcedureDrawing, ProcedureFix, ProcedureMissedLeg } from "./api/types";
 import { ctafOf, frequencyOf, mhzText } from "./frequencies";
-import { distanceNm, rad, type LatLon } from "./geo";
+import { FT_PER_NM, distanceNm, rad, type LatLon } from "./geo";
 import { altitudeLines } from "./procedures";
-import { altFt, bearing } from "./units";
+import { altFt, bearing, feet, grouped } from "./units";
 
 /**
  * An approach taught as an instructor teaches it, at the owner's ask
@@ -35,9 +35,6 @@ export interface LessonInput {
 
 /** "See the plate": what the lesson says where the coded data has nothing. */
 export const SEE_THE_PLATE = "See the plate";
-
-/** Feet in a nautical mile (the international nautical mile, 1,852 m). */
-const FT_PER_NM = 6076.12;
 
 /**
  * The rate of descent that holds a path of `angleDeg` at a ground speed of
@@ -410,7 +407,7 @@ export function coachingSteps(input: LessonInput, gsKt: number): CoachStep[] {
     if (has(fix, "FAF")) {
       const rate = angle != null ? roundedFpm(descentFpm(gsKt, angle)) : null;
       say = angle != null
-        ? `Descend on the ${angle.toFixed(2)}° path, about ${rate!.toLocaleString("en-US")} ft/min at ${gsKt} kt, and start the timer`
+        ? `Descend on the ${angle.toFixed(2)}° path, about ${grouped(rate!)} ft/min at ${gsKt} kt, and start the timer`
         : `Descend to ${descendTo} and start the timer`;
       const nm = nmToMap(parts, fix);
       why = `The final approach starts here.${nm != null && nm > 0 ? ` ${nm.toFixed(1)} nm to the missed approach point: ${stopwatch((nm / gsKt) * 3600)} at ${gsKt} kt.` : ""}`;
@@ -533,7 +530,6 @@ export function approachQuiz(input: LessonInput, gsKt: number): QuizQuestion[] {
   const { drawing } = input;
   const parts = partsOf(drawing);
   const out: (QuizQuestion | null)[] = [];
-  const feet = (ft: number) => `${altFt(ft)} ft`;
   // Every altitude the procedure codes, for the wrong choices.
   const altitudes = [
     ...drawing.fixes.flatMap(f => [f.min_ft, f.max_ft]),
@@ -563,7 +559,7 @@ export function approachQuiz(input: LessonInput, gsKt: number): QuizQuestion[] {
   }
   if (drawing.glidepath_deg != null) {
     const angle = drawing.glidepath_deg;
-    const rate = (gs: number) => `${roundedFpm(descentFpm(gs, angle)).toLocaleString("en-US")} ft/min`;
+    const rate = (gs: number) => `${grouped(roundedFpm(descentFpm(gs, angle)))} ft/min`;
     out.push(question(
       "descent", `On the ${angle.toFixed(2)}° path at ${gsKt} kt, about what descent rate?`, rate(gsKt),
       [60, 90, 120, 150].filter(gs => gs !== gsKt).map(rate),

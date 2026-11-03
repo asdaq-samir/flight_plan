@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useVisualHeight, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, GLASS_FILL, GLASS_SHEET, GLASS_SHEET_FULL, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
+  GLASS, GLASS_FILL, GLASS_SHEET, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_INSET_RADIUS, SHEET_MARGIN, SHEET_RESHAPE, SHEET_SECONDS, SETTLE_LEAST, SETTLE_MOST, SETTLE_POINTS, TabBarMinimized,
   sheetSettle, useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
 import { useOpenCards } from "../lib/openCards";
@@ -15,12 +15,10 @@ import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
 import { prefersReducedMotion } from "../lib/motion";
 
-/** How far the half sheet is in from the screen's sides and its edge: on
- *  them, as Apple's Maps on the web has its sheet (the owner's screenshots
- *  of it, 2026-10-26); it floated for an hour that day, and from
- *  2026-10-25 it was on them for the route box's buttons' room. The pill
- *  keeps SHEET_INSET. */
-const HALF_INSET = 0;
+// The half sheet is on the screen's sides and its edge, as Apple's Maps
+// on the web has its sheet (the owner's screenshots of it, 2026-10-26); it
+// floated for an hour that day, and from 2026-10-25 it was on them for the
+// route box's buttons' room. The pill keeps SHEET_INSET.
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -462,7 +460,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // from the bottom the way on to the screen's edge, less the gap it
   // floats above that edge by (with it, the nav log's first heading
   // showed a line under the tabs); from the top, the grabber at its foot.
-  const halfChrome = fromBottom ? Math.max(0, edgeInset - HALF_INSET) : GRABBER;
+  const halfChrome = fromBottom ? edgeInset : GRABBER;
   // The heights it is measured at: the pill, all the way up, and the half
   // sheet it took the place of -- not a height it rests at any more, but
   // what its glass and corners still change by between the two.
@@ -571,7 +569,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // far corners round, at the owner's ask (2026-10-25, "the extra space
     // on the sides": the route box's buttons fit on the airplane's line).
     // It floated in from them by SHEET_INSET, as iOS 26's Maps does.
-    inset: { side: HALF_INSET, gap: HALF_INSET, radius: HALF_INSET > 0 ? `${SHEET_INSET_RADIUS}px` : edgeRadius, far: SHEET_INSET_RADIUS, near: HALF_INSET > 0 ? SHEET_INSET_RADIUS : 0 },
+    inset: { side: 0, gap: 0, radius: edgeRadius, far: SHEET_INSET_RADIUS, near: 0 },
     edge: { side: 0, gap: 0, radius: edgeRadius, far: SHEET_INSET_RADIUS, near: 0 },
   }[shape];
   // A drag from the capsule turns it into the sheet as the finger goes
@@ -647,9 +645,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // From the pill's shape, in from the sides and every corner round, to
     // the sheet's on the sides and edge, its near corners square.
     const pillRadius = Math.min(PILL_RADIUS, capsuleHeight / 2);
-    const far = between(pillRadius, SHEET_INSET_RADIUS, morph), near = between(pillRadius, HALF_INSET > 0 ? SHEET_INSET_RADIUS : 0, morph);
-    geometry.side = between(SHEET_INSET, HALF_INSET, morph);
-    geometry.gap = between(capsuleGap, HALF_INSET, morph);
+    const far = between(pillRadius, SHEET_INSET_RADIUS, morph), near = between(pillRadius, 0, morph);
+    geometry.side = between(SHEET_INSET, 0, morph);
+    geometry.gap = between(capsuleGap, 0, morph);
     geometry.radius = fromBottom ? `${far}px ${far}px ${near}px ${near}px` : `${near}px ${near}px ${far}px ${far}px`;
     geometry.far = far;
     geometry.near = near;
@@ -658,9 +656,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // indicator: kept clear below the body, or the body's own (toEdge).
   const edgeRoom = Math.max(0, edgeInset - geometry.gap);
   // The glass the whole way, its fill following the height: the capsule's,
-  // the half sheet's, nearly whole all the way up (GLASS_FILL).
-  const fill = morph < 1 ? between(GLASS_FILL.capsule, GLASS_FILL.half, morph)
-    : between(GLASS_FILL.half, GLASS_FILL.full, Math.min(1, Math.max(0, (shown - detents.half) / Math.max(1, detents.full - detents.half))));
+  // the sheet's from half way up (GLASS_FILL).
+  const fill = morph < 1 ? between(GLASS_FILL.capsule, GLASS_FILL.sheet, morph) : GLASS_FILL.sheet;
   // While it turns, the capsule's own content fades out over the sheet's
   // head as that fades in -- unless the two are one (the search bar).
   const crossFade = morphing && morph < 1 && !bar && compact !== top;
@@ -707,7 +704,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
   // settle down").
   const pillRest = bar ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
-  const coveredOnPhone = expanded ? detents.half + HALF_INSET : hasPill ? pillRest + capsuleGap : peek;
+  const coveredOnPhone = expanded ? detents.half : hasPill ? pillRest + capsuleGap : peek;
   const out = expanded;
   const insetsNow = useMemo<MapInsets>(() => {
     const up = state === "full";
@@ -747,7 +744,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     dragging: dragged !== null,
     // Under a finger laid out at half, and all the way up once past it.
     dragRoom: h => (h > detents.half + 1 ? detents.full : detents.half),
-    sheetSide: HALF_INSET, seconds: settleOf.seconds, pinned: fromFoot, landed, edges,
+    seconds: settleOf.seconds, pinned: fromFoot, landed, edges,
     pageKeys: Object.keys(pageBox), waiting: settleOf.moving || settling || turning, insets: insetsNow,
   });
   // The room it leaves the map told in a transition as a phone's sheet sets
@@ -1123,7 +1120,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // owner, 2026-10-27: "the color transition is not smooth").
         capsule || (settling && onPhone) ? GLASS
           : !onPhone ? MATERIAL
-            : nearFull ? GLASS_SHEET_FULL : GLASS_SHEET,
+            : GLASS_SHEET,
         !onPhone && cn(
           "left-[max(1rem,env(safe-area-inset-left))] w-[24rem]",
           !capsule && "rounded-[10px] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
@@ -1440,7 +1437,7 @@ const LANDED_LATE = 2000;
  * every frame, and with a route four frames came of 0.3 s at 4x, the
  * first 460 ms after the key (traced on the phone project, 2026-10-28).
  */
-function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, sheetSide, seconds, pinned, landed, edges, pageKeys, waiting, insets }: {
+function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, seconds, pinned, landed, edges, pageKeys, waiting, insets }: {
   on: boolean;
   /** The sheet, its head's band, its body and its foot, as the page has
    *  them now. */
@@ -1450,7 +1447,6 @@ function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, sheetSid
   /** The height it is laid out at under a finger at `h`. */
   dragRoom: (h: number) => number;
   /** How far in from the sides it is laid out under a finger. */
-  sheetSide: number;
   seconds: number;
   pinned: boolean;
   /** Come to rest where it was going. */
@@ -1570,9 +1566,9 @@ function useSheetMotion({ on, parts: partsOf, look, dragging, dragRoom, sheetSid
       // painted as it comes, frame by frame.
       stop();
       const height = Math.max(m?.height ?? 0, dragRoom(look.h), look.gap + look.h);
-      lay(height, sheetSide, look.far);
+      lay(height, 0, look.far);
       clip(pinned);
-      move.current = { from: look, to: look, height, side: sheetSide, laid: measure(), pinned, runs: [], turn: ++turns.current };
+      move.current = { from: look, to: look, height, side: 0, laid: measure(), pinned, runs: [], turn: ++turns.current };
       paint(move.current, look);
       was.current = look;
       return;

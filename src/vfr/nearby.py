@@ -24,12 +24,10 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from functools import lru_cache
 from pathlib import Path
 
 import requests
 
-from . import remarks
 from .config import DATA_DIR
 from .geo import distance_nm
 from .units import M_PER_NM
@@ -293,18 +291,6 @@ def warm() -> None:
     first field's places were 2.5 s, the next 0.3 s. A box of open ocean
     (0, 0), so nothing is kept."""
     _read(0.0, 0.0, latest_release())
-
-
-@lru_cache(maxsize=8192)
-def courtesy_car(ident: str) -> bool:
-    """Whether the FAA's remarks offer a courtesy car at the field: kept, as
-    the remarks change by the cycle (40 fields' were 0.8 s a Stops list)."""
-    ident = ident.strip().upper()
-    faa_ids = [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
-    try:
-        return any(remarks.service_notes(faa_id)["courtesy_car"] for faa_id in faa_ids)
-    except (OSError, RuntimeError):
-        return False
 
 
 def kept(ident: str, cache_dir: Path = CACHE_DIR) -> dict | None:

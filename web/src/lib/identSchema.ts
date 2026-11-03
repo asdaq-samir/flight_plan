@@ -26,6 +26,10 @@ export function stopOf(value: string | null | undefined): string {
   return normalized(value, /^[A-Z0-9]{2,5}(\/\d{3}\/\d{1,3}(\.\d)?)?$|^[A-Z]{2,5}\d{6}$/);
 }
 
+/** A fix's or a field's bare ident, two to five letters and digits: a
+ *  stop (stopOf) with no course and distance after it. */
+export const isFixIdent = (ident: string) => /^[A-Z0-9]{2,5}$/.test(ident);
+
 /** A stop that is the pilot's own point off a fix (stopOf): its fix,
  *  course and distance; null for any other. */
 export function frdOf(ident: string): { base: string; course: number; distanceNm: number } | null {

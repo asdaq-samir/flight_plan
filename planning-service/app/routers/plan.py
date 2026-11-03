@@ -13,7 +13,6 @@ the hops planned at once, and the nav log runs on through each stop."""
 import logging
 import math
 import re
-import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -22,11 +21,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import numpy as np
-from cachetools import TTLCache
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from vfr import (
-    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, nearby, pattern,
+    airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, pattern,
     places, procedure_paths, procedures, runway_wind, sun, terrain_detour, weather,
 )
 # As vfr_holds: PlanQuery's own `holds` is the address's.
@@ -61,7 +59,6 @@ from ..schemas import (
     NavLogStage,
     Plan,
     RouteProfile,
-    RouteStops,
     Totals,
 )
 from ..scoring import route_checkpoints
@@ -1247,49 +1244,6 @@ def route_profile(dep: str, dest: str, stops: str = "") -> RouteProfile:
     return side_view([(a["lat"], a["lon"]) for a in r.airports], shp_path)
 
 
-#: The map's Stops answered for a route, kept an hour once complete.
-_STOPS_KEPT: TTLCache = TTLCache(maxsize=256, ttl=3600)
-_STOPS_LOCK = threading.Lock()
-
-
-@router.get("/api/route-stops")
-def route_stops(dep: str, dest: str, stops: str = "") -> RouteStops:
-    """The fields along the route to stop at, for the map's Stops, at the
-    owner's ask ("a button to show food, fuel, rest options along the
-    route they can pick from", 2026-10-23): every public field near each
-    flight's line (vfr.fuelstops.along), each with its courtesy car (the
-    FAA's remarks) and the nearest food, bed and car to hire where its
-    places have been read (vfr.nearby.kept). Those not yet read are read
-    on the planner's pool and counted in `pending`; the page asks again
-    until none is. The times and the fuel at each are the page's, from
-    the plan's own figures per mile."""
-    key = (dep.strip().upper(), dest.strip().upper(), stops.strip().upper())
-    with _STOPS_LOCK:
-        kept = _STOPS_KEPT.get(key)
-    if kept is not None:
-        return kept
-    r = load_route(dep, dest, stops)
-    found = fuelstops.along([(f.dep_ident, f.start, f.end) for f in r.flights], skip=set(r.idents))
-    out, pending = [], 0
-    for field in found:
-        places = nearby.kept(field["ident"])
-        if places is None:
-            pending += 1
-            nearby.read_later(field["ident"], field["lat"], field["lon"])
-        else:
-            for kind, one in (("food", "food"), ("lodging", "lodging"), ("cars", "car")):
-                field[one] = (places.get(kind) or [None])[0]
-        out.append({**field, "nearby_known": places is not None, "courtesy_car": nearby.courtesy_car(field["ident"])})
-    answer = RouteStops(fields=out, pending=pending)
-    # Kept once every field's places are in: asked again, the route's
-    # stops were 1 to 3.4 s each time, warm (the 23 Oct audit), the
-    # corridor and 40 fields' remarks and places read afresh.
-    if not pending:
-        with _STOPS_LOCK:
-            _STOPS_KEPT[key] = answer
-    return answer
-
-
 @router.get("/api/course")
 def course(dep: str, dest: str, stops: str = "") -> Course:
     """Just the course line and its endpoints, through any stops.
@@ -1403,6 +1357,42 @@ def foreflight_pack(route: str, file: str, request: Request) -> Response:
     )
 
 
+def planned_within_limit(r: Route, q: "PlanQuery", profile: dict) -> tuple[list, list, list[HopRun], "Flown | NoWinds | Unflyable"]:
+    """The checkpoints scored and picked, each hop's run and the altitude
+    chosen, all inside the one bound (COMPUTE_LIMIT_S), scoring included:
+    the agents' client waits exactly that long (vfr.planner_client). For
+    /api/plan and the Go / No-Go (app.routers.gonogo); the nav log streams
+    its own, a stage line at each step."""
+    runs: list[HopRun] = []
+
+    def work():
+        scored, selected, by_hop = route_checkpoints(r) if q.checkpoints else ([], [], [[] for _ in r.hops])
+        _name_waypoints(r, selected)
+        runs.extend(hop_runs(r, by_hop, q.depart, profile, q.own_ground(), q.own_holds()))
+        return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
+
+    pool = ThreadPoolExecutor(max_workers=1)
+    try:
+        scored, selected, outcome = _result(_waited(
+            pool.submit(work), COMPUTE_LIMIT_S,
+            lambda: [stage for run in runs for stage in _running_stages(run, q)] if runs else ["chart"],
+        ))
+    finally:
+        pool.shutdown(wait=False)
+    return scored, selected, runs, outcome
+
+
+def flown_as_picked(r: Route, runs: list[HopRun], outcome: Flown, q: "PlanQuery") -> tuple[Flown, list[dict]]:
+    """The altitude chosen flown as the pilot picked it: the procedures
+    and the runways (wind_picks), the holds, and each point's own
+    altitude -- the plan's legs, one sequence for /api/plan, /api/navlog
+    and the Go / No-Go, where the Go / No-Go's copy had missed the
+    landing runways."""
+    drawn = q.drawn_procedures()
+    outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn, *wind_picks(r, outcome, q)), q.own_holds())
+    return outcome, flown_legs(r, runs, outcome, q.own_altitudes(), drawn, q.own_ground())
+
+
 @router.get("/api/plan")
 def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
@@ -1434,35 +1424,14 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     fuel reserve is the day or the night one.
     """
     r = load_route(q.dep, q.dest, q.stops)
-    own = q.own_altitudes()
-    drawn = q.drawn_procedures()
     profile = q.profile()
-
-    # Everything slow inside the one bound, scoring included: the agents'
-    # client waits exactly that long (vfr.planner_client).
-    runs: list[HopRun] = []
-
-    def work():
-        scored, selected, by_hop = route_checkpoints(r) if q.checkpoints else ([], [], [[] for _ in r.hops])
-        _name_waypoints(r, selected)
-        runs.extend(hop_runs(r, by_hop, q.depart, profile, q.own_ground(), q.own_holds()))
-        return scored, selected, join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
-
-    pool = ThreadPoolExecutor(max_workers=1)
-    try:
-        scored, selected, outcome = _result(_waited(
-            pool.submit(work), COMPUTE_LIMIT_S,
-            lambda: [stage for run in runs for stage in _running_stages(run, q)] if runs else ["chart"],
-        ))
-    finally:
-        pool.shutdown(wait=False)
+    scored, selected, runs, outcome = planned_within_limit(r, q, profile)
     if isinstance(outcome, NoWinds):
         raise outcome.error
     if isinstance(outcome, Unflyable):
         _, ways = unflyable_parts(outcome, runs)
         raise HTTPException(422, no_altitude_detail(outcome.selection, outcome.between, ways[0] if ways else None))
-    outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn, q.departure_runways(), q.landing_runways()), q.own_holds())
-    leg_list = flown_legs(r, runs, outcome, own, drawn, q.own_ground())
+    outcome, leg_list = flown_as_picked(r, runs, outcome, q)
 
     return Plan(
         departure=r.departure,
@@ -1538,8 +1507,6 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     out, and an HTTP status can't change after that.
     """
     r = load_route(q.dep, q.dest, q.stops)
-    own = q.own_altitudes()
-    drawn = q.drawn_procedures()
 
     def lines():
         if q.checkpoints:
@@ -1627,8 +1594,8 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
             class_b_detours=class_b_detours_of(runs, outcome, q),
             altitude_figures=list(outcome.figures),
         ))
-        outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn, *wind_picks(r, outcome, q)), q.own_holds())
-        for leg in flown_legs(r, runs, outcome, own, drawn, q.own_ground()):
+        outcome, legs = flown_as_picked(r, runs, outcome, q)
+        for leg in legs:
             yield line(NavLogLeg.model_validate(leg))
 
         yield line(NavLogDone(totals=totals_of(r, runs, outcome, profile, q.rules, q.alternate, q.own_ground())))

@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Polyline, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import type { TrafficAircraft } from "../api/types";
+import { M_PER_NM } from "../geo";
 import { clearProblem, raiseProblem } from "../problems";
 import { usePreferences } from "../preferences";
 import { flightQuery } from "../queryClient";
@@ -371,7 +372,7 @@ const ADD_PER_STEP = 40;
 function radiusOf(map: L.Map): number {
   const bounds = map.getBounds();
   const metres = map.getCenter().distanceTo(bounds.getNorthEast());
-  return Math.min(165, Math.max(10, metres / 1852));
+  return Math.min(165, Math.max(10, metres / M_PER_NM));
 }
 
 // One style a colour, made once: react-leaflet restyles a path whenever

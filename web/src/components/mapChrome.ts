@@ -1,4 +1,3 @@
-import { GLASS_EDGE } from "../lib/glass";
 import { createContext } from "react";
 import { create } from "zustand";
 import { TEXT } from "../lib/text";
@@ -103,23 +102,18 @@ export const MATERIAL = "bg-background/85 backdrop-blur-xl backdrop-saturate-150
  */
 export const GLASS = "liquid-glass";
 
-/** The same glass for a sheet at half height, frostier -- more of the
- *  material, less of the chart -- as what is on it is read: the map's
- *  panel and the console. */
+/** The same glass for a sheet, frostier -- more of the material, less of
+ *  the chart -- as what is on it is read: the map's panel at half and all
+ *  the way up, the console, the dialogs. */
 export const GLASS_SHEET = "bg-[var(--sheet)] shadow-[0_-1px_12px_rgb(0_0_0/0.12)] dark:shadow-[0_-1px_12px_rgb(0_0_0/0.5)]";
 
-/** And all the way up, on the screen's edges as Maps' sheet is, nearly
- *  whole: its rim lit and its far corners round, as at half -- the opaque
- *  slab it was read heavy, the pilot found -- but the chart only faintly
- *  under a screenful of nav log. */
-export const GLASS_SHEET_FULL = GLASS_SHEET;
-
-/** The glass's fill at each shape (GLASS, GLASS_SHEET, GLASS_SHEET_FULL),
+/** The glass's fill at each shape (GLASS, GLASS_SHEET), the same from
+ *  half way up to all the way,
  *  for a sheet being dragged to follow from one to the next. A dragged
  *  sheet was an opaque fill with no blur behind it, for the frames a blur
  *  re-drawn every frame was measured to cost; the pilot found the glass
  *  giving way under the finger, which Maps' never does. */
-export const GLASS_FILL = { capsule: 80, half: 100, full: 100 };
+export const GLASS_FILL = { capsule: 80, sheet: 100 };
 
 /** How long the sheet takes from the pill to half (SETTLE_POINTS), in
  *  seconds, at the owner's ask ("make the 8443 a bit fast to match Apple
@@ -186,20 +180,13 @@ export const PILL_RADIUS = 24;
  *  from the far one. */
 export const SHEET_MARGIN = 8;
 
-/** A pane of clear glass, as the tab up is (TabGlass): bright at its top
- *  and clearing toward its foot, lit along its rim in white, standing off
- *  the sheet on a soft shadow -- raised, never a dark line inside the rim,
- *  which read as etched. The tab up's capsule in the pill (TabBar). */
-export const GLASS_CLEAR =
-  "border-0 bg-transparent bg-linear-to-b from-[var(--glass-top-fill)] to-[var(--glass-foot-fill)] text-foreground " + GLASS_EDGE;
-
 /** A control's own pane of glass, as iOS 26 draws its buttons over
  *  content, clear as the tab up's is (TabGlass), at the owner's ask ("Can
  *  we try clear instead of tint", 2026-10-23, after the tinted "2"):
  *  nearly the sheet's own tone, so it reads by its light and its edge as
  *  the tab does -- a sheen at its top, bright there and clearing to almost
  *  nothing at its foot, a white rim, a hairline and a soft shade round it.
- *  The first clear glass (GLASS_CLEAR) was whiter all the way down and
+ *  The first clear glass was whiter all the way down and
  *  read as white chips on the near-white sheet. Lit along its top edge
  *  alone, as iOS's glass is, in the dark (the owner's "Yes", 2026-10-22:
  *  a light ring round every button outlined the screen) and in the light
@@ -240,14 +227,8 @@ export const ADD_CAPSULE =
   "relative h-8 shrink-0 rounded-full bg-tint/12 px-3.5 font-semibold text-tint outline-none " +
   `after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${TEXT.detail}`;
 
-/** A star filled in iOS's yellow while its card action is on (data-state
- *  on its button, a stock Toggle's: the airport and airplane cards'
- *  Favorite), as a starred thing is everywhere on iOS. */
-export const FAVORITE_STAR = "in-data-[state=on]:fill-[#ffcc00] in-data-[state=on]:text-[#ffcc00] dark:in-data-[state=on]:fill-[#ffd60a] dark:in-data-[state=on]:text-[#ffd60a]";
-
-/** The same star's yellow, given outright: the airport card's star is a
- *  round button by its close, a tooltip's trigger, with no Toggle's
- *  data-state to read. */
+/** A star filled in iOS's yellow, as a starred thing is everywhere on
+ *  iOS: the airport card's star, a round button by its close. */
 export const FAVORITE_STAR_ON = "fill-[#ffcc00] text-[#ffcc00] dark:fill-[#ffd60a] dark:text-[#ffd60a]";
 
 /** A round button on the panel -- the console's, the route's close -- as

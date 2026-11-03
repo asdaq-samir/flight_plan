@@ -9,6 +9,7 @@
  */
 import type { Runway } from "./api/types";
 import { angleBetween, normalizeDeg } from "./geo";
+import { sameField } from "./procedures";
 import { calmOnRunway, crosswindKt, headwindKt, isCalm } from "./wind";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
@@ -73,8 +74,7 @@ export interface RunwayPicks {
 export function pickedEnd(picks: RunwayPicks | null | undefined, ident: string, kind: "takeoff" | "landing", departure: boolean): string | null {
   if (!picks) return null;
   const map = kind === "takeoff" && !departure ? picks.takeoff : picks.pattern;
-  const bare = (i: string) => (i.length === 4 && i.startsWith("K") ? i.slice(1) : i).toUpperCase();
-  for (const [field, end] of map) if (bare(field) === bare(ident)) return end === "NONE" ? null : end;
+  for (const [field, end] of map) if (sameField(field, ident)) return end === "NONE" ? null : end;
   return null;
 }
 

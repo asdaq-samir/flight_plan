@@ -1,5 +1,5 @@
 import type { TrafficAircraft } from "../api/types";
-import { angleBetween, destination, distanceNm, rad, type LatLon } from "../geo";
+import { M_PER_NM, angleBetween, destination, distanceNm, rad, type LatLon } from "../geo";
 import { grouped } from "../units";
 import type { Fix } from "./ownShip";
 import type { Report } from "./tracking";
@@ -96,7 +96,7 @@ export function carriedOn(plane: TrafficAircraft, seconds: number): LatLon {
  *  point at zoom 0 on the equator), at most 160. */
 export function trendPx(speedKt: number | null | undefined, lat: number, zoom: number): number {
   if (!speedKt) return 0;
-  const metres = ((speedKt * TREND_S) / 3600) * 1852;
+  const metres = ((speedKt * TREND_S) / 3600) * M_PER_NM;
   const metresPerPoint = (156543.03392 * Math.cos((lat * Math.PI) / 180)) / 2 ** zoom;
   return Math.min(160, metres / metresPerPoint);
 }

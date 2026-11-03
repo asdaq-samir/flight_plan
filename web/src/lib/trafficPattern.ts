@@ -24,6 +24,7 @@
  */
 import type { Runway } from "./api/types";
 import { FT_PER_NM, bearingDeg, destination, distanceNm, signedTurn, type LatLon } from "./geo";
+import { isFixIdent } from "./identSchema";
 import { patternSideDeg, runwayNumber, type RunwayEnd } from "./pattern";
 
 /** Three-quarters of a statute mile, in nautical miles: the middle of the
@@ -145,7 +146,7 @@ export function patternsOf(param: string | null): Map<string, string> {
   const picked = new Map<string, string>();
   for (const part of (param ?? "").split(",")) {
     const [ident, end] = part.split(":").map(s => s.trim().toUpperCase());
-    if (ident && end && /^[A-Z0-9]{2,5}$/.test(ident) && /^\d{1,2}[LCR]?$|^[NSEW]{1,2}$/.test(end)) picked.set(ident, end);
+    if (ident && end && isFixIdent(ident) && /^\d{1,2}[LCR]?$|^[NSEW]{1,2}$/.test(end)) picked.set(ident, end);
   }
   return picked;
 }

@@ -59,7 +59,7 @@ interface Props {
   totals: Totals | null;
   /** Why the checkpoints' descriptions could not be written, for the log
    *  to say over its rows with a Try again (the wand's run). */
-  descriptionError?: string | null;
+  descriptionError: string | null;
   nav: NavLogAltitude | null;
   /** The departure time as an ISO instant, or "" for about now --
    *  set here, where its ETAs show; changing it re-plans, since the
@@ -102,7 +102,7 @@ interface Props {
    *  writing descriptions (PaidPrompt): they come with it. */
   descriptionsPaywall?: ReactNode;
   /** The descriptions not offered in this deployment: no wand at all. */
-  descriptionsHidden?: boolean;
+  descriptionsHidden: boolean;
   /** The briefing's pages (FlightBriefingView's parts, and the Brief's
    *  narrative), printed after the legs: on screen they are the Brief's
    *  card's (BriefCard). */
@@ -117,16 +117,13 @@ interface Props {
    *  the owner's ask ("make Navlog open like brief does instead of a
    *  separate card"): the log in the route list's place. */
   cardHead?: ReactNode;
-  /** The drawer's last line, under every section (the planning-aid
-   *  reminder). */
-  footer?: ReactNode;
   /** A local flight, one airport to itself: no legs, so the section is
    *  "Local Flight" -- the time aloft, the time back and the fuel, and
    *  the fuel check -- in place of the nav log. */
-  local?: boolean;
+  local: boolean;
   /** An airport's weather colour, as its chip on the map: its mark's
    *  middle in the waypoint column (PointMark). */
-  metarColourOf?: (ident: string) => string | undefined;
+  metarColourOf: (ident: string) => string | undefined;
   /** Clicking a row focuses that waypoint on the map (pans/zooms to
    *  it, draws the halo) the same way clicking its marker there
    *  selects this row -- keyed by coordinates rather than a row
@@ -143,7 +140,7 @@ interface Props {
   drawerOpen: boolean;
   /** The planned flight's dry run while one is up: the log follows it, the
    *  row it is flying to tinted and kept in sight. */
-  dryRun?: DryRun | null;
+  dryRun: DryRun | null;
   /** FPL's own list in the nav log's place on screen: the route in order
    *  (ProceduresRoute), at the owner's ask ("I want to replace navlog with
    *  procedures", 2026-10-18). The nav log is then a card of its own in
@@ -338,8 +335,6 @@ function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: 
   );
 }
 
-/** No weather known: an airport's mark in the no-report grey. */
-const noWeather = () => undefined;
 
 /** The leg's true airspeed, in its own air (the planner's
  *  vfr.performance): it varies with the altitude and the forecast
@@ -350,12 +345,12 @@ function tas(leg: Leg): string {
 }
 
 export default function NavLogView({
-  totals, nav, depart, descriptionError = null,
+  totals, nav, depart, descriptionError,
   legs, dep, dest, ends,
   selected, descriptions, onSaveDescription,
-  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden = false, tabContent, children, marks, notice, cardHead, footer, local = false, metarColourOf = noWeather,
+  onGenerateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, tabContent, children, marks, notice, cardHead, local, metarColourOf,
   selectedPoint, onSelectPoint, onDeselectPoint, drawerOpen,
-  aircraftLabel, dryRun = null, route,
+  aircraftLabel, dryRun, route,
 }: Props) {
   // Where the log's rows are in sight: FPL all the way up, and never where
   // the route's list is in their place.
@@ -867,7 +862,7 @@ export default function NavLogView({
         // On paper the whole briefing, as it always printed: every page in
         // turn, the legs first in En route's, under the briefing's title.
         <PanelTabs
-          printing marks={marks} route={title} notice={notice} footer={footer}
+          printing marks={marks} route={title} notice={notice}
           before={(
             <>
               {/* On paper only, at paper's own 14: no finger, no type scale.
@@ -920,7 +915,6 @@ export default function NavLogView({
           >
             {cardHead && <div className="pt-[var(--corner-inset,0.75rem)] pb-2">{cardHead}</div>}
             <section aria-label={local ? "Local Flight" : route ? "Route" : "Nav Log"} className={TEXT.prose} data-testid={cardHead ? "navlog-sheet" : undefined}>{legsSection}</section>
-            {footer}
           </div>
         </div>
       )}

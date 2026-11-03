@@ -181,12 +181,11 @@ export default defineConfig({
             },
           },
           {
-            // What a field offers on the ground, its pictures' list and a
-            // route's Stops: the network when there is one, the last answer
+            // What a field offers on the ground and its pictures' list: the network when there is one, the last answer
             // when there is not, in a cache of their own so a route's forty
             // fields do not push the plans out of planner-api's 300.
             urlPattern: ({ url, request }) =>
-              request.method === "GET" && /^\/api\/planner\/(airport\/[^/]+\/(services|photos)|route-stops)$/.test(url.pathname),
+              request.method === "GET" && /^\/api\/planner\/airport\/[^/]+\/(services|photos)$/.test(url.pathname),
             handler: "NetworkFirst",
             options: {
               cacheName: "airport-extras",
