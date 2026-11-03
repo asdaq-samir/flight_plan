@@ -8,16 +8,39 @@ final class AirportAnnotation: NSObject, MKAnnotation {
     let ident: String
     let kind: String
     let category: String?
+    /// The class of airspace at the field's surface (B, C, D, E, G), for
+    /// how soon its mark must show.
+    let airspaceClass: String?
     let coordinate: CLLocationCoordinate2D
+    /// A field of the route (its ends and stops): always drawn, never
+    /// folded into a cluster.
+    var onRoute = false
 
-    init(_ pin: AirportPin) {
+    init(_ pin: AirportPin, onRoute: Bool = false) {
         ident = pin.ident
         kind = pin.kind
         category = pin.flightCategory
+        airspaceClass = pin.airspaceClass
         coordinate = CLLocationCoordinate2D(latitude: pin.lat, longitude: pin.lon)
+        self.onRoute = onRoute
     }
 
     var title: String? { ident }
+
+    /// Which marks MapKit keeps when they would overlap, as the web app's
+    /// AirportsLayer ranks the fields far out (shownFrom and KIND_RANK:
+    /// a Class B field from the country's zoom, a Class C from a few
+    /// states', the airline airports before the regional ones, the small
+    /// fields at the sectional's own scale): the route's fields always,
+    /// then the large and the Class B and C, then medium and Class D,
+    /// then the rest. Hundreds of views at a low zoom drew over each
+    /// other with nothing dropping any (the owner, 2026-11-03).
+    var priority: MKFeatureDisplayPriority {
+        if onRoute { return .required }
+        if kind == "large" || airspaceClass == "B" || airspaceClass == "C" { return .defaultHigh }
+        if kind == "medium" || airspaceClass == "D" { return MKFeatureDisplayPriority(rawValue: 500) }
+        return .defaultLow
+    }
 
     /// The web app's flight category colours (lib/map/flightCategory.ts):
     /// VFR green, MVFR blue, IFR red, LIFR magenta; grey with no report.
@@ -83,5 +106,62 @@ final class AirportMarkView: MKAnnotationView {
         ring.layer.borderColor = field.colour.cgColor
         label.text = field.ident
         accessibilityLabel = "\(field.ident), \(SpokenFigures.flightCategory(field.category))"
+        // MapKit folds marks that would overlap into one cluster view and
+        // drops the lesser of two that collide, by these: the route's
+        // fields stand on their own.
+        clusteringIdentifier = field.onRoute ? nil : AirportMarkView.cluster
+        displayPriority = field.priority
+        collisionMode = .rectangle
+    }
+
+    /// The identifier the fields cluster under.
+    static let cluster = "airport"
+}
+
+/// Several fields' marks folded into one where they would overlap: a
+/// ring in the app's grey with how many, which MapKit opens as the map
+/// zooms in. One view class reused for every cluster.
+final class AirportClusterView: MKAnnotationView {
+    static let reuse = "airport-cluster"
+    private let ring = UIView()
+    private let count = UILabel()
+
+    override init(annotation: (any MKAnnotation)?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        frame = CGRect(x: 0, y: 0, width: 30, height: 30)
+        ring.frame = bounds
+        ring.layer.cornerRadius = 15
+        ring.layer.borderWidth = 2.5
+        ring.layer.borderColor = UIColor.systemGray.cgColor
+        ring.backgroundColor = NightPalette.markFill
+        count.frame = bounds
+        count.font = UIFont.systemFont(ofSize: 12, weight: .bold)
+        count.textAlignment = .center
+        count.textColor = .label
+        addSubview(ring)
+        addSubview(count)
+        canShowCallout = false
+        collisionMode = .circle
+        displayPriority = .defaultHigh
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override var annotation: (any MKAnnotation)? {
+        didSet { show() }
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        show()
+    }
+
+    private func show() {
+        guard let cluster = annotation as? MKClusterAnnotation else { return }
+        count.text = String(cluster.memberAnnotations.count)
+        // Read as one thing: "12 airports", opened by a zoom in.
+        isAccessibilityElement = true
+        accessibilityLabel = "\(cluster.memberAnnotations.count) airports"
     }
 }
