@@ -63,6 +63,9 @@ final class ClearanceListener {
     private var words: [String] = []
     private var next = 0
     private var cut: Task<Void, Never>?
+    /// The system's word that another sound took the microphone (a phone
+    /// call, Siri) and gave it back, while listening.
+    private var interruptions: Task<Void, Never>?
 
     func start(words: [String]) async {
         problem = nil
@@ -99,6 +102,21 @@ final class ClearanceListener {
         }
         listening = true
         hear()
+        // Taken away by a phone call or Siri, the microphone is listened
+        // to again once the system gives it back, as Apple's audio guidance
+        // has a recorder do; otherwise the radio went quiet for good until
+        // the pilot tapped the microphone again.
+        interruptions?.cancel()
+        interruptions = Task { [weak self] in
+            for await note in NotificationCenter.default.notifications(named: AVAudioSession.interruptionNotification) {
+                guard let self, let kind = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                      kind == AVAudioSession.InterruptionType.ended.rawValue else { continue }
+                let options = AVAudioSession.InterruptionOptions(rawValue: note.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
+                guard options.contains(.shouldResume) else { continue }
+                let words = self.words
+                await self.start(words: words)
+            }
+        }
     }
 
     /// The next transmission, heard afresh.
@@ -159,6 +177,8 @@ final class ClearanceListener {
     func stop() {
         listening = false
         cut?.cancel()
+        interruptions?.cancel()
+        interruptions = nil
         if audio.isRunning {
             audio.stop()
             audio.inputNode.removeTap(onBus: 0)
