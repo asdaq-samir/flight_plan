@@ -1894,6 +1894,13 @@ class AirportPin(BaseModel):
     #: for its mark on the map in that airspace's look; None where the FAA's
     #: airspace could not be had.
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
+    #: The class of airspace this field is the primary airport of (the FAA's
+    #: airspace file names each Class B, C and D for one field), for the map
+    #: to show that field first where only one fits: zoomed out over Texas
+    #: it showed Love Field and Hobby beside Dallas's and Houston's rings,
+    #: both inside the Class B, and not DFW and Intercontinental at their
+    #: middle (the owner, 2026-11-03). None for every other field.
+    primary_of: Literal["B", "C", "D"] | None = None
 
 
 class InboundRadio(BaseModel):

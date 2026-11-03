@@ -16,9 +16,18 @@ const RING_DASHES = 24;
 const SHORTEST_DASH_PX = 6;
 const NO_DASH: number[] = [];
 
-/** Whether the map is animating a zoom (Leaflet's own flag, as the
- *  OwnShipLayer reads it). */
-const animatingZoom = (map: L.Map | undefined) => !!(map as (L.Map & { _animatingZoom?: boolean }) | undefined)?._animatingZoom;
+/** Two points that give a frame's `warp` (paint). */
+const ORIGIN = L.point(0, 0);
+const UNIT = L.point(1, 0);
+
+/** The square of how far (px, py) is from the segment (ax, ay)-(bx, by). */
+function segmentDistance2(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2));
+  const x = ax + t * dx - px, y = ay + t * dy - py;
+  return x * x + y * y;
+}
 
 /** A ring `px` round's dash and gap, two to one, as the chart's. */
 export function ringDashes(px: number): [number, number] {
@@ -67,8 +76,8 @@ function projectedOf(map: L.Map, volume: AirspaceVolume): Projected {
  * The Class B, C and D lines drawn on a canvas kept on the chart, as the
  * airports' marks and the airspace's altitudes are (ViewCanvasLayer):
  * moved with the map's pane under a finger and drawn again as the view
- * nears what was drawn, scaled with the chart through a zoom and drawn
- * again as it ends. Drawn on Leaflet's SVG, a ring was cut straight where
+ * nears what was drawn, and drawn afresh at each frame of a pinch or a
+ * zoom's animation at its own width. Drawn on Leaflet's SVG, a ring was cut straight where
  * its renderer's box had been -- the view and a tenth round it, placed
  * only as a move ends -- at the owner's screenshots of 2026-11-02
  * (Minneapolis' and Kansas City's Class B, through a pan) and 2026-11-03
@@ -81,25 +90,25 @@ function projectedOf(map: L.Map, volume: AirspaceVolume): Projected {
  * class). Not a target: the taps are AirspaceLayer's own unseen lines.
  */
 export class AirspaceLinesLayer extends ViewCanvasLayer {
-  /** Scaled with the chart through a zoom's animation and drawn again as
-   *  it ends, as Leaflet's own canvas is: the lines lie on the chart's
-   *  printed ones and grow with them, so no frame of the animation needs
-   *  them drawn afresh, and `warp` is never other than the identity here. */
-  protected override redrawWhileZooming = false;
+  /** Drawn again at every frame of a pinch and of a zoom's animation, at
+   *  their own width and where the chart's tiles then are, as the
+   *  airports' marks are (AirportCanvas, the same `warp`). Scaled with
+   *  the chart instead, as Leaflet's own canvas is, the rings' strokes
+   *  grew with it: eight times their width through the location arrow's
+   *  zoom of three levels, and two and a half times under a pinch until
+   *  the fingers lifted (the owner's recordings, 2026-11-03 09:21 and
+   *  09:24, after the canvases were left in sight through a big zoom).
+   *  One drawing is a few thousand line segments from projections kept at
+   *  zoom 0: 10 to 50 ms at CPU 4x on the phone viewport. */
+  protected override redrawWhileZooming = true;
   private volumes: AirspaceVolume[] = [];
   private written = "";
+  private writtenRings = "";
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
     this.canvas!.dataset.airspaceLines ||= "{}";
-    // Drawn as a zoom's animation ends, for what came in through it (below).
-    map.on("zoomend", this.schedule, this);
     return this;
-  }
-
-  onRemove(map: L.Map): this {
-    map.off("zoomend", this.schedule, this);
-    return super.onRemove(map);
   }
 
   set(volumes: AirspaceVolume[]): void {
@@ -107,36 +116,71 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     this.schedule();
   }
 
-  /** Not drawn through a zoom's animation (a double tap's, a fitted
-   *  route's, the end of a pinch): the map's pane has Leaflet's
-   *  .leaflet-zoom-anim then, under which every change of the canvas's
-   *  transform is a 0.25 s transition, so a drawing placed mid-way --
-   *  the next class's rings arriving as the zoom crossed their level --
-   *  was carried across the screen from where the animation had the
-   *  canvas to where the new drawing put it, Dallas's Class B gliding up
-   *  past Oklahoma City and back (the owner's recording, 2026-11-03,
-   *  05:51). Leaflet's own renderer skips its update through one the same
-   *  way. The zoom's end draws it (zoomend, above). */
-  protected override schedule(): void {
-    if (animatingZoom(this._map)) return;
-    super.schedule();
+  /** The volume whose line is nearest a point of the map's container,
+   *  within `withinPx` of it; null where none is. A tap on a ring opens
+   *  its card this way (AirspaceLayer), where each volume had an unseen
+   *  20 px line of Leaflet's SVG over its own: fifty of them, projected
+   *  and written out again at every zoom's end and made anew with each
+   *  box's answer, a tenth of the main thread's work after a zoom (a
+   *  profile on the phone viewport at CPU 4x, 2026-11-03). The lines in
+   *  sight are the kept zoom-0 projections, so the nearest is found by
+   *  arithmetic alone. */
+  volumeAt(at: L.Point, withinPx: number): AirspaceVolume | null {
+    const map = this._map;
+    if (!map) return null;
+    const k = map.getZoomScale(map.getZoom(), 0);
+    const origin = map.getPixelOrigin().subtract(map.containerPointToLayerPoint(L.point(0, 0)));
+    // The point in zoom-0 pixels, and how far `withinPx` is there.
+    const px = (at.x + origin.x) / k, py = (at.y + origin.y) / k, within = withinPx / k;
+    let best: { volume: AirspaceVolume; d2: number } | null = null;
+    for (const volume of this.volumes) {
+      const { lines, box } = projectedOf(map, volume);
+      if (px < box.x0 - within || px > box.x1 + within || py < box.y0 - within || py > box.y1 + within) continue;
+      for (const points of lines) {
+        for (let i = 2; i < points.length; i += 2) {
+          const d2 = segmentDistance2(px, py, points[i - 2]!, points[i - 1]!, points[i]!, points[i + 1]!);
+          if (d2 <= within * within && (!best || d2 < best.d2)) best = { volume, d2 };
+        }
+      }
+    }
+    return best?.volume ?? null;
   }
 
-  protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from }: CanvasView): void {
-    // Added to the map mid-animation (the layer comes with its zoom), the
-    // canvas is placed but left blank until the zoom ends, as above.
-    if (animatingZoom(map)) return;
+  protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from, warp }: CanvasView): void {
     const zoom = map.getZoom();
-    const k = map.getZoomScale(zoom, 0);
-    const pixelOrigin = map.getPixelOrigin();
+    // Where the chart has a point of the map's present zoom at this frame
+    // of a zoom's animation: `warp` is affine with one scale, so two
+    // points give it, and each ring's points are moved by arithmetic
+    // rather than by a Point made for each (thousands a frame).
+    const w0 = warp(ORIGIN), w1 = warp(UNIT);
+    const ws = w1.x - w0.x, wx = w0.x, wy = w0.y;
     // A zoom-0 point p is at p * k - (ox, oy) on this canvas.
-    const ox = pixelOrigin.x + origin.x - from.x, oy = pixelOrigin.y + origin.y - from.y;
+    const k = map.getZoomScale(zoom, 0) * ws;
+    const pixelOrigin = map.getPixelOrigin();
+    const ox = (pixelOrigin.x + origin.x - from.x) * ws - wx, oy = (pixelOrigin.y + origin.y - from.y) * ws - wy;
     const left = -pad.x, top = -pad.y, right = size.x + pad.x, bottom = size.y + pad.y;
     const counts = { B: 0, C: 0, D: 0 };
+    // At rest, a point of each ring in sight for the browser tests to tap
+    // (data-airspace-rings), where they found one on the SVG's own line.
+    const resting = ws === 1 && wx === 0 && wy === 0 && !(map as L.Map & { touchZoom?: { _zooming?: boolean } }).touchZoom?._zooming;
+    const rings: { id: string; class: string; x: number; y: number }[] = [];
     ctx.lineJoin = "round";
     for (const volume of this.volumes) {
       const { lines, box, longest } = projectedOf(map, volume);
       if (box.x1 * k - ox < left || box.x0 * k - ox > right || box.y1 * k - oy < top || box.y0 * k - oy > bottom) continue;
+      if (resting) {
+        for (const points of lines) {
+          let found = false;
+          for (let i = 0; i < points.length && !found; i += 2) {
+            const x = points[i]! * k - ox, y = points[i + 1]! * k - oy;
+            if (x >= 0 && y >= 0 && x <= size.x && y <= size.y) {
+              rings.push({ id: volume.id, class: volume.airspace_class, x: Math.round(x), y: Math.round(y) });
+              found = true;
+            }
+          }
+          if (found) break;
+        }
+      }
       const style = AIRSPACE_LINE[volume.airspace_class];
       ctx.globalAlpha = style.opacity ?? 1;
       ctx.strokeStyle = style.color!;
@@ -167,6 +211,13 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     if (written !== this.written) {
       this.written = written;
       this.canvas!.dataset.airspaceLines = written;
+    }
+    if (resting) {
+      const tappable = JSON.stringify(rings);
+      if (tappable !== this.writtenRings) {
+        this.writtenRings = tappable;
+        this.canvas!.dataset.airspaceRings = tappable;
+      }
     }
   }
 }

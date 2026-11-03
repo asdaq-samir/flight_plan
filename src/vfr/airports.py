@@ -442,6 +442,10 @@ def _place_of(row) -> dict:
     return {
         "ident": row["_display_ident"],
         "source_ident": row["ident"],
+        # The FAA's own location identifier (OurAirports' local_code), which
+        # the FAA's airspace file names a Class B, C or D's primary field by
+        # ("DFW", not KDFW); None where the field has none.
+        "faa_id": str(row["local_code"]).strip().upper() or None if pd.notna(row.get("local_code")) else None,
         "name": row["name"],
         "municipality": row["municipality"] if pd.notna(row.get("municipality")) else None,
         "region": row["iso_region"] if pd.notna(row.get("iso_region")) else None,

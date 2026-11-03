@@ -1,14 +1,14 @@
 import L from "leaflet";
-import { memo, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, QueryObserver, useQuery } from "@tanstack/react-query";
-import { Pane, Polyline, useMap } from "react-leaflet";
+import { Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import type { AirspaceVolume } from "../api/types";
 import { usePreferences } from "../preferences";
 import { cn } from "cn";
 import { TEXT } from "../text";
 import { airspaceFacts, airspaceLabel } from "./airspaceLabel";
-import { AIRSPACE_LINE, AIRSPACE_TAP } from "./airspaceMarks";
+import { AIRSPACE_LINE } from "./airspaceMarks";
 import { useDrawnAirports } from "./declutter";
 import { edgeAnchors } from "./edgeLabels";
 import { AirspaceLabelsLayer, type CanvasEdgeLabel } from "./AirspaceLabelsCanvas";
@@ -43,19 +43,10 @@ const CLASS_C_FROM_ZOOM = 7;
 const LINES_Z = 350;
 const LABELS_Z = 355;
 
-/** The lines' tap targets over Leaflet's overlay pane (400), whose SVG
- *  covers the map and would take a tap meant for a pane under it, and
- *  under the VFR waypoints (440) and the airports' marks, which keep
- *  theirs. The pane itself takes none (pointer-events none, which its
- *  SVG inherits), only the targets on it (Leaflet's .leaflet-interactive):
- *  so a TFR or the course line under it is still tapped off the rings. */
-const TAPS_Z = 430;
-
 // The panes' styles, constants as react-leaflet's are (measure-speed's
 // known costs).
 const LINES_PANE = { zIndex: LINES_Z };
 const LABELS_PANE = { zIndex: LABELS_Z };
-const TAPS_PANE = { zIndex: TAPS_Z, pointerEvents: "none" } as const;
 
 const NONE: AirspaceVolume[] = [];
 
@@ -114,12 +105,13 @@ export function AirspaceLayer() {
       <Pane name="airspace-labels" style={LABELS_PANE}>
         {near && <EdgeLabels volumes={volumes} />}
       </Pane>
-      <Pane name="airspace-taps" style={TAPS_PANE}>
-        {volumes.map(v => <VolumeTap key={v.id} volume={v} />)}
-      </Pane>
     </>
   );
 }
+
+/** How near a tap must be to a ring's line to open its card, px each
+ *  side: the unseen 20 px line that took it before. */
+const TAP_PX = 10;
 
 /**
  * The volumes' lines on a canvas kept on the chart (AirspaceLinesLayer),
@@ -134,6 +126,27 @@ function Lines({ query }: { query: AirspaceQuery }) {
     layer.addTo(map);
     return () => { layer.remove(); };
   }, [map, layer]);
+  // A tap on a ring is the map's own click, given to the volume whose
+  // line is nearest within a finger's reach (AirspaceLinesLayer.volumeAt),
+  // as a tap on a field's mark is (AirportsLayer): the field's catches the
+  // click first and keeps it where a mark is near, so a mark on a ring
+  // opens the field. A tap on a marker or a line with a tap of its own
+  // (a checkpoint, a TFR) is theirs. Each volume had an unseen 20 px line
+  // of Leaflet's SVG over its own for this: fifty of them projected and
+  // written out again at every zoom's end, and made anew with each box's
+  // answer, a tenth of the main thread's work after a zoom (a profile on
+  // the phone viewport at CPU 4x, 2026-11-03).
+  const [picked, setPicked] = useState<{ volume: AirspaceVolume; at: L.LatLng } | null>(null);
+  useMapEvents(useMemo(() => ({
+    click: (e: L.LeafletMouseEvent) => {
+      const target = e.originalEvent.target as Element | null;
+      if (target?.closest(".leaflet-marker-icon, .leaflet-popup, path.leaflet-interactive")) return;
+      const volume = layer.volumeAt(e.containerPoint, TAP_PX);
+      // The same ring tapped again keeps its card where it was.
+      setPicked(was => (volume ? (was?.volume === volume ? was : { volume, at: e.latlng }) : null));
+    },
+  }), [layer]));
+  const closed = useMemo<L.LeafletEventHandlerFnMap>(() => ({ remove: () => setPicked(null) }), []);
   // The box's answer goes straight to the layer as it comes, through an
   // observer of the same cached query, not after React has rendered all
   // else the zoom changed -- the airports' answer merged into its marks,
@@ -150,7 +163,15 @@ function Lines({ query }: { query: AirspaceQuery }) {
     apply(observer.getCurrentResult());
     return observer.subscribe(apply);
   }, [layer, query]);
-  return null;
+  if (!picked) return null;
+  return (
+    /* In Leaflet's own pane, over the marks, as the waypoints' card; a
+       line's, so no ring at the point tapped. Put away by a tap on the
+       chart or the card's close (MapPopup), which is heard here. */
+    <MapPopup key={picked.volume.id} position={picked.at} pane="popupPane" panOnce ring={false} eventHandlers={closed}>
+      <AirspaceCard volume={picked.volume} />
+    </MapPopup>
+  );
 }
 
 /** The planner asked for a box's volumes, once per box and classes (the
@@ -232,31 +253,6 @@ function EdgeLabels({ volumes }: { volumes: AirspaceVolume[] }) {
   }, [map, layer, volumes, fields]);
   return null;
 }
-
-/** A tap on a ring kept off the map under it, whose own tap is the
- *  chart's Airspace card. A constant: react-leaflet binds a path's
- *  handlers again whenever they are a new object. */
-const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagation(e) };
-
-/** One volume's tap target, unseen over its line, and its card, made
- *  only once it is opened (MapPopup); drawn again only when its answer
- *  changes. */
-const VolumeTap = memo(function VolumeTap({ volume }: { volume: AirspaceVolume }) {
-  return (
-    <Polyline
-      positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_TAP[volume.airspace_class]} eventHandlers={STOP_CLICK} noClip
-      // Its class as an option of its own: react-leaflet gives pathOptions
-      // to setStyle, which sets no class, so the browser tests found none.
-      className={AIRSPACE_TAP[volume.airspace_class].className}
-    >
-      {/* In Leaflet's own pane, over the marks, as the waypoints' card;
-          a line's, so no ring at the point tapped. */}
-      <MapPopup pane="popupPane" panOnce ring={false}>
-        <AirspaceCard volume={volume} />
-      </MapPopup>
-    </Polyline>
-  );
-});
 
 /** A short length of the volume's line as the map draws it, before its
  *  title: solid blue, solid magenta or dashed blue. */

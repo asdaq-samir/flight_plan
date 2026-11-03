@@ -1099,6 +1099,22 @@
             "title": "Name",
             "type": "string"
           },
+          "primary_of": {
+            "anyOf": [
+              {
+                "enum": [
+                  "B",
+                  "C",
+                  "D"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Of"
+          },
           "private": {
             "default": false,
             "title": "Private",
@@ -9071,6 +9087,22 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "primary_of": {
+            "anyOf": [
+              {
+                "enum": [
+                  "B",
+                  "C",
+                  "D"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Of"
           },
           "private": {
             "default": false,

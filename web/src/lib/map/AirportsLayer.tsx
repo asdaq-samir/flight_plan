@@ -49,6 +49,8 @@ const shownFrom = (a: AirportPin) =>
   Math.min(SHOWN_FROM[a.kind], a.airspace_class === "B" ? FARTHEST_ZOOM : a.airspace_class === "C" ? 6 : a.airspace_class === "D" ? FROM_ZOOM : Infinity);
 /** Which kind first, out there, where only some fit. */
 const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
+/** Before them, the field each class of airspace is named for. */
+const PRIMARY_RANK: Record<"B" | "C" | "D", number> = { B: 0, C: 1, D: 2 };
 /** What is drawn round the view, a share of it on each side: a pan
  *  shows marks already there as it starts. */
 const PAD = 0.3;
@@ -243,11 +245,12 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       const target = e.target as Element | null;
       // Nor one on a line drawn over the chart -- the course, a way the
       // Routes offer -- which keeps its own tap where it passes a field.
-      // But an airspace ring's or a VOR's or fix's tap target is under a
-      // field's mark: near a field the field wins, as its mark is drawn
-      // over them (the owner, 2026-10-30: "When I try to select airport,
-      // it selects the airspace or vor if they are overlapping").
-      const yields = target?.closest(".leaflet-airspace-taps-pane, .leaflet-navaid-taps-pane");
+      // But a VOR's or fix's tap target is under a field's mark: near a
+      // field the field wins, as its mark is drawn over them (the owner,
+      // 2026-10-30: "When I try to select airport, it selects the airspace
+      // or vor if they are overlapping"). An airspace ring's tap is the
+      // map's own click (AirspaceLayer), which this stops near a field.
+      const yields = target?.closest(".leaflet-navaid-taps-pane");
       if (!target?.closest(".leaflet-map-pane") || (!yields && target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive"))) return;
       const at = map.mouseEventToContainerPoint(e);
       let best: { ident: string; px: number } | null = null;
@@ -338,9 +341,15 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     if (zoom >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
+    // Ahead of its size, the field a Class B or C is named for (the
+    // planner's primary_of): both inside Dallas's Class B and both large,
+    // Love Field came before DFW in the answer and wore the one mark, off
+    // the rings' middle (the owner's screenshot, 2026-11-03, Love Field
+    // and Hobby for Dallas and Houston).
     const room: L.Point[] = [];
     const out: AirportPin[] = [];
-    for (const a of [...kept].sort((x, y) => shownFrom(x) - shownFrom(y) || KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
+    const primary = (a: AirportPin) => (a.primary_of ? PRIMARY_RANK[a.primary_of] : 3);
+    for (const a of [...kept].sort((x, y) => primary(x) - primary(y) || shownFrom(x) - shownFrom(y) || KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
       const at = map.project([a.lat, a.lon], zoom);
       if (room.some(p => p.distanceTo(at) < OUT_APART_PX)) continue;
       room.push(at);

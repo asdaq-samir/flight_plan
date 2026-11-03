@@ -192,6 +192,35 @@ def test_the_fields_in_view_carry_their_surface_class_for_their_marks(monkeypatc
     assert [(a["ident"], a["airspace_class"]) for a in body["airports"]] == [("KDLH", None), ("1D2", None)]
 
 
+def test_the_fields_in_view_say_which_airspace_each_is_the_primary_field_of(monkeypatch):
+    # Zoomed out, the map shows the field a Class B or C is named for at its
+    # middle, not another inside it (Love Field for Dallas's). The FAA's
+    # airspace file names the primary by its location identifier.
+    from app.routers import airports as router
+    love = {**DULUTH, "ident": "KDAL", "source_ident": "KDAL", "faa_id": "DAL", "lat": 32.85, "lon": -96.85, "kind": "large"}
+    dfw = {**DULUTH, "ident": "KDFW", "source_ident": "KDFW", "faa_id": "DFW", "lat": 32.9, "lon": -97.04, "kind": "large"}
+    monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: [love, dfw, {**DULUTH}])
+    monkeypatch.setattr(weather, "reporting_idents", lambda: set())
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {})
+    monkeypatch.setattr(airspace, "surface_classes", lambda points, shp: ["B", "B", "C"])
+    monkeypatch.setattr(router, "_primaries", lambda: {"DFW": "B", "DLH": "C"})
+    body = client.get("/api/airports/in-view", params={"south": 30, "west": -100, "north": 50, "east": -90}).json()
+    assert [(a["ident"], a["airspace_class"], a["primary_of"]) for a in body["airports"]] == [
+        ("KDAL", "B", None), ("KDFW", "B", "B"), ("KDLH", "C", None),
+    ]
+    assert "faa_id" not in body["airports"][0]
+
+
+def test_the_primaries_come_from_the_airspace_file_by_their_highest_class(monkeypatch):
+    from app.routers import airports as router
+    monkeypatch.setattr(airspace, "_load_all_controlled_airspace", lambda shp: [
+        {"ident": "DFW", "class": "B"}, {"ident": "DAL", "class": "D"}, {"ident": "DFW", "class": "D"},
+        {"ident": "", "class": "C"}, {"ident": "ORD", "class": "E"},
+    ])
+    router._primaries_of.cache_clear()
+    assert router._primaries_of("airspace.shp", 1.0) == {"DFW": "B", "DAL": "D"}
+
+
 def test_the_search_may_be_kept_and_the_fields_in_view_with_their_weather_may_not(monkeypatch):
     # The search is the same for every pilot until the tables change, so
     # a browser and the CDN may keep it; the fields in view carry each
@@ -340,7 +369,7 @@ def test_the_nearest_fields_are_the_nearest_first_with_their_way_and_runway(monk
     monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {i: None for i in idents})
     body = client.get("/api/airports/nearest", params={"lat": 42.3, "lon": -88.1}).json()
     assert body["airports"][0] == {
-        "ident": "C81", "name": "Campbell", "lat": 42.32, "lon": -88.07, "kind": "small", "flight_category": None,
+        "ident": "C81", "name": "Campbell", "lat": 42.32, "lon": -88.07, "kind": "small", "flight_category": None, "primary_of": None,
         "municipality": "Grayslake", "elevation_ft": 788.0, "distance_nm": 2.1, "bearing_deg": 45, "longest_runway_ft": 3573,
         "military": None, "private": False, "airspace_class": "G", "radio": {"kind": "CTAF", "mhz": 122.7},
     }

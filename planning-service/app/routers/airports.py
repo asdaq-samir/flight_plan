@@ -11,8 +11,10 @@ no report of its own has the weather modelled there for the hour, from
 the gridded LAMP vfr.glmp holds an hour at a time. A card costs a few
 table lookups and a point-in-polygon test.
 """
+import functools
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query, Response
@@ -86,11 +88,33 @@ def airports_in_view(
     except weather.WeatherServiceError:
         metars = {}
     classes = _surface_classes(places)
+    primaries = _primaries()
     return {"airports": [
         {**p, "flight_category": (metars.get(p["source_ident"]) or {}).get("flight_category"), "military": military,
-         "private": private, "airspace_class": cls}
+         "private": private, "airspace_class": cls, "primary_of": primaries.get(p.get("faa_id") or "")}
         for p, cls, (military, private) in zip(places, classes, _owners(places))
     ]}
+
+
+def _primaries() -> dict[str, str]:
+    """Each Class B, C and D's primary field, by the FAA location
+    identifier the airspace file names it by, to the highest class it is
+    the primary of; empty where the FAA's airspace cannot be had."""
+    try:
+        shp_path = Path(airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR))
+        return _primaries_of(str(shp_path), shp_path.stat().st_mtime)
+    except (OSError, RuntimeError):
+        return {}
+
+
+@functools.lru_cache(maxsize=2)
+def _primaries_of(shp_path: str, _mtime: float) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for polygon in airspace._load_all_controlled_airspace(shp_path):
+        ident, cls = polygon.get("ident"), polygon.get("class")
+        if ident and cls in ("B", "C", "D") and cls < found.get(ident, "Z"):
+            found[ident] = cls
+    return found
 
 
 def _surface_classes(places: list[dict]) -> list:

@@ -19,8 +19,8 @@ const AIRSPACE_MAGENTA = "#c43fc0";
  * Chart User's Guide, VFR Terms and Symbols, Airspace): Class B a solid
  * blue line, Class C solid magenta, Class D dashed blue. Constants, so a
  * path is never restyled for a new object (react-leaflet sets the style
- * again whenever pathOptions is one), and not a target: the wider
- * AIRSPACE_TAP over it takes the tap. A Class D's dash is a little longer
+ * again whenever pathOptions is one), and not a target: a tap is the
+ * map's own click, given to the nearest line (AirspaceLayer). A Class D's dash is a little longer
  * and its line whole and as heavy as a B's: at 2 px and .85 it was lost
  * in the chart's own dashed ring under it (the owner, 2026-10-29).
  */
@@ -37,10 +37,6 @@ export const AIRSPACE_LINE: Record<Class, L.PathOptions> = {
  *  drawn, so a finger's 44 points across it (Apple's HIG) take in the
  *  line wherever they land on it, and a tap well off the line is still
  *  the chart's. Its class named, for the browser tests to find it. */
-const tap = (airspaceClass: Class): L.PathOptions =>
-  ({ color: "#000", weight: 20, opacity: 0, interactive: true, className: `airspace-tap-${airspaceClass}` });
-export const AIRSPACE_TAP: Record<Class, L.PathOptions> = { B: tap("B"), C: tap("C"), D: tap("D") };
-
 /** Where a VOR's tag sits beside its hexagon (declutter's vorTagSide). */
 const TAG_SIDE: Record<TagSide, string> = { right: "left-[11px]", left: "right-[11px]", none: "hidden" };
 

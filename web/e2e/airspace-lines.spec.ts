@@ -72,24 +72,27 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
   // O'Hare's card brings the map in on Chicago, Wheeling's ring in sight
   // (KPWK's own card left the map where it was).
   await page.goto("/app/plan?place=KORD");
-  const rings = page.locator(".leaflet-airspace-taps-pane path.airspace-tap-D");
-  await expect(rings.first()).toBeAttached({ timeout: slow(30000) });
-  // A point on a Class D ring in sight that the ring's own target is the
-  // top of there (not an airport's mark or a panel over it).
-  const at = await rings.evaluateAll(paths => {
-    for (const path of paths as SVGPathElement[]) {
-      const length = path.getTotalLength();
-      for (let i = 0; i < 24; i++) {
-        const point = path.getPointAtLength((length * i) / 24);
-        const screen = new DOMPoint(point.x, point.y).matrixTransform(path.getScreenCTM()!);
-        if (screen.x < 0 || screen.y < 0 || screen.x > innerWidth || screen.y > innerHeight) continue;
-        if (document.elementFromPoint(screen.x, screen.y) === path) return { x: screen.x, y: screen.y };
-      }
+  // A point on a Class D ring in sight, as the canvas writes one of each
+  // ring it drew at rest (data-airspace-rings, in the map's own points),
+  // clear of the airports' marks (which take a tap near them) and of the
+  // sheet over the lower half of a phone's screen.
+  const ringPoint = async () => page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".leaflet-airspace-pane canvas[data-airspace-rings]");
+    const marks = document.querySelector<HTMLCanvasElement>("canvas[data-airport-marks]");
+    if (!canvas) return null;
+    const box = document.querySelector(".leaflet-container")!.getBoundingClientRect();
+    const fields: { x: number; y: number }[] = JSON.parse(marks?.dataset.airportMarks || "[]");
+    const rings: { class: string; x: number; y: number }[] = JSON.parse(canvas.dataset.airspaceRings || "[]");
+    for (const ring of rings) {
+      if (ring.class !== "D" || ring.y < 80 || ring.y > box.height * 0.5 || ring.x < 20 || ring.x > box.width - 20) continue;
+      if (fields.some(f => Math.hypot(f.x - ring.x, f.y - ring.y) < 40)) continue;
+      return { x: box.left + ring.x, y: box.top + ring.y };
     }
     return null;
   });
-  expect(at).not.toBeNull();
-  await page.mouse.click(at!.x, at!.y);
+  await expect.poll(ringPoint, { timeout: slow(30000) }).not.toBeNull();
+  const at = (await ringPoint())!;
+  await page.mouse.click(at.x, at.y);
   const card = page.getByTestId("airspace-card");
   await expect(card).toBeVisible({ timeout: slow(10000) });
   // Named "Class D": on a phone in the card's head, or in its pill's
@@ -114,7 +117,7 @@ test("a tap on a field's mark opens the field, over an airspace ring or a VOR be
   // KDPA: its Class D ring through its mark and the DPA VOR on the field
   // (the owner, 2026-10-30: the airspace or the VOR took the tap).
   await page.goto("/app/plan?place=KORD");
-  await expect(page.locator(".leaflet-airspace-taps-pane path").first()).toBeAttached({ timeout: slow(30000) });
+  await expect.poll(() => lines(page), { timeout: slow(30000) }).toBeGreaterThan(0);
   await expect.poll(async () => (await airportMark(page, "KDPA")) != null, { timeout: slow(15000) }).toBe(true);
   const mark = (await airportMark(page, "KDPA"))!;
   await page.mouse.click(mark.x, mark.y);
