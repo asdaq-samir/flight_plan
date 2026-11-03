@@ -36,7 +36,11 @@ struct AirportSearchView: View {
                             .autocorrectionDisabled()
                             .submitLabel(.search)
                         if !query.isEmpty {
-                            Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                            Button { query = "" } label: {
+                                Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                                    // The 44-point hit area round the glyph, which does not grow.
+                                    .contentShape(Rectangle().inset(by: -12))
+                            }
                                 .buttonStyle(.borderless)
                                 .accessibilityLabel("Clear the search")
                         }
@@ -137,6 +141,9 @@ struct AirportStrip: View {
     let nearest: [NearestAirport]
     let open: (String) -> Void
     private var shelf: AirportShelf { .shared }
+    /// The tiles grow with the type, so an ident still fits its circle.
+    @ScaledMetric(relativeTo: .caption) private var circle = 52.0
+    @ScaledMetric(relativeTo: .caption) private var tileWidth = 72.0
 
     var body: some View {
         Section {
@@ -203,15 +210,16 @@ struct AirportStrip: View {
                 Text(ident)
                     .font(.caption.weight(.bold))
                     .lineLimit(1).minimumScaleFactor(0.7)
-                    .frame(width: 52, height: 52)
+                    .frame(width: circle, height: circle)
                     .background(Circle().fill(Color.accentColor.opacity(0.15)))
                     .overlay(Circle().strokeBorder(category.map { Color(uiColor: AirportAnnotation.colour($0)) } ?? .clear, lineWidth: 3))
                 Text(under).font(.caption2).foregroundStyle(.secondary).lineLimit(2).multilineTextAlignment(.center)
             }
-            .frame(width: 72)
+            .frame(width: tileWidth)
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(ident), \(under)")
+        // The ring's colour said in words: "KDLH, 12 nm, marginal VFR".
+        .accessibilityLabel("\(ident), \(under)\(category.map { ", \(SpokenFigures.flightCategory($0))" } ?? "")")
     }
 }
 
@@ -289,20 +297,34 @@ struct NearFromView: View {
 /// flight category's colour.
 struct NearestRow: View {
     let field: NearestAirport
+    /// Differentiate Without Color: the category's code beside the ident,
+    /// where the ring's colour alone says it otherwise.
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var withoutColour
 
     var body: some View {
+        let bearing = field.bearingDeg.truncatingRemainder(dividingBy: 360)
         HStack(spacing: 12) {
             Circle().strokeBorder(Color(uiColor: AirportAnnotation.colour(field.flightCategory)), lineWidth: 2.5).frame(width: 12, height: 12)
             VStack(alignment: .leading, spacing: 2) {
-                Text(field.ident).font(.headline)
+                HStack(spacing: 6) {
+                    Text(field.ident).font(.headline)
+                    if withoutColour, let category = field.flightCategory { Text(category).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
+                }
                 Text([field.name, field.longestRunwayFt.map { "\($0.formatted()) ft" }].compactMap { $0 }.joined(separator: " · "))
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
                 Text(String(format: "%.0f nm", field.distanceNm)).font(.body.monospacedDigit())
-                Text(String(format: "%03.0f°T", field.bearingDeg.truncatingRemainder(dividingBy: 360))).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                Text(String(format: "%03.0f°T", bearing)).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
             }
         }
+        // One row, read as a pilot would say it: the ident, its weather,
+        // the field, the runway, how far and which way.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel([field.ident, SpokenFigures.flightCategory(field.flightCategory), field.name,
+                             field.longestRunwayFt.map { "longest runway \(SpokenFigures.feet(Double($0)))" },
+                             SpokenFigures.nauticalMiles(field.distanceNm.rounded()), "bearing \(SpokenFigures.degrees(bearing)) true"]
+            .compactMap { $0 }.joined(separator: ", "))
     }
 }

@@ -150,11 +150,12 @@ struct KeptRow: View {
 
     var body: some View {
         HStack {
-            Image(systemName: "airplane").foregroundStyle(.tint)
+            Image(systemName: "airplane").foregroundStyle(.tint).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(kept.name).font(.headline)
                 if let type = kept.type { Text(type).font(.footnote).foregroundStyle(.secondary) }
             }
         }
+        .accessibilityElement(children: .combine)
     }
 }
