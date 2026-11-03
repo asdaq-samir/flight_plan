@@ -6,8 +6,8 @@ drill's allowances. Each is worked out by the engine
 (wingtip_engine::figures::diversion, through vfr_native), the one copy the
 planner and the phones share.
 
-web/src/lib/diversion.ts holds the same rules and changes with the
-engine's."""
+web/src/lib/diversion.ts asks the same engine (its WebAssembly, by the
+rule's name)."""
 import json
 
 import vfr_native

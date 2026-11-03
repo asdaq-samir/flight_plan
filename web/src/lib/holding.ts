@@ -1,4 +1,3 @@
-// The planner's app/figures/holding.py holds the same rules for the native app (GET /api/holding): the two change together.
 /**
  * Holding-pattern entries and wind (the roadmap's holding visualiser, ACS
  * IR.III.B), as AIM 5-3-8 gives them: the entry from the airplane's
@@ -8,21 +7,33 @@
  * drawn on the holding side, for left turns mirrored; and the inbound leg
  * at a minute (a minute and a half above 14,000 ft MSL), the outbound
  * heading and time worked to make it so in the wind.
+ *
+ * Worked out by the shared engine (native/engine/src/figures/holding.rs,
+ * through lib/engine), the very code behind the planner's /api/holding and
+ * the phones' wt_holding: the rules and their AIM sources live there. Only
+ * the shapes the pages read are made here.
  */
-import { windTriangle } from "./diversion";
-import { angleBetween, normalizeDeg } from "./geo";
-import { headwindKt } from "./wind";
+import { callEngine } from "./engine/engine";
 
 export type Entry = "direct" | "teardrop" | "parallel";
 export type Turns = "right" | "left";
+
+interface Leg { heading: number; wca: number; gs: number }
+
+/** The engine's "holding" answer, as /api/holding gives it. */
+interface Held {
+  entry: Entry;
+  either: Entry | null;
+  approach_relative: number;
+  wind: { leg_min: number; inbound: Leg; outbound: Leg; outbound_sec: number; rule_sec: number } | null;
+}
 
 /** The inbound leg's time at an altitude, minutes: "At or below 14,000
  *  feet MSL: 1 minute. Above 14,000 feet MSL: 1 1/2 minutes" (AIM 5-3-8
  *  j.4(a)), as the planner's vfr.holds times a hold with none given. */
 export function legMinutes(altitudeFt: number): number {
-  return altitudeFt > 14_000 ? 1.5 : 1;
+  return callEngine<number>("holding_leg_minutes", { altitude_ft: altitudeFt });
 }
-
 
 /**
  * The entry for an airplane heading `headingDeg` to the fix of a hold on
@@ -34,26 +45,23 @@ export function legMinutes(altitudeFt: number): number {
  * use either entry ("+/- 5 degrees in heading", AIM 5-3-8 j.8(d)).
  */
 export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turns): { entry: Entry; either: Entry | null } {
-  const off = normalizeDeg(turns === "right" ? headingDeg - inboundDeg : inboundDeg - headingDeg);
-  const entry: Entry = off <= 110 || off >= 290 ? "direct" : off <= 180 ? "teardrop" : "parallel";
-  const edges: [number, Entry, Entry][] = [[110, "direct", "teardrop"], [180, "teardrop", "parallel"], [290, "parallel", "direct"]];
-  const near = edges.find(([at]) => angleBetween(off, at) <= 5);
-  return { entry, either: near ? (near[1] === entry ? near[2] : near[1]) : null };
+  const held = callEngine<Held>("holding", { inbound: inboundDeg, heading: headingDeg, turns });
+  return { entry: held.entry, either: held.either };
 }
 
 /** The bearing from the fix the airplane comes from, against the inbound
  *  course, for drawing: where it is on the page round the fix. */
 export function approachRelative(inboundDeg: number, headingDeg: number): number {
-  return normalizeDeg(headingDeg + 180 - inboundDeg);
+  return callEngine<Held>("holding", { inbound: inboundDeg, heading: headingDeg }).approach_relative;
 }
 
 export interface HoldingWind {
   /** The inbound leg's time, minutes: 1, or 1.5 above 14,000 ft MSL. */
   legMin: number;
-  inbound: { heading: number; wca: number; gs: number };
+  inbound: Leg;
   /** The outbound heading: triple the inbound drift correction, the other
    *  way (AIM 5-3-8 j.8(c)), so the turns' drift is taken up too. */
-  outbound: { heading: number; wca: number; gs: number };
+  outbound: Leg;
   /** The outbound time, seconds, for the inbound leg to take legMin: the
    *  legs' ground speeds, the turns left out. */
   outboundSec: number;
@@ -67,19 +75,10 @@ export interface HoldingWind {
  *  courses and the wind in the same reference (magnetic, as a clearance
  *  gives the course). Null where the wind is stronger than the airplane. */
 export function holdingWind(inboundDeg: number, tasKt: number, windFromDeg: number, windKt: number, altitudeFt: number): HoldingWind | null {
-  const legMin = legMinutes(altitudeFt);
-  const outboundDeg = normalizeDeg(inboundDeg + 180);
-  const inbound = windTriangle(inboundDeg, tasKt, windFromDeg, windKt);
-  const outLeg = windTriangle(outboundDeg, tasKt, windFromDeg, windKt);
-  if (!inbound || !outLeg) return null;
-  const outWca = -3 * inbound.wca;
-  const headwindIn = headwindKt(windFromDeg, windKt, inboundDeg);
-  return {
-    legMin,
-    inbound: { heading: normalizeDeg(inboundDeg + inbound.wca), wca: inbound.wca, gs: inbound.gs },
-    outbound: { heading: normalizeDeg(outboundDeg + outWca), wca: outWca, gs: outLeg.gs },
-    outboundSec: (legMin * 60 * inbound.gs) / outLeg.gs,
-    // A headwind inbound is a tailwind outbound: shorten the outbound leg.
-    ruleSec: legMin * 60 - headwindIn,
-  };
+  const { wind } = callEngine<Held>("holding", {
+    inbound: inboundDeg, heading: inboundDeg, tas_kt: tasKt, wind_from: windFromDeg, wind_kt: windKt, altitude_ft: altitudeFt,
+  });
+  if (!wind) return null;
+  const leg = (l: Leg): Leg => ({ heading: l.heading, wca: l.wca, gs: l.gs });
+  return { legMin: wind.leg_min, inbound: leg(wind.inbound), outbound: leg(wind.outbound), outboundSec: wind.outbound_sec, ruleSec: wind.rule_sec };
 }

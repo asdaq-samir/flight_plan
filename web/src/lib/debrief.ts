@@ -1,4 +1,3 @@
-// The planner's app/figures/debrief.py holds the same rules for the native app (POST /api/debrief): the two change together.
 /**
  * A flight debriefed from its flown track (the roadmap's debrief, against
  * ACS PA.VI.A's tolerances): the saved flight's nav log is the plan, the
@@ -13,13 +12,15 @@
  * Deterministic: measured, not judged. GPS altitude is not the
  * altimeter's and a ground track is not a heading, so each figure is
  * close to what the examiner sees, not it -- the page says so.
+ *
+ * Worked out by the shared engine (native/engine/src/figures/debrief.rs,
+ * through lib/engine), the very code behind the planner's /api/debrief and
+ * the phones' wt_debrief. The tolerances stay here too, for the page's
+ * headings and marks; debrief.test.ts holds them to the engine's.
  */
 import type { Flight } from "./api/types";
-import { angleBetween, bearingDeg, distanceNm, rad } from "./geo";
-import { AIRBORNE_KT } from "./map/glide";
+import { callEngine } from "./engine/engine";
 import type { TrackPoint } from "./track";
-
-type Checkpoint = Flight["checkpoints"][number];
 
 /** PA.VI.A's tolerances: S7's altitude, and its heading applied to the
  *  ground track; S5's distance from the planned route; S6's time at each
@@ -33,54 +34,13 @@ export const ETA_MIN = 5;
 export const PATTERN_NM = 1.5;
 export const PATTERN_FT = 100;
 
-/** Ground speed at each point, knots: over at least ten seconds round
- *  it, which a one-second GPS's jitter would otherwise make a mess of. */
-function groundSpeeds(points: TrackPoint[]): number[] {
-  return points.map((_, i) => {
-    let j = i, k = i;
-    while ((points[k]!.t - points[j]!.t) < 10_000 && (j > 0 || k < points.length - 1)) {
-      if (j > 0) j--;
-      if (k < points.length - 1) k++;
-    }
-    const hours = (points[k]!.t - points[j]!.t) / 3_600_000;
-    return hours > 0 ? distanceNm(points[j]!, points[k]!) / hours : 0;
-  });
-}
+const enginePoints = (points: TrackPoint[]) => points.map(p => ({ t: p.t, lat: p.lat, lon: p.lon, alt_ft: p.altFt }));
 
-/** The track's flights: each run of points over AIRBORNE_KT, as [first,
- *  last] indices, a minute's dip under it (a slow flight, a go-around)
- *  kept in, and a run of under a minute (a fast taxi) dropped. */
+/** The track's flights: each run of points over 40 kt over the ground (a
+ *  minute's dip under it, a slow flight or a go-around, kept in; a run of
+ *  under a minute, a fast taxi, dropped), as [first, last] indices. */
 export function airborne(points: TrackPoint[]): [number, number][] {
-  const speeds = groundSpeeds(points);
-  const runs: [number, number][] = [];
-  speeds.forEach((kt, i) => {
-    if (kt < AIRBORNE_KT) return;
-    const last = runs[runs.length - 1];
-    if (last && points[i]!.t - points[last[1]]!.t < 60_000) last[1] = i;
-    else runs.push([i, i]);
-  });
-  return runs.filter(([a, b]) => points[b]!.t - points[a]!.t >= 60_000);
-}
-
-interface Segment {
-  index: number;
-  from: Checkpoint;
-  to: Checkpoint;
-  hop: number;
-}
-
-/** Where a point is against a segment: how far along it (0 to 1), how far
- *  right of it (left negative), and how far from it at all. Flat over a
- *  leg, which is near enough at a leg's length. */
-function against(seg: Segment, p: { lat: number; lon: number }) {
-  const kx = Math.cos(rad(seg.from.lat)) * 60;
-  const bx = (seg.to.lon - seg.from.lon) * kx, by = (seg.to.lat - seg.from.lat) * 60;
-  const px = (p.lon - seg.from.lon) * kx, py = (p.lat - seg.from.lat) * 60;
-  const len2 = bx * bx + by * by;
-  const t = len2 > 0 ? (px * bx + py * by) / len2 : 0;
-  const right = len2 > 0 ? -(bx * py - by * px) / Math.sqrt(len2) : Math.hypot(px, py);
-  const away = t < 0 ? Math.hypot(px, py) : t > 1 ? Math.hypot(px - bx, py - by) : Math.abs(right);
-  return { t: Math.min(1, Math.max(0, t)), right, away };
+  return callEngine("debrief_airborne", { points: enginePoints(points) });
 }
 
 export interface LegGrade {
@@ -139,166 +99,47 @@ export interface Debrief {
   notes: string[];
 }
 
-/** The flight's hops, by checkpoint index: from each field taken off
- *  from to the next landed at. */
-function hops(cps: Checkpoint[]): [number, number][] {
-  const fields = cps.map((c, i) => (i === 0 || i === cps.length - 1 || c.category === "stop" ? i : -1)).filter(i => i >= 0);
-  return fields.slice(1).map((end, h) => [fields[h]!, end]);
+/** The engine's "debrief" answer, as /api/debrief gives it: snake_case,
+ *  with the marks the native app shows (the web's page makes its own). */
+interface Answer {
+  debrief: {
+    takeoff: number; landing: number; flown_min: number; planned_min: number | null;
+    legs: { from: string; to: string; planned_alt_ft: number | null; altitude_within: number | null; worst_alt_ft: number | null;
+      course_deg: number | null; course_within: number | null; worst_off_nm: number | null }[];
+    passes: { name: string; category: string; due_min: number | null; passed_min: number | null; closest_nm: number | null }[];
+    patterns: { ident: string; alt_ft: number; pattern_ft: number }[];
+    profile: { along_nm: number; alt_ft: number }[];
+    planned: { from_nm: number; to_nm: number; alt_ft: number | null }[];
+    line: { lat: number; lon: number; off: boolean }[];
+    has_altitude: boolean;
+    notes: string[];
+  } | null;
 }
 
 /** A flight debriefed against its track; null where the track never
  *  flew. `patterns` are the fields' pattern altitudes, ft MSL, by ident. */
 export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<string, number> = {}): Debrief | null {
-  const cps = [...flight.checkpoints].sort((a, b) => a.sequenceNo - b.sequenceNo);
-  const runs = airborne(points);
-  if (cps.length < 2 || runs.length === 0) return null;
-  const legHops = hops(cps);
-  const notes: string[] = [];
-  // Each hop its own flight where the track has as many; else the whole
-  // track one flight, its times from the first takeoff.
-  let flights: [number, number][];
-  if (runs.length === legHops.length) flights = runs;
-  else {
-    flights = legHops.map(() => [runs[0]![0], runs[runs.length - 1]![1]]);
-    if (legHops.length > 1) notes.push(`The track has ${runs.length} flight${runs.length === 1 ? "" : "s"} for the plan's ${legHops.length}: times are from the first takeoff.`);
-  }
-  const first = points[flights[0]![0]]!, last = points[flights[flights.length - 1]![1]]!;
-  const offStart = distanceNm(first, cps[0]!), offEnd = distanceNm(last, cps[cps.length - 1]!);
-  if (offStart > 5) notes.push(`The track takes off ${offStart.toFixed(0)} nm from ${cps[0]!.name}: is it this flight's?`);
-  if (offEnd > 5) notes.push(`The track lands ${offEnd.toFixed(0)} nm from ${cps[cps.length - 1]!.name}.`);
-
-  const segments: Segment[] = cps.slice(1).map((to, i) => ({
-    index: i, from: cps[i]!, to, hop: legHops.findIndex(([a, b]) => i >= a && i < b),
-  }));
-  const hasAltitude = points.some(p => p.altFt != null);
-  const grades = segments.map(() => ({ altW: 0, altIn: 0, worstAlt: null as number | null, courseW: 0, courseIn: 0, worstOff: null as number | null }));
-  const profile: Debrief["profile"] = [];
-  const line: Debrief["line"] = [];
-  const passed = new Map<number, number>();
-  const passes: CheckpointPass[] = [];
-  const entries: PatternEntry[] = [];
-
-  legHops.forEach(([a, b], h) => {
-    const [start, end] = flights[h]!;
-    const hopSegs = segments.filter(s => s.hop === h);
-    // The cruise: from first reaching the first leg's altitude to last
-    // being at the last leg's, before the landing.
-    const firstAlt = cps[a + 1]?.altitudeFt ?? null, lastAlt = cps[b]?.altitudeFt ?? null;
-    let cruiseFrom = Infinity, cruiseTo = -Infinity;
-    for (let i = start; i <= end; i++) {
-      const alt = points[i]!.altFt;
-      if (alt == null) continue;
-      if (firstAlt != null && cruiseFrom === Infinity && alt >= firstAlt - ALTITUDE_FT) cruiseFrom = points[i]!.t;
-      if (lastAlt != null && alt >= lastAlt - ALTITUDE_FT) cruiseTo = points[i]!.t;
-    }
-    let cursor = 0;
-    let prevAlong = cps[a]!.alongTrackNm;
-    let prevT = points[start]!.t;
-    for (let i = start; i <= end; i++) {
-      const p = points[i]!;
-      // The nearest of the legs about where it was, so a route that
-      // doubles back is not read on its way out as on its way home.
-      let best = hopSegs[cursor]!, where = against(best, p);
-      for (let s = Math.max(0, cursor - 1); s <= Math.min(hopSegs.length - 1, cursor + 3); s++) {
-        const w = against(hopSegs[s]!, p);
-        if (w.away < where.away) { best = hopSegs[s]!; where = w; }
-      }
-      cursor = hopSegs.indexOf(best);
-      const along = best.from.alongTrackNm + where.t * (best.to.alongTrackNm - best.from.alongTrackNm);
-      // Each checkpoint passed: when the track first got past it.
-      for (let k = a + 1; k < b; k++) {
-        const cp = cps[k]!;
-        if (!passed.has(k) && along >= cp.alongTrackNm && prevAlong < cp.alongTrackNm) {
-          const share = along > prevAlong ? (cp.alongTrackNm - prevAlong) / (along - prevAlong) : 0;
-          passed.set(k, prevT + share * (p.t - prevT));
-        }
-      }
-      prevAlong = along; prevT = p.t;
-      const weight = i < end ? Math.min(30_000, points[i + 1]!.t - p.t) : 0;
-      const g = grades[best.index]!;
-      const sinceLegStart = along - best.from.alongTrackNm;
-      const toField = cps[b]!.alongTrackNm - along, fromField = along - cps[a]!.alongTrackNm;
-      // Course: not over the fields, nor in the turn onto a leg.
-      if (best.to.trueCourseDeg != null && fromField > 2 && toField > 2 && sinceLegStart > 1) {
-        let j = i, k = i;
-        while (points[k]!.t - points[j]!.t < 20_000 && (j > start || k < end)) { if (j > start) j--; if (k < end) k++; }
-        if (k > j) {
-          const off = angleBetween(bearingDeg(points[j]!, points[k]!), best.to.trueCourseDeg);
-          g.courseW += weight;
-          if (off <= COURSE_DEG) g.courseIn += weight;
-        }
-        if (g.worstOff == null || Math.abs(where.right) > Math.abs(g.worstOff)) g.worstOff = where.right;
-      }
-      // Altitude: in the cruise, and not in a step to a new one.
-      const planned = best.to.altitudeFt;
-      const stepped = best.index > a && cps[best.index]!.altitudeFt !== planned && sinceLegStart < 3;
-      let off = Math.abs(where.right) > OFF_ROUTE_NM && fromField > 2 && toField > 2;
-      if (p.altFt != null && planned != null && p.t >= cruiseFrom && p.t <= cruiseTo && !stepped) {
-        const dev = p.altFt - planned;
-        g.altW += weight;
-        if (Math.abs(dev) <= ALTITUDE_FT) g.altIn += weight;
-        else off = true;
-        if (g.worstAlt == null || Math.abs(dev) > Math.abs(g.worstAlt)) g.worstAlt = dev;
-      }
-      line.push({ lat: p.lat, lon: p.lon, off });
-      if (p.altFt != null) profile.push({ alongNm: along, altFt: p.altFt });
-    }
-
-    // The checkpoints' times, from this hop's takeoff.
-    let due = 0;
-    for (let k = a + 1; k <= b; k++) {
-      const cp = cps[k]!;
-      due = cp.eteMin == null || Number.isNaN(due) ? NaN : due + cp.eteMin;
-      const at = k === b ? points[end]!.t : passed.get(k);
-      let closest = Infinity;
-      for (let i = start; i <= end; i++) closest = Math.min(closest, distanceNm(points[i]!, cp));
-      passes.push({
-        name: cp.name, category: cp.category,
-        dueMin: Number.isNaN(due) ? null : due,
-        passedMin: at == null ? null : (at - points[start]!.t) / 60_000,
-        closestNm: Number.isFinite(closest) ? closest : null,
-      });
-    }
-
-    // The pattern: the altitude where it first came within PATTERN_NM of
-    // the field it landed at.
-    const field = cps[b]!;
-    const patternFt = patterns[field.name];
-    if (patternFt != null) {
-      for (let i = start; i <= end; i++) {
-        const alt = points[i]!.altFt;
-        if (alt != null && distanceNm(points[i]!, field) <= PATTERN_NM) {
-          entries.push({ ident: field.name, altFt: alt, patternFt });
-          break;
-        }
-      }
-    }
+  const { debrief: d } = callEngine<Answer>("debrief", {
+    checkpoints: flight.checkpoints.map(c => ({
+      sequence_no: c.sequenceNo, name: c.name, category: c.category, lat: c.lat, lon: c.lon, along_track_nm: c.alongTrackNm,
+      true_course_deg: c.trueCourseDeg, ete_min: c.eteMin, altitude_ft: c.altitudeFt,
+    })),
+    points: enginePoints(points),
+    patterns,
   });
-
-  const legs: LegGrade[] = segments.map((s, i) => {
-    const g = grades[i]!;
-    return {
-      from: s.from.name, to: s.to.name,
-      plannedAltFt: s.to.altitudeFt ?? null,
-      altitudeWithin: g.altW > 0 ? g.altIn / g.altW : null,
-      worstAltFt: g.worstAlt,
-      courseDeg: s.to.trueCourseDeg ?? null,
-      courseWithin: g.courseW > 0 ? g.courseIn / g.courseW : null,
-      worstOffNm: g.worstOff,
-    };
-  });
-  const flownMs = flights.reduce((sum, [a, b], h) => (h > 0 && flights[h - 1]![0] === a ? sum : sum + points[b]!.t - points[a]!.t), 0);
-  const plannedMin = cps.slice(1).reduce<number | null>((sum, c) => (sum == null || c.eteMin == null ? null : sum + c.eteMin), 0);
-  // At most 400 points on the profile and 1,500 on the map: they are
-  // drawn, not read. An off point is never thinned out of the map's.
-  const stride = Math.max(1, Math.ceil(profile.length / 400));
-  const lineStride = Math.max(1, Math.ceil(line.length / 1500));
+  if (!d) return null;
   return {
-    takeoff: first.t, landing: last.t, flownMin: flownMs / 60_000, plannedMin,
-    legs, passes, patterns: entries,
-    profile: profile.filter((_, i) => i % stride === 0),
-    planned: segments.map(s => ({ fromNm: s.from.alongTrackNm, toNm: s.to.alongTrackNm, altFt: s.to.altitudeFt ?? null })),
-    line: line.filter((pt, i) => pt.off || i % lineStride === 0 || i === line.length - 1),
-    hasAltitude, notes,
+    takeoff: d.takeoff, landing: d.landing, flownMin: d.flown_min, plannedMin: d.planned_min,
+    legs: d.legs.map(l => ({
+      from: l.from, to: l.to, plannedAltFt: l.planned_alt_ft, altitudeWithin: l.altitude_within, worstAltFt: l.worst_alt_ft,
+      courseDeg: l.course_deg, courseWithin: l.course_within, worstOffNm: l.worst_off_nm,
+    })),
+    passes: d.passes.map(p => ({ name: p.name, category: p.category, dueMin: p.due_min, passedMin: p.passed_min, closestNm: p.closest_nm })),
+    patterns: d.patterns.map(e => ({ ident: e.ident, altFt: e.alt_ft, patternFt: e.pattern_ft })),
+    profile: d.profile.map(p => ({ alongNm: p.along_nm, altFt: p.alt_ft })),
+    planned: d.planned.map(p => ({ fromNm: p.from_nm, toNm: p.to_nm, altFt: p.alt_ft })),
+    line: d.line,
+    hasAltitude: d.has_altitude,
+    notes: d.notes,
   };
 }

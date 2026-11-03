@@ -5,7 +5,8 @@ and the altitude entering each field's pattern -- worked out by the engine
 (wingtip_engine::figures::debrief, through vfr_native), the one copy the
 planner and the phones share. Only the dicts cross here.
 
-web/src/lib/debrief.ts holds the same rules and changes with the engine's.
+web/src/lib/debrief.ts asks the same engine (its WebAssembly, by the
+rule's name).
 Its checkpoints are the saved flight's (the gateway's FlightCheckpointDto,
 as `sequence_no` and so on) and its points the track's (TrackDto: `t` in ms
 since 1970, GPS altitude in feet)."""

@@ -4,8 +4,9 @@ on each segment and when to leave the clearance limit, each worked out by
 the engine (wingtip_engine::figures::lost_comms, through vfr_native), the
 one copy the planner and the phones share.
 
-web/src/lib/lostComms.ts and the words of features/pilot/LostCommsPage.tsx
-hold the same rules and change with the engine's."""
+web/src/lib/lostComms.ts asks the same engine (its WebAssembly, by the
+rule's name); the words of features/pilot/LostCommsPage.tsx change with the
+engine's."""
 import vfr_native
 
 _routes, VFR_WORDS = vfr_native.lost_comms_routes()
