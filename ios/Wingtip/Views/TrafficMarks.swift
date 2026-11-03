@@ -48,10 +48,10 @@ final class TrafficMarkView: MKAnnotationView {
     required init?(coder: NSCoder) { nil }
 
     func show(_ mark: TrafficAnnotation) {
-        let near = Traffic.near(mark.plane, ownFt: mark.ownFt)
-        chevron.tintColor = near ? NightPalette.trafficNear : NightPalette.trafficFar
+        let drawn = Traffic.marks([mark.plane], ownFt: mark.ownFt).first
+        chevron.tintColor = drawn?.near == true ? NightPalette.trafficNear : NightPalette.trafficFar
         chevron.transform = CGAffineTransform(rotationAngle: CGFloat((mark.plane.trackDeg ?? 0) * .pi / 180))
-        label.text = Traffic.label(mark.plane, ownFt: mark.ownFt)
+        label.text = drawn?.label ?? ""
         accessibilityLabel = "\(mark.title ?? "Airplane"), \(label.text ?? "")"
     }
 }

@@ -16,15 +16,6 @@ final class Traffic {
     /// No newer report than this, s, and the airplane is not drawn: the
     /// web app's CARRY_S.
     static let staleS = 30.0
-    /// Within this of own ship's height an airplane is drawn amber, the
-    /// traffic to look for first. A design choice, the web app's: 1,000 ft
-    /// is the spacing VFR cruising altitudes keep between opposite
-    /// directions (14 CFR 91.159).
-    static let nearFt = 1000.0
-    /// A vertical rate this or more gets an arrow by the height, as a TCAS
-    /// display draws one (the FAA's Introduction to TCAS II, version 7.1).
-    static let arrowFpm = 500.0
-
     var on: Bool = UserDefaults.standard.object(forKey: "traffic") as? Bool ?? true {
         didSet { UserDefaults.standard.set(on, forKey: "traffic"); if !on { planes = [] } }
     }
@@ -53,26 +44,37 @@ final class Traffic {
         }
     }
 
-    /// Under the airplane: its height against own ship's in hundreds of
-    /// feet, "+05" above and "-12" below, as TCAS writes it, with an arrow
-    /// climbing or descending; with own ship's height not known, its own
-    /// height in feet, "4,500". Nothing where it sends none. The hundreds
-    /// cut toward own ship, never rounded away from it, so an airplane is
-    /// never shown further off than it is (the owner, 2026-10-28). The web
-    /// app's trafficLabel, kept the same (traffic.json).
+    /// What is drawn under an airplane: its height against own ship's in
+    /// hundreds of feet, "+05" above and "-12" below, as TCAS writes it,
+    /// with an arrow climbing or descending at 500 ft/min or more (the
+    /// FAA's Introduction to TCAS II, version 7.1); with own ship's height
+    /// not known, its own height in feet, "4,500"; nothing where it sends
+    /// none. The hundreds cut toward own ship, never rounded away from it,
+    /// so an airplane is never shown further off than it is (the owner,
+    /// 2026-10-28). And whether it is near, within 1,000 ft of own ship's
+    /// height, drawn amber, the traffic to look for first: a design choice,
+    /// the web app's, 1,000 ft being the spacing VFR cruising altitudes
+    /// keep between opposite directions (14 CFR 91.159).
+    struct Mark: Decodable, Equatable {
+        let label: String
+        let near: Bool
+    }
+
+    /// Each airplane's mark, in one call (the engine's `traffic_marks`,
+    /// the web app's trafficLabel, traffic.json); none where the engine
+    /// cannot answer.
+    static func marks(_ planes: [TrafficAircraft], ownFt: Double?) -> [Mark] {
+        let asked: [[String: Any?]] = planes.map { ["altitude_ft": $0.altitudeFt, "vertical_fpm": $0.verticalFpm] }
+        let marks: [Mark]? = try? Engine.call("traffic_marks", json: ["own_ft": ownFt, "planes": asked])
+        return marks ?? []
+    }
+
     static func label(_ plane: TrafficAircraft, ownFt: Double?) -> String {
-        guard let ft = plane.altitudeFt else { return "" }
-        let rate = plane.verticalFpm ?? 0
-        let arrow = rate >= arrowFpm ? "↑" : rate <= -arrowFpm ? "↓" : ""
-        guard let ownFt else { return "\((Int((ft / 100).rounded()) * 100).formatted())\(arrow)" }
-        let apart = ft - ownFt
-        let hundreds = Int((abs(apart) / 100).rounded(.towardZero))
-        return "\(apart < 0 ? "-" : "+")\(String(format: "%02d", hundreds))\(arrow)"
+        marks([plane], ownFt: ownFt).first?.label ?? ""
     }
 
     static func near(_ plane: TrafficAircraft, ownFt: Double?) -> Bool {
-        guard let ownFt, let ft = plane.altitudeFt else { return false }
-        return abs(ft - ownFt) <= nearFt
+        marks([plane], ownFt: ownFt).first?.near ?? false
     }
 
     /// What the Open Database License asks of a map that draws adsb.lol's

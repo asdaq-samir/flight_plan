@@ -368,48 +368,26 @@ struct FlownTrackView: View {
     }
 }
 
-/// A GPX file's track points with their times (GPX 1.1's trkpt, its ele
-/// in metres, as feet), as the web app's lib/track reads one.
-final class GPXTrack: NSObject, XMLParserDelegate {
-    private var points: [SavedTrackPoint] = []
-    private var lat: Double?
-    private var lon: Double?
-    private var ele: Double?
-    private var time: Date?
-    private var text = ""
+/// A track file's points with their times, as the web app's lib/track
+/// reads one (the engine's `read_track`: GPX 1.1's trkpt, its ele in
+/// metres, as feet, or KML's gx:Track; in time order, one a moment, the
+/// unreadable dropped), then thinned to the most a saved track keeps
+/// (`thin_track`). Nil where the file has no track to use.
+enum GPXTrack {
+    private struct Read: Decodable {
+        struct Point: Decodable { let t: Double; let lat: Double; let lon: Double; let altFt: Double? }
+        let points: [Point]?
+        let error: String?
+    }
 
     static func points(_ data: Data) -> [SavedTrackPoint]? {
-        let reader = GPXTrack()
-        let parser = XMLParser(data: data)
-        parser.delegate = reader
-        guard parser.parse() else { return nil }
-        return reader.points
-    }
-
-    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
-        text = ""
-        if name == "trkpt" {
-            lat = attributes["lat"].flatMap(Double.init)
-            lon = attributes["lon"].flatMap(Double.init)
-            ele = nil
-            time = nil
-        }
-    }
-
-    func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
-
-    func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch name {
-        case "ele": ele = Double(value)
-        case "time": time = AirportWords.date(value)
-        case "trkpt":
-            if let lat, let lon, let time, abs(lat) <= 90, abs(lon) <= 180, !(lat == 0 && lon == 0) {
-                points.append(SavedTrackPoint(t: Int64(time.timeIntervalSince1970 * 1000), lat: lat, lon: lon, altFt: ele.map { $0 * 3.28084 }))
-            }
-        default: break
-        }
-        text = ""
+        let text = String(decoding: data, as: UTF8.self)
+        let read: Read? = try? Engine.call("read_track", ["text": text], decoder: Planner.snakeCase)
+        guard let read, read.error == nil, let points = read.points else { return nil }
+        let saved = points.map { SavedTrackPoint(t: Int64($0.t.rounded()), lat: $0.lat, lon: $0.lon, altFt: $0.altFt) }
+        let thinned: [SavedTrackPoint]? = try? Engine.call("thin_track", ["points": saved], encoder: Planner.snakeEncoder,
+                                                          decoder: Planner.snakeCase)
+        return thinned ?? saved
     }
 }
 

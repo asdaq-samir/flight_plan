@@ -110,14 +110,24 @@ struct ProcedureTests {
     }
 }
 
-/// The dry run's airplane along the plan.
+/// The dry run's airplane along the plan, flown by the engine's `dry_run`.
 struct DryRunTests {
-    @MainActor @Test func theAirplaneIsPlacedByTheLegsMinutes() {
-        let run = DryRun()
-        let line = [CLLocationCoordinate2D(latitude: 42.0, longitude: -88.0), CLLocationCoordinate2D(latitude: 43.0, longitude: -88.0)]
+    @MainActor @Test func theAirplaneFliesTheLegInItsMinutes() throws {
+        let a = CourseEnd(ident: "A", name: "A", lat: 42.0, lon: -88.0, elevationFt: 700)
+        let b = CourseEnd(ident: "B", name: "B", lat: 43.0, lon: -88.0, elevationFt: 700)
+        let course = Course(departure: a, destination: b, distanceNm: 60, bearingDeg: 0, courseLine: [[42.0, -88.0], [43.0, -88.0]])
         let leg = Leg(from: "A", to: "B", distanceNm: 60, altitudeFt: 4500, trueCourseDeg: 0, magneticHeadingDeg: 0, groundspeedKt: 120, eteMin: 30, fuelGal: 4, tasKt: 110)
-        run.start(line: line, legs: [leg])
-        #expect(run.running && run.fix?.groundspeedKt == 120 && abs((run.fix?.coordinate.latitude ?? 0) - 42.0) < 0.01)
+        // Its 30 minutes, at its 120 kt, from A to B.
+        let points = try #require(DryRun.run(course: course, checkpoints: [], legs: [leg]))
+        #expect(points.count >= 2 && abs((points.last?.t ?? 0) - 1800) < 1)
+        #expect(points.dropFirst().allSatisfy { $0.gsKt == 120 })
+        #expect(abs((points.last?.lat ?? 0) - 43.0) < 0.01)
+        // A row a leg, or no run: a checkpoint with no leg to it is not one.
+        let stray = Checkpoint(id: "x", category: "lake", lat: 42.5, lon: -88.0, predictedScore: 1, alongTrackNm: 30)
+        #expect(DryRun.run(course: course, checkpoints: [stray], legs: [leg]) == nil)
+        let run = DryRun()
+        run.start(course: course, checkpoints: [], legs: [leg])
+        #expect(run.running && abs((run.fix?.coordinate.latitude ?? 0) - 42.0) < 0.01)
         run.stop()
         #expect(!run.running && run.fix == nil)
     }
