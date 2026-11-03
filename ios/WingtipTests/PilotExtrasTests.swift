@@ -188,6 +188,14 @@ struct DeviceKeptTests {
         Session.forgetPilot(defaults)
         #expect(defaults.data(forKey: "figures:N3429J") == nil && defaults.data(forKey: "aircraftFavorites") == nil)
         #expect(defaults.bool(forKey: "traffic"))
+
+        // The Favorites live in the store now: they go, the Recents stay.
+        let tracking = try Tracking(container: Records.inMemory(), defaults: defaults)
+        let plane = KeptAirplane(hex: "a1b2c3", name: "N3429J", type: "P28A")
+        tracking.toggleFavorite(plane)
+        tracking.remember(plane)
+        tracking.forgetFavorites()
+        #expect(tracking.favorites.isEmpty && tracking.recents == [plane])
     }
 
     @Test func anAirplanesNameAndLine() {

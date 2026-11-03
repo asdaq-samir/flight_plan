@@ -88,12 +88,15 @@ final class Plan {
     var routed: Bool { !dep.isEmpty && !dest.isEmpty }
 
     /// What is on the page, kept for the air (Kept): after the nav log
-    /// is whole, and as the briefing, checkpoints and side view come.
+    /// is whole, and as the briefing, checkpoints and side view come. And
+    /// the route itself in the plan history the pilot's devices share
+    /// (PlannedRoute).
     func keep() {
         guard routed, course != nil, totals != nil else { return }
         Kept(dep: dep, dest: dest, stops: stops, aircraft: aircraft, ownAltitudeFt: ownAltitudeFt, altitudeChoice: altitudeChoice,
              course: course, checkpoints: checkpoints, profile: profile, altitude: altitude, legs: legs, totals: totals,
              briefing: briefing, plannedAt: plannedAt ?? Date()).save()
+        PlanHistory.planned(routeState, at: plannedAt ?? Date())
     }
 
     /// The last plan kept, back on the page at launch: planned again when

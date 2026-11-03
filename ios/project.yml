@@ -72,6 +72,16 @@ targets:
         com.apple.developer.applesignin: [Default]
         com.apple.developer.associated-domains:
           - applinks:$(WINGTIP_HOST)
+        # The pilot's records (Records) in their iCloud, on every device:
+        # the container named after the bundle id (iCloud.app.wingtipmaps.ios,
+        # following CI's IOS_BUNDLE_ID as the id does), which the owner
+        # turns on for the app id in the developer account; the push
+        # entitlement is what CloudKit wakes the app with when another
+        # device writes.
+        com.apple.developer.icloud-services: [CloudKit]
+        com.apple.developer.icloud-container-identifiers:
+          - iCloud.$(PRODUCT_BUNDLE_IDENTIFIER)
+        aps-environment: development
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios
