@@ -8,6 +8,7 @@ options:
   bundleIdPrefix: app.wingtipmaps
   deploymentTarget:
     iOS: "18.0"
+    watchOS: "10.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 settings:
@@ -48,6 +49,10 @@ targets:
         embed: false
       # The Live Activity's widget extension, embedded in the app.
       - target: WingtipWidgets
+        embed: true
+      # The Apple Watch app (WingtipWatch), embedded in the app's Watch
+      # folder as a companion is; it is installed with the phone's app.
+      - target: WingtipWatch
         embed: true
     info:
       path: Wingtip/Info.plist
@@ -131,6 +136,44 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios.widgets
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
+  # The Apple Watch app (WingtipWatch/, the owner's ask of 2026-11-03):
+  # timers, the airplane's checklist and the nearest airports on the
+  # wrist, a companion of the iOS app that asks the phone for everything
+  # over WatchConnectivity (Wingtip/WatchLink.swift). No engine: the
+  # XCFramework has no watchOS slice. Only the messages file is shared.
+  WingtipWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: WingtipWatch
+      - path: Wingtip/Shared/WatchMessages.swift
+    info:
+      path: WingtipWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Wingtip Maps
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        # A single-target watch app (watchOS 7+), the phone app's companion.
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: app.wingtipmaps.ios
+        WKRunsIndependentlyOfCompanionApp: false
+        NSLocationWhenInUseUsageDescription: Wingtip Maps finds the airports nearest you from where your watch is.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios.watchkitapp
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "4"
+  WingtipWatchTests:
+    type: bundle.unit-test
+    platform: watchOS
+    sources:
+      - path: WingtipWatchTests
+    dependencies:
+      - target: WingtipWatch
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
   WingtipTests:
     type: bundle.unit-test
     platform: iOS
@@ -180,3 +223,16 @@ schemes:
       targets: [WingtipTests, WingtipUITests]
     archive:
       config: Release
+  # The watch app on its own, for a watch simulator paired with an iPhone
+  # one (xcodebuild -destination "platform=watchOS Simulator,name=…");
+  # the Wingtip scheme builds it as the app's embedded companion.
+  WingtipWatch:
+    build:
+      targets:
+        WingtipWatch: all
+        WingtipWatchTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [WingtipWatchTests]

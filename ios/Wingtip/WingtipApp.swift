@@ -42,6 +42,7 @@ struct WingtipApp: App {
                 // ongoing), watched every few seconds: the dry run's, or
                 // own ship's with a route planned.
                 .task { await Ticker.shared.run(every: 5) { FlightActivity.shared.observe(plan: plan, dryRun: dryRun, ownShip: ownShip) } }
+                .task { await WatchLink.shared.run(plan: plan, ownShip: ownShip) }
                 // The sign-in link from Mail opens the app (Associated
                 // Domains): its token is handed to the gateway here, and
                 // the pilot is signed in without a browser.
