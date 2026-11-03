@@ -44,11 +44,13 @@ export function panClear(map: L.Map, point: L.LatLngExpression, options?: L.PanO
 }
 
 /** Before an animated zoom of more than a level: the map's lines and
- *  circles (the overlay pane) put out of sight until it lands. Leaflet
- *  scales them with the chart as it goes, and eight times over a dry
- *  run's start the route's checkpoints were orange blots filling the
+ *  circles drawn by Leaflet's SVG put out of sight until it lands.
+ *  Leaflet scales them with the chart as it goes, and eight times over a
+ *  dry run's start the route's checkpoints were orange blots filling the
  *  screen until the page drew them again. Its marks, which keep their
- *  size, stay. */
+ *  size, stay, and so do the canvases (index.css): the airspace's rings,
+ *  hidden with the rest, came back at the zoom's end as if drawn afresh
+ *  at every tap of the location arrow (the owner, 2026-11-03). */
 export function hideLinesWhileZooming(map: L.Map, to: number) {
   if (Math.abs(to - map.getZoom()) <= 1) return;
   const container = map.getContainer();

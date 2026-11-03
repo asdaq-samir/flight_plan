@@ -885,7 +885,12 @@ body[data-map-sheet][data-map-panel="full"] [data-sonner-toast][data-type="loadi
 }
 
 /* An animated zoom of more than a level (lib/map/clear's
-   hideLinesWhileZooming): the map's lines and circles -- every pane's
-   drawing, the overlay pane's and the layers' own -- out of sight until
-   it lands, where Leaflet scaled them with the chart. */
-.map-big-zoom .leaflet-pane > svg, .map-big-zoom .leaflet-pane > canvas { visibility: hidden; }
+   hideLinesWhileZooming): the map's lines and circles drawn by Leaflet's
+   SVG -- every pane's -- out of sight until it lands, where Leaflet
+   scaled them with the chart. Not the canvases: the airports' marks and
+   the altitudes are drawn at each frame of the zoom at their size, and
+   the airspace's rings and the plate are scaled with the chart as its
+   tiles are, and came back at the end as if drawn afresh (the owner,
+   2026-11-03: "the rings redraw when I tap the current position
+   button"). */
+.map-big-zoom .leaflet-pane > svg { visibility: hidden; }
