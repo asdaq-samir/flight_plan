@@ -75,8 +75,10 @@ targets:
         # The radio heard on with the phone locked, as the owner asked
         # (2026-11-02): the microphone kept open (ClearanceListener); and
         # the position read on while the airplane is flying (OwnShip),
-        # for the alerts ahead and the path flown (OwnTrail).
-        UIBackgroundModes: [audio, location]
+        # for the alerts ahead and the path flown (OwnTrail); and CloudKit's
+        # silent pushes, so another device's records (Records) sync before
+        # the app is opened.
+        UIBackgroundModes: [audio, location, remote-notification]
         NSLocalNetworkUsageDescription: With Traffic on, Wingtip Maps listens on the cockpit's Wi-Fi for an ADS-B receiver (Stratux, SkyEcho, Sentry).
         # A flight in progress on the Lock Screen and in the Dynamic Island
         # (FlightActivity, the WingtipWidgets extension): the next
