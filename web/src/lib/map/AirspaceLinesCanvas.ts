@@ -21,6 +21,10 @@ const FADE_MS = 200;
 /** The most volumes remembered as drawn: a few states' worth. */
 const MOST_KEPT = 3000;
 
+/** Whether the map is animating a zoom (Leaflet's own flag, as the
+ *  OwnShipLayer reads it). */
+const animatingZoom = (map: L.Map | undefined) => !!(map as (L.Map & { _animatingZoom?: boolean }) | undefined)?._animatingZoom;
+
 /** A ring `px` round's dash and gap, two to one, as the chart's. */
 export function ringDashes(px: number): [number, number] {
   const period = Math.max(SHORTEST_DASH_PX, px / RING_DASHES);
@@ -95,7 +99,14 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
   onAdd(map: L.Map): this {
     super.onAdd(map);
     this.canvas!.dataset.airspaceLines ||= "{}";
+    // Drawn as a zoom's animation ends, for what came in through it (below).
+    map.on("zoomend", this.schedule, this);
     return this;
+  }
+
+  onRemove(map: L.Map): this {
+    map.off("zoomend", this.schedule, this);
+    return super.onRemove(map);
   }
 
   set(volumes: AirspaceVolume[]): void {
@@ -103,7 +114,25 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     this.schedule();
   }
 
+  /** Not drawn through a zoom's animation (a double tap's, a fitted
+   *  route's, the end of a pinch): the map's pane has Leaflet's
+   *  .leaflet-zoom-anim then, under which every change of the canvas's
+   *  transform is a 0.25 s transition, so a drawing placed mid-way --
+   *  the next class's rings arriving as the zoom crossed their level --
+   *  was carried across the screen from where the animation had the
+   *  canvas to where the new drawing put it, Dallas's Class B gliding up
+   *  past Oklahoma City and back (the owner's recording, 2026-11-03,
+   *  05:51). Leaflet's own renderer skips its update through one the same
+   *  way. The zoom's end draws it (zoomend, above). */
+  protected override schedule(): void {
+    if (animatingZoom(this._map)) return;
+    super.schedule();
+  }
+
   protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from }: CanvasView): void {
+    // Added to the map mid-animation (the layer comes with its zoom), the
+    // canvas is placed but left blank until the zoom ends, as above.
+    if (animatingZoom(map)) return;
     const zoom = map.getZoom();
     const k = map.getZoomScale(zoom, 0);
     const pixelOrigin = map.getPixelOrigin();
