@@ -318,7 +318,7 @@ fn figures_wind_correction(deg: f64) -> String {
     words::wind_correction(deg)
 }
 
-fn hold_entry(key: &str) -> PyResult<holding::Entry> {
+fn entry_of(key: &str) -> PyResult<holding::Entry> {
     holding::Entry::from_key(key).ok_or_else(|| PyValueError::new_err("direct, teardrop or parallel"))
 }
 
@@ -331,7 +331,7 @@ fn holding_entry(inbound_deg: f64, heading_deg: f64, right: bool) -> (&'static s
 
 #[pyfunction]
 fn holding_entry_name(key: &str) -> PyResult<&'static str> {
-    Ok(hold_entry(key)?.name())
+    Ok(entry_of(key)?.name())
 }
 
 #[pyfunction]
@@ -358,7 +358,7 @@ fn holding_wind_json(inbound_deg: f64, tas_kt: f64, wind_from_deg: f64, wind_kt:
 
 #[pyfunction]
 fn holding_entry_steps(entry: &str, inbound: f64, right: bool, altitude_ft: f64) -> PyResult<String> {
-    Ok(holding::entry_steps(hold_entry(entry)?, inbound, right, altitude_ft))
+    Ok(holding::entry_steps(entry_of(entry)?, inbound, right, altitude_ft))
 }
 
 /// The rows' words for legs already worked out: inbound, outbound, time.
@@ -423,6 +423,25 @@ fn diversion_divert(tc_deg: f64, distance_nm: f64, tas_kt: f64, fuel_burn_gph: f
 #[pyfunction]
 fn diversion_wind_triangle(tc: f64, tas: f64, wind_from_deg: f64, wind_kt: f64) -> Option<(f64, f64, f64)> {
     diversion::wind_triangle(tc, tas, wind_from_deg, wind_kt)
+}
+
+/// The drill's whole answer from the leg's air, JSON {"solved", "steps",
+/// "problem", "checks"}: `to` the field's ident, the estimates in
+/// ALLOWANCES' order (diversion::diversion_json).
+#[pyfunction]
+#[allow(clippy::too_many_arguments)]
+#[pyo3(signature = (tc_deg, distance_nm, tas_kt, fuel_burn_gph, magnetic_variation_deg, wind_from_deg, wind_kt, to, mh=None, gs=None, ete=None, fuel=None))]
+fn diversion_json(tc_deg: f64, distance_nm: f64, tas_kt: f64, fuel_burn_gph: f64, magnetic_variation_deg: f64, wind_from_deg: f64,
+                  wind_kt: f64, to: &str, mh: Option<f64>, gs: Option<f64>, ete: Option<f64>, fuel: Option<f64>) -> String {
+    let air = diversion::Air { tas_kt, fuel_burn_gph, magnetic_variation_deg, wind_from_deg, wind_kt };
+    diversion::diversion_json(&air, tc_deg, distance_nm, to, [mh, gs, ete, fuel])
+}
+
+/// The entry into a hold for an airplane arriving on a course, a key
+/// (holding::entry, vfr.holds.entry).
+#[pyfunction]
+fn hold_entry(arrival_deg: f64, inbound_deg: f64, right: bool) -> &'static str {
+    holding::entry(arrival_deg, inbound_deg, right).key()
 }
 
 #[pyfunction]
@@ -509,7 +528,7 @@ fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         wrap_pyfunction!(lost_comms_routes, m)?, wrap_pyfunction!(lost_comms_altitudes, m)?, wrap_pyfunction!(lost_comms_fly_words, m)?,
         wrap_pyfunction!(lost_comms_leave, m)?,
         wrap_pyfunction!(diversion_allowances, m)?, wrap_pyfunction!(diversion_divert, m)?, wrap_pyfunction!(diversion_reasonable, m)?,
-        wrap_pyfunction!(diversion_wind_triangle, m)?,
+        wrap_pyfunction!(diversion_wind_triangle, m)?, wrap_pyfunction!(diversion_json, m)?, wrap_pyfunction!(hold_entry, m)?,
         wrap_pyfunction!(debrief_airborne, m)?, wrap_pyfunction!(debrief_json, m)?, wrap_pyfunction!(debrief_marks, m)?,
         wrap_pyfunction!(debrief_tolerances_json, m)?,
     ] {

@@ -8,6 +8,8 @@ planner and the phones share.
 
 web/src/lib/diversion.ts holds the same rules and changes with the
 engine's."""
+import json
+
 import vfr_native
 
 #: The figures a student estimates, and how far off is still reasonable
@@ -35,6 +37,19 @@ def divert(leg: dict, tc_deg: float, distance_nm: float) -> dict | None:
     solved = vfr_native.diversion_divert(tc_deg, distance_nm, leg["tas_kt"], leg["fuel_burn_gph"], leg["magnetic_variation_deg"],
                                          wind.get("wind_dir_true_deg") or 0, wind.get("wind_speed_kt") or 0)
     return None if solved is None else dict(zip(_SOLVED, solved))
+
+
+def drill(leg: dict, to: str, typed: dict) -> dict:
+    """The drill as the page shows it, from a point on `leg` to the field
+    `to` on the leg's own true course and distance: the solution (None
+    where no heading holds), its steps in words, the problem where there
+    is none, and each of the student's `typed` estimates (by key, None
+    where not given) checked and written as the drill writes it."""
+    wind = leg.get("wind") or {}
+    return json.loads(vfr_native.diversion_json(
+        leg["true_course_deg"], leg["distance_nm"], leg["tas_kt"], leg["fuel_burn_gph"], leg["magnetic_variation_deg"],
+        wind.get("wind_dir_true_deg") or 0, wind.get("wind_speed_kt") or 0, to,
+        typed.get("mh"), typed.get("gs"), typed.get("ete"), typed.get("fuel")))
 
 
 def reasonable(key: str, typed: float, exact: float) -> bool:

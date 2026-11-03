@@ -20,7 +20,6 @@ from ..figures import lost_comms as lost_rules
 from ..figures.schemas import (
     Debrief, DebriefAnswer, DebriefAsk, DebriefTolerances, Diversion, Holding, LostComms, LostCommsAsk,
 )
-from ..gonogo.words import js_round, to_fixed
 from ..planning import aircraft_profile, forecast_hour_for
 from .plan import CruisePower, CruiseTas
 
@@ -73,15 +72,6 @@ def debrief(ask: DebriefAsk) -> DebriefAnswer:
     )
 
 
-def _written(key: str, value: float) -> str:
-    """A figure as the student would write it (DiversionDrill written)."""
-    if key == "mh":
-        return holding_rules.bearing(value)
-    if key == "fuel":
-        return f"{to_fixed(value, 1)} gal"
-    return f"{js_round(value)} {'kt' if key == 'gs' else 'min'}"
-
-
 @router.get("/api/diversion")
 def diversion(
     lat: Annotated[float, Query(ge=-90, le=90)],
@@ -115,33 +105,14 @@ def diversion(
         leg = navlog.assemble_leg((lat, lon), (place["lat"], place["lon"]), altitude_ft, profile, forecast_hour_for(depart))
     except WeatherServiceError as err:
         raise HTTPException(503, "The winds aloft could not be fetched for the diversion.") from err
-    solved = diversion_rules.divert(leg, leg["true_course_deg"], leg["distance_nm"])
-    steps = []
-    if solved:
-        steps = [
-            {"name": "True course", "value": f"{holding_rules.bearing(solved['tc'])}, {to_fixed(solved['distance_nm'], 1)} nm"},
-            {"name": "Wind correction", "value": holding_rules.wind_correction(solved["wca"])},
-            {"name": "True heading", "value": holding_rules.bearing(solved["th"])},
-            {"name": "Magnetic heading", "value": holding_rules.bearing(solved["mh"])},
-            {"name": "Ground speed", "value": f"{js_round(solved['gs'])} kt"},
-            {"name": "Time", "value": f"{js_round(solved['ete'])} min"},
-            {"name": "Fuel", "value": f"{to_fixed(solved['fuel'], 1)} gal"},
-        ]
-    typed = {"mh": mh, "gs": gs, "ete": ete, "fuel": fuel}
-    checks = []
-    for a in diversion_rules.ALLOWANCES:
-        value, exact = typed[a["key"]], solved[a["key"]] if solved else None
-        checks.append({
-            **a, "typed": value, "exact": exact, "written": _written(a["key"], exact) if exact is not None else None,
-            "reasonable": diversion_rules.reasonable(a["key"], value, exact) if value is not None and exact is not None else None,
-        })
+    # The solution, its steps and the estimates checked, all in the
+    # engine's words (wingtip_engine::figures::diversion).
+    worked = diversion_rules.drill(leg, place["ident"], {"mh": mh, "gs": gs, "ete": ete, "fuel": fuel})
     return Diversion(
         to=place["ident"], name=place.get("name") or place["ident"], altitude_ft=altitude_ft,
         tas_kt=leg["tas_kt"], fuel_burn_gph=leg["fuel_burn_gph"], magnetic_variation_deg=leg["magnetic_variation_deg"],
         wind=leg["wind"] and {"wind_dir_true_deg": leg["wind"]["wind_dir_true_deg"], "wind_speed_kt": leg["wind"]["wind_speed_kt"]},
-        solved=solved, steps=steps,
-        problem=None if solved else f"The wind is too strong for a heading to {place['ident']} to hold.",
-        checks=checks,
+        solved=worked["solved"], steps=worked["steps"], problem=worked["problem"], checks=worked["checks"],
     )
 
 
