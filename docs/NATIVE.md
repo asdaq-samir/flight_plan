@@ -5,7 +5,8 @@ planner and gateway as the website, and only the screens on the phone.
 The plan, its phases and gates are in the owner's doc "Native iOS
 Transition Plan" (24 October 2026). The Capacitor shell (`web/ios`,
 docs/IOS.md) stays the App Store app until this one passes the plan's
-last gate.
+last gate. The Android twin, the same engine behind Compose and MapLibre,
+is docs/NATIVE-ANDROID.md.
 
 ## What is here
 

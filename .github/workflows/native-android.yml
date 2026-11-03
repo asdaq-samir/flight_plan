@@ -1,0 +1,134 @@
+name: Native Android
+
+# The native Android app (android/, docs/NATIVE-ANDROID.md): Compose over
+# the same planner and gateway as the website, with the shared Rust engine
+# linked in. Every change to it is built on GitHub's Linux runner: the
+# engine first (native/ffi/build-android.sh, for the three ABIs), then
+# the unit tests, lint and a debug APK a tester can install by hand (the
+# run's artifact); then the instrumented tests, the engine held to the
+# web's shared fixtures through the app's own bridge, on an emulator. No
+# Google Play lane yet: the Capacitor shell's (android.yml) stays the Play
+# Store app until this one passes the plan's gates.
+#
+# Actions are pinned as in ci.yml (its opening comment says why).
+on:
+  pull_request:
+    paths:
+      - android/**
+      - native/engine/**
+      - native/ffi/**
+      - native/Cargo.*
+      - web/src/lib/fixtures/**
+      - .github/workflows/native-android.yml
+  push:
+    # And a native-app branch of Claude's: its builds run from the branch
+    # itself (a dispatch by name needs the file on main first).
+    branches: [main, "claude/native-*"]
+    paths:
+      - android/**
+      - native/engine/**
+      - native/ffi/**
+      - native/Cargo.*
+      - web/src/lib/fixtures/**
+      - .github/workflows/native-android.yml
+  workflow_dispatch:
+
+concurrency:
+  group: native-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The site the app talks to and whose links open it (App Links): the
+  # repo variable once it exists, a stand-in before; its host is the
+  # build's WINGTIP_HOST (android/app/build.gradle.kts).
+  WINGTIP_URL: ${{ vars.WINGTIP_URL || 'https://wingtipmaps.app/app/plan' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The Android Gradle plugin compiles for Java 21.
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad  # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      # The runner's Android SDK; what the build lacks (its platform,
+      # build tools, CMake and NDK) the Gradle plugin fetches once the
+      # licences are taken.
+      - name: The SDK's licences
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+      - name: The engine, for the app
+        # wingtip-engine through its C functions (native/ffi), for each
+        # ABI, with the runner's own rustup and NDK; no Actions cache, as
+        # the engine has no crates to fetch.
+        run: native/ffi/build-android.sh
+      - name: The site's host
+        id: site
+        run: echo "host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")" >> "$GITHUB_OUTPUT"
+      - name: Tested, linted and built, a debug APK
+        working-directory: android
+        env:
+          WINGTIP_HOST: ${{ steps.site.outputs.host }}
+        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: wingtip-native-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+      - name: The lint report, on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: wingtip-native-lint
+          path: android/app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+          retention-days: 7
+
+  device:
+    needs: build
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad  # v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: The SDK's licences
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+      - name: The engine, for the app
+        run: native/ffi/build-android.sh
+      - name: The site's host
+        id: site
+        run: echo "host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")" >> "$GITHUB_OUTPUT"
+      # The emulator runs on the runner's KVM, which the runner's user
+      # may not open by default (the emulator action's README).
+      - name: KVM, for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: The instrumented tests, on an emulator
+        # The engine held to the shared fixtures through the app's own
+        # bridge (EngineTest), on the x86_64 image the engine is built for.
+        uses: reactivecircus/android-emulator-runner@1dcd0090116d15e7c562f8db72807de5e036a4ed  # v2.34.0
+        env:
+          WINGTIP_HOST: ${{ steps.site.outputs.host }}
+        with:
+          api-level: 35
+          arch: x86_64
+          working-directory: android
+          script: ./gradlew --no-daemon --stacktrace connectedDebugAndroidTest
+      - name: The test reports, on failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: wingtip-native-device-tests
+          path: android/app/build/reports/androidTests
+          if-no-files-found: ignore
+          retention-days: 7

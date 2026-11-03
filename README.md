@@ -72,6 +72,9 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 | Path | Contents |
 |---|---|
 | [`web/`](web) | React 19 + TypeScript + Leaflet front end |
+| [`ios/`](ios) | The native iOS app: SwiftUI over the shared Rust engine (docs/NATIVE.md) |
+| [`android/`](android) | The native Android app: Kotlin, Compose and MapLibre over the shared Rust engine (docs/NATIVE-ANDROID.md) |
+| [`native/`](native) | The shared Rust engine, every aviation rule once, and its Python, C and WebAssembly faces |
 | [`planning-service/`](planning-service) | Route planning and chart-vision API |
 | [`model-service/`](model-service) | Model-serving API |
 | [`springboot-app/`](springboot-app) | Public API, authentication, database |
@@ -93,6 +96,8 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 | [`docs/GOOGLE-MAPS.md`](docs/GOOGLE-MAPS.md) | The map's overlays over the chart: the USGS's imagery, and Google's map and satellite with the owner's key |
 | [`docs/TV.md`](docs/TV.md) | The TV apps for Samsung (Tizen) and LG (webOS): the site made for a remote, their packages, and the owner's store steps |
 | [`docs/ANDROID.md`](docs/ANDROID.md) | The Android app: the same shell, its build to Google Play's internal track, and the owner's Google steps |
+| [`docs/NATIVE.md`](docs/NATIVE.md) | The native iOS app: SwiftUI over the shared engine, its rules and fixtures, and its build and tests on the macOS runner |
+| [`docs/NATIVE-ANDROID.md`](docs/NATIVE-ANDROID.md) | The native Android app: Compose and MapLibre over the shared engine, its build and emulator tests on the Linux runner |
 | [`docs/LEARNING-GUIDE.md`](docs/LEARNING-GUIDE.md) | Guided walkthrough of the system, section by section |
 
 ## License

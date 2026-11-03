@@ -71,3 +71,11 @@ ios/Frameworks/
 
 # The Rust extension's build output (native/, built by maturin)
 native/target/
+
+# The native Android app (android/, docs/NATIVE-ANDROID.md): the engine
+# built for it on the runner (native/ffi/build-android.sh), Gradle's own
+# state and output, and the SDK path a machine writes for itself.
+android/app/engine/
+android/.gradle/
+android/**/build/
+android/local.properties

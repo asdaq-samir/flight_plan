@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon's background and the splash behind it: the brand's
+     navy (docs/brand/appicon.svg's mark). -->
+<resources>
+    <color name="ic_launcher_background">#14284B</color>
+</resources>

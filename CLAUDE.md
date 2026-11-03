@@ -78,6 +78,7 @@ shell per app round it (the owner, 2026-11-03).
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
 | `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |
+| `android/` (the native app) | CI only: `native-android.yml` builds the engine for each ABI, runs the unit tests, lint and a debug APK, then the instrumented tests on an emulator (docs/NATIVE-ANDROID.md) |
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
 
