@@ -374,8 +374,11 @@ struct FlownTrackView: View {
 /// unreadable dropped), then thinned to the most a saved track keeps
 /// (`thin_track`). Nil where the file has no track to use.
 enum GPXTrack {
+    /// The engine's points: t in ms since 1970, which it writes as a
+    /// fraction ("1792940400000.0"), so read as one.
+    private struct Point: Codable { let t: Double; let lat: Double; let lon: Double; let altFt: Double? }
+
     private struct Read: Decodable {
-        struct Point: Decodable { let t: Double; let lat: Double; let lon: Double; let altFt: Double? }
         let points: [Point]?
         let error: String?
     }
@@ -384,10 +387,8 @@ enum GPXTrack {
         let text = String(decoding: data, as: UTF8.self)
         let read: Read? = try? Engine.call("read_track", ["text": text], decoder: Planner.snakeCase)
         guard let read, read.error == nil, let points = read.points else { return nil }
-        let saved = points.map { SavedTrackPoint(t: Int64($0.t.rounded()), lat: $0.lat, lon: $0.lon, altFt: $0.altFt) }
-        let thinned: [SavedTrackPoint]? = try? Engine.call("thin_track", ["points": saved], encoder: Planner.snakeEncoder,
-                                                          decoder: Planner.snakeCase)
-        return thinned ?? saved
+        let thinned: [Point]? = try? Engine.call("thin_track", ["points": points], encoder: Planner.snakeEncoder, decoder: Planner.snakeCase)
+        return (thinned ?? points).map { SavedTrackPoint(t: Int64($0.t.rounded()), lat: $0.lat, lon: $0.lon, altFt: $0.altFt) }
     }
 }
 
