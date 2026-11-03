@@ -41,6 +41,9 @@ final class TrackedRingView: MKAnnotationView {
         isEnabled = false
         displayPriority = .required
         zPriority = .min
+        // Decoration round the airplane's own mark, which carries the name.
+        isAccessibilityElement = false
+        accessibilityElementsHidden = true
     }
 
     @available(*, unavailable)
@@ -72,7 +75,7 @@ final class FlightMapLayer: NSObject {
             // Kept in the middle while followed, as Maps follows a position.
             if next.follow, centred?.latitude != at.latitude || centred?.longitude != at.longitude {
                 centred = at
-                map.setCenter(at, animated: true)
+                map.setCenter(at, animated: MapMotion.animated)
             }
         } else if let ring {
             map.removeAnnotation(ring)
@@ -103,7 +106,7 @@ final class FlightMapLayer: NSObject {
         map.addOverlays(overlays, level: .aboveLabels)
         lines[key] = overlays
         if fit, first, let casing = overlays.first {
-            map.setVisibleMapRect(casing.boundingMapRect, edgePadding: ChartMap.routePadding(in: map), animated: true)
+            map.setVisibleMapRect(casing.boundingMapRect, edgePadding: ChartMap.routePadding(in: map), animated: MapMotion.animated)
         }
     }
 

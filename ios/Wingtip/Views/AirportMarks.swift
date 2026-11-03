@@ -59,6 +59,11 @@ final class AirportMarkView: MKAnnotationView {
         addSubview(ring)
         addSubview(label)
         canShowCallout = false
+        // A tap opens the field's card, so VoiceOver has it as a button
+        // named with its weather, which the ring's colour alone would not
+        // tell.
+        isAccessibilityElement = true
+        accessibilityTraits = .button
     }
 
     @available(*, unavailable)
@@ -77,5 +82,6 @@ final class AirportMarkView: MKAnnotationView {
         guard let field = annotation as? AirportAnnotation else { return }
         ring.layer.borderColor = field.colour.cgColor
         label.text = field.ident
+        accessibilityLabel = "\(field.ident), \(SpokenFigures.flightCategory(field.category))"
     }
 }

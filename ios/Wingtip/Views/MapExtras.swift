@@ -62,10 +62,20 @@ final class WaypointMarkView: MKAnnotationView {
         addSubview(diamond)
         canShowCallout = true
         displayPriority = .defaultLow
+        isAccessibilityElement = true
+        accessibilityTraits = .button
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
+
+    /// Its ident and what it is, for VoiceOver: the callout says the same.
+    override var annotation: (any MKAnnotation)? {
+        didSet {
+            let mark = annotation as? WaypointAnnotation
+            accessibilityLabel = [mark?.title, mark?.subtitle].compactMap { $0 }.joined(separator: ", ")
+        }
+    }
 }
 
 /// The pin a held finger drops, where the airspace card is for.
@@ -216,6 +226,7 @@ final class MapExtrasState: NSObject {
             let view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: nil)
             view.markerTintColor = .systemRed
             view.displayPriority = .required
+            view.accessibilityLabel = "The point held, whose airspace the card shows"
             return view
         }
         return nil
@@ -223,7 +234,7 @@ final class MapExtrasState: NSObject {
 
     func calloutTapped(_ view: MKAnnotationView) {
         guard let mark = view.annotation as? WaypointAnnotation else { return }
-        view.setSelected(false, animated: true)
+        view.setSelected(false, animated: MapMotion.animated)
         onWaypointStop?(mark.waypoint.ident)
     }
 
