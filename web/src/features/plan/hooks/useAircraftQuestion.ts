@@ -11,7 +11,7 @@ import { airportQuery } from "../../../lib/queryClient";
 
 const NONE: TrafficAircraft[] = [];
 
-/** How far round an airport its traffic is asked for, nm (lib/fbo
+/** How far round an airport its traffic is asked for, nm (the engine's
  *  RELATION_NM, an inbound airplane's reach). */
 const AIRPORT_TRAFFIC_NM = 40;
 /** Asked again this often, ms: adsb.lol's pace, a region's (vfr.traffic). */

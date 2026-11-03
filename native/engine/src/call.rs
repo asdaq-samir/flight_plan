@@ -316,6 +316,35 @@
 //!   `{"drawing"}`; `approach_quiz`: `[{"key", "prompt", "choices",
 //!   "answer", "explain", "focus"}]` from `{"drawing", "gs_kt"}`.
 //!
+//! A field's weather as the app says it (crate::forecast, the web's
+//! lib/map/flightCategory and lib/hourly, the planner's vfr.glmp) and the
+//! traffic list's filters and the registry's airplanes (crate::aircraft,
+//! the web's lib/fbo and lib/aircraftChoice, the iPhone's Registered):
+//!
+//! - `flight_category`: "VFR", "MVFR", "IFR", "LIFR" or null (AIM 7-1-7),
+//!   from `{"ceiling_ft"?, "visibility_sm"?}`, no visibility LIFR only
+//!   under a 500 ft ceiling and else null;
+//! - `taf_hour`: `{"before_worse", "at_times", "at_times_gust_kt",
+//!   "at_times_thunder", "at_times_chance"}`, an hour of a TAF from its
+//!   groups in force (AC 00-45H), from `{"prevailing": {"category"?,
+//!   "gust_kt"?, "thunder"?}, "becoming"? (a BECMG under way), "before"?
+//!   (the prevailing weather before it, the same shape), "supplemental":
+//!   [{"category"?, "gust_kt"?, "thunder"?, "chance"?}]}`;
+//! - `traffic_kind` (GDL 90 Table 11's emitter categories) from
+//!   `{"category"?}`; `altitude_band` (14 CFR 71.33(a)) from
+//!   `{"altitude_ft"?}`; `operator_of` from `{"callsign"?}`;
+//!   `in_emergency` (AIM 6-2-2, 6-3-4, 6-4-2) from `{"squawk"?,
+//!   "emergency"?}`;
+//! - `field_relation`: `{"around", "inbound", "departing"}`, from
+//!   `{"plane": {"lat", "lon", "altitude_ft"?, "track_deg"?,
+//!   "vertical_fpm"?}, "field": {"lat", "lon", "elevation_ft"}}`;
+//!   `traffic_matches` from `{"plane": {"category"?, "altitude_ft"?,
+//!   "callsign"?, "squawk"?, "emergency"?}, "filter": {"kind", "band",
+//!   "operator", "emergency"}}`;
+//! - `n_number` (14 CFR 47.15(b)) from `{"text"}`; `registered_profile`:
+//!   the stock profile's name or null, from `{"manufacturer"?, "model"?,
+//!   "year"?}`, the registry's.
+//!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
@@ -576,6 +605,10 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             Ok(out)
         }
         _ if crate::wording::NAMES.contains(&name) => crate::wording::answer(name, ask.v),
+        // A field's weather (forecast::calls), the traffic list's filters and
+        // the registry's airplanes (aircraft::calls).
+        _ if crate::forecast::calls::NAMES.contains(&name) => crate::forecast::calls::call(name, ask.v),
+        _ if crate::aircraft::calls::NAMES.contains(&name) => crate::aircraft::calls::call(name, ask.v),
         // Instrument approaches taught and debriefed (approach::calls).
         _ if crate::approach::calls::NAMES.contains(&name) => crate::approach::calls::call(name, ask.v),
         _ if crate::route::answers::NAMES.contains(&name) => crate::route::answers::answer(name, ask.v),
