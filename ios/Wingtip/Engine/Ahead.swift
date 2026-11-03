@@ -41,12 +41,5 @@ extension CyclePacks {
         return try? Planner.snakeCase.decode(Ahead.self, from: Data(String(cString: answer).utf8))
     }
 
-    /// Each pack's bytes held for the one call.
-    private static func withPointers<R>(_ packs: ArraySlice<Data>, _ ptrs: [UnsafePointer<UInt8>?], _ lens: [Int],
-                                        _ body: ([UnsafePointer<UInt8>?], [Int]) -> R) -> R {
-        guard let first = packs.first else { return body(ptrs, lens) }
-        return first.withUnsafeBytes { raw in
-            withPointers(packs.dropFirst(), ptrs + [raw.bindMemory(to: UInt8.self).baseAddress], lens + [raw.count], body)
-        }
-    }
+    // withPointers: InView.swift, shared with the in-view readers.
 }

@@ -40,9 +40,12 @@ struct AirportPin: Codable, Equatable, Sendable {
     var airspaceClass: String?
     var military: String?
     var isPrivate: Bool? = false
+    /// The city this is the main airport of (the planner's primary_of), for
+    /// which mark to keep where two would collide (AirportMarks' tiers).
+    var primaryOf: String?
 
     enum CodingKeys: String, CodingKey {
-        case ident, name, lat, lon, kind, flightCategory, airspaceClass, military
+        case ident, name, lat, lon, kind, flightCategory, airspaceClass, military, primaryOf
         case isPrivate = "private"
     }
 
