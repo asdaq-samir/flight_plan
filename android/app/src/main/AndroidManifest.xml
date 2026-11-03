@@ -7,6 +7,15 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Own ship (flight/OwnShip.kt): the position at one fix a second,
+         kept with the screen off while flying through a foreground
+         service of the location type (Android 14 wants the typed
+         permission too), with the notification Android requires for one
+         and the alerts the flight pieces post (notify/Notifications.kt). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Only HTTPS: the gateway and the tiles' CDN are, and a plain-HTTP
          request is refused by the system rather than sent. The session's
@@ -51,6 +60,15 @@
                 <data android:pathPrefix="/api/auth/magic-link/verify" />
             </intent-filter>
         </activity>
+
+        <!-- The foreground service that keeps the fixes coming with the
+             screen off while the airplane is flying (flight/OwnShip.kt);
+             started and stopped by OwnShip as the airplane reaches and
+             leaves flying speed, never by anything outside the app. -->
+        <service
+            android:name=".flight.OwnShipService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
     </application>
 
 </manifest>

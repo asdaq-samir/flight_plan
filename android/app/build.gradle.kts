@@ -10,6 +10,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    // Room's compiler (records/Records.kt) runs through KSP.
+    alias(libs.plugins.ksp)
 }
 
 /// The site's host: the gateway's address and the app's App Links domain,
@@ -112,6 +114,14 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.maplibre)
     implementation(libs.material)
+    // The flight pieces: own ship's fixes, the records store, the traffic
+    // switch, and the process lifecycle the clock and the notifications read.
+    implementation(libs.play.services.location)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.lifecycle.process)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)

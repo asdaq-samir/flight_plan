@@ -18,6 +18,13 @@ material = "1.12.0"
 junit = "4.13.2"
 androidxTestRunner = "1.7.0"
 androidxTestJunit = "1.3.0"
+# The flight pieces (flight/, records/, notify/): the fused location
+# provider, Room for the records with KSP for its compiler (KSP's version
+# is Kotlin's plus its own), DataStore for the few switches.
+playServicesLocation = "21.3.0"
+room = "2.7.2"
+ksp = "2.2.20-2.0.3"
+datastore = "1.1.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -42,9 +49,27 @@ material = { group = "com.google.android.material", name = "material", version.r
 junit ={ group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidxTestRunner" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestJunit" }
+# Google's fused location provider, for own ship (flight/OwnShip.kt): one
+# fix a second from GPS with the phone's other sensors, as Core Location
+# gives the iPhone's.
+play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+# Room, for the pilot's records on the device (records/Records.kt), the
+# twin of the iOS app's SwiftData store; ktx for its suspending DAO and
+# flows, the compiler through KSP.
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+# DataStore preferences, for a flight piece's switches (the traffic layer
+# on or off, flight/Traffic.kt), in place of SharedPreferences.
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+# The process's lifecycle (ProcessLifecycleOwner), for the clock's
+# background slowing (flight/Ticker.kt) and whether the app is in front
+# (notify/Notifications.kt).
+androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
