@@ -1,5 +1,5 @@
 import L from "leaflet";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Pane, Polyline, useMap } from "react-leaflet";
 import { api } from "../api/client";
@@ -12,6 +12,7 @@ import { AIRSPACE_LINE, AIRSPACE_TAP } from "./airspaceMarks";
 import { useDrawnAirports } from "./declutter";
 import { edgeAnchors } from "./edgeLabels";
 import { AirspaceLabelsLayer, type CanvasEdgeLabel } from "./AirspaceLabelsCanvas";
+import { AirspaceLinesLayer } from "./AirspaceLinesCanvas";
 import { MapCard } from "./MapCard";
 import { Button } from "../../components/ui/button";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -60,9 +61,10 @@ const NONE: AirspaceVolume[] = [];
 /** The volumes already drawn, by their id and the box's height their
  *  lines were simplified for (the planner's tolerance_for): a pan into a
  *  new box answers with the same rings, and each kept as the same object
- *  is not drawn again (VolumeLines and VolumeTap are memo). New objects,
- *  every ring on the map was taken off its line and put back, its tap
- *  too, at each box a pan or a pinch asked for. */
+ *  is not projected again (AirspaceLinesLayer, by the object) nor its tap
+ *  made again (VolumeTap is memo). New objects, every ring on the map was
+ *  taken off its line and put back, its tap too, at each box a pan or a
+ *  pinch asked for. */
 const drawn = new Map<string, AirspaceVolume>();
 /** The most kept, a few states' worth, before they are let go. */
 const MOST_KEPT = 3000;
@@ -112,7 +114,7 @@ export function AirspaceLayer() {
   return (
     <>
       <Pane name="airspace" style={LINES_PANE}>
-        {volumes.map(v => <VolumeLines key={v.id} volume={v} />)}
+        <Lines volumes={volumes} />
       </Pane>
       <Pane name="airspace-labels" style={LABELS_PANE}>
         {near && <EdgeLabels volumes={volumes} />}
@@ -124,56 +126,23 @@ export function AirspaceLayer() {
   );
 }
 
-/** One volume's lines, drawn again only when its answer changes. */
-// Not clipped to the view (noClip): Leaflet cuts a line at its renderer's
-// bounds, the view and a tenth round it, and draws it again only once a
-// pan ends, so all through a pan a ring was cut straight where the view
-// had been (the owner's screenshots, 2026-11-02, Minneapolis' and Kansas
-// City's Class B). A volume's line is a few hundred points at most.
-const VolumeLines = memo(function VolumeLines({ volume }: { volume: AirspaceVolume }) {
+/**
+ * The volumes' lines on a canvas kept on the chart (AirspaceLinesLayer),
+ * as the airports' marks and the altitudes are: whole however the map
+ * is moved, where Leaflet's SVG cut a ring straight at its renderer's
+ * box (the owner's screenshots, 2026-11-02 and 2026-11-03).
+ */
+function Lines({ volumes }: { volumes: AirspaceVolume[] }) {
   const map = useMap();
-  const line = useRef<L.Polyline>(null);
-  const dashed = volume.airspace_class === "D";
-  // A Class D's dashes the same in number round its ring at every zoom,
-  // at the owner's ask (2026-11-02: "pick a number of dashes and stick
-  // with it instead of increasing them while zooming in"), where a dash
-  // of so many points made a ring of a dozen far out and a hundred close
-  // in. Its longest line's length at zoom 0, in the map's pixels; set
-  // again as each zoom ends, Leaflet having scaled the ring and its
-  // dashes with the chart through it.
-  const longest = useMemo(
-    () => (dashed ? Math.max(0, ...volume.lines.map(l => lineLength(map, l as [number, number][]))) : 0),
-    [dashed, map, volume.lines],
-  );
+  const [layer] = useState(() => new AirspaceLinesLayer("airspace"));
   useEffect(() => {
-    if (!dashed) return;
-    const restyle = () => line.current?.setStyle({ dashArray: ringDashes(longest * 2 ** map.getZoom()) });
-    restyle();
-    map.on("zoomend", restyle);
-    return () => { map.off("zoomend", restyle); };
-  }, [dashed, longest, map]);
-  return <Polyline ref={line} positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_LINE[volume.airspace_class]} interactive={false} noClip />;
-});
-
-/** A line's length in the map's pixels at zoom 0. */
-function lineLength(map: L.Map, line: [number, number][]): number {
-  let length = 0;
-  for (let i = 1; i < line.length; i++) length += map.project(line[i - 1]!, 0).distanceTo(map.project(line[i]!, 0));
-  return length;
-}
-
-/** How many dashes round a Class D's ring, about as many as the printed
- *  ring round a 4.4 nm surface area has on the 1:500,000 sectional: 102
- *  mm round, in dashes of 4 or 5 mm with their gaps. */
-const RING_DASHES = 24;
-/** No shorter a dash and its gap than this, px: far out, a ring's
- *  dashes are this, fewer of them, rather than a grey blur. */
-const SHORTEST_DASH_PX = 6;
-
-/** A ring `px` round's dash and gap, two to one, as the chart's. */
-function ringDashes(px: number): string {
-  const period = Math.max(SHORTEST_DASH_PX, px / RING_DASHES);
-  return `${(period * 2 / 3).toFixed(1)} ${(period / 3).toFixed(1)}`;
+    layer.addTo(map);
+    return () => { layer.remove(); };
+  }, [map, layer]);
+  useEffect(() => {
+    layer.set(volumes);
+  }, [layer, volumes]);
+  return null;
 }
 
 /** The words' width on the screen, each letter guessed a little wide

@@ -10,7 +10,14 @@ import { airportMark, openMapSettings, slow } from "./helpers";
  * and numbers are Chicago's own.
  */
 
-const lines = (page: Page) => page.locator(".leaflet-airspace-pane path");
+/** How many volumes' lines are drawn in the view, as their canvas writes
+ *  what it drew (AirspaceLinesLayer): a count by class, summed. */
+const lines = async (page: Page): Promise<number> => {
+  const canvas = page.locator(".leaflet-airspace-pane canvas[data-airspace-lines]");
+  if (!(await canvas.count())) return 0;
+  const counts: Record<string, number> = JSON.parse((await canvas.getAttribute("data-airspace-lines")) ?? "{}");
+  return Object.values(counts).reduce((sum, n) => sum + n, 0);
+};
 /** The altitudes along the lines, as their canvas writes what it drew
  *  (AirspaceLabelsLayer): each label's words and angle. */
 const labels = async (page: Page): Promise<{ text: string; angle: number }[]> => {
@@ -33,8 +40,7 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
 
   // O'Hare's card brings the map in on it, close enough for the labels.
   await page.goto("/app/plan?place=KORD");
-  await expect(lines(page).first()).toBeAttached({ timeout: slow(30000) });
-  expect(await lines(page).count()).toBeGreaterThan(5);
+  await expect.poll(() => lines(page), { timeout: slow(30000) }).toBeGreaterThan(5);
   // The altitudes along the lines, no plates (the owner, 2026-10-30):
   // O'Hare's shelves among them, and a Class D's
   // ceiling alone. In sight, and turned to read upright.
@@ -56,7 +62,7 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   await page.getByTestId("airspace-toggle").click();
   await page.getByTestId("navaids-toggle").click();
   await page.keyboard.press("Escape");
-  await expect(lines(page)).toHaveCount(0);
+  await expect.poll(() => lines(page)).toBe(0);
   await expect.poll(async () => (await labels(page)).length).toBe(0);
   await expect(vors(page)).toHaveCount(0);
 });

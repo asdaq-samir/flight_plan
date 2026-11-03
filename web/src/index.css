@@ -714,18 +714,18 @@ html[data-tv] .leaflet-container:focus {
 }
 
 /* What the map draws over the chart comes in over a fifth of a second,
-   as Maps' labels do, where the VORs, the VFR waypoints and the airspace
-   rings each appeared in one frame as a zoom reached them (the owner's
-   audit, 2026-11-02: the overlay "very dynamic while zooming in"); the
-   airports' marks fade on their canvas (AirportCanvas). Once, as each is
-   put on the map, not as it moves. At once under Reduce Motion. */
+   as Maps' labels do, where the VORs and the VFR waypoints each appeared
+   in one frame as a zoom reached them (the owner's audit, 2026-11-02:
+   the overlay "very dynamic while zooming in"); the airports' marks, the
+   airspace's rings and its altitudes fade on their canvases (AirportCanvas,
+   AirspaceLinesCanvas, AirspaceLabelsCanvas). Once, as each is put on the
+   map, not as it moves. At once under Reduce Motion. */
 @keyframes overlay-in {
   from { opacity: 0; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .leaflet-navaids-pane .leaflet-marker-icon,
-  .leaflet-waypoints-pane .leaflet-marker-icon,
-  .leaflet-airspace-pane path {
+  .leaflet-waypoints-pane .leaflet-marker-icon {
     animation: overlay-in 0.2s ease-out;
   }
 }
