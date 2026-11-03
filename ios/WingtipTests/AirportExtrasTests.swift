@@ -53,6 +53,8 @@ struct AirportExtrasTests {
         #expect(AirportWords.shortAirspaceName("CHICAGO, DUPAGE AIRPORT CLASS D") == "Chicago, Dupage Airport")
         let area = try #require(here.specialUse?.first)
         #expect(AirportWords.suaAltitudes(area) == "Surface to FL2")
+        // In a sentence's middle, the engine's own form.
+        #expect(AirportWords.suaAltitudes(area, midSentence: true) == "the surface to FL2")
         #expect(AirportWords.faaWords(area.timesOfUse) == "Intermittent by NOTAM 4 hours in advance")
         #expect(AirspaceCard.tfrPage("6/1234").absoluteString.hasSuffix("detail_6_1234"))
     }

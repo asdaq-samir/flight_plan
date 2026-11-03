@@ -1,11 +1,15 @@
 import Foundation
 
-/// The figures the web app works out on its pages, worked out by the
-/// planner for this app (app.figures), which computes none of its own:
-/// a flown track's debrief (POST /api/debrief), the diversion drill (GET
-/// /api/diversion), a hold's entry and wind (GET /api/holding) and lost
-/// communications' altitudes (POST /api/lost-comms). Each answer decoded
-/// from the planner's snake case.
+/// The figures the web app works out on its pages. A hold's entry and
+/// wind and lost communications' altitudes need nothing but what the
+/// pilot types, so the engine works them out on the phone, with no
+/// network (the `holding` and `lost_comms` rules, the same code that
+/// answers the planner's /api/holding and /api/lost-comms). A flown
+/// track's debrief (POST /api/debrief) needs the fields' pattern
+/// altitudes and the diversion drill (GET /api/diversion) the leg's
+/// winds aloft and variation, which the planner looks up, so those two
+/// stay the planner's (app.figures, the same engine code again). Each
+/// answer decoded from the engine's and the planner's snake case.
 
 // MARK: - The debrief
 
@@ -232,19 +236,23 @@ extension Planner {
         return try await fetch(DiversionAnswer.self, "/api/diversion", query)
     }
 
-    /// A hold's entry and, given the air, its legs (GET /api/holding).
+}
+
+extension Engine {
+    /// A hold's entry and, given the air, its legs (AIM 5-3-8), as
+    /// /api/holding answers them, its query the input.
     static func holding(inbound: Double, heading: Double, turns: String, tasKt: Double?, windFrom: Double?, windKt: Double?,
-                        altitudeFt: Double?) async throws -> HoldingAnswer {
-        try await fetch(HoldingAnswer.self, "/api/holding", [
-            "inbound": String(inbound), "heading": String(heading), "turns": turns,
-            "tas_kt": tasKt.map { String($0) }, "wind_from": windFrom.map { String($0) }, "wind_kt": windKt.map { String($0) },
-            "altitude_ft": altitudeFt.map { String($0) },
-        ])
+                        altitudeFt: Double?) throws -> HoldingAnswer {
+        try call("holding", json: [
+            "inbound": inbound, "heading": heading, "turns": turns,
+            "tas_kt": tasKt, "wind_from": windFrom, "wind_kt": windKt, "altitude_ft": altitudeFt,
+        ], decoder: Planner.snakeCase)
     }
 
-    /// Lost communications' altitudes and leaving the limit (POST /api/lost-comms).
-    static func lostComms(_ ask: LostCommsAsk) async throws -> LostCommsAnswer {
-        try await postRead(LostCommsAnswer.self, "/api/lost-comms", ask)
+    /// Lost communications' altitudes and leaving the limit (14 CFR
+    /// 91.185), as /api/lost-comms answers them, its body the input.
+    static func lostComms(_ ask: LostCommsAsk) throws -> LostCommsAnswer {
+        try call("lost_comms", ask, encoder: Planner.snakeEncoder, decoder: Planner.snakeCase)
     }
 }
 

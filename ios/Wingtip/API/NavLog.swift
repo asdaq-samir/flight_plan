@@ -118,12 +118,32 @@ struct Leg: Codable, Hashable, Sendable, Identifiable {
         var speedKt: Double?
     }
 
+    /// Where the climb tops out on the leg (TopOfClimb), and what the
+    /// climb to it takes: the dry run's rows (DryRun.rows) fly the climb
+    /// at its own speeds to its altitude. Optional all, as a plan kept
+    /// from before they were read has only the distance.
     struct TopOfClimb: Codable, Hashable, Sendable {
         var alongNm: Double?
+        var eteMin: Double?
+        var fuelGal: Double?
+        var altitudeFt: Double?
+        var lat: Double?
+        var lon: Double?
+        var tasKt: Double?
+        var groundspeedKt: Double?
     }
 
+    /// Where the descent starts on the leg (TopOfDescent), from what
+    /// altitude to what, and whether to the field's pattern.
     struct TopOfDescent: Codable, Hashable, Sendable {
         var alongNm: Double?
+        var eteMin: Double?
+        var fuelGal: Double?
+        var altitudeFt: Double?
+        var lat: Double?
+        var lon: Double?
+        var toFt: Double?
+        var pattern: Bool?
     }
 }
 
@@ -219,7 +239,7 @@ enum NavLog {
             "aircraft": aircraft,
             // The procedures picked, which the legs are flown by and
             // the descents planned to.
-            "procedures": procedures.isEmpty ? nil : procedures.map(\.param).joined(separator: ","),
+            "procedures": procedures.isEmpty ? nil : ProcedurePick.text(procedures),
             "altitude_ft": altitudeFt.map { String(Int($0)) },
             // Picked on the wheel: each leg at its nearest legal
             // altitude where the pick is one of the planner's.

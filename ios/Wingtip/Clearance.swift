@@ -1,7 +1,7 @@
 import Foundation
 
 /// An ATC clearance as the phone heard it, read into its items by the
-/// engine (wingtip_engine::clearance, Engine.hear) -- the web app's
+/// engine (wingtip_engine::clearance, `read_clearance`) -- the web app's
 /// lib/clearance, both held to the same fixture (clearances.json, the
 /// engine's tests/clearance.rs and SharedFixturesTests): its limit, its
 /// departure procedure, the route, the altitudes, the frequency and the
@@ -51,10 +51,11 @@ struct ClearedItem: Codable, Equatable, Sendable {
 
 extension Clearance {
     /// The clearance in what was heard, read by the engine
-    /// (wingtip_engine::clearance, the web's lib/clearance), with no
-    /// signal needed.
+    /// (`read_clearance`, the web's lib/clearance), with no signal
+    /// needed; nothing heard where the engine cannot answer.
     static func read(_ text: String) -> Clearance {
-        Engine.hear(text, tail: nil, packs: [], near: [], dep: "", stops: [], dest: "")?.clearance ?? Clearance()
+        let read: Clearance? = try? Engine.call("read_clearance", ["text": text])
+        return read ?? Clearance()
     }
 }
 
@@ -100,14 +101,6 @@ extension Clearance {
                             departure: named("departure"), arrival: named("arrival"))
     }
 
-    /// Two idents one field: "KDLH" and "DLH" (the web's sameField).
-    static func sameField(_ a: String, _ b: String) -> Bool {
-        func bare(_ ident: String) -> String {
-            ident.trimmingCharacters(in: .whitespaces).uppercased().replacingOccurrences(of: "^K(?=[A-Z0-9]{3}$)", with: "", options: .regularExpression)
-        }
-        return bare(a) == bare(b)
-    }
-
     /// A procedure to pick, as the web's typed one: its name and the
     /// points either side of it.
     struct Typed: Codable, Equatable, Sendable {
@@ -116,47 +109,22 @@ extension Clearance {
         let after: String?
     }
 
-    /// The route this clearance gives, from the one planned: its
+    /// The route a clearance heard gives, from the one planned: its
     /// destination the limit where that is an airport; its stops the
     /// places and airways said in order, the SID's transition after the
     /// departure and the STAR's before the destination; with "then as
     /// filed" the filed stops after the last one said that is among them,
-    /// or all of them where none is (AIM 5-2-6). The web's clearedRoute.
-    func clearedRoute(_ found: ClearancePlaces, dep: String, stops planned: [String], dest plannedDest: String) -> (dep: String, stops: [String], dest: String, typed: [Typed]) {
-        let dest = found.limit?.kind == "airport" ? (found.limit?.ident ?? plannedDest) : plannedDest
-        var said: [String] = []
-        var typed: [Typed] = []
-        var run = 0
-        for item in route {
-            switch item.kind {
-            case "places":
-                said += (found.route.flatMap { run < $0.count ? $0[run] : nil } ?? []).compactMap(\.ident)
-                run += 1
-            case "airway":
-                if let ident = item.ident { said.append(ident) }
-            case "departure":
-                if let departure = found.departure {
-                    typed.append(Typed(name: departure.id, before: dep.isEmpty ? nil : dep, after: departure.transition))
-                    if let transition = departure.transition { said.append(transition) }
-                }
-            case "arrival":
-                if let arrival = found.arrival {
-                    if let transition = arrival.transition { said.append(transition) }
-                    typed.append(Typed(name: arrival.id, before: arrival.transition, after: dest.isEmpty ? nil : dest))
-                }
-            default:
-                break
-            }
-        }
-        var stops = said
-        if asFiled {
-            let last = said.reversed().first { s in !FilingForm.airwayToken(s) && planned.contains { Self.sameField($0, s) } }
-            let from = last.flatMap { l in planned.firstIndex { Self.sameField($0, l) } }.map { $0 + 1 } ?? 0
-            stops = said + planned[from...]
-        }
-        let ends = stops
-        stops = ends.enumerated().filter { i, s in !(i == 0 && Self.sameField(s, dep)) && !(i == ends.count - 1 && Self.sameField(s, dest)) }.map(\.element)
-        stops = stops.enumerated().filter { i, s in i == 0 || !Self.sameField(s, stops[i - 1]) }.map(\.element)
-        return (dep, Array(stops.prefix(16)), dest, typed)
+    /// or all of them where none is (AIM 5-2-6). The engine's
+    /// `cleared_route`, the web's clearedRoute, from the words heard and
+    /// the places found for them; the route as planned where the engine
+    /// cannot answer.
+    static func clearedRoute(_ heard: String, _ found: ClearancePlaces, dep: String, stops planned: [String],
+                             dest plannedDest: String) -> (dep: String, stops: [String], dest: String, typed: [Typed]) {
+        struct Planned: Codable { let dep: String; let stops: [String]; let dest: String }
+        struct Ask: Encodable { let text: String; let found: ClearancePlaces; let planned: Planned }
+        struct Answer: Decodable { let route: Planned; let typed: [Typed] }
+        let ask = Ask(text: heard, found: found, planned: Planned(dep: dep, stops: planned, dest: plannedDest))
+        guard let answer: Answer = try? Engine.call("cleared_route", ask) else { return (dep, planned, plannedDest, []) }
+        return (answer.route.dep, answer.route.stops, answer.route.dest, answer.typed)
     }
 }

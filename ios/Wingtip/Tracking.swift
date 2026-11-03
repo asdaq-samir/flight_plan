@@ -129,28 +129,39 @@ final class Tracking {
         if watches.contains(watch) { watches.removeAll { $0 == watch } } else { watches.append(watch) }
     }
 
-    /// Whether the airplane is in the air (the web app's airborneNow): in
-    /// the air where heard there; on the ground where it has landed, or
-    /// where nothing was known and it has not been heard for half an hour
-    /// or ever (parked out of the receivers' hearing, PARKED_UNHEARD_S);
-    /// else what was known, as one gone quiet in the pattern has not
-    /// landed until it is known to have.
+    /// Whether the airplane is in the air (the engine's `airborne_now`,
+    /// the web app's airborneNow): in the air where heard there; on the
+    /// ground where it has landed, or where nothing was known and it has
+    /// not been heard for half an hour or ever (parked out of the
+    /// receivers' hearing); else what was known, as one gone quiet in the
+    /// pattern has not landed until it is known to have. What was known
+    /// where the engine cannot answer.
     static func airborneNow(before: Bool?, _ now: FlightStatus) -> Bool? {
-        if now.airborne == true { return true }
-        if now.arrived != nil { return false }
-        if before == nil { return now.heardS == nil || (now.heardS ?? 0) >= 30 * 60 ? false : nil }
-        return before
+        do {
+            return try Engine.call("airborne_now", json: [
+                "before": before, "airborne": now.airborne == true, "arrived": now.arrived != nil, "heard_s": now.heardS,
+            ])
+        } catch {
+            return before
+        }
     }
 
     /// The words a watch goes off with, or nil where it has not: "N654FL
-    /// took off from 10C", "N654FL landed at KDAW".
+    /// took off from 10C", "N654FL landed at KDAW". Whether it goes off is
+    /// the engine's (`alert_fires`: off where it was known on the ground
+    /// and is in the air, down where it was in the air and has arrived at a
+    /// field); the words are the app's.
     static func fired(_ watch: AirplaneWatch, before: Bool?, now: Bool?, status: FlightStatus) -> String? {
+        struct Fires: Decodable { let fires: Bool }
+        let go: Fires? = try? Engine.call("alert_fires", json: [
+            "kind": watch.kind.rawValue, "before_airborne": before, "airborne": now, "arrived": status.arrived != nil,
+        ])
+        guard go?.fires == true else { return nil }
         switch watch.kind {
         case .takeoff:
-            guard before == false, now == true else { return nil }
             return status.departed.map { "\(watch.name) took off from \($0.ident)" } ?? "\(watch.name) took off"
         case .land:
-            guard before == true, now == false, let field = status.arrived else { return nil }
+            guard let field = status.arrived else { return nil }
             return "\(watch.name) landed at \(field.ident)"
         }
     }

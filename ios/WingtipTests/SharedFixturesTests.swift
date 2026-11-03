@@ -222,7 +222,7 @@ struct SharedFixturesTests {
         let f = try fixture("clearances", as: ClearancesFixture.self)
         for c in f.read { #expect(Clearance.read(c.heard) == c.clearance, "\(c.heard)") }
         for c in f.routes {
-            let got = Clearance.read(c.heard).clearedRoute(c.found, dep: c.planned.dep, stops: c.planned.stops, dest: c.planned.dest)
+            let got = Clearance.clearedRoute(c.heard, c.found, dep: c.planned.dep, stops: c.planned.stops, dest: c.planned.dest)
             #expect(got.dep == c.route.dep && got.stops == c.route.stops && got.dest == c.route.dest, "\(c.heard)")
             #expect(got.typed == c.typed, "\(c.heard)")
         }

@@ -189,7 +189,7 @@ struct ClearanceSheet: View {
 
     private func enter() {
         let clearance = clearance
-        let cleared = clearance.clearedRoute(found ?? ClearancePlaces(), dep: plan.dep, stops: plan.stops, dest: plan.dest)
+        let cleared = Clearance.clearedRoute(text, found ?? ClearancePlaces(), dep: plan.dep, stops: plan.stops, dest: plan.dest)
         plan.dest = cleared.dest
         plan.stops = cleared.stops
         for typed in cleared.typed {
