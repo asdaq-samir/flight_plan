@@ -1,7 +1,7 @@
 import L from "leaflet";
-import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Pane, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { Pane, Polyline, useMap } from "react-leaflet";
 import { api } from "../api/client";
 import type { AirspaceVolume } from "../api/types";
 import { usePreferences } from "../preferences";
@@ -9,8 +9,9 @@ import { cn } from "cn";
 import { TEXT } from "../text";
 import { airspaceFacts, airspaceLabel } from "./airspaceLabel";
 import { AIRSPACE_LINE, AIRSPACE_TAP } from "./airspaceMarks";
-import { airportBox, overlaps, useDrawnAirports, type Box } from "./declutter";
-import { edgeSpots, spotBox } from "./edgeLabels";
+import { useDrawnAirports } from "./declutter";
+import { edgeAnchors } from "./edgeLabels";
+import { AirspaceLabelsLayer, type CanvasEdgeLabel } from "./AirspaceLabelsCanvas";
 import { MapCard } from "./MapCard";
 import { Button } from "../../components/ui/button";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -92,7 +93,7 @@ export function AirspaceLayer() {
         {volumes.map(v => <VolumeLines key={v.id} volume={v} />)}
       </Pane>
       <Pane name="airspace-labels" style={LABELS_PANE}>
-        {near && <EdgeLabels volumes={volumes} zoom={zoom} />}
+        {near && <EdgeLabels volumes={volumes} />}
       </Pane>
       <Pane name="airspace-taps" style={TAPS_PANE}>
         {volumes.map(v => <VolumeTap key={v.id} volume={v} />)}
@@ -108,34 +109,64 @@ export function AirspaceLayer() {
 // had been (the owner's screenshots, 2026-11-02, Minneapolis' and Kansas
 // City's Class B). A volume's line is a few hundred points at most.
 const VolumeLines = memo(function VolumeLines({ volume }: { volume: AirspaceVolume }) {
-  return <Polyline positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_LINE[volume.airspace_class]} interactive={false} noClip />;
+  const map = useMap();
+  const line = useRef<L.Polyline>(null);
+  const dashed = volume.airspace_class === "D";
+  // A Class D's dashes the same in number round its ring at every zoom,
+  // at the owner's ask (2026-11-02: "pick a number of dashes and stick
+  // with it instead of increasing them while zooming in"), where a dash
+  // of so many points made a ring of a dozen far out and a hundred close
+  // in. Its longest line's length at zoom 0, in the map's pixels; set
+  // again as each zoom ends, Leaflet having scaled the ring and its
+  // dashes with the chart through it.
+  const longest = useMemo(
+    () => (dashed ? Math.max(0, ...volume.lines.map(l => lineLength(map, l as [number, number][]))) : 0),
+    [dashed, map, volume.lines],
+  );
+  useEffect(() => {
+    if (!dashed) return;
+    const restyle = () => line.current?.setStyle({ dashArray: ringDashes(longest * 2 ** map.getZoom()) });
+    restyle();
+    map.on("zoomend", restyle);
+    return () => { map.off("zoomend", restyle); };
+  }, [dashed, longest, map]);
+  return <Polyline ref={line} positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_LINE[volume.airspace_class]} interactive={false} noClip />;
 });
 
-/** The words along the lines: 11 px bold, the map's smallest type, each
- *  letter guessed a little wide (declutter's), and the room they take
- *  across with their halo. */
-const EDGE_TEXT_PX = 11;
+/** A line's length in the map's pixels at zoom 0. */
+function lineLength(map: L.Map, line: [number, number][]): number {
+  let length = 0;
+  for (let i = 1; i < line.length; i++) length += map.project(line[i - 1]!, 0).distanceTo(map.project(line[i]!, 0));
+  return length;
+}
+
+/** How many dashes round a Class D's ring, about as many as the printed
+ *  ring round a 4.4 nm surface area has on the 1:500,000 sectional: 102
+ *  mm round, in dashes of 4 or 5 mm with their gaps. */
+const RING_DASHES = 24;
+/** No shorter a dash and its gap than this, px: far out, a ring's
+ *  dashes are this, fewer of them, rather than a grey blur. */
+const SHORTEST_DASH_PX = 6;
+
+/** A ring `px` round's dash and gap, two to one, as the chart's. */
+function ringDashes(px: number): string {
+  const period = Math.max(SHORTEST_DASH_PX, px / RING_DASHES);
+  return `${(period * 2 / 3).toFixed(1)} ${(period / 3).toFixed(1)}`;
+}
+
+/** The words' width on the screen, each letter guessed a little wide
+ *  (declutter's), for where they fit along a line. */
 const EDGE_LETTER_PX = 7;
-const EDGE_HEIGHT_PX = 14;
-/** No altitudes this close to an airport's mark or its ident, px: the
- *  field is what a pilot reads there. */
-const AIRPORT_CLEAR_PX = 20;
+/** The zoom the labels' places are worked out at: finer than the chart's
+ *  own, so a label is on its line at every zoom it is drawn at. */
+const EDGE_ZOOM = 13;
 
 /** The words' ink, the line's own hue a shade darker by day and as it is
  *  or lighter at night (index.css), 5.1:1 or more on their halo either
  *  way: over WCAG's 4.5:1 for small type. */
 const INK: Record<AirspaceVolume["airspace_class"], string> = {
-  B: "var(--airspace-edge-blue)", C: "var(--airspace-edge-magenta)", D: "var(--airspace-edge-blue)",
+  B: "--airspace-edge-blue", C: "--airspace-edge-magenta", D: "--airspace-edge-blue",
 };
-/** A halo of the map's own ground round each letter, white by day and
- *  the sheet's dark at night, so the words read over the chart's own
- *  print without a plate of their own (the owner, 2026-10-29). */
-const EDGE_STYLE = {
-  // iOS's Caption 2, 11 on 13 (TEXT.caption): set here, the SVG took the
-  // map's own 1.5 leading, 16.5, off the iOS scale (the audit's P3).
-  fontSize: EDGE_TEXT_PX, lineHeight: "13px", fontWeight: 700, fontVariantNumeric: "tabular-nums",
-  stroke: "var(--airspace-halo)", strokeWidth: 3, strokeLinejoin: "round", paintOrder: "stroke",
-} as const;
 
 /** A volume's altitudes on one line, as ForeFlight writes them: a Class B
  *  or C shelf's "100/30", a Class D's ceiling alone ("-30" under a Class
@@ -146,86 +177,51 @@ function edgeText(volume: AirspaceVolume): string | null {
   return label.kind === "shelf" ? `${label.top}/${label.floor}` : label.ceiling;
 }
 
-interface EdgeWords { key: string; x: number; y: number; angle: number; text: string; ink: string }
+/** A volume's labels where they lie on its lines, worked out once for
+ *  each answer: the same at every zoom (edgeAnchors). */
+const anchorsOf = new WeakMap<AirspaceVolume, CanvasEdgeLabel[]>();
+function volumeLabels(map: L.Map, volume: AirspaceVolume): CanvasEdgeLabel[] {
+  let labels = anchorsOf.get(volume);
+  if (labels) return labels;
+  labels = [];
+  const text = edgeText(volume);
+  if (text) {
+    volume.lines.forEach((line, n) => {
+      const points = line.map(p => map.project([p[0]!, p[1]!], EDGE_ZOOM));
+      edgeAnchors(points, text.length * EDGE_LETTER_PX, EDGE_ZOOM).forEach((a, i) => {
+        const at = map.unproject([a.x, a.y], EDGE_ZOOM);
+        labels!.push({
+          key: `${volume.id}-${n}-${i}`, lat: at.lat, lon: at.lng, dx: a.dx, dy: a.dy, angle: Math.round(a.angle * 10) / 10,
+          from: a.from, text, ink: INK[volume.airspace_class],
+        });
+      });
+    });
+  }
+  anchorsOf.set(volume, labels);
+  return labels;
+}
 
 /**
  * Every volume's altitudes written along its own lines, just inside it
- * and a few times round a long one (lib/map/edgeLabels), as ForeFlight's
- * Chicago map writes them (the owner's ask, 2026-10-30), clear of the
- * airports' marks. One SVG for all of them, in the map's pixels at this
- * zoom: a pan moves it with the pane and costs nothing, and the words are
- * worked out again only when the zoom, the volumes or the airports drawn
- * change. Hidden while a zoom or pinch is under way, when its pixels are
- * the zoom's before, and shown again at the new zoom's once it ends.
+ * and a few times round a long one, as ForeFlight's Chicago map writes
+ * them (the owner's ask, 2026-10-30), clear of the airports' marks: on a
+ * canvas that keeps each where it is on its line and its size through a
+ * zoom (AirspaceLabelsLayer), more coming in between them going in.
  */
-const EdgeLabels = memo(function EdgeLabels({ volumes, zoom }: { volumes: AirspaceVolume[]; zoom: number }) {
+function EdgeLabels({ volumes }: { volumes: AirspaceVolume[] }) {
   const map = useMap();
   const fields = useDrawnAirports(s => s.fields);
-  const holder = useRef<HTMLDivElement>(null);
-  const zooming = useRef(false);
-  const words = useMemo(() => {
-    const at = (lat: number, lon: number) => map.project([lat, lon], zoom);
-    const clear: Box[] = fields.map(f => {
-      const b = airportBox(at(f.lat, f.lon), f.ident);
-      return { x0: b.x0 - AIRPORT_CLEAR_PX, y0: b.y0 - AIRPORT_CLEAR_PX, x1: b.x1 + AIRPORT_CLEAR_PX, y1: b.y1 + AIRPORT_CLEAR_PX };
-    });
-    const out: EdgeWords[] = [];
-    for (const volume of volumes) {
-      const text = edgeText(volume);
-      if (!text) continue;
-      const width = text.length * EDGE_LETTER_PX;
-      volume.lines.forEach((line, n) => {
-        const points = line.map(p => at(p[0]!, p[1]!));
-        edgeSpots(points, width).forEach((spot, i) => {
-          if (clear.some(b => overlaps(b, spotBox(spot, width, EDGE_HEIGHT_PX)))) return;
-          out.push({
-            key: `${volume.id}-${n}-${i}`, x: Math.round(spot.x * 10) / 10, y: Math.round(spot.y * 10) / 10,
-            angle: Math.round(spot.angle * 10) / 10, text, ink: INK[volume.airspace_class],
-          });
-        });
-      });
-    }
-    return { zoom, out };
-  }, [map, volumes, zoom, fields]);
+  const [layer] = useState(() => new AirspaceLabelsLayer("airspace-labels"));
+  useEffect(() => {
+    layer.addTo(map);
+    return () => { layer.remove(); };
+  }, [map, layer]);
+  useEffect(() => {
+    layer.set(volumes.flatMap(v => volumeLabels(map, v)), fields);
+  }, [map, layer, volumes, fields]);
+  return null;
+}
 
-  // The SVG's corner at the world's pixel origin, so the words' world
-  // pixels land where the pane's own do; shown only once they are this
-  // zoom's.
-  const place = useCallback(() => {
-    const el = holder.current;
-    if (!el || zooming.current || words.zoom !== map.getZoom()) return;
-    L.DomUtil.setPosition(el, map.getPixelOrigin().multiplyBy(-1));
-    el.style.visibility = "";
-  }, [map, words]);
-  useMapEvents(useMemo(() => ({
-    zoomstart: () => {
-      zooming.current = true;
-      if (holder.current) holder.current.style.visibility = "hidden";
-    },
-    zoomend: () => {
-      zooming.current = false;
-      place();
-    },
-    viewreset: place,
-  }), [place]));
-  useLayoutEffect(place, [place]);
-
-  return (
-    <div ref={holder} className="pointer-events-none absolute left-0 top-0" style={HOLDER_STYLE}>
-      <svg width="1" height="1" overflow="visible" aria-hidden="true" style={EDGE_STYLE}>
-        {words.out.map(w => (
-          <text
-            key={w.key} data-airspace-edge-label="" x={w.x} y={w.y} transform={`rotate(${w.angle} ${w.x} ${w.y})`}
-            fill={w.ink} textAnchor="middle" dominantBaseline="central"
-          >{w.text}</text>
-        ))}
-      </svg>
-    </div>
-  );
-});
-
-/** Hidden until it is placed at this zoom (EdgeLabels' place). */
-const HOLDER_STYLE = { visibility: "hidden" } as const;
 /** A tap on a ring kept off the map under it, whose own tap is the
  *  chart's Airspace card. A constant: react-leaflet binds a path's
  *  handlers again whenever they are a new object. */
