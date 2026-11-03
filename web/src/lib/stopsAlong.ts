@@ -1,21 +1,15 @@
 import { create } from "zustand";
 
 /**
- * The map's Stops, opened from the Airport tab's Find Nearby (`opener`;
- * the map's own Stops button gave its place to the radio's microphone at
- * the owner's ask, 2026-11-02): the sheet of the fields with fuel, food,
+ * The map's Stops, opened from the Airport tab's Find Nearby (the map's
+ * own Stops button gave its place to the radio's microphone at the
+ * owner's ask, 2026-11-02): the sheet of the fields with fuel, food,
  * repair or flight training round the pilot or along the route over FPL
  * (StopsCard), its fields pinned on the chart (the owner, 2026-10-27; it
  * was Fly-in Food, and before that the stops along the route).
  */
 export const useStopsAlong = create<{
-  available: boolean;
   open: boolean;
-  /** The planner's own opening of the card -- FPL in sight, the other
-   *  cards put away -- for the map's button (PlanWorkspace's openStops). */
-  opener: (() => void) | null;
-  setOpener: (opener: (() => void) | null) => void;
-  setAvailable: (available: boolean) => void;
   setOpen: (open: boolean) => void;
   /** Where the card looks: along the route, or round the pilot; null as
    *  the route has it (along it where there is one). */
@@ -27,11 +21,7 @@ export const useStopsAlong = create<{
   picked: string | null;
   setPicked: (ident: string | null) => void;
 }>(set => ({
-  available: false,
   open: false,
-  opener: null,
-  setOpener: opener => set({ opener }),
-  setAvailable: available => set(available ? { available } : { available, open: false }),
   setOpen: open => set(open ? { open } : { open, picked: null }),
   scope: null,
   setScope: scope => set({ scope }),

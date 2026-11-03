@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { api } from "../api/client";
 import type { ChartLayer, Course } from "../api/types";
 import { diagramPicture, diagramRunwaysPicture } from "../diagram";
+import { rad } from "../geo";
 import { kindCycle, tileUrl } from "./tiles";
 
 /**
@@ -72,7 +73,7 @@ export function corridorTiles(line: [number, number][], zooms: number[], corrido
       const reach = Math.ceil(corridorNm / width);
       // Samples every half a tile along the segment, a ring of tiles
       // `reach` deep around each -- the union is the corridor.
-      const segmentNm = Math.hypot((lat1 - lat0) * 60, (lon1 - lon0) * 60 * Math.cos(((lat0 + lat1) / 2) * Math.PI / 180));
+      const segmentNm = Math.hypot((lat1 - lat0) * 60, (lon1 - lon0) * 60 * Math.cos(rad((lat0 + lat1) / 2)));
       const steps = Math.max(1, Math.ceil(segmentNm / (width / 2)));
       for (let s = 0; s <= steps; s++) {
         const lat = lat0 + ((lat1 - lat0) * s) / steps;
@@ -132,8 +133,7 @@ async function routeDiagrams(course: Course): Promise<string[]> {
 }
 
 /** The route's Stops (api.stopsAlong, the same address the Stops card
- *  asks, so the worker has the one it reads offline; it kept
- *  /api/route-stops, which nothing on the page reads) and, for each of its fields and the
+ *  asks, so the worker has the one it reads offline) and, for each of its fields and the
  *  route's own airports, the field's services, its pictures' list and the
  *  pictures themselves: what the Stops card and a field's Info and
  *  pictures ask for, so the worker has them (airport-extras,

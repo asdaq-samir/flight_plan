@@ -2,7 +2,7 @@ import L, { type PathOptions } from "leaflet";
 import { useEffect, useMemo, useRef } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Circle, Marker, useMap, useMapEvents } from "react-leaflet";
-import { signedTurn } from "../geo";
+import { M_PER_NM, signedTurn } from "../geo";
 import { nearestQuery } from "../queryClient";
 import { glideRangeNm, underway } from "./glide";
 import { prefersReducedMotion } from "../motion";
@@ -276,8 +276,8 @@ export function OwnShipLayer() {
     <>
       {glide != null && (
         <>
-          <Circle ref={halo} center={[fix.lat, fix.lon]} radius={glide * 1852} pathOptions={GLIDE_HALO} />
-          <Circle ref={ring} center={[fix.lat, fix.lon]} radius={glide * 1852} pathOptions={GLIDE_RING} />
+          <Circle ref={halo} center={[fix.lat, fix.lon]} radius={glide * M_PER_NM} pathOptions={GLIDE_HALO} />
+          <Circle ref={ring} center={[fix.lat, fix.lon]} radius={glide * M_PER_NM} pathOptions={GLIDE_RING} />
           <Marker
             ref={label} position={glideLabelAt(fix.lat, fix.lon, glide)} icon={glideLabelIcon(glideWords(glide))}
             interactive={false} keyboard={false} zIndexOffset={900}

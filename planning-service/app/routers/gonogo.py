@@ -5,7 +5,6 @@ their caches make a second ask after the nav log quick -- and feeds the
 findings from them and from what only the pilot knows, as the web app's
 FlightBriefingView feeds lib/verdict (app.gonogo)."""
 import logging
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -25,13 +24,8 @@ from ..gonogo.weight_balance import balance, default_load
 from ..gonogo.words import (
     PLAN_NAME, WEATHER_SOURCE_LABEL, alt_ft, ceiling_and_visibility, flight_level, gairmet_title, grouped, sigmet_hazard, to_fixed,
 )
-from ..planning import COMPUTE_LIMIT_S
-from ..scoring import route_checkpoints
 from . import briefing as briefing_router
-from .plan import (
-    NoWinds, PlanQuery, Unflyable, _result, _running_stages, _waited, flown_legs, hop_runs, join_outcomes, resolve_run,
-    totals_of, unflyable_parts, with_holds, with_procedures,
-)
+from .plan import NoWinds, PlanQuery, Unflyable, flown_as_picked, planned_within_limit, totals_of, unflyable_parts
 
 router = APIRouter()
 log = logging.getLogger(__name__)
@@ -65,24 +59,8 @@ def _as_dict(value) -> dict:
 
 def plan_for(q: PlanQuery, r) -> Planned:
     """The route planned as /api/plan plans it, bounded the same way."""
-    own = q.own_altitudes()
-    drawn = q.drawn_procedures()
     profile = q.profile()
-    runs: list = []
-
-    def work():
-        _, _, by_hop = route_checkpoints(r) if q.checkpoints else ([], [], [[] for _ in r.hops])
-        runs.extend(hop_runs(r, by_hop, q.depart, profile, q.own_ground(), q.own_holds()))
-        return join_outcomes(runs, [resolve_run(run, profile, q) for run in runs])
-
-    pool = ThreadPoolExecutor(max_workers=1)
-    try:
-        outcome = _result(_waited(
-            pool.submit(work), COMPUTE_LIMIT_S,
-            lambda: [stage for run in runs for stage in _running_stages(run, q)] if runs else ["chart"],
-        ))
-    finally:
-        pool.shutdown(wait=False)
+    _, _, runs, outcome = planned_within_limit(r, q, profile)
     aircraft = {"name": q.aircraft, **profile}
     if isinstance(outcome, Unflyable):
         why, _ = unflyable_parts(outcome, runs)
@@ -94,8 +72,8 @@ def plan_for(q: PlanQuery, r) -> Planned:
                             "aircraft": aircraft, "cautions": []}, legs=[], totals=None)
     nav = {"flown": outcome.choice or "custom", "altitude_ft": outcome.altitude_ft, "options": options,
            "selection": outcome.selection, "aircraft": aircraft, "cautions": [_as_dict(c) for c in outcome.cautions]}
-    outcome = with_holds(r, runs, with_procedures(r, runs, outcome, drawn, q.departure_runways()), q.own_holds())
-    legs = [_as_dict(leg) for leg in flown_legs(r, runs, outcome, own, drawn, q.own_ground())]
+    outcome, flown = flown_as_picked(r, runs, outcome, q)
+    legs = [_as_dict(leg) for leg in flown]
     totals = totals_of(r, runs, outcome, profile, q.rules, q.alternate, q.own_ground())
     return Planned(nav=nav, legs=legs, totals=totals)
 

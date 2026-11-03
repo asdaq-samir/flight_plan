@@ -23,7 +23,7 @@ import { trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
-import { frdOf, isPosition, placeOfPoint, pointName } from "../../../lib/identSchema";
+import { frdOf, isFixIdent, isPosition, placeOfPoint, pointName } from "../../../lib/identSchema";
 import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { etaAt, reportedWind, type ReportedWind } from "../format";
@@ -57,8 +57,6 @@ const ApproachLesson = lazy(() => import("./ApproachLesson"));
 /** The value of a choice's "None" (no transition), and a runway line's
  *  with none picked yet: a toggle's value is a string. */
 const NONE = "none";
-/** No altitudes of the pilot's own at any fix: one object, kept. */
-const NO_CROSSINGS: Record<string, number> = {};
 
 export type ProcedureKind = ProcedureSummary["kind"];
 type Kind = ProcedureKind;
@@ -97,7 +95,6 @@ export interface FitInputs {
   landingLb: number | null;
 }
 
-/** Where the procedures' sheet is open: one kind of a field's. */
 /** Where the procedures sheet is open: a field's kind of procedure, and
  *  one to open the page of as the list comes in, asked for by voice
  *  (lib/pilotCommand: "the ILS one nine right at Milwaukee") -- the
@@ -107,7 +104,6 @@ export type ProceduresAt = { ident: string; kind: Kind; pick?: { approach: strin
 
 // No runway picked into the wind, one set for good (a new one at every
 // render would be a new intoWind for the effect).
-const NO_AUTO: ReadonlySet<string> = new Set();
 
 /**
  * The route in FPL, in the order it is flown, at the owner's ask ("I
@@ -130,13 +126,12 @@ const NO_AUTO: ReadonlySet<string> = new Set();
  * Procedure Advisor picks one: the field's of that kind, then the one
  * procedure, its transition chosen, the map above the sheet drawing it
  * as it is chosen (`onPreview`, ProcedureLayer), its fixes listed, and
- * Add to Route at the foot. Back is the round button at the sheet's
- * head, the close's twin, at the owner's ask.
+ * Add to Route at the foot. Its close goes back to the list.
  */
 export default function ProceduresRoute({
-  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked = NO_AUTO, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
-  crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false,
+  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked, fit, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  crossings, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
+  onCreateFix, holds, onHoldSet, askHold = null, routePoints, stopsFull = false,
   fuel = null, routeLine = null,
 }: {
   airports: ProcedureAirport[];
@@ -162,10 +157,10 @@ export default function ProceduresRoute({
   onPreselectTakeoff: (ident: string, end: string) => void;
   /** The runways picked into the wind and not since by the pilot
    *  ("land:KABQ", "takeoff:KEVU"): each follows the wind as it changes. */
-  autoPicked?: ReadonlySet<string>;
+  autoPicked: ReadonlySet<string>;
   /** The airplane's figures and weights its runways' fit is worked from;
    *  none, no fit marked. */
-  fit?: FitInputs | null;
+  fit: FitInputs | null;
   /** The destination's approach charts, in its card. */
   onCharts: () => void;
   chartsDisabled: boolean;
@@ -187,33 +182,33 @@ export default function ProceduresRoute({
    *  `ground`), and the pick of one, from the time it leaves: a stop not
    *  named, the planner's turnaround (groundMinAt). */
   ground?: Record<string, number>;
-  onGround?: (ident: string, minutes: number) => void;
+  onGround: (ident: string, minutes: number) => void;
   /** The pilot's own altitudes to cross the procedures' fixes at, by fix. */
-  crossings?: Record<string, number>;
+  crossings: Record<string, number>;
   /** A fix of a procedure picked, tapped on its branch: its card (FixCard). */
-  onFix?: (field: string, kind: Kind, fix: string) => void;
+  onFix: (field: string, kind: Kind, fix: string) => void;
   /** The departure's time picked on its step (DepartPicker). */
-  onDepart?: (iso: string) => void;
+  onDepart: (iso: string) => void;
   /** The altitude at a point of the route, as the route box's menu offers
    *  it (PlanWorkspace's altitudeAt), and the pilot's own set there or
    *  (null) given back to the plan. */
-  pointAltitude?: (ident: string, waypoint: boolean) => PointAltitude;
-  onPointAltitude?: (ident: string, feet: number | null) => void;
+  pointAltitude: (ident: string, waypoint: boolean) => PointAltitude;
+  onPointAltitude: (ident: string, feet: number | null) => void;
   /** The point flown direct to (the address's `direct`), and Direct to
    *  one, or (null) the route flown as it was. */
   directTo?: string | null;
-  onDirectTo?: (ident: string | null) => void;
+  onDirectTo: (ident: string | null) => void;
   /** A point's card (an airport's, a waypoint's), from its menu. */
-  onInfo?: (ident: string) => void;
+  onInfo: (ident: string) => void;
   /** A stop taken out of the route, from its menu. */
-  onRemove?: (ident: string) => void;
+  onRemove: (ident: string) => void;
   /** The pilot's own point off one of the route's, flown over after it
    *  (FixFromDialog): "VPBNG/090/30". */
-  onCreateFix?: (after: string, ident: string) => void;
+  onCreateFix: (after: string, ident: string) => void;
   /** The pilot's holds (lib/holds), each its own row after its point, and
    *  one set, changed or (null) taken off (HoldSheet). */
-  holds?: Hold[];
-  onHoldSet?: (fix: string, hold: Hold | null) => void;
+  holds: Hold[];
+  onHoldSet: (fix: string, hold: Hold | null) => void;
   /** A hold asked for at a point just put in the route ("VPBNG/095/14.2@"
    *  and when, AirspaceCard's Hold here): its sheet opened once the plan
    *  has the leg to the point, for the course flown to it. */
@@ -222,7 +217,7 @@ export default function ProceduresRoute({
    *  a row not among them -- a fix along an airway typed as V100 -- has no
    *  Direct to, Remove or Create a fix, which work on the typed points
    *  (the audit's finding: they did nothing there, or the wrong thing). */
-  routePoints?: string[];
+  routePoints: string[];
   /** As many stops as the planner takes (MAX_STOPS): no Create a fix. */
   stopsFull?: boolean;
   /** The tanks, for the fuel in them at each point: their usable fuel, the
@@ -264,7 +259,7 @@ export default function ProceduresRoute({
   // goes from there.
   const positioned = useOwnShip(s => s.enabled && !!s.fix);
   const [answered, setAnswered] = useState<string | null>(null);
-  if (askHold && askHold !== answered && onHoldSet) {
+  if (askHold && askHold !== answered) {
     const fix = askHold.slice(0, askHold.lastIndexOf("@"));
     const to = rows.find(r => "airport" in r && sameField(r.airport.ident, fix));
     const leg = to ? legOf(to) : undefined;
@@ -487,14 +482,14 @@ export default function ProceduresRoute({
   // and its menu. `to`, a point flown to: Direct to it and its altitude
   // set there; `stop`, one the route's points can lose.
   const pointEnd = (ident: string, at: { time: ReactNode; waypoint: boolean; elevationFt: number | null; to: boolean; stop: boolean; holdable?: boolean; row?: NavLogRow }) => {
-    const altitude = at.to ? pointAltitude?.(ident, at.waypoint) : undefined;
+    const altitude = at.to ? pointAltitude(ident, at.waypoint) : undefined;
     const own = altitude?.own ? altitude.feet : null;
     const shown = own ?? (at.waypoint ? altitude?.feet ?? null : at.elevationFt);
     const direct = directTo !== null && sameField(directTo, ident);
-    const typed = !routePoints || routePoints.some(p => sameField(p, ident));
+    const typed = routePoints.some(p => sameField(p, ident));
     // Direct to a round trip's end on the ground, with no position, is from
     // the field to itself: a local flight, not a direct (the audit's).
-    const homeward = !!routePoints && routePoints.length > 1 && sameField(routePoints[0]!, ident) && !positioned;
+    const homeward = routePoints.length > 1 && sameField(routePoints[0]!, ident) && !positioned;
     const kind = own !== null ? "set" : at.waypoint ? "cruise" : "elev";
     return {
       direct,
@@ -508,17 +503,17 @@ export default function ProceduresRoute({
       menu: (face: ReactNode) => (
         <PointMenu
           face={face} ident={ident} direct={direct}
-          onDirect={at.to && typed && !homeward && onDirectTo ? () => onDirectTo(direct ? null : ident) : undefined}
-          onAltitude={at.to && altitude && onPointAltitude ? () => setEditing({ ident, waypoint: at.waypoint, altitude, elevationFt: at.elevationFt }) : undefined}
+          onDirect={at.to && typed && !homeward ? () => onDirectTo(direct ? null : ident) : undefined}
+          onAltitude={at.to && altitude ? () => setEditing({ ident, waypoint: at.waypoint, altitude, elevationFt: at.elevationFt }) : undefined}
           // An airport's card; a waypoint's is the chart's popup.
-          onInfo={onInfo && !at.waypoint ? () => onInfo(ident) : undefined}
+          onInfo={!at.waypoint ? () => onInfo(ident) : undefined}
           // Off a fix, a navaid or an airport by its ident: not off the
           // pilot's own point, nor a present position.
-          onFix={onCreateFix && typed && !stopsFull && /^[A-Z0-9]{2,5}$/.test(ident) ? () => setFixFrom(ident) : undefined}
+          onFix={typed && !stopsFull && isFixIdent(ident) ? () => setFixFrom(ident) : undefined}
           // Held over a point flown over, or before landing at the end:
           // not over a field landed at on the way, where it is left again.
           held={!!holdOn(ident)}
-          onHold={at.holdable && onHoldSet ? () => {
+          onHold={at.holdable ? () => {
             const leg = at.row ? legOf(at.row) : undefined;
             setHoldAt({
               fix: ident, hold: holdOn(ident), altitudeFt: leg?.altitude_ft ?? null,
@@ -526,7 +521,7 @@ export default function ProceduresRoute({
               arrivalDeg: leg ? normalizeDeg(leg.true_course_deg - leg.magnetic_variation_deg) : null,
             });
           } : undefined}
-          onRemove={at.stop && typed && onRemove ? () => onRemove(ident) : undefined}
+          onRemove={at.stop && typed ? () => onRemove(ident) : undefined}
         />
       ),
     };
@@ -576,7 +571,7 @@ export default function ProceduresRoute({
           key={`branch-${kind}`} name={inPlace.label} kind={KIND_WORD[kind]} menu={kindMenu(kind, "button")}
           fixes={inPlace.fixes ?? []} direct={inPlace.direct ?? null} crossings={crossings}
           onDirect={fix => onProcedures(procedures.map(p => (p === chosen ? { ...p, direct: fix } : p)), null)}
-          onOpen={fix => onFix?.(a.ident, kind, fix)}
+          onOpen={fix => onFix(a.ident, kind, fix)}
         />
       );
     };
@@ -788,7 +783,7 @@ export default function ProceduresRoute({
     // The departure's time on its own step, from the route's box at the
     // owner's ask ("The departure time can move from the route box to the
     // departure and arrival boxes"): picked there, Now for about now.
-    const leaving = onDepart ? <DepartPicker value={depart} onChange={onDepart} look="time" /> : time;
+    const leaving = <DepartPicker value={depart} onChange={onDepart} look="time" />;
     // Each runway line's key as PatternChips keeps it open: the field and
     // the chips' own name, none for a landing's or a departure's own.
     const landingLine = { key: `${a.ident}:`, chosen: chosenAt(a.ident) };
@@ -811,7 +806,7 @@ export default function ProceduresRoute({
     const onGroundMin = row?.kind === "stop" ? row.groundMin : groundMinAt(ground, a.ident);
     const flownTo = row?.minutesFlown ?? landedAt(a.ident);
     const landsMs = flownTo == null ? null : startMs + flownTo * 60_000;
-    const leaves = landsMs === null ? null : onGround ? (
+    const leaves = landsMs === null ? null : (
       <DepartPicker
         value={new Date(landsMs + onGroundMin * 60_000).toISOString()} look="time" label={`Departure from ${a.ident}`} testId={`depart-date-${a.ident}`} leavesNow={false}
         // From landing to a day after, as the planner takes a stop's time
@@ -819,7 +814,7 @@ export default function ProceduresRoute({
         earliest={landsMs} latest={landsMs + DAY_MIN * 60_000}
         onChange={iso => { if (iso) onGround(a.ident, Math.min(DAY_MIN, Math.max(0, Math.round((Date.parse(iso) - landsMs) / 60_000)))); }}
       />
-    ) : etaAt(depart || new Date().toISOString(), flownTo! + onGroundMin);
+    );
     return block([
       { role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null, line: landingLine },
       { role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: takeoffChips, leaves, line: takeoffLine },
@@ -864,7 +859,7 @@ export default function ProceduresRoute({
     // ("hold should get its own row").
     const holdRow = (ident: string) => {
       const hold = holdOn(ident);
-      return hold && onHoldSet ? (
+      return hold ? (
         <HoldRow
           key={`hold-${ident}`} hold={hold} flown={heldAs(ident)} last={last}
           onOpen={() => setHoldAt({ fix: hold.fix, hold, altitudeFt: legOf(row)?.altitude_ft ?? null, arrivalDeg: null })}
@@ -919,7 +914,7 @@ export default function ProceduresRoute({
         there, on a desktop, it closed as it opened. */}
     {holdUsed && (
       <Suspense fallback={null}>
-        <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet?.(fix, hold); setHoldAt(null); }} />
+        <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet(fix, hold); setHoldAt(null); }} />
       </Suspense>
     )}
     {lessonUsed && (
@@ -936,7 +931,7 @@ export default function ProceduresRoute({
         <Suspense fallback={null}>
           <PointAltitudeDialog
             point={editing} onClose={() => setEditing(null)}
-            onSet={(ident, feet) => { onPointAltitude?.(ident, feet); setEditing(null); }}
+            onSet={(ident, feet) => { onPointAltitude(ident, feet); setEditing(null); }}
           />
         </Suspense>
       )}
@@ -944,7 +939,7 @@ export default function ProceduresRoute({
         <Suspense fallback={null}>
           <FixFromDialog
             from={fixFrom} onClose={() => setFixFrom(null)}
-            onCreate={ident => { if (fixFrom) onCreateFix?.(fixFrom, ident); setFixFrom(null); }}
+            onCreate={ident => { if (fixFrom) onCreateFix(fixFrom, ident); setFixFrom(null); }}
           />
         </Suspense>
       )}
@@ -987,7 +982,6 @@ function listTitle(ident: string, kind: Kind): string {
   return `${ident} ${KIND_TITLE[kind].toLowerCase()}`;
 }
 
-const NO_HOLDS: Hold[] = [];
 /** A day, min: the longest time on the ground at a stop the planner takes. */
 const DAY_MIN = 24 * 60;
 

@@ -24,18 +24,12 @@ import { TEXT } from "../text";
  * away, which is what every map does and what Leaflet's `closeOnClick`
  * already did for two of the three. `MapShell` fits the route when the
  * last card closes, so the tap that opened a card and the tap that puts
- * it away are both halves of one gesture. A card's own controls -- the
- * terminal chart's pin, the training pass's step arrows -- sit in the
- * head, which is what `leading` is for. On a phone it is a card in the
+ * it away are both halves of one gesture. On a phone it is a card in the
  * map's panel instead (MapPopup), with the panel's close as every card's.
  */
-export function MapCard({ title, subtitle, leading, media, pill, children }: {
+export function MapCard({ title, subtitle, media, pill, children }: {
   title: ReactNode;
   subtitle?: ReactNode;
-  /** A control that belongs with the title rather than in the corner,
-   *  drawn at the head's left edge -- the Class B card's terminal-chart
-   *  pin, which is about the field the title names. */
-  leading?: ReactNode;
   /** The thing's own mark before its title -- a checkpoint's numbered
    *  dot, a waypoint's diamond, a TFR's badge -- the head then set to its
    *  left, as a list's rows are: the cards on the map read as the
@@ -64,7 +58,6 @@ export function MapCard({ title, subtitle, leading, media, pill, children }: {
       <>
         {inSheet.slot && createPortal(
           <>
-            {leading}
             {media}
             <div className="min-w-0 flex-1">
               {/* At a row's size and on one line each in the bar's row
@@ -109,7 +102,6 @@ export function MapCard({ title, subtitle, leading, media, pill, children }: {
     // still governs.
     <div className={cn("w-max min-w-full max-w-[min(22rem,74vw)] space-y-1.5 whitespace-normal", TEXT.detail)}>
       <div className={cn("flex gap-2", media ? "items-center gap-2.5" : "items-start")}>
-        {leading}
         {media}
         {/* Beside its mark, set to the left as a row is; with none,
             centred, and `flex justify-center` rather than `text-center`

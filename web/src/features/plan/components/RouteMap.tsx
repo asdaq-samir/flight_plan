@@ -8,9 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { airportQuery, classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
 import { placeWords } from "../../../lib/advisories";
-import type { Candidate, ClassBAirport, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
+import type { Candidate, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
-import type { AirportWeather } from "../../../lib/map/AirportCard";
 import { AirportsLayer } from "../../../lib/map/AirportsLayer";
 import { useAfterPaint } from "../../../hooks/use-after-paint";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
@@ -343,30 +342,17 @@ function CheckpointCard({ candidate, number, leg }: { candidate: Candidate; numb
   );
 }
 
-/** A departure or destination's weather, in `AirportCard`'s shape: its
- *  own METAR from the briefing, and -- when it is a Class B field on the
- *  Class B layer -- that layer's forecast for it. Each of "still
+/** What is known of a departure or destination's weather, for its
+ *  chip's colour: its own METAR from the briefing. Each of "still
  *  checking", "could not be checked" and "checked, no report" says so;
  *  they used to share one "no report". */
-function weatherOf(ident: string, briefing: BriefingState, classB: ClassBAirport | undefined): AirportWeather {
-  const forecast = classB && (classB.taf || classB.taf_ceiling_ft != null || classB.taf_visibility_sm != null)
-    ? { ceilingFt: classB.taf_ceiling_ft ?? null, visibilitySm: classB.taf_visibility_sm ?? null, raw: classB.taf ?? null }
-    : undefined;
+function weatherOf(ident: string, briefing: BriefingState): { status: string; category: string | null } {
   const ready = briefing.state === "ready" ? briefing : null;
   const metar = ready?.data.metars[ident];
   const status = briefing.state === "failed" || ready?.data.weather_unavailable.includes("metars") ? "unavailable"
     : !ready ? "checking"
       : metar ? "reported" : "no-report";
-  return {
-    status,
-    stale: !!ready?.refreshError,
-    category: metar?.flight_category ?? null,
-    ceilingFt: metar?.ceiling_ft ?? null,
-    visibilitySm: metar?.visibility_sm ?? null,
-    raw: metar?.raw ?? null,
-    observedAt: metar?.observed_at ?? null,
-    forecast,
-  };
+  return { status, category: metar?.flight_category ?? null };
 }
 
 /** The route's airports in the order they are flown -- the departure,
@@ -413,7 +399,7 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
           );
         }
         const field = classBShown ? classB?.find(b => b.ident === a.ident) : undefined;
-        const w = weatherOf(a.ident, weather, field);
+        const w = weatherOf(a.ident, weather);
         return (
           <Marker
             key={a.ident} position={[a.lat, a.lon]}

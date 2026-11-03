@@ -210,7 +210,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
                   {pieces.route ?? (
                     <RouteForm
                       dep={dep} dest={dest} onDepChange={setDep} onDestChange={setDest}
-                      onSubmit={pieces.submit} disabled={pieces.loading}
+                      onSubmit={() => pieces.submit?.()} disabled={pieces.loading}
                     />
                   )}
                 </div>

@@ -2342,34 +2342,6 @@ class AirportServices(BaseModel):
     nearby_unavailable: bool = False
 
 
-class RouteStopField(BaseModel):
-    """A field along the route to stop at, for the map's Stops (vfr.fuelstops.along):
-    which flight it is on, how far along it and off the line, its fuel,
-    and the nearest food, bed and car to hire from Overture (vfr.nearby),
-    once read (`nearby_known`)."""
-
-    ident: str
-    name: str
-    city: str
-    lat: float
-    lon: float
-    #: The flight it is on, by its index among the route's flights, and that
-    #: flight's departure.
-    flight: int
-    departure: str
-    #: Miles from that flight's departure, straight, and the miles it adds.
-    from_nm: float
-    added_nm: float
-    fuel_types: list[str] = []
-    runway_ft: int
-    elevation_ft: float | None = None
-    courtesy_car: bool = False
-    nearby_known: bool = False
-    food: NearbyPlace | None = None
-    lodging: NearbyPlace | None = None
-    car: NearbyPlace | None = None
-
-
 class StopField(BaseModel):
     """A field for the map's Stops, near the pilot or along a route: what
     it has of the four kinds -- the fuel it sells and its airframe and
@@ -2404,35 +2376,6 @@ class StopField(BaseModel):
     places_known: bool = True
 
 
-class FoodPhoto(BaseModel):
-    """A restaurant's photo on Google's servers, and whom to credit."""
-
-    url: str
-    credit: str | None = None
-
-
-class FoodReview(BaseModel):
-    author: str
-    rating: float | None = None
-    text: str
-    #: Google's own words for when: "3 weeks ago".
-    when: str | None = None
-
-
-class FoodDetails(BaseModel):
-    """A restaurant's stars, reviews and photos from Google Places, for the
-    map's fly-in food (app.routers.food_details)."""
-
-    place_id: str | None = None
-    name: str
-    rating: float | None = None
-    #: How many ratings the stars are of.
-    ratings: int | None = None
-    photos: list[FoodPhoto] = []
-    reviews: list[FoodReview] = []
-    maps_url: str | None = None
-
-
 class StopFields(BaseModel):
     """The map's Stops: the fields with fuel, food, repair or a flight
     school, nearest first round the pilot or in route order along it, and
@@ -2440,15 +2383,6 @@ class StopFields(BaseModel):
     again until none."""
 
     fields: list[StopField]
-    pending: int = 0
-
-
-class RouteStops(BaseModel):
-    """The fields along a route to stop at, in route order, and how many
-    of them still have their places to be read (`pending`): asked again
-    until none."""
-
-    fields: list[RouteStopField]
     pending: int = 0
 
 

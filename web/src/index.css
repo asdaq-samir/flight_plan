@@ -153,14 +153,12 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
    still wins. */
 @media (pointer: coarse) {
   :root {
-  /* The glass of every button (mapChrome's GLASS_BUTTON, GLASS_CLEAR,
+  /* The glass of every button (mapChrome's GLASS_BUTTON,
      AIRSPACE_PILL): one shape, lit along its top edge, a half-point edge
      and a soft shade, as iOS's glass is; only these colours are the
      theme's (the owner's "shouldn't it be common code between light and
      dark?"). */
   --glass-sheen: rgb(255 255 255 / 0.75);
-  --glass-top-fill: rgb(255 255 255 / 0.6);
-  --glass-foot-fill: rgb(255 255 255 / 0.12);
   --glass-light: rgb(255 255 255 / 0.95);
   --glass-edge: rgb(0 0 0 / 0.08);
   --glass-shade: rgb(0 0 0 / 0.10);
@@ -360,8 +358,6 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
    this block and holds it to that. */
 .dark {
   --glass-sheen: rgb(255 255 255 / 0.2);
-  --glass-top-fill: rgb(255 255 255 / 0.16);
-  --glass-foot-fill: rgb(255 255 255 / 0.02);
   --glass-light: rgb(255 255 255 / 0.24);
   --glass-edge: rgb(0 0 0 / 0.5);
   --glass-shade: rgb(0 0 0 / 0.55);

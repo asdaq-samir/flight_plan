@@ -288,14 +288,9 @@ function altAt(points: TrackPoint[], i: number, u: number): number | null {
 }
 const timeAt = (points: TrackPoint[], i: number, u: number) => at(points, i).t + u * ((points[i + 1]?.t ?? at(points, i).t) - at(points, i).t);
 
-/** The glidepath's height at a point, ft MSL: a straight line up from the
- *  runway's crossing altitude at its angle, over the curved earth. */
-function pathFt(gp: NonNullable<ProcedureDrawing["runway_path"]>, p: { lat: number; lon: number }): number {
-  const d = distanceNm(p, gp) * FT_PER_NM;
-  return gp.ft + d * Math.tan(rad(gp.deg)) + (d * d) / (2 * EARTH_FT);
-}
-
-/** The glidepath's height at a distance from its runway's threshold, nm. */
+/** The glidepath's height at a distance from its runway's threshold, nm,
+ *  ft MSL: a straight line up from the runway's crossing altitude at its
+ *  angle, over the curved earth. */
 export function glidepathFt(gp: NonNullable<ProcedureDrawing["runway_path"]>, nmOut: number): number {
   const d = nmOut * FT_PER_NM;
   return gp.ft + d * Math.tan(rad(gp.deg)) + (d * d) / (2 * EARTH_FT);
@@ -524,7 +519,7 @@ export function debriefApproach(d: ProcedureDrawing, points: TrackPoint[], optio
       if (fix === path.faf && gp) {
         const p = at(points, i);
         const below = (distanceNm(p, gp) * FT_PER_NM + GLIDESLOPE_ANTENNA_FT) * Math.tan(rad(GLIDESLOPE_DEG));
-        return Math.min(fix.minFt, pathFt(gp, p) - below);
+        return Math.min(fix.minFt, glidepathFt(gp, distanceNm(p, gp)) - below);
       }
       return fix.minFt;
     };
@@ -566,7 +561,7 @@ export function debriefApproach(d: ProcedureDrawing, points: TrackPoint[], optio
     for (let i = fafCross.i + 1; i <= endAt && i < points.length; i++) {
       const p = at(points, i);
       if (p.altFt == null) continue;
-      const dev = p.altFt - pathFt(gp, p);
+      const dev = p.altFt - glidepathFt(gp, distanceNm(p, gp));
       gpSum += Math.abs(dev); gpN++;
       high = high == null ? dev : Math.max(high, dev);
       low = low == null ? dev : Math.min(low, dev);

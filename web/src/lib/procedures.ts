@@ -1,4 +1,5 @@
 import type { ProcedureFix, ProcedureList } from "./api/types";
+import { isFixIdent } from "./identSchema";
 import { altFt } from "./units";
 
 /** An instrument procedure picked at a field of the route (the route's
@@ -50,9 +51,9 @@ export function proceduresOf(param: string | null): PickedProcedure[] {
   if (!param) return [];
   return param.split(",").flatMap(part => {
     const [ident, id, transition, direct] = part.split(":").map(s => s.trim().toUpperCase());
-    if (!(ident && id && /^[A-Z0-9]{2,5}$/.test(ident) && /^[A-Z0-9-]{1,6}$/.test(id))) return [];
+    if (!(ident && id && isFixIdent(ident) && /^[A-Z0-9-]{1,6}$/.test(id))) return [];
     const picked: PickedProcedure = { ident, id, transition: transition && /^[A-Z0-9]{1,5}$/.test(transition) ? transition : null };
-    return [direct && /^[A-Z0-9]{2,5}$/.test(direct) ? { ...picked, direct } : picked];
+    return [direct && isFixIdent(direct) ? { ...picked, direct } : picked];
   });
 }
 

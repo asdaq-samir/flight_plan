@@ -144,8 +144,6 @@ public class PlannerProxyController {
             route("GET", "/api/map/ages"),
             route("GET", "/api/alternate"),
             route("GET", "/api/route-profile"),
-            // The map's Stops: the fields along the route to stop at.
-            route("GET", "/api/route-stops"),
             // FPL's Routes: the ways round storms, weather and high ground.
             route("GET", "/api/route-options"),
             route("GET", "/api/class-b"),
@@ -175,8 +173,6 @@ public class PlannerProxyController {
             // The map's Stops: fields with fuel, food, repair or a flight school, round the pilot or along the route.
             route("GET", "/api/stops/near"),
             route("GET", "/api/stops/along"),
-            // A restaurant's stars, reviews and photos (Google Places).
-            route("GET", "/api/food-details"),
             route("GET", "/api/places/search"),
             route("GET", "/api/airport/{ident}"),
             route("GET", "/api/airport/{ident}/forecast-wind"),

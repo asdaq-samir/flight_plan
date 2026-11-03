@@ -20,11 +20,10 @@ import AltitudeReasoning from "../AltitudeReasoning";
 import type { RouteEnds } from "./rows";
 
 const RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
-const feet = (ft: number) => ft.toLocaleString("en-US");
 /** An altitude as said: feet under 18,000 ft, a flight level from there
  *  up, where altimeters are set to 29.92 (14 CFR 91.121, AIM 7-2-2). */
 /** The room over the highest ground, or how far under it. */
-const clearanceWords = (ft: number) => (ft >= 0 ? `${feet(ft)} ft` : `${feet(-ft)} ft under`);
+const clearanceWords = (ft: number) => (ft >= 0 ? `${altFt(ft)} ft` : `${altFt(-ft)} ft under`);
 /** Where the route first meets ground at or over the altitude. */
 const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round(nm)} nm`);
 
@@ -34,7 +33,7 @@ const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round
 // altitude planned (the owner's screenshot, 2026-10-27, while the
 // altitudes were still being planned).
 const PLACEHOLDER = flightLevel(null);
-const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
+const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${altFt(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
  *  are in, a point's own altitude among them (RouteBox), else of the
@@ -358,7 +357,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
     }
     const slider = el.querySelector<HTMLElement>("[role=slider]");
     slider?.setAttribute("aria-valuenow", String(altitude));
-    slider?.setAttribute("aria-valuetext", `${feet(altitude)} feet${names[altitude] ? `, ${names[altitude]}` : ""}`);
+    slider?.setAttribute("aria-valuetext", `${altFt(altitude)} feet${names[altitude] ? `, ${names[altitude]}` : ""}`);
   };
   // The altitude at a point on the graph, the legal one nearest it; the
   // scale zoomed out past four fifths of the way up, in under a third, to
@@ -432,7 +431,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           <div
             role="slider" tabIndex={0} aria-label="Cruise altitude" aria-orientation="vertical"
             aria-valuemin={altitudes.at(-1)} aria-valuemax={altitudes[0]} aria-valuenow={shownAt}
-            aria-valuetext={`${feet(shownAt)} feet${names[shownAt] ? `, ${names[shownAt]}` : ""}`}
+            aria-valuetext={`${altFt(shownAt)} feet${names[shownAt] ? `, ${names[shownAt]}` : ""}`}
             onPointerDown={grab} onPointerMove={move} onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={stepKey}
             className="absolute inset-0 cursor-ns-resize touch-none rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="altitude-wheel"
@@ -449,7 +448,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           altitudes keep the 14 CFR 91.119 and 91.177 margins over those. */}
       {shownAt !== null && check(shownAt) && (
         <div className={cn("grid grid-cols-3 gap-2 tabular-nums", TEXT.note)} data-testid="ground-strip">
-          <div><div className="text-muted-foreground">Highest ground</div><div className="font-semibold" data-live="highest">{feet(check(shownAt)!.highest)} ft</div></div>
+          <div><div className="text-muted-foreground">Highest ground</div><div className="font-semibold" data-live="highest">{altFt(check(shownAt)!.highest)} ft</div></div>
           <div><div className="text-muted-foreground">Clearance</div><div className="font-semibold" data-live="clearance">{clearanceWords(check(shownAt)!.clearance)}</div></div>
           <div><div className="text-muted-foreground">First strike</div><div className="font-semibold" data-live="strike">{strikeWords(check(shownAt)!.strikeNm)}</div></div>
         </div>
@@ -502,7 +501,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
             placeholder="Your altitude" testId="altitude-plan" onChange={onAltitudeChoiceChange}
             options={[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => ({
               value: o.kind, testId: "altitude-plan-option",
-              label: `${PLAN_NAME[o.kind]} · ${feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft`,
+              label: `${PLAN_NAME[o.kind]} · ${altFt(Math.max(...o.steps.map(st => st.altitude_ft)))} ft`,
             }))}
           />
         </div>
@@ -517,7 +516,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
         <div className={cn("space-y-1.5 rounded-lg bg-caution-wash p-2.5 text-caution-ink", TEXT.detail)} data-testid="own-altitude-cautions">
           {cautions.map(c => (
             <div key={`${c.from_ident}-${c.to_ident}`}>
-              <p className="font-semibold">{feet(c.altitude_ft)} ft {c.from_ident} → {c.to_ident}</p>
+              <p className="font-semibold">{altFt(c.altitude_ft)} ft {c.from_ident} → {c.to_ident}</p>
               <ul className="list-disc pl-4">{c.reasons.map(r => <li key={r}>{r}</li>)}</ul>
             </div>
           ))}

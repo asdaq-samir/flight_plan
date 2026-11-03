@@ -319,7 +319,7 @@ function approximateOf(key: string, ident: string): string | null {
  *  the workspace's render prop. */
 const panelNow: { current: PanelState } = { current: "peek" };
 
-export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
+export default function PlanWorkspace({ panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
     const later = window.setTimeout(prefetchPilotPanel, 2000);
     return () => window.clearTimeout(later);
@@ -368,7 +368,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // pick (2026-10-20): planned through it with the clearance it takes
   // (14 CFR 91.131), said in the altitude's sheet with "Avoid Class B".
   const classBClearance = searchParams.get("class_b") !== "0";
-  const classBVia = searchParams.get("class_b_via") ?? "";
   // Points' own altitudes (`altitudes`, "VPBNG:4500,KMSN:1900"), set from
   // a point's menu in the route's box: a waypoint's flown to it, an
   // airport's its pattern. As the address has them, for the planner.
@@ -376,13 +375,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // A local flight's time aloft, in minutes (`local_min`): an hour unless
   // the address says otherwise.
   const localMin = LOCAL_MINUTES.includes(Number(searchParams.get("local_min"))) ? Number(searchParams.get("local_min")) : 60;
-  // The Custom altitude box's own draft, sent with the next load -- and,
-  // like the header's route, belonging to the plan it was typed over: a
-  // different route or altitude in the address shows that one.
-  const altKey = `${planned.dep}-${planned.dest}-${via}-${altitudeFt}`;
-  const [altDraft, setAltDraft] = useState<{ of: string; value: string } | null>(null);
-  const alt = altDraft?.of === altKey ? altDraft.value : altitudeFt;
-  const setAlt = useCallback((value: string) => setAltDraft({ of: altKey, value }), [altKey]);
   // Load pressed again for the same route: a fresh nav log, fresh winds.
   const [load, setLoad] = useState(0);
   // The airplane the nav log is computed for: remembered per browser
@@ -557,7 +549,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
-    planNow: true,
   };
   const s = usePlan(planParams);
   // The route's own time and miles: its nav log's once it is planned,
@@ -1218,26 +1209,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     });
   }, [fromFor, depart, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules, setLoad]);
 
-  const submit = useCallback(() => {
-    const route = routeOf(dep, dest, planned.stops);
-    if (!route) return;
-    const next: Record<string, string> = { ...route };
-    if (via) next.stops = via;
-    if (alt.trim()) next.altitude_ft = alt.trim();
-    // Still the wheel's pick: still flown at each leg's nearest legal one.
-    if (alt.trim() && altitudeNearest && alt.trim() === altitudeFt) next.altitude_nearest = "1";
-    if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
-    if (altitudes) next.altitudes = altitudes;
-    if (depart) next.depart = depart;
-    // Class B avoided for this route, not the next one.
-    if (!classBClearance && route.dep === planned.dep && route.dest === planned.dest) {
-      next.class_b = "0";
-      if (classBVia && planned.stops.includes(classBVia)) next.class_b_via = classBVia;
-    }
-    if (panelNow.current === "full") next.view = "briefing";
-    setSearchParams(next, { replace: true });
-    setLoad(n => n + 1);
-  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeFt, altitudeNearest, altitudeChoice, altitudes, depart, classBClearance, classBVia, setSearchParams, setLoad]);
 
   // The route, changed in its box (RouteBox): in the address at once,
   // which re-plans, as the airplane and the time do -- the departure,
@@ -1290,7 +1261,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // asking for the destination next (RouteBox). The card put away for the
   // route under it.
   const addStop = useCallback((to: { ident: string }) => {
-    const points = [planned.dep, ...planned.stops, planned.dest].filter(Boolean);
+    const points = [...routePoints];
     if (points.includes(to.ident)) return;
     if (planned.dep && planned.dest) points.splice(-1, 0, to.ident);
     else if (planned.dest) points.unshift(to.ident);
@@ -1305,7 +1276,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         place: null, direct: null, was: null,
       });
     }, { replace: true });
-  }, [planned.dep, planned.stops, planned.dest, setSearchParams]);
+  }, [routePoints, planned.dep, planned.dest, setSearchParams]);
   // A point's own altitude set, or (null) given back to the plan.
   const setPointAltitude = useCallback((ident: string, feet: number | null) => {
     setSearchParams(prev => {
@@ -1315,8 +1286,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { altitudes: altitudesParam(own) });
     }, { replace: true });
   }, [setSearchParams]);
-  // The box's own changes (RouteBox).
-  const routeTyped = useCallback((parts: RouteParts, fuelAdded?: string[]) => setRoute(parts, fuelAdded), [setRoute]);
   const setStops = useCallback(
     (stops: string[], fuelAdded?: string[], keepLists = false) => setRoute({ dep: planned.dep, stops, dest: planned.dest }, fuelAdded, keepLists),
     [setRoute, planned.dep, planned.dest]);
@@ -1481,10 +1450,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // leg's floor or on the wrong thousands for its course (14 CFR 91.119,
   // 91.159).
   const flyAltitude = useCallback((ft: number, nearest = false) => {
-    setAlt(String(ft));
     setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_nearest: nearest ? "1" : null, altitude_choice: null }), { replace: true });
-  }, [setAlt, setSearchParams]);
-  const flyWheelAltitude = useCallback((ft: number, legal: boolean) => flyAltitude(ft, legal), [flyAltitude]);
+  }, [setSearchParams]);
   // The radio's calls to us (lib/atcRadio): ours by the airplane's
   // registration, the one picked or one of the pilot's own; Direct To the
   // place a call said, found near the route, from where the airplane is,
@@ -1728,15 +1695,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const kinds = kindsOf(f).filter(k => stopKind === "all" || k === stopKind);
     return kinds.length && !fuelStopPins.some(p => p.ident === f.ident) ? [{ ident: f.ident, lat: f.lat, lon: f.lon, kinds }] : [];
   }) : undefined), [stopsShown, stopsFound, stopKind, fuelStopPins]);
-  // Find Nearby's tile (the Airport tab): the Stops round the pilot, that
-  // kind picked, over FPL as the map's button opens them.
-  const setStopKind = usePreferences(p => p.setStopKind);
-  const stopsOpener = useStopsAlong(st => st.opener);
-  const findNearby = useCallback((kind: StopKind) => {
-    setStopKind(kind);
-    setStopsScope("near");
-    stopsOpener?.();
-  }, [setStopKind, setStopsScope, stopsOpener]);
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
@@ -1804,9 +1762,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const closeProfileCard = useCallback(() => closeCard(() => setProfileOpen(false)), [closeCard]);
   // The map's Stops, put away to the height FPL had (closeCard).
   const closeStops = useCallback(() => closeCard(() => setStopsOpen(false)), [closeCard, setStopsOpen]);
-  // Opened from the map's button: FPL in sight with it, the other cards
-  // over FPL and an airport's put away, half way up from the pill, as the
-  // Profile opens from its button.
+  // Opened: FPL in sight with it, the other cards over FPL and an
+  // airport's put away, half way up from the pill, as the Profile opens
+  // from its button.
   const openStops = useCallback(() => {
     setStopsOpen(true);
     setTabPick("fpl");
@@ -1815,6 +1773,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => (prev.get("brief") || prev.get("place") ? patched(prev, { brief: null, place: null }) : prev), { replace: true });
     if (panelNow.current !== "full") setPanel("half");
   }, [setStopsOpen, setTabPick, setSearchParams, setPanel]);
+  // Find Nearby's tile (the Airport tab): the Stops round the pilot, that
+  // kind picked.
+  const setStopKind = usePreferences(p => p.setStopKind);
+  const findNearby = useCallback((kind: StopKind) => {
+    setStopKind(kind);
+    setStopsScope("near");
+    openStops();
+  }, [setStopKind, setStopsScope, openStops]);
+  // Put away with the planner.
+  useEffect(() => () => setStopsOpen(false), [setStopsOpen]);
   // A field's pin tapped on the chart: its row picked in the sheet, the
   // sheet half way up from the pill so the row is in sight, where the tap
   // opened the field's card (the owner, 2026-10-28: the card is a tap on
@@ -1824,18 +1792,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setStopPicked(ident);
     if (panelNow.current === "peek") setPanel("half");
   }, [setStopPicked, setPanel]);
-  const setStopsOpener = useStopsAlong(st => st.setOpener);
-  useEffect(() => {
-    setStopsOpener(openStops);
-    return () => setStopsOpener(null);
-  }, [openStops, setStopsOpener]);
-  // The button there always: the stops near the pilot, with a route or none.
-  const setStopsAvailable = useStopsAlong(st => st.setAvailable);
-  const canStop = true;
-  useEffect(() => {
-    setStopsAvailable(canStop);
-    return () => setStopsAvailable(false);
-  }, [canStop, setStopsAvailable]);
   // The legs asked for from the Brief: FPL all the way up in its place.
   const showLegs = useCallback(() => {
     setSearchParams(prev => {
@@ -2274,9 +2230,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const [runFrom, setRunFrom] = useState<number | null>(null);
   // Whether the approach picked has gone missed (the run's Go missed).
   const [goMissed, setGoMissed] = useState(false);
-  const flownFrom = useMemo(() => (runFrom !== null && course ? dryRunOf(
-    navLogRows(course, selected, s.legs), runFrom, course.course_line, goMissed,
-  ) : null), [runFrom, course, selected, s.legs, goMissed]);
+  // The rows it is flown along, the procedures picked flown as the legs are
+  // planned by them: out by a departure, in by an arrival and an approach.
+  const runRows = useMemo(() => (course ? navLogRows(course, selected, s.legs) : null), [course, selected, s.legs]);
+  const flownFrom = useMemo(() => (runFrom !== null && course && runRows ? dryRunOf(
+    runRows, runFrom, course.course_line, goMissed,
+  ) : null), [runFrom, course, runRows, goMissed]);
   // The last run long enough to fly, held while new legs stream in.
   const [lastRun, setLastRun] = useState<DryRun | null>(null);
   if (flownFrom && flownFrom.points.length >= 2 && flownFrom !== lastRun) setLastRun(flownFrom);
@@ -2294,11 +2253,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // place, at the owner's ask ("profile should play the dry run within
   // profile card"), and put away with it.
   const startDryRun = () => {
-    if (!course) return;
-    // The procedures picked flown, as the legs are planned by them: out by
-    // a departure, in by an arrival and an approach.
+    if (!course || !runRows) return;
     const from = Math.round((depart ? Date.parse(depart) : Date.now()) / 1000);
-    const run = dryRunOf(navLogRows(course, selected, s.legs), from, course.course_line);
+    const run = dryRunOf(runRows, from, course.course_line);
     if (run.points.length < 2) return;
     setGoMissed(false);
     setRunFrom(from);
@@ -2312,10 +2269,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // have streamed in, and a tap on its Dry run then did nothing (the run
   // too short to fly) -- seen as the dry-run spec's phone tapped it early.
   // Its button waits for them, dimmed.
-  const dryRunReady = useMemo(
-    () => !!course && navLogRows(course, selected, s.legs).slice(1).every(row => !!legOf(row)),
-    [course, selected, s.legs],
-  );
+  const dryRunReady = !!runRows && runRows.slice(1).every(row => !!legOf(row));
   // Stopped, the side view it was flown over, the route's list a swipe
   // back, at the owner's ask ("When stopping dry run it should become
   // profile view and then swiping should take it back").
@@ -2682,7 +2636,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         key={place} ident={place} from={measuredFrom}
         onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
         // None for a point of the route, or past the planner's most stops.
-        onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined
+        onAddStop={routePoints.includes(place) || planned.stops.length >= MAX_STOPS ? undefined
           : suggestedAt ? () => keepFuelStops(suggestedAt.after, [place]) : addStop}
         stop={suggestedAt?.stop}
         // The route's destination: when the flight lands there -- the time
@@ -2732,7 +2686,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         tight={unflyable ? null : tightLeg}
         classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
         onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
-        onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyWheelAltitude}
+        onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyAltitude}
         // The rules' switch at the card's top right (ProfileCard's corner).
         rules={flightRules}
       />
@@ -3113,7 +3067,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         <RouteBox
           dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
           altitudeAt={altitudeAt} onAltitudeChange={setPointAltitude}
-          onChange={routeTyped} onTypedProcedures={typeProcedures}
+          onChange={setRoute} onTypedProcedures={typeProcedures}
           adding={!!addingStop} onAddingChange={addingChange}
           via={addingStop === "via" ? s.unflyable?.detours : undefined}
           procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop} holdFor={browsedRoutes}
@@ -3128,27 +3082,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         </Suspense>
       </div>
     ),
-    // The airplane and the departure time, under the route with the
-    // panel out, and beside them saving the flight, the narrative and
-    // Print: the route's box has the top row to itself.
-    // A local flight: how long aloft in place of the narrative, which is
-    // written from legs it has none of.
-    // On one line, at the pilot's ask: the airplane, the altitude and the
-    // time, chips at a note's 13 (as Maps' route options are) four apart,
-    // and Save, Share and Print at the end -- at the reader's own text
-    // size, which on the pilot's phone is a step up from iOS's default.
-    // Narrower than that, the actions take a line of their own rather than
-    // run off the screen. With the route cleared or half typed, all of it
-    // still, what needs a route greyed (routeActions). While a dry run is up
-    // too, the half sheet now tall enough for both, at the owner's ask
-    // ("This way we won't have to hide the buttons for dry run"): they made
-    // way for it before.
-    // In the route's box, under its lines (RouteBox's footer), at the
-    // owner's ask: no row of their own under it.
-    controls: undefined,
     console: <PilotPanel />,
-    submit,
-    loading: s.stage !== null,
   });
 }
 

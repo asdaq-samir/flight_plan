@@ -21,8 +21,9 @@ export interface WorkspacePieces {
    *  actions (save, the narrative and print; filter, undo and more). */
   actions?: ReactNode;
   console: ReactNode;
-  /** Loads the route in the panel's form. */
-  submit: () => void;
+  /** Loads the route in the panel's form: the training's; the planner
+   *  has its route's box (`route`) and no form. */
+  submit?: () => void;
   /** A load in progress: the form's own button is disabled. */
   loading?: boolean;
   /** The panel at rest: a capsule with the route in it, or a search bar

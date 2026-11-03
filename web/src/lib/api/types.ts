@@ -94,8 +94,6 @@ export type NearbyPlace = Schemas["NearbyPlace"];
  *  aerial from the USGS and a photo from the ground from Wikipedia. */
 export type AirportPhotos = Schemas["AirportPhotos"];
 /** The fields along a route to stop at, for the map's Stops (vfr.fuelstops.along). */
-export type RouteStops = Schemas["RouteStops"];
-export type RouteStopField = Schemas["RouteStopField"];
 /** The ways to fly a route, for FPL's Routes (vfr.route_options), and one of them. */
 export type RouteOptions = Schemas["RouteOptions"];
 export type RouteChip = Schemas["RouteChip"];
@@ -152,7 +150,6 @@ export type NearestAirports = Schemas["NearestAirports"];
 /** The map's Stops: the fields with fuel, food, repair or a flight school. */
 export type StopFields = Schemas["StopFields"];
 export type StopField = Schemas["StopField"];
-export type FoodDetails = Schemas["FoodDetails"];
 export type NearestAirport = Schemas["NearestAirport"];
 export type PlaceFound = Schemas["PlaceFound"];
 export type PlacesFound = Schemas["PlacesFound"];
