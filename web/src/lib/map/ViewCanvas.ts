@@ -64,8 +64,8 @@ export abstract class ViewCanvasLayer extends L.Layer {
   private topLeft: L.LatLng | null = null;
   /** The zoom the drawing is for. */
   private drawnZoom = 0;
-  /** What the last drawing covers, in the map's layer points. */
-  private drawn: L.Bounds | null = null;
+  /** The last drawing was made under a pinch: drawn again at rest. */
+  private drawnMoving = false;
   /** The zoom being animated to, and when it started, while one is. */
   private zoomingTo: { zoom: number; center: L.LatLng; start: number } | null = null;
 
@@ -124,15 +124,28 @@ export abstract class ViewCanvasLayer extends L.Layer {
    *  PAD round the screen), not at every frame -- the redraws were most of
    *  a pan's main-thread time on a phone (measured 2026-10-26: drawImage
    *  and the labels 400 ms of a 20-step pan at 4x throttle). As it comes
-   *  to rest it is drawn again in full (moveend). */
+   *  to rest it is drawn again in full (moveend). Under a pinch the canvas
+   *  is scaled with the chart (zoomed), and what it covers is judged
+   *  scaled: judged by the layer's points at the zoom it was drawn for, a
+   *  pinch drew the plate again at nearly every frame, and a pinch out
+   *  showed its edge, the plate cut off, before it was drawn again. */
   private moved(): void {
     const map = this._map;
-    if (!map || !this.drawn) return this.schedule();
+    if (!map || !this.topLeft) return this.schedule();
+    const zooming = map.getZoom() !== this.drawnZoom;
+    if (!this.covers(zooming ? L.point(0, 0) : map.getSize().multiplyBy(PAD / 2))) this.schedule();
+  }
+
+  /** Whether what was drawn, where the map now has it, reaches `margin`
+   *  past every side of the screen. */
+  private covers(margin: L.Point): boolean {
+    const map = this._map!;
     const size = map.getSize();
-    const margin = size.multiplyBy(PAD / 2);
-    const tl = map.containerPointToLayerPoint(L.point(0, 0)).subtract(margin);
-    const br = map.containerPointToLayerPoint(size).add(margin);
-    if (!this.drawn.contains(tl) || !this.drawn.contains(br)) this.schedule();
+    const scale = map.getZoomScale(map.getZoom(), this.drawnZoom);
+    const pad = size.multiplyBy(PAD).round();
+    const tl = map.latLngToContainerPoint(this.topLeft!);
+    const br = tl.add(L.point(size.x + 2 * pad.x, size.y + 2 * pad.y).multiplyBy(scale));
+    return tl.x <= -margin.x && tl.y <= -margin.y && br.x >= size.x + margin.x && br.y >= size.y + margin.y;
   }
 
   /** A move ended: drawn again only where it left what was drawn, or the
@@ -141,7 +154,7 @@ export abstract class ViewCanvasLayer extends L.Layer {
    *  drawn again at each: 56 to 250 ms of three seconds of a dry run at
    *  200x, 4x a phone's (2026-10-29). */
   private ended(): void {
-    if (this._map?.getZoom() !== this.drawnZoom) return this.schedule();
+    if (this._map?.getZoom() !== this.drawnZoom || this.drawnMoving) return this.schedule();
     this.moved();
   }
 
@@ -170,6 +183,7 @@ export abstract class ViewCanvasLayer extends L.Layer {
       L.DomUtil.setTransform(this.canvas, at, map.getZoomScale(zoom, this.drawnZoom));
     }
     if (this.redrawWhileZooming) this.schedule();
+    else this.moved();
   }
 
   /** Through a zoom's animation (a wheel's step, a double tap, a fitted
@@ -242,9 +256,9 @@ export abstract class ViewCanvasLayer extends L.Layer {
     const width = size.x + 2 * pad.x, height = size.y + 2 * pad.y;
     this.topLeft = map.containerPointToLatLng(from);
     this.drawnZoom = map.getZoom();
+    this.drawnMoving = !!(map as L.Map & { touchZoom?: { _zooming?: boolean } }).touchZoom?._zooming;
     const origin = map.containerPointToLayerPoint(from);
     L.DomUtil.setPosition(canvas, origin);
-    this.drawn = L.bounds(origin, origin.add(L.point(width, height)));
     const dpr = Math.min(window.devicePixelRatio || 1, MOST_DPR);
     // Resized only when the view's size changed: setting a canvas's size,
     // even to the same, gives it new memory, at every redraw of a pan.

@@ -56,7 +56,9 @@ class PlateCanvasLayer extends ViewCanvasLayer {
     const picture = this.picture;
     if (!picture.complete || !picture.naturalWidth) return;
     const kx = picture.naturalWidth / (se.x - nw.x), ky = picture.naturalHeight / (se.y - nw.y);
-    ctx.imageSmoothingQuality = "high";
+    // Quickly under a pinch, drawn only as its edge would come into sight
+    // (ViewCanvas' moved); sharp again as the fingers lift.
+    ctx.imageSmoothingQuality = (map as L.Map & { touchZoom?: { _zooming?: boolean } }).touchZoom?._zooming ? "low" : "high";
     ctx.drawImage(picture, (x0 - nw.x) * kx, (y0 - nw.y) * ky, (x1 - x0) * kx, (y1 - y0) * ky, x0, y0, x1 - x0, y1 - y0);
   }
 }
