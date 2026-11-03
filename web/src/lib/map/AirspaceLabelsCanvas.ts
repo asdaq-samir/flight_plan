@@ -1,4 +1,5 @@
 import L from "leaflet";
+import { prefersReducedMotion } from "../motion";
 import { airportBox, overlaps, type Box, type DrawnField } from "./declutter";
 import { spotBox } from "./edgeLabels";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
@@ -29,6 +30,10 @@ const HALO_PX = 3;
 /** No altitudes this close to an airport's mark or its ident, px: the
  *  field is what a pilot reads there. */
 const AIRPORT_CLEAR_PX = 20;
+/** How long a label takes to come in, ms, as an airport's mark does. */
+const FADE_MS = 200;
+/** The most labels remembered as drawn: a few flights' worth. */
+const MOST_KEPT = 5000;
 
 /** Room round the words on their picture for the halo, px. */
 const HALO_ROOM = 3;
@@ -89,6 +94,14 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
   private colours: { style: CSSStyleDeclaration; halo: string; inks: Map<string, string> } | null = null;
   /** Each label's key: whether an airport's mark keeps it off. */
   private hidden = new Map<string, boolean>();
+  /** The labels drawn once, which no airport's mark coming in later takes
+   *  away again: a zoom that brought in the fields with no report took
+   *  every label near one off with it, "80/30" there and gone a step in
+   *  (the owner's audit of the overlays, 2026-11-02). The mark is drawn
+   *  over the label where they meet. */
+  private readonly drawnOnce = new Set<string>();
+  /** When each label was first drawn, while it fades in. */
+  private readonly born = new Map<string, number>();
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
@@ -126,6 +139,7 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
     if (!moving) this.hidden.clear();
     let clear: Box[] | null = null;
     const hidden = (label: CanvasEdgeLabel, x: number, y: number, width: number) => {
+      if (this.drawnOnce.has(label.key)) return false;
       const known = this.hidden.get(label.key);
       if (known !== undefined) return known;
       clear ??= this.fields.map(f => {
@@ -137,6 +151,8 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
       return off;
     };
     const written: { text: string; angle: number }[] = [];
+    const now = performance.now();
+    let fading = false;
     for (const label of this.labels) {
       if (label.from > zoom + 1e-6) continue;
       const on = here(label.lat, label.lon);
@@ -152,13 +168,31 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
       const picture = pictureOf(label.text, this.font, ink, colours.halo, dpr);
       if (!picture) continue;
       const w = picture.width / dpr, h = picture.height / dpr;
+      // A label drawn for the first time fades in, as the airports' marks
+      // do (AirportCanvas); at once under Reduce Motion.
+      if (!this.drawnOnce.has(label.key)) {
+        if (this.drawnOnce.size > MOST_KEPT) this.drawnOnce.clear();
+        this.drawnOnce.add(label.key);
+        if (!prefersReducedMotion()) this.born.set(label.key, now);
+      }
+      const born = this.born.get(label.key);
+      let alpha = 1;
+      if (born !== undefined) {
+        alpha = (now - born) / FADE_MS;
+        if (alpha >= 1) {
+          this.born.delete(label.key);
+          alpha = 1;
+        } else fading = true;
+      }
       ctx.save();
+      ctx.globalAlpha = Math.max(0, alpha);
       ctx.translate(x, y);
       ctx.rotate((label.angle * Math.PI) / 180);
       ctx.drawImage(picture, -w / 2, -h / 2, w, h);
       ctx.restore();
       written.push({ text: label.text, angle: label.angle });
     }
+    if (fading) this.schedule();
     // Written down for the tests as the labels change and as the map
     // rests, not at every frame of a zoom: each write restyled the page.
     if (this.unwritten || !moving) {
