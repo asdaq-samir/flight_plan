@@ -33,6 +33,36 @@
 //! - `debrief_airborne`: the track's flights as [first, last] indices,
 //!   from `{"points"}`.
 //!
+//! The things that move (crate::motion), each from the web's own shapes
+//! in snake_case:
+//!
+//! - `traffic_marks`: `[{"label", "near"}]`, each airplane's height under
+//!   it as TCAS writes it and whether it is within 1,000 ft of own ship's
+//!   (14 CFR 91.159), from `{"own_ft"?, "planes": [{"altitude_ft"?,
+//!   "vertical_fpm"?}]}`;
+//! - `own_ship_hex`: which airplane heard is own ship's own transponder,
+//!   its hex or null, from `{"planes": [TrafficAircraft], "fix": {"lat",
+//!   "lon", "heading_deg"?, "speed_kt"?, "altitude_ft"?}|null}`;
+//! - `closest_approach`: `{"in_min", "nm", "above_ft"}` or null, from
+//!   `{"own": fix, "plane": TrafficAircraft}`;
+//! - `airborne_now`: a watched airplane in the air, true, false or null,
+//!   from `{"before": bool|null, "airborne", "arrived", "heard_s"?}`;
+//! - `alert_fires`: `{"fires", "inside", "nm", "bearing_deg"}`, from
+//!   `{"kind": "takeoff"|"land"|"near", "before_airborne", "was_inside"?,
+//!   "airborne", "arrived"?, "plane": {"lat", "lon"}|null, "to"?,
+//!   "limit_nm"?}`;
+//! - `glide_range`: still-air glide nm or null, from `{"altitude_ft"?,
+//!   "speed_kt"?, "ground_ft"?}`; `glide_reaches`: a field within it at
+//!   pattern height, from `{"altitude_ft"?, "speed_kt"?, "distance_nm",
+//!   "elevation_ft"?}`; `underway`: at flying speed, from `{"speed_kt"?}`;
+//! - `plan_profile`: `{"points", "marks", "length_nm"}`, the plan's
+//!   altitudes along the route, from `{"rows"}`, the web's nav log rows;
+//! - `dry_run`: the planned flight flown on paper (motion::dry_run's
+//!   to_json), from `{"rows", "start_s", "line"?, "missed"?}`;
+//! - `read_track`: `{"points": [{"t", "lat", "lon", "alt_ft"}]}` or
+//!   `{"error"}`, a GPX or KML track read, from `{"text"}`; `thin_track`:
+//!   at most `most` (4,000) of `points`, from `{"points", "most"?}`.
+//!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
@@ -106,7 +136,7 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             out.push(']');
             Ok(out)
         }
-        _ => Err(format!("the engine has no rule called {name:?}")),
+        _ => crate::motion::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}"))),
     }
 }
 

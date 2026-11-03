@@ -1,45 +1,62 @@
 import type { TrafficAircraft } from "../api/types";
-import { M_PER_NM, angleBetween, destination, distanceNm, rad, type LatLon } from "../geo";
-import { grouped } from "../units";
+import { callEngine } from "../engine/engine";
+import { M_PER_NM, destination, type LatLon } from "../geo";
 import type { Fix } from "./ownShip";
 import type { Report } from "./tracking";
 
-/** Within this of own ship's height an airplane is drawn amber, the
- *  traffic to look for first. A design choice: 1,000 ft is the vertical
- *  spacing VFR cruising altitudes keep between opposite directions'
- *  (91.159), the nearest another airplane is meant to be passing. */
-const NEAR_FT = 1000;
-/** A vertical rate this or more gets an arrow by the height, as a TCAS
- *  display draws one (the FAA's Introduction to TCAS II, version 7.1). */
-const ARROW_FPM = 500;
+/*
+ * The rules here -- the height under an airplane as TCAS writes it, whether
+ * it is near own ship's (1,000 ft, 14 CFR 91.159's spacing), which airplane
+ * is own ship's own transponder, when and how near one comes -- are the
+ * shared engine's (native/engine/src/motion/traffic.rs, through
+ * lib/engine), the very code the phones ask (wt_call). What runs
+ * every frame stays here -- an airplane carried on along its track between
+ * reports, its trend line's length at the map's scale, the colours of a
+ * flown path -- and so does the merging of the internet's reports with a
+ * cockpit receiver's, which holds no rule and would carry every airplane
+ * across twice an answer.
+ */
+
+interface Mark { label: string; near: boolean }
+
+/** The engine's marks of the airplanes on the map against own ship's
+ *  height, each kept with its airplane (`markTraffic`): one call for them
+ *  all, as a call an airplane cost 5 ms for 554 of them, each fix. */
+const marked = new WeakMap<TrafficAircraft, { own: number | null; mark: Mark }>();
+
+const heights = (p: Pick<TrafficAircraft, "altitude_ft" | "vertical_fpm">) => ({ altitude_ft: p.altitude_ft ?? null, vertical_fpm: p.vertical_fpm ?? null });
+
+/** Works out the label and colour of every airplane in `planes` against
+ *  own ship's height at once, for trafficLabel and nearOwnHeight to read. */
+export function markTraffic(planes: TrafficAircraft[], ownFt: number | null): void {
+  const marks = callEngine<Mark[]>("traffic_marks", { own_ft: ownFt, planes: planes.map(heights) });
+  planes.forEach((p, i) => marked.set(p, { own: ownFt, mark: marks[i]! }));
+}
+
+function mark(plane: Pick<TrafficAircraft, "altitude_ft" | "vertical_fpm">, own: number | null): Mark {
+  const kept = marked.get(plane as TrafficAircraft);
+  if (kept && kept.own === own) return kept.mark;
+  return callEngine<Mark[]>("traffic_marks", { own_ft: own, planes: [heights(plane)] })[0]!;
+}
 
 /** Under the airplane: its height against own ship's in hundreds of
  *  feet, "+05" above and "-12" below, as TCAS writes it, with an arrow
- *  climbing or descending; with own ship's height not known, its own
- *  height in feet, "4,500". Nothing where it sends none. The hundreds cut
- *  toward own ship, never rounded away from it, so an airplane is never
- *  shown further off than it is: 250 ft below is "-02", 290 ft "-02",
- *  50 ft below "-00" -- the owner's "conservative approach ... to show
- *  how close traffic are" (2026-10-28), where a rounding gave "+00" for
- *  one 50 ft below and the phone "-03" for one 250 ft below. */
+ *  climbing or descending at 500 ft a minute; with own ship's height not
+ *  known, its own height in feet, "4,500". Nothing where it sends none.
+ *  The hundreds cut toward own ship, never rounded away from it (the
+ *  owner, 2026-10-28). */
 export function trafficLabel(plane: TrafficAircraft, ownFt: number | null): string {
-  if (plane.altitude_ft == null) return "";
-  const rate = plane.vertical_fpm ?? 0;
-  const arrow = rate >= ARROW_FPM ? "↑" : rate <= -ARROW_FPM ? "↓" : "";
-  if (ownFt == null) return `${grouped(Math.round(plane.altitude_ft / 100) * 100)}${arrow}`;
-  const apart = plane.altitude_ft - ownFt;
-  const hundreds = Math.trunc(Math.abs(apart) / 100);
-  return `${apart < 0 ? "-" : "+"}${String(hundreds).padStart(2, "0")}${arrow}`;
+  return mark(plane, ownFt).label;
 }
 
-/** Whether two heights are within NEAR_FT of each other: the map's
+/** Whether two heights are within 1,000 ft of each other: the map's
  *  traffic coloured so, and the airplane card's closest approach said in
- *  red, which took "within" as under 1,000 ft where the map took 1,000. */
-export const nearInHeight = (apartFt: number) => Math.abs(apartFt) <= NEAR_FT;
+ *  red. */
+export const nearInHeight = (apartFt: number) => mark({ altitude_ft: apartFt }, 0).near;
 
-/** Whether it is within NEAR_FT of own ship's height. */
+/** Whether it is within 1,000 ft of own ship's height. */
 export function nearOwnHeight(plane: TrafficAircraft, ownFt: number | null): boolean {
-  return ownFt != null && plane.altitude_ft != null && nearInHeight(plane.altitude_ft - ownFt);
+  return mark(plane, ownFt).near;
 }
 
 /** The airplanes as they were `ageS` seconds before the answer was
@@ -48,29 +65,21 @@ export function agedBy(planes: TrafficAircraft[], ageS: number): TrafficAircraft
   return planes.map((p) => ({ ...p, seen_s: (p.seen_s ?? 0) + ageS }));
 }
 
+/** Own ship's fix as the engine reads one. */
+const engineFix = (fix: Fix) => ({ lat: fix.lat, lon: fix.lon, heading_deg: fix.headingDeg, speed_kt: fix.speedKt, altitude_ft: fix.altitudeFt });
+
 /**
  * Which airplane, if any, is own ship itself, heard by the receivers on
  * the ground from its own transponder: the one nearest the GPS's fix --
  * within half a mile and 400 ft of it, going the same way at about the
  * same speed -- and only that one, so an airplane in formation or just
- * ahead is not lost with it. The feed's position is `seen_s` old (the answer's age too: `agedBy`), so the
- * fix is taken back along its heading by as much. A design choice, as an
- * EFB asks for the airplane's own address instead, which this app does
- * not know.
+ * ahead is not lost with it, the fix taken back by the feed's age
+ * (`seen_s`, the answer's age too: `agedBy`).
  */
 export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string | null {
-  if (!fix || fix.speedKt == null || fix.headingDeg == null) return null;
-  let best: { hex: string; nm: number } | null = null;
-  for (const plane of planes) {
-    if (plane.track_deg == null || plane.speed_kt == null) continue;
-    const then = destination({ lat: fix.lat, lon: fix.lon }, (fix.headingDeg + 180) % 360, (fix.speedKt * (plane.seen_s ?? 0)) / 3600);
-    const nm = distanceNm(then, { lat: plane.lat, lon: plane.lon });
-    const turn = angleBetween(plane.track_deg, fix.headingDeg);
-    const height = fix.altitudeFt != null && plane.altitude_ft != null ? Math.abs(plane.altitude_ft - fix.altitudeFt) : 0;
-    if (nm > 0.5 || height > 400 || turn > 20 || Math.abs(plane.speed_kt - fix.speedKt) > Math.max(20, fix.speedKt * 0.3)) continue;
-    if (!best || nm < best.nm) best = { hex: plane.hex, nm };
-  }
-  return best?.hex ?? null;
+  // Only what the rule reads crosses, not each airplane's every field.
+  const heard = planes.map(p => ({ hex: p.hex, lat: p.lat, lon: p.lon, altitude_ft: p.altitude_ft, track_deg: p.track_deg, speed_kt: p.speed_kt, seen_s: p.seen_s }));
+  return callEngine<string | null>("own_ship_hex", { planes: heard, fix: fix ? engineFix(fix) : null });
 }
 
 
@@ -125,32 +134,17 @@ export function colourRuns(path: { lat: number; lon: number; altFt: number | nul
   return runs;
 }
 
-/** How far ahead a closest approach is looked for, minutes. */
-const CPA_MIN = 10;
-
 /**
  * When and how near an airplane comes to own ship, both carried on
  * straight at their ground speeds -- what a traffic display's closing
  * figures say: {inMin, nm, aboveFt} at the closest within ten minutes,
- * now's where they are already drawing apart; with its height then
- * against own ship's (its vertical speed carried on, own ship's height
- * held). Null without own ship's track and speed or the airplane's.
- * Seconds-old internet data: for knowing what is coming, not for
- * avoiding it.
+ * now's where they are already drawing apart. Null without own ship's
+ * track and speed or the airplane's. Seconds-old internet data: for
+ * knowing what is coming, not for avoiding it.
  */
 export function closestApproach(own: Fix, plane: TrafficAircraft): { inMin: number; nm: number; aboveFt: number | null } | null {
-  if (own.headingDeg == null || own.speedKt == null || plane.track_deg == null || plane.speed_kt == null) return null;
-  const cosLat = Math.cos(rad(own.lat));
-  // Nautical miles east and north of own ship, and knots each way.
-  const rx = (plane.lon - own.lon) * 60 * cosLat, ry = (plane.lat - own.lat) * 60;
-  const vx = plane.speed_kt * Math.sin(rad(plane.track_deg)) - own.speedKt * Math.sin(rad(own.headingDeg));
-  const vy = plane.speed_kt * Math.cos(rad(plane.track_deg)) - own.speedKt * Math.cos(rad(own.headingDeg));
-  const closing = vx * vx + vy * vy;
-  const hours = closing > 0 ? Math.min(CPA_MIN / 60, Math.max(0, -(rx * vx + ry * vy) / closing)) : 0;
-  const nm = Math.hypot(rx + vx * hours, ry + vy * hours);
-  const aboveFt = plane.altitude_ft == null || own.altitudeFt == null ? null
-    : plane.altitude_ft + (plane.vertical_fpm ?? 0) * hours * 60 - own.altitudeFt;
-  return { inMin: hours * 60, nm, aboveFt };
+  const cpa = callEngine<{ in_min: number; nm: number; above_ft: number | null } | null>("closest_approach", { own: engineFix(own), plane });
+  return cpa && { inMin: cpa.in_min, nm: cpa.nm, aboveFt: cpa.above_ft };
 }
 
 /**

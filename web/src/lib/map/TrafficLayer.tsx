@@ -12,7 +12,7 @@ import { prefersReducedMotion } from "../motion";
 import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
 import { useOwnShip, useOwnFix } from "./ownShip";
-import { CARRY_S, agedBy, carriedOn, colourRuns, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
+import { CARRY_S, agedBy, carriedOn, colourRuns, markTraffic, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
 import { reported, useTracking, useTrafficFocus, type Report } from "./tracking";
 import { usePastFlight } from "./pastFlight";
 import PastFlightPath from "./PastFlightPath";
@@ -243,6 +243,8 @@ function Traffic() {
   const only = useTrafficFocus(s => (s.on ? s.only : null));
   useEffect(() => {
     const heights = view.zoom >= HEIGHT_ZOOM, callsigns = view.zoom >= CALLSIGN_ZOOM;
+    // Every airplane's label and colour from the engine at once.
+    markTraffic([...targets.current.values()].map(t => t.plane), ownFt);
     for (const target of targets.current.values()) {
       const { plane } = target;
       // The one tracked is named at every zoom, its height with it.
