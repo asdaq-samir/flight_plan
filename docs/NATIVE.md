@@ -121,6 +121,35 @@ owner, 2026-11-03):
 - **A UI smoke test** (`WingtipUITests/LaunchTests`): the app launched
   and its first screen shown, run by the runner with the unit tests.
 
+## The Apple Watch app
+
+`ios/WingtipWatch/` (the owner's ask, 2026-11-03) is a companion of the
+iOS app, bundle id `app.wingtipmaps.ios.watchkitapp`, watchOS 10 and
+later, embedded in the phone's app and installed with it: three pages,
+Timers (a flight timer and a hold/approach timer, each a `Stopwatch`
+worked out from the clock at each draw under a `TimelineView`, so it is
+right when the display wakes), Checklist (the picked airplane's sections
+and items, ticked on the wrist, a section reset by a swipe) and Nearest
+(the fields nearest the watch's own fix, or the phone's).
+
+The watch links no engine (the XCFramework has no watchOS slice) and
+calls no server. The phone (`Wingtip/WatchLink.swift`) sends the
+airplane's checklist, as the gateway gave it, and the pilot's fix as the
+WatchConnectivity application context, and answers the watch's nearest
+question from the planner (`Planner.nearest`; the cycle packs give the
+airspace at a point only, so offline the watch is told the planner is
+out of reach). Every message is a small Codable struct in
+`Wingtip/Shared/WatchMessages.swift`, compiled into both apps and
+round-tripped in `WingtipWatchTests`. No complication yet.
+
+The workflow does not build the watch scheme yet: the `Wingtip` scheme
+builds the watch app as the embedded companion, and `WingtipWatch`'s
+tests need a watch simulator paired with the iPhone one, picked as a
+pair (`xcrun simctl list pairs`) and given as `-destination
+"platform=watchOS Simulator,id=…"`. In the developer account the watch
+app needs its own app id (`app.wingtipmaps.ios.watchkitapp`) and a
+provisioning profile beside the phone's for TestFlight.
+
 Still open, as decisions rather than code: the app on the phone is the
 web app in a web view until this one is the product; local records
 (plan history, kept airplanes, watches) in SwiftData with iCloud sync
