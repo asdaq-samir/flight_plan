@@ -1,29 +1,25 @@
 import AppIntents
 
-/// "Weather at Milwaukee" to Siri: the field's METAR said as a briefer
-/// says it (IntentLookups.metarWords, the web's lib/metarWords to the
-/// word), without opening the app, as the microphone's Weather chip says
-/// it in the app. The field is free text, asked for after the phrase.
+/// "Weather at KMKE" to Siri, in one breath: the field's METAR said as a
+/// briefer says it (IntentLookups.metarWords, the web's lib/metarWords
+/// to the word), without opening the app, as the microphone's Weather
+/// chip says it in the app. The field is an AirportEntity, so the phrase
+/// carries it; a town said when Siri asks is found as the microphone
+/// finds one (AirportQuery).
 struct WeatherAtIntent: AppIntent {
-    static let title: LocalizedStringResource = "Weather at a Field"
-    static let description = IntentDescription("Says a field's latest weather report: wind, visibility, ceiling, temperature, altimeter and the flight category.")
+    static let title: LocalizedStringResource = "Weather at an Airport"
+    static let description = IntentDescription("Says an airport's latest weather report: wind, visibility, ceiling, temperature, altimeter and the flight category.")
     static let openAppWhenRun: Bool = false
 
-    @Parameter(title: "Field", requestValueDialog: "Which field?")
-    var field: String
+    @Parameter(title: "Airport", requestValueDialog: "Which airport?")
+    var airport: AirportEntity
 
     static var parameterSummary: some ParameterSummary {
-        Summary("Weather at \(\.$field)")
+        Summary("Weather at \(\.$airport)")
     }
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let ident: String?
-        do {
-            ident = try await IntentLookups.field(for: field)
-        } catch {
-            return .result(dialog: "The planner could not be reached to find \(field); check the connection.")
-        }
-        guard let ident else { return .result(dialog: "\(field) was not found.") }
+        let ident = airport.id
         let place: AirportPlace
         do {
             place = try await Planner.place(ident)

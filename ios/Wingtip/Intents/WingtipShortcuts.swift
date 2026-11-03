@@ -1,17 +1,22 @@
 import AppIntents
 
-/// The app's shortcuts, which Siri takes without setting up: the phrases
-/// name the app, and a free-text place (a destination, a field) is asked
-/// for after the phrase, since a phrase can carry only an entity or an
-/// enum. Shown in the Shortcuts app and Spotlight as well.
+/// The app's shortcuts, which Siri takes without setting up: each phrase
+/// names the app, and the airport in it is an AirportEntity, so "Plan a
+/// trip to KLAS in Wingtip Maps" goes in one breath. Siri listens for the
+/// fields the entity suggests (the kept route's, the Favorites, the
+/// Recents: AirportQuery.suggestedEntities), so the app calls
+/// `updateAppShortcutParameters()` when those change. A navaid or a fix
+/// for Direct To is free text, asked for after the phrase. Shown in the
+/// Shortcuts app and Spotlight as well.
 struct WingtipShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: PlanTripIntent(),
             phrases: [
+                "Plan a trip to \(\.$airport) in \(.applicationName)",
+                "Plan a flight to \(\.$airport) in \(.applicationName)",
+                "Fly to \(\.$airport) in \(.applicationName)",
                 "Plan a trip in \(.applicationName)",
-                "Plan a trip with \(.applicationName)",
-                "Plan a flight in \(.applicationName)",
             ],
             shortTitle: "Plan a Trip",
             systemImageName: "airplane"
@@ -28,20 +33,30 @@ struct WingtipShortcuts: AppShortcutsProvider {
         AppShortcut(
             intent: WeatherAtIntent(),
             phrases: [
+                "Weather at \(\.$airport) in \(.applicationName)",
+                "Get the weather at \(\.$airport) in \(.applicationName)",
                 "Weather in \(.applicationName)",
-                "Get the weather in \(.applicationName)",
             ],
-            shortTitle: "Weather at a Field",
+            shortTitle: "Weather at an Airport",
             systemImageName: "cloud.sun"
         )
         AppShortcut(
             intent: DirectToIntent(),
             phrases: [
-                "Direct to in \(.applicationName)",
+                "Direct to \(\.$airport) in \(.applicationName)",
+                "Go direct to \(\.$airport) in \(.applicationName)",
+            ],
+            shortTitle: "Direct to an Airport",
+            systemImageName: "location.north.line"
+        )
+        AppShortcut(
+            intent: DirectToPlaceIntent(),
+            phrases: [
+                "Direct to a fix in \(.applicationName)",
                 "Go direct in \(.applicationName)",
             ],
-            shortTitle: "Direct To",
-            systemImageName: "location.north.line"
+            shortTitle: "Direct to a Fix",
+            systemImageName: "point.topleft.down.to.point.bottomright.curvepath"
         )
     }
 }

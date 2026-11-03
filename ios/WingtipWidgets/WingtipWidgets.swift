@@ -2,13 +2,17 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// The widget extension: the flight in progress on the Lock Screen and in
-/// the Dynamic Island (a Live Activity, the owner's ask of 2026-11-03,
-/// as Apple recommends for anything ongoing). Only the attributes file is
-/// shared with the app; the views here draw from its content state alone.
+/// The widget extension: the next flight on the Home Screen and the Lock
+/// Screen (FlightWidget, FlightWidgets.swift), and the flight in progress
+/// on the Lock Screen and in the Dynamic Island (a Live Activity, the
+/// owner's ask of 2026-11-03, as Apple recommends for anything ongoing).
+/// Only the Shared folder's files are compiled with the app; the views
+/// here draw from the attributes' content state and the App Group's
+/// snapshot alone.
 @main
 struct WingtipWidgetsBundle: WidgetBundle {
     var body: some Widget {
+        FlightWidget()
         FlightActivityWidget()
     }
 }
@@ -156,8 +160,9 @@ private struct FuelLine: View {
     }
 }
 
-/// Minutes as a pilot reads them: "2h 39m", or "41m" under an hour.
-private func minutesWords(_ minutes: Double) -> String {
+/// Minutes as a pilot reads them: "2h 39m", or "41m" under an hour; the
+/// Home Screen widget's lines (FlightWidgets.swift) read it too.
+func minutesWords(_ minutes: Double) -> String {
     let whole = max(0, Int(minutes.rounded()))
     let hours = whole / 60, rest = whole % 60
     return hours > 0 ? "\(hours)h \(rest)m" : "\(rest)m"

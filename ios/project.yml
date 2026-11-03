@@ -29,6 +29,11 @@ settings:
     # The site's host: the gateway, and the app's associated domain. CI
     # passes the repo's WINGTIP_URL host over this.
     WINGTIP_HOST: wingtipmaps.app
+    # The app's bundle id, which CI passes the repo's IOS_BUNDLE_ID over
+    # (native-ios.yml): one setting the app and its widget extension both
+    # take their ids from, so the extension's stays the app's with its
+    # suffix however CI names the app.
+    WINGTIP_BUNDLE_ID: app.wingtipmaps.ios
 targets:
   Wingtip:
     type: application
@@ -85,6 +90,32 @@ targets:
         # checkpoint, the ETA and the fuel, as Apple has ongoing things shown.
         NSSupportsLiveActivities: true
         ITSAppUsesNonExemptEncryption: false
+        # A track file (GPX, KML) opened from Files or Mail is flown again
+        # on the map (Links, RootView): the app is a viewer of both, so
+        # they show it in Open In; the types declared here, as neither
+        # is a system one.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: GPS Exchange Format
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.topografix.gpx]
+          - CFBundleTypeName: Keyhole Markup Language
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            LSItemContentTypes: [com.google.earth.kml]
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.topografix.gpx
+            UTTypeDescription: GPS Exchange Format
+            UTTypeConformsTo: [public.xml]
+            UTTypeTagSpecification:
+              public.filename-extension: [gpx]
+              public.mime-type: [application/gpx+xml]
+          - UTTypeIdentifier: com.google.earth.kml
+            UTTypeDescription: Keyhole Markup Language
+            UTTypeConformsTo: [public.xml]
+            UTTypeTagSpecification:
+              public.filename-extension: [kml]
+              public.mime-type: [application/vnd.google-earth.kml+xml]
     entitlements:
       path: Wingtip/Wingtip.entitlements
       properties:
@@ -101,9 +132,14 @@ targets:
         com.apple.developer.icloud-container-identifiers:
           - iCloud.$(PRODUCT_BUNDLE_IDENTIFIER)
         aps-environment: development
+        # The Home Screen widgets' snapshot of the next flight (WidgetFeed,
+        # FlightWidget in WingtipWidgets): one App Group the app writes and
+        # the extension reads, which the owner turns on for both app ids in
+        # the developer account.
+        com.apple.security.application-groups: [group.app.wingtipmaps]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios
+        PRODUCT_BUNDLE_IDENTIFIER: $(WINGTIP_BUNDLE_ID)
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -117,7 +153,12 @@ targets:
     platform: iOS
     sources:
       - path: WingtipWidgets
+        excludes: ["Info.plist", "WingtipWidgets.entitlements"]
       - path: Wingtip/Shared
+    entitlements:
+      path: WingtipWidgets/WingtipWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.wingtipmaps]
     info:
       path: WingtipWidgets/Info.plist
       properties:
@@ -128,7 +169,7 @@ targets:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: app.wingtipmaps.ios.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: $(WINGTIP_BUNDLE_ID).widgets
         GENERATE_INFOPLIST_FILE: NO
         SKIP_INSTALL: YES
   WingtipTests:

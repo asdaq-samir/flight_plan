@@ -86,8 +86,22 @@ owner, 2026-11-03):
 
 - **App Intents** (`Wingtip/Intents/`): plan a trip to a place, the
   nearest airports, the weather at a field and direct to a place, as
-  Siri, Shortcuts and Spotlight phrases (`WingtipShortcuts`). An intent
-  that needs the app sets `PendingCommand`, which `RootView` applies.
+  Siri, Shortcuts and Spotlight phrases (`WingtipShortcuts`). The airport
+  is an App Entity (`AirportEntity`: the kept route's, the Favorites and
+  the Recents suggested, the planner's search behind them), so "Plan a
+  trip to KLAS in Wingtip Maps" goes in one breath. An intent that needs
+  the app sets `PendingCommand`, which `RootView` applies.
+- **Home Screen widgets** (`WingtipWidgets/FlightWidgets.swift`,
+  `Wingtip/WidgetFeed.swift`, `Wingtip/Shared/WidgetSnapshot.swift`): the
+  next flight's route, figures, Go / No-Go and departure weather on the
+  Home Screen and the Lock Screen, from a snapshot the app writes to the
+  App Group (`group.app.wingtipmaps`) only as it changes, so the widget
+  never asks the planner and never spends its redraw budget idly.
+- **Universal links and files** (`Wingtip/Intents/Links.swift`): a route,
+  a field or an airplane shared from the site (`/app/plan?dep=…&dest=…`,
+  `?place=`, `?flight=`) opens in the app as a `PendingCommand`, and a GPX
+  or KML track from Files or Mail is flown again on the map (the document
+  types in project.yml). The sign-in link stays `Session.open`'s.
 - **A Live Activity** (`Wingtip/FlightActivity.swift`, the
   `WingtipWidgets` extension, `Wingtip/Shared/FlightActivityAttributes`):
   a flight in progress on the Lock Screen and in the Dynamic Island with
