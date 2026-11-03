@@ -154,6 +154,27 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     this.schedule();
   }
 
+  /** The marks' places projected once at zoom 0 (Leaflet's Web Mercator
+   *  is the one projection scaled), for the marks array they were made
+   *  for: a frame of a zoom projected all thousand fields again, four
+   *  Points made for each, and paint was the largest piece of JavaScript
+   *  in a zoom (Session2's profile, 2026-11-03: about 100 ms a frame
+   *  unthrottled at a zoom's end). */
+  private projected: { marks: CanvasMark[]; xs: Float64Array; ys: Float64Array } | null = null;
+
+  private projectedOf(map: L.Map): { xs: Float64Array; ys: Float64Array } {
+    if (this.projected?.marks === this.marks) return this.projected;
+    const n = this.marks.length;
+    const xs = new Float64Array(n), ys = new Float64Array(n);
+    this.marks.forEach((mark, i) => {
+      const at = map.project([mark.lat, mark.lon], 0);
+      xs[i] = at.x;
+      ys[i] = at.y;
+    });
+    this.projected = { marks: this.marks, xs, ys };
+    return this.projected;
+  }
+
   protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from, dpr, warp }: CanvasView): void {
     const canvas = this.canvas!;
     this.font ||= `700 ${LABEL_PX}px ${getComputedStyle(map.getContainer()).fontFamily || "system-ui, sans-serif"}`;
@@ -163,7 +184,6 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     // was drawn from; under a zoom at its exact place, as the marks were.
     const px = (v: number) => (moving ? v : Math.round(v * dpr) / dpr);
     const half = AIRPORT_MARK / 2;
-    const written: { ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string }[] = [];
     // Each mark at its exact place, to the fraction of a point, as the
     // chart's tiles are while a pinch or a flight zooms (pinch.ts): by the
     // layer's own origin, where latLngToContainerPoint rounds the
@@ -173,22 +193,37 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     // show jitter when zooming in": KARR's mark moved only in whole points
     // (568.2, 565.2, 568.2, 565.1 device pixels a frame apart) through a
     // slow pinch. The container's point is the layer's less the canvas's
-    // layer origin, plus where the canvas starts (`from`).
+    // layer origin, plus where the canvas starts (`from`): a zoom-0 point
+    // p is at p * k - (ox, oy); and where the chart has it at this frame
+    // of a zoom's animation is `warp` of that, affine with one scale, so
+    // two points give it and the rest is arithmetic (the rings the same).
     const pixelOrigin = map.getPixelOrigin();
+    const k = map.getZoomScale(map.getZoom(), 0);
+    const ox = pixelOrigin.x + origin.x - from.x, oy = pixelOrigin.y + origin.y - from.y;
+    const w0 = warp(ORIGIN), w1 = warp(UNIT);
+    const ws = w1.x - w0.x, wx = w0.x, wy = w0.y;
+    const { xs, ys } = this.projectedOf(map);
+    // Every field written, in sight or not, as every marker was in the
+    // page -- for the tests, as the marks change and as the map comes to
+    // rest, not at each frame of a zoom: a thousand fields' places made
+    // into a string and set on the page every frame.
+    const writing = this.unwritten || !moving;
+    const written: { ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string }[] = [];
     const now = performance.now();
     let fading = false;
-    for (const mark of this.marks) {
-      const at = map.project([mark.lat, mark.lon]).subtract(pixelOrigin).subtract(origin).add(from);
-      // Every field written, in sight or not, as every marker was in the
-      // page; drawn only where the canvas reaches.
-      written.push({
-        ident: mark.ident, x: Math.round(at.x * 10) / 10, y: Math.round(at.y * 10) / 10, chip: mark.chip,
-        space: mark.space ?? "", use: mark.use ?? "", weather: mark.weather,
-      });
+    for (let i = 0; i < this.marks.length; i++) {
+      const mark = this.marks[i]!;
+      const x = xs[i]! * k - ox, y = ys[i]! * k - oy;
+      if (writing) {
+        written.push({
+          ident: mark.ident, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, chip: mark.chip,
+          space: mark.space ?? "", use: mark.use ?? "", weather: mark.weather,
+        });
+      }
       if (!mark.chip) continue;
-      // Through a zoom's animation, where the chart has it at this frame.
-      const shown = warp(at);
-      if (shown.x < -pad.x - half || shown.y < -pad.y - half || shown.x > size.x + pad.x + half || shown.y > size.y + pad.y + half) continue;
+      // Drawn only where the canvas reaches.
+      const sx = x * ws + wx, sy = y * ws + wy;
+      if (sx < -pad.x - half || sy < -pad.y - half || sx > size.x + pad.x + half || sy > size.y + pad.y + half) continue;
       const born = this.born.get(mark.ident);
       if (born !== undefined) {
         const alpha = (now - born) / FADE_MS;
@@ -199,21 +234,22 @@ export class AirportMarksLayer extends ViewCanvasLayer {
         }
       }
       const sprite = spriteOf(mark, dpr, () => this.schedule());
-      if (sprite) ctx.drawImage(sprite, px(shown.x - half - SHADOW_ROOM), px(shown.y - half - SHADOW_ROOM), sprite.width / dpr, sprite.height / dpr);
+      if (sprite) ctx.drawImage(sprite, px(sx - half - SHADOW_ROOM), px(sy - half - SHADOW_ROOM), sprite.width / dpr, sprite.height / dpr);
       // The ident one point clear of the mark, dark on a white halo, as
       // the chart letters a field.
       const label = labelOf(ctx, mark.ident, this.font, dpr);
-      if (label) ctx.drawImage(label, px(shown.x + half + 1 - HALO_ROOM), px(shown.y - label.height / dpr / 2), label.width / dpr, label.height / dpr);
+      if (label) ctx.drawImage(label, px(sx + half + 1 - HALO_ROOM), px(sy - label.height / dpr / 2), label.width / dpr, label.height / dpr);
       ctx.globalAlpha = 1;
     }
     // Drawn again next frame while any is still coming in.
     if (fading) this.schedule();
-    // Written for the tests as the marks change and as the map comes to
-    // rest, not at each frame of a zoom: a thousand fields' places made
-    // into a string and set on the page every frame.
-    if (this.unwritten || !moving) {
+    if (writing) {
       canvas.dataset.airportMarks = JSON.stringify(written);
       this.unwritten = false;
     }
   }
 }
+
+/** Two points that give a frame's `warp` (paint). */
+const ORIGIN = L.point(0, 0);
+const UNIT = L.point(1, 0);

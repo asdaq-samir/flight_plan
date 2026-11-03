@@ -81,11 +81,15 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
     const marks = document.querySelector<HTMLCanvasElement>("canvas[data-airport-marks]");
     if (!canvas) return null;
     const box = document.querySelector(".leaflet-container")!.getBoundingClientRect();
-    const fields: { x: number; y: number }[] = JSON.parse(marks?.dataset.airportMarks || "[]");
+    // Only the fields wearing a mark take a tap near them; the canvas
+    // writes every field it knows, mark or not.
+    const fields: { x: number; y: number; chip: boolean }[] = JSON.parse(marks?.dataset.airportMarks || "[]");
     const rings: { class: string; x: number; y: number }[] = JSON.parse(canvas.dataset.airspaceRings || "[]");
+    // A Class D ring is 35 px across its radius at the card's zoom on a
+    // phone, so the clearance is the mark's own reach (22 px) and a little.
     for (const ring of rings) {
-      if (ring.class !== "D" || ring.y < 80 || ring.y > box.height * 0.5 || ring.x < 20 || ring.x > box.width - 20) continue;
-      if (fields.some(f => Math.hypot(f.x - ring.x, f.y - ring.y) < 40)) continue;
+      if (ring.class !== "D" || ring.y < 80 || ring.y > box.height * 0.48 || ring.x < 20 || ring.x > box.width - 20) continue;
+      if (fields.some(f => f.chip && Math.hypot(f.x - ring.x, f.y - ring.y) < 26)) continue;
       return { x: box.left + ring.x, y: box.top + ring.y };
     }
     return null;

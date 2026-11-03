@@ -27,6 +27,9 @@ const TEXT_PX = 11;
 const LETTER_PX = 7;
 const HEIGHT_PX = 14;
 const HALO_PX = 3;
+/** Two points that give a frame's `warp` (paint). */
+const ORIGIN = L.point(0, 0);
+const UNIT = L.point(1, 0);
 /** No altitudes this close to an airport's mark or its ident, px: the
  *  field is what a pilot reads there. */
 const AIRPORT_CLEAR_PX = 20;
@@ -117,6 +120,23 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
     this.schedule();
   }
 
+  /** The labels' places projected once at zoom 0, for the labels array
+   *  they were made for (AirportCanvas the same). */
+  private projected: { labels: CanvasEdgeLabel[]; xs: Float64Array; ys: Float64Array } | null = null;
+
+  private projectedOf(map: L.Map): { xs: Float64Array; ys: Float64Array } {
+    if (this.projected?.labels === this.labels) return this.projected;
+    const n = this.labels.length;
+    const xs = new Float64Array(n), ys = new Float64Array(n);
+    this.labels.forEach((label, i) => {
+      const at = map.project([label.lat, label.lon], 0);
+      xs[i] = at.x;
+      ys[i] = at.y;
+    });
+    this.projected = { labels: this.labels, xs, ys };
+    return this.projected;
+  }
+
   protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from, dpr, warp }: CanvasView): void {
     const canvas = this.canvas!;
     const moving = warp(from) !== from || !!(map as L.Map & { touchZoom?: { _zooming?: boolean } }).touchZoom?._zooming;
@@ -153,10 +173,18 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
     const written: { text: string; angle: number }[] = [];
     const now = performance.now();
     let fading = false;
-    for (const label of this.labels) {
+    // Each label's place from its projection kept at zoom 0, moved by
+    // arithmetic (as the marks' and the rings' are), not projected anew
+    // with four Points made for it at every frame of a zoom.
+    const k = map.getZoomScale(zoom, 0);
+    const ox = pixelOrigin.x + origin.x - from.x, oy = pixelOrigin.y + origin.y - from.y;
+    const w0 = warp(ORIGIN), w1 = warp(UNIT);
+    const ws = w1.x - w0.x, wx = w0.x, wy = w0.y;
+    const { xs, ys } = this.projectedOf(map);
+    for (let i = 0; i < this.labels.length; i++) {
+      const label = this.labels[i]!;
       if (label.from > zoom + 1e-6) continue;
-      const on = here(label.lat, label.lon);
-      const x = on.x + label.dx, y = on.y + label.dy;
+      const x = (xs[i]! * k - ox) * ws + wx + label.dx, y = (ys[i]! * k - oy) * ws + wy + label.dy;
       const width = label.text.length * LETTER_PX;
       if (x < -pad.x - width || y < -pad.y - width || x > size.x + pad.x + width || y > size.y + pad.y + width) continue;
       if (hidden(label, x, y, width)) continue;
