@@ -44,6 +44,65 @@
 //! - `direct_of`: the place a "direct" sends us to, as words to find, or
 //!   null, from `{"text"}`.
 //!
+//! The Brief's Go / No-Go (crate::gonogo, the web's lib/verdict and the
+//! modules it is fed from), each from the planner's and the web's own
+//! objects in snake_case:
+//!
+//! - `gonogo_verdict`: POST /api/go-no-go's `line` and `items`, from
+//!   `{"verdict": VerdictInput, "alternate"?: /api/alternate's answer}`;
+//!   `gonogo_verdict_items` from a VerdictInput, `gonogo_verdict_line`
+//!   from `{"items"}`, `gonogo_alternate_finding` from `{"data"?}`,
+//!   `gonogo_with_alternate` from `{"items", "found"?}`. A VerdictInput
+//!   is `{"weather": {"pending", "failed"?, "vfr_not_recommended",
+//!   "under_minimums", "icing"?, "hazards", "unchecked", "worst"?},
+//!   "airspace": {"pending", "unchecked", "in_force", "near",
+//!   "special_use": [{"name", "when"}]}, "altitude": {"pending",
+//!   "problem"?, "cautions", "flown"?}, "fuel": {"pending", "margin_gal"?,
+//!   "required_gal"?, "reserve_min"?, "ifr"?}, "runways": {"pending",
+//!   "worked", "short", "crosswind"}, "balance": {"pending", "worked",
+//!   "problems", "takeoff"?}, "risk"?: {"level", "line"}};
+//! - `gonogo_under_minimums`: the sentences where the weather is under the
+//!   pilot's minimums, from `{"minimums": {"ceiling_ft"?, "visibility_sm"?,
+//!   "crosswind_kt"?, "wind_kt"?}, "landings": [ident], "dest", and the
+//!   briefing's "metars", "airports" and "forecast"}`;
+//!   `gonogo_best_crosswind` from `{"runways", "reported"?: {"speed_kt"?,
+//!   "gust_kt"?}}`;
+//! - `gonogo_icing`: icing at an altitude flown, with its line, or null,
+//!   from `{"selection": {"freezing_level_ft"?, "icing_possible",
+//!   "freezing_level_at_or_below"}, "flown_ft", "pireps": [{"icing"?}]}`;
+//!   `gonogo_icing_line` from `{"icing"}`;
+//! - `gonogo_risk`: the risk assessment, its line, what to do and every
+//!   factor marked, from a FratInput, `{"vfr_not_recommended",
+//!   "under_minimums", "tfr_on_route", "hazards", "night",
+//!   "fuel_margin_gal"?, "ifr"?, "vor_check"? (left out for a stock
+//!   profile, null for none recorded), "inspections"?, "squawks"?,
+//!   "currency"?, "day", "ticked": {key: true}}`;
+//!   `gonogo_inspection_factors` from `{"inspections", "day", "ifr"}`,
+//!   `gonogo_squawk_factors` from `{"squawks", "night", "ifr"}`,
+//!   `gonogo_self_checks` from `{}`, `gonogo_risk_line` from `{"level",
+//!   "score"}`;
+//! - `gonogo_runway_checks`: the runway check at every field, fields and
+//!   runways by index, from `{"aircraft": {"takeoff"?, "landing"?,
+//!   "crosswind"?}, "fields": [{"ident", "elevation_ft"?}], the briefing's
+//!   "metars" and "airports", "takeoff_lb"?, "landing_lb"?, "picks"?:
+//!   {"pattern", "takeoff"} (objects of field to end, or [field, end]
+//!   pairs)}`; `gonogo_short_field`, `gonogo_end_distance`,
+//!   `gonogo_density_altitude`, `gonogo_field_air`, `gonogo_soft_surface`
+//!   from `{"surface"?}`, `gonogo_runway_number` from `{"ident"}`,
+//!   `gonogo_runway_flown`
+//!   and `gonogo_runway_in_use` (runway and end by index),
+//!   `gonogo_picked_end`;
+//! - `gonogo_balance` from `{"loading", "load", "trip_fuel_gal"?}`,
+//!   `gonogo_default_load` from `{"loading", "fuel_gal"}`,
+//!   `gonogo_in_envelope` from `{"envelope", "arm", "weight"}`;
+//! - `gonogo_pass_minutes` (minutes after departure, or null) from
+//!   `{"legs": [{"distance_nm", "ete_min"?}], "along_nm"}`;
+//!   `gonogo_tfr_when` from `{"at_us", "effective_us"?, "expires_us"?}`
+//!   (microseconds since 1970); `gonogo_sua_when` from `{"times_of_use"?,
+//!   "utc": [day, minute], "local"?: [day, minute]}` (day 0 Sunday; the
+//!   host works the clocks out in the area's own time zone, which the
+//!   engine has no database of).
+//!
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
@@ -127,7 +186,8 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             json::opt_string(&mut out, crate::clearance::direct_of(ask.str("text")?).as_deref());
             Ok(out)
         }
-        _ => Err(format!("the engine has no rule called {name:?}")),
+        // The Go / No-Go's, by their own names (gonogo::calls).
+        _ => crate::gonogo::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}"))),
     }
 }
 

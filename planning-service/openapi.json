@@ -11824,13 +11824,19 @@
         "description": "One of the checks only the pilot can answer, in its group.",
         "properties": {
           "finding": {
-            "default": "caution",
-            "enum": [
-              "caution",
-              "stop"
+            "anyOf": [
+              {
+                "enum": [
+                  "caution",
+                  "stop"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Finding",
-            "type": "string"
+            "title": "Finding"
           },
           "group": {
             "title": "Group",
@@ -11878,13 +11884,30 @@
         "description": "What raises the risk (lib/frat): why it counts, its points, and\nwhether it makes the flight unlawful as planned (`stop`).",
         "properties": {
           "finding": {
-            "default": "caution",
-            "enum": [
-              "caution",
-              "stop"
+            "anyOf": [
+              {
+                "enum": [
+                  "caution",
+                  "stop"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Finding",
-            "type": "string"
+            "title": "Finding"
+          },
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
           },
           "key": {
             "title": "Key",
@@ -17485,7 +17508,7 @@
     },
     "/api/go-no-go": {
       "post": {
-        "description": "The Go / No-Go for a route: each finding -- the weather, the TFRs and\nspecial-use airspace, the altitude, the fuel, the runways, the weight\nand balance and the risk -- with where it is said in full, and the\nline over them; the risk assessment and the weight and balance it\ncounted, for the Brief's own pages. The rules are web/src/lib/verdict's\nand the modules it is fed from, ported to app.gonogo; the pilot's\nminimums, loading, ticks, currency and own airplane's records come in\nthe ask.",
+        "description": "The Go / No-Go for a route: each finding -- the weather, the TFRs and\nspecial-use airspace, the altitude, the fuel, the runways, the weight\nand balance and the risk -- with where it is said in full, and the\nline over them; the risk assessment and the weight and balance it\ncounted, for the Brief's own pages. The rules are web/src/lib/verdict's\nand the modules it is fed from, the engine's in app.gonogo; the pilot's\nminimums, loading, ticks, currency and own airplane's records come in\nthe ask.",
         "operationId": "go_no_go_api_go_no_go_post",
         "requestBody": {
           "content": {
