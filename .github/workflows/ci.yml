@@ -98,6 +98,17 @@ jobs:
       - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
       # The engine's own tests, on the shared fixtures the Python reads too.
       - run: cargo test --profile ci --manifest-path native/Cargo.toml -p wingtip-engine
+      # The web app's copy of the engine (web/src/lib/engine), committed
+      # because the web build has no Rust: built again in the script's
+      # pinned image, it must be the committed file byte for byte, or the
+      # browser runs other rules than the planner and the phones.
+      - name: The engine's WebAssembly is the committed one
+        run: |
+          scripts/build-engine-wasm.sh
+          git diff --exit-code --stat web/src/lib/engine/wingtip-engine.wasm || {
+            echo "::error title=Engine wasm out of date::web/src/lib/engine/wingtip-engine.wasm is not what native/ builds: run scripts/build-engine-wasm.sh and commit the file."
+            exit 1
+          }
       - run: ruff check src/vfr tests
       - run: pytest tests/ -v
       # vfr's API documentation, from its docstrings. pdoc imports every
@@ -373,6 +384,8 @@ jobs:
             test-root:
               - src/**
               - native/**
+              - scripts/build-engine-wasm.sh
+              - web/src/lib/engine/wingtip-engine.wasm
               - tests/**
               - requirements-dev.txt
               # tests/test_requirements.py reads these

@@ -269,6 +269,36 @@ fn known(v: f64) -> Option<f64> {
     (!v.is_nan()).then_some(v)
 }
 
+/// Status and answer of wt_call: `ok` 1 with the rule's answer as JSON in
+/// `text`, or 0 with what was wrong in words. `text` is the caller's to
+/// give back with wt_string_free (NULL only where the answer held a NUL,
+/// which no rule writes).
+#[repr(C)]
+pub struct WtCalled {
+    pub ok: i32,
+    pub text: *mut c_char,
+}
+
+/// The engine's one way in, as the web app and the planner ask it too
+/// (wingtip_engine::call): a rule by `name`, its input a JSON object, its
+/// answer JSON. The per-rule functions below stay for the app's existing
+/// callers.
+///
+/// # Safety
+/// `name` and `input` are NULL or NUL-terminated UTF-8.
+#[no_mangle]
+pub unsafe extern "C" fn wt_call(name: *const c_char, input: *const c_char) -> WtCalled {
+    let read = |p: *const c_char| if p.is_null() { None } else { CStr::from_ptr(p).to_str().ok() };
+    let answer = match (read(name), read(input)) {
+        (Some(name), Some(input)) => wingtip_engine::call::call(name, input),
+        _ => Err("wt_call: the name and the input are NUL-terminated UTF-8".to_owned()),
+    };
+    match answer {
+        Ok(text) => WtCalled { ok: 1, text: give(text) },
+        Err(why) => WtCalled { ok: 0, text: give(why) },
+    }
+}
+
 /// A hold's entry and its legs in the wind (AIM 5-3-8), as the planner's
 /// /api/holding answers, JSON. `right` 1 for right turns, 0 left; the
 /// wind is worked only where `tas_kt`, `wind_from_deg`, `wind_kt` and

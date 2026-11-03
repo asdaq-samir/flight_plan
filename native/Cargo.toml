@@ -1,9 +1,10 @@
 # Wingtip's Rust: the engine (engine/, wingtip-engine), the same answers
 # on the planner and, later, the phone, and its Python face (py/,
 # vfr_native), which the planner imports, and its C face for the
-# phones (ffi/, wingtip-ffi).
+# phones (ffi/, wingtip-ffi), and its WebAssembly for the web app (wasm/,
+# wingtip-wasm).
 [workspace]
-members = ["engine", "py", "ffi"]
+members = ["engine", "py", "ffi", "wasm"]
 resolver = "2"
 
 [profile.release]
@@ -16,3 +17,15 @@ codegen-units = 1
 inherits = "release"
 lto = false
 codegen-units = 16
+
+# The web app's WebAssembly (wasm/, scripts/build-engine-wasm.sh): small
+# over fast, since every phone downloads it before the first draw and the
+# rules it runs take microseconds either way. A profile of its own because
+# a profile cannot be set for one package's panic strategy: abort, as
+# wasm32-unknown-unknown has no unwinding anyway, which drops the
+# unwinding tables.
+[profile.wasm]
+inherits = "release"
+opt-level = "z"
+panic = "abort"
+strip = true
