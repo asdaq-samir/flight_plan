@@ -279,6 +279,7 @@ final class Plan {
         } catch {
             guard routesAskedFor == asked, !(error is CancellationError) else { return }
             routesProblem = error.localizedDescription
+            Log.planner.notice("the route options for \(dep, privacy: .public) to \(dest, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -313,6 +314,7 @@ final class Plan {
             keep()
         } catch {
             briefingProblem = error.localizedDescription
+            Log.planner.notice("the briefing for \(dep, privacy: .public) to \(dest, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

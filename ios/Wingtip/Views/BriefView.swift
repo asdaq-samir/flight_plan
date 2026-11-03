@@ -98,7 +98,7 @@ struct BriefView: View {
                                         if tfr.activeNow { Text("active now").foregroundStyle(.red).font(.footnote.weight(.semibold)) }
                                     }
                                     HStack(spacing: 8) {
-                                        Text(String(format: "%.0f nm along", tfr.alongTrackNm))
+                                        Text("\(Formats.nm(tfr.alongTrackNm, decimals: 0)) along")
                                         if let floor = tfr.floorFt, let ceiling = tfr.ceilingFt { Text("\(Int(floor).formatted()) to \(Int(ceiling).formatted()) ft") }
                                         if let effective = tfr.effective { Text("from \(effective)") }
                                     }
@@ -114,7 +114,7 @@ struct BriefView: View {
                             ForEach(Array(pireps.enumerated()), id: \.offset) { i, p in
                                 VStack(alignment: .leading, spacing: 2) {
                                     HStack(spacing: 8) {
-                                        Text(String(format: "%.0f nm along", p.alongTrackNm)).font(.headline)
+                                        Text("\(Formats.nm(p.alongTrackNm, decimals: 0)) along").font(.headline)
                                         if let turbulence = p.turbulence { Text("turbulence \(turbulence)") }
                                         if let icing = p.icing { Text("icing \(icing)") }
                                         if p.urgent == true { Text("URGENT").foregroundStyle(.red).bold() }

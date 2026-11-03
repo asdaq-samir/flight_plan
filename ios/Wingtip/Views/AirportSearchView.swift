@@ -155,7 +155,7 @@ struct AirportStrip: View {
                     case .recents:
                         ForEach(shelf.recents) { field in tile(field.ident, field.name) }
                     case .nearest:
-                        ForEach(nearest.prefix(12)) { field in tile(field.ident, String(format: "%.0f nm", field.distanceNm), category: field.flightCategory) }
+                        ForEach(nearest.prefix(12)) { field in tile(field.ident, Formats.nm(field.distanceNm, decimals: 0), category: field.flightCategory) }
                     }
                     if empty { Text(emptyWords).foregroundStyle(.secondary).padding(.vertical, 12) }
                 }
@@ -315,8 +315,8 @@ struct NearestRow: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text(String(format: "%.0f nm", field.distanceNm)).font(.body.monospacedDigit())
-                Text(String(format: "%03.0f°T", bearing)).font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                Text(Formats.nm(field.distanceNm, decimals: 0)).font(.body.monospacedDigit())
+                Text("\(Formats.degrees(bearing))T").font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
             }
         }
         // One row, read as a pilot would say it: the ident, its weather,

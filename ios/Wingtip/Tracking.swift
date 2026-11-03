@@ -296,11 +296,18 @@ final class Tracking {
     /// Each watched airplane's state, and any watch that goes off on it.
     private func askWatched() async {
         for hex in Set(watches.map(\.hex)) {
-            guard let status = try? await Planner.flightStatus(hex) else { continue }
+            let status: FlightStatus
+            do {
+                status = try await Planner.flightStatus(hex)
+            } catch {
+                Log.records.notice("the watched airplane \(hex, privacy: .public) could not be asked about: \(error.localizedDescription, privacy: .public)")
+                continue
+            }
             let before = airborne[hex]
             let now = Self.airborneNow(before: before, status)
             for watch in watches where watch.hex == hex {
                 if let words = Self.fired(watch, before: before, now: now, status: status) {
+                    Log.records.notice("watch went off: \(words, privacy: .public)")
                     fired = words
                     SpokenAlerts.shared.say("\(words).", force: true)
                     remove(watch)

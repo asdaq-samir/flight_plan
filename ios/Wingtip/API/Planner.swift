@@ -88,7 +88,12 @@ enum Planner {
     static func data(for request: URLRequest, ok: ClosedRange<Int> = 200...200) async throws -> Data {
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard ok.contains(status) else { throw Failure(status: status, detail: detail(of: data)) }
+        guard ok.contains(status) else {
+            // The path names the call (an ident in it is public); the query
+            // may hold a position and is left out.
+            Log.planner.error("\(request.url?.path ?? "", privacy: .public) answered \(status)")
+            throw Failure(status: status, detail: detail(of: data))
+        }
         return data
     }
 
@@ -110,7 +115,10 @@ enum Planner {
                 do {
                     let (bytes, response) = try await URLSession.shared.bytes(for: try await make())
                     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    guard status == 200 else { throw Failure(status: status, detail: nil) }
+                    guard status == 200 else {
+                        Log.planner.error("stream answered \(status)")
+                        throw Failure(status: status, detail: nil)
+                    }
                     for try await line in bytes.lines where !line.isEmpty {
                         if let value = try decode(Data(line.utf8)) { continuation.yield(value) }
                     }

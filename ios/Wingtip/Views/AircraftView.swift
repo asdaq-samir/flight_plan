@@ -48,7 +48,7 @@ struct AircraftView: View {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(airplane.tailNumber).font(.headline.monospaced())
-                                        Text(String(format: "%@ · %.0f kt · %.1f gal/h", airplane.typeDesignator, airplane.cruiseTasKt, airplane.fuelBurnGph))
+                                        Text("\(airplane.typeDesignator) · \(Formats.kt(airplane.cruiseTasKt)) · \(Formats.number(airplane.fuelBurnGph, decimals: 1)) gal/h")
                                             .font(.footnote).foregroundStyle(.secondary)
                                     }
                                     Spacer()
@@ -70,9 +70,8 @@ struct AircraftView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(profile.type ?? profile.designator ?? profile.name.uppercased()).font(.headline)
-                                Text(String(format: "%.0f kt · %.1f gal/h · ceiling %@ ft%@", profile.cruiseTasKt, profile.fuelBurnGph,
-                                            Int(profile.serviceCeilingFt).formatted(),
-                                            profile.usableFuelGal.map { String(format: " · %.0f gal usable", $0) } ?? ""))
+                                Text("\(Formats.kt(profile.cruiseTasKt)) · \(Formats.number(profile.fuelBurnGph, decimals: 1)) gal/h · ceiling \(Formats.feet(profile.serviceCeilingFt))"
+                                     + (profile.usableFuelGal.map { " · \(Formats.gal($0, decimals: 0)) usable" } ?? ""))
                                     .font(.footnote).foregroundStyle(.secondary)
                             }
                             Spacer()

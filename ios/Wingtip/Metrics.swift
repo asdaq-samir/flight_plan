@@ -15,7 +15,7 @@ import os
 @MainActor
 final class Metrics: NSObject, MXMetricManagerSubscriber {
     static let shared = Metrics()
-    private let log = Logger(subsystem: "app.wingtipmaps.ios", category: "metrics")
+    private let log = Log.metrics
     private var started = false
 
     /// Subscribed once, at launch: MetricKit delivers a payload about once
@@ -82,6 +82,6 @@ final class Metrics: NSObject, MXMetricManagerSubscriber {
             guard let bucket = bucket as? MXHistogramBucket<UnitDuration> else { continue }
             seconds += bucket.bucketEnd.converted(to: .seconds).value * Double(bucket.bucketCount)
         }
-        return String(format: "%.1f s", seconds)
+        return "\(Formats.number(seconds, decimals: 1)) s"
     }
 }

@@ -71,11 +71,13 @@ final class ClearanceListener {
         problem = nil
         guard await Self.allowed() else {
             problem = "Microphone or speech recognition access was refused; allow it for Wingtip Maps in Settings."
+            Log.radio.error("the microphone or speech recognition was refused")
             return
         }
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
         guard let recognizer, recognizer.isAvailable else {
             problem = "Speech recognition is not available now."
+            Log.radio.error("speech recognition is not available")
             return
         }
         stop()
@@ -85,6 +87,7 @@ final class ClearanceListener {
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         } catch {
             problem = "No microphone could be used."
+            Log.radio.error("the audio session could not be set up: \(error.localizedDescription, privacy: .public)")
             return
         }
         self.words = words
@@ -98,9 +101,11 @@ final class ClearanceListener {
         } catch {
             input.removeTap(onBus: 0)
             problem = "No microphone could be used."
+            Log.radio.error("the audio engine would not start: \(error.localizedDescription, privacy: .public)")
             return
         }
         listening = true
+        Log.radio.notice("listening to the radio, \(words.count) names to listen for")
         hear()
         // Taken away by a phone call or Siri, the microphone is listened
         // to again once the system gives it back, as Apple's audio guidance
@@ -156,6 +161,8 @@ final class ClearanceListener {
         let wasFinal = was.map { heard[$0].final } ?? false
         let next = Transmission(id: id, at: was.map { heard[$0].at } ?? Date(), text: text, final: final, forUs: forUs)
         if let was { heard[was] = next } else { heard = Array((heard + [next]).suffix(Self.kept)) }
+        // What was said is the pilot's own: private off the device.
+        if final { Log.radio.debug("heard\(forUs ? " for us" : ""): \(text, privacy: .private)") }
         if forUs && final && !wasFinal { tell(text) }
     }
 

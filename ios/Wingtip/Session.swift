@@ -22,6 +22,7 @@ final class Session {
             // Offline, or the gateway down: the last answer stands, and
             // the chart is still the pilot's from its cache.
             problem = error.localizedDescription
+            Log.app.notice("who is signed in could not be asked: \(error.localizedDescription, privacy: .public)")
         }
         loaded = true
     }
@@ -32,6 +33,7 @@ final class Session {
             await refresh()
         } catch {
             problem = "Apple's sign-in was not accepted: \(error.localizedDescription)"
+            Log.app.error("Sign in with Apple refused: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -58,6 +60,7 @@ final class Session {
             await refresh()
         } catch {
             problem = "The sign-in link did not work: \(error.localizedDescription)"
+            Log.app.error("the sign-in link was refused: \(error.localizedDescription, privacy: .public)")
         }
     }
 

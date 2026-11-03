@@ -8,19 +8,11 @@ import Foundation
 /// the web app; the formatting is the app's.
 enum AirportWords {
     /// A whole number grouped as pilots read it: "10,162", whatever the
-    /// phone's region, as the web app writes it.
-    static func grouped(_ n: Double) -> String {
-        let magnitude = Int(abs(n).rounded())
-        var digits = String(magnitude)
-        var at = digits.count - 3
-        while at > 0 {
-            digits.insert(",", at: digits.index(digits.startIndex, offsetBy: at))
-            at -= 3
-        }
-        return n < 0 && magnitude > 0 ? "-" + digits : digits
-    }
+    /// phone's region, as the web app writes it (Formats, whose locale
+    /// is fixed for that).
+    static func grouped(_ n: Double) -> String { Formats.grouped(n) }
 
-    static func feet(_ ft: Double?) -> String { ft.map { "\(grouped($0)) ft" } ?? "—" }
+    static func feet(_ ft: Double?) -> String { Formats.feet(ft) }
 
     /// A figure as sent, without a ".0" it does not have: 3 and 1.5.
     static func plain(_ x: Double) -> String {
@@ -29,9 +21,7 @@ enum AirportWords {
 
     /// A figure to a tenth, without a ".0" it does not have: "3", "1.5"
     /// -- a tolerance, a handbook figure in its field.
-    static func tenths(_ x: Double) -> String {
-        x == x.rounded() && abs(x) < 1e9 ? String(Int(x)) : String(format: "%.1f", x)
-    }
+    static func tenths(_ x: Double) -> String { Formats.tenths(x) }
 
     /// A wind's direction as a pilot writes it: three figures, north 360.
     static func bearing(_ deg: Double) -> String {
@@ -62,16 +52,16 @@ enum AirportWords {
     // MARK: The nav log's figures
 
     /// A distance to a tenth, "12.3 nm", as the nav log gives it.
-    static func nm(_ x: Double) -> String { String(format: "%.1f nm", x) }
+    static func nm(_ x: Double) -> String { Formats.nm(x) }
 
     /// Fuel to a tenth, "8.4 gal".
-    static func gal(_ x: Double) -> String { String(format: "%.1f gal", x) }
+    static func gal(_ x: Double) -> String { Formats.gal(x) }
 
     /// A speed in whole knots, "112 kt".
-    static func kt(_ x: Double) -> String { String(format: "%.0f kt", x) }
+    static func kt(_ x: Double) -> String { Formats.kt(x) }
 
     /// A course or heading as the nav log prints it, three figures, "093°".
-    static func degrees(_ x: Double) -> String { String(format: "%03.0f°", x) }
+    static func degrees(_ x: Double) -> String { Formats.degrees(x) }
 
     /// A point as the planner, the app's links and Maps take one,
     /// "46.84211,-92.19358": five places, about a metre.
@@ -267,12 +257,6 @@ enum AirportWords {
     /// walk, else statute miles.
     static func away(_ place: NearbyPlace) -> String {
         if let walk = place.walkMin { return "\(walk) min walk" }
-        return String(format: "%.1f mi", Double(place.distanceM) / 1609.344)
-    }
-}
-
-private extension String {
-    func leftPadded(to width: Int) -> String {
-        count >= width ? self : String(repeating: "0", count: width - count) + self
+        return "\(Formats.number(Double(place.distanceM) / 1609.344, decimals: 1)) mi"
     }
 }

@@ -49,9 +49,9 @@ struct LogbookView: View {
                 instrumentSection
                 if let currency, currency.flights > 0 {
                     Section("Totals") {
-                        LabeledContent("Total", value: String(format: "%.1f h", currency.totalHours))
-                        LabeledContent("Night", value: String(format: "%.1f h", currency.nightHours))
-                        LabeledContent("Cross-country", value: String(format: "%.1f h", currency.crossCountryHours))
+                        LabeledContent("Total", value: Formats.hours(currency.totalHours))
+                        LabeledContent("Night", value: Formats.hours(currency.nightHours))
+                        LabeledContent("Cross-country", value: Formats.hours(currency.crossCountryHours))
                         LabeledContent("Landings", value: "\(currency.landings)")
                     }
                 }
@@ -122,7 +122,7 @@ struct LogbookView: View {
             HStack {
                 Text(Day.said(e.flownOn) + (e.route.map { " · \($0)" } ?? "")).font(.headline)
                 Spacer()
-                Text(String(format: "%.1f h", e.totalHours)).font(.subheadline.monospacedDigit())
+                Text(Formats.hours(e.totalHours)).font(.subheadline.monospacedDigit())
             }
             Text(([e.aircraft, e.aircraftType, "\(landings) landing\(landings == 1 ? "" : "s")", e.remarks].compactMap { $0 }.filter { !$0.isEmpty })
                 .joined(separator: " · "))

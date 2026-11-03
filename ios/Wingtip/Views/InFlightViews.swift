@@ -563,7 +563,7 @@ struct Kneeboard: View {
             Rectangle().frame(height: 1.5)
             Text([aircraft, totals?.distanceNm.map(AirportWords.nm), totals?.eteMin.map(hoursMinutes),
                   totals?.fuelGal.map(AirportWords.gal),
-                  totals?.fuelRequiredGal.map { String(format: "(%.1f with reserve)", $0) }].compactMap { $0 }.joined(separator: " · "))
+                  totals?.fuelRequiredGal.map { "(\(Formats.number($0, decimals: 1)) with reserve)" }].compactMap { $0 }.joined(separator: " · "))
                 .font(.system(size: 9))
             Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 3) {
                 GridRow {
@@ -574,13 +574,13 @@ struct Kneeboard: View {
                     GridRow {
                         Text(leg.to).lineLimit(1)
                         Text(Int(leg.altitudeFt).formatted())
-                        Text(String(format: "%03.0f", leg.magneticHeadingDeg))
-                        Text(String(format: "%.1f", leg.distanceNm))
-                        Text(leg.groundspeedKt.map { String(format: "%.0f", $0) } ?? "")
-                        Text(leg.eteMin.map { String(format: "%.1f", $0) } ?? "")
+                        Text(Formats.number(leg.magneticHeadingDeg, decimals: 0).leftPadded(to: 3))
+                        Text(Formats.number(leg.distanceNm, decimals: 1))
+                        Text(leg.groundspeedKt.map { Formats.number($0, decimals: 0) } ?? "")
+                        Text(leg.eteMin.map { Formats.number($0, decimals: 1) } ?? "")
                         Text("")
                         Text("")
-                        Text(leg.fuelGal.map { String(format: "%.1f", $0) } ?? "")
+                        Text(leg.fuelGal.map { Formats.number($0, decimals: 1) } ?? "")
                         Text("")
                     }
                     Divider().gridCellUnsizedAxes(.horizontal)

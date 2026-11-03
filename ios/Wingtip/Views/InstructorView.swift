@@ -260,7 +260,7 @@ struct ReviewSection: View {
             LabeledContent("Airplane", value: [review.makeModel, review.flight?.aircraftTailNumber].compactMap { $0 }.joined(separator: " · "))
             if let f = review.flight {
                 if let ft = f.cruiseAltitudeFt { LabeledContent("Altitude", value: "\(ft.formatted()) ft") }
-                if let nm = f.totalDistanceNm { LabeledContent("Distance", value: String(format: "%.0f nm", nm)) }
+                if let nm = f.totalDistanceNm { LabeledContent("Distance", value: Formats.nm(nm, decimals: 0)) }
                 if let min = f.totalEteMin { LabeledContent("Time", value: hoursMinutes(min)) }
                 if let gal = f.totalFuelGal { LabeledContent("Fuel", value: AirportWords.gal(gal)) }
             }

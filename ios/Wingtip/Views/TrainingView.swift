@@ -200,7 +200,7 @@ struct ExperienceSection: View {
 
     static func amount(_ item: ExperienceItem) -> String {
         switch item.unit {
-        case "h": return String(format: "%.1f of %@ h", item.have, item.need.formatted())
+        case "h": return "\(Formats.number(item.have, decimals: 1)) of \(item.need.formatted()) h"
         case "flights": return item.met ? "Done" : "Not yet"
         default: return "\(item.have.formatted()) of \(item.need.formatted())"
         }

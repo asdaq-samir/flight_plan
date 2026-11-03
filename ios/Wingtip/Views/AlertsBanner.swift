@@ -16,7 +16,7 @@ struct AlertsBanner: View {
                     .accessibilityLabel(danger ? "Danger ahead" : "Caution ahead")
                 VStack(alignment: .leading, spacing: 1) {
                     Text(first.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    Text("\(first.need) · \(Int((first.seconds / 60).rounded())) min, \(String(format: "%.1f", first.distanceNm)) nm").font(.footnote).lineLimit(1)
+                    Text("\(first.need) · \(Formats.minutes(first.seconds / 60)), \(Formats.nm(first.distanceNm))").font(.footnote).lineLimit(1)
                         .accessibilityLabel("\(first.need), in \(SpokenFigures.minutes(first.seconds / 60)), \(SpokenFigures.nauticalMiles(first.distanceNm))")
                 }
                 Spacer(minLength: 0)

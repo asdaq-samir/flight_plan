@@ -283,7 +283,7 @@ struct NowFlightRow: View {
         let climb = abs(rate) >= 100 ? "\(rate > 0 ? "↑" : "↓") \((Int((abs(rate) / 100).rounded()) * 100).formatted()) fpm" : "level"
         let height = plane.altitudeFt.map { "\((Int(($0 / 25).rounded()) * 25).formatted()) ft" } ?? "—"
         let speed = plane.speedKt.map { "\(Int($0.rounded())) kt" } ?? "—"
-        let track = plane.trackDeg.map { String(format: " · %03.0f° true", $0) } ?? ""
+        let track = plane.trackDeg.map { " · \(Formats.degrees($0)) true" } ?? ""
         return "\(height) \(climb) · \(speed)\(track)"
     }
 
@@ -300,7 +300,7 @@ struct NowFlightRow: View {
         let nm = Flight.nm(from: fix.coordinate, to: here)
         let bearing = Flight.bearing(from: fix.coordinate, to: here)
         let height = fix.altitudeFt.flatMap { own in plane.altitudeFt.map { ", " + FlightWords.against($0 - own) } } ?? ""
-        return String(format: "%.0f nm %@ of you", nm, AirportWords.compassPoint(bearing)) + height
+        return "\(Formats.nm(nm, decimals: 0)) \(AirportWords.compassPoint(bearing)) of you" + height
     }
 }
 

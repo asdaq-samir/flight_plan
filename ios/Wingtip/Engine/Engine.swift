@@ -120,8 +120,16 @@ enum Engine {
         let interval = signposter.beginInterval("engine", id: signposter.makeSignpostID(), "\(name, privacy: .public)")
         defer { signposter.endInterval("engine", interval) }
         let answer = wt_call(name, input)
-        guard let text = taken(answer.text) else { throw Refused(message: "\(name): the engine gave no answer") }
-        guard answer.ok == 1 else { throw Refused(message: text) }
+        guard let text = taken(answer.text) else {
+            Log.engine.error("\(name, privacy: .public): no answer")
+            throw Refused(message: "\(name): the engine gave no answer")
+        }
+        guard answer.ok == 1 else {
+            // The rule's name is the engine's own; its input may hold a
+            // position, so only the complaint is logged.
+            Log.engine.error("\(name, privacy: .public) refused: \(text, privacy: .private)")
+            throw Refused(message: text)
+        }
         return text
     }
 

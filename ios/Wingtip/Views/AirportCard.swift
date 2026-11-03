@@ -319,8 +319,8 @@ struct AirportWeatherTab: View {
                 }
                 if let altimeter = metar.altimeterInHg {
                     // Read as set on the altimeter: "two niner niner two".
-                    figure("gauge.with.dots.needle.33percent", "Altimeter", String(format: "%.2f inHg", altimeter),
-                           spoken: "\(SpokenFigures.digits(String(format: "%.2f", altimeter))) inches")
+                    figure("gauge.with.dots.needle.33percent", "Altimeter", "\(Formats.number(altimeter, decimals: 2)) inHg",
+                           spoken: "\(SpokenFigures.digits(Formats.number(altimeter, decimals: 2))) inches")
                 }
                 // The report as sent, never reworded.
                 if let raw = metar.raw { Text(raw).font(.footnote.monospaced()).textSelection(.enabled) }

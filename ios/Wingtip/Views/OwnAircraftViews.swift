@@ -334,8 +334,8 @@ struct InspectionsSection: View {
     /// The gateway's due hours, and how many are left by the hours recorded.
     private var hundredHourLine: String {
         guard let due = record.inspections?.hundredHourDueAtHours else { return "Time in service, at the last annual or 100-hour" }
-        var line = String(format: "Due at %.1f h", due)
-        if let now = record.inspections?.hoursNow { line += now < due ? String(format: ", %.1f h to go", due - now) : ", due now" }
+        var line = "Due at \(Formats.hours(due))"
+        if let now = record.inspections?.hoursNow { line += now < due ? ", \(Formats.hours(due - now)) to go" : ", due now" }
         return line
     }
 

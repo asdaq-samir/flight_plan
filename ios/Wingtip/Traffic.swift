@@ -41,7 +41,14 @@ final class Traffic {
     private func ask(near at: CLLocationCoordinate2D?) async {
         guard on, let at = at ?? mapCentre else { return }
         let radius = min(60, max(10, mapRadiusNm))
-        guard let answer = try? await Planner.traffic(lat: at.latitude, lon: at.longitude, radiusNm: radius), on else { return }
+        let answer: TrafficAnswer
+        do {
+            answer = try await Planner.traffic(lat: at.latitude, lon: at.longitude, radiusNm: radius)
+        } catch {
+            Log.map.notice("the traffic could not be asked for: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard on else { return }
         planes = answer.aircraft.filter { ($0.seenS ?? 0) + (answer.ageS ?? 0) <= Self.staleS }
         source = answer.source
         heardAt = Date().addingTimeInterval(-(answer.ageS ?? 0))

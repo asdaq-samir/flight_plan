@@ -15,20 +15,20 @@ struct LegDetailView: View {
                 LabeledContent("True course", value: AirportWords.degrees(leg.trueCourseDeg))
                     .accessibilityValue(SpokenFigures.degrees(leg.trueCourseDeg))
                 if let wind = leg.wind, let dir = wind.directionDeg, let kt = wind.speedKt {
-                    LabeledContent("Wind", value: String(format: "%03.0f° at %.0f kt", dir, kt))
+                    LabeledContent("Wind", value: "\(Formats.degrees(dir)) at \(Formats.kt(kt))")
                         .accessibilityValue("\(SpokenFigures.degrees(dir)) at \(SpokenFigures.knots(kt))")
                 }
-                LabeledContent("Wind correction", value: String(format: "%+.0f°", leg.wcaDeg))
+                LabeledContent("Wind correction", value: "\(leg.wcaDeg >= 0 ? "+" : "")\(Formats.number(leg.wcaDeg, decimals: 0))°")
                     .accessibilityValue("\(leg.wcaDeg < 0 ? "minus" : "plus") \(SpokenFigures.number(abs(leg.wcaDeg))) degrees")
                 LabeledContent("True heading", value: AirportWords.degrees(leg.trueHeadingDeg))
                     .accessibilityValue(SpokenFigures.degrees(leg.trueHeadingDeg))
-                LabeledContent("Variation", value: String(format: "%.0f° %@", abs(leg.magneticVariationDeg), leg.magneticVariationDeg < 0 ? "E" : "W"))
+                LabeledContent("Variation", value: "\(Formats.number(abs(leg.magneticVariationDeg), decimals: 0))° \(leg.magneticVariationDeg < 0 ? "E" : "W")")
                     .accessibilityValue("\(SpokenFigures.number(abs(leg.magneticVariationDeg))) degrees \(leg.magneticVariationDeg < 0 ? "east" : "west")")
                 LabeledContent("Magnetic heading", value: AirportWords.degrees(leg.magneticHeadingDeg))
                     .accessibilityValue(SpokenFigures.degrees(leg.magneticHeadingDeg))
             }
             Section("Speed, time and fuel") {
-                LabeledContent("Altitude", value: "\(Int(leg.altitudeFt).formatted()) ft")
+                LabeledContent("Altitude", value: Formats.feet(leg.altitudeFt))
                     .accessibilityValue(SpokenFigures.feet(leg.altitudeFt))
                 LabeledContent("True airspeed", value: AirportWords.kt(leg.tasKt))
                     .accessibilityValue(SpokenFigures.knots(leg.tasKt))
@@ -41,8 +41,8 @@ struct LegDetailView: View {
             }
             if leg.toc != nil || leg.tod != nil {
                 Section("Climb and descent") {
-                    if let toc = leg.toc, let along = toc.alongNm { LabeledContent("Top of climb", value: String(format: "%.1f nm along", along)) }
-                    if let tod = leg.tod, let along = tod.alongNm { LabeledContent("Top of descent", value: String(format: "%.1f nm along", along)) }
+                    if let toc = leg.toc, let along = toc.alongNm { LabeledContent("Top of climb", value: "\(Formats.nm(along)) along") }
+                    if let tod = leg.tod, let along = tod.alongNm { LabeledContent("Top of descent", value: "\(Formats.nm(along)) along") }
                 }
             }
         }

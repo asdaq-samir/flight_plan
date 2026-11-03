@@ -230,7 +230,7 @@ struct LoadCondition: Codable, Equatable, Sendable {
 
     /// "2,407 lb · 41.2 in", as the web's Balance rows.
     var words: String {
-        "\(AirportWords.grouped(weightLb)) lb · \(String(format: "%.1f", armIn)) in"
+        "\(Formats.grouped(weightLb)) lb · \(Formats.number(armIn, decimals: 1)) in"
     }
 }
 

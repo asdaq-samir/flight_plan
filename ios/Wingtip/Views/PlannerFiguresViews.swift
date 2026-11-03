@@ -125,7 +125,7 @@ struct DebriefSections: View {
 
     private func courseLine(_ leg: LegGrade, _ t: DebriefTolerances) -> String? {
         guard let within = leg.courseWithin, let course = leg.courseDeg else { return nil }
-        let off = leg.worstOffNm.map { String(format: ", at most %.1f nm %@ of the line", abs($0), $0 >= 0 ? "right" : "left") } ?? ""
+        let off = leg.worstOffNm.map { ", at most \(Formats.nm(abs($0))) \($0 >= 0 ? "right" : "left") of the line" } ?? ""
         return "Course: \(FigureWords.percent(within)) within \(AirportWords.tenths(t.courseDeg))° of \(AirportWords.bearing(course))\(off)"
     }
 
@@ -137,7 +137,7 @@ struct DebriefSections: View {
         } else {
             parts.append("not reached")
         }
-        if !p.landed, let closest = p.closestNm { parts.append(String(format: "%.1f nm from it at closest", closest)) }
+        if !p.landed, let closest = p.closestNm { parts.append("\(Formats.nm(closest)) from it at closest") }
         return parts.joined(separator: " · ")
     }
 }

@@ -26,8 +26,12 @@ enum Records {
             ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .automatic),
             ModelConfiguration(schema: schema, url: url, cloudKitDatabase: .none),
         ]
-        for configuration in configurations {
-            if let container = try? ModelContainer(for: schema, configurations: [configuration]) { return container }
+        for (configuration, place) in zip(configurations, ["with iCloud", "on the device"]) {
+            do {
+                return try ModelContainer(for: schema, configurations: [configuration])
+            } catch {
+                Log.records.error("the records store would not open \(place, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
         }
         // Cannot fail: an in-memory store with no file to open.
         return try! ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true, cloudKitDatabase: .none)])
