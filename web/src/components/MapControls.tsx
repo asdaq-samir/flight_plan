@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { cn } from "cn";
 import { Button } from "./ui/button";
 import FlownTrackButton from "./FlownTrackButton";
@@ -5,6 +6,7 @@ import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
 import RadioButton from "./RadioButton";
+import { useAtcRadio } from "../lib/atcRadio";
 import { FLYING_BUTTON, FLYING_STACK, GLASS, useFlying } from "./mapChrome";
 
 /**
@@ -27,10 +29,16 @@ import { FLYING_BUTTON, FLYING_STACK, GLASS, useFlying } from "./mapChrome";
  * the arrow and the rest wait for the ground. The map follows the
  * airplane in flight (OwnShipLayer), so the arrow is not missed.
  */
+/** The microphone's pill, in RadioLayer's chunk with the rest of the
+ *  radio's words: fetched as the mic is first tapped, never on the
+ *  first load. */
+const RadioPill = lazy(() => import("./RadioLayer").then(m => ({ default: m.RadioPill })));
+
 export default function MapControls() {
   const flying = useFlying(s => s.flying);
   const nearest = useFlying(s => s.nearest);
   const direct = useFlying(s => s.direct);
+  const pill = useAtcRadio(s => s.pill !== null);
   return (
     <>
     {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its
@@ -86,9 +94,24 @@ export default function MapControls() {
         at the left, level with the group, where the Stops were (it was
         Fly-in Food before them), at the owner's ask (2026-11-02), alone:
         the route's Play above it went to the route's ••• menu as Profile
-        (2026-11-02, "just the mic"). */}
-    <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col gap-2 rounded-full p-1 [&_button]:rounded-full", flying && FLYING_STACK, GLASS)}>
-      <RadioButton />
+        (2026-11-02, "just the mic"). The circle is the pill too: tapped,
+        it widens to the right into the listening pill (RadioPill) with
+        the mic's glyph become the waveform at its left, and shrinks back
+        once the pill is put away -- the button and the pill were two
+        things apart, one here and one at the top of the map (the owner,
+        2026-11-03). The width eases through a grid column from 0fr to
+        1fr, which is how a box of unknown width is animated in CSS. */}
+    <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex max-w-[min(28rem,calc(100vw-5rem))] items-end rounded-[26px] p-1", GLASS)} data-testid="mic-circle" data-listening={pill || undefined}>
+      {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
+          the pill's chips. */}
+      <span className={cn("flex shrink-0 [&_button]:rounded-full", flying && "[&_button]:size-[60px]")}>
+        <RadioButton />
+      </span>
+      <div className="grid min-w-0 transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none" style={{ gridTemplateColumns: pill ? "1fr" : "0fr" }}>
+        <div className="min-w-0 overflow-hidden">
+          {pill && <Suspense fallback={null}><RadioPill /></Suspense>}
+        </div>
+      </div>
     </div>
     </>
   );

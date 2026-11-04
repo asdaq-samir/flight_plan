@@ -249,35 +249,24 @@ function Timer({ from, onStop }: { from: number; onStop: () => void }) {
 
 /** Bars rising and falling while the microphone listens, as Siri's
  *  waveform; still under Reduce Motion. */
-function Waveform() {
-  return (
-    <span className="flex h-5 items-center gap-0.5" aria-hidden="true">
-      {[0, 1, 2, 3, 4].map(i => (
-        <span
-          key={i} className="h-full w-1 origin-center rounded-full bg-tint motion-safe:animate-[wave_0.9s_ease-in-out_infinite]"
-          style={{ animationDelay: `${i * 0.12}s`, transform: "scaleY(0.4)" }}
-        />
-      ))}
-    </span>
-  );
-}
-
 /**
- * The map's microphone grown into a pill over the map, as Siri listens
- * (the owner's pick A, 2026-11-02): "Listening…" with the waveform, the
- * words typing in as they are said; at a pause or a second tap, what was
- * heard with the chips it offers (CallActions) and ✕. The Radio card,
- * the log, a tap on the words away.
+ * The map's microphone grown into a pill, as Siri listens (the owner's
+ * pick A, 2026-11-02), in the mic's own circle, which widens into it
+ * (MapControls; the owner, 2026-11-03: the button and the pill were two
+ * things apart, one at the bottom left and one at the top): the mic's
+ * glyph becomes the waveform, "Listening…" and then the words typing in
+ * as they are said beside it; at a pause or a second tap, what was heard
+ * with the chips it offers (CallActions) and ✕, and the circle again
+ * once put away. The Radio card, the log, a tap on the words away.
  */
-function RadioPill() {
+export function RadioPill() {
   const pill = useAtcRadio(s => s.pill)!;
   const away = () => useAtcRadio.setState({ pill: null });
   useEffect(() => { void load(); }, []);
   const readback = pill.readbackOf ?? null;
   return (
-    <div className={cn(GLASS, "pointer-events-auto w-full max-w-md rounded-[22px] py-2 pr-1 pl-3")} data-testid="radio-pill">
+    <div className="min-w-0 py-1 pr-1" data-testid="radio-pill">
       <div className="flex items-center gap-2">
-        {pill.listening ? <Waveform /> : <Mic className="size-5 shrink-0 text-tint" aria-hidden="true" />}
         <button
           type="button" className={cn("min-w-0 flex-1 py-1 text-left outline-none focus-visible:underline", TEXT.detail)}
           aria-label="Open the radio's log" data-testid="radio-pill-text"
@@ -357,12 +346,12 @@ function RadioCaptions() {
  *  call to us, and the captions while listened to on and on. In a chunk
  *  of its own, loaded once the radio is first listened to. */
 export default function RadioLayer() {
-  const pill = useAtcRadio(s => s.pill !== null);
   const call = useAtcRadio(callToUs);
   const captions = useAtcRadio(s => s.mode === "radio" || (!!s.error && s.mode !== "once" && s.pill === null));
+  // The microphone's pill is the mic's own circle grown (RadioPill, in
+  // MapControls), not a line here.
   return (
     <>
-      {pill && <RadioPill />}
       {call && <RadioCall key={call.id} call={call} />}
       {captions && <RadioCaptions />}
     </>

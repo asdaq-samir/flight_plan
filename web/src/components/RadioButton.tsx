@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Mic } from "lucide-react";
+import Waveform from "./Waveform";
 import { cn } from "cn";
 import IconButton from "./IconButton";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "./ResponsivePopover";
@@ -18,9 +19,10 @@ const load = () => import("../lib/atcListening").then(m => (listening = m));
 /**
  * The map's microphone, in the Stops button's place at the owner's ask
  * (2026-11-02), and used as Siri's is at their pick (A, the same day): a
- * tap listens -- the microphone grown into a pill over the map, the words
- * typing in (RadioLayer) -- and a pause or a second tap ends it, the pill
- * then offering what can be done of what was heard. While the radio is
+ * tap listens -- the mic's glyph becomes the waveform and its circle
+ * widens into the pill beside it, the words typing in (RadioPill, in
+ * MapControls) -- and a pause or a second tap ends it, the pill then
+ * offering what can be done of what was heard. While the radio is
  * listened to on and on (the Radio card's Listen) a tap opens the card,
  * the log; where nothing can listen (Firefox), the card to type in.
  */
@@ -57,7 +59,7 @@ export default function RadioButton() {
           aria-pressed={busy} data-testid="radio-button" onClick={tap}
           className={cn(busy && "text-tint", mode === "radio" && "animate-pulse")}
         >
-          <Mic className="size-5" strokeWidth={1.5} aria-hidden="true" />
+          {mode === "once" && busy ? <Waveform /> : <Mic className="size-5" strokeWidth={1.5} aria-hidden="true" />}
         </IconButton>
       </ResponsivePopoverAnchor>
       <ResponsivePopoverContent title="Radio" side="right" align="end" className="flex w-96 flex-col gap-3 p-3" data-testid="clearance-card">
