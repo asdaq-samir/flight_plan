@@ -52,10 +52,10 @@ export type ChartNight = "normal" | "dimmed";
  *  Auto turns it on from the phone's light sensor where the browser has
  *  one; On and Off are the pilot's own. */
 export type ChartLight = "auto" | "on" | "off";
-/** The app's look (lib/brand), one of the four the owner had drawn
- *  (2026-10-26): Sectional, the chart's own colours; Glass Cockpit;
- *  Windsock; Clear Sky. */
-export type Brand = "sectional" | "cockpit" | "windsock" | "clearsky" | "ink";
+/** The app's look (lib/brand): Glass Cockpit or Chart ink, the two the
+ *  owner kept (2026-11-04: "Only keep the glass cockpit and chart ink");
+ *  Sectional, Windsock and Clear Sky are gone. */
+export type Brand = "cockpit" | "ink";
 /** Which agent writes the Brief's narrative: nav-log-agent (LangGraph) or
  *  crewai-agent (CrewAI). */
 export type NarrativeFramework = "langgraph" | "crewai";
@@ -314,7 +314,7 @@ export const usePreferences = create<Preferences>()(
       navBar: null,
       chartNight: "dimmed",
       chartLight: "auto",
-      brand: "sectional",
+      brand: "cockpit",
       // A plane, at the owner's ask, where it was the arrow.
       ownShipLook: "single",
       narrative: "langgraph",
@@ -423,12 +423,15 @@ export const usePreferences = create<Preferences>()(
       // browser as for a new one (the owner's pick of the map's looks).
       // 3: the chart in sunlight from the light sensor (Auto), for every
       // browser as for a new one.
-      version: 3,
+      // 4: a look no longer offered (Sectional, Windsock, Clear Sky) is
+      // the Glass Cockpit, the default now.
+      version: 4,
       migrate: (kept, from) => ({
         ...(kept as object),
         ...(from < 1 ? { waypoints: false } : {}),
         ...(from < 2 ? { airspace: true, navaids: true } : {}),
         ...(from < 3 ? { chartLight: "auto" } : {}),
+        ...(from < 4 && !["cockpit", "ink"].includes((kept as { brand?: string }).brand ?? "") ? { brand: "cockpit" } : {}),
       }) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({

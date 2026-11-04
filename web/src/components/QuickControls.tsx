@@ -42,7 +42,7 @@ export default function QuickControls() {
         icon={alertMode === "off" ? <BellOff /> : alertMode === "spoken" ? <BellRing /> : <Bell />}
         options={ALERT_MODES.map(m => ({ value: m.value, label: m.label, testId: `alerts-mode-${m.value}` }))}
       />
-      {/* The app's look, the owner's four (lib/brand), its Theme, where
+      {/* The app's look, Glass Cockpit or Chart ink (lib/brand), its Theme, where
           Offline was, named so at the owner's yes (2026-10-27): what most
           apps call a theme, and System, Light and Dark iOS's Appearance.
           It was "App Look", put here at the owner's ask ("instead of

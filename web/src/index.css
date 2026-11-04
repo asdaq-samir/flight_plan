@@ -440,9 +440,9 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --chart-5: oklch(0.269 0 0);
 }
 
-/* The app's looks (Settings' Look, lib/brand), the owner's four from
-   the brand canvas (2026-10-26): Sectional is the tokens above as they
-   are; the others change only what can be tapped (primary, tint), the
+/* The app's looks (Settings' Look, lib/brand): the Glass Cockpit and
+   Chart ink, the two the owner kept (2026-11-04). The tokens above are
+   the ground both build on; the cockpit changes only what can be tapped (primary, tint), the
    typeface and the corners, in each theme, so every word stays at 4.5:1
    and more on its surface (WCAG 1.4.3): light tints 4.8:1 and more on
    white and the muted grey, dark ones 6:1 and more on the night's card, and white on each
@@ -466,39 +466,6 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --primary: #0b6e7a;
   --tint: #46d3e6;
   --tint-shade: #46d3e6;
-}
-:root[data-brand="windsock"] {
-  --brand-font: 'Archivo Variable';
-  --radius: 0.375rem;
-}
-:root[data-brand="windsock"]:not(.dark) {
-  /* The windsock's orange, deepened for words and fills (#C73A00,
-     5.2:1 on white, white on it 5:1). */
-  --primary: #c73a00;
-  --tint: #c73a00;
-  --tint-shade: #c73a00;
-}
-:root.dark[data-brand="windsock"] {
-  --primary: #c73a00;
-  /* A paler orange for words on the navy (#FF9466, 6.9:1 on the card). */
-  --tint: #ff9466;
-  --tint-shade: #ff9466;
-}
-:root[data-brand="clearsky"] {
-  --brand-font: 'Manrope Variable';
-  --radius: 0.875rem;
-}
-:root[data-brand="clearsky"]:not(.dark) {
-  /* Sky blue (#0A66E8, 5.2:1 on white, white on it 4.9:1). */
-  --primary: #0a66e8;
-  --tint: #0a66e8;
-  --tint-shade: #0a66e8;
-}
-:root.dark[data-brand="clearsky"] {
-  --primary: #0a66e8;
-  /* A lighter sky for words on the navy (#7AB8FF, 7.2:1 on the card). */
-  --tint: #7ab8ff;
-  --tint-shade: #7ab8ff;
 }
 
 /* Chart ink (the owner's ink canvas, 2026-11-04: "let's try it"): the
