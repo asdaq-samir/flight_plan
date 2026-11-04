@@ -3,7 +3,7 @@ import type L from "leaflet";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
-import { hovers } from "./view";
+import { hovers, type Box } from "./view";
 import { useAhead, useLiveZoom } from "./useView";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
@@ -38,24 +38,31 @@ type Waypoint = { ident: string; lat: number; lon: number; description?: string 
 export function WaypointsLayer({ exclude }: { exclude: Set<string> }) {
   // As the airports' marks are asked for and drawn (useAhead, useLiveZoom):
   // the view and a screen round it, asked again under a finger's pan or
-  // pinch, and the zoom each whole level a pinch passes.
+  // pinch, and the zoom each whole level a pinch passes; the question sent
+  // from the map's own events.
   const zoom = useLiveZoom();
-  const asked = useAhead();
-  const { data } = useQuery({
-    queryKey: ["waypointsInView", asked.key],
-    queryFn: () => api.waypointsInView(asked.box),
-    enabled: zoom >= FROM_ZOOM,
-    staleTime: Infinity,
-    placeholderData: keepPreviousData,
-    meta: { silent: true },
-  });
+  const asked = useAhead(waypointsQuery);
+  const query = waypointsQuery(asked, zoom);
+  const { data } = useQuery({ ...query, placeholderData: keepPreviousData });
   const shown = useMemo(() => (data ?? []).filter(w => !exclude.has(w.ident)), [data, exclude]);
-  if (zoom < FROM_ZOOM) return null;
+  if (!query.enabled) return null;
   return (
     <Pane name="waypoints" style={{ zIndex: 440 }}>
       <WaypointMarks waypoints={shown} />
     </Pane>
   );
+}
+
+/** The planner asked for a box's VFR waypoints, from FROM_ZOOM: by the
+ *  layer's useQuery and by the map's own events (useAhead) alike. */
+export function waypointsQuery(asked: Box, zoom: number) {
+  return {
+    queryKey: ["waypointsInView", asked.key],
+    queryFn: () => api.waypointsInView(asked.box),
+    enabled: zoom >= FROM_ZOOM,
+    staleTime: Infinity,
+    meta: { silent: true },
+  };
 }
 
 /** The canvas the waypoints are drawn on, made once and given them as
