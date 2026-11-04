@@ -1,15 +1,16 @@
 name: AI check
 
-# Every night, the app's two Claude features asked for real: one
-# checkpoint description and one briefing, through the services' own code
-# and settings (.github/ai-check/check.py says what it checks). The tests
+# Every night, the app's Claude features asked for real: one checkpoint
+# description, one briefing, one answer from the pilot's assistant and
+# one reading in words with its citations, through the services' own
+# code and settings (.github/ai-check/check.py says what it checks). The tests
 # stand Claude in, so they can't catch a reply that comes back empty or
 # cut off -- the briefing did, for every pilot, and every test passed
 # (#81). A failure opens an issue labelled "ready", which Build takes up
 # the next morning, or adds to the one already open.
 #
-# It spends the app's own API key (APP_ANTHROPIC_API_KEY), about $0.002 a
-# night, not the subscription the other Claude workflows use: this is the
+# It spends the app's own API key (APP_ANTHROPIC_API_KEY), a few cents a
+# night with the assistant's Opus answer, not the subscription the other Claude workflows use: this is the
 # app's traffic. Without the secret it says so and stops.
 
 on:
@@ -57,21 +58,35 @@ jobs:
         continue-on-error: true
         working-directory: nav-log-agent
         run: python ../.github/ai-check/check.py briefing
+      - name: The assistant's answer
+        id: assistant
+        if: env.ANTHROPIC_API_KEY != ''
+        continue-on-error: true
+        working-directory: planning-service
+        run: python ../.github/ai-check/check.py assistant
+      - name: Words with their citations
+        id: words
+        if: env.ANTHROPIC_API_KEY != ''
+        continue-on-error: true
+        working-directory: planning-service
+        run: python ../.github/ai-check/check.py words
       - name: A failure, as an issue for Build
-        if: steps.note.outcome == 'failure' || steps.briefing.outcome == 'failure'
+        if: steps.note.outcome == 'failure' || steps.briefing.outcome == 'failure' || steps.assistant.outcome == 'failure' || steps.words.outcome == 'failure'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           NOTE: ${{ steps.note.outcome }}
           BRIEFING: ${{ steps.briefing.outcome }}
+          ASSISTANT: ${{ steps.assistant.outcome }}
+          WORDS: ${{ steps.words.outcome }}
         run: |
           title="The app's Claude features failed the nightly AI check"
-          what="checkpoint description: $NOTE; briefing: $BRIEFING"
+          what="checkpoint description: $NOTE; briefing: $BRIEFING; assistant: $ASSISTANT; words: $WORDS"
           open=$(gh issue list --state open --label ai-check --json number --jq '.[0].number // empty')
           if [ -n "$open" ]; then
             gh issue comment "$open" --body "Failed again ($what): $RUN_URL"
           else
-            gh issue create --title "$title" --label ready --label ai-check --body "The nightly AI check ($RUN_URL) failed: $what. Its annotations say why. Reproduce with .github/ai-check/check.py (its docstring has the commands), put it right in planning-service/app/routers/notes.py or nav-log-agent/app/graph.py, and run the check again from the Actions tab."
+            gh issue create --title "$title" --label ready --label ai-check --body "The nightly AI check ($RUN_URL) failed: $what. Its annotations say why. Reproduce with .github/ai-check/check.py (its docstring has the commands), put it right in planning-service/app/routers/notes.py, nav-log-agent/app/graph.py, planning-service/app/assistant.py or planning-service/app/words.py, and run the check again from the Actions tab."
           fi
           exit 1
