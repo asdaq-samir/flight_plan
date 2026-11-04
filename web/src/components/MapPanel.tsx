@@ -303,7 +303,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // Where a drag can come to rest: the pill, half and all the way up.
   const halfChrome = fromBottom ? edgeInset : GRABBER;
   const detents = useMemo<Detents>(() => {
-    const peek = pillHeight ?? Math.round(3.0625 * rootPx()) + edgeInset;
+    const peek = pillHeight ?? Math.round(4.25 * rootPx()) + edgeInset;
     const whole = Math.max(peek, room);
     const askedHalf = Math.max(peek, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(whole * HALF_MOST)));
     const body = askedHalf - headHeight - halfChrome - footHeight;
@@ -673,9 +673,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // One row at every size: the tabs' 48 under the grabber's
               // ten, four under them; minimized to a card's name, as tall
               // as the name's 44-point area, a line under it.
-              // The tabs 49 tall, iOS's own tab bar, the grabber drawn over
-              // the row's top (the owner, 2026-11-04: "let's try 49 points").
-              "flex shrink-0 px-2", minimized ? cn(ROW_PAD, "min-h-11 border-b border-border/60 pb-2") : "h-[3.0625rem]",
+              // The grabber's band, the tabs 52 tall, six under them: the
+              // tab up's capsule clear of the grabber and of the search
+              // under it, the same rhythm as the field below (the owner,
+              // 2026-11-04: 49 points "too congested", "make the space
+              // around the tabs slick like the grabber and the search bar").
+              "flex shrink-0 px-2", ROW_PAD, minimized ? "min-h-11 border-b border-border/60 pb-2" : "h-[4.25rem] pb-1.5",
               !barHere && "hidden",
             )}
           >
