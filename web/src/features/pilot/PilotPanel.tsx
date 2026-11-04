@@ -4,6 +4,7 @@ import { BookOpen, Plane, Route, ShieldCheck, Sparkles, UserRound } from "lucide
 import { cn } from "cn";
 import type { ReactNode } from "react";
 import AboutPanel from "../../components/AboutPanel";
+import StatusPanel from "../../components/StatusPanel";
 import { ConsolePages, PageButton, PageLink, PageRow } from "../../components/ConsolePages";
 import { PillSection } from "../../components/Favorites";
 import EmptyState from "../../components/EmptyState";
@@ -68,7 +69,10 @@ function Personal({ pilot, dev }: {
   const hours = entries?.reduce((sum, e) => sum + (e.totalHours ?? 0), 0);
   const settings = minimumsWords(minimums);
   const pages = {
-    ...(dev ? { status: { title: "Status", content: dev.status } } : {}),
+    // How old the plan's data is, and what is kept through a dropped
+    // connection, for every pilot (the owner, 2026-11-04); a developer's
+    // has the stack's own status under it.
+    status: { title: "Status", content: dev ? <div className="space-y-5"><StatusPanel />{dev.status}</div> : <StatusPanel /> },
     guide: { title: "Guide", content: dev ? dev.guide : <PilotGuide /> },
     about: { title: "About", content: <AboutPanel /> },
     aircraft: { title: "Airplanes", content: <AircraftPanel /> },
@@ -122,10 +126,11 @@ function Personal({ pilot, dev }: {
           </div>
           </AccountCard>
           {signedIn && sold && <ListGroup><SubscriptionRow /></ListGroup>}
-          {/* The guide (its tips with it) and about, links at the foot, at
-              the owner's pick: a developer's status first. */}
+          {/* Status, the guide (its tips with it) and about, links at the
+              foot, at the owner's picks: Status every pilot's since
+              2026-11-04 ("a Status sheet next to About and Guide"). */}
           <nav aria-label="More" className="flex justify-center gap-6 pb-2">
-            {dev && <PageLink page="status" testId="status-link">Status</PageLink>}
+            <PageLink page="status" testId="status-link">Status</PageLink>
             <PageLink page="guide" testId="guide-link">Guide</PageLink>
             <PageLink page="about" testId="about-link">About</PageLink>
           </nav>
