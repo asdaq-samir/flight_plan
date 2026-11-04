@@ -680,6 +680,7 @@ export default memo(function FlightBriefingView({
         runwayFt: check?.runway?.length_ft ?? null,
         overFiftyFt: distance ? Math.round(distance.totalFt) : null,
         wind: said === "calm" ? "Calm" : said ? `${said.dir.replace(/T$/, "")}/${said.speed}` : null,
+        crosswindKt: check ? Math.round(check.crosswindKt) : null,
         radio: call ? { to: call.to, mhz: call.mhz! } : null,
         finding: !check ? "unknown" : distance?.over ? "stop" : check.crosswindOver ? "caution" : "ok",
       };
@@ -703,6 +704,15 @@ export default memo(function FlightBriefingView({
         finding: byKey(["weather", "altitude"]),
       },
       arrive: course ? fieldAt(dest, "arrival", totals?.ete_min != null ? new Date(leaving.getTime() + totals.ete_min * 60_000) : null) : null,
+      // The reports as sent, for a finding's sources under its line.
+      raw: {
+        metars: landings.flatMap(i => (briefing?.metars[i]?.raw ? [{ ident: i, raw: briefing.metars[i]!.raw! }] : [])),
+        tafs: landings.flatMap(i => {
+          const st = briefing?.forecast.stations.find(s => s.icaoId === i);
+          return st?.raw ? [{ ident: i, raw: st.raw }] : [];
+        }),
+        tfrs: (briefing?.tfrs ?? []).map(t => [t.notam_id, t.title].filter(Boolean).join(" · ")),
+      },
     };
   })() : null;
   const setGlance = useGlance(g => g.set);
