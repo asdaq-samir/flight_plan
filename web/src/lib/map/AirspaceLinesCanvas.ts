@@ -22,6 +22,10 @@ const UNIT = L.point(1, 0);
 /** How many points round each ring in sight are written down at rest for
  *  the browser tests to tap (data-airspace-rings). */
 const RING_POINTS = 8;
+/** How much heavier the rings draw in Sunlight: the course line's
+ *  casing goes from 7 to 9 and its core from 3 to 5 in the stylesheet,
+ *  about this much. */
+const SUNLIGHT_WEIGHT = 1.5;
 
 /** The square of how far (px, py) is from the segment (ax, ay)-(bx, by). */
 function segmentDistance2(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
@@ -108,10 +112,22 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
   private written = "";
   private writtenRings = "";
 
+  /** Watches <html>'s chart-light attribute (lib/sunlight), so a turn to
+   *  Sunlight redraws the rings heavier at once, not at the next pan. */
+  private light: MutationObserver | null = null;
+
   onAdd(map: L.Map): this {
     super.onAdd(map);
     this.canvas!.dataset.airspaceLines ||= "{}";
+    this.light = new MutationObserver(() => this.schedule());
+    this.light.observe(document.documentElement, { attributes: true, attributeFilter: ["data-chart-light"] });
     return this;
+  }
+
+  onRemove(map: L.Map): this {
+    this.light?.disconnect();
+    this.light = null;
+    return super.onRemove(map);
   }
 
   set(volumes: AirspaceVolume[]): void {
@@ -153,6 +169,7 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
 
   protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from, warp }: CanvasView): void {
     const zoom = map.getZoom();
+    const bright = document.documentElement.dataset.chartLight === "bright";
     // Where the chart has a point of the map's present zoom at this frame
     // of a zoom's animation: `warp` is affine with one scale, so two
     // points give it, and each ring's points are moved by arithmetic
@@ -190,9 +207,13 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
         }
       }
       const style = AIRSPACE_LINE[volume.airspace_class];
-      ctx.globalAlpha = style.opacity ?? 1;
+      // In Sunlight (html[data-chart-light="bright"], lib/sunlight: the
+      // phone in direct sun) the rings go half again as heavy and fully
+      // opaque, as the course line does through its stylesheet rules;
+      // a canvas's strokes are reached from here alone.
+      ctx.globalAlpha = bright ? 1 : style.opacity ?? 1;
       ctx.strokeStyle = style.color!;
-      ctx.lineWidth = style.weight!;
+      ctx.lineWidth = style.weight! * (bright ? SUNLIGHT_WEIGHT : 1);
       if (volume.airspace_class === "D") {
         ctx.setLineDash(ringDashes(longest * k));
         ctx.lineCap = "butt";

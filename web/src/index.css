@@ -526,7 +526,8 @@ html.dark[data-chart-night="dimmed"] .course-casing {
    outranks Leaflet's attribute); and no glass -- every sheet, button and
    figure strip solid white with black figures and a deep blue tint,
    AA-large on white. The airspace rings draw on a canvas at their own
-   width (AirspaceLinesCanvas) and are not reached from here. */
+   width and are not reached from here: AirspaceLinesCanvas reads the
+   attribute itself and draws them half again as heavy. */
 html[data-chart-light="bright"] .chart-tiles .leaflet-tile,
 html.dark[data-chart-light="bright"] .chart-tiles .leaflet-tile {
   filter: contrast(1.25) saturate(1.2);
