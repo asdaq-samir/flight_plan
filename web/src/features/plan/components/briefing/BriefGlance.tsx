@@ -98,7 +98,15 @@ function FieldCard({ tab, label, field, landing, onOpen }: { tab: PanelTab; labe
  * page. Stacked, not swiped: a swipe only ever goes back (the owner's
  * rule), and a pager showed one part at a time, as the tabs did.
  */
-export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => void }) {
+export default function BriefGlance({ onOpen, before: first, afterVerdict, after }: {
+  onOpen: (tab: PanelTab) => void;
+  /** Over the verdict, under it, and after the cards: the assistant's
+   *  field, the words and the watch (BriefOverview), round the cards
+   *  without moving them. */
+  before?: ReactNode;
+  afterVerdict?: ReactNode;
+  after?: ReactNode;
+}) {
   const glance = useGlance(g => g.glance);
   const items = useVerdict(v => v.items);
   const verdict = items.length ? verdictLine(items) : null;
@@ -106,6 +114,7 @@ export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => voi
   const enroute = glance?.enroute;
   return (
     <div className="flex flex-col gap-2.5 pt-1 pb-4" data-testid="brief-glance">
+      {first}
       {verdict && (
         <div
           className={cn("flex items-center gap-2.5 rounded-xl px-3.5 py-2.5", MARK_TINT[verdict.finding] ?? "bg-muted")}
@@ -115,6 +124,7 @@ export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => voi
           <span className={cn("font-semibold", TEXT.row, FINDING_TONE[verdict.finding])}>{verdict.words}</span>
         </div>
       )}
+      {afterVerdict}
       <Card
         tab="preflight" label="Before you go" finding={before?.finding ?? "pending"} onOpen={onOpen}
         stats={(
@@ -141,6 +151,7 @@ export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => voi
         note={enroute?.line ?? undefined}
       />
       {glance?.arrive && <FieldCard tab="arrive" label="Arrive" field={glance.arrive} landing onOpen={onOpen} />}
+      {after}
     </div>
   );
 }

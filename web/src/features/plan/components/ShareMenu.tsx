@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ChartArea, Ellipsis, FileArchive, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share } from "lucide-react";
+import { ChartArea, Ellipsis, FileArchive, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share, Sparkles } from "lucide-react";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
@@ -49,10 +49,13 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, local, fileable, onFile, saving, reviewSheet, planAgain, onShowFuel, onProfile,
+  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, local, fileable, onFile, saving, reviewSheet, planAgain, onShowFuel, onProfile, onAsk,
 }: {
   /** The suggested fuel stops taken out of the route box, put back. */
   onShowFuel?: () => void;
+  /** The assistant asked about the flight: the Brief opened on its Ask
+   *  section (the route box's, with a route planned). */
+  onAsk?: () => void;
   /** The route's Profile opened: the route box's, with a route drawn. */
   onProfile?: () => void;
   align: "start" | "end";
@@ -155,6 +158,8 @@ export default function ShareMenu({
           {/* The route from the side, with its altitude's wheel and its dry
               run, where the map's Play was (the owner, 2026-11-02). */}
           {onProfile && <DropdownMenuItem onSelect={onProfile} data-testid="route-profile"><ChartArea />Profile</DropdownMenuItem>}
+          {/* The assistant, in the Brief, where the AI's surfaces live. */}
+          {onAsk && <DropdownMenuItem onSelect={onAsk} data-testid="route-ask"><Sparkles />Ask about this flight</DropdownMenuItem>}
           {routed && onShowFuel && <DropdownMenuItem onSelect={onShowFuel} data-testid="route-show-fuel"><Fuel />Show Fuel Stops</DropdownMenuItem>}
           {routed && <DropdownMenuItem onSelect={() => void share()} data-testid="share-link"><Link2 />Share link</DropdownMenuItem>}
           {card === "route" && (

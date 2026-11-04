@@ -37,6 +37,9 @@ import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePlanHistory } from "../../hooks/use-plan-history";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
+import { useAsk } from "./components/ask/useAsk";
+import { NO_PLAN, useBriefPlan } from "../../lib/briefPlan";
+import { briefingLegs } from "./hooks/briefingLegs";
 import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
@@ -2373,6 +2376,32 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     course: routed && settledPlan ? course : null, totals: s.pointToPoint ? null : s.totals, nav: s.nav, legs: s.legs, selected: s.logSelected,
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: picksOf(searchParams),
   };
+  // The flight as the Brief reads it (lib/briefPlan), for its Ask, its
+  // words and its watch, which draw outside the route's props: the
+  // route and its time, the airplane, the nav log's altitude, time en
+  // route and legs (as the briefing is asked with them), and the plan as
+  // Save files it. Cleared as the workspace goes.
+  const briefLegs = useMemo(() => briefingLegs(course, s.logSelected, s.legs), [course, s.logSelected, s.legs]);
+  const eteMin = s.local ? localMin : s.totals?.ete_min ?? null;
+  // The altitude flown, the nav log's (`altitudeFt` above is the pilot's
+  // own as typed, a string).
+  const flownFt = s.nav?.altitude_ft ?? null;
+  const flightCourse = flightToSave.course;
+  useEffect(() => {
+    useBriefPlan.getState().set({
+      dep: planned.dep, dest: planned.dest, stops: planned.stops, aircraft: aircraft.profile || null, altitudeFt: flownFt, depart,
+      eteMin, legs: briefLegs ? { fixes: briefLegs.fixes, legMin: briefLegs.legMin } : null, routed, local: !!s.local,
+      flight: { course: flightCourse, totals: flightToSave.totals, nav: s.nav, legs: s.legs, selected: s.logSelected, aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: flightToSave.picks },
+    });
+  }, [planned.dep, planned.dest, planned.stops, aircraft.profile, aircraft.aircraftId, flownFt, depart, eteMin, briefLegs, routed, s.local,
+    flightCourse, flightToSave.totals, s.nav, s.legs, s.logSelected, altitudes, flightToSave.picks]);
+  useEffect(() => () => useBriefPlan.getState().set(NO_PLAN), []);
+  // The assistant asked from the route's ••• menu: the Brief opened on
+  // its Ask, the field focused (useAsk's `wanted`).
+  const askAboutFlight = useCallback(() => {
+    openBrief();
+    useAsk.getState().want();
+  }, [openBrief]);
   // Share and everything else the route's row had (ShareMenu).
   // What planning again would bring in fresh, said by the refresh's dot:
   // winds past the forecast's period the legs were flown on, legs flown
@@ -2387,6 +2416,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     <ShareMenu
       align={align} testId={testId} card={card} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
       routed={routed} local={!!s.local} fileable={fileable} onFile={fileFlightPlan}
+      onAsk={card === undefined && routed ? askAboutFlight : undefined}
       saving={askReview => (
         <Suspense fallback={null}>
           <SaveFlightButton {...flightToSave} />

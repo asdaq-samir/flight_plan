@@ -220,12 +220,13 @@ function altitudeRange(nav: NavLogAltitude): string {
  * in spelled out beside it; that airplane is the header's own picker, a
  * line above.
  */
-/** The flights saved, one mutation key for every Save item (SaveFlightButton). */
-const SAVE_FLIGHT = ["saveFlight"];
+/** The flights saved, one mutation key for every Save item
+ *  (SaveFlightButton) and the flight watch's save (FlightWatch). */
+export const SAVE_FLIGHT = ["saveFlight"];
 
 /** A plan as Save compares it: the same plan with its risk assessment
  *  made again is not another (SaveFlightButton). */
-const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
+export const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
 
 /** The plan on screen as a flight to save: what Save files, and what a
  *  solo cross-country's review is asked of (ReviewAskSheet). */
@@ -254,7 +255,7 @@ export interface FlightToSave {
  *  course (the airports' own idents and places, not a route being
  *  switched to), the nav log and its totals. Save used to be offered
  *  mid-stream, or after a stream failed, and filed null totals. */
-function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "", picks = "" }: FlightToSave): SaveFlightRequest | null {
+export function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "", picks = "" }: FlightToSave): SaveFlightRequest | null {
   // The briefing's risk assessment (lib/frat), filed with the flight.
   const risk = useRisk(s => s.assessment);
   return useMemo((): SaveFlightRequest | null => {

@@ -14,6 +14,7 @@ import { commandsOf } from "../lib/pilotCommand";
 import { altitudeWords, readbackCheck } from "../lib/readback";
 import { say } from "../lib/speech";
 import { TEXT } from "../lib/text";
+import { useAsk } from "../features/plan/components/ask/useAsk";
 
 const capital = (words: string) => words.replace(/\b[a-z]/g, ch => ch.toUpperCase());
 /** A place's words as a chip says them: spelled idents as they are. */
@@ -38,7 +39,14 @@ const load = () => import("../lib/atcListening").then(m => (listening = m));
  * and checked (lib/readback). Nothing is done until a chip is tapped;
  * `done` puts what was heard away after one.
  */
-function CallActions({ text, done }: { text: string; done: () => void }) {
+function CallActions({ text, done, own = false }: {
+  text: string;
+  done: () => void;
+  /** The pilot's own words from the map's microphone (RadioPill), not a
+   *  call heard on the radio: words that are no command the app knows
+   *  are offered to the assistant. */
+  own?: boolean;
+}) {
   const { directTo, fly, enter, route, nearest, showProcedure, planTo } = useRadioActions();
   const near = useAtcRadio(s => s.near);
   const mode = useAtcRadio(s => s.mode);
@@ -46,9 +54,19 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
   const [problem, setProblem] = useState<string | null>(null);
   /** What a chip brought, kept in the pill: a field's report. */
   const [note, setNote] = useState<string | null>(null);
+  // The question the Ask chip sent, and its answer as it comes (useAsk):
+  // read aloud as it ends, and shown here in the pill meanwhile.
+  const [askedId, setAskedId] = useState<number | null>(null);
+  const asked = useAsk(s => (askedId === null ? null : s.turns.find(t => t.id === askedId) ?? null));
   const heard = callOf(text, null);
   const { clearance } = heard;
   const commands = useMemo(() => commandsOf(text), [text]);
+  // No command found and no clearance heard: a question for the assistant.
+  const askable = own && !commands.length && !heard.direct && !heardAny(clearance);
+  const askIt = () => {
+    void useAsk.getState().ask(text, { speak: true });
+    setAskedId(useAsk.getState().turns.at(-1)?.id ?? null);
+  };
   const altitude = commands.find(c => c.kind === "altitude");
   const procedure = commands.find(c => c.kind === "procedure");
   const weather = commands.find(c => c.kind === "weather");
@@ -186,7 +204,17 @@ function CallActions({ text, done }: { text: string; done: () => void }) {
           </Button>
         )}
         {clearance.squawk && <span className={cn("font-semibold", TEXT.detail)}>Squawk {clearance.squawk}</span>}
+        {askable && !asked && (
+          <Button size="sm" variant="secondary" className={cn(CHIP, "max-w-full")} disabled={!!busy} data-testid="radio-ask" onClick={askIt}>
+            <span className="truncate">Ask: “{text}”</span>
+          </Button>
+        )}
       </div>
+      {asked && (
+        <p className={cn("pt-1 pr-2 tabular-nums whitespace-pre-wrap", asked.error ? "text-destructive-ink" : "", TEXT.note)} role="status" data-testid="radio-ask-answer">
+          {asked.status ? `${asked.status}…` : asked.error ?? asked.answer}
+        </p>
+      )}
       {note && <p className={cn("pt-1 pr-2 font-mono", TEXT.note)} data-testid="radio-note">{note}</p>}
       {problem && <p className={cn("pt-1 pr-2 text-destructive-ink", TEXT.note)} role="status">{problem}</p>}
     </>
@@ -262,7 +290,7 @@ function RadioPill() {
         {!pill.listening && <CloseButton label="Put away" onClick={away} data-testid="radio-pill-close" />}
       </div>
       {/* A readback heard: how it matched, in place of the chips. */}
-      {!pill.listening && pill.text && (readback ? <ReadbackLine cleared={readback} said={pill.text} /> : <CallActions text={pill.text} done={away} />)}
+      {!pill.listening && pill.text && (readback ? <ReadbackLine cleared={readback} said={pill.text} /> : <CallActions text={pill.text} done={away} own />)}
       {pill.timerFrom != null && <Timer from={pill.timerFrom} onStop={() => useAtcRadio.setState(s => ({ pill: s.pill && { ...s.pill, timerFrom: null } }))} />}
     </div>
   );

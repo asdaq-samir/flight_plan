@@ -36,10 +36,11 @@ export class ApiError extends Error {
  * echoed back; session cookies are attached by the browser on their
  * own, which is the condition CSRF exploits, so this is what tells our
  * own request apart from someone else's page making the same one. The
- * one place the rule lives -- both clients' middleware and both plain
- * fetches ask it.
+ * one place the rule lives -- both clients' middleware, both plain
+ * fetches, and the assistant's and the words' own (./assistant, ./words)
+ * ask it.
  */
-function csrfHeaders(method: string): Record<string, string> {
+export function csrfHeaders(method: string): Record<string, string> {
   if (method.toUpperCase() === "GET") return {};
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
   return match?.[1] ? { "X-XSRF-TOKEN": decodeURIComponent(match[1]) } : {};
@@ -76,7 +77,7 @@ export function statusWords(status: number): string {
 
 /** A response that is not OK, as the `ApiError` every caller expects --
  *  so every call either resolves with its data or rejects. */
-async function failIfNotOk(response: Response): Promise<void> {
+export async function failIfNotOk(response: Response): Promise<void> {
   if (!response.ok) throw new ApiError(await detailOf(response), response.status);
 }
 
