@@ -16,10 +16,16 @@ describe("gearFor", () => {
     ["PMA8000BT", "pse-pma8000bt"],
     ["PAR200B", "pse-par200b"],
     ["PMA450A", "pse-pma450a"],
+    ["PMA450", "pse-pma450"],
+    ["PAR200A", "pse-par200a"],
     ["BT2 2849", "pse-ps-streamer"],
     ["BT1 2849", "pse-pma450b"],
     ["AMX240", "avidyne-amx240"],
     ["Sam's AirPods Pro", "apple-airpods"],
+    ["PFX 1187", "lightspeed-zulu-pfx"],
+    ["GMA Bluetooth", "garmin-gma-35c"],
+    ["Bose ProFlight", "bose-proflight-2"],
+    ["DC PRO-X", "dc-pro-x"],
   ])("knows %s as its maker names it", (label, id) => {
     expect(gearFor(label)?.id).toBe(id);
   });
@@ -33,16 +39,42 @@ describe("gearFor", () => {
     ["GMA 350Hc", "garmin-gma-350hc"],
     ["GMA 345", "garmin-gma-345"],
     ["GMA 35c", "garmin-gma-35c"],
-    ["GMA 245R", "garmin-gma-245"],
+    ["GMA350c_1234", "garmin-gma-350c"],
+    ["GMA350c1234", "garmin-gma-350c"],
+    ["GMA 245R", "garmin-gma-245r"],
+    ["GMA 245", "garmin-gma-245"],
     ["GMA 1360D", "garmin-gma-1360"],
     ["Zulu 3", "lightspeed-zulu-3-sierra-tango"],
     ["Lightspeed Sierra", "lightspeed-zulu-3-sierra-tango"],
     ["Lightspeed Tango", "lightspeed-zulu-3-sierra-tango"],
-    ["Zulu.2", "lightspeed-zulu-2"],
-    ["Zulu H-Mod", "lightspeed-h-mod"],
-    ["Bose ProFlight", "bose-proflight-2"],
+    ["Zulu.2", "lightspeed-zulu-3-sierra-tango"],
+    ["Zulu H-Mod", "lightspeed-zulu-3-sierra-tango"],
     ["DC ONE-XP", "dc-one-x"],
+    ["DC ONE-XH", "dc-one-x"],
   ])("knows %s by its model", (label, id) => {
+    expect(gearFor(label)?.id).toBe(id);
+  });
+
+  // PS Engineering's modules: BT1 and BT2 and four serial digits, spaced
+  // or not; "PMA450B BT 2" and four (PMA450B IM §3.11.1.2); "450A BT2" and
+  // "PMA450BT2" on a PMA450A (its PG p.12).
+  it.each([
+    ["BT2 2849", "pse-ps-streamer"],
+    ["BT 2 2849", "pse-ps-streamer"],
+    ["BT2-2849", "pse-ps-streamer"],
+    ["BT22849", "pse-ps-streamer"],
+    ["PMA450B BT 2 2849", "pse-ps-streamer"],
+    ["450A BT2", "pse-ps-streamer"],
+    ["PMA450BT2", "pse-ps-streamer"],
+    ["BT2 2849 (Bluetooth)", "pse-ps-streamer"],
+    ["BT 1 2849", "pse-pma450b"],
+    ["BT12849", "pse-pma450b"],
+    ["BT1-2849", "pse-pma450b"],
+    ["BT1_2849", "pse-pma450b"],
+    ["450A BT1", "pse-pma450a"],
+    ["PMA450BT1", "pse-pma450a"],
+    ["PMA450C BT 2 2849", "pse-pma450c"],
+  ])("knows PS Engineering's %s", (label, id) => {
     expect(gearFor(label)?.id).toBe(id);
   });
 
@@ -59,9 +91,13 @@ describe("gearFor", () => {
     ["Delta Zulu_3456", "lightspeed-zulu-3-sierra-tango"],
     ["Zulu 3", "lightspeed-delta-zulu"],
     ["Zulu 4_31234", "lightspeed-zulu-3-sierra-tango"],
-    ["Zulu 2", "lightspeed-zulu-3-sierra-tango"],
     ["PMA8000BT", "pse-pma8000g"],
+    ["PMA8000G", "pse-pma8000g-streamer"],
+    ["PMA450B BT 2 2849", "pse-pma450b"],
+    ["PMA450B", "pse-pma450"],
+    ["GMA 245R", "garmin-gma-245"],
     ["DC PRO-X2", "dc-one-x"],
+    ["DC PRO-X2", "dc-pro-x"],
     ["Bose A20", "bose-a30"],
   ])("does not take %s for %s", (label, id) => {
     expect(gearFor(label)?.id).not.toBe(id);
@@ -72,10 +108,12 @@ describe("gearFor", () => {
     "GMA 342",
     "GMA 340",
     "PMA8000B",
-    "DC PRO-X", // not in the catalogue
     "GMC Sierra", // a truck's hands-free, not a Lightspeed
     "Tango",
     "BT21 speaker",
+    "BT10",
+    "BT1000",
+    "BT2000",
     "Zulu 32",
     "iPhone Microphone",
     "Bluetooth headset",
@@ -104,12 +142,14 @@ describe("hearing", () => {
     expect(hearing("GMA 350Hc")).toBe("radio");
     expect(hearing("GMA 345")).toBe("unknown");
     expect(hearing("BT2 2849")).toBe("unknown");
+    expect(hearing("PMA450B BT 2 2849")).toBe("unknown");
     expect(hearing("Delta Zulu_4821")).toBe("unknown");
   });
 
   it("hears voices through headsets and phone links", () => {
     expect(hearing("Bose A30")).toBe("voice");
     expect(hearing("Lightspeed-V102")).toBe("voice");
+    expect(hearing("BT1 2849")).toBe("voice");
     expect(hearing("PMA8000G")).toBe("voice");
     expect(hearing("Sam's AirPods")).toBe("voice");
   });
