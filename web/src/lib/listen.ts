@@ -103,10 +103,16 @@ export function noMicrophone(): string {
   return `No microphone could be used. If a Bluetooth audio panel or headset was the input, check it is still connected; if it is, ${again}.`;
 }
 
-/** The recognizer's refusal or failure in a pilot's words. */
+/** The recognizer's refusal or failure in a pilot's words. A refusal is
+ *  undone where it was given: the apps' own entry in iOS's Settings, or in
+ *  a browser its settings for the site -- a website has no entry of its
+ *  own in Settings, and the words sent pilots looking for one. */
 function errorWords(code: string): string {
   if (code === "not-allowed" || code === "service-not-allowed" || code === "refused") {
-    return "Microphone or speech recognition access was refused; allow it for Wingtip Maps in Settings.";
+    if (inNativeApp()) return "Microphone or speech recognition access was refused; allow it for Wingtip Maps in Settings.";
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent ?? "" : "";
+    const safari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|Edg\//.test(ua);
+    return `Microphone or speech recognition access was refused; allow it in ${safari ? "Safari's" : "the browser's"} settings for this website.`;
   }
   if (code === "network") return "Speech recognition needs the internet here; type the clearance instead.";
   if (code === "audio-capture") return noMicrophone();
