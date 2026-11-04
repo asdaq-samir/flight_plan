@@ -179,8 +179,13 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
     // through a zoom (a label not yet asked about is worked out as it comes).
     if (!moving) this.hidden.clear();
     let clear: Box[] | null = null;
+    // Every label at this level, one drawn before too: the fade's memory
+    // (fadeIn) says only whether it comes in at once, never that it is
+    // clear of the fields here. It did, and a label first drawn at 10 sat
+    // on the airports' marks at 9 after a zoom out and back in (12 labels
+    // where 9 were, zoom 9 to 7 and back, the other session's measure,
+    // 2026-11-04).
     const hidden = (label: CanvasEdgeLabel, x: number, y: number, width: number) => {
-      if (fades.drawn(label.key)) return false;
       const known = this.hidden.get(label.key);
       if (known !== undefined) return known;
       clear ??= this.fields.map(f => {
