@@ -25,7 +25,13 @@ const labels = async (page: Page): Promise<{ text: string; angle: number }[]> =>
   if (!(await canvas.count())) return [];
   return JSON.parse((await canvas.getAttribute("data-airspace-edge-labels")) ?? "[]");
 };
-const vors = (page: Page) => page.locator(".leaflet-navaids-pane [data-vor]");
+/** The VORs' idents as their canvas writes what it drew (NavaidMarksLayer). */
+const vors = async (page: Page): Promise<string[]> => {
+  const canvas = page.locator(".leaflet-navaids-pane canvas[data-navaid-marks]");
+  if (!(await canvas.count())) return [];
+  const marks: { ident: string; kind: string }[] = JSON.parse((await canvas.getAttribute("data-navaid-marks")) ?? "[]");
+  return marks.filter(m => m.kind === "vor").map(m => m.ident);
+};
 
 test("Chicago's airspace is drawn over the chart with its altitudes, and the switch takes it off", async ({ page }) => {
   // The planner's own answer, through the webapp: O'Hare's Class B
@@ -56,7 +62,7 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   // end of the half-turn.
   expect(written.every(l => l.angle >= -90 && l.angle <= 90)).toBe(true);
   // And the VORs about it: Northbrook's, north of the field.
-  await expect(vors(page).and(page.locator('[data-vor="OBK"]'))).toBeAttached({ timeout: slow(15000) });
+  await expect.poll(() => vors(page), { timeout: slow(15000) }).toContain("OBK");
 
   await openMapSettings(page);
   await page.getByTestId("airspace-toggle").click();
@@ -64,7 +70,7 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
   await page.keyboard.press("Escape");
   await expect.poll(() => lines(page)).toBe(0);
   await expect.poll(async () => (await labels(page)).length).toBe(0);
-  await expect(vors(page)).toHaveCount(0);
+  await expect.poll(() => vors(page)).toEqual([]);
 });
 
 test("a tap on a Class D ring opens its card, with its ceiling and hours", async ({ page }) => {

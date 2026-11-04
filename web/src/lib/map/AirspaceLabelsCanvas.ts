@@ -106,10 +106,28 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
   /** When each label was first drawn, while it fades in. */
   private readonly born = new Map<string, number>();
 
+  /** Watches the page's theme (its root's attributes: the chart's light
+   *  scheme, the brand, a dark class) and the system's, to read the
+   *  colours again. */
+  private themeWatch: { observer: MutationObserver; dark: MediaQueryList; changed: () => void } | null = null;
+
   onAdd(map: L.Map): this {
     super.onAdd(map);
     this.canvas!.dataset.airspaceEdgeLabels ||= "[]";
+    const changed = () => { this.colours = null; this.schedule(); };
+    const observer = new MutationObserver(changed);
+    observer.observe(document.documentElement, { attributes: true });
+    const dark = window.matchMedia("(prefers-color-scheme: dark)");
+    dark.addEventListener("change", changed);
+    this.themeWatch = { observer, dark, changed };
     return this;
+  }
+
+  onRemove(map: L.Map): this {
+    this.themeWatch?.observer.disconnect();
+    this.themeWatch?.dark.removeEventListener("change", this.themeWatch.changed);
+    this.themeWatch = null;
+    return super.onRemove(map);
   }
 
   set(labels: CanvasEdgeLabel[], fields: DrawnField[]): void {
@@ -140,10 +158,13 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
   protected paint(ctx: CanvasRenderingContext2D, { map, size, pad, origin, from, dpr, warp }: CanvasView): void {
     const canvas = this.canvas!;
     const moving = warp(from) !== from || !!(map as L.Map & { touchZoom?: { _zooming?: boolean } }).touchZoom?._zooming;
-    // The theme's colours read at rest and kept through a zoom: reading a
-    // computed style at every frame made the browser work the page's
-    // styles out again under the fingers.
-    if (!moving || !this.colours) {
+    // The theme's colours read once and kept, read again only as the
+    // theme changes (onAdd's observer): read at every paint at rest, the
+    // first getPropertyValue after a move made the browser work the whole
+    // page's styles out again, 0.3 s of a zoom on the phone viewport at
+    // 4x (a profile, 2026-11-03); at every frame it did so under the
+    // fingers.
+    if (!this.colours) {
       const style = getComputedStyle(map.getContainer());
       this.font ||= `700 ${TEXT_PX}px ${style.fontFamily || "system-ui, sans-serif"}`;
       this.colours = { style, halo: style.getPropertyValue("--airspace-halo").trim() || "#fff", inks: new Map() };

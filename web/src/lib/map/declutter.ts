@@ -31,7 +31,7 @@ export function ownShipBox(at: Point): Box {
   return { x0: at.x - 17, y0: at.y - 17, x1: at.x + 17, y1: at.y + 17 };
 }
 
-/** A VOR's tag as vorIcon draws it: 11 px off the station, 14 tall,
+/** A VOR's tag as NavaidCanvas draws it: 11 px off the station, 14 tall,
  *  its ident with 4 px either side. */
 const VOR_TAG_GAP = 11;
 const VOR_TAG_HEIGHT = 14;

@@ -13,6 +13,7 @@ import { useDrawnAirports } from "./declutter";
 import { edgeAnchors } from "./edgeLabels";
 import { AirspaceLabelsLayer, type CanvasEdgeLabel } from "./AirspaceLabelsCanvas";
 import { AirspaceLinesLayer } from "./AirspaceLinesCanvas";
+import { navaidAt } from "./NavaidCanvas";
 import { MapCard } from "./MapCard";
 import { Button } from "../../components/ui/button";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -151,6 +152,10 @@ function Lines({ query }: { query: AirspaceQuery }) {
       // listens on the same element.
       const near = useDrawnAirports.getState().fields.some(f => map.latLngToContainerPoint([f.lat, f.lon]).distanceTo(e.containerPoint) <= MARK_PX);
       if (near) return;
+      // Nor near a VOR or a fix, whose own card the tap opens
+      // (NavaidsLayer): their targets lay over the rings' before, drawn
+      // on a canvas now (NavaidCanvas).
+      if (navaidAt(e.containerPoint, MARK_PX)) return;
       const volume = layer.volumeAt(e.containerPoint, TAP_PX);
       // The same ring tapped again keeps its card where it was.
       setPicked(was => (volume ? (was?.volume === volume ? was : { volume, at: e.latlng }) : null));

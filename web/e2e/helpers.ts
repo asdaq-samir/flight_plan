@@ -574,6 +574,13 @@ export async function tapTheChart(page: Page) {
         marks.push(new DOMRect(r.left + m.x - 13, r.top + m.y - 13, 26, 26));
       }
     }
+    // And the VORs and fixes, on a canvas too (NavaidCanvas): a tap within
+    // 22 of one opens its card.
+    for (const c of map.querySelectorAll<HTMLCanvasElement>("canvas[data-navaid-marks]")) {
+      for (const m of JSON.parse(c.dataset.navaidMarks ?? "[]") as { x: number; y: number }[]) {
+        marks.push(new DOMRect(r.left + m.x - 13, r.top + m.y - 13, 26, 26));
+      }
+    }
     const clear = (x: number, y: number) => marks.every(m => x < m.left - 30 || x > m.right + 30 || y < m.top - 30 || y > m.bottom + 30);
     for (let fy = 0.85; fy > 0.1; fy -= 0.1) {
       for (let fx = 0.15; fx < 0.9; fx += 0.1) {
