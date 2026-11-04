@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { cn } from "cn";
 import PullDown from "./PullDown";
 import Waveform from "./Waveform";
+import InputGuide from "./InputGuide";
 import { FieldError } from "./ui/field";
 import { inputLevel, lostWords, useAtcRadio } from "../lib/atcRadio";
 import { canPickInput, find, hold, isOutside, matchInput, pick, refresh, useInputs } from "../lib/audioInput";
@@ -80,6 +81,12 @@ export default function ListenThrough() {
   const value = input?.lost ? "" : chosen ?? matchInput(inputs, kept)?.id ?? "";
   const remembered = kept && isOutside(kept.label) ? kept.label : null;
   const lost = input?.lost ? lostWords(input) : null;
+  // What the input chosen brings (InputGuide, lib/audioGear): the one
+  // heard, or before listening the one picked or remembered -- not one
+  // lost, whose words say what is heard instead.
+  const guideLabel = input
+    ? (input.lost ? null : input.label)
+    : inputs.find(i => i.id === value)?.label ?? remembered;
   return (
     // Twelve points over the first line and four under it, so its controls'
     // 44-point areas (index.css's pseudo-element, eleven or twelve over and
@@ -126,6 +133,14 @@ export default function ListenThrough() {
             </span>
             {arriving !== null && <span className="sr-only">{arriving ? "Sound arriving" : "Quiet"}</span>}
           </span>
+        </div>
+      )}
+      {/* Under the input's name, in its column: whether it brings the
+          radio, a voice, or only a ground test can tell, the steps folded
+          under a tap (the owner's look and go). */}
+      {guideLabel && (
+        <div className="col-start-2 min-w-0">
+          <InputGuide label={guideLabel} />
         </div>
       )}
       {problem

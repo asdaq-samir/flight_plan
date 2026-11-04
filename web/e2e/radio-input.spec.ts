@@ -116,6 +116,12 @@ test("the Radio card finds the inputs, listens through the one picked with its l
   await page.getByTestId("listen-input-option").filter({ hasText: "GMA 350c" }).click();
   const hearing = card.getByTestId("listen-hearing");
   await expect(hearing).toContainText("GMA 350c");
+  // The guide under it (InputGuide, lib/audioGear): Garmin documents the
+  // GMA 350c sending the radio over Bluetooth, so one line and no steps.
+  const guide = card.getByTestId("input-guide");
+  await expect(guide).toHaveText("Hears the radio");
+  await expect(guide).toHaveAttribute("data-hears", "radio");
+  await expect(card.getByTestId("input-guide-how")).toHaveCount(0);
   // The bars are the sound: their heights change as it swings.
   const middle = hearing.getByTestId("waveform").locator("span").nth(2);
   const heights = new Set<string>();
