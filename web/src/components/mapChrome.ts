@@ -243,3 +243,24 @@ export const ROUND_BUTTON = `rounded-full ${GLASS_BUTTON}`;
  *  summary that changed into the card at the release; and easing down, the
  *  body stays as it was until the sheet is the pill. */
 export const usePanelDragging = create<{ dragging: boolean }>(() => ({ dragging: false }));
+
+/** A map button in flight (useFlyingMode, MapControls): 60 points, the
+ *  size the canvas's Flying screen draws them (2026-11-03), a word on it
+ *  in the tint -- a target for a hand in turbulence, where the 36-point
+ *  glyphs are a desk's. One size for the whole stack, the microphone's
+ *  circle included, set on the stack rather than each button. */
+export const FLYING_BUTTON_PX = 60;
+export const FLYING_STACK = "gap-3 [&_button]:size-[60px]";
+export const FLYING_BUTTON = "rounded-full font-bold text-tint";
+
+/** Flying mode, as the planner sets it (useFlyingMode) for the map's
+ *  chrome to read: whether it is on, and what its two big buttons do --
+ *  Nearest's list and direct to the next landing -- which are the
+ *  planner's to give. Off with nothing to do until a route is flown. */
+export const useFlying = create<{
+  flying: boolean;
+  /** Done flying tapped on this flight: off until the ground. */
+  stopped: boolean;
+  nearest: (() => void) | null;
+  direct: { to: string; go: () => void } | null;
+}>(() => ({ flying: false, stopped: false, nearest: null, direct: null }));
