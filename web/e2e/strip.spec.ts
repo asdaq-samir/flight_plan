@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { settle, sideDrawer, slow } from "./helpers";
+import { grabberTo, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * The strip layout (features/strip, the owner's "let's try it" of
@@ -107,6 +107,9 @@ test("the altitude's row under the head opens the altitude's wheel, named on the
   // The plan's altitude in the row once the legs are in.
   const row = panel.getByTestId("strip-altitude");
   await expect(row).toContainText(/FL-\d{3}/, { timeout: slow(120000) });
+  // The strip's body is out of sight at the pill: the sheet half way up
+  // first, as a finger would take it.
+  await grabberTo(page, "half");
   await row.click();
   // The Profile's own wheel (AltitudeProfile), in its card over the strip.
   await expect(panel.getByTestId("altitude-wheel")).toBeVisible({ timeout: slow(30000) });
