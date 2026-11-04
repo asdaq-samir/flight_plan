@@ -66,8 +66,13 @@ enum VerdictTarget: Equatable {
 /// them, which the weather is held to.
 struct GoNoGoSection: View {
     @Environment(Verdict.self) private var verdict
+    @Environment(Session.self) private var session
     /// Scrolls the Brief to one of its sections.
     var open: (String) -> Void
+    /// The instructor the pilot asked in, once they accepted, for the
+    /// note at the foot.
+    @State private var instructor: InstructorLink?
+    @State private var restOpen = false
 
     var body: some View {
         Section {
@@ -80,7 +85,28 @@ struct GoNoGoSection: View {
                 }
                 .foregroundStyle(FindingStyle.colour(answer.line.finding))
                 .accessibilityElement(children: .combine)
-                ForEach(answer.items) { item in row(item) }
+                // At a glance (the owner's rule, 2026-11-03): at most three
+                // lines a pilot acts on, each opening to its why, and the
+                // rest in one row.
+                ForEach(Glance.lines(answer)) { line in
+                    if let item = answer.items.first(where: { $0.key == line.key }) {
+                        FindingFold(item: item, words: line.words, open: open)
+                    }
+                }
+                if let rest = Glance.restWords(answer) {
+                    DisclosureGroup(isExpanded: $restOpen) {
+                        ForEach(Glance.rest(answer)) { item in row(item) }
+                    } label: {
+                        Label {
+                            Text(rest)
+                        } icon: {
+                            let finding = Glance.rest(answer).contains { $0.finding != "ok" } ? "caution" : "ok"
+                            Image(systemName: FindingStyle.symbol(finding)).foregroundStyle(FindingStyle.colour(finding))
+                                .accessibilityLabel(FindingStyle.word(finding))
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
             } else if let problem = verdict.problem {
                 Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
             } else {
@@ -88,6 +114,21 @@ struct GoNoGoSection: View {
             }
             NavigationLink { MinimumsView() } label: {
                 Label("Personal minimums", systemImage: "slider.horizontal.3")
+            }
+            .task(id: session.signedIn) {
+                // The instructor's name comes with the training (Gateway);
+                // none for a pilot with no instructor, or signed out.
+                guard session.signedIn else { instructor = nil; return }
+                instructor = (try? await Gateway.training())??.instructors.first { $0.accepted }
+            }
+            if let instructor {
+                Label {
+                    Text("Your instructor, \(instructor.name ?? instructor.email), reviews the flights you put to them from their phone.")
+                        .font(.subheadline)
+                } icon: {
+                    Image(systemName: "person.crop.circle").foregroundStyle(Color.accentColor)
+                }
+                .accessibilityElement(children: .combine)
             }
         } header: {
             HStack {
@@ -128,6 +169,45 @@ struct VerdictRow: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// One of the glance's lines: the finding's sentence, opening to its why
+/// (what the planner found, and where the Brief says it in full) and a
+/// way to the reports themselves: the Brief's section for the weather
+/// and the airspace, the loading's and the risk's own pages.
+struct FindingFold: View {
+    let item: VerdictItem
+    let words: String
+    var open: (String) -> Void
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.detail).font(.subheadline)
+                Text("In the Brief: \([item.tab.capitalized, item.section].compactMap { $0 }.joined(separator: " · "))")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            switch VerdictTarget.of(item) {
+            case .section(let anchor)?:
+                Button("See the reports") { open(anchor) }
+            case .loading?:
+                NavigationLink("See the loading") { LoadingView() }
+            case .risk?:
+                NavigationLink("See the risk assessment") { RiskView() }
+            case nil:
+                EmptyView()
+            }
+        } label: {
+            Label {
+                Text(words).font(.body.weight(item.finding == "stop" ? .semibold : .regular))
+            } icon: {
+                Image(systemName: FindingStyle.symbol(item.finding)).foregroundStyle(FindingStyle.colour(item.finding))
+                    .accessibilityLabel(FindingStyle.word(item.finding))
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 }
 
@@ -331,6 +411,14 @@ struct RiskView: View {
         List { GoNoGoSection { _ in } }
     }
     .environment(Verdict())
+    .environment(Session())
+}
+
+#Preview("FindingFold") {
+    List {
+        FindingFold(item: VerdictItem(key: "balance", label: "Weight & balance", finding: "stop", detail: "The baggage, 170 lb in all, is over its 120 lb", tab: "preflight", section: "Weight & Balance"),
+                    words: "Weight & balance: The baggage, 170 lb in all, is over its 120 lb.") { _ in }
+    }
 }
 
 #Preview("VerdictRow") {
