@@ -249,6 +249,14 @@ export abstract class ViewCanvasLayer extends L.Layer {
     this.draw();
     const zooming = this.zoomingTo;
     if (zooming && performance.now() - zooming.start < ZOOM_MS) {
+      // The next step draws the next frame, so a drawing the paint just
+      // asked for (a mark still fading in, fadeIn) is let go. Kept, it was
+      // lost from `frame` under the step's own and went on by itself,
+      // drawing and asking again at every frame while the fade ran: a zoom
+      // with a mark fading in drew the whole canvas once more at each frame
+      // of its animation than at the one before, 17 times in one frame by
+      // its end, and so on until the fade was over (ViewCanvas.test).
+      cancelAnimationFrame(this.frame);
       this.frame = requestAnimationFrame(() => {
         this.frame = 0;
         this.step();
