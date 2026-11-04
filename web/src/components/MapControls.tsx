@@ -102,7 +102,7 @@ export default function MapControls() {
         the route's Play above it went to the route's ••• menu as Profile
         (2026-11-02, "just the mic"). The circle is the pill too: tapped,
         it widens to the right into the listening pill (RadioPill) with
-        the mic's glyph become the waveform at its left, and shrinks back
+        the mic's glyph become the waveform at its end, and shrinks back
         once the pill is put away -- the button and the pill were two
         things apart, one here and one at the top of the map (the owner,
         2026-11-03). The width eases through a grid column from 0fr to
@@ -110,8 +110,25 @@ export default function MapControls() {
     {/* Not in the strip layout (lib/preferences), whose one field has
         the microphone in it (features/strip's OneField): the owner's
         pick of Maps' pill, 2026-11-04. */}
+    {/* At the top right of the map, under the status bar, at the owner's
+        ask ("move the mic button to top right which expands to glass
+        listening pill", 2026-11-04): tapped, it widens to the left into
+        the pill. Left of the map's buttons where those are at the top (a
+        wide screen with the bar at the foot). In the air it stays at the
+        foot's left, 60 points, the next checkpoint's card holding the
+        top of the map there (FlyingHead). */}
     {!stripLayout && (
-    <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex max-w-[min(28rem,calc(100vw-5rem))] items-end rounded-[26px] p-1", GLASS)} data-testid="mic-circle" data-listening={pill || undefined}>
+    <div
+      data-map-food=""
+      className={cn(
+        "absolute z-[1000] flex items-end rounded-[26px] p-1",
+        flying
+          ? "bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] max-w-[min(28rem,calc(100vw-5rem))]"
+          : "top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] md:nav-bottom:right-16 flex-row-reverse max-w-[min(28rem,calc(100vw-1rem))]",
+        GLASS,
+      )}
+      data-testid="mic-circle" data-listening={pill || undefined}
+    >
       {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
           the pill's chips. */}
       <span className={cn("flex shrink-0 [&_button]:rounded-full", flying && "[&_button]:size-[60px]")}>

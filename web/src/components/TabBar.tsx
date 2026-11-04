@@ -450,7 +450,12 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
               current ? "text-tint [--tint:var(--tint-shade)]" : "text-foreground/80 hover:text-foreground",
             )}
           >
-            {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1.5 inset-y-0.5 rounded-2xl bg-tint/10" />}
+            {/* A capsule round the glyph and its word with room on every
+                side, as iOS 26's tab bar draws the tab up, not a rounded
+                box the glyph and word touched (the owner: "is that Apple
+                standard? Looks a bit short", 2026-11-04): 53 tall, down
+                into the row's foot, its ends round. */}
+            {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1 -top-px -bottom-1 rounded-full bg-tint/12" />}
             <span className="relative">
               {/* 28 and 13, at the owner's pick (A with D's weight,
                   2026-10-22); the glyphs the planner's own (tabGlyphs), in

@@ -265,7 +265,7 @@ export function RadioPill() {
   useEffect(() => { void load(); }, []);
   const readback = pill.readbackOf ?? null;
   return (
-    <div className="min-w-0 py-1 pr-1" data-testid="radio-pill">
+    <div className="min-w-0 py-1 px-1" data-testid="radio-pill">
       <div className="flex items-center gap-2">
         <button
           type="button" className={cn("min-w-0 flex-1 py-1 text-left outline-none focus-visible:underline", TEXT.detail)}
