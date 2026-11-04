@@ -771,9 +771,9 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
     The chart is a palette image, so it is warped as indices
     (nearest-neighbour -- an averaged index is a random colour) and
     coloured afterwards. At zooms coarser than the chart's own
-    resolution that alone drops thin lines; so the warp is read at up
-    to four times the requested size and box-filtered down in RGB,
-    which is the averaging a palette cannot have. At zooms finer than
+    resolution that alone drops thin lines; so the warp is read at two
+    to four times the requested size and shrunk with a smooth filter in
+    RGB (_warp_coarse), which is the averaging a palette cannot have. At zooms finer than
     it, nearest-neighbour makes each of the sheet's pixels a hard block
     of one or two tile pixels -- every letter and line a staircase,
     which the map's stretch past the deepest tiles magnifies -- so
@@ -795,20 +795,8 @@ def _warp_rgb(path: Path, bbox_3857: tuple, width: int, height: int, centre_lat:
     upsample = float(src.res[0]) / ground_m_per_px
     if upsample >= _SMOOTH_FROM:
         return _warp_smooth(src, bbox_3857, width, height, upsample, mask, face)
-    oversample = int(min(4, max(1, round(ground_m_per_px / float(src.res[0])))))
-    rgb, inside = _warp_grid(src, bbox_3857, width * oversample, height * oversample, mask)
-    if oversample == 1:
-        return rgb, inside.astype(np.float32)
-    # Box-filter the covered samples alone (the others zeroed, the
-    # sum divided by the covered fraction), so that a pixel on the
-    # sheet's edge is the colour of the chart in it, not of the chart
-    # averaged with collar.
-    weighted = np.where(inside[:, :, None], rgb, 0).astype(np.uint8)
-    rgb = np.asarray(Image.fromarray(np.ascontiguousarray(weighted)).reduce(oversample)).astype(np.float32)
-    coverage = np.asarray(Image.fromarray(inside.astype(np.uint8) * 255).reduce(oversample)).astype(np.float32) / 255.0
-    scale = np.where(coverage > 0, 1.0 / np.maximum(coverage, 1e-6), 0.0)
-    rgb = np.clip(rgb * scale[:, :, None] + 0.5, 0, 255).astype(np.uint8)
-    return rgb, coverage
+    oversample = int(min(_COARSE_READ_MAX, max(_COARSE_READ_MIN, round(ground_m_per_px / float(src.res[0])))))
+    return _warp_coarse(src, bbox_3857, width, height, oversample, mask)
 
 
 def _warp_grid(src, bbox_3857: tuple, w: int, h: int, mask: Path | None) -> tuple:
@@ -832,6 +820,66 @@ def _warp_grid(src, bbox_3857: tuple, w: int, h: int, mask: Path | None) -> tupl
         with WarpedVRT(_opened(mask), **grid) as vrt:
             alpha = np.minimum(alpha, vrt.read(1))
     return rgb, chart_faces.without_raster_rim(alpha >= 128, rgb, src, bbox_3857)
+
+
+# A tile coarser than the sheet is read at this many grid pixels to its
+# own, at least and at most, and shrunk with the same filter the close-in
+# tiles are drawn with (_warp_coarse). The least used to be one -- a zoom
+# 11 sectional tile, 1.4 sheet pixels to its own, was nearest-neighbour
+# with no filter at all, every thin line stepped or dropped where it fell
+# between the grid's points, and the zooms out from there a box filter
+# over whole-number samples -- so the chart read softer at every zoom but
+# its deepest (the owner, 2026-11-03: "the maps are not very clear at
+# outer zoom levels"). Two covers the zoom just coarser than the sheet;
+# the most is the memory of a 1024 px read a tile, and further out than
+# that the chart's own print is too small to read anyway.
+_COARSE_READ_MIN = 2
+_COARSE_READ_MAX = 4
+# Output pixels read beyond the tile on every side, so the filter has
+# neighbours there and a tile's edge matches the next tile's (Lanczos
+# reaches three output pixels each way).
+_COARSE_MARGIN_PX = 3
+
+
+def _warp_coarse(src, bbox_3857: tuple, width: int, height: int, oversample: int, mask: Path | None) -> tuple:
+    """_warp_rgb for a tile coarser than the sheet: the indices warped
+    nearest-neighbour onto a grid `oversample` times finer than the tile,
+    coloured, then shrunk to the tile with the smooth filter in RGB -- the
+    averaging a palette cannot have, which keeps a thin line as a fainter
+    one rather than dropping it. The filter runs on colour weighted by
+    what it may draw and divides by the same filter of the weights, as
+    _warp_smooth does, so the collar and the nothing beyond a sheet's
+    raster never bleed into the chart along a seam."""
+    xmin, ymin, xmax, ymax = bbox_3857
+    m = _COARSE_MARGIN_PX
+    cell_x, cell_y = (xmax - xmin) / width, (ymax - ymin) / height
+    outer = (xmin - m * cell_x, ymin - m * cell_y, xmax + m * cell_x, ymax + m * cell_y)
+    rgb, inside = _warp_grid(src, outer, (width + 2 * m) * oversample, (height + 2 * m) * oversample, mask)
+    weight = inside.astype(np.float32)
+    box = (m * oversample, m * oversample, (m + width) * oversample, (m + height) * oversample)
+
+    def shrunk(plane: np.ndarray) -> np.ndarray:
+        image = Image.fromarray(np.ascontiguousarray(plane, dtype=np.float32), "F")
+        return np.asarray(image.resize((width, height), _SMOOTH_FILTER, box=box))
+
+    total = shrunk(weight)
+    smooth = np.stack([shrunk(rgb[:, :, band] * weight) for band in range(3)], axis=-1)
+    smooth /= np.maximum(total, 1e-6)[:, :, None]
+    # The coverage: whole for a pixel whose centre the raster covers, as
+    # the nearest-neighbour read had it, and the filtered weight (a
+    # fraction, which the neighbouring sheet's makes up to one as
+    # render_tile sums them) only past the raster's own edge. The filter
+    # softens that edge over three pixels, and a pixel just inside it at
+    # 0.48 was a tile left short of whole, drawn again at every pass.
+    # The grid pixels within half a grid pixel of the output pixel's
+    # centre: the middle one of an odd block, the middle two by two of
+    # an even one (the centre lies between them).
+    lo, hi = (oversample - 1) // 2, oversample // 2 + 1
+    block = inside[box[1]:box[3], box[0]:box[2]].reshape(height, oversample, width, oversample)
+    centre = block[:, lo:hi, :, lo:hi].any(axis=(1, 3))
+    coverage = np.where(centre, 1.0, np.clip(total, 0.0, 1.0)).astype(np.float32)
+    out = np.where((total > 0)[:, :, None], smooth, 0.0)
+    return np.clip(out + 0.5, 0, 255).astype(np.uint8), coverage
 
 
 def _warp_smooth(src, bbox_3857: tuple, width: int, height: int, upsample: float, mask: Path | None,
@@ -973,7 +1021,7 @@ def _encode_lossless(rgba: np.ndarray) -> bytes:
 # Records from before it was kept count as version 1. Raise it with
 # any change to what a rendered tile looks like. 2: a palette sheet's
 # pale rim, not only its paper, gives way to the neighbour.
-RENDERER_VERSION = 2
+RENDERER_VERSION = 3
 
 
 # ---------------------------------------------------------------------------

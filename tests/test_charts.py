@@ -143,6 +143,36 @@ def _rgb_raster(path, box_deg, rgb):
         ds.write(np.moveaxis(rgb, -1, 0))
 
 
+def test_a_tile_coarser_than_the_sheet_keeps_a_thin_line_as_a_fainter_one(tmp_path):
+    """A one-pixel ink line on the tint, drawn at a zoom where a tile
+    pixel is 1.4 sheet pixels (a sectional at zoom 11): nearest-neighbour
+    alone dropped it wherever the grid's points fell either side of it,
+    and the zooms out from the sheet's own read softer than the chart.
+    Read finer and shrunk with the smooth filter, the line is there in
+    every column as a fainter one (the owner, 2026-11-03)."""
+    # 475 sheet pixels across a 256-pixel tile at 41 N: 1.4 sheet pixels
+    # to the tile's on the ground, as _warp_rgb measures it, and 1.86
+    # down the rows, between which a nearest-neighbour read at the tile's
+    # own size misses row 101 altogether (its rows land on 100 and 102).
+    box = (-88.0, 41.0, -87.9, 41.1)
+    data = np.full((475, 475), 8, dtype=np.uint8)
+    data[101, :] = 7
+    _palette_raster(tmp_path / "sheet.tif", box, data)
+    from rasterio.warp import transform_bounds
+    bbox = transform_bounds("EPSG:4326", "EPSG:3857", *box)
+    rgb, coverage = charts._warp_rgb(tmp_path / "sheet.tif", bbox, 256, 256, 41.05)
+    assert rgb.shape == (256, 256, 3)
+    # Covered through, but for the scan's rim at the raster's own edge.
+    assert coverage[8:-8, 8:-8].min() > 0.99
+    # The tint is (216, 232, 206); a row holding the line is darker than
+    # it in every column: the line is there, not dropped.
+    line_rows = np.where(rgb[8:-8, 8:-8, 0].mean(axis=1) < 200)[0] + 8
+    assert 1 <= len(line_rows) <= 3
+    assert rgb[line_rows[0], 8:-8, 0].max() < 200
+    # Off the line the tint is untouched.
+    assert rgb[8, 8:-8, 0].min() == 216 and rgb[247, 8:-8, 0].min() == 216
+
+
 def test_render_and_detect_read_three_band_rasters_too(tmp_path):
     box = (-92.0, 40.0, -88.0, 44.0)
     rgb = np.full((1000, 1000, 3), 255, np.uint8)             # paper
@@ -304,10 +334,12 @@ def test_two_straight_bordered_sheets_meet_without_daylight(tmp_path):
         # Clear of the line, each side is its own sheet's colour.
         col = int(np.argmin(np.abs(lons + 89.0)))
         above, below = np.flatnonzero(lats > seam_lat + 0.05), np.flatnonzero(lats < seam_lat - 0.05)
+        # Within the filter's reach of the ruling line the smooth filter
+        # leaves a shade of it (254 for 255), nothing a pilot sees.
         if len(above):
-            assert tuple(tile[above[-1], col, :3]) == (216, 232, 206)
+            assert np.abs(tile[above[-1], col, :3].astype(int) - (216, 232, 206)).max() <= 2
         if len(below):
-            assert tuple(tile[below[0], col, :3]) == (255, 0, 0)
+            assert np.abs(tile[below[0], col, :3].astype(int) - (255, 0, 0)).max() <= 2
 
 
 def test_render_leaves_a_sheets_own_leaning_edge_transparent(tmp_path):
