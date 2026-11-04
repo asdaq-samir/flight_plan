@@ -14,6 +14,7 @@ import { edgeAnchors } from "./edgeLabels";
 import { AirspaceLabelsLayer, type CanvasEdgeLabel } from "./AirspaceLabelsCanvas";
 import { AirspaceLinesLayer } from "./AirspaceLinesCanvas";
 import { navaidAt } from "./NavaidCanvas";
+import { zoomZeroX, zoomZeroY } from "./mercator";
 import { MapCard } from "./MapCard";
 import { Button } from "../../components/ui/button";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -88,16 +89,15 @@ function kept(volumes: AirspaceVolume[], box: { south: number; north: number }):
 export function AirspaceLayer() {
   const show = usePreferences(s => s.airspace);
   // Asked for as the airports' marks are (useAhead, useLiveZoom): the view
-  // and a screen round it, again under a finger's pan or pinch.
+  // and a screen round it, again under a finger's pan or pinch, the
+  // question sent from the map's own event.
   const zoom = useLiveZoom();
-  const asked = useAhead();
-  const on = show && zoom >= CLASS_B_FROM_ZOOM;
+  const asked = useAhead((box, level) => airspaceQuery(box, level, show));
   const near = zoom >= FROM_ZOOM;
-  const classes = near ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
-  const query = useMemo(() => airspaceQuery(asked, classes), [asked, classes]);
-  const { data } = useQuery({ ...query, enabled: on, placeholderData: keepPreviousData });
+  const query = useMemo(() => airspaceQuery(asked, zoom, show), [asked, zoom, show]);
+  const { data } = useQuery({ ...query, placeholderData: keepPreviousData });
   const volumes = data ?? NONE;
-  if (!on) return null;
+  if (!query.enabled) return null;
   return (
     <>
       <Pane name="airspace" style={LINES_PANE}>
@@ -190,11 +190,16 @@ function Lines({ query }: { query: AirspaceQuery }) {
 }
 
 /** The planner asked for a box's volumes, once per box and classes (the
- *  query cache): the lines' layer, the altitudes and the taps share it. */
-function airspaceQuery(asked: Box, classes: string) {
+ *  query cache): the lines' layer, the altitudes and the taps share it,
+ *  and the map's own events ask it as they happen (useAhead). The Class B
+ *  from CLASS_B_FROM_ZOOM, the C too from CLASS_C_FROM_ZOOM and the D from
+ *  FROM_ZOOM; none where the settings' Airspace is off. */
+export function airspaceQuery(asked: Box, zoom: number, show: boolean) {
+  const classes = zoom >= FROM_ZOOM ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
   return {
     queryKey: ["airspaceInView", asked.key, classes],
     queryFn: () => api.airspaceInView({ ...asked.box, classes }).then(volumes => kept(volumes, asked.box)),
+    enabled: show && zoom >= CLASS_B_FROM_ZOOM,
     staleTime: Infinity,
     meta: { silent: true },
   };
@@ -233,8 +238,11 @@ function volumeLabels(map: L.Map, volume: AirspaceVolume): CanvasEdgeLabel[] {
   labels = [];
   const text = edgeText(volume);
   if (text) {
+    // Projected by arithmetic (mercator), not a LatLng and two Points made
+    // for each point by map.project.
+    const scale = 2 ** EDGE_ZOOM;
     volume.lines.forEach((line, n) => {
-      const points = line.map(p => map.project([p[0]!, p[1]!], EDGE_ZOOM));
+      const points = line.map(p => ({ x: zoomZeroX(p[1]!) * scale, y: zoomZeroY(p[0]!) * scale }));
       edgeAnchors(points, text.length * EDGE_LETTER_PX, EDGE_ZOOM).forEach((a, i) => {
         const at = map.unproject([a.x, a.y], EDGE_ZOOM);
         labels!.push({
@@ -263,9 +271,14 @@ function EdgeLabels({ volumes }: { volumes: AirspaceVolume[] }) {
     layer.addTo(map);
     return () => { layer.remove(); };
   }, [map, layer]);
+  // One list for each answer, kept as the airports' marks change: the
+  // canvas projects a list once (AirspaceLabelsCanvas' projectedOf), and a
+  // new one at each change of the fields drawn was every label projected
+  // again.
+  const labels = useMemo(() => volumes.flatMap(v => volumeLabels(map, v)), [map, volumes]);
   useEffect(() => {
-    layer.set(volumes.flatMap(v => volumeLabels(map, v)), fields);
-  }, [map, layer, volumes, fields]);
+    layer.set(labels, fields);
+  }, [layer, labels, fields]);
   return null;
 }
 

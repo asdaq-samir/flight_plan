@@ -1,9 +1,14 @@
 import L from "leaflet";
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
-import { LIVE_TILES, chartPair, tileTemplate, tileUrl } from "./tiles";
+import { holdLevels, pruneOnlyAtRest, type Levels } from "./levelHold";
+import { LIVE_TILES, TilePrefetch, chartPair, levelAhead, tileTemplate, tileUrl, tilesAround } from "./tiles";
+
+// Every tile layer's, the chart's and those under and over it: none
+// pruned in a zoom's animation (levelHold).
+pruneOnlyAtRest(L.GridLayer.prototype);
 
 /** The level of the chart kept under it (below): a region a tile, some
  *  eleven degrees of longitude, so a route's whole way is one or two. */
@@ -18,9 +23,6 @@ const PARENT_LEVELS = 2;
  *  levels, four times, where three (eight times) took it to a blur of
  *  squares ForeFlight never shows (the owner's audit, 2026-11-02). */
 const OVERZOOM = 2;
-/** The longest a new zoom's tiles are held back for all of them, ms: past
- *  it, those in are shown as they are. */
-const HOLD_MS = 1500;
 
 /** The chart's own layers, told from the imagery and weather tiles that
  *  may lie over them: the ones index.css dims at night. */
@@ -52,8 +54,9 @@ interface Props {
  * late otherwise. A ring of tiles one deep around the
  * view is fetched once the map comes to rest, so the next pan finds
  * its tiles in the browser's cache (and, installed, the service
- * worker's). Each kind is its own layer instance (`key`): Leaflet reads
- * a layer's zooms once.
+ * worker's), and a zoom of more than a level fetches the level it is
+ * going to as it sets off (prefetchLevel). Each kind is its own layer
+ * instance (`key`): Leaflet reads a layer's zooms once.
  */
 export function ChartTiles({ chart, previewing }: Props) {
   const map = useMap();
@@ -76,35 +79,40 @@ export function ChartTiles({ chart, previewing }: Props) {
   useEffect(() => {
     if (lastZoom !== null) map.setMaxZoom(lastZoom);
   }, [map, lastZoom]);
+  const overlayShown = !!overlay && (pinned || previewing);
   const baseRef = useRef<L.TileLayer>(null);
   const overlayRef = useRef<L.TileLayer>(null);
   useHeldLevels(baseRef, baseLayer?.kind);
-  useHeldLevels(overlayRef, overlay && (pinned || previewing) ? overlay.kind : undefined);
+  useHeldLevels(overlayRef, overlayShown ? overlay.kind : undefined);
 
-  const prefetched = useRef(new Set<string>());
+  // A layer's tiles at a level fetched ahead, into the browser's cache
+  // (and, installed, the service worker's), for Leaflet's own to find
+  // there: a zoom's own level at once, the ring round a view at rest a few
+  // at a time as the main thread is idle (TilePrefetch). The tile's own
+  // address (tiles.ts), not the layer's getTileUrl, which writes the
+  // layer's present zoom into {z} whatever the coords say: the parents
+  // below came out as tiles of the view's zoom at the parents' x and y,
+  // far away, thirty-three wrong tiles asked for at every rest (the first
+  // after-measurement, 2026-11-03).
+  const [prefetch] = useState(() => new TilePrefetch(PREFETCH_KEPT));
+  useEffect(() => () => prefetch.drop(), [prefetch]);
+  const ask = useCallback((kind: string, z: number, tiles: [number, number][], priority: "low" | "high") => {
+    const n = 2 ** z;
+    const urls: string[] = [];
+    for (const [x, y] of tiles) {
+      if (y < 0 || y >= n) continue;
+      urls.push(tileUrl(chart, kind, z, ((x % n) + n) % n, y));
+    }
+    if (priority === "high") prefetch.now(urls);
+    else prefetch.later(urls);
+  }, [chart, prefetch]);
+
   const prefetchRing = useCallback(() => {
-    const layer = baseRef.current;
-    if (!layer || !baseLayer) return;
+    if (!baseRef.current || !baseLayer) return;
     const zoom = Math.round(map.getZoom());
     if (zoom < baseLayer.min_zoom || zoom > baseLayer.max_zoom) return;
     const size = 256;
     const pixelBounds = map.getPixelBounds();
-    // The tile's own address (tiles.ts), not the layer's getTileUrl, which
-    // writes the layer's present zoom into {z} whatever the coords say:
-    // the parents below came out as tiles of the view's zoom at the
-    // parents' x and y, far away, thirty-three wrong tiles asked for at
-    // every rest (the first after-measurement, 2026-11-03).
-    const ask = (x: number, y: number, z: number) => {
-      const n = 2 ** z;
-      if (y < 0 || y >= n) return;
-      const url = tileUrl(chart, baseLayer.kind, z, ((x % n) + n) % n, y);
-      // Once a tile: own ship followed ends a move at every fix, and the
-      // ring was asked for again each time, twenty requests a second.
-      if (prefetched.current.has(url)) return;
-      prefetched.current.add(url);
-      if (prefetched.current.size > PREFETCH_KEPT) prefetched.current.delete(prefetched.current.values().next().value!);
-      void fetch(url, { priority: "low" }).catch(() => { /* a miss now is a miss later, nothing to do */ });
-    };
     // The levels above first (PARENT_LEVELS), each the screen's worth of
     // tiles round the view's middle at that zoom -- what a zoom out shows,
     // a dozen tiles a level: a zoom out (the location arrow's, a flick)
@@ -124,22 +132,45 @@ export function ChartTiles({ chart, previewing }: Props) {
     for (let up = 1; up <= PARENT_LEVELS; up++) {
       const z = zoom - up;
       if (z < baseLayer.min_zoom) break;
-      const middle = map.project(centre, z);
-      for (let x = Math.floor((middle.x - half.x) / size); x <= Math.floor((middle.x + half.x) / size); x++) {
-        for (let y = Math.floor((middle.y - half.y) / size); y <= Math.floor((middle.y + half.y) / size); y++) ask(x, y, z);
-      }
+      ask(baseLayer.kind, z, tilesAround(map.project(centre, z), half), "low");
     }
     const range = {
       minX: Math.floor(pixelBounds.min!.x / size) - 1, maxX: Math.floor(pixelBounds.max!.x / size) + 1,
       minY: Math.floor(pixelBounds.min!.y / size) - 1, maxY: Math.floor(pixelBounds.max!.y / size) + 1,
     };
+    const ring: [number, number][] = [];
     for (let x = range.minX; x <= range.maxX; x++) {
       for (let y = range.minY; y <= range.maxY; y++) {
         const edge = x === range.minX || x === range.maxX || y === range.minY || y === range.maxY;
-        if (edge) ask(x, y, zoom);
+        if (edge) ring.push([x, y]);
       }
     }
-  }, [map, baseLayer, chart]);
+    ask(baseLayer.kind, zoom, ring, "low");
+  }, [map, baseLayer, ask]);
+
+  // A zoom of more than a level -- the location arrow's, a route's fit --
+  // asks for the level it is going to as it sets off, for each chart layer
+  // drawn: Leaflet asks only once its quarter second of animation is over
+  // (levelAhead), and the new level was then held until its tiles came.
+  // The screen's worth at the zoom's end, nothing round it; the terminal
+  // sheet's only where a sheet of it is in that view, as it is blank (a
+  // 404) everywhere else.
+  const prefetchLevel = useCallback((event: L.ZoomAnimEvent) => {
+    const from = map.getZoom();
+    const half = map.getSize().divideBy(2);
+    for (const layer of [baseLayer, overlayShown ? overlay : null]) {
+      if (!layer) continue;
+      const z = levelAhead(from, event.zoom, layer);
+      if (z === null) continue;
+      const middle = map.project(event.center, z);
+      const reach = half.multiplyBy(map.getZoomScale(z, event.zoom));
+      if (!layer.base) {
+        const view = L.latLngBounds(map.unproject(middle.subtract(reach), z), map.unproject(middle.add(reach), z));
+        if (!layer.sheets.some(s => view.intersects(L.latLngBounds([s.south, s.west], [s.north, s.east])))) continue;
+      }
+      ask(layer.kind, z, tilesAround(middle, reach), "high");
+    }
+  }, [map, baseLayer, overlay, overlayShown, ask]);
 
   const prefetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Memoized for the reason `AirportsLayer` spells out: a handlers
@@ -148,6 +179,9 @@ export function ChartTiles({ chart, previewing }: Props) {
   useMapEvents(useMemo(() => ({
     moveend: () => {
       if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+      // The last rest's ring, what of it is not yet asked for, left: the
+      // map has moved on, and this rest asks for its own.
+      prefetch.drop();
       // Once the move's own work is done and the thread idle: every edge
       // tile's address made and asked for took 16 ms at the move's end
       // (Session2's profile, 2026-11-03), where the marks and rings draw.
@@ -156,7 +190,8 @@ export function ChartTiles({ chart, previewing }: Props) {
         else prefetchRing();
       }, 250);
     },
-  }), [prefetchRing]));
+    zoomanim: prefetchLevel,
+  }), [prefetchRing, prefetchLevel, prefetch]));
   useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current); }, []);
 
   if (!baseLayer) return null;
@@ -166,7 +201,10 @@ export function ChartTiles({ chart, previewing }: Props) {
   // zooms out to a route, the edge of a pan -- the chart shows coarse
   // rather than grey, as Maps' does, at the owner's notice ("going from
   // current location to zoom out is not smooth"). Not below its level,
-  // where the chart's own are as coarse.
+  // where the chart's own are as coarse. Asked for under a moving finger
+  // too (LIVE_TILES), as the chart over it is: a pan onto fresh ground
+  // had it only once the finger lifted, on a phone, where it is what is
+  // there before the chart's own come (the map-load audit, 2026-11-04).
   const underlay = Math.max(baseLayer.min_zoom, UNDERLAY_ZOOM);
   return (
     <>
@@ -175,7 +213,7 @@ export function ChartTiles({ chart, previewing }: Props) {
           key={`${baseLayer.kind}-under`}
           url={tileTemplate(chart, baseLayer.kind)}
           minZoom={underlay} maxNativeZoom={underlay} maxZoom={baseLayer.max_zoom + OVERZOOM}
-          keepBuffer={1} zIndex={0} updateWhenZooming={false} className={CHART_CLASS}
+          keepBuffer={1} zIndex={0} updateWhenZooming={false} className={CHART_CLASS} {...LIVE_TILES}
         />
       )}
       <TileLayer
@@ -184,7 +222,7 @@ export function ChartTiles({ chart, previewing }: Props) {
         minZoom={baseLayer.min_zoom} maxNativeZoom={baseLayer.max_zoom} maxZoom={baseLayer.max_zoom + OVERZOOM}
         keepBuffer={4} className={CHART_CLASS} {...LIVE_TILES}
       />
-      {overlay && (pinned || previewing) && (
+      {overlayShown && (
         <TileLayer
           key={overlay.kind} ref={overlayRef}
           url={tileTemplate(chart, overlay.kind)}
@@ -198,71 +236,12 @@ export function ChartTiles({ chart, previewing }: Props) {
   );
 }
 
-/** Leaflet's own, which the hold below reaches into: the zoom's container
- *  of tiles, the zoom tiles are asked for at, and its pruning of the
- *  tiles of other zooms. */
-type Levels = L.TileLayer & { _level?: { el: HTMLElement; zoom: number }; _tileZoom?: number; _pruneTiles: () => void };
-
-/**
- * A new zoom's tiles shown together once they are all in, faded in over
- * the last zoom's, which stay meanwhile, as ForeFlight's chart changes
- * zoom: Leaflet shows each tile as it arrives, and a zoom showed a
- * patchwork of sharp new tiles among the old ones scaled, a few at a time
- * (the owner's recording, 2026-11-02, zooming in on Charlotte). Held no
- * longer than HOLD_MS; a pan's new tiles at the same zoom are shown as
- * they come, as before. The old zoom's tiles are kept (no pruning) while
- * the new one is held, or they went as each new tile under them loaded.
- */
+/** The hold of each new zoom level until its tiles are in (levelHold),
+ *  on the layer while it is drawn. */
 function useHeldLevels(ref: RefObject<L.TileLayer | null>, kind: string | undefined) {
   useEffect(() => {
     const layer = ref.current as Levels | null;
     if (!layer || !kind) return;
-    const prune = layer._pruneTiles;
-    let held: HTMLElement | null = null;
-    let shownZoom = layer._tileZoom;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    layer._pruneTiles = function pruneWhenShown(this: Levels) {
-      if (!held) prune.call(this);
-    };
-    const show = () => {
-      if (timer) clearTimeout(timer);
-      timer = null;
-      const el = held;
-      held = null;
-      shownZoom = layer._tileZoom;
-      if (el) {
-        el.style.transition = "opacity 0.2s ease-out";
-        el.style.opacity = "1";
-        // Leaflet's own pruning once it has faded in, as it waits for a
-        // tile's fade.
-        setTimeout(() => {
-          el.style.transition = "";
-          el.style.opacity = "";
-          layer._pruneTiles();
-        }, 250);
-      } else layer._pruneTiles();
-    };
-    // At each tile asked for: Leaflet's own 'loading' fires only when
-    // nothing was loading, and a zoom begun while the last one's tiles
-    // were still coming made its new zoom with none.
-    const loading = () => {
-      const level = layer._level;
-      if (!level || level.zoom === shownZoom || held === level.el) return;
-      if (held) held.style.opacity = "";
-      held = level.el;
-      held.style.transition = "";
-      held.style.opacity = "0";
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(show, HOLD_MS);
-    };
-    layer.on("tileloadstart", loading);
-    layer.on("load", show);
-    return () => {
-      layer.off("tileloadstart", loading);
-      layer.off("load", show);
-      if (timer) clearTimeout(timer);
-      if (held) held.style.opacity = "";
-      layer._pruneTiles = prune;
-    };
+    return holdLevels(layer);
   }, [ref, kind]);
 }

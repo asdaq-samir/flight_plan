@@ -17,7 +17,7 @@ import { usePreferences } from "../preferences";
 import { airportBox, overlaps, ownShipBox, useDrawnAirports, vorTagBoxes, vorTagSide, type TagSide } from "./declutter";
 import { useOwnShipNear } from "./ownShip";
 import { useAhead, useLiveZoom } from "./useView";
-import { hovers } from "./view";
+import { hovers, type Box } from "./view";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { NavaidMarksLayer, type NavaidMark } from "./NavaidCanvas";
@@ -112,17 +112,13 @@ type Picked = { mark: NavaidMark; vor?: VorPin; fix?: FixPin };
 export function NavaidsLayer() {
   const show = usePreferences(s => s.navaids);
   const zoom = useLiveZoom();
-  const asked = useAhead();
-  const on = show && zoom >= VOR_ZOOM;
+  // Asked for as the airports' marks are (useAhead), the question sent
+  // from the map's own events.
+  const asked = useAhead((box, level) => navaidsQuery(box, level, show));
+  const query = navaidsQuery(asked, zoom, show);
+  const on = query.enabled;
   const withFixes = zoom >= FIX_ZOOM;
-  const { data } = useQuery({
-    queryKey: ["navaidsInView", asked.key, withFixes],
-    queryFn: () => api.navaidsInView(asked.box, withFixes),
-    enabled: on,
-    staleTime: Infinity,
-    placeholderData: keepPreviousData,
-    meta: { silent: true },
-  });
+  const { data } = useQuery({ ...query, placeholderData: keepPreviousData });
   const vors = data?.vors ?? NO_VORS;
   // The VORs in view for the other point cards to place a point off the
   // nearest (a VFR waypoint's, WaypointsLayer).
@@ -140,6 +136,21 @@ export function NavaidsLayer() {
       <NavaidMarks marks={marks} vors={vors} fixes={fixes} />
     </Pane>
   );
+}
+
+/** The planner asked for a box's VORs at a zoom, from VOR_ZOOM, and its
+ *  fixes with them from FIX_ZOOM; none where the settings' VORs and Fixes
+ *  is off. The layer's useQuery and the map's own events (useAhead) ask
+ *  it alike. */
+export function navaidsQuery(asked: Box, zoom: number, show: boolean) {
+  const withFixes = zoom >= FIX_ZOOM;
+  return {
+    queryKey: ["navaidsInView", asked.key, withFixes],
+    queryFn: () => api.navaidsInView(asked.box, withFixes),
+    enabled: show && zoom >= VOR_ZOOM,
+    staleTime: Infinity,
+    meta: { silent: true },
+  };
 }
 
 /** The canvas the stations are drawn on, made once and given the marks

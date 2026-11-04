@@ -2,6 +2,8 @@ import L from "leaflet";
 import { prefersReducedMotion } from "../motion";
 import { airportBox, overlaps, type Box, type DrawnField } from "./declutter";
 import { spotBox } from "./edgeLabels";
+import { FadeIn } from "./fadeIn";
+import { zoomZeroX, zoomZeroY } from "./mercator";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
 
 /** One label along an airspace line, held to its place on it at every
@@ -33,10 +35,17 @@ const UNIT = L.point(1, 0);
 /** No altitudes this close to an airport's mark or its ident, px: the
  *  field is what a pilot reads there. */
 const AIRPORT_CLEAR_PX = 20;
-/** How long a label takes to come in, ms, as an airport's mark does. */
-const FADE_MS = 200;
-/** The most labels remembered as drawn: a few flights' worth. */
-const MOST_KEPT = 5000;
+/** The labels drawn in the session, by key. One new fades in as an
+ *  airport's mark does, one drawn before is there at once (fadeIn); and
+ *  one drawn before no airport's mark coming in later takes away again: a
+ *  zoom that brought in the fields with no report took every label near
+ *  one off with it, "80/30" there and gone a step in (the owner's audit of
+ *  the overlays, 2026-11-02). The mark is drawn over the label where they
+ *  meet. Kept by the module, not the layer, which is made again each time
+ *  the map zooms back in to the labels' level (AirspaceLayer's EdgeLabels,
+ *  from 8): kept by the layer, every label faded in again and could be
+ *  taken off by a mark. */
+const fades = new FadeIn();
 
 /** Room round the words on their picture for the halo, px. */
 const HALO_ROOM = 3;
@@ -97,14 +106,6 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
   private colours: { style: CSSStyleDeclaration; halo: string; inks: Map<string, string> } | null = null;
   /** Each label's key: whether an airport's mark keeps it off. */
   private hidden = new Map<string, boolean>();
-  /** The labels drawn once, which no airport's mark coming in later takes
-   *  away again: a zoom that brought in the fields with no report took
-   *  every label near one off with it, "80/30" there and gone a step in
-   *  (the owner's audit of the overlays, 2026-11-02). The mark is drawn
-   *  over the label where they meet. */
-  private readonly drawnOnce = new Set<string>();
-  /** When each label was first drawn, while it fades in. */
-  private readonly born = new Map<string, number>();
 
   /** Watches the page's theme (its root's attributes: the chart's light
    *  scheme, the brand, a dark class) and the system's, to read the
@@ -142,14 +143,13 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
    *  they were made for (AirportCanvas the same). */
   private projected: { labels: CanvasEdgeLabel[]; xs: Float64Array; ys: Float64Array } | null = null;
 
-  private projectedOf(map: L.Map): { xs: Float64Array; ys: Float64Array } {
+  private projectedOf(): { xs: Float64Array; ys: Float64Array } {
     if (this.projected?.labels === this.labels) return this.projected;
     const n = this.labels.length;
     const xs = new Float64Array(n), ys = new Float64Array(n);
     this.labels.forEach((label, i) => {
-      const at = map.project([label.lat, label.lon], 0);
-      xs[i] = at.x;
-      ys[i] = at.y;
+      xs[i] = zoomZeroX(label.lon);
+      ys[i] = zoomZeroY(label.lat);
     });
     this.projected = { labels: this.labels, xs, ys };
     return this.projected;
@@ -180,19 +180,22 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
     if (!moving) this.hidden.clear();
     let clear: Box[] | null = null;
     const hidden = (label: CanvasEdgeLabel, x: number, y: number, width: number) => {
-      if (this.drawnOnce.has(label.key)) return false;
+      if (fades.drawn(label.key)) return false;
       const known = this.hidden.get(label.key);
       if (known !== undefined) return known;
       clear ??= this.fields.map(f => {
         const b = airportBox(here(f.lat, f.lon), f.ident);
         return { x0: b.x0 - AIRPORT_CLEAR_PX, y0: b.y0 - AIRPORT_CLEAR_PX, x1: b.x1 + AIRPORT_CLEAR_PX, y1: b.y1 + AIRPORT_CLEAR_PX };
       });
-      const off = clear.some(b => overlaps(b, spotBox({ x, y, angle: label.angle }, width, HEIGHT_PX)));
+      // The label's own box once, not once for every field it is held to.
+      const spot = spotBox({ x, y, angle: label.angle }, width, HEIGHT_PX);
+      const off = clear.some(b => overlaps(b, spot));
       this.hidden.set(label.key, off);
       return off;
     };
     const written: { text: string; angle: number }[] = [];
     const now = performance.now();
+    const still = prefersReducedMotion();
     let fading = false;
     // Each label's place from its projection kept at zoom 0, moved by
     // arithmetic (as the marks' and the rings' are), not projected anew
@@ -201,7 +204,7 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
     const ox = pixelOrigin.x + origin.x - from.x, oy = pixelOrigin.y + origin.y - from.y;
     const w0 = warp(ORIGIN), w1 = warp(UNIT);
     const ws = w1.x - w0.x, wx = w0.x, wy = w0.y;
-    const { xs, ys } = this.projectedOf(map);
+    const { xs, ys } = this.projectedOf();
     for (let i = 0; i < this.labels.length; i++) {
       const label = this.labels[i]!;
       if (label.from > zoom + 1e-6) continue;
@@ -217,24 +220,12 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
       const picture = pictureOf(label.text, this.font, ink, colours.halo, dpr);
       if (!picture) continue;
       const w = picture.width / dpr, h = picture.height / dpr;
-      // A label drawn for the first time fades in, as the airports' marks
-      // do (AirportCanvas); at once under Reduce Motion.
-      if (!this.drawnOnce.has(label.key)) {
-        if (this.drawnOnce.size > MOST_KEPT) this.drawnOnce.clear();
-        this.drawnOnce.add(label.key);
-        if (!prefersReducedMotion()) this.born.set(label.key, now);
-      }
-      const born = this.born.get(label.key);
-      let alpha = 1;
-      if (born !== undefined) {
-        alpha = (now - born) / FADE_MS;
-        if (alpha >= 1) {
-          this.born.delete(label.key);
-          alpha = 1;
-        } else fading = true;
-      }
+      // A label new to the session fades in from this drawing, as the
+      // airports' marks do; one drawn before is whole at once (fadeIn).
+      const alpha = fades.alpha(label.key, now, still);
+      if (alpha < 1) fading = true;
       ctx.save();
-      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.globalAlpha = alpha;
       ctx.translate(x, y);
       ctx.rotate((label.angle * Math.PI) / 180);
       ctx.drawImage(picture, -w / 2, -h / 2, w, h);

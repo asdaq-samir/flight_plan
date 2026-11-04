@@ -510,6 +510,15 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
           // and as far out as the chart layer has tiles. On a TV (lib/tv)
           // the map takes the remote's arrows while it is focused, to pan.
           zoomControl={false} minZoom={3} keyboard={onTv} attributionControl={false} zoomAnimationThreshold={12}
+          // Each tile drawn in the frame it comes, not faded in over 0.2 s
+          // by script, as Leaflet does by default, from the cache too: about
+          // a quarter second on every pan, on top of the chart's own
+          // whole-level change (ChartTiles), which no one had asked for (the
+          // map-load audit; the owner, 2026-11-04: "make it fast but
+          // stable"). The fade also kept tiles through a zoom's animation,
+          // which levelHold's pruneOnlyAtRest does now. Popups on a desktop
+          // open and close at once with it; a phone's cards are the sheet's.
+          fadeAnimation={false}
           className="h-full w-full bg-slate-100 dark:bg-slate-900"
         >
           {/* A remote has no pinch: Leaflet's own + and - to reach with

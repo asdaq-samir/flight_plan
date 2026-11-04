@@ -1,4 +1,5 @@
 import { TileLayer } from "react-leaflet";
+import { LIVE_TILES } from "./tiles";
 
 /** The USGS's National Map hydrography basemap: the land white and the
  *  water blue, the countries' borders and names, Canada and Mexico and the
@@ -21,8 +22,11 @@ const LAST_ZOOM = 9;
  * (zoom 6) where it opens on the country. Under the chart's own layers
  * (ChartTiles' underlay at 0), dimmed with them at night (chart-tiles).
  * No credit on the map: a public-domain work, and the owner's rule is the
- * credits a licence requires alone.
+ * credits a licence requires alone. Asked for under a moving finger, as
+ * the chart's are (LIVE_TILES): on a phone Leaflet waited for the finger
+ * to lift, and the sea and the countries round the charts filled in only
+ * after a pan (the map-load audit, 2026-11-04).
  */
 export function LandWaterTiles() {
-  return <TileLayer url={URL} maxNativeZoom={LAST_ZOOM} maxZoom={LAST_ZOOM} zIndex={-1} className="chart-tiles" keepBuffer={1} />;
+  return <TileLayer url={URL} maxNativeZoom={LAST_ZOOM} maxZoom={LAST_ZOOM} zIndex={-1} className="chart-tiles" keepBuffer={1} {...LIVE_TILES} />;
 }

@@ -30,6 +30,18 @@ export interface CanvasView {
 
 const SAME = (at: L.Point) => at;
 
+/**
+ * A canvas taken off the map kept for the next layer drawn in the same pane
+ * with the same classes, blank and with nothing written on it, rather than
+ * let go: the VORs' and the altitudes' layers are made again each time the
+ * map zooms in past 8 (NavaidsLayer, AirspaceLayer), and a new canvas's
+ * first drawing gave it its memory, 17 ms each on the phone viewport at CPU
+ * 4x, 34 ms of a zoom from 7 to 9 (a profile, 2026-11-04; the owner, "make
+ * it fast but stable"), and four times the pixels at a phone's 2x. One for
+ * each, the most the map would have in use at once anyway.
+ */
+const spares = new Map<string, HTMLCanvasElement>();
+
 /** Leaflet's zoom animation as its stylesheet times it (.leaflet-zoom-anim
  *  .leaflet-zoom-animated: transform 0.25s cubic-bezier(0, 0, 0.25, 1)),
  *  so that marks drawn at each frame of it move with the chart's tiles. */
@@ -70,6 +82,8 @@ export abstract class ViewCanvasLayer extends L.Layer {
   private zoomingTo: { zoom: number; center: L.LatLng; start: number } | null = null;
   /** A drawing asked for while Leaflet animated a zoom, owed as it ends. */
   private deferred = false;
+  /** Which spare canvas this layer's is (spares). */
+  private spareKey = "";
 
   /** Drawn again at each step of a pinch (the airports' marks, which must
    *  stay sharp and placed as the chart grows), or only once it ends,
@@ -106,7 +120,13 @@ export abstract class ViewCanvasLayer extends L.Layer {
     // zoomed out really fast"). Such a layer takes no ease: it draws
     // where the chart is at every frame itself (step, warp).
     const eased = this.redrawWhileZooming ? "" : "leaflet-zoom-animated";
-    const canvas = L.DomUtil.create("canvas", `${eased} ${this.className}`.trim(), map.getPane(this.options.pane!));
+    const classes = `${eased} ${this.className}`.trim();
+    this.spareKey = `${this.options.pane}|${classes}`;
+    const pane = map.getPane(this.options.pane!)!;
+    const spare = spares.get(this.spareKey);
+    spares.delete(this.spareKey);
+    const canvas = spare ?? L.DomUtil.create("canvas", classes);
+    pane.appendChild(canvas);
     canvas.style.pointerEvents = "none";
     // The class also set the canvas's transform origin to its top left,
     // which a pinch's scale (zoomed) is about: without it a canvas scaled
@@ -136,8 +156,18 @@ export abstract class ViewCanvasLayer extends L.Layer {
     map.off("zoomend", this.animated, this);
     cancelAnimationFrame(this.frame);
     this.frame = 0;
-    this.canvas?.remove();
+    const canvas = this.canvas;
     this.canvas = null;
+    if (canvas) {
+      canvas.remove();
+      // Kept blank, with nothing written on it for the tests, as a new one
+      // would be: the next layer's first drawing is where it is placed.
+      const ctx = canvas.getContext("2d");
+      ctx?.setTransform(1, 0, 0, 1, 0, 0);
+      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+      for (const key of Object.keys(canvas.dataset)) delete canvas.dataset[key];
+      if (this.spareKey && !spares.has(this.spareKey)) spares.set(this.spareKey, canvas);
+    }
     return this;
   }
 
@@ -249,6 +279,14 @@ export abstract class ViewCanvasLayer extends L.Layer {
     this.draw();
     const zooming = this.zoomingTo;
     if (zooming && performance.now() - zooming.start < ZOOM_MS) {
+      // The next step draws the next frame, so a drawing the paint just
+      // asked for (a mark still fading in, fadeIn) is let go. Kept, it was
+      // lost from `frame` under the step's own and went on by itself,
+      // drawing and asking again at every frame while the fade ran: a zoom
+      // with a mark fading in drew the whole canvas once more at each frame
+      // of its animation than at the one before, 17 times in one frame by
+      // its end, and so on until the fade was over (ViewCanvas.test).
+      cancelAnimationFrame(this.frame);
       this.frame = requestAnimationFrame(() => {
         this.frame = 0;
         this.step();
