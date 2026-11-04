@@ -3,11 +3,15 @@ import { closeCard, closeConsole, closeProfile, grabberTo, openProfile, openTab,
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
- * on its left: FPL, Airport, Aircraft and Setup, the sheet's first row at
- * every size -- at rest the pill itself, at the owner's ask ("When no route
- * is entered, let's have tabs on the pill"), a route's figures pinned under
- * them -- over a card its name, Back and the close.
+ * on its left: FPL, Airport, Aircraft and Setup -- on a phone docked at the
+ * screen's foot at every size, the sheet sliding above it (the owner's
+ * pick, 2026-11-04), at rest the pill with the grabber over it, or a
+ * route's figures over it; from `md` up the card's first row -- over a
+ * card its name, Share and the close.
  */
+
+/** Whether the tabs are docked at the screen's foot: a phone's. */
+const dockedHere = (page: Page) => (page.viewportSize()?.width ?? 0) < 768;
 
 test("the tabs swap the panel's head and body, FPL's empty box with no route", async ({ page }) => {
   await page.goto("/app/plan");
@@ -57,33 +61,51 @@ test("the tabs swap the panel's head and body, FPL's empty box with no route", a
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
 });
 
-test("a route rests as its figures in the tabs' place, the pill's own height, and half way another tab keeps the panel's height and the route", async ({ page }) => {
+test("a route rests as its figures over the docked tabs, and half way another tab keeps the panel's height and the route", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
-  // At rest the route's figures in the tabs' place, the pill as tall as the
-  // tabs', at the owner's ask ("When a route is entered the calculations
-  // should replace the tabs in the pill while keeping it the same size");
-  // a tap on them half way.
+  // At rest the route's figures; on a phone over the tabs, docked at the
+  // screen's foot, two rows (the owner's pick, 2026-11-04); from `md` up in
+  // the tabs' place, the pill as tall as the tabs' (the owner's "When a
+  // route is entered the calculations should replace the tabs in the pill
+  // while keeping it the same size"). A tap on them half way.
   await expect(panel).toHaveAttribute("data-capsule", "true");
   const figures = panel.getByTestId("flight-line");
   await expect(figures).toContainText(/\d+ nm/, { timeout: slow(30000) });
-  await expect(panel.getByTestId("tab-bar")).toBeHidden();
   await expect(panel.getByTestId("mini-profile")).toBeHidden();
   await settled(panel);
-  // The row's 62 and the eight it keeps clear of the screen's edge (a
-  // phone's home indicator adds its own inset).
-  expect((await panel.boundingBox())!.height).toBeLessThan(72);
+  const docked = dockedHere(page);
+  if (docked) {
+    const tabs = page.getByTestId("tab-dock").getByTestId("tab-bar");
+    await expect(tabs).toBeVisible();
+    // The figures' row from the sheet's top to the tabs', nothing between.
+    const [sheet, foot, row] = [(await panel.boundingBox())!, (await panel.getByTestId("panel-foot").boundingBox())!, (await page.getByTestId("tab-dock").boundingBox())!];
+    expect(Math.abs(foot.y - sheet.y)).toBeLessThan(1.5);
+    expect(Math.abs(foot.y + foot.height - row.y)).toBeLessThan(1.5);
+  } else {
+    await expect(panel.getByTestId("tab-bar")).toBeHidden();
+    // The row's 62 and the eight it keeps clear of the screen's edge.
+    expect((await panel.boundingBox())!.height).toBeLessThan(72);
+  }
+  const pillBar = docked ? (await page.getByTestId("tab-bar").boundingBox())! : null;
   await panel.getByTestId("panel-foot").click();
   await expect(panel).toHaveAttribute("data-panel", "half");
-  // Half way, the tabs still the sheet's first row.
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
   // Measured at rest: caught on its way up, the bar was still at the pill's.
   await settled(panel);
   const bar = (await page.getByTestId("tab-bar").boundingBox())!;
   const sheet = (await panel.boundingBox())!;
-  expect(bar.y).toBeGreaterThanOrEqual(sheet.y);
-  expect(bar.y).toBeLessThan(sheet.y + 40);
+  if (pillBar) {
+    // Docked: where it was in the pill, the figures pinned over it.
+    expect(Math.abs(bar.y - pillBar.y)).toBeLessThan(0.5);
+    const line = (await panel.getByTestId("panel-foot").boundingBox())!;
+    expect(line.y + line.height).toBeLessThanOrEqual(bar.y + 1.5);
+  } else {
+    // From `md` up, the card's first row.
+    expect(bar.y).toBeGreaterThanOrEqual(sheet.y);
+    expect(bar.y).toBeLessThan(sheet.y + 40);
+  }
   // Another tab half way: half kept, the route still there.
   await page.getByTestId("tab-airport").click();
   await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
@@ -96,12 +118,80 @@ test("a route rests as its figures in the tabs' place, the pill's own height, an
   await expect(panel.getByTestId("flight-line")).toBeVisible();
 });
 
+test("on a phone the tabs are docked at the screen's foot: in one place at every size and through a drag, nothing of the sheet under them, and no room under their words but what centres them", async ({ page }) => {
+  test.skip(!dockedHere(page), "a phone's dock");
+  // The owner (2026-11-04): "The tab bar seems to be moving from bottom as
+  // I am moving it between detents ... what about the space below the tabs
+  // icons/text, can that be slimmer?"
+  await page.goto("/app/plan");
+  await settle(page);
+  const panel = sideDrawer(page);
+  const tabs = page.getByTestId("tab-dock").getByTestId("tab-bar");
+  await expect(tabs).toBeVisible();
+  const viewport = page.viewportSize()!;
+  const place = async () => {
+    await settled(panel);
+    return (await tabs.boundingBox())!;
+  };
+  const pill = await place();
+  // On the screen's foot: no margin under the row (Chromium has no home
+  // indicator's inset), the row 52 -- the tabs 50 and two over them.
+  const dock = (await page.getByTestId("tab-dock").boundingBox())!;
+  expect(Math.abs(dock.y + dock.height - viewport.height)).toBeLessThan(0.5);
+  expect(dock.height).toBeLessThanOrEqual(53);
+  expect(pill.height).toBeGreaterThanOrEqual(44);
+  // The pill is the grabber's band over the tabs.
+  const sheet = (await panel.boundingBox())!;
+  expect(dock.y - sheet.y).toBeGreaterThanOrEqual(9);
+  expect(dock.y - sheet.y).toBeLessThan(16);
+  // Under the words, only the half of the tab's room that centres its
+  // glyph and word in it: as much under the word as over the glyph.
+  const fpl = page.getByTestId("tab-fpl");
+  const [button, glyph, word] = [(await fpl.boundingBox())!, (await fpl.locator("svg").first().boundingBox())!, (await fpl.locator("span").last().boundingBox())!];
+  const over = glyph.y - button.y, under = button.y + button.height - (word.y + word.height);
+  expect(Math.abs(over - under)).toBeLessThan(1.5);
+  expect(dock.y + dock.height - (word.y + word.height)).toBeLessThan(6);
+  for (const size of ["half", "full", "half", "peek"] as const) {
+    await grabberTo(page, size);
+    const at = await place();
+    expect(Math.abs(at.y - pill.y), `the tabs at ${size}`).toBeLessThan(0.5);
+    // The sheet's content ends on the tabs' top: the body's foot over it.
+    if (size !== "peek") {
+      const body = (await panel.locator("[data-panel-body]").boundingBox())!;
+      expect(body.y + body.height).toBeLessThanOrEqual(dock.y + 1);
+    }
+  }
+  // And under a finger, frame by frame, up from the pill and let go.
+  await page.evaluate(() => {
+    const w = window as unknown as { __tabsAt: number[] };
+    w.__tabsAt = [];
+    const t0 = performance.now();
+    const tick = () => {
+      w.__tabsAt.push(document.querySelector("[data-tab-dock] [data-testid=tab-bar]")!.getBoundingClientRect().top);
+      if (performance.now() - t0 < 1500) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  const from = { x: pill.x + pill.width * 0.4, y: pill.y + pill.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  for (let step = 1; step <= 12; step++) await page.mouse.move(from.x, from.y - step * 25);
+  await page.mouse.up();
+  await expect(panel).not.toHaveAttribute("data-panel", "peek");
+  await page.waitForTimeout(1600);
+  const seen = await page.evaluate(() => (window as unknown as { __tabsAt: number[] }).__tabsAt);
+  expect(seen.length).toBeGreaterThan(10);
+  for (const top of seen) expect(Math.abs(top - pill.y)).toBeLessThan(0.5);
+  // The drag's release picked no tab.
+  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+});
+
 test("FPL with no route rests as the tabs alone, its route's box half way", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   // The pill: the tabs alone, no figures.
   await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-  await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
+  await expect(page.getByTestId("tab-bar")).toBeVisible();
   await expect(sideDrawer(page).getByTestId("panel-foot")).toHaveCount(0);
   await openPanel(page);
   await expect(sideDrawer(page).getByTestId("route-type")).toBeVisible();
@@ -289,7 +379,7 @@ test("each tab keeps the card open over it: another tab picked and this one agai
   await expect(name).toContainText("KDLH");
   // The tab up tapped again puts it away, as an iOS tab's first screen.
   await showTabs(page);
-  await sideDrawer(page).locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
+  await page.locator('[data-testid="tab-bar"] button[aria-current="page"]').click();
   await expect(page).not.toHaveURL(/[?&]place=/);
   await showTabs(page);
   await page.getByTestId("tab-aircraft").click();
@@ -431,7 +521,7 @@ test.describe("the tabs under a finger", () => {
     const panel = sideDrawer(page);
     await showTabs(page);
     const size = (await panel.getAttribute("data-panel"))!;
-    const tabs = panel.getByTestId("tab-bar");
+    const tabs = page.getByTestId("tab-bar");
     const at = await tabMiddles(page);
     await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
     await expect(tabs.getByTestId("tab-fpl").getByTestId("tab-bubble")).toBeVisible();
@@ -463,7 +553,7 @@ test.describe("the tabs under a finger", () => {
     await showTabs(page);
     await grabberTo(page, "half");
     await settled(panel);
-    const tabs = panel.getByTestId("tab-bar");
+    const tabs = page.getByTestId("tab-bar");
     const at = await tabMiddles(page);
     const touch = await finger(page);
     // Up from Airport's place, a drag of the sheet: all the way up, FPL
@@ -477,7 +567,7 @@ test.describe("the tabs under a finger", () => {
     await touch("touchEnd");
     await expect(panel).toHaveAttribute("data-panel", "full");
     await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
-    // And down from there, on the minimized line's tabs shown again: half.
+    // And down from there, on the tabs: half.
     await settled(panel);
     await showTabs(page);
     const down = (await tabs.getByTestId("tab-airport").boundingBox())!;

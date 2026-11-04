@@ -5,7 +5,7 @@ import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useWindowHeight } from "../hooks/use-viewport";
 import {
   GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_MARGIN, TabBarMinimized,
-  useTabsShown, type MapInsets, type PanelState,
+  TabDock, useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
 import { useOpenCards } from "../lib/openCards";
 import { PillPicture } from "./PillPicture";
@@ -37,7 +37,9 @@ interface Props {
   compact?: ReactNode;
   /** The body: the nav log and the briefing, the training list. */
   children: ReactNode;
-  /** The planner's tab bar (TabBar), or the strip's ribbon: the sheet's
+  /** The planner's tab bar (TabBar), or the strip's ribbon: on a phone
+   *  the tabs docked at the screen's foot under the sheet at every size
+   *  (the dock, below); the ribbon, and the bar from `md` up, the sheet's
    *  first row, and at rest the pill itself. */
   bar?: ReactNode;
   /** What the panel is showing: a tab of the planner, a card open alone
@@ -75,6 +77,15 @@ const HALF_BODY_LEAST_REM = 2.75;
 const CARD = 384;
 /** The grabber's row at the far edge of a card or a sheet from the top. */
 const GRABBER = 16;
+/** The docked tab bar's row, rem, the home indicator's inset under it:
+ *  the tabs 50 points tall (the tab up's capsule their whole height, room
+ *  round its glyph and word), two over them, and nothing under the words
+ *  but the half of the capsule's room that centres them -- iOS's own tab
+ *  bar is 49 points over the home indicator. It was 68 (the grabber's
+ *  ten, the tabs 52, six under them) and the eight the sheet kept at the
+ *  screen's edge, the owner's "can that be slimmer?" of the room under
+ *  the labels (2026-11-04); the grabber is the sheet's, over it. */
+const DOCK_REM = 3.25;
 /** The first row's room under the grabber: ten points, the grabber's bar
  *  in it four from the edge (iOS's is five on a sheet, two on Maps' pill:
  *  one place at every size here). */
@@ -159,6 +170,12 @@ export interface SheetTurn { insets: MapInsets }
  * with transitionend state) was a fix for the previous one's artefact,
  * and the owner saw the sum as glitchy (2026-11-04).
  *
+ * On a phone the tab bar is docked at the screen's foot, outside the
+ * sheet (the dock), and the sheet slides above it: `h` counts the bar, so
+ * the pill is the grabber's band over the tabs (or the route's figures
+ * over them), and the map's room, its buttons on the sheet's top and its
+ * turn are all read from the one number as before.
+ *
  * Not a stock sheet, which the app's other sheets are (shadcn's Sheet):
  * those are modal Radix dialogs, and one that never closes would hold
  * the keyboard's focus inside itself and hide the map.
@@ -168,7 +185,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // one field (the foot), its ribbon (the bar) from half way up
   // (features/strip, lib/preferences). The owner's field-tabs layout puts
   // its field at the top of the map, so its pill is the tabs' (2026-11-04).
-  const fieldPill = usePreferences(s => s.layout === "strip") && !!foot;
+  const stripLayout = usePreferences(s => s.layout === "strip");
+  const fieldPill = stripLayout && !!foot;
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
   // A card opened over whatever is here (SheetCard): the body's room its,
@@ -192,7 +210,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     return () => seen.disconnect();
   }, [sheetHost, topCard, raised]);
   const cardFit = raised === "half" && measuredFit && measuredFit.id === topCard ? measuredFit.px : null;
-  const toEdge = layer !== "console" && edgeAsked && !cardsUp;
   const onPhone = useIsMobile();
   const edge = useNavEdge();
   const safe = useSafeArea();
@@ -215,6 +232,32 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // the home indicator (or eight points where there is none), so its
   // content sits clear of it.
   const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
+  // The tab bar docked at the screen's foot on a phone, the sheet sliding
+  // above it at every size, as Find My's does -- the owner, 2026-11-04:
+  // "The tab bar seems to be moving from bottom as I am moving it between
+  // detents"; it was the sheet's first row, riding its top edge, and gave
+  // its place to the route's figures in the pill. Not in flight or with
+  // the keyboard up (no bar then), nor the strip's ribbon.
+  const barShown = !!bar && !(onPhone && keyboard) && !flying;
+  const docked = slides && barShown && !stripLayout;
+  // Its height, the home indicator's inset in it, measured as it is laid
+  // out (it does not move); every size of the sheet counts it.
+  const [dockWrap, setDockWrap] = useState<HTMLDivElement | null>(null);
+  const [dockRow, setDockRow] = useState<HTMLDivElement | null>(null);
+  const [dockMeasured, setDockMeasured] = useState<number | null>(null);
+  useEffect(() => {
+    if (!dockWrap) return;
+    const watch = new ResizeObserver(() => setDockMeasured(dockWrap.getBoundingClientRect().height));
+    // Its border box: the inset is its padding, which a turn of the phone changes.
+    watch.observe(dockWrap, { box: "border-box" });
+    return () => watch.disconnect();
+  }, [dockWrap]);
+  const dockHeight = docked ? dockMeasured ?? Math.round(DOCK_REM * rootPx()) + Math.round(safe.bottom) : 0;
+  // What the sheet keeps at its foot under its content: the docked bar,
+  // or the home indicator's room.
+  const floor = docked ? dockHeight : edgeInset;
+  // A body down over the home indicator (toEdge) has the bar there instead.
+  const toEdge = layer !== "console" && edgeAsked && !cardsUp && !docked;
 
   // The size the sheet shows: the page's, or the one it was asked for
   // here (a drag let go, the grabber, a tab's tap), told to the page once
@@ -272,9 +315,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The figures pinned at the sheet's foot: in sight at every size but
   // under a card.
   const footShown = !!foot && !cardsUp;
-  // The bar: the sheet's first row -- and the pill itself, unless the pill
-  // is the figures (the tabs layout with a route) or the strip's field.
-  const barShown = !!bar && !(onPhone && keyboard) && !flying;
   const pictureCard = useOpenCards(s => s.picture);
   const tabsShown = useTabsShown(s => s.shown);
   // A card from another tab over this one on a phone: the tab bar
@@ -290,7 +330,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // picture out of the pill (PhotoHead): the minimized bar left out over
   // it, the grabber laid over the picture.
   const ownHead = pictureCard && layer === "card" && !cardsUp && !atPill && !tabsShown;
-  const barHere = barShown && !ownHead && !(atPill && footShown);
+  // The bar's row in the sheet: the sheet's first row -- and the pill
+  // itself, unless the pill is the figures or the strip's field. Docked,
+  // only a card's line is here (TabBar), the tabs at the screen's foot.
+  const barHere = (docked ? minimized : barShown) && !ownHead && !(atPill && footShown);
   // In the pill, the card's name over its head's picture (PillPicture).
   const pill = useOpenCards(s => s.pill);
   const pillPictured = !!pill && (pictureCard || !!pill.colour) && atPill && minimized && barHere && !tabsShown;
@@ -300,10 +343,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const headContent = atPill ? compact : top;
   const keptHere = kept != null && headerShown && headContent === kept;
 
-  // Where a drag can come to rest: the pill, half and all the way up.
-  const halfChrome = fromBottom ? edgeInset : GRABBER;
+  // Where a drag can come to rest: the pill, half and all the way up --
+  // each from the screen's edge, the docked bar under the sheet counted
+  // in (the half sheet's 23 rem are above it).
+  const halfChrome = fromBottom ? floor : GRABBER;
   const detents = useMemo<Detents>(() => {
-    const peek = pillHeight ?? Math.round(4.25 * rootPx()) + edgeInset;
+    const peek = pillHeight ?? (docked ? dockHeight + Math.round(0.625 * rootPx()) : Math.round(4.25 * rootPx()) + edgeInset);
     const whole = Math.max(peek, room);
     const askedHalf = Math.max(peek, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(whole * HALF_MOST)));
     const body = askedHalf - headHeight - halfChrome - footHeight;
@@ -312,7 +357,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // a fix's card was a line and an empty sheet up to the status bar.
     const full = cardFit === null ? whole : Math.max(Math.min(half, whole), Math.min(whole, headHeight + halfChrome + cardFit));
     return { peek, half: Math.min(half, full), full };
-  }, [pillHeight, edgeInset, room, halfChrome, headHeight, footHeight, cardFit]);
+  }, [pillHeight, docked, dockHeight, edgeInset, room, halfChrome, headHeight, footHeight, cardFit]);
   const detentsRef = useRef(detents);
   // The column's height: at the pill its own, else the size's -- or on
   // its way, the larger end.
@@ -423,7 +468,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     atPillRef.current = atPill;
     detentsRef.current = detents;
     motionRef.current = motion;
-    pinRef.current = slides && footShown && !atPill;
+    // The body cut off over the figures on the way -- over the docked bar
+    // too, figures or none: nothing of the sheet's shows under the tabs.
+    pinRef.current = slides && !atPill && (footShown || docked);
     const { panel: el, foot } = nodes.current;
     if (!el) return;
     const m = pending.current;
@@ -537,9 +584,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !event.defaultPrevented) ask("peek");
     };
-    panel.addEventListener("keydown", onKey);
-    return () => panel.removeEventListener("keydown", onKey);
-  }, [panel, expanded, ask]);
+    // The docked tabs are the sheet's too.
+    const areas = dockWrap ? [panel, dockWrap] : [panel];
+    for (const area of areas) area.addEventListener("keydown", onKey);
+    return () => { for (const area of areas) area.removeEventListener("keydown", onKey); };
+  }, [panel, dockWrap, expanded, ask]);
   // A card opened comes up half way at the least, all the way for a
   // search; the last put away, the panel goes back to where it was.
   const raisedFrom = useRef<PanelState | null>(null);
@@ -572,6 +621,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useEffect(() => () => { coverRule().removeProperty("--sheet-cover"); coverRule().removeProperty("--sheet-cover-ease"); }, []);
 
   const panelSize = useMemo(() => ({ size, to: ask, card: cardInPill }), [size, ask, cardInPill]);
+  const dock = useMemo(() => (docked && dockRow && panel ? { dock: dockRow, panel } : null), [docked, dockRow, panel]);
   // A tap on the grabber cycles the three heights, small to big and back:
   // from half it goes on the way the panel last moved. The arrow keys
   // step it, for a keyboard and VoiceOver.
@@ -622,6 +672,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   );
   const atRest = motion === null;
   const grabberAtTop = fromBottom && (slides || !onPhone);
+  // Docked, the grabber's room at the sheet's top where the bar's row had
+  // it: the pill's own ten over the tabs, and out of it the rows under the
+  // grabber where they were under the bar (the header's pt-1 under this).
+  // Not over a card's line, the figures in the pill or a picture's head,
+  // which have their own.
+  const dockedHeadPad = docked && !barHere && !ownHead && !(atPill && footShown) ? (atPill ? "pt-2.5" : "pt-1.5") : undefined;
+  // A hairline over the docked tabs where the sheet's content ends on
+  // them, as iOS's tab bar has under content: not under the bare pill's
+  // grabber, nor under a card's line in the pill, which has its own.
+  const dockLine = !atPill || footShown;
 
   return (
     <>
@@ -657,14 +717,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         ),
       )}
     >
-      {pillPictured && pill && <PillPicture pill={pill} />}
+      {pillPictured && pill && <PillPicture pill={pill} bottom={docked ? dockHeight : 0} />}
       {grabberAtTop && grabber}
       {/* The head's band, dragged as the grabber is: the first row (the
           bar), the top row, any notice, the controls. Over the body, which
           runs on up under it (`under`): frosted while anything is there. */}
       <div
         ref={setHeadBand} data-head-band=""
-        className={cn("relative flex shrink-0 touch-none flex-col", under && "z-20", !fromBottom && onPhone && "pt-[env(safe-area-inset-top)]")}
+        className={cn("relative flex shrink-0 touch-none flex-col", under && "z-20", !fromBottom && onPhone && "pt-[env(safe-area-inset-top)]", dockedHeadPad)}
         onPointerDown={startDrag}
       >
         {bar && (
@@ -678,23 +738,24 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // under it, the same rhythm as the field below (the owner,
               // 2026-11-04: 49 points "too congested", "make the space
               // around the tabs slick like the grabber and the search bar").
+              // Docked, a card's line alone (TabBar), the tabs in the dock.
               "flex shrink-0 px-2", ROW_PAD, minimized ? "min-h-11 border-b border-border/60 pb-2" : "h-[4.25rem] pb-1.5",
               !barHere && "hidden",
             )}
           >
-            <TabBarMinimized.Provider value={minimized}><BarOverPicture.Provider value={pillPictured}><PanelSize.Provider value={panelSize}>{bar}</PanelSize.Provider></BarOverPicture.Provider></TabBarMinimized.Provider>
+            <TabDock.Provider value={dock}><TabBarMinimized.Provider value={minimized}><BarOverPicture.Provider value={pillPictured}><PanelSize.Provider value={panelSize}>{bar}</PanelSize.Provider></BarOverPicture.Provider></TabBarMinimized.Provider></TabDock.Provider>
           </div>
         )}
         {/* Under the tab bar, the route's box and its buttons a shade
             darker (SHEET_BELOW), for the clear glass to stand off it. */}
-        <div className={cn("relative flex flex-col", bar && barHere && !atPill && SHEET_BELOW, !headerShown && kept == null && "hidden")}>
+        <div className={cn("relative flex flex-col", bar && (barHere || docked) && !atPill && SHEET_BELOW, !headerShown && kept == null && "hidden")}>
           {(headerShown || kept != null) && (
             <header
               className={!headerShown ? "contents" : cn(
                 "@container flex items-center gap-2 print:hidden",
                 atPill ? cn("px-[9px] pb-3", ROW_PAD)
                   : top == null ? undefined
-                    : cn("px-3 pb-1", barHere ? "pt-1" : ROW_PAD),
+                    : cn("px-3 pb-1", barHere || docked ? "pt-1" : ROW_PAD),
               )}
             >
               {/* The kept row first, in the one place whatever is shown, so
@@ -763,9 +824,33 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       )}
       {!grabberAtTop && grabber}
       {/* The rest of the way to the screen's edge, under the home
-          indicator -- in the body where it runs to the edge (toEdge). */}
-      {!toEdge && edgeInset > 0 && <div className="shrink-0" style={{ height: edgeInset }} aria-hidden="true" />}
+          indicator -- in the body where it runs to the edge (toEdge) --
+          or under the docked tabs: the sheet's own glass is theirs. */}
+      {!toEdge && floor > 0 && <div className="shrink-0" style={{ height: floor }} aria-hidden="true" />}
     </section>
+    {/* The tab bar docked at the screen's foot (TabBar draws its tabs into
+        the row), at the owner's pick (2026-11-04): it never moves, fades
+        or goes as the sheet is dragged or settles; the sheet slides above
+        it, its sizes counted from the screen's edge with the bar in them
+        (the detents), its content cut off at the bar's top (the pin), and
+        its glass run on under the bar, so the bar is the one glass at
+        every size. No glass of its own: over the sheet's, two panes read
+        darker than one, and darker again as more of the sheet slid under.
+        Placed from the window's inner height, as the sheet is; the home
+        indicator's inset under the row, 0 in Safari's browser, where its
+        toolbar is under the page -- no margin of the sheet's own. A finger
+        on it drags the sheet, as on the tabs. */}
+    {docked && (
+      <div
+        ref={setDockWrap} data-tab-dock="" data-testid="tab-dock"
+        className="fixed inset-x-0 z-40 touch-none pb-[env(safe-area-inset-bottom)] print:hidden"
+        style={{ top: vh, transform: "translateY(-100%)" }}
+        onPointerDown={startDrag}
+      >
+        {dockLine && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-border/60" />}
+        <div ref={setDockRow} className="flex px-2 pt-0.5" style={{ height: `${DOCK_REM}rem` }} />
+      </div>
+    )}
     {/* Under a phone's sheet, the screen's foot: the sheet is placed from
         the window's inner height, and where the page runs on under
         Safari's toolbar or past it (iOS 26's floating bar, a home-screen

@@ -33,7 +33,7 @@ test("in flight the next checkpoint is over the map, the buttons are 60 points a
   await expect(head.getByTestId("flying-next-figures")).toContainText("nm");
   await expect(sideDrawer(page)).toHaveAttribute("data-panel", "peek");
   await expect(sideDrawer(page).getByTestId("route-box")).toBeHidden();
-  await expect(sideDrawer(page).getByTestId("tab-fpl")).toBeHidden();
+  await expect(page.getByTestId("tab-fpl")).toBeHidden();
   await expect(page.getByTestId("done-flying")).toBeVisible();
   // The map's buttons: NRST and D→ at the right, the microphone at the
   // left, each 60 points.
@@ -61,7 +61,8 @@ test("in flight the next checkpoint is over the map, the buttons are 60 points a
   await closeProfile(page);
   await grabberTo(page, "half");
   await expect(sideDrawer(page).getByTestId("route-box")).toBeVisible();
-  await expect(sideDrawer(page).getByTestId("tab-fpl")).toBeVisible();
+  // Docked at the screen's foot again on a phone, under the sheet.
+  await expect(page.getByTestId("tab-fpl")).toBeVisible();
 });
 
 test("Done flying leaves flying mode with one tap while the airplane flies on", async ({ page }) => {

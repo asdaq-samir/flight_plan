@@ -25,11 +25,16 @@ export const ON_PILL_PICTURE = "bg-white/20 text-white backdrop-blur-md hover:bg
  * card, the thing's own colour on the chart (`colour`), under the same
  * shade.
  */
-export const PillPicture = memo(function PillPicture({ pill }: { pill: PillHead }) {
+export const PillPicture = memo(function PillPicture({ pill, bottom = 0 }: {
+  pill: PillHead;
+  /** Where it stops short of the sheet's foot, px: over the docked tab
+   *  bar (MapPanel's dock), whose tabs are read on the sheet's glass. */
+  bottom?: number;
+}) {
   return (
     <div
       aria-hidden="true" className={cn("pointer-events-none absolute inset-0 -z-10 overflow-hidden", pill.tint && !pill.picture ? "bg-primary" : "bg-zinc-800")}
-      style={pill.colour && !pill.picture ? { backgroundColor: pill.colour } : undefined} data-testid="pill-picture"
+      style={{ bottom, ...(pill.colour && !pill.picture ? { backgroundColor: pill.colour } : {}) }} data-testid="pill-picture"
     >
       {pill.picture && (
         // Larger than the pill, so the blur's soft edge is out of sight.
