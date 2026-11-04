@@ -144,8 +144,9 @@ export interface SheetTurn { insets: MapInsets }
  * left, as Maps' is on an iPad and a Mac.
  *
  * On a phone it is placed by one number, its height `h`: a column laid
- * out at the larger of where it is and where it is going, moved by a
- * translate from the screen's top (vh - h) -- no height eased, no shape
+ * out at the larger of where it is and where it is going, its foot on
+ * the screen's edge by its own style (bottom: 0), and moved down by a
+ * translate of what is laid out past h (laid - h) -- no height eased, no shape
  * changed, the glass as it is at every size. A settle is a CSS
  * transition of that transform alone; under a finger the transform is
  * written once a frame. The route's figures stay at the sheet's visible
@@ -327,7 +328,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The one number: the sheet's height now. At rest the size's detent; on
   // its way, where the transform has it this frame.
   const hRef = useRef(detents[size]);
-  const vhRef = useRef(vh);
   const laidRef = useRef(laidPx);
   // The column's height as the render sets it (null at the pill at rest,
   // where it is the pill's own), for place() to put back.
@@ -340,7 +340,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     if (motionRef.current !== "settle" || !el) return hRef.current;
     if (slidesRef.current) {
       const transform = getComputedStyle(el).transform;
-      return transform && transform !== "none" ? vhRef.current - new DOMMatrix(transform).m42 : hRef.current;
+      // Its own laid height less how far down it is moved this frame.
+      return transform && transform !== "none" ? el.offsetHeight - new DOMMatrix(transform).m42 : hRef.current;
     }
     return parseFloat(getComputedStyle(el).height) || hRef.current;
   }, []);
@@ -354,7 +355,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     if (foot) foot.style.transition = curve ? `${slide ? `transform ${curve}, ` : ""}--sheet-progress ${curve}` : "";
     if (slide) coverRule().setProperty("--sheet-cover-ease", curve ?? "0s");
   }, []);
-  // The sheet at `h`: the transform from the screen's top, the figures
+  // The sheet at `h`: the transform down from the screen's foot, the figures
   // held at the visible foot and the body cut off over them (the pin),
   // the map's buttons riding on its top. Written straight to the style.
   const place = useCallback((h: number) => {
@@ -366,14 +367,20 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       for (const part of [el, foot, body, inner]) if (part) part.style.transform = "";
       return;
     }
-    el.style.transform = `translate3d(0, ${Math.round((vhRef.current - h) * 100) / 100}px, 0)`;
-    // A fast flick up outruns the render that lays the column out taller
-    // (setMoveLaid), and a column shorter than `h` moved up by vh - h left
-    // its foot above the screen's edge, the map showing under it (the
-    // owner's recording, 2026-11-04). Until that render lands the sheet's
-    // own height goes with the finger, so its foot stays on the edge.
+    // Its foot is on the screen's edge by its style (bottom: 0) and only
+    // ever moved down from there, never up: the owner asked why the
+    // sheet's bottom moved at all, now that it is not floating
+    // (2026-11-04). It had been placed from the screen's top (top: 0 and
+    // a translate of vh - h), which kept the foot on the edge only while
+    // the column was laid out at least as tall as h and the window's
+    // inner height was the screen's -- a fast flick up outran the render
+    // that lays the column out taller (setMoveLaid), and Safari's toolbar
+    // changing the inner height moved the foot with it. Where a finger
+    // outruns that render now, the sheet's own height goes with it.
     const short = h > laidRef.current + 0.5;
     el.style.height = short ? `${Math.ceil(h)}px` : laidStyleRef.current === null ? "" : `${laidStyleRef.current}px`;
+    const down = short ? 0 : laidRef.current - h;
+    el.style.transform = `translate3d(0, ${Math.round(down * 100) / 100}px, 0)`;
     const over = pinRef.current ? Math.max(0, laidRef.current - h) : 0;
     const up = over ? `translate3d(0, ${-over}px, 0)` : "";
     if (foot) foot.style.transform = up;
@@ -405,6 +412,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // finger, and place() makes it taller where it is not.
     if (now && slidesRef.current && nodes.current.panel) {
       const seconds = prefersReducedMotion() || Math.abs(to - from) < 0.5 ? 0 : settleSeconds(to - from);
+      // Laid out at the larger end from the start, as the render about
+      // to come lays it (setMoveLaid below): one height for the whole
+      // settle, the transform alone eased.
+      if (to > laidRef.current) {
+        laidRef.current = to;
+        laidStyleRef.current = to;
+      }
       setEase(null);
       place(from);
       if (seconds > 0) {
@@ -447,7 +461,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // placed -- a settle begun where one is pending, else where it rests.
   const settledOnce = useRef(false);
   useLayoutEffect(() => {
-    vhRef.current = vh;
     laidRef.current = laidPx;
     laidStyleRef.current = laid;
     slidesRef.current = slides;
@@ -681,7 +694,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // screen width if they are not floating?", of a pill inset at the
         // sides but on the screen's edge below, which read as neither.
         ...(slides ? {
-          left: 0, right: 0, top: 0, height: laid ?? undefined,
+          left: 0, right: 0, bottom: keyboard, height: laid ?? undefined,
           borderRadius: `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0`, willChange: "transform",
         } : onPhone ? { left: 0, right: 0, top: 0, borderRadius: `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px` } : {}),
       }}
@@ -809,17 +822,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           indicator -- in the body where it runs to the edge (toEdge). */}
       {!toEdge && edgeInset > 0 && <div className="shrink-0" style={{ height: edgeInset }} aria-hidden="true" />}
     </section>
-    {/* Under a phone's sheet, the screen's foot: the sheet is placed from
-        the window's inner height, and where the page runs on under
-        Safari's toolbar or past it (iOS 26's floating bar, a home-screen
-        app's taller layout viewport) the chart showed in a strip under the
-        tabs -- the owner: "make sure that the tabs are not floating
-        anymore because I still see a bit of map below the tabs"
-        (2026-11-04). The sheet's own glass from its foot to the screen's,
-        nothing where the two are the same. */}
-    {slides && !keyboard && (
-      <div aria-hidden="true" data-testid="sheet-foot-fill" className={cn("fixed inset-x-0 bottom-0 z-40 print:hidden", GLASS)} style={{ top: vh }} />
-    )}
     </>
   );
 }

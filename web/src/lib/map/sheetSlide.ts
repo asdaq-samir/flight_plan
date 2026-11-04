@@ -28,15 +28,16 @@ const following = new WeakMap<L.Map, { stop: () => void; going: (to: number) => 
  *  (OwnShipLayer), a pan from a fix mid-way fighting it. */
 export const followingSheet = (map: L.Map) => following.has(map);
 
-/** Where a phone's sheet's top edge is on the screen, from the number the
- *  sheet is placed by: its transform (MapPanel places it with one
- *  translate from the screen's top), read from its computed style -- a
- *  style read, no layout -- so a settle's every frame is the compositor's
- *  own value, under a finger the frame's own write. */
+/** Where a phone's sheet's top edge is on the screen: where its laid-out
+ *  top is (its foot on the screen's edge, MapPanel) moved by its
+ *  transform, the transform read from its computed style so a settle's
+ *  every frame is the compositor's own value, under a finger the frame's
+ *  own write. The laid-out top changes only as the column is laid out
+ *  again, never within a settle. */
 export function sheetEdge(el: HTMLElement): number {
   const transform = getComputedStyle(el).transform;
   if (!transform || transform === "none") return el.getBoundingClientRect().top;
-  return new DOMMatrix(transform).m42;
+  return el.offsetTop + new DOMMatrix(transform).m42;
 }
 
 /** Frames the sheet's edge stays put, the finger off it, before the map
