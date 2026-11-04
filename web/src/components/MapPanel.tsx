@@ -624,6 +624,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const grabberAtTop = fromBottom && (slides || !onPhone);
 
   return (
+    <>
     <section
       ref={setPanel}
       data-slot="map-panel" data-panel={size} {...(onPhone ? { "data-sheet": "" } : {})}
@@ -760,5 +761,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           indicator -- in the body where it runs to the edge (toEdge). */}
       {!toEdge && edgeInset > 0 && <div className="shrink-0" style={{ height: edgeInset }} aria-hidden="true" />}
     </section>
+    {/* Under a phone's sheet, the screen's foot: the sheet is placed from
+        the window's inner height, and where the page runs on under
+        Safari's toolbar or past it (iOS 26's floating bar, a home-screen
+        app's taller layout viewport) the chart showed in a strip under the
+        tabs -- the owner: "make sure that the tabs are not floating
+        anymore because I still see a bit of map below the tabs"
+        (2026-11-04). The sheet's own glass from its foot to the screen's,
+        nothing where the two are the same. */}
+    {slides && !keyboard && (
+      <div aria-hidden="true" data-testid="sheet-foot-fill" className={cn("fixed inset-x-0 bottom-0 z-40 print:hidden", GLASS)} style={{ top: vh }} />
+    )}
+    </>
   );
 }

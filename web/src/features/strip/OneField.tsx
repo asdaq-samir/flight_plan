@@ -25,8 +25,8 @@ const Turn = lazy(() => import("../plan/components/ask/AskCard").then(m => ({ de
  *  32 tall with its 44-point area round it (gap-2 keeps the areas apart). */
 const CHIP = cn("relative h-8 shrink-0 rounded-full border-tint px-3.5 text-tint after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']", TEXT.detail);
 
-/** What a pilot asks the assistant first, as chips while the field is in
- *  ask mode and empty (the Ask pill, `ask`). */
+/** What a pilot asks the assistant first, as chips while the AI field
+ *  (`ask`) is focused and empty. */
 const ASK_CHIPS = ["Can I go?", "What's the weather on the way?", "Where should I stop for fuel?", "What should I watch for?"];
 
 /**
@@ -57,17 +57,15 @@ const ASK_CHIPS = ["Can I go?", "What's the weather on the way?", "Where should 
  * microphone and its pill of chips (RadioLayer) are not in this layout.
  *
  * In the field-over-the-tabs layout (PlanWorkspace's fieldTabs, the
- * owner's third screen of 2026-11-04, Target's way) the field has an Ask
- * pill inside it at its right end (`ask`): the sparkle and "Ask" in the
- * tint, a 32-point capsule with a hairline outline and its 44-point
- * area, one tint and no gradient, as every tappable thing is. Tapped,
- * the field is in ask mode -- the pill filled, the sparkle in the
- * magnifier's place -- and whatever is typed or said goes to the
- * assistant, never read as a route; tapped again, the field is its own
- * again. There the field is a glass bar at the top of the map (`top`),
- * 44 points tall, its answer and its chips dropping down from it, and
- * the tabs' pill is at the foot as ever (the owner: "the search pill can
- * be on top and the tabs pill can be at the bottom").
+ * owner's pick of 2026-11-04) the field is the assistant's by default
+ * (`ask`): the sparkle in the magnifier's place, "Ask anything", the one
+ * microphone at its right and no Ask button -- the owner: "remove the
+ * ask button, instead just keep one mic button there. By default it
+ * should be AI powered". What is plainly a route or a screen's word is
+ * still done at once (readField), as the assistant would only propose
+ * it; everything else, typed or said, goes to the assistant. There the
+ * field is a glass bar at the top of the map (`top`), 44 points tall,
+ * its answer and its chips dropping down from it, the tabs at the foot.
  */
 export default function OneField({ suggestions, flying = false, onLine, onFocus, avatar, ask = false, top = false }: {
   suggestions: string[];
@@ -88,17 +86,15 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [hearing, setHearing] = useState(false);
-  const [askMode, setAskMode] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const last = useAsk(s => s.turns.at(-1) ?? null);
   const asking = useAsk(s => s.busy);
   const pillText = useAtcRadio(s => s.pill?.text ?? "");
   const pillListening = useAtcRadio(s => !!s.pill?.listening);
   useEffect(() => { void load(); }, []);
-  // In ask mode the line is the assistant's whatever it says; else read
-  // as a route, a place, a screen or a question (readField).
+  // Read as a route, a place, a screen or a question (readField).
   const submit = async (line: string) => {
-    const command = askMode ? (line.trim() ? { kind: "ask" as const, question: line.trim() } : null) : readField(line);
+    const command = readField(line);
     if (!command || busy) return;
     setProblem(null);
     setBusy(true);
@@ -139,15 +135,10 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
   // field's own clear is there (Input). In the air the words are the
   // radio's, so the microphone stays.
   const micShown = flying || !shown;
-  // The Ask pill on the ground only: in the air the field is the radio's.
-  const askShown = ask && !flying;
-  const inAsk = askShown && askMode;
-  const toggleAsk = () => {
-    setProblem(null);
-    setAskMode(on => !on);
-    if (!askMode) field.current?.focus();
-  };
-  const chips = inAsk ? ASK_CHIPS : suggestions;
+  // The assistant's field on the ground; in the air the radio's.
+  const inAsk = ask && !flying;
+  // The questions first, then the screens a word opens.
+  const chips = inAsk ? [...ASK_CHIPS, ...suggestions] : suggestions;
   return (
     <div className={cn("flex w-full min-w-0 gap-2", top ? "flex-col-reverse" : "flex-col")} data-testid="one-field">
       {/* The assistant's last answer, a card over the field, as the Brief's
@@ -194,20 +185,19 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
           <Input
             ref={field} value={shown} readOnly={flying}
             onChange={e => setText(e.target.value)}
-            placeholder={flying ? (pillListening ? "Listening…" : "Tap the mic and say it") : inAsk ? "Ask about this flight" : "Where to, or ask"}
+            placeholder={flying ? (pillListening ? "Listening…" : "Tap the mic and say it") : inAsk ? "Ask anything, or where to" : "Where to, or ask"}
             aria-label={flying ? "The radio" : inAsk ? "Ask anything about this flight" : "Where to, or ask anything"}
-            enterKeyHint="go" autoComplete="off" autoCapitalize={inAsk ? "sentences" : "characters"} autoCorrect="off" spellCheck={false} data-testid="strip-field"
+            enterKeyHint="go" autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} data-testid="strip-field"
             data-ask={inAsk ? "" : undefined}
             onFocus={() => { setFocused(true); onFocus?.(); }} onBlur={() => setFocused(false)}
             onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(text); } }}
             // 52 points tall, round, in the glass the pill itself is drawn
             // in (GLASS), the magnifier's room at its left and the
-            // microphone's -- and the Ask pill's -- at its right. At the
+            // microphone's at its right. At the
             // top of the map 44, the bar's own height.
-            className={cn(top ? "h-11" : "h-13", "rounded-full border-0 pl-11 shadow-none", askShown ? (micShown ? "pr-[8.25rem]" : "pr-[5.5rem]") : micShown ? "pr-12" : "pr-4", GLASS, TEXT.row)}
+            className={cn(top ? "h-11" : "h-13", "rounded-full border-0 pl-11 shadow-none", micShown ? "pr-12" : "pr-4", GLASS, TEXT.row)}
           />
-          {/* The microphone, and with it the Ask pill where the field has
-              one: six apart, so the two 44-point areas meet. */}
+          {/* The microphone, the field's one button. */}
           <div className={cn("absolute inset-y-0 flex items-center gap-1.5", top ? "right-0.5" : "right-1.5")}>
             {micShown && (
               <IconButton
@@ -216,21 +206,6 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
               >
                 <Mic className={cn("size-5", listens && "animate-pulse")} strokeWidth={2.25} />
               </IconButton>
-            )}
-            {askShown && (
-              <button
-                type="button" aria-pressed={askMode} data-testid="field-ask"
-                className={cn(
-                  "relative flex h-8 shrink-0 items-center gap-1 rounded-full border border-tint px-3 font-semibold after:absolute after:-inset-y-1.5 after:inset-x-0 after:content-['']",
-                  askMode ? "bg-primary text-primary-foreground" : "text-tint", TEXT.detail,
-                )}
-                // Before the field's blur, so the chips stay for the tap.
-                onPointerDown={e => e.preventDefault()}
-                onClick={toggleAsk}
-              >
-                <Sparkles className="size-4" strokeWidth={2.25} aria-hidden="true" />
-                Ask
-              </button>
             )}
           </div>
         </div>

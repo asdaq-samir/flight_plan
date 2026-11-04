@@ -1,7 +1,8 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
+import { Play, ClipboardList, ListOrdered, MapPin } from "lucide-react";
+import { AirplaneGlyph, AirportGlyph, RouteGlyph } from "../../components/tabGlyphs";
 import { navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
@@ -269,9 +270,9 @@ const AssignedLesson = lazy(() => import("./components/AssignedLesson"));
 const PLANNER_TABS: BarTab<PanelTab>[] = [
   // FPL first and Aircraft third, swapped back at the owner's ask ("Swap
   // fpl and aircraft tab positions").
-  { value: "fpl", label: "FPL", icon: Route },
-  { value: "airport", label: "Airport", icon: TowerControl },
-  { value: "aircraft", label: "Aircraft", icon: Plane },
+  { value: "fpl", label: "FPL", icon: RouteGlyph },
+  { value: "airport", label: "Airport", icon: AirportGlyph },
+  { value: "aircraft", label: "Aircraft", icon: AirplaneGlyph },
   // Nearest is Airport's now, its strip under the Favorites and its list
   // in full from the strip's title, at the owner's pick of the redesign
   // ("make it 4 tabs, combining the nearest into airport").
@@ -358,8 +359,8 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // (a link to the phone, the tests), the preference keeping it.
   const layout = usePreferences(p => p.layout);
   const strip = layout === "strip";
-  // The third: the tabs' layout with the strip's field, its Ask pill in
-  // it, a glass bar at the top of the map, the owner's pick from Target's
+  // The third: the tabs' layout with the strip's field, the assistant's
+  // by default, a glass bar at the top of the map, the owner's pick from Target's
   // app the same day ("the search pill can be on top and the tabs pill
   // can be at the bottom"), to compare on the phone.
   const fieldTabs = layout === "field-tabs";
@@ -2756,7 +2757,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const closeStripOver = useCallback(() => pickTab("fpl"), [pickTab]);
   // The field's row, with the pilot's avatar at its right (ProfileButton):
   // its menu opens the pilot's screens, the tabs' Setup among them. At the
-  // top of the map the field has the Ask pill in it and no avatar: the
+  // top of the map the field is the assistant's, one mic and no avatar: the
   // pilot's screens are Setup's there, as in the tabs, and the sheet
   // stays where it is as the field is focused.
   const oneField = strip || fieldTabs ? (
@@ -2921,7 +2922,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         {/* The next checkpoint over the map in flight (FlyingHead). */}
         {flying && <Suspense fallback={null}><FlyingHead run={dryRunning} rows={routeRows} /></Suspense>}
         {/* The field over the tabs' layout (lib/preferences "field-tabs"):
-            the strip's field with its Ask pill in it, a glass bar at the
+            the strip's field, the assistant's, a glass bar at the
             top of the map, eight in from the sides under the status bar,
             its answer and its chips dropping down from it, the tabs' pill
             at the foot as ever (the owner, 2026-11-04). Clear of the

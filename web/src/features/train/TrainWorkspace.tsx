@@ -11,6 +11,7 @@ import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 import { ChartColumn, GraduationCap } from "lucide-react";
 import TabBar, { type BarTab } from "../../components/TabBar";
+import { fromLucide } from "../../components/tabGlyphs";
 import { useDevTab, type DevTab } from "./devTab";
 import ChartMap from "./components/ChartMap";
 import WaypointPanel, { WaypointActions } from "./components/WaypointPanel";
@@ -29,8 +30,8 @@ const FOCUS_ZOOM = 12;
 /** The developer's places (TabBar), at their ask: the ratings, and how
  *  good the models are; Settings, the console, the bar's own last. */
 const DEV_TABS: BarTab<DevTab>[] = [
-  { value: "train", label: "Train", icon: GraduationCap },
-  { value: "perf", label: "Perf", icon: ChartColumn },
+  { value: "train", label: "Train", icon: fromLucide(GraduationCap) },
+  { value: "perf", label: "Perf", icon: fromLucide(ChartColumn) },
 ];
 
 /**

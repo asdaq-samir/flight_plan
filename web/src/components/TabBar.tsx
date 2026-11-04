@@ -1,5 +1,6 @@
 import { useContext, useEffect, useRef, type ReactNode } from "react";
-import { ChevronDown, Settings, Share, type LucideIcon } from "lucide-react";
+import { ChevronDown, Share } from "lucide-react";
+import { GearGlyph, type TabGlyph } from "./tabGlyphs";
 import CloseButton from "./CloseButton";
 import RoundButton from "./RoundButton";
 import { cn } from "cn";
@@ -13,7 +14,7 @@ import { barHeadRef, closeSheetCards, useSheetCards } from "../lib/sheetCards";
 export interface BarTab<T extends string> {
   value: T;
   label: string;
-  icon: LucideIcon;
+  icon: TabGlyph;
 }
 
 /**
@@ -103,7 +104,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // title shouldn't be shown either"); down at the pill, where the card
   // is out of sight, the tab's name is all that says what is open.
   const cardNamesItself = useSheetCards(s => s.stack.length > 0 && s.stack.at(-1)?.title === undefined);
-  const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: Settings }];
+  const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: GearGlyph }];
   const up: T | "setup" = consoleOpen ? "setup" : tab;
   const minimized = useContext(TabBarMinimized);
   const size = useContext(PanelSize);
@@ -383,7 +384,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
             </>
           ) : title ? <span className="truncate" data-testid="tab-title-name">{title}</span> : (
             <>
-              <Icon className="size-5" strokeWidth={2.25} aria-hidden="true" />
+              <Icon className="size-5" />
               {named.label}
               <ChevronDown className="size-4 text-muted-foreground" strokeWidth={2.25} aria-hidden="true" />
             </>
@@ -451,14 +452,12 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
           >
             {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1.5 inset-y-0.5 rounded-2xl bg-tint/10" />}
             <span className="relative">
-              {/* 28 and 13, bolder lines, at the owner's pick (A with D's
-                  weight, 2026-10-22), each at one weight whatever its size
-                  or state. The airplane, drawn on the diagonal, a size up
-                  to look as big as the rest. */}
-              <Icon
-                className={value === "aircraft" ? "size-[30px]" : "size-7"} absoluteStrokeWidth strokeWidth={2.25}
-                aria-hidden="true"
-              />
+              {/* 28 and 13, at the owner's pick (A with D's weight,
+                  2026-10-22); the glyphs the planner's own (tabGlyphs), in
+                  outline, and filled for the tab up, as iOS's tab bars
+                  draw their symbols (the owner's ask for crisp, modern
+                  graphics, 2026-11-04). */}
+              <Icon className="size-7" filled={current} />
               {mark && (
                 <span
                   aria-hidden="true" data-testid={`tab-mark-${value}`} data-finding={mark}
