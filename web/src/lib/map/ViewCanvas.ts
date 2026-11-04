@@ -108,6 +108,12 @@ export abstract class ViewCanvasLayer extends L.Layer {
     const eased = this.redrawWhileZooming ? "" : "leaflet-zoom-animated";
     const canvas = L.DomUtil.create("canvas", `${eased} ${this.className}`.trim(), map.getPane(this.options.pane!));
     canvas.style.pointerEvents = "none";
+    // The class also set the canvas's transform origin to its top left,
+    // which a pinch's scale (zoomed) is about: without it a canvas scaled
+    // about its centre, and the rings slid against the chart at every
+    // other frame of a pinch (the owner, 2026-11-03: "now it's moving
+    // while zoom"). Set on the canvas itself, class or no class.
+    canvas.style.transformOrigin = "0 0";
     this.canvas = canvas;
     // Drawn again through a pan too, a frame at a time: past the canvas's
     // edge a long pan's airport marks came in only as it ended.
