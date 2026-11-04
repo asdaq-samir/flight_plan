@@ -2,10 +2,8 @@ import { useEffect } from "react";
 import { usePreferences, type Brand } from "./preferences";
 
 /** The Chart ink look's value, said here until preferences' Brand union
- *  has it ("sectional" | "cockpit" | "windsock" | "clearsky" | "ink"):
- *  that file is edited beside this one for the strip layout, so the
- *  union takes "ink" with its next edit, and this cast goes with it. */
-const INK = "ink" as unknown as Brand;
+ *  has it ("sectional" | "cockpit" | "windsock" | "clearsky" | "ink"). */
+const INK: Brand = "ink";
 
 /** The looks, as Settings lists them: the owner's four from the brand
  *  canvas (2026-10-26: "I would also like to have those color schemes A

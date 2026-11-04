@@ -55,7 +55,7 @@ export type ChartLight = "auto" | "on" | "off";
 /** The app's look (lib/brand), one of the four the owner had drawn
  *  (2026-10-26): Sectional, the chart's own colours; Glass Cockpit;
  *  Windsock; Clear Sky. */
-export type Brand = "sectional" | "cockpit" | "windsock" | "clearsky";
+export type Brand = "sectional" | "cockpit" | "windsock" | "clearsky" | "ink";
 /** Which agent writes the Brief's narrative: nav-log-agent (LangGraph) or
  *  crewai-agent (CrewAI). */
 export type NarrativeFramework = "langgraph" | "crewai";
@@ -63,6 +63,12 @@ export type NarrativeFramework = "langgraph" | "crewai";
  *  VFR, or IFR -- its minimum altitudes, its thousands by direction of
  *  flight and its 45-minute reserve (the planner's vfr.ifr). */
 export type FlightRules = "vfr" | "ifr";
+/** The planner's layout (PlanWorkspace): the tab bar with FPL, Airport
+ *  and Aircraft, or the strip -- one field at the foot of the chart that
+ *  takes anything typed or said, and the flight as one strip in time
+ *  (features/strip), the owner's "let's try it" of 2026-11-04. The strip
+ *  while it is tried on the phone; the switch is in Setup's Controls. */
+export type Layout = "tabs" | "strip";
 
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
@@ -170,6 +176,8 @@ interface Preferences {
   /** The flight rules every route is planned under, kept: a pilot who
    *  files IFR files it flight after flight. */
   flightRules: FlightRules;
+  /** The planner's layout: the tabs, or the strip (features/strip). */
+  layout: Layout;
   /** The airports last picked from the search bar, newest first: what
    *  it offers before anything is typed, as Maps' Recents. */
   recentAirports: RecentAirport[];
@@ -242,6 +250,7 @@ interface Preferences {
   setOwnShipLook: (ownShipLook: OwnShipLook) => void;
   setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
+  setLayout: (layout: Layout) => void;
   addRecentAirport: (airport: RecentAirport) => void;
   /** One airport taken off the Recents (a swipe), or all of them (Clear). */
   removeRecentAirport: (ident: string) => void;
@@ -308,6 +317,7 @@ export const usePreferences = create<Preferences>()(
       ownShipLook: "single",
       narrative: "langgraph",
       flightRules: "vfr",
+      layout: "tabs",
       recentAirports: [],
       homeAirport: null,
       favoriteAirports: [],
@@ -378,6 +388,7 @@ export const usePreferences = create<Preferences>()(
       setOwnShipLook: ownShipLook => set({ ownShipLook }),
       setNarrative: narrative => set({ narrative }),
       setFlightRules: flightRules => set({ flightRules }),
+      setLayout: layout => set({ layout }),
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
       })),
@@ -420,7 +431,7 @@ export const usePreferences = create<Preferences>()(
       // The functions are not state; only the values are written.
       partialize: s => ({
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
-        flightRules: s.flightRules,
+        flightRules: s.flightRules, layout: s.layout,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
         recentRoutes: s.recentRoutes,

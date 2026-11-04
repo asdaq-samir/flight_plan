@@ -22,7 +22,7 @@ const load = () => import("../../../../lib/atcListening").then(m => (listening =
  *  of the pilot's own, the answer at the left as prose with its figures
  *  lined up, the tool in use as a passing line while it is, then the
  *  reports it rests on (SourceChips), and what went wrong in its place. */
-function Turn({ turn }: { turn: AskTurn }) {
+export function Turn({ turn }: { turn: AskTurn }) {
   return (
     <div className="flex flex-col gap-1.5" data-testid="ask-turn">
       <p className={cn("max-w-[85%] self-end rounded-2xl rounded-br-md bg-primary px-3 py-1.5 text-primary-foreground", TEXT.prose)} data-testid="ask-question">

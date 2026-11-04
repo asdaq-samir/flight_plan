@@ -14,6 +14,7 @@ import { SheetCardHost } from "./SheetCard";
 import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
 import { prefersReducedMotion } from "../lib/motion";
+import { usePreferences } from "../lib/preferences";
 
 // The half sheet is on the screen's sides and its edge, as Apple's Maps
 // on the web has its sheet (the owner's screenshots of it, 2026-10-26); it
@@ -196,6 +197,13 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
 const SHEET_BELOW = "[--muted-foreground:oklch(0.5_0_0)] [--tint:var(--tint-shade)] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
 
 export default function MapPanel({ label, top, kept, controls, compact, children, state: pageState, onStateChange: tellPage, onInsetsChange: tellInsets, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot, flying = false }: Props) {
+  // The pill holding its bar over its foot, each at its own height -- the
+  // strip layout's ribbon over its one field (features/strip,
+  // lib/preferences) -- in place of the route's figures in the tabs' row
+  // at the tabs' height (figuresPill). The sheet above the pill is as
+  // ever: the bar its first row, the foot pinned at its edge. Read from
+  // the preference here for now, not handed in by the page (WorkspacePieces).
+  const stackedPill = usePreferences(s => s.layout === "strip") && !!bar && !!foot;
   // A size asked for in the panel itself -- its grabber, a key, a finger
   // let go, the tab bar's taps -- shown at once, and the page told once the
   // sheet has landed (below): told at once, the page drew the whole
@@ -486,7 +494,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // way down (the safe area emulated as the iOS audit does, 2026-10-15).
     // In flight the pill is its measured self: the figures grown and
     // their foot (useFlyingMode), taller than a row of tabs.
-    const pillPx = flying ? capsuleHeight : Math.round(PILL_REM * rootPx());
+    // The strip's pill the same (stackedPill): its ribbon over its field.
+    const pillPx = flying || stackedPill ? capsuleHeight : Math.round(PILL_REM * rootPx());
     // Now that the settling sheet takes the pill's gap as it eases (its
     // shape, below), it stops at the pill's own height: stopped the gap
     // taller, it eased down 12 points more once it had turned, the
@@ -504,7 +513,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // owner, 2026-10-29). Never under half, never past the room.
     const full = cardFit === null ? whole : Math.max(Math.min(half, whole), Math.min(whole, headHeight + halfChrome + cardFit));
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight, cardFit, flying]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight, cardFit, flying, stackedPill]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
@@ -597,7 +606,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const pillShape = capsule || (!!bar && dragged !== null && state !== "peek" && morph < 1);
   // The pill with a route: its figures in the tabs' place, at the tabs'
   // height (3.625rem: their row and its margins).
-  const figuresPill = pillShape && !!bar && footShown;
+  // Not the strip's, whose bar and foot stack in the pill (stackedPill).
+  const figuresPill = pillShape && !!bar && footShown && !stackedPill;
   // Laid out as the pill -- its grabber, its row of tabs or figures, where
   // the pill has them -- from the start of a settle down to it, not only
   // once there, what it shows still in sight: laid out as the half sheet
@@ -712,7 +722,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // once it landed (70), the map settling a second after the tabs had
   // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
   // settle down").
-  const pillRest = bar && !flying ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
+  const pillRest = bar && !flying && !stackedPill ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
   const coveredOnPhone = expanded ? detents.half : hasPill ? pillRest + capsuleGap : peek;
   const out = expanded;
   const insetsNow = useMemo<MapInsets>(() => {
@@ -1315,7 +1325,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // sat at the pill's top under the grabber, its column grown.
             // In flight the pill is as tall as the grown figures and their
             // foot (useFlyingMode), measured as any foot is.
-            pillLaid ? cn("shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none", flying ? "py-2" : "h-[3.625rem]") : "border-t border-border/60 pt-1 pb-2.5",
+            // Under the strip's ribbon the field at its own height too, the
+            // ribbon's row over it (stackedPill).
+            pillLaid ? cn("shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none", flying ? "py-2" : stackedPill ? "pb-2" : "h-[3.625rem]") : "border-t border-border/60 pt-1 pb-2.5",
           )}
           style={{
             ...(toEdge && fromBottom && !pillLaid ? { paddingBottom: Math.max(10, edgeRoom) } : {}),

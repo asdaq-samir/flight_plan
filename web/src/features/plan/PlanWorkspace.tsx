@@ -43,7 +43,7 @@ import { briefingLegs } from "./hooks/briefingLegs";
 import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
 import FirstFlight from "./components/FirstFlight";
-import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
+import { useCardTitle, useConsoleOpen, usePanelDragging } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
 import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
@@ -94,7 +94,17 @@ import { useSuggestedStops, withStopsAfter } from "./hooks/useSuggestedStops";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan, type PlanParams } from "./hooks/usePlan";
-import { useVerdict, type VerdictItem } from "../../lib/verdict";
+import { useVerdict, verdictLine, type VerdictItem } from "../../lib/verdict";
+import { glanceLines, useGlance } from "../../lib/glance";
+import { commandsOf } from "../../lib/pilotCommand";
+import { placeWords, tokens } from "../../lib/clearance";
+import OneField from "../strip/OneField";
+import ProfileButton from "../strip/ProfileButton";
+import StripAir from "../strip/StripAir";
+import { ribbonPoints } from "../strip/stripData";
+import StripRibbon from "../strip/StripRibbon";
+import StripSheet from "../strip/StripSheet";
+import type { FieldCommand, FieldScreen } from "../strip/fieldCommands";
 import type { BriefingPart } from "./components/briefing/sections";
 import { mayUse, useEntitlement } from "../../lib/subscription";
 import PaidPrompt from "../../components/PaidPrompt";
@@ -332,6 +342,16 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // and sheet").
   useEffect(() => { panelNow.current = panel; }, [panel]);
   const [searchParams, setSearchParams] = useSearchParamsNow();
+  // The planner's layout (lib/preferences): the tabs, or the strip -- one
+  // field at the foot of the chart and the flight as one strip in time
+  // (features/strip), the owner's "let's try it" (2026-11-04), tried
+  // beside the tabs until it is the app. The address's `layout` sets it
+  // (a link to the phone, the tests), the preference keeping it.
+  const strip = usePreferences(p => p.layout) === "strip";
+  const layoutParam = searchParams.get("layout");
+  useEffect(() => {
+    if (layoutParam === "tabs" || layoutParam === "strip") usePreferences.getState().setLayout(layoutParam);
+  }, [layoutParam]);
   // Every change of the plan can be taken back (Undo, Cmd-Z), whichever
   // button made it, in place of asking first.
   usePlanHistory(searchParams, setSearchParams);
@@ -1455,11 +1475,16 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // The tab bar's place (TabBar) and what each tab keeps open over it
   // (useTabCards): FPL, the route's box and its nav log; Airport, the
   // search and the nearest fields; Aircraft, the traffic.
-  const { tab, setTabPick, pickTab, tabUp, closeSheet } = usePanelTabs({
+  const { tab: pickedTab, setTabPick, pickTab, tabUp, closeSheet } = usePanelTabs({
     cards, route: `${planned.dep}|${planned.stops.join(",")}|${planned.dest}`,
     hasRoute: routed || !!planned.dep || !!planned.dest || planned.stops.length > 0,
     panel, setPanel, searchParams, setSearchParams,
   });
+  // The strip has no tabs: FPL's world is the sheet's, but for what the
+  // address opens of the others' -- an airplane's card or list, Nearest, a
+  // list in full -- which show as they do over the tabs, the ribbon
+  // naming them (StripRibbon's `over`).
+  const tab: PanelTab = strip && !(flight || aircraftOpen || nearOpen || list) ? "fpl" : pickedTab;
   // The tabs opened so far, each kept under the others once it has been
   // (TabKept), as iOS keeps a tab's screen: back to one, it is as it was
   // left, a list scrolled where it was. Built again from nothing at every
@@ -2270,7 +2295,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
       drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning}
-      route={navLogShown ? undefined : routeList}
+      // Under the strip the nav log's card keeps the route in order too:
+      // its pills' menus -- a stop taken out, a point's altitude, a hold,
+      // direct to -- have no route box there (features/strip).
+      route={navLogShown && !strip ? undefined : routeList}
       cardHead={navLogShown ? (
         <CardHead
           // As the Brief's head: the route's name, and the line under it --
@@ -2300,7 +2328,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   ), [s.totals, s.descriptionError, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
-    routeList, navLogShown, closeNavLogCard, planned.stops, briefLine]);
+    routeList, navLogShown, strip, closeNavLogCard, planned.stops, briefLine]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({
@@ -2362,11 +2390,11 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // -- all the way up, the panel the form's room. Only where the Brief has
   // one: a route from an airport, its nav log in.
   const fileable = !!identOf(planned.dep) && !!s.totals;
-  const fileFlightPlan = () => {
+  const fileFlightPlan = useCallback(() => {
     setSearchParams(prev => patched(prev, { brief: "1" }), { replace: true });
     setPanel("full");
     useTabAsk.getState().go("preflight", "Flight Plan");
-  };
+  }, [setSearchParams, setPanel]);
 
   // The plan as a flight to save: Save's, and the solo cross-country
   // review's, which saves it as it asks.
@@ -2512,6 +2540,140 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       />
     </Suspense>
   );
+  // The strip layout's own (features/strip): what the one field does with
+  // a line (OneField, fieldCommands' readField), each the planner's
+  // existing way -- the route's setters, the places search the assistant
+  // plans with (planTo), the cards and lists the tabs open -- and why
+  // not, said under the field. A screen's word opens its screen; the
+  // pilot's spoken commands (lib/pilotCommand) are read on the way to
+  // the assistant, so "altitude five thousand five hundred" and "direct
+  // Janesville" are done, not asked.
+  const openStripScreen = useCallback(async (screen: FieldScreen): Promise<string | null> => {
+    const up = () => { if (panelNow.current === "peek") setPanel("half"); };
+    switch (screen) {
+      case "airplane": pickTab("aircraft"); setPanel("full"); return null;
+      // Setup's pages open from Setup's own rows: the logbook, the
+      // instructor, the account (ConsolePages keeps its page to itself).
+      case "logbook": case "instructor": case "settings": useConsoleOpen.getState().setOpen(true); setPanel("full"); return null;
+      case "brief": if (!routed) return "Plan a route first: a field, a town or two idents."; openBrief(); return null;
+      case "nearest": openNearest(); return null;
+      case "fuel": findNearby("fuel"); return null;
+      case "food": findNearby("food"); return null;
+      case "stops": openStops(); return null;
+      case "routes": if (!routed) return "Plan a route first, then its other ways are chips at the head of the strip."; up(); return null;
+      case "altitude": if (!profileReady) return "Plan a route first; then say an altitude, \"altitude 5500\"."; openProfile(); return null;
+      case "procedures": if (!planned.dest) return "Plan a route first: the procedures are the destination's."; setProceduresShown({ ident: planned.dest, kind: "approach" }); return null;
+      case "navlog": if (!routed || !course) return "Plan a route first."; openNavLogCard(); return null;
+      case "profile": if (!profileReady) return "Plan a route first."; openProfile(); return null;
+      case "share": if (!routed) return "Plan a route first."; up(); return "Share, Save, Print and Plan again are under ••• at the head of the strip.";
+      case "file": if (!fileable) return "A flight plan needs a route from an airport, its nav log in."; fileFlightPlan(); return null;
+      case "clearance": case "radio": useAtcRadio.setState({ cardOpen: true }); return null;
+      case "dryrun": if (!profileReady) return "Plan a route first."; openProfile(); return "Dry run is the Profile's button, at the side view's foot.";
+      case "saved": openSaved(); return null;
+      case "favorites": openList("favorites"); return null;
+      case "recents": openList("recents"); return null;
+      case "recentRoutes": openList("routes"); return null;
+      case "map": return "The map's settings are its own button, the first of the map's.";
+    }
+  }, [pickTab, setPanel, routed, openBrief, openNearest, findNearby, openStops, profileReady, openProfile, planned.dest, setProceduresShown, course,
+    openNavLogCard, fileable, fileFlightPlan, openSaved, openList]);
+  const fieldLine = useCallback(async (command: FieldCommand, text: string): Promise<string | null> => {
+    const up = () => { if (panelNow.current === "peek") setPanel("half"); };
+    if (command.kind === "open") return openStripScreen(command.screen);
+    if (command.kind === "field") { selectPlace(command.ident); return null; }
+    if (command.kind === "route") {
+      let dep = command.dep ?? planned.dep;
+      if (!dep) {
+        // One ident: from where the airplane is, as the first flight's card plans.
+        const fix = await positionNow(4000);
+        if (fix) dep = (await api.nearestAirports(fix.lat, fix.lon).catch(() => []))[0]?.ident ?? "";
+        if (!dep) dep = usePreferences.getState().recentRoutes[0]?.dep ?? usePreferences.getState().homeAirport?.ident ?? "";
+        if (!dep) return "Say where from too: \"C81 KDLH\", or turn on Show my position.";
+      }
+      if (dep === command.dest && !command.stops.length) return `${command.dest} is where you are. Say somewhere to fly to.`;
+      setRoute({ dep, stops: command.stops, dest: command.dest });
+      up();
+      return null;
+    }
+    // The pilot's own commands in the words (lib/pilotCommand), as the
+    // microphone's pill offers them (RadioLayer): done here at once.
+    const commands = commandsOf(text);
+    const altitude = commands.find(c => c.kind === "altitude");
+    if (altitude) { flyAltitude(altitude.ft); return null; }
+    const direct = commands.find(c => c.kind === "direct");
+    if (direct) {
+      const go = useRadioActions.getState().directTo;
+      return go ? go(direct.place) : "Direct To needs a route.";
+    }
+    const procedure = commands.find(c => c.kind === "procedure");
+    if (procedure) {
+      const show = useRadioActions.getState().showProcedure;
+      if (!show) return "Plan a route first.";
+      let ident = planned.dest;
+      if (procedure.field) {
+        try {
+          const found = await api.clearancePlaces({ limit: procedure.field, route: [], near: nearNow, dep: planned.dep || null, dest: planned.dest || null });
+          ident = found.limit?.kind === "airport" ? found.limit.ident ?? "" : "";
+        } catch {
+          return "The field could not be looked up; check the connection.";
+        }
+        if (!ident) return `“${procedure.field}” was not found near the route.`;
+      }
+      if (!ident) return "No destination: plan a route or name the field.";
+      return show(ident, procedure.approach, procedure.runway);
+    }
+    if (command.kind === "place") {
+      const planTo = useRadioActions.getState().planTo;
+      if (!planTo) return "The planner is not ready yet.";
+      // The ICAO alphabet's words are the letters they spell (the engine's place_words).
+      const why = await planTo(placeWords(tokens(command.words)) || command.words);
+      if (!why) { up(); return null; }
+      // Not a place the search knows: a question after all.
+      if (!/not found/i.test(why)) return why;
+    }
+    void useAsk.getState().ask(text);
+    up();
+    return null;
+  }, [openStripScreen, selectPlace, planned.dep, planned.dest, setRoute, setPanel, flyAltitude, nearNow]);
+  // The strip's verdict and its actions, as the Brief's glance has them
+  // (lib/verdict, lib/glance), published by the briefing drawn under the
+  // nav log, which the strip keeps mounted out of sight for it.
+  const glance = useGlance(g => g.glance);
+  const stripVerdict = useMemo(() => (strip && routed && verdict.length ? verdictLine(verdict) : null), [strip, routed, verdict]);
+  const stripActions = useMemo(() => (strip && routed && verdict.length ? glanceLines(verdict, glance).act : []), [strip, routed, verdict, glance]);
+  // The route's line as the canvas writes it: the route by its points,
+  // the airplane, the altitude as FL, when.
+  const stripLine = routed ? [
+    routeName(planned.dep, planned.dest, planned.stops), shortName(aircraft.label), cruiseFt ? flightLevel(cruiseFt) : null,
+    depart ? `leaving ${clockTime(new Date(depart))}` : "leaving now",
+  ].filter(Boolean).join(" · ") : null;
+  // The screens the field's chips offer, each handled as typed: how a
+  // pilot finds the rest without tabs.
+  const stripSuggestions = routed
+    ? ["Brief me", `Weather at ${planned.dest}`, "Nav log", "Routes", "Altitude", "Procedures", "Stops", "Nearest fuel", "File flight plan", "Dry run", "Clearance", "My airplane", "Saved flights"]
+    : ["Nearest fuel", "Nearest airports", "Saved flights", "Favorites", "Recents", "My airplane", "Logbook", "Settings"];
+  // A screen of another world over the strip (the airplane's), named on
+  // the ribbon with its close back to the strip.
+  const stripOver = strip && tab === "aircraft" && !flight && !list ? "My airplane" : null;
+  const closeStripOver = useCallback(() => pickTab("fpl"), [pickTab]);
+  const oneField = strip ? (
+    <OneField
+      suggestions={stripSuggestions} flying={flying} onLine={fieldLine}
+      onFocus={() => { if (panelNow.current === "peek") setPanel("half"); }}
+    />
+  ) : null;
+  // In flight, the one way out of flying mode (useFlyingMode): a small
+  // Done flying at the figures' foot, as the canvas has the line there;
+  // the tabs come back on the ground by themselves.
+  const doneFlyingRow = flying && (
+    <div className={cn("flex items-center justify-between pt-1 text-foreground/65", TEXT.note)} data-testid="flying-foot">
+      <span>Flying</span>
+      <button type="button" className="relative font-semibold text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']" data-testid="done-flying" onClick={doneFlying}>
+        Done flying
+      </button>
+    </div>
+  );
+
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
   const routeControls = (
@@ -2661,7 +2823,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         )}
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
-        <FirstFlight routed={routed} onPlan={setRoute} onPlanned={openNavLogCard} />
+        {!strip && <FirstFlight routed={routed} onPlan={setRoute} onPlanned={openNavLogCard} />}
+        {/* The strip's profile button at the map's top right: its menu
+            opens the pilot's screens, the tabs' Setup among them. */}
+        {strip && <ProfileButton onOpen={screen => void openStripScreen(screen)} />}
       </div>
     ),
     // The tab's body (TabBar): FPL's nav log, kept mounted under whatever
@@ -2746,7 +2911,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
             up"). */}
         {/* Not under the Stops with no route: FPL's Saved stood over
             its list (the owner's screenshot, 2026-10-26). */}
-        {!savedOpen && !hasPoints && !stopsHere && (panel !== "peek" || dragging) && (
+        {!strip && !savedOpen && !hasPoints && !stopsHere && (panel !== "peek" || dragging) && (
           routeRecentsOpen ? (
             <TabPage testId="route-recents-list">
               <RecentRoutesPage onBack={closeList} />
@@ -2802,11 +2967,30 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
             onAddStop={addStopField}
           />
         )}
-        <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (savedOpen || briefHere || profileHere || stopsHere || !hasPoints) && "hidden")}>{navLog}</div>
+        {/* Under the strip the nav log is kept out of sight but for its
+            card (navLogShown): the briefing drawn under it publishes the
+            verdict and the glance the strip's head reads. */}
+        <div className={cn("flex min-h-0 flex-col print:flex", depAlone ? "flex-none" : "flex-1", (savedOpen || briefHere || profileHere || stopsHere || !hasPoints || (strip && !navLogShown)) && "hidden")}>{navLog}</div>
+        {strip && !savedOpen && !briefHere && !profileHere && !stopsHere && !navLogShown && !routeRecentsOpen && (
+          <StripSheet
+            routed={routed && !!course} dest={planned.dest} verdict={stripVerdict} line={stripLine} actions={stripActions}
+            onAction={openBrief} onBrief={openBrief} menu={routed ? shareMenu("end", "strip-share") : undefined}
+            rows={routeRows} depart={depart} glance={glance}
+            onField={selectPlace} onPlates={ident => { setApproachesOf(ident); selectPlace(ident); }}
+            onClearance={() => useAtcRadio.setState({ cardOpen: true })}
+            onCheckpoint={(lat, lon) => { selectPointAt(lat, lon); openNavLogCard(); }}
+            ways={chips.length > 1 ? chips.map(c => ({ key: c.key, label: c.label })) : undefined} wayKey={lineKey} onWay={applyChip}
+          />
+        )}
+        {strip && routeRecentsOpen && !savedOpen && (
+          <TabPage testId="route-recents-list">
+            <RecentRoutesPage onBack={closeList} />
+          </TabPage>
+        )}
         {/* A departure alone: under it the flights saved and the routes
             planned last, to pick from, where the sheet stood empty under
             the one field (the owner's screenshot, 2026-10-23). */}
-        {depAlone && hasPoints && !savedOpen && !briefHere && !profileHere && !stopsHere && (
+        {!strip && depAlone && hasPoints && !savedOpen && !briefHere && !profileHere && !stopsHere && (
           <div className="px-4 pt-2" data-testid="fpl-departure-strip">
             <FplStrip onAllSaved={openSaved} onAllRecents={() => openList("routes")} />
           </div>
@@ -2817,7 +3001,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     ),
     // The tab's head: FPL's the route's box (`route`, below); the others'
     // the search bar, the whole width (Settings is a tab, not a gear).
-    head: tab === "fpl" ? undefined : tab === "aircraft" ? aircraftField : nearOpen ? nearField : searchField,
+    // The strip has no top row: its ribbon is the sheet's first row (bar)
+    // and its field the foot. Not nothing, which is the page's route form.
+    head: strip ? <></> : tab === "fpl" ? undefined : tab === "aircraft" ? aircraftField : nearOpen ? nearField : searchField,
     // A card over the tab: its card alone, the tab's head gone while it is
     // open, at the pilot's ask.
     alone: cardOpen || briefShown || navLogShown || profileShown || stopsShown,
@@ -2834,7 +3020,14 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
-    bar: <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={card => shareMenu("start", "tab-share", card)} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
+    // The strip's ribbon in the tabs' place (StripRibbon): the pill's own
+    // row over the field, and the sheet's first row.
+    bar: strip ? (
+      <StripRibbon
+        dep={planned.dep} dest={planned.dest} verdict={stripVerdict} eteMin={s.totals?.ete_min ?? null} fuelGal={s.totals?.fuel_gal ?? null}
+        points={ribbonPoints(routeRows)} over={stripOver} title={cardTitle} onClose={stripOver ? closeStripOver : closeSheet}
+      />
+    ) : <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={card => shareMenu("start", "tab-share", card)} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the
@@ -2856,7 +3049,22 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // body's room half way, and grew with the sheet under a finger.
     // Under the nav log's card too, its side view and figures with it, as
     // FPL is "route, navlog, profile and calculations".
-    foot: tab === "fpl" && !place && !heldPoint && !flight && !briefShown ? routed && (
+    // The strip's one field at the foot in every state (OneField); in the
+    // air the strip turns horizontal over it (StripAir): the ribbon with
+    // the airplane on it, the figures grown, the field the radio's.
+    foot: strip ? (flying ? (
+      <StripAir
+        rows={routeRows} field={oneField}
+        figures={(
+          <>
+            <div data-testid="flight-line">
+              <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} flying />
+            </div>
+            {doneFlyingRow}
+          </>
+        )}
+      />
+    ) : oneField) : tab === "fpl" && !place && !heldPoint && !flight && !briefShown ? routed && (
       // Its own 16 at the sides under the nav log's card, whose foot
       // MapPanel leaves bare for a card's summary to set (cardInPill): the
       // side view's figures sat 8 from the edge there (the iOS audit's P18).
@@ -2875,17 +3083,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           </div>
           </>
         )}
-        {/* In flight, the one way out of flying mode (useFlyingMode): a
-            small Done flying at the figures' foot, as the canvas has the
-            line there; the tabs come back on the ground by themselves. */}
-        {flying && (
-          <div className={cn("flex items-center justify-between pt-1 text-foreground/65", TEXT.note)} data-testid="flying-foot">
-            <span>Flying</span>
-            <button type="button" className="relative font-semibold text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']" data-testid="done-flying" onClick={doneFlying}>
-              Done flying
-            </button>
-          </div>
-        )}
+        {doneFlyingRow}
       </div>
     ) : undefined,
     // The route as one box of pills, in place of the two airport fields,
@@ -2894,7 +3092,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // Share menu (Clear the route). An airport twice (a round trip with its
     // stop taken out) keeps the box, its notice saying what to change.
     // Whatever the tab: MapPanel keeps it under the others' heads (`kept`).
-    route: (
+    route: strip ? undefined : (
       <div className="min-w-0 flex-1">
         {/* Its room while its code comes: the box's own line. */}
         <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-card" />}>
