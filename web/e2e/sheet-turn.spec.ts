@@ -11,7 +11,7 @@ import { settle, sideDrawer } from "./helpers";
  * sheet was most of the way up (2026-10-15).
  */
 
-type Frame = { height: number; bar: { top: number } | null; figures: { top: number; bottom: number } | null; dock: number | null };
+type Frame = { height: number; bar: { top: number } | null; figures: { top: number; bottom: number } | null; dock: number | null; content: number; short: number };
 
 /** Each frame of the sheet's move after `move`: its height, where the
  *  tabs are on the screen, where the route's figures are from its top,
@@ -35,9 +35,14 @@ async function frames(page: Page, move: () => Promise<void>): Promise<Frame[]> {
       };
       const tabs = document.querySelector("[data-testid=tab-bar]")?.getBoundingClientRect();
       const dock = document.querySelector("[data-tab-dock]")?.getBoundingClientRect();
+      // The box everything over the sheet's floor is clipped to -- the
+      // head, the body, the figures -- and how far short of the screen's
+      // foot the sheet's glass ends.
+      const content = document.querySelector("[data-slot=map-panel] [data-sheet-content]")!.getBoundingClientRect();
       w.__frames.push({
         height: panel.height, bar: tabs && tabs.height > 0 ? { top: tabs.top } : null,
         figures: at("[data-testid=flight-line]"), dock: dock ? dock.top - panel.top : null,
+        content: content.bottom - panel.top, short: window.innerHeight - box.bottom,
       });
       if (performance.now() - t0 < 1200) requestAnimationFrame(tick);
     };
@@ -46,6 +51,17 @@ async function frames(page: Page, move: () => Promise<void>): Promise<Frame[]> {
   await move();
   await page.waitForTimeout(1400);
   return page.evaluate(() => (window as unknown as { __frames: Frame[] }).__frames);
+}
+
+/** Under the docked tabs, in a frame: the sheet's glass alone -- its
+ *  head, its body and its figures cut off at the tabs' top (the route's
+ *  box and the airplane's field were drawn through the tabs as the sheet
+ *  set off from the pill, 2026-11-04's review), and the glass on down to
+ *  the screen's foot, the tabs never on bare chart. */
+function underTheDock(f: Frame) {
+  if (f.dock === null) return;
+  expect(f.content, `the sheet's content in a sheet ${f.height} tall`).toBeLessThanOrEqual(f.dock + 1);
+  expect(f.short, `the sheet's glass in a sheet ${f.height} tall`).toBeLessThanOrEqual(0.5);
 }
 
 async function step(page: Page, key: "ArrowUp" | "ArrowDown") {
@@ -66,6 +82,7 @@ test("on a phone the tabs stay where they are, docked, as the sheet goes from th
     for (const f of seen) {
       expect(f.bar, `the tabs in a sheet ${f.height} tall`).not.toBeNull();
       expect(Math.abs(f.bar!.top - first.bar!.top), `the tabs at ${f.bar!.top} in a sheet ${f.height} tall`).toBeLessThan(0.5);
+      underTheDock(f);
     }
     // And the sheet did move.
     expect(Math.abs(seen[seen.length - 1]!.height - first.height)).toBeGreaterThan(100);
@@ -85,6 +102,7 @@ test("on a phone a route's figures stay in sight at the sheet's foot as the pill
       expect(f.figures!.top, `the figures in a sheet ${f.height} tall`).toBeGreaterThanOrEqual(-1);
       // Over the docked tabs: nothing of the sheet's under them.
       expect(f.figures!.bottom, `the figures in a sheet ${f.height} tall`).toBeLessThanOrEqual((f.dock ?? f.height) + 1);
+      underTheDock(f);
     }
   }
 });

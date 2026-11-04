@@ -108,6 +108,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // title shouldn't be shown either"); down at the pill, where the card
   // is out of sight, the tab's name is all that says what is open.
   const cardNamesItself = useSheetCards(s => s.stack.length > 0 && s.stack.at(-1)?.title === undefined);
+  const sheetCardsUp = useSheetCards(s => s.stack.length > 0);
   const all: BarTab<T | "setup">[] = [...tabs, { value: "setup", label: "Setup", icon: GearGlyph }];
   const up: T | "setup" = consoleOpen ? "setup" : tab;
   const minimized = useContext(TabBarMinimized);
@@ -166,6 +167,11 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
       pick(value);
       if (size.size === "peek") size.to("half");
     } else if (size.card) onClose?.();
+    // Docked, the tabs are in sight over a card opened from a control or
+    // the chart (SheetCard), one tap away where the line had to be tapped
+    // first: the tab up tapped puts it away, as an iOS tab tapped goes
+    // back to its first screen, where it lowered the sheet under the card.
+    else if (docked && sheetCardsUp) closeSheetCards();
     else if (listOver && size.size !== "peek") onUp?.();
     else size.to(size.size === "full" ? "half" : size.size === "half" ? "peek" : "half");
   };
@@ -494,8 +500,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
                 side, as iOS 26's tab bar draws the tab up, not a rounded
                 box the glyph and word touched (the owner: "is that Apple
                 standard? Looks a bit short", 2026-11-04): the tab's
-                whole height, 50, its ends round. */}
-            {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1 inset-y-0 rounded-full bg-tint/12" />}
+                height but a point at each end, its ends round -- docked
+                with nothing under the tabs, its foot sat on the page's
+                edge, on Safari's toolbar. */}
+            {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1 inset-y-px rounded-full bg-tint/12" />}
             <span className="relative">
               {/* 26 and 12 (2026-11-04), once 28 and 13 (A with D's weight,
                   2026-10-22); the glyphs the planner's own (tabGlyphs), in

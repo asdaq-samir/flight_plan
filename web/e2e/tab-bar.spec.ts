@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { closeCard, closeConsole, closeProfile, grabberTo, openProfile, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
+import { closeCard, closeConsole, closeProfile, grabberTo, openMapSettings, openProfile, openTab, openPanel, settle, settled, showTabs, sideDrawer, slow } from "./helpers";
 
 /**
  * The planner's tab bar, at the pilot's ask in place of the map's buttons
@@ -183,6 +183,38 @@ test("on a phone the tabs are docked at the screen's foot: in one place at every
   expect(seen.length).toBeGreaterThan(10);
   for (const top of seen) expect(Math.abs(top - pill.y)).toBeLessThan(0.5);
   // The drag's release picked no tab.
+  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+
+  // Held at the foot of a drag down from half, the sheet lower than its
+  // head: under the tabs nothing of the sheet's content, only its glass --
+  // the route's box was drawn through them (2026-11-04's review).
+  await grabberTo(page, "half");
+  await settled(panel);
+  const grabber = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
+  const x = grabber.x + grabber.width / 2;
+  await page.mouse.move(x, grabber.y + 3);
+  await page.mouse.down();
+  for (let y = grabber.y + 18; y < viewport.height - 1; y += 18) await page.mouse.move(x, y);
+  await page.mouse.move(x, viewport.height - 1);
+  await page.waitForTimeout(300);
+  const under = await page.evaluate(() => {
+    const top = document.querySelector("[data-tab-dock]")!.getBoundingClientRect().top;
+    return [0.1, 0.3, 0.5, 0.7, 0.9].flatMap(across => [4, 26, 48].flatMap(down => document.elementsFromPoint(window.innerWidth * across, top + down)
+      .filter(el => el.closest("[data-sheet-content]"))
+      .map(el => `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""} at ${Math.round(across * 100)}%, ${down} down`)));
+  });
+  await page.mouse.up();
+  expect(under).toEqual([]);
+
+  // A card from a control over the tab, the tabs in sight under it: the
+  // tab up tapped puts it away, as an iOS tab tapped goes back to its
+  // first screen, the sheet where it was -- it lowered the sheet under it.
+  await grabberTo(page, "half");
+  await openMapSettings(page);
+  await expect(panel).toHaveAttribute("data-panel", "half");
+  await page.getByTestId("tab-fpl").click();
+  await expect(page.getByTestId("map-settings")).toHaveCount(0);
+  await expect(panel).toHaveAttribute("data-panel", "half");
   await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
 });
 

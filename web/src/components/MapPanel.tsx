@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { cn } from "cn";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
@@ -160,8 +161,9 @@ export interface SheetTurn { insets: MapInsets }
  * changed, the glass as it is at every size. A settle is a CSS
  * transition of that transform alone; under a finger the transform is
  * written once a frame. The route's figures stay at the sheet's visible
- * foot by a translate of their own from the same number, the body cut
- * off over them by a translate and its content's reverse one. The map
+ * foot, and the head and the body are cut off there, by a translate of
+ * the box that holds them all from the same number and its reverse on
+ * the head and the body's content (the pin). The map
  * goes with the sheet's edge frame by frame (lib/map/sheetSlide), and
  * the page hears the room the sheet leaves as a turn starts (sheetturn)
  * and once it has landed (onInsetsChange) -- nothing per frame through
@@ -282,23 +284,35 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const [footNode, setFootNodeState] = useState<HTMLDivElement | null>(null);
   // The parts the placement writes to, in refs: what is written to a
   // frame at a time is no state of the render's.
-  const nodes = useRef<{ panel: HTMLElement | null; foot: HTMLElement | null; body: HTMLElement | null; inner: HTMLElement | null }>({ panel: null, foot: null, body: null, inner: null });
+  const nodes = useRef<{ panel: HTMLElement | null; content: HTMLElement | null; head: HTMLElement | null; foot: HTMLElement | null; body: HTMLElement | null; inner: HTMLElement | null }>({ panel: null, content: null, head: null, foot: null, body: null, inner: null });
   const setPanel = useCallback((node: HTMLElement | null) => { nodes.current.panel = node; setPanelNode(node); }, []);
+  const setContentNode = useCallback((node: HTMLDivElement | null) => { nodes.current.content = node; }, []);
+  const setHeadNode = useCallback((node: HTMLDivElement | null) => { nodes.current.head = node; setHeadBand(node); }, []);
   const setFootNode = useCallback((node: HTMLDivElement | null) => { nodes.current.foot = node; setFootNodeState(node); }, []);
   const setInnerNode = useCallback((node: HTMLDivElement | null) => { nodes.current.inner = node; }, []);
   const [pillHeight, setPillHeight] = useState<number | null>(null);
   const [headHeight, setHeadHeight] = useState(0);
   const [footHeight, setFootHeight] = useState(0);
   const atPillRef = useRef(atPill);
+  // The pill's own height: the column laid out as the pill, at rest.
+  const measurePill = useCallback(() => {
+    const el = nodes.current.panel;
+    if (el) setPillHeight(el.offsetHeight);
+  }, []);
   useEffect(() => {
     if (!panel) return;
+    // A change inside the pill alone (its rows' own state) measured before
+    // the frame is painted, as one in this component's commit is (the
+    // layout effect, below): a frame with the pill grown or shrunk and the
+    // sheet still at the old height drew the new row under the docked tabs
+    // or left them on bare chart.
     const watch = new ResizeObserver(() => {
       if (motionRef.current !== null || !atPillRef.current) return;
-      setPillHeight(panel.offsetHeight);
+      flushSync(measurePill);
     });
     watch.observe(panel);
     return () => watch.disconnect();
-  }, [panel]);
+  }, [panel, measurePill]);
   useEffect(() => {
     if (!headBand) return;
     const watch = new ResizeObserver(() => { if (motionRef.current === null) setHeadHeight(headBand.offsetHeight); });
@@ -388,35 +402,40 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   }, []);
   // Every part's transition: on for a settle, off at rest and under a finger.
   const setEase = useCallback((seconds: number | null) => {
-    const { panel: el, foot, body, inner } = nodes.current;
+    const { panel: el, content, head, foot, inner } = nodes.current;
     const slide = slidesRef.current;
     const curve = seconds ? `${seconds}s ${EASE}` : null;
-    if (slide) for (const part of [el, body, inner]) if (part) part.style.transition = curve ? `transform ${curve}` : "";
+    if (slide) for (const part of [el, content, inner]) if (part) part.style.transition = curve ? `transform ${curve}` : "";
     else if (el) el.style.transition = curve ? `height ${curve}` : "";
-    if (foot) foot.style.transition = curve ? `${slide ? `transform ${curve}, ` : ""}--sheet-progress ${curve}` : "";
+    // The head band's own frost fades (index.css) kept beside its move.
+    if (head && slide) head.style.transition = curve ? `transform ${curve}, background-color 150ms, box-shadow 150ms` : "";
+    if (foot) foot.style.transition = curve ? `--sheet-progress ${curve}` : "";
     if (slide) coverRule().setProperty("--sheet-cover-ease", curve ?? "0s");
   }, []);
-  // The sheet at `h`: the transform from the screen's top, the figures
-  // held at the visible foot and the body cut off over them (the pin),
-  // the map's buttons riding on its top. Written straight to the style.
+  // The sheet at `h`: the transform from the screen's top, and the pin --
+  // everything over the sheet's floor (the content) cut off at the floor's
+  // top by a translate up of the content's box, the head and the body's
+  // content moved back down by the same, so the figures sit on the floor
+  // (the docked tabs) and nothing of the head, the body or the figures is
+  // ever under it -- the map's buttons riding on its top. Translates
+  // alone, each the same straight line of `h`, so a settle's one CSS
+  // transition keeps them together. Written straight to the style.
   const place = useCallback((h: number) => {
     hRef.current = h;
-    const { panel: el, foot, body, inner } = nodes.current;
+    const { panel: el, content, head, body, inner } = nodes.current;
     if (!el) return;
     if (!slidesRef.current) {
       el.style.height = atPillRef.current && motionRef.current === null ? "" : `${h}px`;
-      for (const part of [el, foot, body, inner]) if (part) part.style.transform = "";
+      for (const part of [el, content, head, inner]) if (part) part.style.transform = "";
       return;
     }
     el.style.transform = `translate3d(0, ${Math.round((vhRef.current - h) * 100) / 100}px, 0)`;
     const over = pinRef.current ? Math.max(0, laidRef.current - h) : 0;
-    const up = over ? `translate3d(0, ${-over}px, 0)` : "";
-    if (foot) foot.style.transform = up;
-    if (body) {
-      body.style.transform = up;
-      body.style.overflow = over ? "clip" : "";
-    }
-    if (inner) inner.style.transform = over ? `translate3d(0, ${over}px, 0)` : "";
+    const down = over ? `translate3d(0, ${over}px, 0)` : "";
+    if (content) content.style.transform = over ? `translate3d(0, ${-over}px, 0)` : "";
+    if (head) head.style.transform = down;
+    if (body) body.style.overflow = over ? "clip" : "";
+    if (inner) inner.style.transform = down;
     coverRule().setProperty("--sheet-cover", `${Math.max(0, Math.round(h))}px`);
   }, []);
 
@@ -431,7 +450,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     pending.current = { from, to, target };
     setSize(target);
     setMotion("settle");
-    if (slidesRef.current) setMoveLaid(Math.max(laidRef.current, to));
+    // As tall as where it is too: a pill grown smaller at rest still runs
+    // on under the docked tabs on its way down to them.
+    if (slidesRef.current) setMoveLaid(Math.max(laidRef.current, to, from));
   }, [currentHeight]);
   const ask = useCallback((target: PanelState) => {
     asked.current = target;
@@ -443,6 +464,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   }, [pageState, settleTo]);
   const land = useCallback((target: PanelState) => {
     window.clearTimeout(landTimer.current);
+    // A settle that set off late -- its first frame held back by a long
+    // task -- is still on its way when the timer fires, and taking the
+    // transition off does not stop one running to the value the style
+    // already has: with the column laid out at rest it ran on short of the
+    // screen's foot, the docked tabs on bare chart for a frame or two (a
+    // card closed at the pill, 2026-11-04's review). Brought to its end.
+    const { panel: el, content, head, inner } = nodes.current;
+    for (const part of [el, content, head, inner]) {
+      for (const run of part?.getAnimations?.() ?? []) if (run instanceof CSSTransition) run.finish();
+    }
     setEase(null);
     nodes.current.foot?.style.setProperty("--sheet-progress", target === "full" ? "1" : "0");
     motionRef.current = null;
@@ -469,8 +500,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     detentsRef.current = detents;
     motionRef.current = motion;
     // The body cut off over the figures on the way -- over the docked bar
-    // too, figures or none: nothing of the sheet's shows under the tabs.
-    pinRef.current = slides && !atPill && (footShown || docked);
+    // too, figures or none: nothing of the sheet's shows under the tabs,
+    // in the pill's own moves as well (a drag from it, a settle to it, the
+    // pill grown or shrunk), where the column is laid out taller than the
+    // sheet stands.
+    pinRef.current = slides && (footShown || docked) && (!atPill || (docked && motion !== null));
     const { panel: el, foot } = nodes.current;
     if (!el) return;
     const m = pending.current;
@@ -505,6 +539,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       foot?.style.setProperty("--sheet-progress", size === "full" ? "1" : "0");
     }
     place(hRef.current);
+    // The pill's own height measured in the commit that changed it -- a
+    // route's figures come, a card's line goes, a move landed -- so the
+    // sheet sets off for it before a frame is painted: waiting for the
+    // observer drew the figures under the docked tabs for a frame, and a
+    // change on the way was not seen again (a card closed at the pill left
+    // the tabs on bare chart for most of a second, 2026-11-04's review).
+    if (motion === null && atPill) measurePill();
   });
   useEffect(() => () => window.clearTimeout(landTimer.current), []);
   // Said a frame on, so that what the workspace draws for a sheet on the
@@ -678,10 +719,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // Not over a card's line, the figures in the pill or a picture's head,
   // which have their own.
   const dockedHeadPad = docked && !barHere && !ownHead && !(atPill && footShown) ? (atPill ? "pt-2.5" : "pt-1.5") : undefined;
-  // A hairline over the docked tabs where the sheet's content ends on
-  // them, as iOS's tab bar has under content: not under the bare pill's
-  // grabber, nor under a card's line in the pill, which has its own.
-  const dockLine = !atPill || footShown;
 
   return (
     <>
@@ -717,13 +754,22 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         ),
       )}
     >
-      {pillPictured && pill && <PillPicture pill={pill} bottom={docked ? dockHeight : 0} />}
+      {pillPictured && pill && !docked && <PillPicture pill={pill} />}
       {grabberAtTop && grabber}
+      {/* Everything over the sheet's floor -- the head, the body, the
+          figures -- in one box clipped at the floor's top, moved by the pin
+          (place) so that its foot is the docked tabs' top at every height:
+          only the sheet's glass and the floor's spacer run on under the
+          tabs (the owner's pick, 2026-11-04: nothing of the sheet shows
+          under the bar). Docked, the pill's picture is in it too, for the
+          same; otherwise it runs on over the home indicator, as it did. */}
+      <div ref={setContentNode} data-sheet-content="" className="relative flex min-h-0 flex-1 flex-col overflow-clip">
+      {pillPictured && pill && docked && <PillPicture pill={pill} />}
       {/* The head's band, dragged as the grabber is: the first row (the
           bar), the top row, any notice, the controls. Over the body, which
           runs on up under it (`under`): frosted while anything is there. */}
       <div
-        ref={setHeadBand} data-head-band=""
+        ref={setHeadNode} data-head-band=""
         className={cn("relative flex shrink-0 touch-none flex-col", under && "z-20", !fromBottom && onPhone && "pt-[env(safe-area-inset-top)]", dockedHeadPad)}
         onPointerDown={startDrag}
       >
@@ -774,7 +820,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       </div>
       {/* The body: dragged from anywhere under a finger where its content
           is not scrolling (useSheetDrag). Cut off over the figures on the
-          way by a translate, its content moved back by the same (inner). */}
+          way by the content's box (the pin), its own content moved back
+          down by the same (inner). */}
       <div
         ref={setBodyRef}
         className={cn(
@@ -808,6 +855,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // in the pill. What gives way in the pill (data-pill-hides)
             // is put away there.
             "flex min-h-[3.875rem] shrink-0 flex-col justify-center border-t pb-1 print:hidden", ROW_PAD, cardInPill ? "px-0" : "px-4",
+            // At the column's foot when the body is put away in a move of
+            // the pill, the column laid out taller: on the docked tabs.
+            docked && "mt-auto",
             !footShown && "hidden",
             // In the pill the finger is the sheet's (touch-none), as on the
             // tabs: the browser's own scroll took it and cancelled the drag.
@@ -822,6 +872,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           onClick={atPill ? () => ask("half") : undefined}
         >{foot}</div>
       )}
+      </div>
       {!grabberAtTop && grabber}
       {/* The rest of the way to the screen's edge, under the home
           indicator -- in the body where it runs to the edge (toEdge) --
@@ -839,16 +890,23 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         Placed from the window's inner height, as the sheet is; the home
         indicator's inset under the row, 0 in Safari's browser, where its
         toolbar is under the page -- no margin of the sheet's own. A finger
-        on it drags the sheet, as on the tabs. */}
+        on the tabs' row drags the sheet, as on the tabs; not on the home
+        indicator's inset under it, which is the system's swipe home (a
+        swipe up from it began a drag, and its cancel let the sheet go to
+        another size). */}
     {docked && (
       <div
         ref={setDockWrap} data-tab-dock="" data-testid="tab-dock"
-        className="fixed inset-x-0 z-40 touch-none pb-[env(safe-area-inset-bottom)] print:hidden"
+        className="fixed inset-x-0 z-40 pb-[env(safe-area-inset-bottom)] print:hidden"
         style={{ top: vh, transform: "translateY(-100%)" }}
-        onPointerDown={startDrag}
       >
-        {dockLine && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-border/60" />}
-        <div ref={setDockRow} className="flex px-2 pt-0.5" style={{ height: `${DOCK_REM}rem` }} />
+        {/* A hairline where the sheet ends on the tabs, as iOS's tab bar
+            has under content, at every size, the bare pill's grabber band
+            too: tied to the size asked for, it went or came as a settle to
+            or from the bare pill set off, the sheet still where it was --
+            the bar changing as the sheet moved (the owner's pick). */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-px bg-border/60" />
+        <div ref={setDockRow} className="flex touch-none px-2 pt-0.5" style={{ height: `${DOCK_REM}rem` }} onPointerDown={startDrag} />
       </div>
     )}
     {/* Under a phone's sheet, the screen's foot: the sheet is placed from
