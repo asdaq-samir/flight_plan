@@ -1,12 +1,24 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { useDetentDrag } from "./use-detent-drag";
+import { restingAt, type Detents } from "./engine";
+import { useSheetDrag } from "./useSheetDrag";
 
-const detents = { low: 100, half: 300, full: 600 };
+const detents: Detents = { peek: 100, half: 300, full: 600 };
+
+/** The hook as the sheet wires it: the finger's release read into a
+ *  detent (engine's restingAt), each frame's height to `setDragged`, and
+ *  nothing placed in a document with no layout. */
+function useDrag(shown: number, onRelease: (d: string) => void, setDragged: (h: number | null) => void) {
+  return useSheetDrag({
+    detents, fromBottom: true, height: () => shown, began: () => {},
+    place: h => setDragged(h),
+    release: (h, speed) => { setDragged(null); onRelease(restingAt(detents, h, speed)); },
+  });
+}
 
 function Sheet({ onRelease, setDragged, shown = 300 }: { onRelease: (d: string) => void; setDragged: (h: number | null) => void; shown?: number }) {
-  const { body } = useDetentDrag({ detents, shown, fromBottom: true, onRelease, setDragged });
+  const { body } = useDrag(shown, onRelease, setDragged);
   return <div ref={body} data-testid="body"><p>text</p></div>;
 }
 
@@ -20,7 +32,7 @@ function fire(el: Element, type: string, touches: ReturnType<typeof touch>[], at
 
 afterEach(cleanup);
 
-describe("useDetentDrag body drag", () => {
+describe("useSheetDrag body drag", () => {
   it("lets the sheet go to a detent when a second finger lands mid-drag", () => {
     const onRelease = vi.fn(), setDragged = vi.fn();
     const { getByTestId } = render(<Sheet onRelease={onRelease} setDragged={setDragged} />);
@@ -47,9 +59,9 @@ describe("useDetentDrag body drag", () => {
   });
 });
 
-describe("useDetentDrag scroll-first box", () => {
+describe("useSheetDrag scroll-first box", () => {
   function Boxed({ onRelease }: { onRelease: (d: string) => void }) {
-    const { body } = useDetentDrag({ detents, shown: 300, fromBottom: true, onRelease, setDragged: vi.fn() });
+    const { body } = useDrag(300, onRelease, vi.fn());
     return <div ref={body}><div data-scroll-first="" data-testid="box"><p data-testid="line">KDLH</p></div></div>;
   }
   const lines = (el: HTMLElement, scrollTop: number, scrollHeight = 96) => {
@@ -93,9 +105,9 @@ describe("useDetentDrag scroll-first box", () => {
   });
 });
 
-describe("useDetentDrag release speed", () => {
+describe("useSheetDrag release speed", () => {
   // Half (300) dragged down to 210 in quick moves: nearer half than the low
-  // detent (100), so it goes on to low only if thrown.
+  // detent (100), so it goes on to the pill only if thrown.
   const dragDown = (el: Element, releaseAt: number) => {
     fire(el, "touchstart", [touch(el, 400)], 0);
     for (let i = 1; i <= 6; i++) fire(el, "touchmove", [touch(el, 400 + 15 * i)], 16 * i);
@@ -106,7 +118,7 @@ describe("useDetentDrag release speed", () => {
     const onRelease = vi.fn();
     const { getByTestId } = render(<Sheet onRelease={onRelease} setDragged={vi.fn()} />);
     dragDown(getByTestId("body"), 100);
-    expect(onRelease).toHaveBeenLastCalledWith("low");
+    expect(onRelease).toHaveBeenLastCalledWith("peek");
   });
 
   it("sets the sheet down where it is when the finger held still before letting go", () => {
@@ -119,7 +131,7 @@ describe("useDetentDrag release speed", () => {
   it("does the same for a drag of the head", () => {
     const onRelease = vi.fn();
     function Head() {
-      const { startDrag } = useDetentDrag({ detents, shown: 300, fromBottom: true, onRelease, setDragged: vi.fn() });
+      const { startDrag } = useDrag(300, onRelease, vi.fn());
       return <div data-testid="head" onPointerDown={startDrag} />;
     }
     const { getByTestId } = render(<Head />);
@@ -128,7 +140,7 @@ describe("useDetentDrag release speed", () => {
       Object.defineProperty(event, "timeStamp", { value: at });
       act(() => { (type === "pointerdown" ? getByTestId("head") : window).dispatchEvent(event); });
     };
-    for (const [releaseAt, rest] of [[100, "low"], [96 + 700, "half"]] as const) {
+    for (const [releaseAt, rest] of [[100, "peek"], [96 + 700, "half"]] as const) {
       pointer("pointerdown", 400, 0);
       for (let i = 1; i <= 6; i++) pointer("pointermove", 400 + 15 * i, 16 * i);
       pointer("pointerup", 490, releaseAt);
@@ -137,7 +149,7 @@ describe("useDetentDrag release speed", () => {
   });
 });
 
-describe("useDetentDrag throw", () => {
+describe("useSheetDrag throw", () => {
   // A finger's throw from where the sheet is, `dy` points down the screen
   // over three quick moves, let go at once.
   const thrown = (el: Element, dy: number) => {

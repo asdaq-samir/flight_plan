@@ -505,7 +505,7 @@ export default function RouteBox({
                 and two lines scrolled with no third (the owner's notice). */}
             <div ref={slide} style={twoLines ? { maxHeight: twoLines, minHeight: holdTwo ? twoLines : undefined } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap content-start items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
               // Its own lines scrolled first under a finger, then the sheet
-              // dragged (use-detent-drag's data-scroll-first).
+              // dragged (the sheet's drag, components/sheet/engine's data-scroll-first).
               data-scroll-first="">
               {/* The box does not scroll itself under a drag: the pill dragged
                   is in the box it scrolls, so each step down carried it

@@ -1,12 +1,10 @@
-import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useContext, useEffect, useRef, type ReactNode } from "react";
 import { ChevronDown, Settings, Share, type LucideIcon } from "lucide-react";
 import CloseButton from "./CloseButton";
 import RoundButton from "./RoundButton";
 import { cn } from "cn";
 import { closeTopCard, useOpenCards, type RouteCard } from "../lib/openCards";
-import { prefersReducedMotion } from "../lib/motion";
 import { TEXT } from "../lib/text";
-import TabGlass from "./TabGlass";
 import { BarOverPicture, PanelSize, TabBarMinimized, useConsoleOpen, useTabsShown } from "./mapChrome";
 import { ON_PILL_PICTURE } from "./PillPicture";
 import { barHeadRef, closeSheetCards, useSheetCards } from "../lib/sheetCards";
@@ -40,91 +38,23 @@ export interface BarTab<T extends string> {
  * alone, centred, in the tint; tapped, every tab again at the height the
  * sheet is, minimized once one is picked.
  *
- * The tab up's capsule is iOS 26's lens, at the owner's ask (their
- * recording of Netflix's tab bar, 2026-10-16): a finger held on the tabs
- * lifts it into a drop of glass under the finger and the pill grows a
- * little; slid along the tabs it follows the finger, the tab under it
- * lit, and let go it picks that tab, as a tap on it does. Up or down, the
- * finger drags the sheet instead, the tabs being its handle too.
+ * The tabs are plain buttons, the tab up in a tinted capsule of its own,
+ * and the sheet's handle as well: up or down, a finger on them drags the
+ * sheet (MapPanel), and a tap that does not move picks the tab. The lens
+ * of iOS 26 -- a finger held lifting a drop of glass, slid along the tabs
+ * -- went with the sheet's rewrite (2026-11-04): the owner found the tabs
+ * glitchy, and the lens's capture and its grown pill were a good part of
+ * why.
  */
+/** How long after a press that put a menu away its tap is taken as that
+ *  alone, ms: a tap's click follows its press within a few hundred. */
+const DISMISS_MS = 600;
+
 /** A wheel gesture's state, the page's: the bar is drawn afresh as a step
  *  changes the tab (its minimized line or the tabs), and a gesture's later
  *  events, heard by the new one, took a second step. */
 const WHEEL = { sum: { x: 0, y: 0 }, quietUntil: 0, idle: 0 };
 
-/** How long a finger rests on the tabs before the lens lifts under it, in
- *  milliseconds. The tabs are the sheet's handle as well, and a drag of
- *  the sheet that starts on them has gone its ten points by then, so the
- *  lens does not flash up under every drag -- as an iOS scroll view holds
- *  a touch back from what is under it (UIScrollView's
- *  delaysContentTouches). A finger that slides along them lifts it at
- *  once. */
-const LIFT_MS = 100;
-
-/** How far a finger goes along the tabs before it is sliding the lens
- *  rather than tapping: the ten points the sheet's own drag waits for
- *  (useDetentDrag's DRAG_SLOP), so the two decide alike. */
-const SLIDE_SLOP = 10;
-
-/** The lens's two edges, in seconds: the one it moves toward is quicker
- *  than the one it leaves, so it stretches as it goes and gathers up as
- *  it lands, as iOS 26's drop of glass does. Under a sliding finger,
- *  none: it is where the finger is. */
-const EDGE = { lead: 0.2, trail: 0.36 };
-const EASE = "cubic-bezier(0.2, 0.9, 0.3, 1)";
-
-/** The pill under a finger on its tabs, grown as iOS 26's tab bar grows:
- *  327 points across to 343 in the owner's recording, 5% -- or as much of
- *  that as leaves it PILL_CLEAR points in from the screen's sides, a
- *  phone's pill being in only eight from them, where 5% of it reached
- *  past them. */
-const PILL_GROWN = 1.05;
-const PILL_CLEAR = 3;
-
-/** How long the click a tap or a slide of the lens ends in is waited for,
- *  in milliseconds, to be passed over (passOverClick). */
-const CLICK_AFTER_MS = 600;
-/** How long after a press that put a menu away its tap is taken as that
- *  alone, ms: a tap's click follows its press within a few hundred. */
-const DISMISS_MS = 600;
-
-/** The click a finger's tap or slide on the tabs ends in, passed over
- *  wherever it lands: the tab was picked as the finger lifted, and the
- *  click a phone makes of the same touch comes after -- by then on the
- *  minimized line, maybe, where it showed the tabs again. Not a click
- *  after the next finger down, nor one CLICK_AFTER_MS on: one that never
- *  came. */
-function passOverClick() {
-  const swallow = (event: Event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    done();
-  };
-  const done = () => {
-    window.clearTimeout(timer);
-    window.removeEventListener("click", swallow, true);
-    window.removeEventListener("pointerdown", done, true);
-  };
-  const timer = window.setTimeout(done, CLICK_AFTER_MS);
-  window.addEventListener("click", swallow, true);
-  window.addEventListener("pointerdown", done, true);
-}
-
-/** The lens lifted: its middle along the bar and the bar's width, in the
- *  bar's own pixels, a tab's width, the tab under it, which way it last
- *  moved, and whether the finger is sliding it. */
-interface Lifted { x: number; width: number; tab: number; over: number; dir: number; sliding: boolean }
-
-/** Where `clientX` is along `bar`, in the bar's own pixels -- not the
- *  screen's, the pill being grown -- held to the first and last tabs'
- *  middles, and the tab under it. */
-function along(bar: HTMLElement, count: number, clientX: number) {
-  const box = bar.getBoundingClientRect();
-  const width = bar.offsetWidth;
-  const tab = width / count;
-  const x = Math.min(width - tab / 2, Math.max(tab / 2, (clientX - box.left) * (width / (box.width || width))));
-  return { x, width, tab, over: Math.min(count - 1, Math.floor(x / tab)) };
-}
 
 export default function TabBar<T extends string>({ tabs, tab, over, title: given, onPick, onUp, marks, onClose, routeShare, listOver = false, className }: {
   tabs: BarTab<T>[];
@@ -184,7 +114,6 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
     if (!minimized && shown) useTabsShown.setState({ shown: false });
   }, [minimized, shown]);
   const upTab = all.find(t => t.value === up)!;
-  const upAt = all.findIndex(t => t.value === up);
   // A tab picked as a tap on it picks it: Setup's the console, the others
   // the workspace's (onPick).
   const pick = (value: T | "setup") => {
@@ -207,7 +136,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
     }
     onPick(value as T);
   };
-  // A tab tapped, or the lens let go on it (below). Another tab opens at
+  // A tab tapped. Another tab opens at
   // the size the sheet is, half from Setup's pill; the tab up tapped again
   // puts its card away, as an iOS tab tapped goes back to its first screen
   // (onClose), or else lowers the sheet a size. Outside a panel (none), the
@@ -254,11 +183,10 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   // back"): to the right, as iOS's swipe back goes, what the bar's close
   // takes away -- the card over the tab, a list in full, a Setup page
   // (lib/openCards) -- one at a time; to the left, nothing, as there
-  // is nothing forward. The tabs change by a tap, or the lens slid along
-  // them (the glass bubble, as iOS's tab bar's). Listened for on the
+  // is nothing forward. The tabs change by a tap. Listened for on the
   // whole panel -- but not a field, a slider or anything that scrolls
   // sideways (the Favorites' strip, the nav log's table), which keep the
-  // finger, nor the tabs themselves, along which a finger slides the lens.
+  // finger.
   const bar = useRef<HTMLElement | null>(null);
   // A tap that puts a menu away -- Share's, over the Brief or the nav log
   // -- only puts it away: on the owner's iPhone the tap on the card's name
@@ -290,7 +218,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
         // A route's point is dragged as a finger slides it (RouteBox's
         // dnd-kit sortables say so with aria-roledescription).
         // A card's pictures (PhotoHead) swipe to their next page.
-        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], [aria-roledescription], [data-point], [data-lens], [data-slot=carousel], .leaflet-container")) return true;
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], [aria-roledescription], [data-point], [data-slot=carousel], .leaflet-container")) return true;
         const overflow = getComputedStyle(el).overflowX;
         if ((overflow === "auto" || overflow === "scroll") && el.scrollWidth > el.clientWidth + 1) return true;
       }
@@ -389,60 +317,6 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
       panel.removeEventListener("wheel", wheel);
     };
   }, []);
-  // The lens (above): lifted under a finger, or at rest on the tab up --
-  // with the way it last moved there, which edge leads.
-  const [lens, setLens] = useState<Lifted | null>(null);
-  const [rest, setRest] = useState({ at: upAt, dir: 0 });
-  if (rest.at !== upAt) setRest({ at: upAt, dir: Math.sign(upAt - rest.at) });
-  // The finger on the tabs: where it went down and is now, and whether it
-  // is sliding the lens.
-  const gesture = useRef<{ id: number; x: number; y: number; lastX: number; sliding: boolean; timer: number } | null>(null);
-  // The lens lifted, or moved along, under the finger at `clientX`.
-  const lift = (clientX: number, sliding: boolean) => {
-    const el = bar.current;
-    if (!el?.hasAttribute("data-lens")) return;
-    const at = along(el, all.length, clientX);
-    setLens(was => {
-      const from = was ? was.x : (upAt + 0.5) * at.tab;
-      return { ...at, sliding, dir: at.x === from ? was?.dir ?? 0 : Math.sign(at.x - from) };
-    });
-  };
-  // And put down, on the tab `at` -- the one it was let go on, or the tab
-  // up again.
-  const putDown = (at: number) => {
-    const g = gesture.current;
-    if (g) window.clearTimeout(g.timer);
-    gesture.current = null;
-    if (lens) setRest({ at, dir: Math.sign((at + 0.5) * lens.tab - lens.x) });
-    setLens(null);
-  };
-  // The tabs minimized under the finger (the sheet dragged up): none up.
-  if (lens && minimized && !shown) setLens(null);
-  // The pill grows while the lens is up, as iOS 26's tab bar does; the
-  // sheet, which is not a tab bar, stays as it is, and with Reduce Motion
-  // so does the pill.
-  const lifted = lens !== null;
-  const shrinking = useRef<Animation | null>(null);
-  useEffect(() => {
-    const panel = bar.current?.closest<HTMLElement>("[data-slot=map-panel]");
-    if (!lifted || !panel?.hasAttribute("data-capsule") || prefersReducedMotion()) return;
-    // Its own size and place, not as a shrinking still under way has it.
-    const box = panel.getBoundingClientRect();
-    const width = panel.offsetWidth;
-    const left = box.left + (box.width - width) / 2;
-    const room = Math.min(left, document.documentElement.clientWidth - left - width) - PILL_CLEAR;
-    const grown = Math.min(PILL_GROWN, 1 + (2 * Math.max(0, room)) / width);
-    // From where the last one's shrinking had got to, a tap after a tap.
-    const scaled = () => getComputedStyle(panel).scale.replace("none", "1");
-    const from = scaled();
-    shrinking.current?.cancel();
-    const grow = panel.animate({ scale: [from, `${grown}`] }, { duration: 160, easing: EASE, fill: "forwards" });
-    return () => {
-      const now = scaled();
-      grow.cancel();
-      shrinking.current = panel.animate({ scale: [now, "1"] }, { duration: 220, easing: EASE });
-    };
-  }, [lifted]);
   if (minimized && !shown) {
     // The card's kind, where it is another tab's over this one.
     const named = (over && all.find(t => t.value === over)) || upTab;
@@ -543,162 +417,44 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
   }
   // The tab up in a capsule of its own, as iOS 26's tab bar draws it, at
   // the owner's ask ("Can we have a selection bubble like target tabs does
-  // at the bottom"): a little in from its quarter's sides, sliding to the
-  // tab picked, its leading edge first. Under the tabs, which take the
-  // taps. Lifted, the lens: under the finger, bigger past the tab on every
-  // side, as iOS 26's grows when a tab is held and dragged (the owner's
-  // ask), and clearer, a drop of glass over the bar.
-  const count = all.length;
-  const dir = lens ? lens.dir : rest.dir;
-  const { lead, trail } = EDGE;
-  const lensStyle: CSSProperties = {
-    // Slid under a finger, its sides keep up with the finger, as the
-    // sheet's lens does (TabGlass): eased behind it, the pill's lagged and
-    // was laid out again every frame of the easing, at the owner's
-    // "sliding the tab selection is slower when in pill" (2026-10-24).
-    transition: [
-      ...(lens?.sliding ? [] : [`left ${dir > 0 ? trail : lead}s ${EASE}`, `right ${dir < 0 ? trail : lead}s ${EASE}`]),
-      `top 0.16s ${EASE}`, `bottom 0.16s ${EASE}`, "background-color 0.16s", "box-shadow 0.16s",
-    ].join(", "),
-    ...(lens
-      // Bigger, above most, at the owner's ask ("make the bubble bigger,
-      // specially bigger on the top part"): at rest a point past the bar's
-      // top, lifted ten past it and five below.
-      ? { top: -10, bottom: -5, left: lens.x - lens.tab / 2 - 7, right: lens.width - lens.x - lens.tab / 2 - 7 }
-      : { top: -1, bottom: 1, left: `calc(${upAt} * 100% / ${count} + 2px)`, right: `calc(${count - 1 - upAt} * 100% / ${count} + 2px)` }),
-  };
-  // The tab in the tint: the one under the lens while it is up.
-  const lit = lens ? lens.over : upAt;
+  // at the bottom"): a flat pane of the tint (the style audit, 2026-10-26)
+  // behind the tab's glyph and word. The bar does nothing with a finger
+  // itself: the sheet's drag hears it (MapPanel's head), and a press that
+  // does not move is the button's own click.
   return (
     <nav
-      ref={bar} aria-label="Tabs" data-testid="tab-bar" data-lens=""
+      ref={bar} aria-label="Tabs" data-testid="tab-bar"
       className={cn("relative flex h-full w-full touch-none items-stretch select-none [-webkit-touch-callout:none] print:hidden", className)}
-      // A finger down: the lens lifts if it stays (LIFT_MS), or as soon as
-      // it slides along.
-      onPointerDown={event => {
-        if (!event.isPrimary || event.button !== 0) return;
-        if (gesture.current) window.clearTimeout(gesture.current.timer);
-        const g = { id: event.pointerId, x: event.clientX, y: event.clientY, lastX: event.clientX, sliding: false, timer: 0 };
-        g.timer = window.setTimeout(() => { if (gesture.current === g) lift(g.lastX, false); }, LIFT_MS);
-        gesture.current = g;
-      }}
-      onPointerMove={event => {
-        const g = gesture.current;
-        if (!g || event.pointerId !== g.id) return;
-        const dx = event.clientX - g.x, dy = event.clientY - g.y;
-        g.lastX = event.clientX;
-        if (!g.sliding) {
-          // Up or down first: the sheet's drag (useDetentDrag), not the lens.
-          if (Math.abs(dy) >= SLIDE_SLOP && Math.abs(dy) >= Math.abs(dx)) {
-            putDown(upAt);
-            return;
-          }
-          if (Math.abs(dx) < SLIDE_SLOP) {
-            if (lens) lift(event.clientX, false);
-            return;
-          }
-          g.sliding = true;
-          window.clearTimeout(g.timer);
-          // Followed off the bar too: a mouse leaves it as it slides.
-          try {
-            event.currentTarget.setPointerCapture(event.pointerId);
-          } catch {
-            // A pointer that is not down -- a script's -- has none to take.
-          }
-        }
-        // The lens's own, which the sheet's drag leaves alone.
-        event.preventDefault();
-        lift(event.clientX, true);
-      }}
-      // Let go: a tap on the tab under the finger, or the lens set down on
-      // the tab under it, which picks it as a tap does -- but not the tab
-      // it was lifted from, which stays as it was, as iOS's does.
-      onPointerUp={event => {
-        const g = gesture.current;
-        if (!g || event.pointerId !== g.id) return;
-        const { over } = along(event.currentTarget, count, g.sliding ? event.clientX : g.x);
-        putDown(over);
-        passOverClick();
-        if (g.sliding && over === upAt) return;
-        tapped(all[over]!.value);
-      }}
-      onPointerCancel={event => {
-        if (gesture.current?.id === event.pointerId) putDown(upAt);
-      }}
-      // The bar's hold on a sliding finger lost with the finger still down.
-      onLostPointerCapture={event => {
-        if (event.target === event.currentTarget && gesture.current?.id === event.pointerId) putDown(upAt);
-      }}
-      // A finger held on the tabs is the lens's, not a long press's menu.
-      onContextMenu={event => {
-        if (gesture.current) event.preventDefault();
-      }}
     >
-      {/* In the sheet, the tab up out of a line of glass (TabGlass, the
-          owner's 2e), lifted under a finger as the same tab; in the pill,
-          a capsule of the same glass. */}
-      {upAt >= 0 && size?.size !== "peek" && (
-        <TabGlass
-          at={upAt} count={count} lifted={lens ? { x: lens.x, tab: lens.tab } : null}
-          // Slid under a finger, it keeps up with the finger: no easing
-          // behind it, which left it a fifth of a second back (the owner's
-          // "Dragging tab bubble is slow"); lifted, set down or moved to
-          // another tab, the bar's own pace.
-          transition={lens?.sliding ? "none" : `left ${dir > 0 ? trail : lead}s ${EASE}, width ${dir < 0 ? trail : lead}s ${EASE}`}
-        />
-      )}
-      {upAt >= 0 && size?.size === "peek" && (
-        <span
-          aria-hidden="true" data-testid="tab-bubble" data-lifted={lens ? "" : undefined}
-          className={cn(
-            // The same flat pane of the tint as the tab up's in the sheet
-            // (TabGlass), so the bar reads alike at every height (the
-            // owner's "Why does the tab selection look different from small
-            // detent to medium detent", 2026-10-26). Lifted, a step deeper.
-            "pointer-events-none absolute rounded-2xl", lens ? "bg-tint/16" : "bg-tint/10",
-          )}
-          style={lensStyle}
-        />
-      )}
-      {all.map(({ value, label, icon: Icon }, at) => {
+      {all.map(({ value, label, icon: Icon }) => {
         const current = value === up;
         const mark = value === "setup" ? undefined : marks?.[value as T];
         return (
           <button
             key={value} type="button" aria-current={current ? "page" : undefined}
-            // A keyboard's and a screen reader's tap; a finger's is picked as
-            // it lifts (above).
             onClick={() => tapped(value)}
             data-testid={value === "setup" ? "setup-button" : `tab-${value}`} data-current={current || undefined}
-            data-lit={at === lit || undefined}
             data-console-button={value === "setup" ? "" : undefined}
             // Its mark said to a reader, after its name.
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(
-              // Over the bubble (positioned, so drawn after it), in the
-              // middle of the bar's 56 points.
               "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-px rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
               // The others a darker grey, at the owner's pick of the tabs'
               // sizes ("A, plus D's bolder weight", 2026-10-22): they read
-              // from farther, in sun, on the glass over any chart.
-              // The tab up's word is on its pane of the tint over the sheet's
-              // grey, which the plain tint clears by 4.6:1 at best (4.2:1 over
-              // a darker ground) where WCAG 1.4.3 asks 4.5:1 of 13-point
-              // text: the tint's deeper step (--tint-shade, as SHEET_BELOW
-              // takes for what lies under the bar) is 5.5:1 and 5.0:1.
-              at === lit ? "text-tint [--tint:var(--tint-shade)]" : "text-foreground/80 hover:text-foreground",
+              // from farther, in sun, on the glass over any chart. The tab
+              // up's word on its pane of the tint over the sheet's grey,
+              // which the plain tint clears by 4.6:1 at best where WCAG
+              // 1.4.3 asks 4.5:1 of 13-point text: the tint's deeper step
+              // (--tint-shade) is 5.5:1 and 5.0:1.
+              current ? "text-tint [--tint:var(--tint-shade)]" : "text-foreground/80 hover:text-foreground",
             )}
           >
+            {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1.5 inset-y-0.5 rounded-2xl bg-tint/10" />}
             <span className="relative">
               {/* 28 and 13, bolder lines, at the owner's pick (A with D's
                   weight, 2026-10-22), each at one weight whatever its size
-                  or state: the tab up was scaled by 1.08 and drawn heavier,
-                  its lines off the pixel grid and thicker than its
-                  neighbours' (2.5 against 2.1 of a 24 grid, measured 30.24
-                  points wide), which the owner saw as not crisp and not one
-                  size (2026-10-27). The airplane, drawn on the diagonal, a
-                  size up to look as big as the rest (its ink 18 wide to the
-                  others' 16 to 18 tall and wide, but thinner). */}
+                  or state. The airplane, drawn on the diagonal, a size up
+                  to look as big as the rest. */}
               <Icon
                 className={value === "aircraft" ? "size-[30px]" : "size-7"} absoluteStrokeWidth strokeWidth={2.25}
                 aria-hidden="true"
@@ -710,7 +466,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
                 />
               )}
             </span>
-            <span className={cn(at === lit ? "font-bold" : "font-semibold", TEXT.tab)}>{label}</span>
+            <span className={cn("relative", current ? "font-bold" : "font-semibold", TEXT.tab)}>{label}</span>
           </button>
         );
       })}
