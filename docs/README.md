@@ -185,6 +185,20 @@ service discovery at `planning-service.vfr-route.internal`.
   briefing on `/app/plan`, the flight planning drawer (the
   narrative itself comes through `webapp`'s own `/api/comparison`,
   below)
+- `/api/assistant` — the pilot's assistant (`app/assistant.py`): a
+  question about the flight in the pilot's own words, answered by Claude
+  with the planner's own functions as its tools (the plan, the weather at
+  a field, the briefing, the Go / No-Go, a field's card, the nearest
+  fields, a hold's entry, a diversion), so every figure is the planner's
+  and the model only chooses the tools and writes the words; streamed as
+  newline-delimited JSON with the raw sources the answer rests on
+- `/api/words/{notams,weather,risk,debrief,changes}` — short readings in
+  words (`app/words.py`): each sentence cites the raw source it rests on
+  by id (a METAR, a NOTAM, a finding), and a sentence with none is
+  dropped; `changes` diffs two briefings first and asks the model only
+  where something moved, for `webapp`'s flight watch
+  (`/api/flights/{id}/watch`: a saved flight re-briefed every half hour
+  up to departure, what changed mailed to the pilot)
 - `/api/model-comparison` — every trained algorithm's accuracy side by
   side: the dev console charts it, and Plan's info popover names the
   promoted one from it
