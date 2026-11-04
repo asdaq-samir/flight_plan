@@ -38,7 +38,7 @@ test("a winds outage never reads as an altitude the pilot typed", async ({ page 
   await expect(popover).not.toContainText("no legal altitude");
   // And no altitude typed beside the airplane for it.
   await closeCard(page, "profile-close");
-  await expect(page.getByTestId("altitude-input")).toHaveValue("");
+  await expect(page.getByTestId("altitude-input")).toHaveValue("FL-");
 });
 
 test("a plan whose winds are past their forecast's period marks the route box's refresh, which plans again", async ({ page }) => {

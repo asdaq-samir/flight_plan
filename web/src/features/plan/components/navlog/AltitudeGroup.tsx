@@ -32,7 +32,9 @@ const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round
 // Dashes, not an example figure: grey "080" after FL- read as an
 // altitude planned (the owner's screenshot, 2026-10-27, while the
 // altitudes were still being planned).
-const PLACEHOLDER = flightLevel(null);
+/** With no altitude, "FL-" kept in the field as the airplane's "N-" is,
+ *  and its three blanks after it in grey (flightLevel(null), "FL-___"). */
+const HINT = { start: "FL-", words: flightLevel(null).slice(3) };
 const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${altFt(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
@@ -159,12 +161,15 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
     // owner's ask ("when altitude is entered ... a profile button shows
     // up"), or why there is none to show.
     <InlineField
-      label="Cruise altitude" testId="altitude-group" tip="altitude" widest="FL-000" tabular placeholder={PLACEHOLDER}
+      label="Cruise altitude" testId="altitude-group" tip="altitude" widest="FL-000" tabular placeholder="" hint={HINT}
       input={{
         // "FL-" in the field's own text, not a label beside it: iOS keeps
         // a few points inside an input's edge, which set the figures apart
-        // from it ("FL- 125" on the owner's phone, 2026-10-27).
-        inputMode: "numeric", value: shown ? `FL-${shown}` : "", "aria-label": "Cruise altitude, a flight level or feet",
+        // from it ("FL- 125" on the owner's phone, 2026-10-27). Kept
+        // there while empty too, in the text's colour as the airplane's
+        // "N-" is, the blanks after it grey (the owner, 2026-11-04: "FL
+        // should be black like N").
+        inputMode: "numeric", value: `FL-${shown}`, "aria-label": "Cruise altitude, a flight level or feet",
         onChange: e => setTyped(e.target.value.toUpperCase().replace(/^FL-?/, "").replace(/\D/g, "").slice(0, 5)),
         onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },
         onBlur: fly, "data-testid": "altitude-input",

@@ -267,7 +267,7 @@ test("plan page: no legal altitude is the route's own problem: its chip says so 
   await controlsInSight(page);
   const mark = page.getByTestId("altitude-why");
   await expect(mark).toHaveAccessibleName(/no legal altitude/);
-  await expect(page.getByTestId("altitude-input")).toHaveValue("");
+  await expect(page.getByTestId("altitude-input")).toHaveValue("FL-");
   const problem = page.getByTestId("route-problem");
   await expect(problem).toHaveCount(0);
   // By its slot: on a phone the chip's sheet hides the page from the
