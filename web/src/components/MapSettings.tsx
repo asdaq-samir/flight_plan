@@ -7,7 +7,7 @@ import Segmented from "./Segmented";
 import { Switch } from "./ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
-import { BASE_CHARTS, usePreferences, type BaseChart, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { USGS_URL } from "../lib/map/OverlayTiles";
 import { useGoogleSession } from "../lib/map/googleSession";
@@ -142,6 +142,14 @@ export default function MapSettings() {
           <Segmented
             label="Chart at night" value={prefs.chartNight} onChange={v => prefs.setChartNight(v as ChartNight)}
             testId="chart-night-select" options={[{ value: "normal", label: "Normal" }, { value: "dimmed", label: "Dimmed" }]}
+          />
+        </ListRow>
+        {/* The chart in bright sunlight (lib/sunlight): from the phone's
+            light sensor where the browser has one, or by hand. */}
+        <ListRow title="Sunlight">
+          <Segmented
+            label="Sunlight" value={prefs.chartLight} onChange={v => prefs.setChartLight(v as ChartLight)}
+            testId="sunlight-select" options={[{ value: "auto", label: "Auto" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]}
           />
         </ListRow>
         {/* Own ship on the chart, a plane or the arrow, at the owner's ask:

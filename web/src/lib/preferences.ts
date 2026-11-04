@@ -47,6 +47,11 @@ export type NavEdge = "top" | "bottom";
 /** The FAA chart in the dark theme: as printed, or dimmed for night
  *  vision (index.css's chart-tiles). */
 export type ChartNight = "normal" | "dimmed";
+/** The chart in bright sunlight (lib/sunlight): its tiles at higher
+ *  contrast, the course and the sheets solid white with black figures.
+ *  Auto turns it on from the phone's light sensor where the browser has
+ *  one; On and Off are the pilot's own. */
+export type ChartLight = "auto" | "on" | "off";
 /** The app's look (lib/brand), one of the four the owner had drawn
  *  (2026-10-26): Sectional, the chart's own colours; Glass Cockpit;
  *  Windsock; Clear Sky. */
@@ -153,6 +158,8 @@ interface Preferences {
   /** The chart in the dark theme (ChartTiles), dimmed unless the pilot
    *  asks for it as printed. */
   chartNight: ChartNight;
+  /** The chart in sunlight (lib/sunlight): from the light sensor, on, or off. */
+  chartLight: ChartLight;
   /** The app's look: its tint, its typeface and its corners (lib/brand). */
   brand: Brand;
   /** How own ship is drawn on the chart (lib/map/ownShipLook). */
@@ -230,6 +237,7 @@ interface Preferences {
   setFilter: (key: FilterKey, on: boolean) => void;
   setNavBar: (navBar: NavEdge) => void;
   setChartNight: (chartNight: ChartNight) => void;
+  setChartLight: (chartLight: ChartLight) => void;
   setBrand: (brand: Brand) => void;
   setOwnShipLook: (ownShipLook: OwnShipLook) => void;
   setNarrative: (narrative: NarrativeFramework) => void;
@@ -294,6 +302,7 @@ export const usePreferences = create<Preferences>()(
       filters: DEFAULT_FILTERS,
       navBar: null,
       chartNight: "dimmed",
+      chartLight: "auto",
       brand: "sectional",
       // A plane, at the owner's ask, where it was the arrow.
       ownShipLook: "single",
@@ -364,6 +373,7 @@ export const usePreferences = create<Preferences>()(
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setNavBar: navBar => set({ navBar }),
       setChartNight: chartNight => set({ chartNight }),
+      setChartLight: chartLight => set({ chartLight }),
       setBrand: brand => set({ brand }),
       setOwnShipLook: ownShipLook => set({ ownShipLook }),
       setNarrative: narrative => set({ narrative }),
@@ -398,15 +408,18 @@ export const usePreferences = create<Preferences>()(
       // browser that had them on by the old default (the owner's ask).
       // 2: the airspace and the VORs drawn over the chart, on for every
       // browser as for a new one (the owner's pick of the map's looks).
-      version: 2,
+      // 3: the chart in sunlight from the light sensor (Auto), for every
+      // browser as for a new one.
+      version: 3,
       migrate: (kept, from) => ({
         ...(kept as object),
         ...(from < 1 ? { waypoints: false } : {}),
         ...(from < 2 ? { airspace: true, navaids: true } : {}),
+        ...(from < 3 ? { chartLight: "auto" } : {}),
       }) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
         flightRules: s.flightRules,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
