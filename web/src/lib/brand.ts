@@ -14,18 +14,15 @@ export const BRANDS: { value: Brand; label: string }[] = [
   { value: INK, label: "Chart ink" },
 ];
 
-/** Each look's typeface, fetched only when it is picked. Chart ink
- *  reads in Barlow, as the cockpit does, with Barlow Condensed for a
- *  figure's label, an ident and a word button (index.css --display,
- *  lib/text's label and word). */
+/** Each look's own typeface beyond Barlow, which both read in and which
+ *  is in the first stylesheet (main.tsx), fetched only when it is
+ *  picked: Chart ink's Barlow Condensed for a figure's label, an ident
+ *  and a word button (index.css --display, lib/text's label and word). */
 const FONTS: Record<Brand, () => Promise<unknown>> = {
-  cockpit: () => import("@fontsource/barlow/latin-500.css").then(() => Promise.all([
-    import("@fontsource/barlow/latin-600.css"), import("@fontsource/barlow/latin-700.css"), import("@fontsource/barlow/latin-400.css"),
-  ])),
-  ink: () => import("@fontsource/barlow/latin-400.css").then(() => Promise.all([
-    import("@fontsource/barlow/latin-500.css"), import("@fontsource/barlow/latin-600.css"), import("@fontsource/barlow/latin-700.css"),
+  cockpit: () => Promise.resolve(),
+  ink: () => Promise.all([
     import("@fontsource/barlow-condensed/latin-600.css"), import("@fontsource/barlow-condensed/latin-700.css"),
-  ])),
+  ]),
 };
 
 /** Whether the Chart ink look is on, for what sets its own type or its

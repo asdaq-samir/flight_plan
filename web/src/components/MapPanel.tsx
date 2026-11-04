@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_MARGIN, SHEET_SECONDS, TabBarMinimized,
+  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_MARGIN, TabBarMinimized,
   useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
 import { useOpenCards } from "../lib/openCards";
@@ -208,7 +208,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const asked = useRef<PanelState | null>(null);
   // On its way to `size`, and how long the way takes.
   const [moving, setMoving] = useState(false);
-  const [seconds, setSeconds] = useState(SHEET_SECONDS);
+  // None until it first moves: drawn where it rests as the page opens,
+  // not eased there from wherever the Drawer had it before measuring.
+  const [seconds, setSeconds] = useState(0);
   const atPill = size === "peek" && hasPill;
 
   // Measured at rest: the head's band, the foot, and what the pill shows.

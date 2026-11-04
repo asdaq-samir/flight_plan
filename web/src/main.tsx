@@ -18,6 +18,16 @@ import { startSpeedReports } from "./lib/speed";
 import MapPage from "./features/page/MapPage";
 import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
+// Barlow, the face of both looks (lib/brand), in the first stylesheet
+// rather than fetched once the app has drawn: drawn first in the system's
+// face and swapped, the tabs' and every other word shrank as the page
+// settled (the owner, 2026-11-04: "Why do the tabs font become smaller
+// as they settle on load?"). Chart ink's Barlow Condensed is still
+// fetched only when that look is picked.
+import "@fontsource/barlow/latin-400.css";
+import "@fontsource/barlow/latin-500.css";
+import "@fontsource/barlow/latin-600.css";
+import "@fontsource/barlow/latin-700.css";
 import { followAppLinks, followBackButton, inNativeApp, nativePlatform } from "./lib/native";
 import { startTv, tvPlatform } from "./lib/tv";
 import { loadEngine } from "./lib/engine/engine";
@@ -208,4 +218,11 @@ const render = () => ReactDOM.createRoot(document.getElementById("root")!, {
     </ThemeProvider>
   </React.StrictMode>,
 );
-void engineLoaded.catch(error => { sendReport(reportOf("error", error)); console.error(error); }).finally(render);
+// And the face in before the first render, so no word is drawn in another
+// first; never held more than 400 ms for it, the system's face then.
+const faceLoaded = Promise.race([
+  Promise.all(["400", "500", "600", "700"].map(weight => document.fonts.load(`${weight} 1rem Barlow`))),
+  new Promise(resolve => setTimeout(resolve, 400)),
+]);
+void engineLoaded.catch(error => { sendReport(reportOf("error", error)); console.error(error); })
+  .finally(() => faceLoaded.then(render, render));
