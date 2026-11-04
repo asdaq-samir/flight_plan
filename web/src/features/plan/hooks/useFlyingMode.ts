@@ -22,8 +22,14 @@ import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
  * by itself the next time the airplane is underway after being on the
  * ground: the tap is for this flight, not a setting.
  *
- * The sheet is brought to the pill as it starts, the figures alone over
- * the chart; the pilot opens it as ever for the nav log.
+ * The sheet is brought to the pill as a real flight starts, the figures
+ * alone over the chart; the pilot opens it as ever for the nav log. A dry
+ * run keeps the sheet where the pilot has it, its card's chart and its
+ * play, scrub and close in sight -- the owner's asks that a run started
+ * half way plays in the card (2026-10-20) and can be flown with the nav
+ * log all the way up (2026-10-28) -- under flying mode's look, at the
+ * owner's yes to keeping that look with the run's own controls back
+ * (2026-11-04): pulled to the pill, they were out of sight.
  */
 
 /** How long under flying speed before the airplane is on the ground. */
@@ -73,10 +79,12 @@ export function useFlyingMode({ routed, setPanel, nearest, direct }: {
     const timer = window.setTimeout(land, GROUND_MS);
     return () => window.clearTimeout(timer);
   }, [routed, up, hasFix, dryPlaying, stopped]);
-  // Started: the sheet down to the pill, the figures alone over the chart.
+  // Started: the sheet down to the pill, the figures alone over the chart;
+  // not for a dry run, whose controls are in its card.
+  const dryRun = usePastFlight(s => s.hex === DRY_RUN);
   useEffect(() => {
-    if (flying) setPanel("peek");
-  }, [flying, setPanel]);
+    if (flying && !dryRun) setPanel("peek");
+  }, [flying, dryRun, setPanel]);
   // Its buttons' doings told to the map's chrome (MapControls), and all of
   // it taken back with the planner.
   useEffect(() => {

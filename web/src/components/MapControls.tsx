@@ -86,6 +86,12 @@ export default function MapControls() {
                 D→
               </Button>
             )}
+            {/* The location arrow, 60 points as the rest: on the airplane,
+                and in a dry run its other face the whole route (the
+                owner's 2026-10-27 asks), which flying mode had put away
+                (the owner's yes to the run's own controls back,
+                2026-11-04). */}
+            <MyPositionButton />
           </>
         ) : (
           <>
