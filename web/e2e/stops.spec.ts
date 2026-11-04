@@ -750,7 +750,7 @@ test("an airport's card adds it as the route's next stop; a card of the route's 
   await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");
 });
 
-test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop", async ({ page }) => {
+test("a VFR waypoint on the chart is a magenta triangle with its ident, and its card adds it as a stop", async ({ page }) => {
   // The planner's own, through the webapp: Chicago's VFR waypoints.
   const answer = await page.request.get("/api/planner/waypoints/in-view?south=41.5&west=-88.5&north=42.5&east=-87.5");
   expect(answer.ok()).toBe(true);
