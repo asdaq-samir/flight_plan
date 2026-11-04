@@ -72,6 +72,23 @@ const preloadEngine: Plugin = {
   },
 };
 
+// An answer the service worker gives from its cache rather than the
+// network, marked so the page can say so (lib/fromCache): the header
+// carries when the network gave it, the response's own Date, which the
+// planner and the webapp send on every answer. Only on the NetworkFirst
+// caches below, where the cache answers only when the network has not --
+// the steady ones answer from the cache every time, by design. Written
+// out whole inside the function: Workbox copies it into the generated
+// worker as text, so it can use nothing from this file.
+const markFromCache = {
+  cachedResponseWillBeUsed: async ({ cachedResponse }: { cachedResponse?: Response | null }) => {
+    if (!cachedResponse) return null;
+    const headers = new Headers(cachedResponse.headers);
+    headers.set("X-From-Cache", cachedResponse.headers.get("date") ?? "");
+    return new Response(cachedResponse.body, { status: cachedResponse.status, statusText: cachedResponse.statusText, headers });
+  },
+};
+
 // Built into Spring Boot's static resources, which is what makes it the
 // only public surface: the bundle and the API it calls arrive from one
 // origin, so there is one session, one set of access rules, and no second
@@ -213,23 +230,73 @@ export default defineConfig({
               networkTimeoutSeconds: 10,
               expiration: { maxEntries: 400, maxAgeSeconds: 30 * 24 * 3600 },
               cacheableResponse: { statuses: [0, 200] },
+              plugins: [markFromCache],
             },
           },
           {
-            // What is true only now, never from the cache: the weather,
-            // the TFRs, the airspace and alternates ahead, and live
-            // traffic. A METAR, a TFR list or an airplane shown from last
-            // week because the network was slow is worse than none:
-            // nothing on the page could say it was old -- traffic is aged
-            // from when the page got it, and a TFR judged in force against
-            // now -- so old airplanes were drawn live and new TFRs were
-            // missing. With no network these fail, and the page says what
-            // could not be checked. A flight's past track stays cached, as
-            // does the nav log below: it is the plan the pilot flies, made
-            // before they went.
-            urlPattern: ({ url }) =>
-              /^\/api\/planner\/(briefing|class-b|tfrs|airspace\/ahead|alternate|traffic)\b/.test(url.pathname) && !/\/history\b/.test(url.pathname),
+            // Live traffic, never from the cache: an airplane is aged
+            // from when the page got it, so one kept from a minute ago
+            // would be drawn where it no longer is, as if live. With no
+            // network the layer fails and the page says so. A flight's
+            // past track (/history) is the planner-api cache's below.
+            urlPattern: ({ url }) => /^\/api\/planner\/traffic\b/.test(url.pathname) && !/\/history\b/.test(url.pathname),
             handler: "NetworkOnly",
+          },
+          {
+            // What is true only now -- the briefing, the Class B fields'
+            // weather, the TFRs, the airspace and alternates ahead -- from
+            // the network when it answers, and the last answer when it
+            // does not, at the owner's ask (2026-11-04) that a moment
+            // without signal still leaves the pilot what they had. These
+            // were never kept: a METAR or a TFR list shown as current
+            // when it was old was worse than none, since nothing on the
+            // page could say it was old. Now something does: every answer
+            // from here is marked (markFromCache) and the page says, in
+            // one line on the map, that it is showing what was saved and
+            // how long ago (lib/fromCache) -- warn, never limit.
+            //
+            // Six seconds for the network: the planner answers these from
+            // weather it already holds, in a second or two even on a weak
+            // cell link, and a phone that has lost signal often does not
+            // fail a request at all but leaves it hanging, so the page
+            // waited out the old fifteen seconds with nothing to show. A
+            // network answer that comes after the six still lands in the
+            // cache for the next ask. Kept a day at most: a TAF is issued
+            // every six hours and a METAR every hour, so a day-old
+            // briefing has been replaced several times over -- an old
+            // answer is worth having for a dropped minute, not as a
+            // briefing (the flight still wants the current one, 14 CFR
+            // 91.103). Their own cache, so a route's worth of them does
+            // not push the plans out of planner-api's 300.
+            urlPattern: ({ url, request }) =>
+              request.method === "GET" && /^\/api\/planner\/(briefing|class-b|tfrs|airspace\/ahead|alternate)\b/.test(url.pathname),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "planner-now",
+              networkTimeoutSeconds: 6,
+              expiration: { maxEntries: 100, maxAgeSeconds: 24 * 3600, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [0, 200] },
+              plugins: [markFromCache],
+            },
+          },
+          {
+            // The pilot's own, from the webapp rather than the planner --
+            // who is signed in, their airplanes, their saved flights, and
+            // what signing in offers -- the network first and the last
+            // answer when there is none, so a start with no signal still
+            // knows the pilot and their plans. Marked as the planner's
+            // are. Signing out empties this cache (useLogout): it is one
+            // pilot's, on a phone another may pick up.
+            urlPattern: ({ url, request }) =>
+              request.method === "GET" && /^\/api\/(me|flights|aircraft|auth\/capabilities)(\/|$)/.test(url.pathname),
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "pilot-own",
+              networkTimeoutSeconds: 6,
+              expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 3600, purgeOnQuotaError: true },
+              cacheableResponse: { statuses: [200] },
+              plugins: [markFromCache],
+            },
           },
           {
             // The airport search as it is typed, never through the cache:
@@ -272,7 +339,8 @@ export default defineConfig({
           },
           {
             // The planner's answers: the network when there is one
-            // (the winds change), the last answer when there is not.
+            // (the winds change), the last answer when there is not --
+            // marked, as planner-now's are, so the page says it is old.
             urlPattern: ({ url, request }) =>
               request.method === "GET" && url.pathname.startsWith("/api/planner/") && !url.pathname.includes("/chart-tile/"),
             handler: "NetworkFirst",
@@ -281,6 +349,7 @@ export default defineConfig({
               networkTimeoutSeconds: 15,
               expiration: { maxEntries: 300, maxAgeSeconds: 30 * 24 * 3600 },
               cacheableResponse: { statuses: [0, 200] },
+              plugins: [markFromCache],
             },
           },
         ],
