@@ -48,10 +48,19 @@ final class ClearanceListener {
         return last
     }
 
+    /// The microphone open for one question to the assistant (hearOnce).
+    private(set) var hearingOnce = false
+    /// The words of that question so far.
+    private var heardOnce: String?
+
     /// As many transmissions as are kept.
     private static let kept = 60
     /// A transmission is heard afresh at least this often, seconds.
     private static let longest: TimeInterval = 50
+    /// A question is over this long after its last word, seconds, and
+    /// at `longestOnce` whatever is still being said.
+    private static let pause: TimeInterval = 1.5
+    private static let longestOnce: TimeInterval = 20
 
     private let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
     private let audio = AVAudioEngine()
@@ -66,18 +75,21 @@ final class ClearanceListener {
     /// call, Siri) and gave it back, while listening.
     private var interruptions: Task<Void, Never>?
 
-    func start(words: [String]) async {
+    /// The microphone opened and the recognizer ready, with `problem` set
+    /// where it cannot be: the permissions asked for with the system's
+    /// sheets, the audio session for recording, the engine running with
+    /// one tap feeding whichever request is being heard.
+    private func openMicrophone() async -> Bool {
         problem = nil
         guard await Self.allowed() else {
             problem = "Microphone or speech recognition access was refused; allow it for Wingtip Maps in Settings."
             Log.radio.error("the microphone or speech recognition was refused")
-            return
+            return false
         }
-        await Notifications.allow()
         guard let recognizer, recognizer.isAvailable else {
             problem = "Speech recognition is not available now."
             Log.radio.error("speech recognition is not available")
-            return
+            return false
         }
         stop()
         do {
@@ -87,9 +99,8 @@ final class ClearanceListener {
         } catch {
             problem = "No microphone could be used."
             Log.radio.error("the audio session could not be set up: \(error.localizedDescription, privacy: .public)")
-            return
+            return false
         }
-        self.words = words
         // One tap for the whole time listening, each buffer into whichever
         // transmission's request is being heard.
         let input = audio.inputNode
@@ -101,8 +112,15 @@ final class ClearanceListener {
             input.removeTap(onBus: 0)
             problem = "No microphone could be used."
             Log.radio.error("the audio engine would not start: \(error.localizedDescription, privacy: .public)")
-            return
+            return false
         }
+        return true
+    }
+
+    func start(words: [String]) async {
+        await Notifications.allow()
+        guard await openMicrophone() else { return }
+        self.words = words
         listening = true
         Log.radio.notice("listening to the radio, \(words.count) names to listen for")
         hear()
@@ -173,6 +191,58 @@ final class ClearanceListener {
         }
     }
 
+    /// One thing said, for a question to the assistant (AskView): the
+    /// microphone until the words settle -- a pause after the last of
+    /// them, or `longestOnce` -- then closed again. Nothing heard goes in
+    /// the radio's log, and nothing is kept. Nil with `problem` set where
+    /// the microphone cannot be had, or when the radio is being listened
+    /// to, which it would have to be stopped for.
+    func hearOnce(words: [String] = []) async -> String? {
+        guard !listening else {
+            problem = "The radio is being listened to; stop it to ask by voice."
+            return nil
+        }
+        guard await openMicrophone(), let recognizer else { return nil }
+        hearingOnce = true
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        request.taskHint = .search
+        request.contextualStrings = words
+        if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
+        self.request = request
+        feed.set(request)
+        heardOnce = nil
+        let once = Once<String?>()
+        let text: String? = await withCheckedContinuation { done in
+            once.hold(done)
+            task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+                let text = result?.bestTranscription.formattedString
+                let final = result?.isFinal == true || error != nil
+                Task { @MainActor in
+                    guard let self else { once.resume(nil); return }
+                    if let text, !text.isEmpty { self.heardOnce = text }
+                    if final {
+                        once.resume(self.heardOnce)
+                        return
+                    }
+                    // A pause after the last words is the end of the question.
+                    self.cut?.cancel()
+                    self.cut = Task { [weak request] in
+                        try? await Task.sleep(for: .seconds(Self.pause))
+                        if !Task.isCancelled { request?.endAudio() }
+                    }
+                }
+            }
+            cut = Task { [weak request] in
+                try? await Task.sleep(for: .seconds(Self.longestOnce))
+                if !Task.isCancelled { request?.endAudio() }
+            }
+        }
+        hearingOnce = false
+        stop()
+        return text
+    }
+
     func stop() {
         listening = false
         cut?.cancel()
@@ -202,6 +272,25 @@ final class ClearanceListener {
         }
         guard speech else { return false }
         return await AVAudioApplication.requestRecordPermission()
+    }
+}
+
+/// A continuation resumed once, whichever of the recognizer's callbacks
+/// (a final result, an error, a cancel) gets there first.
+private final class Once<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<T, Never>?
+
+    func hold(_ continuation: CheckedContinuation<T, Never>) {
+        lock.lock(); self.continuation = continuation; lock.unlock()
+    }
+
+    func resume(_ value: T) {
+        lock.lock()
+        let held = continuation
+        continuation = nil
+        lock.unlock()
+        held?.resume(returning: value)
     }
 }
 
