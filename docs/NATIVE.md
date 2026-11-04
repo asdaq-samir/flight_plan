@@ -76,6 +76,38 @@ Where the Swift copies still differ, the fixtures leave the case out:
   (2026-10-28); the route item files no departure or arrival
   procedure from the phone yet.
 
+## The words, with no signal
+
+The Brief's "The weather in words" and the Go / No-Go's "The flight in
+words" (`Wingtip/Words/`) are a few plain sentences over the figures,
+each with the chips of the figures it rests on; a chip opens the report
+as sent. Every figure is the engine's or the planner's; a model only
+writes the sentences, and never a figure of its own:
+
+- `WordsFor` asks the planner first (`PlannerWords`: `POST
+  /api/words/{weather,risk}` through the gateway's proxy, Claude on the
+  planner, app.words), then this iPhone when the planner fails or
+  cannot be reached (`OnDeviceWords`: Apple's on-device model,
+  FoundationModels on iOS 26 with Apple Intelligence on), and says why
+  in plain words when neither can (an older iOS, the model still
+  downloading, no signal and no planner). The caption over the
+  sentences says which wrote them ("From the planner", "On this
+  iPhone").
+- The figures go to the device's model as compact JSON of `{id, label,
+  text}` (`WordsFigures`), with the planner's own ids (`metar:KMSN`,
+  `taf:KMSN`, `hazard:0`, `tfr:<notam id>`, `finding:fuel`,
+  `risk:<factor>`), so a chip means the same thing whichever model
+  wrote the sentence. The instructions forbid any figure not in the
+  input.
+- Every sentence is checked on the phone (`Words.checked`, the
+  planner's app.words.checked again): one citing an id it was not
+  given, or nothing, is dropped, since a model can cite wrongly, and
+  at most ten are kept. `WingtipTests/WordsTests` holds the order of
+  the providers and the guard.
+- Every use of FoundationModels sits behind `#if
+  canImport(FoundationModels)` and `#available(iOS 26, *)`, so the app
+  builds on an older SDK and runs on iOS 18 without the words.
+
 ## Apple's guidance, and where the app stands
 
 Apple names no architecture; for SwiftUI it asks for a declarative data

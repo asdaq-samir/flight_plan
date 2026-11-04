@@ -13,6 +13,10 @@ struct BriefView: View {
     @Environment(Verdict.self) private var verdict
     @Environment(Session.self) private var session
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The briefing in words (Words.swift): the planner's, else this
+    /// iPhone's; written again as the briefing changes.
+    @State private var weatherWords: SaidWords?
+    @State private var writingWords = false
 
     /// The first of the weather's parts the Brief has, where the weather's
     /// finding opens: VFR not recommended, the hazards, the G-AIRMETs, else
@@ -42,6 +46,7 @@ struct BriefView: View {
                 }
                 if let briefing = plan.briefing {
                     let weatherAt = weatherPart(briefing)
+                    WordsSection(title: "The weather in words", said: weatherWords, writing: writingWords)
                     if let notRecommended = briefing.vfrNotRecommended, !notRecommended.isEmpty {
                         Section {
                             ForEach(Array(notRecommended.enumerated()), id: \.offset) { i, reason in
@@ -177,5 +182,20 @@ struct BriefView: View {
         }
         // Asked again whenever the plan or what the pilot set changes.
         .task(id: verdict.key(for: plan)) { await verdict.refresh(plan: plan, signedIn: session.signedIn) }
+        // The words for the briefing on the page, written again when it
+        // changes; the figures stay as they are while they are written.
+        .task(id: plan.briefing) {
+            guard let briefing = plan.briefing else { weatherWords = nil; return }
+            writingWords = true
+            defer { writingWords = false }
+            let legs = BriefLegs.query(course: plan.course, checkpoints: plan.checkpoints, legs: plan.legs)
+            let eteMin = plan.totals?.eteMin
+            let figures = WordsFigures.weather(briefing, dep: plan.dep, dest: plan.dest, stops: plan.stops, eteMin: eteMin)
+            let body = WeatherWordsAsk(dep: plan.dep, dest: plan.dest, stops: plan.stops, eteMin: eteMin, fixes: legs?.fixes ?? "", legMin: legs?.legMin ?? "")
+            guard let ask = try? WordsAsk(kind: .weather, body: body, figures: figures) else { return }
+            let said = await WordsFor().said(ask)
+            guard !Task.isCancelled else { return }
+            weatherWords = said
+        }
     }
 }
