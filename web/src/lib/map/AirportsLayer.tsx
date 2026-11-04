@@ -11,8 +11,8 @@ import { AirportMarksLayer, type CanvasMark } from "./AirportCanvas";
 import { useCardRings } from "./Halo";
 import { selectionIcon } from "./icons";
 import { useDrawnAirports } from "./declutter";
-import { boxOf, hovers } from "./view";
-import { PANNING_MS, useAhead, useLiveZoom } from "./useView";
+import { boundsAt, boxAt, boxOf, hovers, type Box } from "./view";
+import { PANNING_MS, levelOf, useAhead, useLiveZoom, type FlightStart } from "./useView";
 
 /** From this zoom in a sectional draws its airports big enough to aim a
  *  finger at; further out the targets would be a field of overlapping
@@ -68,6 +68,23 @@ const PRIVATE_FROM_ZOOM = 11;
 
 /** The most fields the planner answers with at once. */
 const AIRPORTS_LIMIT = 1000;
+
+/** The planner asked for a box's fields at a zoom, from FARTHEST_ZOOM in:
+ *  at zoom 7 and further out the ones that report alone. Up to a
+ *  thousand, the box being some nine views: the planner's most, 270 in
+ *  two degrees by two and a half round Chicago in 0.14 s. Ten minutes, as
+ *  a METAR's colour can change by the hour. The layer's useQuery and the
+ *  map's own events (useAhead) ask it alike. */
+export function airportsQuery(asked: Box, zoom: number) {
+  const reportingOnly = zoom < FROM_ZOOM;
+  return {
+    queryKey: ["airportsInView", asked.key, reportingOnly],
+    queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
+    enabled: zoom >= FARTHEST_ZOOM,
+    staleTime: 10 * 60_000,
+    meta: { silent: true },
+  };
+}
 
 /** How near the mouse names a field: its mark's half-width. */
 const HOVER_PX = 13;
@@ -171,8 +188,9 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // already, and the marks are drawn as they come into sight. Drawn for
   // the view alone (below), not the whole box: a mark costs a phone over a
   // millisecond to make, and the box's 885 round Minneapolis held the map
-  // up seconds.
-  const asked = useAhead();
+  // up seconds. The question goes from the map's own event, and a
+  // flight's for where it lands as it takes off (useAhead's `flights`).
+  const asked = useAhead(airportsQuery, { flights: true });
   // Memoized, not an object literal. react-leaflet lists the handlers
   // object in its effect's own dependencies, so a fresh one on every
   // render detaches the listener and re-attaches it on every commit --
@@ -187,18 +205,34 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // it opened one. Anywhere else, the card is put away.
   const drawn = useRef<AirportPin[]>([]);
   const elsewhere = useRef(others);
-  // A flight across zooms (flyTo: a route picked, the arrow's close-in)
-  // draws nothing new until it lands: the view grew as it flew out while
-  // the zoom it draws for (useLiveZoom) was still the close one, and every
-  // field in a whole state's view was drawn for a moment, hundreds of
-  // marks over the chart, at the owner's notice ("going from current
-  // location to zoom out is not smooth").
+  // A flight across zooms (flyTo: a route picked, a card's field) draws,
+  // as it takes off, the marks of the view it will land on at the level it
+  // will land at, beside the marks drawn already, and nothing for the
+  // views it passes over on the way: drawn for the view as it flew, the
+  // view grew as it flew out while the zoom it drew for (useLiveZoom) was
+  // still the close one, and every field in a whole state's view was drawn
+  // for a moment, hundreds of marks over the chart, at the owner's notice
+  // ("going from current location to zoom out is not smooth"). The marks
+  // waited for it to land, then for the planner, and faded in after it
+  // (the audit of the map's overlays, 2026-11-04; the owner, "make it fast
+  // but stable"). Those drawn as it took off stay, as they were, until it
+  // lands, so none goes from the screen as the flight starts.
   const flying = useRef(false);
+  const [flight, setFlight] = useState<{ level: number; held: CanvasMark[] } | null>(null);
+  const drawnMarks = useRef<CanvasMark[]>([]);
   // The zoom what is drawn was drawn at: a zoom in keeps the bounds inside
   // the drawn ones, but the marks shown change with the level.
   const seenZoom = useRef(map.getZoom());
   const handlers = useMemo(() => ({
-    zoom: (e: L.LeafletEvent & { flyTo?: boolean }) => { if (e.flyTo) flying.current = true; },
+    flystart: (e: FlightStart) => {
+      flying.current = true;
+      const bounds = boundsAt(map, e.center, e.zoom);
+      const next = boxAt(bounds, e.zoom);
+      setFlight({ level: levelOf(e.zoom), held: drawnMarks.current });
+      setView(was => (was.key === next.key && was.zoom === next.zoom ? was : next));
+      setSeen(bounds);
+      seenZoom.current = e.zoom;
+    },
     // Drawn again only as the view nears the edge of what is drawn, not
     // at every step of a move: a draw a few times a second under a finger
     // held a busy phone's pan up.
@@ -215,6 +249,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     // thousand marks again for nothing.
     moveend: () => {
       flying.current = false;
+      setFlight(null);
       const next = boxOf(map);
       setView(was => (was.key === next.key && was.zoom === next.zoom ? was : next));
       const bounds = map.getBounds();
@@ -273,11 +308,11 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     container.addEventListener("click", caught, true);
     return () => container.removeEventListener("click", caught, true);
   }, [map]);
-  const near = zoom >= FROM_ZOOM;
-  const reports = zoom >= FARTHEST_ZOOM;
-  // At zoom 7 the view asks for the fields that report alone -- at the
-  // zoom a zoom is going to, so the question goes as it starts.
-  const reportingOnly = zoom < FROM_ZOOM;
+  // The level drawn for: a zoom's as it starts (useLiveZoom), and a
+  // flight's landing's as it takes off.
+  const level = flight?.level ?? zoom;
+  const near = level >= FROM_ZOOM;
+  const reports = level >= FARTHEST_ZOOM;
   // The fields along the route that report, asked for once the route is
   // drawn: zoomed in anywhere on it, their chips are already here, where
   // they used to wait for the zoom to settle and then behind its tiles.
@@ -293,16 +328,12 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     refetchInterval: 10 * 60_000,
     meta: { silent: true },
   });
-  // Up to a thousand, the box being some nine views: the planner's most,
-  // 270 in two degrees by two and a half round Chicago in 0.14 s.
+  // At zoom 7 the view asks for the fields that report alone -- at the
+  // zoom a zoom is going to, so the question goes as it starts.
   const { data: inView } = useQuery({
-    queryKey: ["airportsInView", asked.key, reportingOnly],
-    queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
-    enabled: zoom >= FARTHEST_ZOOM,
-    staleTime: 10 * 60_000,
+    ...airportsQuery(asked, level),
     refetchInterval: 10 * 60_000,
     placeholderData: keepPreviousData,
-    meta: { silent: true },
   });
   // The planner keeps the biggest fields when the box holds more than the
   // limit, cut from the whole box and not from the view, so a full answer
@@ -310,13 +341,10 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // asked for too (the old question, with a thousand to spare for one view).
   const full = (inView?.length ?? 0) >= AIRPORTS_LIMIT;
   const { data: inViewAlone } = useQuery({
-    queryKey: ["airportsInView", view.key, reportingOnly],
-    queryFn: () => api.airportsInView({ ...view.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
-    enabled: full && zoom >= REPORTING_FROM_ZOOM,
-    staleTime: 10 * 60_000,
+    ...airportsQuery(view, level),
+    enabled: full && level >= REPORTING_FROM_ZOOM,
     refetchInterval: 10 * 60_000,
     placeholderData: keepPreviousData,
-    meta: { silent: true },
   });
   const data = useMemo(() => {
     // The view as it rested, on its half-degree grid, and as it is now
@@ -341,8 +369,8 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   const ringCovered = useCardRings(s => s.open > 0);
   const shown = useMemo(() => {
     if (!reports) return [];
-    const kept = data.filter(a => !exclude.has(a.ident) && (zoom >= shownFrom(a) || a.ident === selectedIdent) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
-    if (zoom >= REPORTING_FROM_ZOOM) return kept;
+    const kept = data.filter(a => !exclude.has(a.ident) && (level >= shownFrom(a) || a.ident === selectedIdent) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
+    if (level >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
     // Ahead of its size, the field a Class B or C is named for (the
@@ -354,30 +382,43 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     const out: AirportPin[] = [];
     const primary = (a: AirportPin) => (a.primary_of ? PRIMARY_RANK[a.primary_of] : 3);
     for (const a of [...kept].sort((x, y) => primary(x) - primary(y) || shownFrom(x) - shownFrom(y) || KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
-      const at = map.project([a.lat, a.lon], zoom);
+      const at = map.project([a.lat, a.lon], level);
       if (room.some(p => p.distanceTo(at) < OUT_APART_PX)) continue;
       room.push(at);
       out.push(a);
     }
     return out;
-  }, [reports, data, exclude, near, showMilitary, showPrivate, zoom, map, selectedIdent]);
+  }, [reports, data, exclude, near, showMilitary, showPrivate, level, map, selectedIdent]);
   useEffect(() => { drawn.current = shown; }, [shown]);
   useEffect(() => { elsewhere.current = others; }, [others]);
   // What the canvas draws (AirportCanvas): each field's mark where it
   // wears one, its look from its airspace, its use and its METAR's colour.
-  const marks = useMemo((): CanvasMark[] => shown.map(a => ({
+  const own = useMemo((): CanvasMark[] => shown.map(a => ({
     ident: a.ident, lat: a.lat, lon: a.lon,
-    chip: !!a.flight_category || zoom >= (a.private ? PRIVATE_FROM_ZOOM : NO_REPORT_FROM_ZOOM),
+    chip: !!a.flight_category || level >= (a.private ? PRIVATE_FROM_ZOOM : NO_REPORT_FROM_ZOOM),
     space: a.airspace_class ?? null, weather: colourOf(a.flight_category),
     use: a.military === "military" ? "military" : a.private ? "private" : null,
-  })), [shown, zoom]);
+  })), [shown, level]);
+  // Through a flight, the marks drawn as it took off as well, as they
+  // were, the landing's own over them where a field is in both.
+  const marks = useMemo((): CanvasMark[] => {
+    if (!flight) return own;
+    const byIdent = new Map(flight.held.map(m => [m.ident, m]));
+    for (const m of own) byIdent.set(m.ident, m);
+    return [...byIdent.values()];
+  }, [flight, own]);
+  useEffect(() => { drawnMarks.current = marks; }, [marks]);
   // The fields wearing a mark and an ident just now, the canvas's and the
   // route's own, for the VORs' tags to keep off (declutter): given as what
-  // is drawn changes, not at every render.
+  // is drawn changes, not at every render; and as a flight lands, not as
+  // it takes off: the tags are kept clear of the marks at the level the
+  // map is at, and the landing's, drawn for another level, would have
+  // moved a tag for a field that was not yet beside it.
   useEffect(() => {
-    const fields = [...marks.filter(m => m.chip), ...others];
+    if (flight) return;
+    const fields = [...own.filter(m => m.chip), ...others];
     useDrawnAirports.setState({ fields });
-  }, [marks, others]);
+  }, [flight, own, others]);
   useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
   return (
     <>

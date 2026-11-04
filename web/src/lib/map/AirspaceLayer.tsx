@@ -88,16 +88,15 @@ function kept(volumes: AirspaceVolume[], box: { south: number; north: number }):
 export function AirspaceLayer() {
   const show = usePreferences(s => s.airspace);
   // Asked for as the airports' marks are (useAhead, useLiveZoom): the view
-  // and a screen round it, again under a finger's pan or pinch.
+  // and a screen round it, again under a finger's pan or pinch, the
+  // question sent from the map's own event.
   const zoom = useLiveZoom();
-  const asked = useAhead();
-  const on = show && zoom >= CLASS_B_FROM_ZOOM;
+  const asked = useAhead((box, level) => airspaceQuery(box, level, show));
   const near = zoom >= FROM_ZOOM;
-  const classes = near ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
-  const query = useMemo(() => airspaceQuery(asked, classes), [asked, classes]);
-  const { data } = useQuery({ ...query, enabled: on, placeholderData: keepPreviousData });
+  const query = useMemo(() => airspaceQuery(asked, zoom, show), [asked, zoom, show]);
+  const { data } = useQuery({ ...query, placeholderData: keepPreviousData });
   const volumes = data ?? NONE;
-  if (!on) return null;
+  if (!query.enabled) return null;
   return (
     <>
       <Pane name="airspace" style={LINES_PANE}>
@@ -190,11 +189,16 @@ function Lines({ query }: { query: AirspaceQuery }) {
 }
 
 /** The planner asked for a box's volumes, once per box and classes (the
- *  query cache): the lines' layer, the altitudes and the taps share it. */
-function airspaceQuery(asked: Box, classes: string) {
+ *  query cache): the lines' layer, the altitudes and the taps share it,
+ *  and the map's own events ask it as they happen (useAhead). The Class B
+ *  from CLASS_B_FROM_ZOOM, the C too from CLASS_C_FROM_ZOOM and the D from
+ *  FROM_ZOOM; none where the settings' Airspace is off. */
+export function airspaceQuery(asked: Box, zoom: number, show: boolean) {
+  const classes = zoom >= FROM_ZOOM ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
   return {
     queryKey: ["airspaceInView", asked.key, classes],
     queryFn: () => api.airspaceInView({ ...asked.box, classes }).then(volumes => kept(volumes, asked.box)),
+    enabled: show && zoom >= CLASS_B_FROM_ZOOM,
     staleTime: Infinity,
     meta: { silent: true },
   };
