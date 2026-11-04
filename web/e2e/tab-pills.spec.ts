@@ -23,8 +23,8 @@ async function keep(page: Page, state: Record<string, unknown>) {
 
 /** A finger's pointer events across the panel, `by` points sideways: on
  *  the tab bar's row, in its margin beside the tabs, as what is under the
- *  row changes with the tab, a row that slides sideways keeps the finger,
- *  and on the tabs themselves a finger slides their lens. */
+ *  row changes with the tab, and a row that slides sideways keeps the
+ *  finger. */
 async function swipeAcross(page: Page, by: number) {
   const panel = sideDrawer(page);
   const row = (await panel.getByTestId("tab-bar").locator("xpath=..").boundingBox())!;

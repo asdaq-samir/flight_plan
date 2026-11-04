@@ -319,14 +319,14 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       if (!on(box)) continue;
       // A sheet from the top of the screen is rounded at its bottom only.
       const r = Math.max(parseFloat(getComputedStyle(box).borderTopLeftRadius), parseFloat(getComputedStyle(box).borderBottomLeftRadius));
-      // The panel at rest a rectangle with its corners 24 round, at the
-      // pilot's ask (mapChrome's PILL_RADIUS); a phone's sheet (the map's
-      // panel, the console) 36, inset or on the screen's edges with its
-      // far corners round.
-      const sheet = box.matches('[data-slot="map-panel"][data-sheet], [data-slot="console-sheet"], [data-floating]');
+      // The map's panel a rectangle with its corners 24 round at every
+      // size, at the pilot's ask (mapChrome's PILL_RADIUS: one shape, the
+      // pill being the sheet at its lowest); a phone's other sheets (the
+      // console) 36, with their far corners round.
+      const sheet = box.matches('[data-slot="console-sheet"], [data-floating]');
       // A toast is Apple Maps' banner, a capsule (the toast rewrite, 2026-10-27).
       const shape = box.matches("[data-capsule], [data-sonner-toast]") ? Math.min(24, box.getBoundingClientRect().height / 2)
-        : sheet ? 36 : box.matches("[data-glass]") ? 28 : radius;
+        : box.matches('[data-slot="map-panel"][data-sheet]') ? 24 : sheet ? 36 : box.matches("[data-glass]") ? 28 : radius;
       if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${Math.round(shape)}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {

@@ -733,7 +733,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // is put away there.
             "flex min-h-[3.875rem] shrink-0 flex-col justify-center border-t pb-1 print:hidden", ROW_PAD, cardInPill ? "px-0" : "px-4",
             !footShown && "hidden",
-            atPill ? "border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
+            // In the pill the finger is the sheet's (touch-none), as on the
+            // tabs: the browser's own scroll took it and cancelled the drag.
+            atPill ? "touch-none border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
             fieldPill && atPill && "px-3",
           )}
           style={{ ...(toEdge && fromBottom && !atPill ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties}

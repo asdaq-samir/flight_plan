@@ -43,11 +43,12 @@ test("the panel follows a finger from anywhere on its body: out to the top, and 
     return { x: box.x + box.width / 2, y: box.y + Math.min(box.height / 2, 120) };
   };
 
-  // Up from half, on the Brief's first card -- all of the body half way
-  // up shows -- the sheet comes all the way out, and the card under the
-  // finger is not opened by the release.
-  const card = panel.getByTestId("brief-glance-preflight");
-  await fingerDrag(page, await middleOf(card), -400);
+  // Up from half, on the Brief's glance where it shows half way up (its
+  // Ask and its verdict; the pages' cards are below the fold since the
+  // AI build of 2026-11-03): the sheet comes all the way out, and what is
+  // under the finger is not opened by the release.
+  const glance = panel.getByTestId("brief-scroller");
+  await fingerDrag(page, await middleOf(glance), -400);
   await expect(panel).toHaveAttribute("data-panel", "full");
   await expect(panel.getByTestId("brief-glance")).toBeVisible();
   await expect(panelTabs(page)).toHaveCount(0);
