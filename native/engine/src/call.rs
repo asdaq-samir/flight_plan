@@ -35,6 +35,12 @@
 //! - `read_clearance`: an ATC clearance heard, read into its items as the
 //!   web's lib/clearance read it (clearance.rs, AIM 4-4-3), from
 //!   `{"text"}`, the answer the web's Clearance (camelCase);
+//! - `read_atis`: an ATIS or AWOS/ASOS broadcast heard, read into its
+//!   figures (atis.rs, AIM 4-1-13), from `{"text"}`: `{"information",
+//!   "time_z", "wind": {"from_deg", "kt", "gust_kt", "variable"}|null,
+//!   "visibility_sm", "sky": [{"cover", "base_ft"}], "temp_c",
+//!   "dewpoint_c", "altimeter_inhg", "approach", "runways": {"landing",
+//!   "departing"}, "remarks", "raw"}`;
 //! - `cleared_route`: the route a clearance gives, `{"route": {"dep",
 //!   "stops", "dest"}, "typed": [{"name", "before", "after"}]}`, from
 //!   `{"text", "found"?: {"limit"?, "route"?, "departure"?, "arrival"?}
@@ -537,6 +543,9 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
         // The clearance reader (clearance.rs), the web's lib/clearance and
         // lib/heardCall: held to the same fixtures as the web's tests.
         "read_clearance" => Ok(crate::clearance::read(ask.str("text")?).to_json()),
+        // The ATIS reader (atis.rs), the web's lib/atis and the phone's
+        // Atis: held to the same fixture (atis.json) as the web's tests.
+        "read_atis" => Ok(crate::atis::read(ask.str("text")?).to_json()),
         "cleared_route" => cleared_route_rule(&ask),
         "our_call" => Ok(if crate::clearance::our_call(ask.str("text")?, ask.str("tail")?) { "true" } else { "false" }.to_owned()),
         "direct_of" => {

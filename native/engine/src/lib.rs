@@ -58,6 +58,7 @@
 pub mod ahead;
 pub mod aircraft;
 pub mod airspace;
+pub mod atis;
 pub mod approach;
 pub mod call;
 pub mod clearance;
