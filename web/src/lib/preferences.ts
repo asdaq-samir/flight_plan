@@ -180,6 +180,13 @@ interface Preferences {
   flightRules: FlightRules;
   /** The planner's layout: the tabs, or the strip (features/strip). */
   layout: Layout;
+  /** The input last chosen to listen through (lib/audioInput, the Radio
+   *  card's Listen through): an audio panel's or a headset's Bluetooth
+   *  link, a cable, or the phone's own microphone, by the browser's id
+   *  for it and its name -- matched by the id first and then the name,
+   *  as a private window gives a device another id. A convenience: lost,
+   *  the next listening hears the phone's microphone as before. */
+  listenInput: { id: string; label: string } | null;
   /** The airports last picked from the search bar, newest first: what
    *  it offers before anything is typed, as Maps' Recents. */
   recentAirports: RecentAirport[];
@@ -320,6 +327,7 @@ export const usePreferences = create<Preferences>()(
       narrative: "langgraph",
       flightRules: "vfr",
       layout: "tabs",
+      listenInput: null,
       recentAirports: [],
       homeAirport: null,
       favoriteAirports: [],
@@ -440,7 +448,7 @@ export const usePreferences = create<Preferences>()(
       // The functions are not state; only the values are written.
       partialize: s => ({
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
-        flightRules: s.flightRules, layout: s.layout,
+        flightRules: s.flightRules, layout: s.layout, listenInput: s.listenInput,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
         recentRoutes: s.recentRoutes,

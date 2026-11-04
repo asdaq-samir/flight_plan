@@ -3,9 +3,10 @@ import { Mic, Radio } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import { GLASS } from "./mapChrome";
+import Waveform from "./Waveform";
 import { Button } from "./ui/button";
 import { api } from "../lib/api/client";
-import { callToUs, useAtcRadio, useRadioActions, type Transmission } from "../lib/atcRadio";
+import { callToUs, chosenOutside, heardThrough, lostWords, useAtcRadio, useRadioActions, type Transmission } from "../lib/atcRadio";
 import { clearedRoute, heardAny, placesAsked, readClearance, type Found } from "../lib/clearance";
 import { stopwatch } from "../lib/diversion";
 import { callOf } from "../lib/heardCall";
@@ -261,9 +262,20 @@ function Timer({ from, onStop }: { from: number; onStop: () => void }) {
  */
 export function RadioPill() {
   const pill = useAtcRadio(s => s.pill)!;
+  const input = useAtcRadio(s => s.input);
   const away = () => useAtcRadio.setState({ pill: null });
   useEffect(() => { void load(); }, []);
   const readback = pill.readbackOf ?? null;
+  // The input chosen gone while listening: said in the line, as an error is.
+  const lost = pill.listening && input?.lost ? lostWords(input) : null;
+  // An outside input by its name (lib/audioInput), the owner having asked
+  // whether the mic can hear the radio itself (2026-11-04): heard through
+  // where the recognizer is known to take it, else only chosen (lib/
+  // atcRadio's heardThrough); the phone's own microphone leaves the words
+  // as they were.
+  const name = heardThrough(input);
+  const chosen = chosenOutside(input);
+  const waiting = readback ? "Read it back…" : name ? `Listening through ${name}…` : chosen ? `Listening with ${chosen} chosen…` : "Listening…";
   return (
     <div className="min-w-0 py-1 px-1" data-testid="radio-pill">
       <div className="flex items-center gap-2">
@@ -272,8 +284,8 @@ export function RadioPill() {
           aria-label="Open the radio's log" data-testid="radio-pill-text"
           onClick={() => useAtcRadio.setState({ cardOpen: true, cardText: pill.text || null })}
         >
-          <span aria-live="polite" className={cn(!pill.text && "text-muted-foreground", pill.error && !pill.text && "text-caution-ink")}>
-            {pill.text || pill.error || (readback ? "Read it back…" : "Listening…")}
+          <span aria-live="polite" className={cn(!pill.text && "text-muted-foreground", (pill.error || lost) && !pill.text && "text-caution-ink")}>
+            {pill.text || pill.error || lost || waiting}
           </span>
         </button>
         {!pill.listening && <CloseButton label="Put away" onClick={away} data-testid="radio-pill-close" />}
@@ -319,8 +331,11 @@ function RadioCall({ call }: { call: Transmission }) {
  * under them. A tap opens the log.
  */
 function RadioCaptions() {
-  const { listening, error, heard } = useAtcRadio();
+  const { listening, error, heard, input } = useAtcRadio();
   const lines = heard.slice(-2);
+  const name = heardThrough(input);
+  const chosen = chosenOutside(input);
+  const lost = input?.lost ? lostWords(input) : null;
   return (
     <button
       type="button" data-testid="radio-captions"
@@ -328,10 +343,19 @@ function RadioCaptions() {
       onClick={() => useAtcRadio.setState(s => ({ cardOpen: true, cardText: [...s.heard].reverse().find(t => t.final)?.text ?? s.cardText }))}
       className={cn(GLASS, "pointer-events-auto flex w-full max-w-md items-start gap-2 rounded-[22px] px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring")}
     >
-      <Mic className={cn("mt-0.5 size-5 shrink-0", listening ? "animate-pulse text-tint" : "text-muted-foreground")} aria-hidden="true" />
+      {/* While an input is metered its level, in the glyph's place and
+          size; the bars narrowed to fit the glyph's 20 points. */}
+      {listening && input && !input.lost
+        ? <Waveform live className="mt-0.5 size-5 shrink-0 justify-center [&>span]:w-0.5" />
+        : <Mic className={cn("mt-0.5 size-5 shrink-0", listening ? "animate-pulse text-tint" : "text-muted-foreground")} aria-hidden="true" />}
       <span className={cn("flex min-w-0 flex-1 flex-col", TEXT.detail)} aria-live="polite">
         {error && <span className="text-caution-ink">{error}</span>}
-        {!error && !lines.length && <span className="text-muted-foreground">Listening to the radio…</span>}
+        {!error && lost && <span className="text-caution-ink" data-testid="radio-captions-lost">{lost}</span>}
+        {!error && !lost && !lines.length && (
+          <span className="text-muted-foreground">
+            {name ? `Listening to the radio through ${name}…` : chosen ? `Listening to the radio with ${chosen} chosen…` : "Listening to the radio…"}
+          </span>
+        )}
         {lines.map(t => (
           <span key={t.id} className={cn("line-clamp-2", t.forUs ? "font-semibold text-tint" : "text-foreground", !t.final && "opacity-80")}>
             {t.text}

@@ -59,7 +59,8 @@ export default function RadioButton() {
           aria-pressed={busy} data-testid="radio-button" onClick={tap}
           className={cn(busy && "text-tint", mode === "radio" && "animate-pulse")}
         >
-          {mode === "once" && busy ? <Waveform /> : <Mic className="size-5" strokeWidth={1.5} aria-hidden="true" />}
+          {/* Live: the input's level where one is metered (lib/audioInput). */}
+          {mode === "once" && busy ? <Waveform live /> : <Mic className="size-5" strokeWidth={1.5} aria-hidden="true" />}
         </IconButton>
       </ResponsivePopoverAnchor>
       <ResponsivePopoverContent title="Radio" side="right" align="end" className="flex w-96 flex-col gap-3 p-3" data-testid="clearance-card">

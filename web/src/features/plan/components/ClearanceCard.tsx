@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, Mic, Square, TriangleAlert } from "lucide-react";
 import { cn } from "cn";
 import IconButton from "../../../components/IconButton";
+import ListenThrough from "../../../components/ListenThrough";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { Button } from "../../../components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../components/ui/collapsible";
@@ -14,7 +15,7 @@ import {
   type Clearance, type ClearedItem, type Found, type FoundPlace,
 } from "../../../lib/clearance";
 import { canListen } from "../../../lib/listen";
-import { useAtcRadio, useRadioActions, type PlannedRoute } from "../../../lib/atcRadio";
+import { heardThrough, useAtcRadio, useRadioActions, type PlannedRoute } from "../../../lib/atcRadio";
 import { listenOnce, startRadio, stopRadio } from "../../../lib/atcListening";
 import { callPattern } from "../../../lib/heardCall";
 import { altitudeWords, clearanceParts, readbackCheck, readbackLines } from "../../../lib/readback";
@@ -168,7 +169,7 @@ export default function ClearanceCard({ onDone }: {
   /** The card put away, the route entered. */
   onDone: () => void;
 }) {
-  const { listening, error, heard, tail, near, mode } = useAtcRadio();
+  const { listening, error, heard, tail, near, mode, input } = useAtcRadio();
   const route = useRadioActions(s => s.route);
   const enter = useRadioActions(s => s.enter);
   const typed = useAtcRadio(s => s.cardText) ?? "";
@@ -292,6 +293,7 @@ export default function ClearanceCard({ onDone }: {
   const log = [...heard].reverse().filter(t => t.final).slice(0, 10);
   const limit = clearance.classB ? "Class Bravo airspace" : places?.limit?.ident ? <Place place={places.limit} /> : clearance.limit && capital(clearance.limit);
   const altitude = altitudeLine(clearance);
+  // The input's own problems are said under its picker (ListenThrough).
   const problem = error ?? readbackProblem ?? (found.isError ? "The places in it could not be looked up; check the connection and try again." : null);
   const mic = canListen();
 
@@ -324,9 +326,10 @@ export default function ClearanceCard({ onDone }: {
             </IconButton>
           )}
         >
+          {mic && <ListenThrough />}
           <Textarea
             value={text} onChange={e => pick(e.target.value)} rows={3}
-            placeholder={`${mic ? "Tap the microphone and hold the phone to the speaker, or type it as read: " : "Type it as read: "}${EXAMPLE}`}
+            placeholder={`${!mic ? "Type it as read: " : heardThrough(input) ? "Tap the microphone, or type it as read: " : "Tap the microphone and hold the phone to the speaker, or type it as read: "}${EXAMPLE}`}
             aria-label="The clearance as heard" data-testid="clearance-text"
             className={cn(TEXT.detail, "resize-none font-mono")}
           />
