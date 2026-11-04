@@ -62,12 +62,28 @@ export interface Source {
   text: string;
 }
 
+/** A change to the plan the assistant proposes (the planner's
+ *  propose_change): only the fields that change, the stops all of them
+ *  as the route would then make them, idents upper-cased. The app shows
+ *  it as a chip, and nothing is applied until the pilot taps it (useAsk's
+ *  apply). */
+export interface AssistantChange {
+  dep?: string;
+  dest?: string;
+  stops?: string[];
+  altitude_ft?: number;
+  /** ISO 8601 UTC. */
+  depart?: string;
+}
+
 /** One line of the stream: a tool the assistant is using, said as a
- *  passing status line; a piece of the answer; the sources; the end; or
- *  what went wrong, in words for the pilot. */
+ *  passing status line; a piece of the answer; a change it proposes,
+ *  after the words; the sources; the end; or what went wrong, in words
+ *  for the pilot. */
 export type AssistantEvent =
   | { type: "tool"; name: string; label: string }
   | { type: "text"; text: string }
+  | { type: "action"; change: AssistantChange; words: string }
   | { type: "sources"; sources: Source[] }
   | { type: "done" }
   | { type: "error"; words: string };

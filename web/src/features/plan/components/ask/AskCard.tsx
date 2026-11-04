@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Mic, Square } from "lucide-react";
+import { ArrowUp, Check, Mic, Square } from "lucide-react";
 import { cn } from "cn";
 import IconButton from "../../../../components/IconButton";
 import { PillSection } from "../../../../components/Favorites";
@@ -20,9 +20,12 @@ const load = () => import("../../../../lib/atcListening").then(m => (listening =
 
 /** One question and its answer: the question at the right as a message
  *  of the pilot's own, the answer at the left as prose with its figures
- *  lined up, the tool in use as a passing line while it is, then the
- *  reports it rests on (SourceChips), and what went wrong in its place. */
+ *  lined up, the tool in use as a passing line while it is, the changes
+ *  it proposes as filled chips to tap (useAsk's apply), then the reports
+ *  it rests on (SourceChips), and what went wrong in its place. */
 export function Turn({ turn }: { turn: AskTurn }) {
+  // A chip applies only where there is a plan to change (PlanWorkspace).
+  const canApply = useAsk(s => s.applyChange !== null);
   return (
     <div className="flex flex-col gap-1.5" data-testid="ask-turn">
       <p className={cn("max-w-[85%] self-end rounded-2xl rounded-br-md bg-primary px-3 py-1.5 text-primary-foreground", TEXT.prose)} data-testid="ask-question">
@@ -39,6 +42,23 @@ export function Turn({ turn }: { turn: AskTurn }) {
       {(turn.answer || turn.done) && (
         <div className="flex max-w-[92%] flex-col gap-2.5 self-start rounded-2xl rounded-bl-md bg-card px-3.5 py-3 shadow-[0_1px_4px_rgb(0_0_0/0.06)]" data-testid="ask-bubble">
           {turn.answer && <p className={cn("tabular-nums whitespace-pre-wrap", TEXT.prose)} data-testid="ask-answer">{turn.answer}</p>}
+          {/* Each change proposed, a filled chip in the tint: the tap
+              applies it and the chip says so with a check; nothing is
+              applied without the tap. A chip is 32 points, its area the
+              44 by the pseudo-element, the row at gap-2. */}
+          {turn.actions.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2" data-testid="ask-actions">
+              {turn.actions.map((a, i) => (
+                <Button
+                  key={i} size="sm" variant={a.applied ? "secondary" : "default"} disabled={a.applied || !canApply}
+                  className={cn("relative rounded-full after:absolute after:inset-x-0 after:-inset-y-1.5 after:content-['']", a.applied && "disabled:opacity-100")}
+                  onClick={() => useAsk.getState().apply(a.change)} data-testid="ask-action" data-applied={a.applied ? "1" : undefined}
+                >
+                  {a.applied && <Check aria-hidden />}{a.applied ? a.done : a.label}
+                </Button>
+              ))}
+            </div>
+          )}
           {turn.done && <SourceChips sources={turn.sources} testId="ask-source" />}
         </div>
       )}

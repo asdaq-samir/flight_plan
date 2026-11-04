@@ -37,6 +37,15 @@ describe("the assistant's stream", () => {
     ]);
   });
 
+  test("a change proposed comes after the words and before the sources", async () => {
+    const events = await eventsOf([
+      '{"type":"text","text":"Rhinelander as a stop."}\n{"type":"action","change":{"stops":["KRHI"]},"words":"A fuel stop halfway."}\n',
+      '{"type":"sources","sources":[]}\n{"type":"done"}\n',
+    ]);
+    expect(events.map(e => e.type)).toEqual(["text", "action", "sources", "done"]);
+    expect(events[1]).toEqual({ type: "action", change: { stops: ["KRHI"] }, words: "A fuel stop halfway." });
+  });
+
   test("a last line with no newline after it is still read", async () => {
     const events = await eventsOf(['{"type":"text","text":"Yes."}\n{"type":"done"}']);
     expect(events.map(e => e.type)).toEqual(["text", "done"]);

@@ -62,10 +62,10 @@ def test_a_conversation_not_ending_on_the_pilot_is_refused():
     assert err.value.status_code == 422
 
 
-def test_the_tools_are_the_planners_nine_by_name():
+def test_the_tools_are_the_planners_ten_by_name():
     box = Toolbox(Context(dep="C81", dest="KDLH", stops=["KJVL"]))
     assert sorted(box.by_name) == ["airport", "briefing_for", "divert", "find_place", "go_no_go", "hold_entry",
-                                   "nearest_airports", "plan_flight", "weather_at"]
+                                   "nearest_airports", "plan_flight", "propose_change", "weather_at"]
     # The plan's route fills what the question left out.
     assert box.route("", "", "") == ("C81", "KDLH", "KJVL")
     assert box.route("kjvl", "", "") == ("KJVL", "KDLH", "KJVL")
@@ -115,6 +115,65 @@ def test_a_tool_that_fails_tells_the_model_in_the_planners_words(monkeypatch):
 
     monkeypatch.setattr(airports, "airport_place", missing)
     assert Toolbox().by_name["weather_at"].call({"ident": "ZZZZ"}) == "Error: No US airport goes by 'ZZZZ'."
+
+
+def test_a_proposed_change_is_checked_as_a_route_and_follows_the_text_as_an_action(monkeypatch):
+    from app import common
+
+    checked = []
+    monkeypatch.setattr(common, "load_route", lambda dep, dest, stops=None: checked.append((dep, dest, stops)))
+    box = Toolbox(Context(dep="C81", dest="KDLH", altitude_ft=4500))
+    said = json.loads(box.by_name["propose_change"].call({"stops": "krhi", "why": "A fuel stop halfway, with the headwind."}))
+    # The route as it would then be, through the planner's own check;
+    # the idents upper-cased, the stops a list, nothing computed.
+    assert checked == [("C81", "KDLH", ["KRHI"])]
+    assert said == {"proposed": {"stops": ["KRHI"]}, "words": "A fuel stop halfway, with the headwind."}
+    runner = iter([FakeStream([], blocks=[tool_use("propose_change", stops="krhi")], stop_reason="tool_use"),
+                   FakeStream(["Rhinelander ", "as a stop."], stop_reason="end_turn")])
+    ask = AssistantAsk(messages=[Turn(role="user", content="Add a fuel stop at Rhinelander")], context=box.context)
+    got = events("".join(assistant.answer(ask, runner=runner, box=box)))
+    # The proposal after the words and before the sources, so the chip reads under the answer.
+    assert [e["type"] for e in got] == ["tool", "text", "text", "action", "sources", "done"]
+    assert got[0]["label"] == "A change to the plan"
+    assert got[3] == {"type": "action", "change": {"stops": ["KRHI"]}, "words": "A fuel stop halfway, with the headwind."}
+
+
+def test_a_bad_ident_is_an_error_to_the_model_and_never_an_action(monkeypatch):
+    from app import common
+
+    def missing(dep, dest, stops=None):
+        raise HTTPException(404, "No US airport goes by 'ZZZZ'.")
+
+    monkeypatch.setattr(common, "load_route", missing)
+    box = Toolbox(Context(dep="C81", dest="KDLH"))
+    assert box.by_name["propose_change"].call({"dest": "zzzz"}) == "Error: No US airport goes by 'ZZZZ'."
+    assert box.by_name["propose_change"].call({}) == "Error: nothing to change: give the field that would change."
+    assert box.actions == []
+    ask = AssistantAsk(messages=[Turn(role="user", content="Go to ZZZZ instead")], context=box.context)
+    got = events("".join(assistant.answer(ask, runner=iter([FakeStream(["No field goes by ZZZZ."])]), box=box)))
+    assert [e["type"] for e in got] == ["text", "sources", "done"]
+
+
+def test_a_change_with_no_route_yet_checks_each_ident_alone(monkeypatch):
+    from app import common
+
+    looked = []
+    monkeypatch.setattr(common, "load_route", lambda *args: pytest.fail("no route to load"))
+    monkeypatch.setattr(common, "resolve", lambda *idents: looked.extend(idents))
+    box = Toolbox()
+    said = json.loads(box.by_name["propose_change"].call({"dest": "kmsn", "altitude_ft": 6500.0, "depart": "2026-11-03T15:10:00Z"}))
+    assert looked == ["KMSN"]
+    assert said["proposed"] == {"dest": "KMSN", "altitude_ft": 6500, "depart": "2026-11-03T15:10:00Z"}
+
+
+def test_the_last_proposal_of_a_kind_wins_and_three_at_most():
+    def change(**fields):
+        return {"change": fields, "words": ""}
+
+    stops_first, stops_last = change(stops=["KRHI"]), change(stops=["KRHI", "KJVL"])
+    altitude, time, both = change(altitude_ft=6500), change(depart="2026-11-03T15:10:00Z"), change(stops=["KRHI"], altitude_ft=6500)
+    assert assistant.proposals([stops_first, altitude, stops_last]) == [altitude, stops_last]
+    assert assistant.proposals([stops_first, both, altitude, time]) == [both, altitude, time]
 
 
 def test_the_endpoint_streams_ndjson(monkeypatch):
