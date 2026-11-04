@@ -3,6 +3,7 @@ import { ApiError, api, describeError, isDropped } from "./api/client";
 import type { ChartInfo } from "./api/types";
 import { keptStore } from "./storage";
 import { clearProblem, raiseProblem, showError } from "./problems";
+import { onAskAgain } from "./fromCache";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -54,6 +55,10 @@ export const queryClient = new QueryClient({
     },
   }),
 });
+
+/** The "No connection: showing what was saved" line's Try again
+ *  (lib/fromCache): everything on the page asked again. */
+onAskAgain(() => void queryClient.refetchQueries({ type: "active" }));
 
 /**
  * One problem per distinct thing that went wrong, not one per call that
