@@ -101,7 +101,6 @@ import { useVerdict, verdictLine, type VerdictItem } from "../../lib/verdict";
 import { glanceLines, useGlance } from "../../lib/glance";
 import { commandsOf } from "../../lib/pilotCommand";
 import { placeWords, tokens } from "../../lib/clearance";
-import FieldTabsBar from "../strip/FieldTabsBar";
 import OneField from "../strip/OneField";
 import ProfileButton from "../strip/ProfileButton";
 import StripAir from "../strip/StripAir";
@@ -360,8 +359,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const layout = usePreferences(p => p.layout);
   const strip = layout === "strip";
   // The third: the tabs' layout with the strip's field, its Ask pill in
-  // it, over the tab bar (features/strip's FieldTabsBar), the owner's
-  // pick from Target's app the same day, to compare on the phone.
+  // it, a glass bar at the top of the map, the owner's pick from Target's
+  // app the same day ("the search pill can be on top and the tabs pill
+  // can be at the bottom"), to compare on the phone.
   const fieldTabs = layout === "field-tabs";
   const layoutParam = searchParams.get("layout");
   useEffect(() => {
@@ -2755,15 +2755,16 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const stripOver = strip && tab === "aircraft" && !flight && !list ? "My airplane" : null;
   const closeStripOver = useCallback(() => pickTab("fpl"), [pickTab]);
   // The field's row, with the pilot's avatar at its right (ProfileButton):
-  // its menu opens the pilot's screens, the tabs' Setup among them. Over
-  // the tab bar the field has the Ask pill in it and no avatar: the
-  // pilot's screens are Setup's there, as in the tabs.
+  // its menu opens the pilot's screens, the tabs' Setup among them. At the
+  // top of the map the field has the Ask pill in it and no avatar: the
+  // pilot's screens are Setup's there, as in the tabs, and the sheet
+  // stays where it is as the field is focused.
   const oneField = strip || fieldTabs ? (
     <OneField
       suggestions={stripSuggestions} flying={flying} onLine={fieldLine}
-      onFocus={() => { if (panelNow.current === "peek") setPanel("half"); }}
+      onFocus={strip ? () => { if (panelNow.current === "peek") setPanel("half"); } : undefined}
       avatar={strip ? <ProfileButton onOpen={screen => void openStripScreen(screen)} /> : undefined}
-      ask={fieldTabs}
+      ask={fieldTabs} top={fieldTabs}
     />
   ) : null;
   // In flight, the one way out of flying mode (useFlyingMode): a small
@@ -2881,14 +2882,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     />
   );
 
-  // The planner's tabs (TabBar): the panel's first row, and at rest the
-  // pill itself; over the tab bar, under the field (FieldTabsBar).
-  const tabBar = (
-    <TabBar
-      tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet}
-      routeShare={card => shareMenu("start", "tab-share", card)} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined}
-    />
-  );
   return children({
     // The map stays mounted beside the briefing (the arrow walk still
     // pans it) but stays off the paper: the drawer is the printed page.
@@ -2927,6 +2920,23 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         </Suspense>
         {/* The next checkpoint over the map in flight (FlyingHead). */}
         {flying && <Suspense fallback={null}><FlyingHead run={dryRunning} rows={routeRows} /></Suspense>}
+        {/* The field over the tabs' layout (lib/preferences "field-tabs"):
+            the strip's field with its Ask pill in it, a glass bar at the
+            top of the map, eight in from the sides under the status bar,
+            its answer and its chips dropping down from it, the tabs' pill
+            at the foot as ever (the owner, 2026-11-04). Clear of the
+            map's buttons where they are at the top (wide screens with the
+            bar at the foot), and of the side drawer's width. On the
+            ground: in the air the radio is the map's own, as the tabs
+            have it, under the next checkpoint's card (FlyingHead). */}
+        {fieldTabs && !flying && (
+          <div
+            className="absolute top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] md:nav-bottom:right-16"
+            data-testid="field-tabs"
+          >
+            {oneField}
+          </div>
+        )}
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
         {lessonOpen !== null && (
           <Suspense fallback={null}>
@@ -3130,14 +3140,13 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
     // The strip's ribbon in the tabs' place (StripRibbon): the pill's own
-    // row over the field, and the sheet's first row. Over the tab bar,
-    // the field over the tabs (FieldTabsBar).
+    // row over the field, and the sheet's first row.
     bar: strip ? (
       <StripRibbon
         dep={planned.dep} dest={planned.dest} verdict={stripVerdict} eteMin={s.totals?.ete_min ?? null} fuelGal={s.totals?.fuel_gal ?? null}
         points={ribbonPoints(routeRows)} over={stripOver} title={cardTitle} onClose={stripOver ? closeStripOver : closeSheet}
       />
-    ) : fieldTabs ? <FieldTabsBar field={oneField}>{tabBar}</FieldTabsBar> : tabBar,
+    ) : <TabBar tabs={PLANNER_TABS} tab={tab} over={(place || heldPoint) && tab !== "airport" ? "airport" : undefined} title={cardTitle} onPick={pickTab} onUp={tabUp} onClose={closeSheet} routeShare={card => shareMenu("start", "tab-share", card)} listOver={!!list || savedOpen || nearOpen} marks={s.unflyable ? { fpl: "stop" } : undefined} />,
     // The route's figures -- the distance, the time en route, the arrival
     // and the fuel -- pinned at FPL's foot while there is a route, at every
     // height, the pill too, at the pilot's ask: they were the last of the
@@ -3162,10 +3171,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // The strip's one field at the foot in every state (OneField); in the
     // air the strip turns horizontal over it (StripAir): the ribbon with
     // the airplane on it, the figures grown, the field the radio's.
-    // Over the tab bar the field is the pill's first row (FieldTabsBar),
-    // the figures the foot as the tabs have them; in the air it turns to
-    // the strip's, the field the radio's.
-    foot: strip || (fieldTabs && flying) ? (flying ? (
+    foot: strip ? (flying ? (
       <StripAir rows={routeRows} totals={s.totals} destination={`${planned.dest}`} field={oneField} foot={doneFlyingRow} />
     ) : oneField) : tab === "fpl" && !place && !heldPoint && !flight && !briefShown ? routed && (
       // Its own 16 at the sides under the nav log's card, whose foot

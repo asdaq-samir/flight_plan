@@ -56,20 +56,26 @@ const ASK_CHIPS = ["Can I go?", "What's the weather on the way?", "Where should 
  * direct to a place, a procedure), the rest asked -- since the map's
  * microphone and its pill of chips (RadioLayer) are not in this layout.
  *
- * Over the tab bar (FieldTabsBar, the owner's third screen of
- * 2026-11-04, Target's way) the field has an Ask pill inside it at its
- * right end (`ask`): the sparkle and "Ask" in the tint, a 32-point
- * capsule with a hairline outline and its 44-point area, one tint and no
- * gradient, as every tappable thing is. Tapped, the field is in ask
- * mode -- the pill filled, the sparkle in the magnifier's place -- and
- * whatever is typed or said goes to the assistant, never read as a route;
- * tapped again, the field is its own again.
+ * In the field-over-the-tabs layout (PlanWorkspace's fieldTabs, the
+ * owner's third screen of 2026-11-04, Target's way) the field has an Ask
+ * pill inside it at its right end (`ask`): the sparkle and "Ask" in the
+ * tint, a 32-point capsule with a hairline outline and its 44-point
+ * area, one tint and no gradient, as every tappable thing is. Tapped,
+ * the field is in ask mode -- the pill filled, the sparkle in the
+ * magnifier's place -- and whatever is typed or said goes to the
+ * assistant, never read as a route; tapped again, the field is its own
+ * again. There the field is a glass bar at the top of the map (`top`),
+ * 44 points tall, its answer and its chips dropping down from it, and
+ * the tabs' pill is at the foot as ever (the owner: "the search pill can
+ * be on top and the tabs pill can be at the bottom").
  */
-export default function OneField({ suggestions, flying = false, onLine, onFocus, avatar, ask = false }: {
+export default function OneField({ suggestions, flying = false, onLine, onFocus, avatar, ask = false, top = false }: {
   suggestions: string[];
   flying?: boolean;
   /** The Ask pill inside the field, at its right end. */
   ask?: boolean;
+  /** At the top of the map, 44 tall, what it shows under it. */
+  top?: boolean;
   /** The line read (readField) and as typed: null once done, else why not. */
   onLine: (command: FieldCommand, text: string) => Promise<string | null>;
   /** The field focused: the sheet up from the pill, clear of the keyboard. */
@@ -143,7 +149,7 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
   };
   const chips = inAsk ? ASK_CHIPS : suggestions;
   return (
-    <div className="flex w-full min-w-0 flex-col gap-2" data-testid="one-field">
+    <div className={cn("flex w-full min-w-0 gap-2", top ? "flex-col-reverse" : "flex-col")} data-testid="one-field">
       {/* The assistant's last answer, a card over the field, as the Brief's
           Ask shows a turn (AskCard): the question at the right, the answer
           at the left with the reports it rests on. */}
@@ -164,7 +170,7 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
       {/* What a pilot asks first, and the planner's other screens, as
           chips while nothing is typed: how the rest is found without tabs. */}
       {focused && !text && !flying && chips.length > 0 && (
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none]" data-testid="strip-suggestions">
+        <div className={cn("flex gap-2 overflow-x-auto pb-0.5 [scrollbar-width:none]", top ? "-mx-2 px-2" : "-mx-4 px-4")} data-testid="strip-suggestions">
           {chips.map(words => (
             <Button
               key={words} variant="outline" size="sm" className={CHIP} data-testid="strip-suggestion"
@@ -196,12 +202,13 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
             onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(text); } }}
             // 52 points tall, round, in the glass the pill itself is drawn
             // in (GLASS), the magnifier's room at its left and the
-            // microphone's -- and the Ask pill's -- at its right.
-            className={cn("h-13 rounded-full border-0 pl-11 shadow-none", askShown ? (micShown ? "pr-[8.25rem]" : "pr-[5.5rem]") : micShown ? "pr-12" : "pr-4", GLASS, TEXT.row)}
+            // microphone's -- and the Ask pill's -- at its right. At the
+            // top of the map 44, the bar's own height.
+            className={cn(top ? "h-11" : "h-13", "rounded-full border-0 pl-11 shadow-none", askShown ? (micShown ? "pr-[8.25rem]" : "pr-[5.5rem]") : micShown ? "pr-12" : "pr-4", GLASS, TEXT.row)}
           />
           {/* The microphone, and with it the Ask pill where the field has
               one: six apart, so the two 44-point areas meet. */}
-          <div className="absolute inset-y-0 right-1.5 flex items-center gap-1.5">
+          <div className={cn("absolute inset-y-0 flex items-center gap-1.5", top ? "right-0.5" : "right-1.5")}>
             {micShown && (
               <IconButton
                 label={listens ? "Listening" : "Say it"} size="icon-lg" onClick={hear} disabled={listens}

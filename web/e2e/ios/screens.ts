@@ -26,8 +26,8 @@ export const SCREENS: Screen[] = [
     },
   },
   {
-    // The field over the tab bar (FieldTabsBar): the field with its Ask
-    // pill and the four tabs in the pill over the chart.
+    // The field over the tabs: the field with its Ask pill a glass bar at
+    // the top of the chart, the four tabs in the pill at its foot.
     name: "field-tabs",
     ready: async page => {
       await page.goto(`/app/plan?layout=field-tabs&${ROUTE}`);
