@@ -122,3 +122,39 @@ export function clearedRoute(text: string, found: Found, planned: { dep: string;
   // than the Clearance read from them: one shape in, the fixtures' own.
   return callEngine("cleared_route", { text, found, planned });
 }
+
+/** The route cleared held against the one filed. */
+export interface RouteDifference {
+  same: boolean;
+  /** Each way it differs ("to KHIB instead of KDLH", "adds GEP"), none
+   *  where it is the same. */
+  parts: string[];
+  /** What differs, for after "Differs from what you filed:", or the line
+   *  that nothing does. */
+  words: string;
+}
+
+/**
+ * The route cleared against the one filed, as the iPhone's
+ * ClearanceCompare describes it: only the points that differ, since the
+ * cleared points are idents with no positions until they are planned, so
+ * the extra miles and minutes would want the planner, and the step is
+ * read before the route goes in.
+ */
+export function routeDifference(
+  planned: { stops: string[]; dest: string }, cleared: { stops: string[]; dest: string }, typed: TypedProcedure[] = [],
+): RouteDifference {
+  const parts: string[] = [];
+  if (cleared.dest !== planned.dest && cleared.dest) {
+    parts.push(planned.dest ? `to ${cleared.dest} instead of ${planned.dest}` : `to ${cleared.dest}`);
+  }
+  const added = cleared.stops.filter(s => !planned.stops.includes(s));
+  const dropped = planned.stops.filter(s => !cleared.stops.includes(s));
+  if (added.length && dropped.length) parts.push(`${added.join(" ")} instead of ${dropped.join(" ")}`);
+  else if (added.length) parts.push(`adds ${added.join(" ")}`);
+  else if (dropped.length) parts.push(`leaves out ${dropped.join(" ")}`);
+  else if (parts.length === 0 && cleared.stops.join(" ") !== planned.stops.join(" ")) parts.push("the same points in another order");
+  if (typed.length) parts.push(`with the ${typed.map(t => t.name).join(" and ")}`);
+  if (parts.length === 0) return { same: true, parts, words: "The same route as you filed." };
+  return { same: false, parts, words: `${parts.join("; ")}.` };
+}

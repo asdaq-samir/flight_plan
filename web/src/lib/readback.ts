@@ -12,6 +12,7 @@
  * the screen stays here.
  */
 import { callEngine } from "./engine/engine";
+import type { Clearance } from "./clearance";
 import { grouped } from "./units";
 
 export interface ReadbackItem {
@@ -19,6 +20,52 @@ export interface ReadbackItem {
   cleared: string;
   /** What the readback had for it; null where it was not read back. */
   said: string | null;
+}
+
+/** The parts of a clearance in the order they are read back, each with
+ *  its name on the screen (the iPhone's ReadbackCheck.parts). */
+export const READBACK_PARTS: { item: ReadbackItem["item"]; name: string }[] = [
+  { item: "limit", name: "limit" }, { item: "route", name: "route" }, { item: "altitude", name: "altitude" },
+  { item: "expect", name: "expected altitude" }, { item: "frequency", name: "frequency" }, { item: "squawk", name: "squawk" },
+];
+
+/** The parts a clearance has, for the tick to name and the count to go by. */
+export function clearanceParts(c: Clearance): ReadbackItem["item"][] {
+  const has: ReadbackItem["item"][] = [];
+  if (c.limit !== null || c.classB) has.push("limit");
+  if (c.route.length > 0 || c.asFiled) has.push("route");
+  if (c.maintainFt !== null) has.push("altitude");
+  if (c.expectFt !== null) has.push("expect");
+  if (c.frequency !== null) has.push("frequency");
+  if (c.squawk !== null) has.push("squawk");
+  return has;
+}
+
+/** One line under the read back: a tick for what was read back, a mark
+ *  for each part missed or said differently. */
+export interface ReadbackLine { ok: boolean; words: string }
+
+const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+
+/** The lines for a read back of `clearance` checked as `check`: the parts
+ *  read back in one tick ("Limit, route and squawk read back"), then one
+ *  line for each part missed ("Squawk 4512 not read back") or said
+ *  differently ("Altitude: 4,000 ft said, 5,000 ft cleared"), as the
+ *  iPhone's ReadbackCheck.lines writes them. */
+export function readbackLines(clearance: Clearance, check: { items: ReadbackItem[] }): ReadbackLine[] {
+  const has = clearanceParts(clearance);
+  const missed = new Set(check.items.map(i => i.item));
+  const read = READBACK_PARTS.filter(p => has.includes(p.item) && !missed.has(p.item)).map(p => p.name);
+  const lines: ReadbackLine[] = [];
+  if (read.length) {
+    const list = read.length === 1 ? read[0]! : `${read.slice(0, -1).join(", ")} and ${read.at(-1)}`;
+    lines.push({ ok: true, words: `${capital(list)} read back` });
+  }
+  for (const item of check.items) {
+    const name = capital(READBACK_PARTS.find(p => p.item === item.item)?.name ?? item.item);
+    lines.push({ ok: false, words: item.said !== null ? `${name}: ${item.said} said, ${item.cleared} cleared` : `${name} ${item.cleared} not read back` });
+  }
+  return lines;
 }
 
 /** An altitude as ATC says it (AIM 4-2-9): feet below 18,000, a flight

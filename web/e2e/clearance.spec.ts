@@ -4,10 +4,13 @@ import { openPanel, settle, sideDrawer, slow } from "./helpers";
 /**
  * A clearance into the route, from the map's microphone: the
  * browser here has no microphone, so it is typed as it was read, which
- * the card takes as well. Its items are shown -- the limit and the route
- * found as idents, the altitudes, the frequency and the code -- and only
- * Enter Route changes the plan: the route through Gopher (GEP), "then
- * as filed", and the expected altitude flown (AIM 4-4-3, 5-2-6).
+ * the card takes as well, under its Hear row, open while there is
+ * nothing yet. Its items are shown there -- the limit and the route
+ * found as idents, the altitudes, the frequency and the code -- the
+ * Enter row says what it would put in and Compare how that differs from
+ * the route planned, and only Enter Route changes the plan: the route
+ * through Gopher (GEP), "then as filed", and the expected altitude flown
+ * (AIM 4-4-3, 5-2-6).
  */
 test("a clearance read is shown in its items and entered as the route", async ({ page }) => {
   // A browser with no recognizer, as Firefox: the microphone opens the
@@ -27,12 +30,19 @@ test("a clearance read is shown in its items and entered as the route", async ({
     + "expect seven thousand one zero minutes after departure, departure frequency one two five point three five, squawk four five two one",
   );
   const body = page.getByTestId("clearance-body");
-  await expect(body.getByText("GEP", { exact: true })).toBeVisible({ timeout: slow(20_000) });
-  await expect(body).toContainText("KDLH");
-  await expect(body).toContainText("3,000 ft");
-  await expect(body).toContainText("7,000 ft, 10 min after departure");
-  await expect(body).toContainText("125.35");
-  await expect(body).toContainText("4521");
+  const hear = body.getByTestId("clearance-detail-hear");
+  await expect(hear.getByText("GEP", { exact: true })).toBeVisible({ timeout: slow(20_000) });
+  await expect(hear).toContainText("KDLH");
+  await expect(hear).toContainText("Maintain 3,000 ft, expect 7,000 ft 10 min after departure");
+  await expect(hear).toContainText("Departure 125.35");
+  await expect(hear).toContainText("4521");
+  await expect(body.getByTestId("clearance-state-hear")).toHaveText("Heard");
+  // What Enter would put in, and how it differs from the route planned,
+  // each on its row's one line; the differences under a tap.
+  await expect(body.getByTestId("clearance-state-enter")).toHaveText("KDLH via GEP, fly 7,000 ft");
+  await expect(body.getByTestId("clearance-state-compare")).toHaveText("1 difference");
+  await body.getByTestId("clearance-row-compare").click();
+  await expect(body.getByTestId("clearance-detail-compare")).toContainText("Differs from what you filed: adds GEP.");
   // Nothing in the plan until it is entered.
   expect(new URL(page.url()).searchParams.get("stops")).toBeNull();
   const enter = page.getByTestId("clearance-enter");

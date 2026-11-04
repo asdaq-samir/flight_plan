@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { clearedRoute, heardAny, placesAsked, readClearance, tokens, type Found } from "./clearance";
+import { clearedRoute, heardAny, placesAsked, readClearance, routeDifference, tokens, type Found } from "./clearance";
 import fixture from "./fixtures/clearances.json";
 
 describe("a clearance heard", () => {
@@ -28,5 +28,39 @@ describe("a clearance heard", () => {
 describe("the route a clearance gives", () => {
   test.each(fixture.routes)("$heard", ({ heard, found, planned, route, typed }) => {
     expect(clearedRoute(heard, found as Found, planned)).toEqual({ route, typed });
+  });
+});
+
+// The cleared route against the filed one, the fixture's routes as the
+// iPhone's ClearanceCompare words them (ClearanceStep.swift).
+describe("the route cleared held against the one filed", () => {
+  const compare = (i: number) => {
+    const { planned, route, typed } = fixture.routes[i]!;
+    return routeDifference(planned, route, typed);
+  };
+
+  test("the same route is said to be", () => {
+    expect(compare(0)).toEqual({ same: true, parts: [], words: "The same route as you filed." });
+  });
+
+  test("a SID picked is one difference", () => {
+    expect(compare(1)).toEqual({ same: false, parts: ["with the BUNYN1"], words: "with the BUNYN1." });
+  });
+
+  test("another destination and other points are two", () => {
+    expect(compare(2)).toEqual({
+      same: false, parts: ["to KHIB instead of KDLH", "GEP V2 FGT PYKLA instead of BRD"],
+      words: "to KHIB instead of KDLH; GEP V2 FGT PYKLA instead of BRD.",
+    });
+  });
+
+  test("a point added before the filed ones", () => {
+    expect(compare(3)).toEqual({ same: false, parts: ["adds GEP"], words: "adds GEP." });
+  });
+
+  test("the same points in another order, a point left out, and no filed destination", () => {
+    expect(routeDifference({ stops: ["GEP", "BRD"], dest: "KDLH" }, { stops: ["BRD", "GEP"], dest: "KDLH" }).parts).toEqual(["the same points in another order"]);
+    expect(routeDifference({ stops: ["GEP", "BRD"], dest: "KDLH" }, { stops: ["GEP"], dest: "KDLH" }).parts).toEqual(["leaves out BRD"]);
+    expect(routeDifference({ stops: [], dest: "" }, { stops: [], dest: "KDLH" }).parts).toEqual(["to KDLH"]);
   });
 });
