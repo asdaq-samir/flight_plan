@@ -3,6 +3,7 @@ import { prefersReducedMotion } from "../motion";
 import { BLUE } from "../useAirspace";
 import { WAYPOINT_MAGENTA } from "./chartColors";
 import type { TagSide } from "./declutter";
+import { FadeIn } from "./fadeIn";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
 
 /** One VOR or fix the navaids layer draws (NavaidsLayer): where it is,
@@ -37,8 +38,12 @@ const TAG_RADIUS = 3;
 /** A fix's ident 7 px right of the station, dark on a white halo. */
 const FIX_LABEL_GAP = 7;
 const HALO_ROOM = 3;
-/** How long a mark takes to come in, ms (index.css's overlay-in). */
-const FADE_MS = 200;
+/** The stations and waypoints drawn in the session, by their mark's key
+ *  (a VOR's ident and latitude, `fix-` or `vfr-` and the ident): one new
+ *  fades in, one drawn before is there at once (fadeIn). One for both
+ *  layers this module draws -- the VORs and fixes, the VFR waypoints --
+ *  which are made again each time the map zooms back in to their level. */
+const fades = new FadeIn();
 /** The most idents' pictures kept before the lot is drawn again. */
 const MOST_PICTURES = 800;
 
@@ -147,9 +152,6 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
   private font = "";
   /** Whether the marks written on the canvas are older than its marks. */
   private unwritten = true;
-  /** When each mark coming in was first drawn, while it fades in. */
-  private readonly born = new Map<string, number>();
-  private keys = new Set<string>();
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
@@ -164,14 +166,6 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
   }
 
   setMarks(marks: NavaidMark[]): void {
-    const keys = new Set(marks.map(m => m.key));
-    // A station new to the map fades in; at once under Reduce Motion.
-    if (!prefersReducedMotion()) {
-      const now = performance.now();
-      for (const key of keys) if (!this.keys.has(key)) this.born.set(key, now);
-    }
-    for (const key of this.born.keys()) if (!keys.has(key)) this.born.delete(key);
-    this.keys = keys;
     this.marks = marks;
     this.unwritten = true;
     this.schedule();
@@ -221,6 +215,7 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
     const writing = this.unwritten || !moving;
     const written: { ident: string; kind: string; side: string; x: number; y: number }[] = [];
     const now = performance.now();
+    const still = prefersReducedMotion();
     let fading = false;
     const reach = HEXAGON_PX + TAG_GAP + 8 * TEXT_PX;
     for (let i = 0; i < this.marks.length; i++) {
@@ -230,14 +225,12 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
       // Drawn only where the canvas reaches, the tag counted.
       const sx = x * ws + wx, sy = y * ws + wy;
       if (sx < -pad.x - reach || sy < -pad.y - reach || sx > size.x + pad.x + reach || sy > size.y + pad.y + reach) continue;
-      const born = this.born.get(mark.key);
-      if (born !== undefined) {
-        const alpha = (now - born) / FADE_MS;
-        if (alpha >= 1) this.born.delete(mark.key);
-        else {
-          ctx.globalAlpha = Math.max(0, alpha);
-          fading = true;
-        }
+      // A station new to the session fades in from this drawing; one drawn
+      // before is whole at once (fadeIn).
+      const alpha = fades.alpha(mark.key, now, still);
+      if (alpha < 1) {
+        ctx.globalAlpha = alpha;
+        fading = true;
       }
       const shape = shapeOf(mark.kind, () => this.schedule());
       const side = mark.kind === "vor" ? HEXAGON_PX : TRIANGLE_PX;
