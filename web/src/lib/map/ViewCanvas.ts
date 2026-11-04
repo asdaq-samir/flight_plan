@@ -92,7 +92,21 @@ export abstract class ViewCanvasLayer extends L.Layer {
   protected abstract paint(ctx: CanvasRenderingContext2D, view: CanvasView): void;
 
   onAdd(map: L.Map): this {
-    const canvas = L.DomUtil.create("canvas", `leaflet-zoom-animated ${this.className}`.trim(), map.getPane(this.options.pane!));
+    // Leaflet's stylesheet eases every .leaflet-zoom-animated element's
+    // transform over a quarter second while the map pane is
+    // .leaflet-zoom-anim, which it is from the moment a pinch's fingers
+    // lift (TouchZoom._onTouchEnd calls _animateZoom even where pinch.ts
+    // leaves the zoom as it is). A layer drawn again at each frame places
+    // its canvas with a plain transform at once (draw), and under that
+    // ease the canvas, scaled at the pinch's last frame to a drawing a
+    // level or more behind (zoomed), grew or shrank to scale 1 over the
+    // quarter second with its fresh drawing on it: the rings a third
+    // smaller than the chart as the fingers lifted and growing to size
+    // (the owner's recording, 2026-11-03 18:13, "rings jump out when
+    // zoomed out really fast"). Such a layer takes no ease: it draws
+    // where the chart is at every frame itself (step, warp).
+    const eased = this.redrawWhileZooming ? "" : "leaflet-zoom-animated";
+    const canvas = L.DomUtil.create("canvas", `${eased} ${this.className}`.trim(), map.getPane(this.options.pane!));
     canvas.style.pointerEvents = "none";
     this.canvas = canvas;
     // Drawn again through a pan too, a frame at a time: past the canvas's
