@@ -140,18 +140,23 @@ export interface SheetTurn { insets: MapInsets }
  * a grabber on its far edge: drag it, its first row, the head, or with a
  * finger anywhere on the body, and it follows the finger and lets go to
  * the detent it was heading for; tap the grabber and it cycles; Escape
- * lowers it. The screen's width on a phone; from `md` up a card at the
- * left, as Maps' is on an iPad and a Mac.
+ * lowers it. The screen's width on a phone; from `md` up 24 rem wide at
+ * the left.
  *
- * On a phone it is placed by one number, its height `h`: a column laid
- * out at the larger of where it is and where it is going, its foot on
- * the screen's edge by its own style (bottom: 0), and moved down by a
- * translate of what is laid out past h (laid - h) -- no height eased, no shape
- * changed, the glass as it is at every size. A settle is a CSS
+ * One sheet, a bottom sheet or a top sheet by the pilot's Layout setting
+ * (useNavEdge), at the owner's ask (2026-11-04: "make sure that sheet code
+ * is simple and just either bottom sheet or top sheet, based on the
+ * user's setup"); the floating card it was from `md` up, placed by its
+ * height, went. It is placed by one number, its height `h`: a column
+ * laid out at the larger of where it is and where it is going, held on
+ * its screen edge by its own style (bottom: 0, or top: 0), and slid off
+ * that edge by what is laid out past h (laid - h) -- no height eased, no
+ * shape changed, the glass as it is at every size. A settle is a CSS
  * transition of that transform alone; under a finger the transform is
- * written once a frame. The route's figures stay at the sheet's visible
- * foot by a translate of their own from the same number, the body cut
- * off over them by a translate and its content's reverse one. The map
+ * written once a frame. What must stay in sight at the sheet's free edge
+ * is moved back by the same number: a bottom sheet's route figures (the
+ * body cut off over them by a translate and its content's reverse one),
+ * a top sheet's head. The map
  * goes with the sheet's edge frame by frame (lib/map/sheetSlide), and
  * the page hears the room the sheet leaves as a turn starts (sheetturn)
  * and once it has landed (onInsetsChange) -- nothing per frame through
@@ -202,20 +207,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // the keyboard, a field typed into in it in sight.
   const keyboard = useKeyboardInset();
   const fromBottom = edge === "bottom";
-  // A phone's sheet from the bottom is placed by its transform; a card
-  // from `md` up and a sheet from the top keep their height in style.
-  const slides = onPhone && fromBottom;
   const hasPill = !!bar || !!compact;
-  const vh = windowHeight - keyboard;
-  // How tall it can be: a phone's sheet stops eight points short of the
-  // far edge's inset; a card keeps a margin at both ends.
-  const room = onPhone
-    ? vh - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN
-    : windowHeight - Math.max(SHEET_MARGIN, Math.round(safe.top)) - Math.max(SHEET_MARGIN, Math.round(safe.bottom));
-  // A phone's sheet from the bottom runs on to the screen's edge, under
-  // the home indicator (or eight points where there is none), so its
-  // content sits clear of it.
-  const edgeInset = onPhone && fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
+  // How tall it can be: eight points short of the far edge's inset.
+  const room = windowHeight - keyboard - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN;
+  // A bottom sheet runs on to the screen's edge, under the home indicator
+  // (or eight points where there is none), so its content sits clear of it.
+  const edgeInset = fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
 
   // The size the sheet shows: the page's, or the one it was asked for
   // here (a drag let go, the grabber, a tab's tap), told to the page once
@@ -240,10 +237,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const [footNode, setFootNodeState] = useState<HTMLDivElement | null>(null);
   // The parts the placement writes to, in refs: what is written to a
   // frame at a time is no state of the render's.
-  const nodes = useRef<{ panel: HTMLElement | null; foot: HTMLElement | null; body: HTMLElement | null; inner: HTMLElement | null }>({ panel: null, foot: null, body: null, inner: null });
+  const nodes = useRef<{ panel: HTMLElement | null; head: HTMLElement | null; foot: HTMLElement | null; body: HTMLElement | null; inner: HTMLElement | null }>({ panel: null, head: null, foot: null, body: null, inner: null });
   const setPanel = useCallback((node: HTMLElement | null) => { nodes.current.panel = node; setPanelNode(node); }, []);
   const setFootNode = useCallback((node: HTMLDivElement | null) => { nodes.current.foot = node; setFootNodeState(node); }, []);
   const setInnerNode = useCallback((node: HTMLDivElement | null) => { nodes.current.inner = node; }, []);
+  const setHeadNode = useCallback((node: HTMLDivElement | null) => { nodes.current.head = node; setHeadBand(node); }, []);
   const [pillHeight, setPillHeight] = useState<number | null>(null);
   const [headHeight, setHeadHeight] = useState(0);
   const [footHeight, setFootHeight] = useState(0);
@@ -333,63 +331,61 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // where it is the pill's own), for place() to put back.
   const laidStyleRef = useRef(laid);
   const pinRef = useRef(false);
-  const slidesRef = useRef(slides);
+  const fromBottomRef = useRef(fromBottom);
+  const onPhoneRef = useRef(onPhone);
   const sizeRef = useRef(size);
   const currentHeight = useCallback(() => {
     const el = nodes.current.panel;
     if (motionRef.current !== "settle" || !el) return hRef.current;
-    if (slidesRef.current) {
-      const transform = getComputedStyle(el).transform;
-      // Its own laid height less how far down it is moved this frame.
-      return transform && transform !== "none" ? el.offsetHeight - new DOMMatrix(transform).m42 : hRef.current;
-    }
-    return parseFloat(getComputedStyle(el).height) || hRef.current;
+    const transform = getComputedStyle(el).transform;
+    // Its own laid height less how far off its edge it is slid this frame.
+    return transform && transform !== "none" ? el.offsetHeight - Math.abs(new DOMMatrix(transform).m42) : hRef.current;
   }, []);
   // Every part's transition: on for a settle, off at rest and under a finger.
   const setEase = useCallback((seconds: number | null) => {
-    const { panel: el, foot, body, inner } = nodes.current;
-    const slide = slidesRef.current;
+    const { panel: el, head, foot, body, inner } = nodes.current;
     const curve = seconds ? `${seconds}s ${EASE}` : null;
-    if (slide) for (const part of [el, body, inner]) if (part) part.style.transition = curve ? `transform ${curve}` : "";
-    else if (el) el.style.transition = curve ? `height ${curve}` : "";
-    if (foot) foot.style.transition = curve ? `${slide ? `transform ${curve}, ` : ""}--sheet-progress ${curve}` : "";
-    if (slide) coverRule().setProperty("--sheet-cover-ease", curve ?? "0s");
+    for (const part of [el, head, body, inner]) if (part) part.style.transition = curve ? `transform ${curve}` : "";
+    if (foot) foot.style.transition = curve ? `transform ${curve}, --sheet-progress ${curve}` : "";
+    coverRule().setProperty("--sheet-cover-ease", curve ?? "0s");
   }, []);
-  // The sheet at `h`: the transform down from the screen's foot, the figures
-  // held at the visible foot and the body cut off over them (the pin),
-  // the map's buttons riding on its top. Written straight to the style.
+  // The sheet at `h`, written straight to the style: held on its edge by
+  // its style (bottom: 0 or top: 0) and slid off it by what is laid out
+  // past h, never toward the screen's middle, so its edge never leaves
+  // the screen's (the owner, 2026-11-04: "why is it moving at all from the
+  // bottom?"). Where a finger outruns the render that lays the column out
+  // taller (setMoveLaid), the sheet's own height goes with it. What must
+  // stay in sight at its free edge is moved back by the same: a bottom
+  // sheet's figures, the body cut off over them (the pin); a top sheet's
+  // head, the body with it. A bottom sheet's top carries the map's
+  // buttons (--sheet-cover).
   const place = useCallback((h: number) => {
     hRef.current = h;
-    const { panel: el, foot, body, inner } = nodes.current;
+    const { panel: el, head, foot, body, inner } = nodes.current;
     if (!el) return;
-    if (!slidesRef.current) {
-      el.style.height = atPillRef.current && motionRef.current === null ? "" : `${h}px`;
-      for (const part of [el, foot, body, inner]) if (part) part.style.transform = "";
-      return;
-    }
-    // Its foot is on the screen's edge by its style (bottom: 0) and only
-    // ever moved down from there, never up: the owner asked why the
-    // sheet's bottom moved at all, now that it is not floating
-    // (2026-11-04). It had been placed from the screen's top (top: 0 and
-    // a translate of vh - h), which kept the foot on the edge only while
-    // the column was laid out at least as tall as h and the window's
-    // inner height was the screen's -- a fast flick up outran the render
-    // that lays the column out taller (setMoveLaid), and Safari's toolbar
-    // changing the inner height moved the foot with it. Where a finger
-    // outruns that render now, the sheet's own height goes with it.
     const short = h > laidRef.current + 0.5;
     el.style.height = short ? `${Math.ceil(h)}px` : laidStyleRef.current === null ? "" : `${laidStyleRef.current}px`;
-    const down = short ? 0 : laidRef.current - h;
-    el.style.transform = `translate3d(0, ${Math.round(down * 100) / 100}px, 0)`;
-    const over = pinRef.current ? Math.max(0, laidRef.current - h) : 0;
-    const up = over ? `translate3d(0, ${-over}px, 0)` : "";
-    if (foot) foot.style.transform = up;
-    if (body) {
-      body.style.transform = up;
-      body.style.overflow = over ? "clip" : "";
+    const over = short ? 0 : Math.max(0, laidRef.current - h);
+    const shift = (px: number) => (px ? `translate3d(0, ${Math.round(px * 100) / 100}px, 0)` : "");
+    if (fromBottomRef.current) {
+      el.style.transform = shift(over);
+      const pinned = pinRef.current ? over : 0;
+      if (head) head.style.transform = "";
+      if (foot) foot.style.transform = shift(-pinned);
+      if (body) {
+        body.style.transform = shift(-pinned);
+        body.style.overflow = pinned ? "clip" : "";
+      }
+      if (inner) inner.style.transform = shift(pinned);
+    } else {
+      el.style.transform = shift(-over);
+      for (const part of [head, body]) if (part) part.style.transform = shift(over);
+      if (foot) foot.style.transform = "";
+      if (body) body.style.overflow = "";
+      if (inner) inner.style.transform = "";
     }
-    if (inner) inner.style.transform = over ? `translate3d(0, ${over}px, 0)` : "";
-    coverRule().setProperty("--sheet-cover", `${Math.max(0, Math.round(h))}px`);
+    if (onPhoneRef.current && fromBottomRef.current) coverRule().setProperty("--sheet-cover", `${Math.max(0, Math.round(h))}px`);
+    else coverRule().removeProperty("--sheet-cover");
   }, []);
 
   // A settle: to `target`, from where the sheet is now, started after the
@@ -410,7 +406,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // 2026-11-04: "it still takes a second to settle when dragging
     // down"). The column is laid out at the larger end already under a
     // finger, and place() makes it taller where it is not.
-    if (now && slidesRef.current && nodes.current.panel) {
+    if (now && nodes.current.panel) {
       const seconds = prefersReducedMotion() || Math.abs(to - from) < 0.5 ? 0 : settleSeconds(to - from);
       // Laid out at the larger end from the start, as the render about
       // to come lays it (setMoveLaid below): one height for the whole
@@ -431,7 +427,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     }
     setSize(target);
     setMotion("settle");
-    if (slidesRef.current) setMoveLaid(Math.max(laidRef.current, to));
+    setMoveLaid(Math.max(laidRef.current, to));
   }, [currentHeight, setEase, place]);
   const ask = useCallback((target: PanelState, now = false) => {
     asked.current = target;
@@ -463,12 +459,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useLayoutEffect(() => {
     laidRef.current = laidPx;
     laidStyleRef.current = laid;
-    slidesRef.current = slides;
+    fromBottomRef.current = fromBottom;
+    onPhoneRef.current = onPhone;
     sizeRef.current = size;
     atPillRef.current = atPill;
     detentsRef.current = detents;
     motionRef.current = motion;
-    pinRef.current = slides && footShown && !atPill;
+    pinRef.current = footShown && !atPill;
     const { panel: el, foot } = nodes.current;
     if (!el) return;
     const m = pending.current;
@@ -544,14 +541,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       motionRef.current = "drag";
       setMotion("drag");
       // Laid out at half under a finger, all the way up once past it.
-      if (slidesRef.current) setMoveLaid(Math.max(h, h > detentsRef.current.half + 1 ? detentsRef.current.full : detentsRef.current.half));
+      setMoveLaid(Math.max(h, h > detentsRef.current.half + 1 ? detentsRef.current.full : detentsRef.current.half));
       place(h);
     },
     place: h => {
       place(h);
       const d = detentsRef.current;
       const want = h > d.half + 1 ? d.full : d.half;
-      if (slidesRef.current && want !== laidRef.current) setMoveLaid(want);
+      if (want !== laidRef.current) setMoveLaid(want);
     },
     release: (h, speed) => ask(restingAt(detentsRef.current, h, speed), true),
   });
@@ -647,16 +644,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
 
   // Where the panel's top-right button sits, one place in every panel
   // (--corner-line, --corner-inset).
-  const headPad = fromBottom ? "0.25rem" : onPhone ? "max(0.5rem, env(safe-area-inset-top))" : "0.5rem";
-  const bodyPad = !fromBottom && onPhone ? "env(safe-area-inset-top)" : "0px";
+  const headPad = fromBottom ? "0.25rem" : "max(0.5rem, env(safe-area-inset-top))";
+  const bodyPad = fromBottom ? "0px" : "env(safe-area-inset-top)";
   const vars = {
     "--corner-line": "calc((2.5625rem - 36px) / 2)",
     "--corner-inset": `calc(${headPad} - ${bodyPad} + (2.5625rem - 36px) / 2)`,
   } as CSSProperties;
 
   // iOS's grabber: 36 by 5 in a button a little wider, over the first
-  // row's own room at the sheet's near edge (or at its far edge, from the
-  // top of the screen and on a card); tapped it cycles the heights, and
+  // row's own room at the sheet's free edge: the top of a bottom sheet,
+  // the foot of a top sheet; tapped it cycles the heights, and
   // it is what a keyboard and VoiceOver use. Its hit area stops at the
   // first row, whose tabs have their own 44 points.
   const grabber = (
@@ -670,14 +667,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       className={cn(
         "absolute inset-x-0 z-30 mx-auto flex w-24 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
         "after:inset-x-0! after:top-0! after:bottom-0!",
-        fromBottom && (slides || !onPhone) ? "top-0 h-2.5 items-start pt-1" : "bottom-0 h-4 items-end pb-[5px]",
+        fromBottom ? "top-0 h-2.5 items-start pt-1" : "bottom-0 h-4 items-end pb-[5px]",
       )}
     >
       <span className={cn("h-[5px] w-9 rounded-full", ownHead || pillPictured ? "bg-white/75 shadow-[0_0_3px_rgba(0,0,0,.5)]" : "bg-muted-foreground/40")} aria-hidden="true" />
     </button>
   );
   const atRest = motion === null;
-  const grabberAtTop = fromBottom && (slides || !onPhone);
 
   return (
     <>
@@ -689,14 +685,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       data-capsule={atPill && atRest || undefined}
       style={{
         ...vars,
-        // Docked, the screen's width, as a classic iOS tab bar sits on the
-        // home indicator: the owner, 2026-11-04, "should the tabs not be
-        // screen width if they are not floating?", of a pill inset at the
-        // sides but on the screen's edge below, which read as neither.
-        ...(slides ? {
-          left: 0, right: 0, bottom: keyboard, height: laid ?? undefined,
-          borderRadius: `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0`, willChange: "transform",
-        } : onPhone ? { left: 0, right: 0, top: 0, borderRadius: `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px` } : {}),
+        // Docked on its edge, the screen's width on a phone, as a classic
+        // iOS tab bar sits on the home indicator: the owner, 2026-11-04,
+        // "should the tabs not be screen width if they are not floating?".
+        // A bottom sheet sits on the keyboard while it is up.
+        ...(fromBottom ? { bottom: keyboard } : { top: 0 }),
+        height: laid ?? undefined, willChange: "transform",
+        borderRadius: fromBottom ? `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0` : `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px`,
       }}
       className={cn(
         // Clipped rather than hidden: a hidden overflow can still be
@@ -706,21 +701,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // Liquid Glass at every size, as Maps' is: the chart through it,
         // blurred, the same pane whether it is the pill or the sheet.
         onPhone ? GLASS : MATERIAL,
-        !onPhone && cn(
-          "left-[max(1rem,env(safe-area-inset-left))] w-[24rem] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
-          atPill ? "rounded-[24px]" : "rounded-[10px]",
-          fromBottom ? "bottom-[max(0.5rem,env(safe-area-inset-bottom))]" : "top-[max(0.5rem,env(safe-area-inset-top))]",
-        ),
+        onPhone ? "inset-x-0" : "left-[max(1rem,env(safe-area-inset-left))] w-[24rem] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
       )}
     >
       {pillPictured && pill && <PillPicture pill={pill} />}
-      {grabberAtTop && grabber}
+      {fromBottom && grabber}
       {/* The head's band, dragged as the grabber is: the first row (the
           bar), the top row, any notice, the controls. Over the body, which
           runs on up under it (`under`): frosted while anything is there. */}
       <div
-        ref={setHeadBand} data-head-band=""
-        className={cn("relative flex shrink-0 touch-none flex-col", under && "z-20", !fromBottom && onPhone && "pt-[env(safe-area-inset-top)]")}
+        ref={setHeadNode} data-head-band=""
+        className={cn("relative flex shrink-0 touch-none flex-col", under && "z-20", !fromBottom && "pt-[env(safe-area-inset-top)]")}
         onPointerDown={startDrag}
       >
         {bar && (
@@ -817,7 +808,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
           onClick={atPill ? () => ask("half") : undefined}
         >{foot}</div>
       )}
-      {!grabberAtTop && grabber}
+      {!fromBottom && grabber}
       {/* The rest of the way to the screen's edge, under the home
           indicator -- in the body where it runs to the edge (toEdge). */}
       {!toEdge && edgeInset > 0 && <div className="shrink-0" style={{ height: edgeInset }} aria-hidden="true" />}
