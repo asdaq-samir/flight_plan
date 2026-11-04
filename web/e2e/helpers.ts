@@ -713,6 +713,21 @@ export async function airportMarks(page: Page): Promise<DrawnAirport[]> {
   });
 }
 
+/** The VFR waypoints drawn on the map (WaypointsLayer, on a navaids
+ *  canvas of their own), in the page's own points. */
+export async function waypointMarks(page: Page): Promise<{ ident: string; x: number; y: number }[]> {
+  return page.evaluate(() => {
+    const out: { ident: string; x: number; y: number }[] = [];
+    for (const c of document.querySelectorAll<HTMLCanvasElement>("canvas[data-navaid-marks]")) {
+      const r = c.closest(".leaflet-container")!.getBoundingClientRect();
+      for (const m of JSON.parse(c.dataset.navaidMarks ?? "[]") as { ident: string; kind: string; x: number; y: number }[]) {
+        if (m.kind === "vfr") out.push({ ident: m.ident, x: m.x + r.left, y: m.y + r.top });
+      }
+    }
+    return out;
+  });
+}
+
 /** One chart airport drawn, by its ident; null while it is not. */
 export async function airportMark(page: Page, ident: string): Promise<DrawnAirport | null> {
   return (await airportMarks(page)).find(m => m.ident === ident) ?? null;

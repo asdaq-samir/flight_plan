@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { clearTheRoute, openPanel, settle, sideDrawer, slow, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
+import { clearTheRoute, waypointMarks, openPanel, settle, sideDrawer, slow, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -757,7 +757,7 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
   expect((await answer.json()).waypoints.map((w: { ident: string }) => w.ident)).toContain("VPBNG");
 
   // One waypoint, where it is: VPBNG, by Campbell. In close enough for
-  // the diamonds -- the wheel over C81, a level at a time.
+  // the waypoints' marks -- the wheel over C81, a level at a time.
   await page.route(url => url.pathname.endsWith("/waypoints/in-view"), route =>
     route.fulfill({ json: { waypoints: [{ ident: "VPBNG", lat: 42.2673, lon: -88.1311, description: "3 nm SW of Campbell" }] } }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -778,26 +778,26 @@ test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop",
     await page.mouse.wheel(0, -60);
     await page.waitForTimeout(400);
   }
-  const diamond = page.locator(".leaflet-waypoints-pane .leaflet-marker-icon");
-  await expect(diamond).toHaveCount(1, { timeout: slow(20000) });
+  // The waypoint drawn, its magenta triangle and ident (WaypointsLayer).
+  await expect.poll(async () => (await waypointMarks(page)).map(w => w.ident), { timeout: slow(20000) }).toEqual(["VPBNG"]);
   // Once the map has stopped: a tap as the zoom eases in landed where the
-  // diamond had been.
+  // mark had been.
   let was = "";
   await expect(async () => {
-    const now = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-map-pane, .leaflet-tile-container, .leaflet-waypoints-pane .leaflet-marker-icon")]
-      .map(el => el.style.transform).join("|"));
+    const now = JSON.stringify(await waypointMarks(page));
     const still = now === was;
     was = now;
     await page.waitForTimeout(300);
     expect(still).toBe(true);
   }).toPass({ timeout: slow(10_000) });
   // Tapped again until its card is up: on CI's runner the plan's stream
-  // finishing could move the map under the first tap (its card never
-  // came, now and then, on the phone's shard).
+  // finishing could move the map under the first tap.
   const add = page.getByTestId("waypoint-add-stop");
-  // Not tapped again while its card is coming: the card, up, covers it.
   await expect(async () => {
-    if (!(await add.isVisible())) await diamond.click({ timeout: 2000 });
+    if (!(await add.isVisible())) {
+      const [mark] = await waypointMarks(page);
+      await page.mouse.click(mark!.x, mark!.y);
+    }
     await expect(add).toBeVisible({ timeout: 3000 });
   }).toPass({ timeout: slow(15000) });
   // What it is beside its ident, where it is on a line of its own: in its

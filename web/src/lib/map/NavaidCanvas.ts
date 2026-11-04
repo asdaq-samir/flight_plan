@@ -1,6 +1,7 @@
 import L from "leaflet";
 import { prefersReducedMotion } from "../motion";
 import { BLUE } from "../useAirspace";
+import { WAYPOINT_MAGENTA } from "./chartColors";
 import type { TagSide } from "./declutter";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
 
@@ -11,7 +12,11 @@ export interface NavaidMark {
   ident: string;
   lat: number;
   lon: number;
-  kind: "vor" | "fix";
+  /** A VOR, an enroute fix (a GPS waypoint), or a VFR waypoint, which
+   *  wears the fix's triangle and ident in the chart's magenta (the
+   *  owner, 2026-11-04: "The VFR waypoints should look/behave similar to
+   *  gps waypoints, just in different color"). */
+  kind: "vor" | "fix" | "vfr";
   side: TagSide;
 }
 
@@ -53,7 +58,7 @@ function shapeOf(kind: NavaidMark["kind"], loaded: () => void): HTMLImageElement
         `<polygon points="15,8 11.5,14.06 4.5,14.06 1,8 4.5,1.94 11.5,1.94" fill="#fff" stroke="${BLUE}" stroke-width="2"/>` +
         `<circle cx="8" cy="8" r="1.6" fill="${BLUE}"/></svg>`
       : `<svg xmlns="http://www.w3.org/2000/svg" width="${TRIANGLE_PX * 2}" height="${TRIANGLE_PX * 2}" viewBox="0 0 10 10">` +
-        `<polygon points="5,1 9.4,8.8 0.6,8.8" fill="#fff" stroke="${FIX_INK}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+        `<polygon points="5,1 9.4,8.8 0.6,8.8" fill="#fff" stroke="${kind === "vfr" ? WAYPOINT_MAGENTA : FIX_INK}" stroke-width="${kind === "vfr" ? 1.6 : 1.2}" stroke-linejoin="round"/></svg>`;
     picture = new Image();
     picture.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     shapes.set(kind, picture);
@@ -98,7 +103,7 @@ function pictureOf(mark: NavaidMark, font: string, dpr: number): HTMLCanvasEleme
     own.lineWidth = HALO_ROOM;
     own.strokeStyle = "#fff";
     own.strokeText(mark.ident, width / 2, height / 2);
-    own.fillStyle = FIX_INK;
+    own.fillStyle = mark.kind === "vfr" ? WAYPOINT_MAGENTA : FIX_INK;
   }
   own.fillText(mark.ident, width / 2, height / 2);
   pictures.set(key, picture);
@@ -240,7 +245,7 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
       const picture = mark.kind === "vor" && mark.side === "none" ? null : pictureOf(mark, this.font, dpr);
       if (picture) {
         const w = picture.width / dpr, h = picture.height / dpr;
-        const left = mark.kind === "fix" ? sx + FIX_LABEL_GAP - HALO_ROOM : mark.side === "left" ? sx - TAG_GAP - w : sx + TAG_GAP;
+        const left = mark.kind !== "vor" ? sx + FIX_LABEL_GAP - HALO_ROOM : mark.side === "left" ? sx - TAG_GAP - w : sx + TAG_GAP;
         ctx.drawImage(picture, px(left), px(sy - h / 2), w, h);
       }
       ctx.globalAlpha = 1;

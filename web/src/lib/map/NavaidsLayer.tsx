@@ -40,9 +40,9 @@ const MARKS_PANE = { zIndex: NAVAIDS_Z };
 
 /** How far off a station a tap on the chart is still the station's: half
  *  a finger's 44 points, the reach its unseen target had. */
-const TAP_PX = 22;
+export const TAP_PX = 22;
 /** How near the mouse names a station: its mark's half-width and a little. */
-const HOVER_PX = 10;
+export const HOVER_PX = 10;
 
 const NO_VORS: VorPin[] = [];
 const NO_FIXES: FixPin[] = [];
@@ -193,7 +193,7 @@ function NavaidMarks({ marks, vors, fixes }: { marks: NavaidMark[]; vors: VorPin
 
 /** With a mouse, a station under the pointer named as the markers were
  *  (their titles), and the pointer a hand over it (AirportHover the same). */
-function NavaidHover({ layer }: { layer: NavaidMarksLayer }) {
+export function NavaidHover({ layer }: { layer: NavaidMarksLayer }) {
   const map = useMap();
   const tip = useMemo(() => L.tooltip({ direction: "top", offset: [0, -10], opacity: 1 }), []);
   const frame = useRef(0);
@@ -214,7 +214,7 @@ function NavaidHover({ layer }: { layer: NavaidMarksLayer }) {
           if (!near) return off();
           map.getContainer().style.cursor = "pointer";
           hand.current = true;
-          tip.setLatLng([near.lat, near.lon]).setContent(near.kind === "vor" ? `${near.ident} VOR` : `${near.ident} fix`);
+          tip.setLatLng([near.lat, near.lon]).setContent(near.kind === "vor" ? `${near.ident} VOR` : near.kind === "vfr" ? `${near.ident} VFR waypoint` : `${near.ident} fix`);
           if (!map.hasLayer(tip)) map.openTooltip(tip);
         });
       },
