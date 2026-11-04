@@ -214,18 +214,26 @@ def _hazard_source(h: Hazard, i: int, gone: bool = False) -> Source:
 
 
 def _gairmet_source(g: GAirmet, i: int, gone: bool = False) -> Source:
-    lines = [f"G-AIRMET: {gairmet_title(g)}."]
+    # gairmet_title reads the Go / No-Go's dict, so the model is dumped
+    # for it (a live briefing's first reading raised on the model).
+    title = gairmet_title(g.model_dump())
+    lines = [f"G-AIRMET: {title}."]
     if g.due_to:
         lines.append(f"Due to {g.due_to}.")
+    # As the web's gairmetAltitudes writes them: AWC gives an IFR G-AIRMET
+    # a top of -1, which is no top, and such a one has no altitude line.
+    top = f"{alt_ft(g.altitude_high_ft)} ft" if g.altitude_high_ft is not None and g.altitude_high_ft > 0 else None
     low = "the freezing level" if g.from_freezing_level else (f"{alt_ft(g.altitude_low_ft)} ft" if g.altitude_low_ft is not None else None)
-    if low or g.altitude_high_ft is not None:
-        lines.append(f"From {low or 'the surface'} to {alt_ft(g.altitude_high_ft) + ' ft' if g.altitude_high_ft is not None else 'above'}.")
+    if top:
+        lines.append(f"From {low or 'the surface'} to {top}.")
+    elif g.from_freezing_level:
+        lines.append("From the freezing level.")
     if g.valid_at:
         lines.append(f"Valid at {g.valid_at}.")
     if g.on_route:
         lines.append(_meets(g.on_route))
-    title = f"{'Gone: ' if gone else ''}G-AIRMET, {gairmet_title(g)}"
-    return Source(id=f"gairmet{'-gone' if gone else ''}:{i}", label=title, text=" ".join(lines))
+    label = f"{'Gone: ' if gone else ''}G-AIRMET, {title}"
+    return Source(id=f"gairmet{'-gone' if gone else ''}:{i}", label=label, text=" ".join(lines))
 
 
 def _metar_source(ident: str, metar) -> Source:
