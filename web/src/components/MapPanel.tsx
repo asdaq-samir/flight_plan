@@ -329,6 +329,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const hRef = useRef(detents[size]);
   const vhRef = useRef(vh);
   const laidRef = useRef(laidPx);
+  // The column's height as the render sets it (null at the pill at rest,
+  // where it is the pill's own), for place() to put back.
+  const laidStyleRef = useRef(laid);
   const pinRef = useRef(false);
   const slidesRef = useRef(slides);
   const sizeRef = useRef(size);
@@ -364,6 +367,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       return;
     }
     el.style.transform = `translate3d(0, ${Math.round((vhRef.current - h) * 100) / 100}px, 0)`;
+    // A fast flick up outruns the render that lays the column out taller
+    // (setMoveLaid), and a column shorter than `h` moved up by vh - h left
+    // its foot above the screen's edge, the map showing under it (the
+    // owner's recording, 2026-11-04). Until that render lands the sheet's
+    // own height goes with the finger, so its foot stays on the edge.
+    const short = h > laidRef.current + 0.5;
+    el.style.height = short ? `${Math.ceil(h)}px` : laidStyleRef.current === null ? "" : `${laidStyleRef.current}px`;
     const over = pinRef.current ? Math.max(0, laidRef.current - h) : 0;
     const up = over ? `translate3d(0, ${-over}px, 0)` : "";
     if (foot) foot.style.transform = up;
@@ -418,6 +428,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useLayoutEffect(() => {
     vhRef.current = vh;
     laidRef.current = laidPx;
+    laidStyleRef.current = laid;
     slidesRef.current = slides;
     sizeRef.current = size;
     atPillRef.current = atPill;
