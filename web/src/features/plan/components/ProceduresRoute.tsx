@@ -24,7 +24,6 @@ import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
 import { frdOf, isFixIdent, isPosition, placeOfPoint, pointName } from "../../../lib/identSchema";
-import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { etaAt, reportedWind, type ReportedWind } from "../format";
 import { AirportMark, PointMark } from "./navlog/PointMark";
@@ -44,8 +43,10 @@ import { groundMinAt, legOf, rowPoint, type NavLogRow } from "./navlog/rows";
 
 /** The line that joins the route's points down FPL's list, in the course's
  *  magenta as the map draws the route, at the owner's ask ("draw the
- *  connection with magenta line"); it was the border's grey. */
-const ROUTE_LINE = { backgroundColor: COURSE_MAGENTA } as const;
+ *  connection with magenta line"); it was the border's grey. The token
+ *  (index.css --course, chartColors' COURSE_MAGENTA) rather than the
+ *  value, so the Chart ink look's own magenta reaches it. */
+const ROUTE_LINE = { backgroundColor: "var(--course)" } as const;
 
 // Opened only from a point's menu, so fetched as one first is: in the
 // first load they took it over its 1.10 MB budget (CI, 2026-10-20).
@@ -1000,7 +1001,7 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
       {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
       <div className="relative flex w-7 shrink-0 justify-center pt-1.5" aria-hidden="true">
         <svg viewBox="0 0 28 16" className="h-4 w-7 rounded-full bg-background">
-          <rect x="2" y="2" width="24" height="12" rx="6" fill="none" stroke={COURSE_MAGENTA} strokeWidth="2.5" strokeDasharray="4 3" />
+          <rect x="2" y="2" width="24" height="12" rx="6" fill="none" className="stroke-course" strokeWidth="2.5" strokeDasharray="4 3" />
         </svg>
       </div>
       <button

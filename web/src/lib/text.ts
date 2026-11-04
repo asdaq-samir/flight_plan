@@ -47,6 +47,19 @@ export const TEXT = {
    *  size a bit bigger so it fits nicely"; the tabs to "pop out more",
    *  2026-10-22). */
   tab: "text-[0.8125rem] leading-[1.0625rem]",
+  /** A figure's name, an ident, a chip's word in the display face
+   *  (index.css --display: Barlow Condensed in the Chart ink look, the
+   *  body's own face in the others): a note's 13 on 17, semibold, in
+   *  capitals spaced a tenth of an em, as the ink canvas sets a figure's
+   *  label (2026-11-04). */
+  label: "font-display text-[0.8125rem] leading-[1.0625rem] font-semibold uppercase tracking-[0.1em]",
+  /** A figure in the Chart ink look (FigureStrip): 26 on 31, bold, in
+   *  tabular figures -- the Flying screen's size (FLYING_FIGURE), a
+   *  weight up, in the text face. */
+  figure: "text-[1.625rem] leading-[1.9375rem] font-bold tabular-nums",
+  /** A word button's words (the strip layout's): the display face's
+   *  capitals, semibold, spaced 0.08em; its size the button's own. */
+  word: "font-display font-semibold uppercase tracking-[0.08em]",
 } as const;
 
 /** A group's heading, as iOS's grouped lists set one: a note's size,

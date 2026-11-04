@@ -30,7 +30,8 @@ const NO_PROCEDURES: ProcedureDrawing[] = [];
 import { chipColourOf, colourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { RouteWaysLayer, type RouteWay } from "../../../lib/map/RouteWaysLayer";
-import { COURSE_MAGENTA, MAP_BLUE } from "../../../lib/map/chartColors";
+import { COURSE_MAGENTA, MAP_BLUE, checkpointColour } from "../../../lib/map/chartColors";
+import { useInkLook } from "../../../lib/brand";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { LegHighlightLayer } from "../../../lib/map/LegHighlightLayer";
 import { Halo } from "../../../lib/map/Halo";
@@ -457,6 +458,10 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus,
   airports: { ident: string; lat: number; lon: number }[];
 }) {
   const show = usePreferences(s => s.waypoints);
+  // The dots' ink: their scores' colours, or the Chart ink look's brown
+  // (checkpointColour); asked here so they are drawn again as the look
+  // changes.
+  const ink = useInkLook();
   const { carded, cardEvents } = useCardedMarker<string>();
   const spaced = useSpaced(selected, airports);
   // Named once the map is in close, or the one picked (its row, its dot):
@@ -489,7 +494,7 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus,
         if (!spaced.has(key) && carded !== key) return null;
         return (
           <Marker
-            key={key} position={[c.lat, c.lon]} icon={dotIcon(scoreColor(c.predicted_score), i + 1)}
+            key={key} position={[c.lat, c.lon]} icon={dotIcon(checkpointColour(scoreColor(c.predicted_score), ink), i + 1)}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectCandidate(c); }, ...cardEvents(key) }}
           >
             {carded !== key && <MapTooltip><CheckpointCard candidate={c} number={i + 1} /></MapTooltip>}
@@ -687,8 +692,9 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
 }
 
 /** A hold's racetrack in the course line's own magenta and weight
- *  (lib/map/CourseLine), dashed: flown round, not along. */
-const HOLD_LINE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false };
+ *  (lib/map/CourseLine), dashed: flown round, not along. Its class takes
+ *  the Chart ink look's magenta from the stylesheet (index.css). */
+const HOLD_LINE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false, className: "course-ink" };
 
 /** Each hold the pilot put on the route (the legs' `hold`, plan.with_holds):
  *  one turn round its racetrack from its point, as Garmin's and

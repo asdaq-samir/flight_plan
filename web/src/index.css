@@ -229,6 +229,10 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --font-heading: var(--font-sans);
   /* The look's own face (lib/brand, --brand-font below), Inter otherwise. */
   --font-sans: var(--brand-font, 'Inter Variable'), sans-serif;
+  /* The display face (--display below): the Chart ink look's Barlow
+     Condensed for a figure's label, an ident and a word button
+     (lib/text's label and word), the body's own face in the other looks. */
+  --font-display: var(--display);
   --color-chart-5: var(--chart-5);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
@@ -248,6 +252,12 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
   --color-tint: var(--tint);
+  /* The course's magenta off the map (--course), and the Chart ink
+     look's own inks (--ink-*, unset in the other looks). */
+  --color-course: var(--course);
+  --color-ink-magenta: var(--ink-magenta);
+  --color-ink-brown: var(--ink-brown);
+  --color-ink-field: var(--ink-field);
   --color-procedure: var(--procedure);
   --color-caution: var(--caution);
   --color-go: var(--go);
@@ -275,6 +285,14 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
      lightens them to WCAG's 4.5:1 (the iOS audit's P15). */
   --airspace-blue-text: #2465b8;
   --airspace-magenta-text: #c0309f;
+  /* The course line's magenta where the stylesheet reaches it off the
+     map -- the nav log's tags (PointMark), FPL's route line
+     (ProceduresRoute) -- chartColors' COURSE_MAGENTA, which Leaflet and a
+     canvas take as a value; the Chart ink look's own magenta in it. */
+  --course: #e600e6;
+  /* The display face (the font-display utility): the body's own, but in
+     the Chart ink look, whose is Barlow Condensed. */
+  --display: var(--font-sans);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -483,6 +501,82 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
   --tint-shade: #7ab8ff;
 }
 
+/* Chart ink (the owner's ink canvas, 2026-11-04: "let's try it"): the
+   app in the FAA sectional's own ink. Barlow for text and Barlow
+   Condensed for a figure's label, an ident and a word button (--display;
+   lib/brand loads both, lib/text's label, figure and word set them); a
+   paper ground -- the sheet and the pages -- under white cards with no
+   edge, 18-point corners and a soft shade (the rule after the Sunlight
+   block); the chart's magenta for the course and an ident at a head, its
+   brown for the checkpoints' marks, its green for a field (--ink-*, the
+   tokens and the ink-* colour utilities; chartColors' courseColour and
+   checkpointColour for what Leaflet and a canvas take as a value). What
+   can be tapped stays the app's own blue by day: the canvas's #0a84ff
+   reads 3.7:1 on white, under WCAG's 4.5 (the iOS audit's P15), and so
+   do its amber (#ff9f0a, 2.1:1) and its go green (#34c759, 2.2:1) as
+   words, so caution and go stay as they are by day too. Every word here
+   is 4.5:1 and more on its surface: the muted brown 7.9:1 on a card,
+   7.0:1 on the paper and 6.4:1 on the muted; the tint 5.0:1 on the paper
+   and 4.6:1 on the muted; the magenta 5.0:1, the brown 5.3:1 and the
+   green 4.8:1 on the paper. Not in sunlight, whose own tokens win (the
+   :not), the typeface and the corners aside, as with the other looks. */
+:root[data-brand="ink"] {
+  --brand-font: 'Barlow';
+  --display: 'Barlow Condensed', 'Barlow', sans-serif;
+  /* 12: a card's 18 is its own (the rule after the Sunlight block), a
+     button's 10 and a chip's 7 come from this. */
+  --radius: 0.75rem;
+  --ink-magenta: #b3338c;
+  --ink-brown: #8a5a2b;
+  --ink-field: #1d7a46;
+  --course: var(--ink-magenta);
+}
+:root[data-brand="ink"]:not(.dark):not([data-chart-light="bright"]) {
+  --background: #f7f2e7;
+  --sheet: #f7f2e7;
+  --foreground: #1f1a14;
+  --card: #ffffff;
+  --card-foreground: #1f1a14;
+  --popover: #ffffff;
+  --popover-foreground: #1f1a14;
+  --muted: #efe8da;
+  --muted-foreground: #5a5048;
+  --secondary: #efe8da;
+  --secondary-foreground: #1f1a14;
+  --accent: #efe8da;
+  --accent-foreground: #1f1a14;
+  /* The paper a shade deeper: a hairline between a list's rows (1.4:1 on
+     a card), and no edge round a card (the rule after the Sunlight block). */
+  --border: #e2d8c4;
+}
+/* Its night: the canvas's charcoal ground and cards, its light teal for
+   what can be tapped -- as words (10.4:1 on the ground, 8.2:1 on the
+   muted) and as a fill under the ground's own dark words (10.4:1), where
+   white words on it would read 1.9:1 -- its go green (8.1:1 on a card)
+   and a lighter magenta (5.9:1 on a card). The brown and the green of
+   the marks stay the day's: they sit on the chart, not on a card. */
+:root.dark[data-brand="ink"]:not([data-chart-light="bright"]) {
+  --background: #14161c;
+  --sheet: #14161c;
+  --foreground: #eef1f5;
+  --card: #1d2027;
+  --card-foreground: #eef1f5;
+  --popover: #262a33;
+  --popover-foreground: #eef1f5;
+  --muted: #262a33;
+  --muted-foreground: #a9aeb8;
+  --secondary: #262a33;
+  --secondary-foreground: #eef1f5;
+  --accent: #262a33;
+  --accent-foreground: #eef1f5;
+  --primary: #5ac8fa;
+  --primary-foreground: #14161c;
+  --tint: #5ac8fa;
+  --tint-shade: #5ac8fa;
+  --go: #35d07f;
+  --ink-magenta: #ff5ac8;
+}
+
 /* The chart at night (Settings' "Chart at night", lib/preferences
    chartNight, set on <html> by ChartTiles): the FAA's sectional is a
    white paper chart, the brightest thing in a dark cockpit, so in the
@@ -577,6 +671,24 @@ html[data-chart-light="bright"] [data-map-controls] button {
 html[data-chart-light="bright"] [data-slot="section-summary"] {
   background-color: #ffffff;
   color: #000000;
+}
+
+/* The Chart ink look on the map and on its cards, after the night's and
+   the sun's rules: it outranks the dimmed chart's course (the same
+   weight, later) and yields to sunlight (the :not). The course, a hold's
+   racetrack and the route options' ways (course-ink, on a path's options)
+   in the look's magenta, the day's deep one and the night's light one
+   (--ink-magenta), cased in white as they are, the dimmed chart's navy
+   casing kept at night. A card -- a grouped list's box (ListGroup), the
+   stock Card -- white with no edge, 18-point corners and the canvas's
+   soft shade, in one rule rather than on each. */
+html[data-brand="ink"]:not([data-chart-light="bright"]) :is(.course-core, .course-ink) {
+  stroke: var(--ink-magenta);
+}
+html[data-brand="ink"]:not([data-chart-light="bright"]) :is([data-slot="card"], [data-slot="item-group"][role="group"]) {
+  border-color: transparent;
+  border-radius: 1.125rem;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.08);
 }
 
 @layer base {

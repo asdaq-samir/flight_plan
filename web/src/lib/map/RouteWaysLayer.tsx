@@ -23,10 +23,11 @@ export interface RouteWay {
 // new object, and a literal is one at every render.
 // Faded and solid magenta, the course line's own, at the owner's ask
 // ("show all suggested routes on the map with faded magenta instead of
-// blue, and make that route solid magenta as browsed").
-const WAY_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 6, opacity: 0.35, lineCap: "round", lineJoin: "round" };
+// blue, and make that route solid magenta as browsed"). Their class takes
+// the Chart ink look's magenta from the stylesheet (index.css).
+const WAY_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 6, opacity: 0.35, lineCap: "round", lineJoin: "round", className: "course-ink" };
 /** The one shown (FPL's Routes' card in sight): solid magenta. */
-const SHOWN_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 7, opacity: 1, lineCap: "round", lineJoin: "round" };
+const SHOWN_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 7, opacity: 1, lineCap: "round", lineJoin: "round", className: "course-ink" };
 const NO_WAYS: RouteWay[] = [];
 /** Where along each way its chip sits, a share of its length, one apiece. */
 const WAY_SHARES = [0.35, 0.6, 0.8];

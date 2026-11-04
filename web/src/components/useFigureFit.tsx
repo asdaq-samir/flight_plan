@@ -97,7 +97,9 @@ export function useFigureFit<F extends Fitted>(exact: F[], rounded: F[], valueTy
     room, shown, sized, fitted: fitting && fitting.scale < 1 ? "" : undefined,
     probes: (
       <span aria-hidden="true" className="pointer-events-none invisible absolute top-0 left-0 whitespace-nowrap">
-        <span ref={probe} className={cn(valueType, "font-semibold tabular-nums")} />
+        {/* The value's own weight where its type names one (the ink look's
+            bold figures), semibold otherwise, as the figures are set. */}
+        <span ref={probe} className={cn("font-semibold tabular-nums", valueType)} />
         <span ref={unitProbe} className={cn(unitType, "font-normal")} />
       </span>
     ),
