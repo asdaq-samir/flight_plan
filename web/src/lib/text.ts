@@ -47,6 +47,10 @@ export const TEXT = {
    *  size a bit bigger so it fits nicely"; the tabs to "pop out more",
    *  2026-10-22). */
   tab: "text-[0.8125rem] leading-[1.0625rem]",
+  /** The tab bar's words at iOS's own 49-point bar (the owner's "let's try
+   *  49 points", 2026-11-04): 11 on 13, the smallest the iOS audit allows
+   *  (HIG's floor; iOS's own tab words are 10). */
+  tabBar: "text-[0.6875rem] leading-[0.8125rem]",
   /** A figure's name, an ident, a chip's word in the display face
    *  (index.css --display: Barlow Condensed in the Chart ink look, the
    *  body's own face in the others): a note's 13 on 17, semibold, in

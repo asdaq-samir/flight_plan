@@ -439,7 +439,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
             // Its mark said to a reader, after its name.
             aria-label={mark ? `${label}, ${mark === "stop" ? "warning" : "caution"}` : undefined}
             className={cn(
-              "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-px rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              "relative flex min-w-0 flex-1 flex-col items-center justify-center gap-px rounded-lg pt-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring",
               // The others a darker grey, at the owner's pick of the tabs'
               // sizes ("A, plus D's bolder weight", 2026-10-22): they read
               // from farther, in sun, on the glass over any chart. The tab
@@ -453,16 +453,17 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
             {/* A capsule round the glyph and its word with room on every
                 side, as iOS 26's tab bar draws the tab up, not a rounded
                 box the glyph and word touched (the owner: "is that Apple
-                standard? Looks a bit short", 2026-11-04): 53 tall, down
-                into the row's foot, its ends round. */}
-            {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1 -top-px -bottom-1 rounded-full bg-tint/12" />}
+                standard? Looks a bit short", 2026-11-04): under the
+                grabber to the bar's foot, 42 of the bar's 49, its ends
+                round. */}
+            {current && <span aria-hidden="true" data-testid="tab-bubble" className="pointer-events-none absolute inset-x-1 top-[7px] bottom-0 rounded-full bg-tint/12" />}
             <span className="relative">
-              {/* 28 and 13, at the owner's pick (A with D's weight,
+              {/* 24 and 11 in the 49-point bar (2026-11-04), once 28 and 13 (A with D's weight,
                   2026-10-22); the glyphs the planner's own (tabGlyphs), in
                   outline, and filled for the tab up, as iOS's tab bars
                   draw their symbols (the owner's ask for crisp, modern
                   graphics, 2026-11-04). */}
-              <Icon className="size-7" filled={current} />
+              <Icon className="size-6" filled={current} />
               {mark && (
                 <span
                   aria-hidden="true" data-testid={`tab-mark-${value}`} data-finding={mark}
@@ -470,7 +471,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
                 />
               )}
             </span>
-            <span className={cn("relative", current ? "font-bold" : "font-semibold", TEXT.tab)}>{label}</span>
+            <span className={cn("relative", current ? "font-bold" : "font-semibold", TEXT.tabBar)}>{label}</span>
           </button>
         );
       })}
