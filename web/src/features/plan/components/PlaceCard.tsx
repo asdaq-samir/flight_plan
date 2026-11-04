@@ -46,6 +46,7 @@ import { ctafOf, frequencyOf, mhzText } from "../../../lib/frequencies";
 import { fuelNames } from "../../../lib/stopServices";
 import { airportQuery, photosQuery, servicesQuery } from "../../../lib/queryClient";
 import { StopServices, StopStrip, type SuggestedStop } from "./StopServices";
+import { AtisRows } from "./AtisRows";
 import { PhotoSlide } from "../../../components/PictureSlides";
 
 const SketchViewer = lazy(() => import("./SketchViewer"));
@@ -803,6 +804,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                 )}
               </div>
             )}
+            {/* Listen to ATIS: one broadcast heard and read by the engine,
+                the runway in use and the altimeter in one line (AtisRows). */}
+            {place && <AtisRows key={ident} />}
           </CardTabPanel>
 
           <CardTabPanel value="runways" className="space-y-0">
