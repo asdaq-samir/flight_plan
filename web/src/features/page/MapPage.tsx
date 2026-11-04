@@ -297,7 +297,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // the others.
             bar={pieces.bar} layer={consoleLayer ? "console" : pieces.alone ? "card" : "tab"}
             foot={consoleLayer ? undefined : pieces.foot}
-            cardOver={!!pieces.cardOver}
+            cardOver={!!pieces.cardOver} flying={!!pieces.flying}
             top={topRow} kept={pieces.route != null ? routeRow : undefined}
           >
             {setupDrawn && consoleLayerOf(pieces)}

@@ -1,10 +1,11 @@
 import { cn } from "cn";
+import { Button } from "./ui/button";
 import FlownTrackButton from "./FlownTrackButton";
 import FullscreenButton from "./FullscreenButton";
 import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
 import RadioButton from "./RadioButton";
-import { GLASS } from "./mapChrome";
+import { FLYING_BUTTON, FLYING_STACK, GLASS, useFlying } from "./mapChrome";
 
 /**
  * The map's buttons, in one group floating over the chart, as Maps
@@ -18,8 +19,18 @@ import { GLASS } from "./mapChrome";
  * each one's 44-point hit area (index.css) meets the next one's rather
  * than overlapping it. Only the location arrow in the tint, as Maps'
  * is; the others' glyphs in the text's colour.
+ *
+ * In flight (useFlyingMode, the canvas's Flying screen, 2026-11-03) the
+ * stack is two 60-point words a hand finds in turbulence -- NRST, the
+ * fields nearest own ship, and D→, direct to the next landing -- and the
+ * microphone's circle grows to the same size where it is; the settings,
+ * the arrow and the rest wait for the ground. The map follows the
+ * airplane in flight (OwnShipLayer), so the arrow is not missed.
  */
 export default function MapControls() {
+  const flying = useFlying(s => s.flying);
+  const nearest = useFlying(s => s.nearest);
+  const direct = useFlying(s => s.direct);
   return (
     <>
     {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its
@@ -31,7 +42,7 @@ export default function MapControls() {
         inset is what the sheet covers at rest (MapPanel), and they move
         with it in the sheet's time; all the way up they give way
         (index.css). Clear of the chart credit under them. */}
-    <div data-map-controls="" className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto z-[1000]">
+    <div data-map-controls="" data-flying={flying || undefined} className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto z-[1000]">
       <div
         className={cn(
           // A capsule of Liquid Glass, as Maps' buttons are on iOS 26 and
@@ -40,17 +51,35 @@ export default function MapControls() {
           // Round buttons on it, so one pressed or open is a circle in the
           // circle, not a square.
           "flex flex-col gap-2 rounded-full p-1 [&_button]:rounded-full",
+          flying && FLYING_STACK,
           GLASS,
         )}
       >
-        {/* The map's settings first, as Maps' map button is. */}
-        <MapSettingsButton />
-        <MyPositionButton />
-        {/* While a saved flight's flown track is on the chart. */}
-        <FlownTrackButton />
-        {/* Draws itself only where full screen actually works: a desktop
-            browser and an iPad, never an iPhone. */}
-        <FullscreenButton />
+        {flying ? (
+          <>
+            {nearest && (
+              <Button type="button" variant="ghost" aria-label="Nearest airports" data-testid="flying-nearest" className={cn(FLYING_BUTTON, "text-[0.8125rem]")} onClick={nearest}>
+                NRST
+              </Button>
+            )}
+            {direct && (
+              <Button type="button" variant="ghost" aria-label={`Direct to ${direct.to}`} data-testid="flying-direct" className={cn(FLYING_BUTTON, "text-base")} onClick={direct.go}>
+                D→
+              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* The map's settings first, as Maps' map button is. */}
+            <MapSettingsButton />
+            <MyPositionButton />
+            {/* While a saved flight's flown track is on the chart. */}
+            <FlownTrackButton />
+            {/* Draws itself only where full screen actually works: a desktop
+                browser and an iPad, never an iPhone. */}
+            <FullscreenButton />
+          </>
+        )}
       </div>
     </div>
     {/* The radio's microphone (RadioButton) in a glass circle of its own
@@ -58,7 +87,7 @@ export default function MapControls() {
         Fly-in Food before them), at the owner's ask (2026-11-02), alone:
         the route's Play above it went to the route's ••• menu as Profile
         (2026-11-02, "just the mic"). */}
-    <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col gap-2 rounded-full p-1 [&_button]:rounded-full", GLASS)}>
+    <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex flex-col gap-2 rounded-full p-1 [&_button]:rounded-full", flying && FLYING_STACK, GLASS)}>
       <RadioButton />
     </div>
     </>

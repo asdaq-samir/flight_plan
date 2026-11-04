@@ -71,6 +71,12 @@ interface Props {
    *  panel: an airport's card, its tiles and tabs at its foot (PlaceCard),
    *  at the pilot's ask. The inset's height is `--half-foot` to it. */
   toEdge?: boolean;
+  /** The airplane flying the route (useFlyingMode, the canvas's Flying
+   *  screen): the tab bar, the top row and the controls put away until
+   *  it is on the ground, and the pill's foot its own height for the
+   *  flight's figures grown (FLYING_FIGURE). The sheet still opens on a
+   *  drag or a tap, to the nav log. */
+  flying?: boolean;
   state: PanelState;
   onStateChange: (state: PanelState) => void;
   onInsetsChange: (insets: MapInsets) => void;
@@ -189,7 +195,7 @@ const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
  *  dark's grey as it was, set again here as the light's is set. */
 const SHEET_BELOW = "[--muted-foreground:oklch(0.5_0_0)] [--tint:var(--tint-shade)] dark:[--muted-foreground:oklch(0.708_0_0)] print:bg-transparent";
 
-export default function MapPanel({ label, top, kept, controls, compact, children, state: pageState, onStateChange: tellPage, onInsetsChange: tellInsets, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot }: Props) {
+export default function MapPanel({ label, top, kept, controls, compact, children, state: pageState, onStateChange: tellPage, onInsetsChange: tellInsets, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot, flying = false }: Props) {
   // A size asked for in the panel itself -- its grabber, a key, a finger
   // let go, the tab bar's taps -- shown at once, and the page told once the
   // sheet has landed (below): told at once, the page drew the whole
@@ -420,7 +426,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const footHeight = footShown ? footMeasured : 0;
   // The bar shown: the sheet's first row out of the pill, over its head or
   // the console's layer with no head of its own.
-  const barShown = !!bar && !(onPhone && keyboard);
+  const barShown = !!bar && !(onPhone && keyboard) && !flying;
   // The card up draws its own head over a picture (lib/openCards), and
   // the tabs asked for over it (TabBar): for `ownHead`, below.
   const pictureCard = useOpenCards(s => s.picture);
@@ -478,7 +484,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // height and rose by the difference after: 26 points over an iPhone's
     // home indicator, a route's figures clipped at the top the last of the
     // way down (the safe area emulated as the iOS audit does, 2026-10-15).
-    const pillPx = Math.round(PILL_REM * rootPx());
+    // In flight the pill is its measured self: the figures grown and
+    // their foot (useFlyingMode), taller than a row of tabs.
+    const pillPx = flying ? capsuleHeight : Math.round(PILL_REM * rootPx());
     // Now that the settling sheet takes the pill's gap as it eases (its
     // shape, below), it stops at the pill's own height: stopped the gap
     // taller, it eased down 12 points more once it had turned, the
@@ -496,7 +504,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // owner, 2026-10-29). Never under half, never past the room.
     const full = cardFit === null ? whole : Math.max(Math.min(half, whole), Math.min(whole, headHeight + halfChrome + cardFit));
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight, cardFit]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight, cardFit, flying]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
@@ -615,7 +623,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const pillPictured = !!pill && (pictureCard || !!pill.colour) && capsule && minimized && barHere && !figuresPill && !tabsShown;
   // The head's row: in the pill only without a tab bar (whose pill is the
   // bar), out of it wherever there is a top row or no bar shown.
-  const headerShown = pillShape ? !bar : top != null || !barShown;
+  // In flight neither: the route's box waits for the ground.
+  const headerShown = !flying && (pillShape ? !bar : top != null || !barShown);
   const headContent = capsule ? compact : top;
   // The kept row is the one in sight now.
   const keptHere = kept != null && headerShown && headContent === kept;
@@ -703,7 +712,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // once it landed (70), the map settling a second after the tabs had
   // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
   // settle down").
-  const pillRest = bar ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
+  const pillRest = bar && !flying ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
   const coveredOnPhone = expanded ? detents.half : hasPill ? pillRest + capsuleGap : peek;
   const out = expanded;
   const insetsNow = useMemo<MapInsets>(() => {
@@ -1232,7 +1241,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             {headerShown && !keptHere && headContent}
           </header>
         )}
-        {!pillShape && controls && (
+        {!pillShape && !flying && controls && (
           // Wrapped onto two lines (a 320-point Slide Over), the two
           // twelve apart, so their hit areas (index.css) meet rather than
           // overlap; and as close under the top row and over what follows
@@ -1304,7 +1313,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // put away.
             // Its content centred there, the dry run's too, whose figures
             // sat at the pill's top under the grabber, its column grown.
-            pillLaid ? "h-[3.625rem] shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none" : "border-t border-border/60 pt-1 pb-2.5",
+            // In flight the pill is as tall as the grown figures and their
+            // foot (useFlyingMode), measured as any foot is.
+            pillLaid ? cn("shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none", flying ? "py-2" : "h-[3.625rem]") : "border-t border-border/60 pt-1 pb-2.5",
           )}
           style={{
             ...(toEdge && fromBottom && !pillLaid ? { paddingBottom: Math.max(10, edgeRoom) } : {}),

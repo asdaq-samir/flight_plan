@@ -72,3 +72,13 @@ export const GROW_FIGURE = {
   unit: GROW_SMALL,
   name: GROW_SMALL,
 };
+
+/** The same figures in flight (useFlyingMode): one size whatever the
+ *  sheet's, read at arm's length in a bumpy cockpit -- the value 26 on
+ *  31, its unit 14 and its name 12 on 16, as the canvas draws the Flying
+ *  screen (2026-11-03). */
+export const FLYING_FIGURE = {
+  value: "text-[1.625rem] leading-[1.9375rem]",
+  unit: "text-[0.875rem] leading-[1.125rem]",
+  name: "text-xs leading-4",
+};
