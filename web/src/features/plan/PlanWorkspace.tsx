@@ -356,10 +356,16 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // (features/strip), the owner's "let's try it" (2026-11-04), tried
   // beside the tabs until it is the app. The address's `layout` sets it
   // (a link to the phone, the tests), the preference keeping it.
-  const strip = usePreferences(p => p.layout) === "strip";
+  const layout = usePreferences(p => p.layout);
+  const strip = layout === "strip";
+  // The third: the tabs' layout with the strip's field, its Ask pill in
+  // it, a glass bar at the top of the map, the owner's pick from Target's
+  // app the same day ("the search pill can be on top and the tabs pill
+  // can be at the bottom"), to compare on the phone.
+  const fieldTabs = layout === "field-tabs";
   const layoutParam = searchParams.get("layout");
   useEffect(() => {
-    if (layoutParam === "tabs" || layoutParam === "strip") usePreferences.getState().setLayout(layoutParam);
+    if (layoutParam === "tabs" || layoutParam === "strip" || layoutParam === "field-tabs") usePreferences.getState().setLayout(layoutParam);
   }, [layoutParam]);
   // Every change of the plan can be taken back (Undo, Cmd-Z), whichever
   // button made it, in place of asking first.
@@ -2749,12 +2755,16 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const stripOver = strip && tab === "aircraft" && !flight && !list ? "My airplane" : null;
   const closeStripOver = useCallback(() => pickTab("fpl"), [pickTab]);
   // The field's row, with the pilot's avatar at its right (ProfileButton):
-  // its menu opens the pilot's screens, the tabs' Setup among them.
-  const oneField = strip ? (
+  // its menu opens the pilot's screens, the tabs' Setup among them. At the
+  // top of the map the field has the Ask pill in it and no avatar: the
+  // pilot's screens are Setup's there, as in the tabs, and the sheet
+  // stays where it is as the field is focused.
+  const oneField = strip || fieldTabs ? (
     <OneField
       suggestions={stripSuggestions} flying={flying} onLine={fieldLine}
-      onFocus={() => { if (panelNow.current === "peek") setPanel("half"); }}
-      avatar={<ProfileButton onOpen={screen => void openStripScreen(screen)} />}
+      onFocus={strip ? () => { if (panelNow.current === "peek") setPanel("half"); } : undefined}
+      avatar={strip ? <ProfileButton onOpen={screen => void openStripScreen(screen)} /> : undefined}
+      ask={fieldTabs} top={fieldTabs}
     />
   ) : null;
   // In flight, the one way out of flying mode (useFlyingMode): a small
@@ -2910,6 +2920,23 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         </Suspense>
         {/* The next checkpoint over the map in flight (FlyingHead). */}
         {flying && <Suspense fallback={null}><FlyingHead run={dryRunning} rows={routeRows} /></Suspense>}
+        {/* The field over the tabs' layout (lib/preferences "field-tabs"):
+            the strip's field with its Ask pill in it, a glass bar at the
+            top of the map, eight in from the sides under the status bar,
+            its answer and its chips dropping down from it, the tabs' pill
+            at the foot as ever (the owner, 2026-11-04). Clear of the
+            map's buttons where they are at the top (wide screens with the
+            bar at the foot), and of the side drawer's width. On the
+            ground: in the air the radio is the map's own, as the tabs
+            have it, under the next checkpoint's card (FlyingHead). */}
+        {fieldTabs && !flying && (
+          <div
+            className="absolute top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] md:nav-bottom:right-16"
+            data-testid="field-tabs"
+          >
+            {oneField}
+          </div>
+        )}
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
         {lessonOpen !== null && (
           <Suspense fallback={null}>

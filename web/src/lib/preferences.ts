@@ -66,9 +66,11 @@ export type FlightRules = "vfr" | "ifr";
 /** The planner's layout (PlanWorkspace): the tab bar with FPL, Airport
  *  and Aircraft, or the strip -- one field at the foot of the chart that
  *  takes anything typed or said, and the flight as one strip in time
- *  (features/strip), the owner's "let's try it" of 2026-11-04. The strip
- *  while it is tried on the phone; the switch is in Setup's Controls. */
-export type Layout = "tabs" | "strip";
+ *  (features/strip), the owner's "let's try it" of 2026-11-04; or the
+ *  field over the tab bar, Target's way (FieldTabsBar), the owner's third
+ *  pick that day, to compare them on the phone. The switch is in Setup's
+ *  Controls. */
+export type Layout = "tabs" | "strip" | "field-tabs";
 
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };

@@ -40,7 +40,11 @@ export default function MapControls() {
   const nearest = useFlying(s => s.nearest);
   const direct = useFlying(s => s.direct);
   const pill = useAtcRadio(s => s.pill !== null);
-  const stripLayout = usePreferences(s => s.layout) === "strip";
+  // The strip's field has the microphone in it (OneField), and so has the
+  // field at the top of the map while the airplane is on the ground; in
+  // the air that layout's radio is the map's, as the tabs' is.
+  const layout = usePreferences(s => s.layout);
+  const stripLayout = layout === "strip" || (layout === "field-tabs" && !flying);
   return (
     <>
     {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its

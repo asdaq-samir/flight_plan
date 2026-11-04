@@ -74,14 +74,15 @@ export default function QuickControls() {
       />
     </div>
     {/* The planner's layout while the strip is tried (the owner's "let's
-        try it", 2026-11-04; lib/preferences): the tabs, or the one field
-        and the strip in time (features/strip). A segmented control, as
-        every pick of a few is; a row of its own under the four tiles. */}
+        try it", 2026-11-04; lib/preferences): the tabs, the one field and
+        the strip in time (features/strip), or the field over the tab bar
+        (FieldTabsBar). A segmented control, as every pick of a few is; a
+        row of its own under the four tiles. */}
     <div className="mt-2 flex min-h-14 items-center justify-between gap-3 rounded-2xl bg-card px-3.5 py-2" data-testid="layout-row">
       <span className={cn("font-semibold text-foreground", TEXT.detail)}>Screen</span>
       <Segmented
         label="Screen" value={layout} onChange={v => setLayout(v as Layout)} testId="layout-select"
-        options={[{ value: "tabs", label: "Tabs" }, { value: "strip", label: "Strip" }]}
+        options={[{ value: "tabs", label: "Tabs" }, { value: "strip", label: "Strip" }, { value: "field-tabs", label: "Field + tabs" }]}
       />
     </div>
     </>
