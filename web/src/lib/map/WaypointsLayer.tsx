@@ -16,14 +16,16 @@ import { usePointActions } from "./pointActions";
 import { fixRadialDistance } from "../navaid";
 import { TEXT } from "../text";
 
-/** From this zoom in, as the airports' (AirportsLayer): further out the
- *  diamonds would be a scatter over every city's airspace. */
-const FROM_ZOOM = 8;
+/** From this zoom in, the GPS waypoints' (NavaidsLayer's FIX_ZOOM), at
+ *  the owner's ask ("Vfr waypoints can show at the zoom level of gps
+ *  waypoints too", 2026-11-04): further out their idents would be a
+ *  scatter over every city's airspace. */
+const FROM_ZOOM = 10;
 
 type Waypoint = { ident: string; lat: number; lon: number; description?: string | null };
 
 /**
- * The chart's VFR waypoints (VPBNG), from zoom 8 in, drawn as the GPS
+ * The chart's VFR waypoints (VPBNG), from zoom 10 in, drawn as the GPS
  * waypoints are (NavaidsLayer's fixes) -- the low chart's triangle and
  * the ident beside it, on the navaids' canvas, a tap given to the nearest
  * -- in the chart's magenta, at the owner's ask ("The VFR waypoints

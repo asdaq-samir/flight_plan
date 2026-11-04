@@ -774,7 +774,7 @@ test("a VFR waypoint on the chart is a magenta triangle with its ident, and its 
   await page.mouse.move(middle.x, middle.y, { steps: 12 });
   await page.mouse.up();
   await page.waitForTimeout(500);
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 7; i++) {
     await page.mouse.wheel(0, -60);
     await page.waitForTimeout(400);
   }
