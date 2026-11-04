@@ -67,6 +67,8 @@ _FETCHED_AT: float | None = None
 _HELD: list | None = None
 #: Not before this (UNIX seconds) is tfr.faa.gov asked again after a failure.
 _RETRY_AT = 0.0
+# Whether the last ask failed: the held list is then what is served.
+_FAILING = False
 
 
 class TfrUnavailable(RuntimeError):
@@ -77,7 +79,7 @@ def _shapes() -> list:
     """Every TFR area's GeoJSON feature, held SHAPES_TTL_S, and the last
     list fetched served on while tfr.faa.gov does not answer (asked again
     after RETRY_AFTER_S); TfrUnavailable only where none was ever had."""
-    global _FETCHED_AT, _HELD, _RETRY_AT
+    global _FETCHED_AT, _HELD, _RETRY_AT, _FAILING
     with _LOCK:
         hit = _SHAPES.get("all")
         if hit is not None:
@@ -91,6 +93,7 @@ def _shapes() -> list:
     except (requests.RequestException, ValueError) as err:
         with _LOCK:
             _RETRY_AT = time.time() + RETRY_AFTER_S
+            _FAILING = True
             held, fetched = _HELD, _FETCHED_AT
         if held is not None:
             log.warning("tfr.faa.gov did not answer (%s); serving the TFRs fetched %.0f minutes ago",
@@ -101,6 +104,7 @@ def _shapes() -> list:
         _SHAPES["all"] = features
         _HELD = features
         _FETCHED_AT = time.time()
+        _FAILING = False
     return features
 
 
@@ -116,6 +120,12 @@ def _ended(detail: dict, now: datetime) -> bool:
         return datetime.fromisoformat(expires.replace("Z", "+00:00")) < now
     except ValueError:
         return False
+
+
+def failing() -> bool:
+    """Whether the last ask of tfr.faa.gov failed, the list held before
+    served on in its place (for the pilot's Status page)."""
+    return _FAILING
 
 
 def fetched_at() -> float | None:

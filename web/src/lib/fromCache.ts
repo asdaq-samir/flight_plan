@@ -14,7 +14,8 @@ import { clearProblem, raiseProblem } from "./problems";
  */
 export const FROM_CACHE_HEADER = "X-From-Cache";
 
-const PROBLEM_ID = "from-cache";
+/** Its line's id, which the Status page reads too. */
+export const PROBLEM_ID = "from-cache";
 
 /** Each address answered from the cache, by its path, to when the
  *  network gave that answer (ms; NaN where the date was missing). By

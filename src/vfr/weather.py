@@ -610,6 +610,26 @@ def dataset_status() -> dict[str, float | None]:
     return {name: (record.at if (record := _DATASETS.get(name)) else None) for name in _SOURCES}
 
 
+def sources_status() -> list[dict]:
+    """Each aviationweather.gov source as the pilot's Status page lists
+    it: its name in a pilot's words, when the copy held was fetched, to
+    when that copy may still be served (its product's own validity, the
+    record's `until`), and whether the last ask for a newer one failed --
+    the planner then serving the held copy on (UNIX seconds; None where
+    there is none)."""
+    out = []
+    for name in _SOURCES:
+        record = _DATASETS.get(name)
+        out.append({
+            "name": _PRODUCT_WORDS.get(name, name),
+            "fetched_at": record.at if record else None,
+            # No limit (METARs, each carrying its own time) is None.
+            "kept_until": record.until if record and record.until != float("inf") else None,
+            "failing": bool(record and record.error is not None),
+        })
+    return out
+
+
 def _float(text: str | None) -> float | None:
     try:
         return float(text)

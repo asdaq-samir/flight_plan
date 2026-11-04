@@ -1516,13 +1516,28 @@ class RoutePoint(BaseModel):
     lon: float
 
 
+class DataSource(BaseModel):
+    """One source the planner downloads and keeps, for the pilot's Status
+    page: its name in a pilot's words, when the copy it holds was fetched,
+    to when that copy may still be served by the product's own validity
+    (None: no limit, or none held), and whether the source is failing,
+    the held copy then served on (ISO 8601 UTC)."""
+
+    name: str
+    fetched_at: str | None = None
+    kept_until: str | None = None
+    failing: bool = False
+
+
 class MapLayerAges(BaseModel):
     """When the planner fetched what the map's weather layers are drawn
     from (ISO 8601 UTC; None before the first fetch): the METARs the
-    airports' flight categories come from, and the TFRs."""
+    airports' flight categories come from, and the TFRs; and every source
+    it keeps, for the Status page."""
 
     metars_at: str | None = None
     tfrs_at: str | None = None
+    sources: list[DataSource] = []
 
 
 class Briefing(BaseModel):

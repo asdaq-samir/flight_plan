@@ -4598,6 +4598,47 @@
         "title": "DataFile",
         "type": "object"
       },
+      "DataSource": {
+        "description": "One source the planner downloads and keeps, for the pilot's Status\npage: its name in a pilot's words, when the copy it holds was fetched,\nto when that copy may still be served by the product's own validity\n(None: no limit, or none held), and whether the source is failing,\nthe held copy then served on (ISO 8601 UTC).",
+        "properties": {
+          "failing": {
+            "default": false,
+            "title": "Failing",
+            "type": "boolean"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "kept_until": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept Until"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "DataSource",
+        "type": "object"
+      },
       "DayNightMinimums": {
         "properties": {
           "day": {
@@ -8128,7 +8169,7 @@
         "type": "object"
       },
       "MapLayerAges": {
-        "description": "When the planner fetched what the map's weather layers are drawn\nfrom (ISO 8601 UTC; None before the first fetch): the METARs the\nairports' flight categories come from, and the TFRs.",
+        "description": "When the planner fetched what the map's weather layers are drawn\nfrom (ISO 8601 UTC; None before the first fetch): the METARs the\nairports' flight categories come from, and the TFRs; and every source\nit keeps, for the Status page.",
         "properties": {
           "metars_at": {
             "anyOf": [
@@ -8140,6 +8181,14 @@
               }
             ],
             "title": "Metars At"
+          },
+          "sources": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/DataSource"
+            },
+            "title": "Sources",
+            "type": "array"
           },
           "tfrs_at": {
             "anyOf": [
@@ -18860,7 +18909,7 @@
     },
     "/api/map/ages": {
       "get": {
-        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by vfr.weather)\nand the TFRs (tfr.faa.gov).",
+        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by vfr.weather)\nand the TFRs (tfr.faa.gov); and each source the planner keeps\nthrough an outage, for the pilot's Status page.",
         "operationId": "map_layer_ages_api_map_ages_get",
         "responses": {
           "200": {

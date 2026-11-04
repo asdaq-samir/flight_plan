@@ -123,8 +123,14 @@ def map_layer_ages() -> MapLayerAges:
     """When the planner fetched what the map's weather layers are drawn
     from, for the map's settings to say how old each is: the METARs
     (aviationweather.gov's METAR file, held and refreshed by vfr.weather)
-    and the TFRs (tfr.faa.gov)."""
-    return {"metars_at": exposure.iso(weather.dataset_status().get("metars")), "tfrs_at": exposure.iso(tfr.fetched_at())}
+    and the TFRs (tfr.faa.gov); and each source the planner keeps
+    through an outage, for the pilot's Status page."""
+    sources = [
+        {**s, "fetched_at": exposure.iso(s["fetched_at"]), "kept_until": exposure.iso(s["kept_until"])}
+        for s in weather.sources_status()
+    ]
+    sources.append({"name": "TFRs", "fetched_at": exposure.iso(tfr.fetched_at()), "kept_until": None, "failing": tfr.failing()})
+    return {"metars_at": exposure.iso(weather.dataset_status().get("metars")), "tfrs_at": exposure.iso(tfr.fetched_at()), "sources": sources}
 
 
 @router.get("/api/tfrs")
