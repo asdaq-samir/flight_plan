@@ -40,6 +40,11 @@ export default function MapControls() {
   const nearest = useFlying(s => s.nearest);
   const direct = useFlying(s => s.direct);
   const pill = useAtcRadio(s => s.pill !== null);
+  // The pill heard and done (its words or why not, its ✕ there): the mic
+  // beside its close put away, at the owner's ask ("No mic button needed
+  // next to close button on top", 2026-11-04); while it listens the mic
+  // stays, its waveform saying so.
+  const pillDone = useAtcRadio(s => s.pill !== null && !s.pill.listening);
   // The strip's field has the microphone in it (OneField), and so has the
   // field at the top of the map while the airplane is on the ground; in
   // the air that layout's radio is the map's, as the tabs' is.
@@ -131,7 +136,7 @@ export default function MapControls() {
     >
       {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
           the pill's chips. */}
-      <span className={cn("flex shrink-0 [&_button]:rounded-full", flying && "[&_button]:size-[60px]")}>
+      <span className={cn("flex shrink-0 [&_button]:rounded-full", flying && "[&_button]:size-[60px]", pillDone && !flying && "hidden")}>
         <RadioButton />
       </span>
       <div className="grid min-w-0 transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none" style={{ gridTemplateColumns: pill ? "1fr" : "0fr" }}>
