@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useFlying } from "../../../components/mapChrome";
 import type { PanelState } from "../../../components/mapChrome";
 import { underway } from "../../../lib/map/glide";
@@ -80,10 +80,15 @@ export function useFlyingMode({ routed, setPanel, nearest, direct }: {
     return () => window.clearTimeout(timer);
   }, [routed, up, hasFix, dryPlaying, stopped]);
   // Started: the sheet down to the pill, the figures alone over the chart;
-  // not for a dry run, whose controls are in its card.
+  // not for a dry run, whose controls are in its card. Only as flying
+  // starts: a run closed ends the run a render before flying, and the
+  // sheet went to the pill then, the Profile card's close under it.
   const dryRun = usePastFlight(s => s.hex === DRY_RUN);
+  const wasFlying = useRef(false);
   useEffect(() => {
-    if (flying && !dryRun) setPanel("peek");
+    const started = flying && !wasFlying.current;
+    wasFlying.current = flying;
+    if (started && !dryRun) setPanel("peek");
   }, [flying, dryRun, setPanel]);
   // Its buttons' doings told to the map's chrome (MapControls), and all of
   // it taken back with the planner.
