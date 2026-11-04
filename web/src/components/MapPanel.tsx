@@ -542,7 +542,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               ...vars,
               height: detents.full,
               borderRadius: fromBottom ? `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0` : `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px`,
-              transform: "translateY(calc(var(--drawer-snap-point-offset) + var(--drawer-swipe-movement-y)))",
               // How far its free edge is in from where it would be laid
               // out whole, resolved here from the Drawer's own variables
               // (which its children do not inherit) for the parts held in
@@ -557,6 +556,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // scrolled by a script, and a row brought into view in the
               // body scrolled the whole panel, its head up out of sight.
               "group/sheet pointer-events-auto absolute flex flex-col overflow-clip text-foreground outline-none will-change-transform",
+              // Slid by the Drawer's offset and the finger's movement, in
+              // a class, not the element's own style: the Drawer clears
+              // its popup's inline transform as a finger goes down, which
+              // took the sheet to its full height at a touch (the owner,
+              // 2026-11-04: "As soon as I touch the sheet it goes all the
+              // way up"), and React never put it back.
+              "[transform:translateY(calc(var(--drawer-snap-point-offset)_+_var(--drawer-swipe-movement-y)))]",
               withSheet, "data-[swiping]:transition-none",
               fromBottom ? "bottom-0" : "top-0",
               // Liquid Glass at every size, as Maps' is: the chart through
