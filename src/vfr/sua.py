@@ -75,7 +75,18 @@ TIME_ZONES = {
 # TTLCache is not thread-safe and the planner asks from its request
 # threads, hence the lock.
 HOLD_S = 24 * 3600
-_CACHE: TTLCache = TTLCache(maxsize=4, ttl=HOLD_S)
+#: How old a set may be and still be served when the service does not
+#: answer: the areas change only on the 28-day AIRAC dates the FAA's NASR
+#: subscription is published on (14 CFR part 73's areas are amended
+#: effective those dates), so the set read within the last cycle still
+#: shows every area, its limits and its times of use, its age in the log.
+SERVE_HELD_S = 28 * 24 * 3600
+#: After the service fails to answer, how long before it is asked again:
+#: a download takes up to half a minute and every route would wait on it.
+RETRY_AFTER_S = 600
+_CACHE: TTLCache = TTLCache(maxsize=4, ttl=SERVE_HELD_S)
+#: Not before this (UNIX seconds) is the service asked again after a failure.
+_RETRY_AT = 0.0
 #: The day's areas kept on disk too, (fetched_at, [(properties, WKB,
 #: bounds)]): a restart within the day reads them back in under a second,
 #: where the download and building the shapes from GeoJSON was half a
@@ -108,51 +119,79 @@ def _height_ft(value, uom, code) -> float | None:
 
 def _everything() -> list:
     """Every area's feature with its shape and bounds, [(feature, shape,
-    (min_lon, min_lat, max_lon, max_lat))], held a day."""
+    (min_lon, min_lat, max_lon, max_lat))], held a day, and served up to
+    SERVE_HELD_S old while the service does not answer (_held)."""
     with _CACHE_LOCK:
         hit = _CACHE.get("all")
-    if hit is not None and time.time() - hit[0] < HOLD_S:
+    if hit is not None and (time.time() - hit[0] < HOLD_S or time.time() < _RETRY_AT):
         return hit[1]
     with _FETCH_LOCK:
         with _CACHE_LOCK:
             hit = _CACHE.get("all")
-        if hit is not None and time.time() - hit[0] < HOLD_S:
+        if hit is not None and (time.time() - hit[0] < HOLD_S or time.time() < _RETRY_AT):
             return hit[1]
         kept = _read_disk()
         if kept is not None:
             with _CACHE_LOCK:
                 _CACHE["all"] = kept
             return kept[1]
-        fetched_at = time.time()
-        features, offset = [], 0
-        while True:
-            params = {
-                "where": "1=1", "outSR": "4326", "outFields": _FIELDS, "returnGeometry": "true", "f": "geojson",
-                "resultOffset": offset, "resultRecordCount": PAGE,
-            }
-            try:
-                resp = requests.get(FEATURE_SERVICE, params=params, timeout=90)
-                resp.raise_for_status()
-                answer = resp.json()
-            except (requests.RequestException, ValueError) as err:
-                raise SpecialUseUnavailable(f"the FAA's special-use airspace service did not answer: {err}") from err
-            page = answer.get("features", [])
-            features += page
-            more = answer.get("exceededTransferLimit") or (answer.get("properties") or {}).get("exceededTransferLimit")
-            if not more or not page:
-                break
-            offset += len(page)
-        held = []
-        for feature in features:
-            try:
-                geometry = shape(feature["geometry"])
-            except (KeyError, TypeError, ValueError, AttributeError):
-                continue
-            held.append((feature, geometry, geometry.bounds))
-        with _CACHE_LOCK:
-            _CACHE["all"] = (fetched_at, held)
-        _write_disk(fetched_at, held)
-        return held
+        try:
+            return _download()
+        except SpecialUseUnavailable as err:
+            return _held(hit, err)
+
+
+def _held(hit: tuple | None, err: SpecialUseUnavailable) -> list:
+    """The set last read -- in memory, or kept on disk -- while it is
+    under SERVE_HELD_S old, when the service does not answer; the service
+    asked again after RETRY_AFTER_S. SpecialUseUnavailable where there is
+    none that young."""
+    global _RETRY_AT
+    now = time.time()
+    _RETRY_AT = now + RETRY_AFTER_S
+    if hit is None or not 0 <= now - hit[0] < SERVE_HELD_S:
+        hit = _read_disk(SERVE_HELD_S)
+    if hit is None:
+        raise err
+    logger.warning("%s; serving the special-use airspace read %.1f hours ago", err, (now - hit[0]) / 3600)
+    with _CACHE_LOCK:
+        _CACHE["all"] = hit
+    return hit[1]
+
+
+def _download() -> list:
+    """Every area, read from the service page by page, held and kept on
+    disk."""
+    fetched_at = time.time()
+    features, offset = [], 0
+    while True:
+        params = {
+            "where": "1=1", "outSR": "4326", "outFields": _FIELDS, "returnGeometry": "true", "f": "geojson",
+            "resultOffset": offset, "resultRecordCount": PAGE,
+        }
+        try:
+            resp = requests.get(FEATURE_SERVICE, params=params, timeout=90)
+            resp.raise_for_status()
+            answer = resp.json()
+        except (requests.RequestException, ValueError) as err:
+            raise SpecialUseUnavailable(f"the FAA's special-use airspace service did not answer: {err}") from err
+        page = answer.get("features", [])
+        features += page
+        more = answer.get("exceededTransferLimit") or (answer.get("properties") or {}).get("exceededTransferLimit")
+        if not more or not page:
+            break
+        offset += len(page)
+    held = []
+    for feature in features:
+        try:
+            geometry = shape(feature["geometry"])
+        except (KeyError, TypeError, ValueError, AttributeError):
+            continue
+        held.append((feature, geometry, geometry.bounds))
+    with _CACHE_LOCK:
+        _CACHE["all"] = (fetched_at, held)
+    _write_disk(fetched_at, held)
+    return held
 
 
 class _InPack:
@@ -178,8 +217,9 @@ def _shape(geometry):
     return _read_in_pack(geometry.pack, geometry.index) if isinstance(geometry, _InPack) else geometry
 
 
-def _read_disk() -> tuple[float, list] | None:
-    """The areas kept on disk, when kept within the day: the cycle pack's
+def _read_disk(max_age_s: float = HOLD_S) -> tuple[float, list] | None:
+    """The areas kept on disk, when kept within `max_age_s` (the day; a
+    cycle when the service does not answer, _held): the cycle pack's
     (vfr.pack), unless a download since has been kept beside it -- its
     shapes left in the mapped pack (_InPack), which held 39 MB of shapes
     in each planner process (2026-11-02)."""
@@ -189,7 +229,7 @@ def _read_disk() -> tuple[float, list] | None:
     if packed is not None and "sua.attr" in packed.sections:
         fetched_at = packed.meta.get("sua_fetched_at") or 0.0
         newer = _DISK.exists() and _DISK.stat().st_mtime > packed.built_at
-        if 0 <= time.time() - fetched_at < HOLD_S and not newer:
+        if 0 <= time.time() - fetched_at < max_age_s and not newer:
             return fetched_at, [({"properties": p}, _InPack(packed, i), tuple(float(v) for v in b))
                                 for i, (p, b) in enumerate(zip(packed.attrs("sua"), packed.boxes("sua")))]
     try:
@@ -197,7 +237,7 @@ def _read_disk() -> tuple[float, list] | None:
             fetched_at, properties, wkb, bounds = pickle.load(f)
     except Exception:  # noqa: BLE001 -- missing or damaged: downloaded again
         return None
-    if not 0 <= time.time() - fetched_at < HOLD_S:
+    if not 0 <= time.time() - fetched_at < max_age_s:
         return None
     shapes = shapely.from_wkb(wkb)
     return fetched_at, [({"properties": p}, g, tuple(b)) for p, g, b in zip(properties, shapes, bounds)]

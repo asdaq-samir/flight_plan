@@ -25,6 +25,7 @@ BOX_OFF_ROUTE = [[-88.2, 45.4], [-87.8, 45.4], [-87.8, 45.6], [-88.2, 45.6], [-8
 def _fresh_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(sua, "_CACHE", {})
     monkeypatch.setattr(sua, "_DISK", tmp_path / "sua.pkl")
+    monkeypatch.setattr(sua, "_RETRY_AT", 0.0)
 
 
 def _service(features):
@@ -103,6 +104,32 @@ def test_a_service_that_does_not_answer_says_so():
     with patch("vfr.sua.requests.get", side_effect=requests.ConnectionError("down")):
         with pytest.raises(sua.SpecialUseUnavailable):
             sua.along_route((45.0, -90.0), (46.0, -90.0))
+
+
+def test_a_service_that_does_not_answer_serves_the_set_read_within_the_cycle(monkeypatch):
+    """The areas change only on the 28-day cycle: a day-old set is asked
+    for again, but while the service does not answer the one read is
+    served, from memory or from disk, until it is a cycle old."""
+    import requests
+    features = [_feature("R-4501", "R", BOX_ON_ROUTE)]
+    with patch("vfr.sua.requests.get", return_value=_service(features)):
+        sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    now = sua.time.time()
+    monkeypatch.setattr(sua.time, "time", lambda: now + sua.HOLD_S + 1)
+    with patch("vfr.sua.requests.get", side_effect=requests.ConnectionError("down")) as get:
+        assert [a["name"] for a, _ in sua.areas_in((44.0, -91.0, 47.0, -87.0))] == ["R-4501"]
+        sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    assert get.call_count == 1                       # not asked again at every route
+    sua._CACHE.clear()  # a new process, the set on disk
+    monkeypatch.setattr(sua, "_RETRY_AT", 0.0)
+    with patch("vfr.sua.requests.get", side_effect=requests.ConnectionError("down")):
+        assert [a["name"] for a, _ in sua.areas_in((44.0, -91.0, 47.0, -87.0))] == ["R-4501"]
+    sua._CACHE.clear()
+    monkeypatch.setattr(sua, "_RETRY_AT", 0.0)
+    monkeypatch.setattr(sua.time, "time", lambda: now + sua.SERVE_HELD_S + 1)
+    with patch("vfr.sua.requests.get", side_effect=requests.ConnectionError("down")):
+        with pytest.raises(sua.SpecialUseUnavailable):
+            sua.areas_in((44.0, -91.0, 47.0, -87.0))
 
 
 @pytest.mark.parametrize("altitude, expected", [(4500, True), (18000, True), (18500, False)])

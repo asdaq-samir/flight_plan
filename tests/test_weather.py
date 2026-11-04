@@ -472,20 +472,24 @@ def test_a_failure_with_nothing_held_is_the_answer_for_a_minute(mock_get, mock_s
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"
 
 
+# The FD product above is for use 0200-0900Z on the 20th.
+T0900Z = datetime(2026, 9, 20, 9, 0, tzinfo=timezone.utc).timestamp()
+
+
 @patch("vfr.weather.time.sleep")
 @patch("vfr.weather.requests.get")
 def test_a_copy_too_old_to_serve_is_not_fetched_again_within_the_minute(mock_get, mock_sleep):
-    mock_get.return_value = METARS
+    mock_get.return_value = FD
     with patch("vfr.weather.time.time", return_value=T0200Z):
-        metar_for_idents(["KORD"])
+        weather._fd_stations("06")
     mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
-    with patch("vfr.weather.time.time", return_value=T0200Z + 4 * 3600):
+    with patch("vfr.weather.time.time", return_value=T0900Z + 60):
         with pytest.raises(WeatherServiceError):
-            metar_for_idents(["KORD"])
+            weather._fd_stations("06")
     attempts = mock_get.call_count
-    with patch("vfr.weather.time.time", return_value=T0200Z + 4 * 3600 + 30):
+    with patch("vfr.weather.time.time", return_value=T0900Z + 90):
         with pytest.raises(WeatherServiceError):
-            metar_for_idents(["KORD"])
+            weather._fd_stations("06")
     assert mock_get.call_count == attempts
 
 
@@ -508,9 +512,71 @@ def test_a_winds_body_with_no_header_is_a_failed_fetch_not_a_crash(mock_get, moc
     mock_get.return_value = _text("<html>Service Unavailable</html>")
     with patch("vfr.weather.time.time", return_value=T0200Z + 5 * 60):
         assert weather._dataset("winds-06", force=True)["DLH"][9000]["temp_c"] == -8.0   # the held copy
-    with patch("vfr.weather.time.time", return_value=T0200Z + 20 * 60):
+    with patch("vfr.weather.time.time", return_value=T0900Z + 60):
         with pytest.raises(WeatherServiceError, match="no altitude header"):
-            weather._fd_stations("06")                                                   # past 15 min: not
+            weather._fd_stations("06")                                     # past its for-use window: not
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_winds_answering_204_serve_the_held_product_to_the_end_of_its_for_use_window(mock_get, mock_sleep):
+    """2026-11-04: the windtemp API answered 204 with no body all
+    afternoon, and a copy held only 15 minutes left no winds at all. A
+    product is for use in its FOR USE window (AC 00-45H), so it is served
+    to the end of that, and its fetch time says how old it is."""
+    mock_get.return_value = FD
+    with patch("vfr.weather.time.time", return_value=T0200Z):
+        weather._fd_stations("06")
+    mock_get.return_value = _text("")
+    mock_get.return_value.status_code = 204
+    with patch("vfr.weather.time.time", return_value=T0200Z + 5 * 3600):
+        assert weather._fd_stations("06")["DLH"][9000]["temp_c"] == -8.0
+        assert weather.dataset_status()["winds-06"] == T0200Z
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_metars_are_served_through_an_outage_with_their_own_times(mock_get, mock_sleep):
+    """A METAR has no period of validity, only the time it was made, which
+    each report carries: the last set heard is served, its age said."""
+    mock_get.return_value = METARS
+    with patch("vfr.weather.time.time", return_value=T0200Z):
+        metar_for_idents(["KORD"])
+    mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
+    with patch("vfr.weather.time.time", return_value=T0200Z + 6 * 3600):
+        report = metar_for_idents(["KORD"])["KORD"]
+    assert report["observed_at"] == "2026-09-20T01:51:00.000Z"
+    assert weather.dataset_status()["metars"] == T0200Z
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_a_taf_set_is_served_to_the_end_of_its_latest_period_and_no_further(mock_get, mock_sleep):
+    mock_get.return_value = TAFS
+    with patch("vfr.weather.time.time", return_value=T0200Z):
+        weather._dataset("tafs")
+    ends = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc).timestamp()   # the latest period above
+    mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
+    with patch("vfr.weather.time.time", return_value=ends - 60):
+        assert weather._dataset("tafs")[0]["icaoId"] == "KDLH"
+    with patch("vfr.weather.time.time", return_value=ends + 120):
+        with pytest.raises(WeatherServiceError):
+            weather._dataset("tafs")
+
+
+@patch("vfr.weather.time.sleep")
+@patch("vfr.weather.requests.get")
+def test_sigmets_are_served_until_the_last_of_them_ends(mock_get, mock_sleep):
+    mock_get.return_value = AIRSIGMETS
+    with patch("vfr.weather.time.time", return_value=T0200Z):
+        weather._dataset("airsigmets")
+    ends = datetime(2026, 9, 20, 2, 55, tzinfo=timezone.utc).timestamp()   # the latest valid_to above
+    mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
+    with patch("vfr.weather.time.time", return_value=ends - 60):
+        assert len(weather._dataset("airsigmets")) == 3
+    with patch("vfr.weather.time.time", return_value=ends + 120):
+        with pytest.raises(WeatherServiceError):
+            weather._dataset("airsigmets")
 
 
 @patch("vfr.weather.time.sleep")
@@ -636,7 +702,7 @@ def test_an_unchanged_product_is_not_downloaded_or_parsed_again(monkeypatch):
         parsed.append(1)
         return ["held"]
 
-    monkeypatch.setitem(weather._SOURCES, "airsigmets", ("https://example/airsigmets", {}, parse, 300, 3 * 3600))
+    monkeypatch.setitem(weather._SOURCES, "airsigmets", ("https://example/airsigmets", {}, parse, 300, lambda data, at: at + 3 * 3600))
     assert weather._dataset("airsigmets", force=True) == ["held"]
     assert weather._dataset("airsigmets", force=True) == ["held"]
     assert parsed == [1]

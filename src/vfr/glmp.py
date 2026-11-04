@@ -131,7 +131,22 @@ def _grids(now: datetime) -> tuple[_Grid, _Grid]:
                 return held[1], held[2]
             if now - _NOT_UP.get(issued, datetime.min.replace(tzinfo=timezone.utc)) < NOT_UP_RETRY:
                 continue
-            ceiling, visibility = _fetch(issued, "cig"), _fetch(issued, "vis")
+            try:
+                ceiling, visibility = _fetch(issued, "cig"), _fetch(issued, "vis")
+            except GlmpUnavailable as err:
+                # NOMADS not answering: the issue held is served on while it
+                # is still one of the last ISSUES_TRIED -- the age a late
+                # issue may reach on a normal day -- and its "valid_at" tells
+                # the card how old it is. GLMP is hourly guidance with no
+                # period of validity of its own (NWS MDL, Gridded LAMP), so
+                # that, not longer, is how old a model run is shown as now.
+                # NOMADS is not asked again, for any issue, for NOT_UP_RETRY.
+                for each in issues:
+                    _NOT_UP[each] = now
+                if held is not None and held[0] in issues:
+                    log.warning("NOMADS did not answer (%s); serving GLMP's %s issue", err, f"{held[0]:%H%M}Z")
+                    return held[1], held[2]
+                raise
             if ceiling is None or visibility is None:
                 _NOT_UP[issued] = now
                 continue
