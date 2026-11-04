@@ -130,6 +130,10 @@ export class AirportMarksLayer extends ViewCanvasLayer {
   private font = "";
   /** Whether the fields written on the canvas are older than its marks. */
   private unwritten = true;
+  /** The view they were last written for at rest (its scale and where the
+   *  canvas lies), so a paint at rest that moves nothing -- a fade's next
+   *  frame -- writes nothing again. */
+  private writtenAt = "";
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
@@ -195,8 +199,12 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     // Every field written, in sight or not, as every marker was in the
     // page -- for the tests, as the marks change and as the map comes to
     // rest, not at each frame of a zoom: a thousand fields' places made
-    // into a string and set on the page every frame.
-    const writing = this.unwritten || !moving;
+    // into a string and set on the page every frame. Nor again at rest for
+    // the view it was written for, where each frame of a mark's fade wrote
+    // the same thousand places out again (a profile, 2026-11-04; the owner,
+    // "make it fast but stable").
+    const at = `${k}|${ox}|${oy}`;
+    const writing = this.unwritten || (!moving && at !== this.writtenAt);
     const written: { ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string }[] = [];
     const now = performance.now();
     const still = prefersReducedMotion();
@@ -234,6 +242,7 @@ export class AirportMarksLayer extends ViewCanvasLayer {
     if (writing) {
       canvas.dataset.airportMarks = JSON.stringify(written);
       this.unwritten = false;
+      this.writtenAt = moving ? "" : at;
     }
   }
 }

@@ -99,3 +99,92 @@ export function levelAhead(from: number, to: number, layer: Pick<ChartLayer, "mi
   const drawn = Math.min(level, layer.max_zoom);
   return Math.abs(Math.min(from, layer.max_zoom) - drawn) > 1 ? drawn : null;
 }
+
+/** How long one slice of the tiles fetched ahead may hold the main thread,
+ *  ms: a few tiles, then the browser's own work -- a frame, an overlay's
+ *  answer -- before the next. */
+export const PREFETCH_SLICE_MS = 8;
+
+/** Runs `go` when the main thread is idle, and how to call it off. Safari
+ *  has no requestIdleCallback: a task of its own there, after whatever is
+ *  waiting already. */
+export type IdleRun = (go: (deadline: IdleDeadline | null) => void) => () => void;
+const whenIdle: IdleRun = go => {
+  if ("requestIdleCallback" in window) {
+    const handle = window.requestIdleCallback(go, { timeout: 1000 });
+    return () => window.cancelIdleCallback(handle);
+  }
+  const handle = window.setTimeout(() => go(null), 0);
+  return () => window.clearTimeout(handle);
+};
+
+/**
+ * The chart's tiles fetched ahead into the browser's cache (ChartTiles),
+ * each once. A zoom's own level goes at once (`now`), as the zoom starts.
+ * The ring round a view at rest and the levels above it (`later`) go a
+ * few at a time in the main thread's idle moments, a slice of
+ * PREFETCH_SLICE_MS each: asked all at once, the fifty or so fetch()
+ * calls of a rest after a zoom took 30 to 130 ms of the phone viewport's
+ * main thread at CPU 4x in one go, 1.9 ms a call, just as the overlays'
+ * answers came in to be drawn (a profile, 2026-11-04; the owner, "make it
+ * fast but stable"). A new rest drops those of the last not yet asked for
+ * (`drop`), which are asked again if the new one wants them.
+ */
+export class TilePrefetch {
+  private readonly sent = new Set<string>();
+  private queue: string[] = [];
+  private cancel: (() => void) | null = null;
+
+  constructor(
+    private readonly kept: number,
+    private readonly get: (url: string, priority: "low" | "high") => void = (url, priority) => {
+      void fetch(url, { priority }).catch(() => { /* a miss now is a miss later, nothing to do */ });
+    },
+    private readonly idle: IdleRun = whenIdle,
+    private readonly clock = () => performance.now(),
+  ) {}
+
+  /** Asked at once, at high priority. */
+  now(urls: string[]): void {
+    for (const url of urls) this.send(url, "high");
+  }
+
+  /** Asked a slice at a time when the main thread is idle, at low priority. */
+  later(urls: string[]): void {
+    for (const url of urls) if (!this.sent.has(url)) this.queue.push(url);
+    if (this.queue.length && !this.cancel) this.cancel = this.idle(this.drain);
+  }
+
+  /** Those not yet asked for, dropped: the map has moved on. */
+  drop(): void {
+    this.queue = [];
+    this.cancel?.();
+    this.cancel = null;
+  }
+
+  /** Whether `url` has been asked for (and is still remembered). */
+  asked(url: string): boolean {
+    return this.sent.has(url);
+  }
+
+  private send(url: string, priority: "low" | "high"): void {
+    // Once a tile: own ship followed ends a move at every fix, and the
+    // ring was asked for again each time, twenty requests a second.
+    if (this.sent.has(url)) return;
+    this.sent.add(url);
+    if (this.sent.size > this.kept) this.sent.delete(this.sent.values().next().value!);
+    this.get(url, priority);
+  }
+
+  private readonly drain = (deadline: IdleDeadline | null): void => {
+    this.cancel = null;
+    const start = this.clock();
+    // At least one a slice, so a busy thread's timed-out turn still moves on.
+    do {
+      const url = this.queue.shift();
+      if (url === undefined) break;
+      this.send(url, "low");
+    } while (this.queue.length && this.clock() - start < PREFETCH_SLICE_MS && (!deadline || deadline.didTimeout || deadline.timeRemaining() > 1));
+    if (this.queue.length) this.cancel = this.idle(this.drain);
+  };
+}

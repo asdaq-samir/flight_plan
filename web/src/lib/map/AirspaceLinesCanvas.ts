@@ -2,6 +2,7 @@ import L from "leaflet";
 import type { AirspaceVolume } from "../api/types";
 import { AIRSPACE_LINE } from "./airspaceMarks";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
+import { zoomZeroX, zoomZeroY } from "./mercator";
 
 /** How many dashes round a Class D's ring, about as many as the printed
  *  ring round a 4.4 nm surface area has on the 1:500,000 sectional: 102
@@ -53,7 +54,7 @@ interface Projected {
 }
 const projected = new WeakMap<AirspaceVolume, Projected>();
 
-function projectedOf(map: L.Map, volume: AirspaceVolume): Projected {
+function projectedOf(volume: AirspaceVolume): Projected {
   let made = projected.get(volume);
   if (made) return made;
   const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
@@ -62,14 +63,14 @@ function projectedOf(map: L.Map, volume: AirspaceVolume): Projected {
     const points = new Float64Array(line.length * 2);
     let length = 0;
     line.forEach((p, i) => {
-      const at = map.project([p[0]!, p[1]!], 0);
-      points[2 * i] = at.x;
-      points[2 * i + 1] = at.y;
-      if (at.x < box.x0) box.x0 = at.x;
-      if (at.x > box.x1) box.x1 = at.x;
-      if (at.y < box.y0) box.y0 = at.y;
-      if (at.y > box.y1) box.y1 = at.y;
-      if (i) length += Math.hypot(at.x - points[2 * i - 2]!, at.y - points[2 * i - 1]!);
+      const x = zoomZeroX(p[1]!), y = zoomZeroY(p[0]!);
+      points[2 * i] = x;
+      points[2 * i + 1] = y;
+      if (x < box.x0) box.x0 = x;
+      if (x > box.x1) box.x1 = x;
+      if (y < box.y0) box.y0 = y;
+      if (y > box.y1) box.y1 = y;
+      if (i) length += Math.hypot(x - points[2 * i - 2]!, y - points[2 * i - 1]!);
     });
     if (length > longest) longest = length;
     return points;
@@ -155,7 +156,7 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     const px = (layer.x + pixelOrigin.x) / k, py = (layer.y + pixelOrigin.y) / k, within = withinPx / k;
     let best: { volume: AirspaceVolume; d2: number } | null = null;
     for (const volume of this.volumes) {
-      const { lines, box } = projectedOf(map, volume);
+      const { lines, box } = projectedOf(volume);
       if (px < box.x0 - within || px > box.x1 + within || py < box.y0 - within || py > box.y1 + within) continue;
       for (const points of lines) {
         for (let i = 2; i < points.length; i += 2) {
@@ -188,7 +189,7 @@ export class AirspaceLinesLayer extends ViewCanvasLayer {
     const rings: { id: string; class: string; x: number; y: number }[] = [];
     ctx.lineJoin = "round";
     for (const volume of this.volumes) {
-      const { lines, box, longest } = projectedOf(map, volume);
+      const { lines, box, longest } = projectedOf(volume);
       if (box.x1 * k - ox < left || box.x0 * k - ox > right || box.y1 * k - oy < top || box.y0 * k - oy > bottom) continue;
       if (resting) {
         // A few points round each ring, so one is clear of the marks and

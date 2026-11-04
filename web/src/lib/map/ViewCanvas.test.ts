@@ -83,4 +83,31 @@ describe("ViewCanvasLayer's frames", () => {
     expect(Math.max(...counts)).toBe(1);
     expect(waiting.size).toBe(0);
   });
+  it("gives a layer made again in its pane the canvas the last one left, cleared and with nothing written on it", () => {
+    const ctx = { setTransform: vi.fn(), clearRect: vi.fn() };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(ctx as unknown as CanvasRenderingContext2D);
+    const canvasOf = (l: ViewCanvasLayer) => (l as unknown as { canvas: HTMLCanvasElement | null }).canvas;
+    const first = canvasOf(layer)!;
+    first.dataset.marks = "[1]";
+    layer.remove();
+    expect(first.isConnected).toBe(false);
+    expect(first.dataset.marks).toBeUndefined();
+    expect(ctx.clearRect).toHaveBeenLastCalledWith(0, 0, first.width, first.height);
+    const again = new Fading("overlayPane");
+    again.addTo(map);
+    expect(canvasOf(again)).toBe(first);
+    expect(first.isConnected).toBe(true);
+    // Another while that one is in use has its own; and one in another
+    // pane never takes it.
+    const beside = new Fading("overlayPane");
+    beside.addTo(map);
+    expect(canvasOf(beside)).not.toBe(first);
+    beside.remove();
+    again.remove();
+    const elsewhere = new Fading("markerPane");
+    elsewhere.addTo(map);
+    expect(canvasOf(elsewhere)).not.toBe(first);
+    expect(canvasOf(elsewhere)).not.toBe(canvasOf(beside));
+    elsewhere.remove();
+  });
 });

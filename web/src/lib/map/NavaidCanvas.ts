@@ -152,6 +152,8 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
   private font = "";
   /** Whether the marks written on the canvas are older than its marks. */
   private unwritten = true;
+  /** The view they were last written for at rest (AirportCanvas the same). */
+  private writtenAt = "";
 
   onAdd(map: L.Map): this {
     super.onAdd(map);
@@ -212,7 +214,10 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
     const w0 = warp(ORIGIN), w1 = warp(UNIT);
     const ws = w1.x - w0.x, wx = w0.x, wy = w0.y;
     const { xs, ys } = this.projectedOf(map);
-    const writing = this.unwritten || !moving;
+    // Written as the marks change and once at rest for each view, not
+    // again at each frame of a fade there (AirportCanvas says why).
+    const at = `${k}|${ox}|${oy}`;
+    const writing = this.unwritten || (!moving && at !== this.writtenAt);
     const written: { ident: string; kind: string; side: string; x: number; y: number }[] = [];
     const now = performance.now();
     const still = prefersReducedMotion();
@@ -247,6 +252,7 @@ export class NavaidMarksLayer extends ViewCanvasLayer {
     if (writing) {
       canvas.dataset.navaidMarks = JSON.stringify(written);
       this.unwritten = false;
+      this.writtenAt = moving ? "" : at;
     }
   }
 }

@@ -14,6 +14,7 @@ import { edgeAnchors } from "./edgeLabels";
 import { AirspaceLabelsLayer, type CanvasEdgeLabel } from "./AirspaceLabelsCanvas";
 import { AirspaceLinesLayer } from "./AirspaceLinesCanvas";
 import { navaidAt } from "./NavaidCanvas";
+import { zoomZeroX, zoomZeroY } from "./mercator";
 import { MapCard } from "./MapCard";
 import { Button } from "../../components/ui/button";
 import { ListGroup, ListRow } from "../../components/GroupedList";
@@ -237,8 +238,11 @@ function volumeLabels(map: L.Map, volume: AirspaceVolume): CanvasEdgeLabel[] {
   labels = [];
   const text = edgeText(volume);
   if (text) {
+    // Projected by arithmetic (mercator), not a LatLng and two Points made
+    // for each point by map.project.
+    const scale = 2 ** EDGE_ZOOM;
     volume.lines.forEach((line, n) => {
-      const points = line.map(p => map.project([p[0]!, p[1]!], EDGE_ZOOM));
+      const points = line.map(p => ({ x: zoomZeroX(p[1]!) * scale, y: zoomZeroY(p[0]!) * scale }));
       edgeAnchors(points, text.length * EDGE_LETTER_PX, EDGE_ZOOM).forEach((a, i) => {
         const at = map.unproject([a.x, a.y], EDGE_ZOOM);
         labels!.push({
@@ -267,9 +271,14 @@ function EdgeLabels({ volumes }: { volumes: AirspaceVolume[] }) {
     layer.addTo(map);
     return () => { layer.remove(); };
   }, [map, layer]);
+  // One list for each answer, kept as the airports' marks change: the
+  // canvas projects a list once (AirspaceLabelsCanvas' projectedOf), and a
+  // new one at each change of the fields drawn was every label projected
+  // again.
+  const labels = useMemo(() => volumes.flatMap(v => volumeLabels(map, v)), [map, volumes]);
   useEffect(() => {
-    layer.set(volumes.flatMap(v => volumeLabels(map, v)), fields);
-  }, [map, layer, volumes, fields]);
+    layer.set(labels, fields);
+  }, [layer, labels, fields]);
   return null;
 }
 

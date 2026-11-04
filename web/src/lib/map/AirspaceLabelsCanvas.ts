@@ -3,6 +3,7 @@ import { prefersReducedMotion } from "../motion";
 import { airportBox, overlaps, type Box, type DrawnField } from "./declutter";
 import { spotBox } from "./edgeLabels";
 import { FadeIn } from "./fadeIn";
+import { zoomZeroX, zoomZeroY } from "./mercator";
 import { ViewCanvasLayer, type CanvasView } from "./ViewCanvas";
 
 /** One label along an airspace line, held to its place on it at every
@@ -142,14 +143,13 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
    *  they were made for (AirportCanvas the same). */
   private projected: { labels: CanvasEdgeLabel[]; xs: Float64Array; ys: Float64Array } | null = null;
 
-  private projectedOf(map: L.Map): { xs: Float64Array; ys: Float64Array } {
+  private projectedOf(): { xs: Float64Array; ys: Float64Array } {
     if (this.projected?.labels === this.labels) return this.projected;
     const n = this.labels.length;
     const xs = new Float64Array(n), ys = new Float64Array(n);
     this.labels.forEach((label, i) => {
-      const at = map.project([label.lat, label.lon], 0);
-      xs[i] = at.x;
-      ys[i] = at.y;
+      xs[i] = zoomZeroX(label.lon);
+      ys[i] = zoomZeroY(label.lat);
     });
     this.projected = { labels: this.labels, xs, ys };
     return this.projected;
@@ -187,7 +187,9 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
         const b = airportBox(here(f.lat, f.lon), f.ident);
         return { x0: b.x0 - AIRPORT_CLEAR_PX, y0: b.y0 - AIRPORT_CLEAR_PX, x1: b.x1 + AIRPORT_CLEAR_PX, y1: b.y1 + AIRPORT_CLEAR_PX };
       });
-      const off = clear.some(b => overlaps(b, spotBox({ x, y, angle: label.angle }, width, HEIGHT_PX)));
+      // The label's own box once, not once for every field it is held to.
+      const spot = spotBox({ x, y, angle: label.angle }, width, HEIGHT_PX);
+      const off = clear.some(b => overlaps(b, spot));
       this.hidden.set(label.key, off);
       return off;
     };
@@ -202,7 +204,7 @@ export class AirspaceLabelsLayer extends ViewCanvasLayer {
     const ox = pixelOrigin.x + origin.x - from.x, oy = pixelOrigin.y + origin.y - from.y;
     const w0 = warp(ORIGIN), w1 = warp(UNIT);
     const ws = w1.x - w0.x, wx = w0.x, wy = w0.y;
-    const { xs, ys } = this.projectedOf(map);
+    const { xs, ys } = this.projectedOf();
     for (let i = 0; i < this.labels.length; i++) {
       const label = this.labels[i]!;
       if (label.from > zoom + 1e-6) continue;

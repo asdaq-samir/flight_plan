@@ -1,10 +1,10 @@
 import L from "leaflet";
-import { useCallback, useEffect, useMemo, useRef, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { TileLayer, useMap, useMapEvents } from "react-leaflet";
 import type { ChartInfo } from "../api/types";
 import { usePreferences } from "../preferences";
 import { holdLevels, pruneOnlyAtRest, type Levels } from "./levelHold";
-import { LIVE_TILES, chartPair, levelAhead, tileTemplate, tileUrl, tilesAround } from "./tiles";
+import { LIVE_TILES, TilePrefetch, chartPair, levelAhead, tileTemplate, tileUrl, tilesAround } from "./tiles";
 
 // Every tile layer's, the chart's and those under and over it: none
 // pruned in a zoom's animation (levelHold).
@@ -85,27 +85,27 @@ export function ChartTiles({ chart, previewing }: Props) {
   useHeldLevels(baseRef, baseLayer?.kind);
   useHeldLevels(overlayRef, overlayShown ? overlay.kind : undefined);
 
-  const prefetched = useRef(new Set<string>());
   // A layer's tiles at a level fetched ahead, into the browser's cache
   // (and, installed, the service worker's), for Leaflet's own to find
-  // there. The tile's own address (tiles.ts), not the layer's getTileUrl,
-  // which writes the layer's present zoom into {z} whatever the coords
-  // say: the parents below came out as tiles of the view's zoom at the
-  // parents' x and y, far away, thirty-three wrong tiles asked for at
-  // every rest (the first after-measurement, 2026-11-03).
+  // there: a zoom's own level at once, the ring round a view at rest a few
+  // at a time as the main thread is idle (TilePrefetch). The tile's own
+  // address (tiles.ts), not the layer's getTileUrl, which writes the
+  // layer's present zoom into {z} whatever the coords say: the parents
+  // below came out as tiles of the view's zoom at the parents' x and y,
+  // far away, thirty-three wrong tiles asked for at every rest (the first
+  // after-measurement, 2026-11-03).
+  const [prefetch] = useState(() => new TilePrefetch(PREFETCH_KEPT));
+  useEffect(() => () => prefetch.drop(), [prefetch]);
   const ask = useCallback((kind: string, z: number, tiles: [number, number][], priority: "low" | "high") => {
     const n = 2 ** z;
+    const urls: string[] = [];
     for (const [x, y] of tiles) {
       if (y < 0 || y >= n) continue;
-      const url = tileUrl(chart, kind, z, ((x % n) + n) % n, y);
-      // Once a tile: own ship followed ends a move at every fix, and the
-      // ring was asked for again each time, twenty requests a second.
-      if (prefetched.current.has(url)) continue;
-      prefetched.current.add(url);
-      if (prefetched.current.size > PREFETCH_KEPT) prefetched.current.delete(prefetched.current.values().next().value!);
-      void fetch(url, { priority }).catch(() => { /* a miss now is a miss later, nothing to do */ });
+      urls.push(tileUrl(chart, kind, z, ((x % n) + n) % n, y));
     }
-  }, [chart]);
+    if (priority === "high") prefetch.now(urls);
+    else prefetch.later(urls);
+  }, [chart, prefetch]);
 
   const prefetchRing = useCallback(() => {
     if (!baseRef.current || !baseLayer) return;
@@ -179,6 +179,9 @@ export function ChartTiles({ chart, previewing }: Props) {
   useMapEvents(useMemo(() => ({
     moveend: () => {
       if (prefetchTimer.current) clearTimeout(prefetchTimer.current);
+      // The last rest's ring, what of it is not yet asked for, left: the
+      // map has moved on, and this rest asks for its own.
+      prefetch.drop();
       // Once the move's own work is done and the thread idle: every edge
       // tile's address made and asked for took 16 ms at the move's end
       // (Session2's profile, 2026-11-03), where the marks and rings draw.
@@ -188,7 +191,7 @@ export function ChartTiles({ chart, previewing }: Props) {
       }, 250);
     },
     zoomanim: prefetchLevel,
-  }), [prefetchRing, prefetchLevel]));
+  }), [prefetchRing, prefetchLevel, prefetch]));
   useEffect(() => () => { if (prefetchTimer.current) clearTimeout(prefetchTimer.current); }, []);
 
   if (!baseLayer) return null;
