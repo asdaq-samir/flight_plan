@@ -198,6 +198,12 @@ public class PlannerProxyController {
             route("GET", CYCLE_PACK_PATH + "{cycle}/{file}"),
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),
+            // The words with their sources, for the apps' "In words" sections
+            // (the planner's POST /api/words/{notams,weather,risk,debrief,changes}).
+            route("POST", "/api/words/{kind}"),
+            // The pilot's assistant, streamed line by line (NDJSON) as the
+            // planner answers; StreamingProxy passes each chunk on as it comes.
+            route("POST", "/api/assistant"),
             // The developer's.
             route("POST", "/api/oral/question"),
             route("POST", "/api/oral/grade"),
