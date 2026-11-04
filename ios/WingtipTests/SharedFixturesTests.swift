@@ -67,6 +67,11 @@ private struct ClearancesFixture: Decodable {
     let routes: [Cleared]
 }
 
+private struct AtisFixture: Decodable {
+    struct Case: Decodable { let name: String; let heard: String; let reading: Atis }
+    let cases: [Case]
+}
+
 private struct HeardCallsFixture: Decodable {
     struct Case: Decodable { let heard: String; let forUs: Bool; let direct: String?; let maintainFt: Int? }
     let tail: String
@@ -226,6 +231,12 @@ struct SharedFixturesTests {
             #expect(got.dep == c.route.dep && got.stops == c.route.stops && got.dest == c.route.dest, "\(c.heard)")
             #expect(got.typed == c.typed, "\(c.heard)")
         }
+    }
+
+    @Test func anAtisIsReadAsTheWebReadsIt() throws {
+        let f = try fixture("atis", as: AtisFixture.self, decoder: Atis.decoder)
+        #expect(f.cases.count >= 12)
+        for c in f.cases { #expect(Atis.read(c.heard) == c.reading, "\(c.name)") }
     }
 
     @Test func aCallToUsIsHeardAsTheWebHearsIt() throws {
