@@ -1,11 +1,13 @@
 package app.wingtipmaps.android.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -26,14 +28,15 @@ enum class OwnShipMode { OFF, READING, FOLLOWING }
 
 /**
  * The buttons over the map, under the status bar at the right, as the
- * iOS app's MapButtons: for now the location arrow alone. A tonal icon
- * button is Material's own 40-dp control with its 48-dp touch target,
- * so nothing is grown to be tappable.
+ * iOS app's MapButtons: the location arrow, and under it the sparkle
+ * that opens Ask (AskScreen), a question about the flight put to the
+ * assistant. A tonal icon button is Material's own 40-dp control with
+ * its 48-dp touch target, so nothing is grown to be tappable.
  */
 @Composable
-fun MapButtons(ownShip: OwnShipMode, onOwnShip: () -> Unit, modifier: Modifier = Modifier) {
+fun MapButtons(ownShip: OwnShipMode, onOwnShip: () -> Unit, onAsk: () -> Unit, modifier: Modifier = Modifier) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
-    Column(modifier.padding(top = top + 8.dp, end = 8.dp)) {
+    Column(modifier.padding(top = top + 8.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val tint = when (ownShip) {
             OwnShipMode.OFF -> Color.Gray
             OwnShipMode.READING -> MaterialTheme.colorScheme.onSurface
@@ -51,6 +54,12 @@ fun MapButtons(ownShip: OwnShipMode, onOwnShip: () -> Unit, modifier: Modifier =
                     OwnShipMode.FOLLOWING -> "Stop following"
                 },
             )
+        }
+        FilledTonalIconButton(
+            onClick = onAsk,
+            colors = IconButtonDefaults.filledTonalIconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+        ) {
+            Icon(Icons.Filled.AutoAwesome, contentDescription = "Ask about this flight")
         }
     }
 }

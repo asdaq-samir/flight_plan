@@ -16,10 +16,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.material3.BottomSheetScaffold
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberBottomSheetScaffoldState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -82,6 +84,7 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
     val flown by trail.points.collectAsStateWithLifecycle()
     var ownShipOn by rememberSaveable { mutableStateOf(false) }
     var following by rememberSaveable { mutableStateOf(false) }
+    var asking by rememberSaveable { mutableStateOf(false) }
     val permissions = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
         if (granted[Manifest.permission.ACCESS_FINE_LOCATION] == true && ownShipOn) {
             ownShip.start()
@@ -186,7 +189,18 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
                 follow = following,
                 onDragged = { following = false },
             )
-            MapButtons(ownShip = ownShipMode, onOwnShip = onOwnShip, modifier = Modifier.align(Alignment.TopEnd))
+            MapButtons(ownShip = ownShipMode, onOwnShip = onOwnShip, onAsk = { asking = true }, modifier = Modifier.align(Alignment.TopEnd))
+        }
+    }
+    // Ask (AskScreen): a question about the flight put to the assistant,
+    // as a modal sheet over the map and the tabs, opened at the sparkle
+    // button; the whole height, since a conversation wants the room.
+    if (asking) {
+        ModalBottomSheet(
+            onDismissRequest = { asking = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            AskScreen(plan = plan, session = session, ownShip = ownShip, onClose = { asking = false })
         }
     }
 }

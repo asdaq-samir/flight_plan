@@ -27,6 +27,10 @@ struct RootView: View {
     @State private var following = false
     @State private var routeAway = false
     @State private var fitRequest = 0
+    /// Ask (AskView) up: a sheet over the tabs' sheet on the iPhone, so the
+    /// system presents it, since one view presents one sheet at a time;
+    /// over the map on the iPad.
+    @State private var asking = false
     /// The iPad's inspector card (SplitLayout).
     @State private var sideCard: SideCard?
     /// What Siri or a Shortcut asked for (the App Intents), done here once
@@ -67,7 +71,7 @@ struct RootView: View {
             case .sheet:
                 map
                     .sheet(isPresented: $sheetUp) {
-                        SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill)
+                        SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill, asking: $asking)
                             .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
                             .presentationBackgroundInteraction(.enabled(upThrough: .medium))
                             .presentationBackground(.regularMaterial)
@@ -76,6 +80,7 @@ struct RootView: View {
                     }
             case .split:
                 SplitLayout(map: map, tab: $tab, airports: $airports, card: $sideCard)
+                    .sheet(isPresented: $asking) { AskView() }
             }
         }
         // The scene's tab kept and brought back (SceneStorage); a launch
@@ -136,7 +141,7 @@ struct RootView: View {
         )
         .ignoresSafeArea()
         .overlay(alignment: .topTrailing) {
-            MapButtons(following: $following, routeAway: routeAway && plan.course != nil, fitRoute: { fitRequest += 1 })
+            MapButtons(following: $following, routeAway: routeAway && plan.course != nil, fitRoute: { fitRequest += 1 }, ask: { asking = true })
         }
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
@@ -258,6 +263,9 @@ struct SheetView: View {
     @Binding var airports: [String]
     /// At the pill: the figures over the tab bar, nothing else.
     var pill: Bool
+    /// Ask (AskView) presented from here, a sheet over this one: the map's
+    /// sparkle button sets it (RootView).
+    @Binding var asking: Bool
 
     var body: some View {
         TabView(selection: $tab) {
@@ -295,6 +303,7 @@ struct SheetView: View {
         // An airplane's card, a point pressed on the map, a hold, a flown
         // track, over the tabs.
         .modifier(FlightSheets())
+        .sheet(isPresented: $asking) { AskView() }
     }
 }
 

@@ -2,13 +2,16 @@ import SwiftUI
 
 /// The map's own buttons at its top right, as Maps has them and the web
 /// app's MyPositionButton: the location arrow, filled while the map
-/// follows own ship and an outline otherwise. With a route entered and
-/// the map panned off it, the arrow's other face fits the course again;
-/// tapped then, the arrow comes back to bring the map to the position.
+/// follows own ship and an outline otherwise, and under it the sparkle
+/// that opens Ask (AskView), a question about the flight put to the
+/// assistant. With a route entered and the map panned off it, the
+/// arrow's other face fits the course again; tapped then, the arrow
+/// comes back to bring the map to the position.
 struct MapButtons: View {
     @Binding var following: Bool
     let routeAway: Bool
     let fitRoute: () -> Void
+    let ask: () -> Void
 
     var body: some View {
         VStack(spacing: 10) {
@@ -24,6 +27,14 @@ struct MapButtons: View {
             .accessibilityLabel(routeAway && !following ? "Show the whole route" : following ? "Stop following my position" : "My position")
             .background(.regularMaterial, in: Circle())
             .foregroundStyle(.primary)
+            Button(action: ask) {
+                Image(systemName: "sparkles")
+                    .font(.body.weight(.medium))
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Ask about this flight")
+            .background(.regularMaterial, in: Circle())
+            .foregroundStyle(Color.accentColor)
         }
         .padding(.trailing, 12)
         .padding(.top, 12)
@@ -32,5 +43,5 @@ struct MapButtons: View {
 
 #Preview("MapButtons") {
     @Previewable @State var following = true
-    MapButtons(following: $following, routeAway: false) {}
+    MapButtons(following: $following, routeAway: false, fitRoute: {}, ask: {})
 }
