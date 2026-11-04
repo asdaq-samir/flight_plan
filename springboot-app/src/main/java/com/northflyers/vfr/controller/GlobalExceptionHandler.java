@@ -4,6 +4,7 @@ import com.northflyers.vfr.dto.ErrorResponse;
 import com.northflyers.vfr.flightservice.FlightServiceNotConnectedException;
 import com.northflyers.vfr.service.InstructorService;
 import com.northflyers.vfr.service.NoSuchAircraftException;
+import com.northflyers.vfr.service.PlannerClient;
 import com.northflyers.vfr.service.SubscriptionService;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -136,6 +137,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(FlightServiceNotConnectedException.class)
     public ResponseEntity<ErrorResponse> handleFlightServiceNotConnected(FlightServiceNotConnectedException ex) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponse(ex.getMessage()));
+    }
+
+    /** The planner could not brief a flight the pilot asked to watch
+     *  (PlannerClient): the same 502 the proxy answers for a planner that
+     *  does not answer, so the page reports it the same way. */
+    @ExceptionHandler(PlannerClient.Unavailable.class)
+    public ResponseEntity<ErrorResponse> handlePlannerUnavailable(PlannerClient.Unavailable ex) {
+        log.warn("The planner could not be asked: {}", ex.toString());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(new ErrorResponse(ex.getMessage()));
     }
 
     /**
