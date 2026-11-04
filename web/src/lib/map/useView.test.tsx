@@ -199,8 +199,9 @@ describe("a layer's question, sent from the map's event", () => {
     spies.navaids.mockImplementation(() => Promise.reject(new Error("The planner is down")));
     try {
       const map = await mount(<NavaidsLayer />, 9);
+      // The view's alone as the layer opens, then the ring round it.
       const atMount = spies.navaids.mock.calls.length;
-      expect(atMount).toBe(1);
+      expect(atMount).toBe(2);
       for (let i = 0; i < 4; i++) {
         act(() => { map.panBy([4, 0], { animate: false }); });
         await settle();
@@ -209,6 +210,24 @@ describe("a layer's question, sent from the map's event", () => {
     } finally {
       spies.navaids.mockImplementation(() => Promise.resolve({ vors: [], fixes: [] } as unknown as Awaited<ReturnType<typeof api.navaidsInView>>));
     }
+  });
+
+  it("asks for the screen first and the ring round it once that is in", async () => {
+    const map = await mount(<NavaidsLayer />, 7);
+    const before = spies.navaids.mock.calls.length;
+    // A zoom to new ground: the view alone at the zoom's start.
+    act(() => { map.fire("zoomanim", { center: map.getCenter(), zoom: 10, noUpdate: false }); });
+    const boxes = () => spies.navaids.mock.calls.slice(before).map(c => c[0] as { south: number; west: number; north: number; east: number });
+    expect(boxes()).toHaveLength(1);
+    // Its answer in, the ring round it.
+    await settle();
+    expect(boxes()).toHaveLength(2);
+    const [view, ring] = boxes() as [ReturnType<typeof boxes>[number], ReturnType<typeof boxes>[number]];
+    expect(ring.south).toBeLessThan(view.south);
+    expect(ring.west).toBeLessThan(view.west);
+    expect(ring.north).toBeGreaterThan(view.north);
+    expect(ring.east).toBeGreaterThan(view.east);
+    expect(layerKeys("navaidsInView").map(k => k[1])).toEqual([`${ring.south},${ring.west},${ring.north},${ring.east}`]);
   });
 
   it("asks for a pan's new ground as the map moves", async () => {
@@ -274,10 +293,11 @@ describe("a flight", () => {
     await waitFor(() => expect(drawn()).toEqual(["KORD", "KOSH"]));
     expect(map.getZoom()).toBeLessThan(10);
     expect(layerKeys("navaidsInView")).toEqual(navaidsAtRest);
-    // Landed: Oshkosh alone, and nothing asked again for it.
+    // Landed: Oshkosh alone, and nothing asked again for it -- the view
+    // there as it took off, and the ring round it once that was in.
     await waitFor(() => expect(map.getZoom()).toBe(10), { timeout: 5000 });
     await waitFor(() => expect(drawn()).toEqual(["KOSH"]));
-    expect(spies.airports.mock.calls.length).toBe(asked.airports + 1);
+    expect(spies.airports.mock.calls.length).toBe(asked.airports + 2);
     expect(spies.navaids.mock.calls.length).toBe(asked.navaids + 1);
     expect(layerKeys("navaidsInView").map(k => k[2])).toEqual([true]);
   });

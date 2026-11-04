@@ -2,7 +2,7 @@ import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { hashKey, useQueryClient, type QueryKey, type QueryMeta } from "@tanstack/react-query";
 import { useMap, useMapEvents } from "react-leaflet";
-import { aheadOf, boundsAt, within, type Box } from "./view";
+import { aheadOf, boundsAt, boxAt, within, type Box } from "./view";
 
 /** While the map moves, how often what is drawn on it catches up, ms: the
  *  fields coming into sight drawn under a finger's pan, not after it
@@ -127,6 +127,18 @@ export type AheadQuery = (asked: Box, zoom: number) => Asking;
  * as they come into sight. The airports' marks asked so; the VFR
  * waypoints' diamonds were asked for once the map had stopped.
  *
+ * The screen first, then the ring round it: where a box is new, the view
+ * alone (boxAt, on the same half-degree grid) is asked for and drawn
+ * first, and the box round it once that answer is in, the view's marks
+ * shown meanwhile (each layer's keepPreviousData). The ring is eight
+ * screens of fields, airspace and VORs to the view's one, and the view's
+ * waited for all nine (the owner, 2026-11-04: "can we only draw the area
+ * around ... first and then ask for the rest?"). As the page opens, at a
+ * zoom's start, at a flight's take-off and where the map rests on new
+ * ground; not under a finger, where the ring asked is what a pan moves
+ * into next and the view's alone would leave its edges bare until the
+ * ring came. A ring already answered is drawn at once.
+ *
  * The question itself goes from the map's event (`query`, the layer's own
  * options for a box at a zoom), before the box is given to React: asked
  * from the layer's useQuery, it waited for the render the new box set off
@@ -147,48 +159,108 @@ export type AheadQuery = (asked: Box, zoom: number) => Asking;
 export function useAhead(query?: AheadQuery, { flights = false }: { flights?: boolean } = {}): Box {
   const map = useMap();
   const client = useQueryClient();
-  const [asked, setAsked] = useState<Box>(() => aheadOf(map.getBounds()));
+  // As the page opens, the view alone where a layer asks (the screen
+  // first), its ring once that is in (the mount's effect, below); the
+  // ring at once where its answer is in already (a layer drawn again).
+  const [asked, setAsked] = useState<Box>(() => {
+    const ring = aheadOf(map.getBounds());
+    const options = query?.(ring, levelOf(map.getZoom()));
+    return options?.enabled && client.getQueryData(options.queryKey) === undefined ? boxAt(map.getBounds(), map.getZoom()) : ring;
+  });
   // The box as the map's events last left it, read and set there, where
-  // the question goes, a render ahead of React's.
+  // the question goes, a render ahead of React's: the ring, while the view
+  // alone is what is asked and drawn (`waiting`).
   const latest = useRef(asked);
+  const waiting = useRef<Box | null>(null);
   const asking = useRef(query);
   useEffect(() => { asking.current = query; }, [query]);
   const panned = useRef(0);
   const askedLevel = useRef(levelOf(map.getZoom()));
   const prefetched = useRef<string | null>(null);
-  useMapEvents(useMemo(() => {
+  const asker = useMemo(() => {
     // Bounds coming into sight keep the box asked already while it does
     // for them (within), and a box of their own when it does not.
     const boxFor = (bounds: L.LatLngBounds) => (within(bounds, latest.current) ? latest.current : aheadOf(bounds));
     // Each question once as it comes, as the layer's useQuery asks it as
     // its key changes: asked at every event, a question the planner had
     // failed (no answer, so never fresh) went again five times a second
-    // under a pan.
-    const prefetch = (box: Box, zoom: number) => {
+    // under a pan. What it gives back settles once the answer is in, or
+    // the planner has failed it: null where nothing was asked.
+    const prefetch = (box: Box, zoom: number): Promise<void> | null => {
       const options = asking.current?.(box, levelOf(zoom));
       if (!options?.enabled) {
         prefetched.current = null;
-        return;
+        return null;
       }
       const hash = hashKey(options.queryKey);
-      if (hash === prefetched.current) return;
+      if (hash === prefetched.current) return null;
       prefetched.current = hash;
-      void client.prefetchQuery({ queryKey: options.queryKey, queryFn: options.queryFn, staleTime: options.staleTime, meta: options.meta });
+      return client.prefetchQuery({ queryKey: options.queryKey, queryFn: options.queryFn, staleTime: options.staleTime, meta: options.meta });
     };
-    const ask = (bounds: L.LatLngBounds, zoom: number) => {
+    // Whether the layer's answer for a box at a zoom is in already.
+    const answered = (box: Box, zoom: number) => {
+      const options = asking.current?.(box, levelOf(zoom));
+      return !!options?.enabled && client.getQueryData(options.queryKey) !== undefined;
+    };
+    // The ring asked, and given to the layer, once the view's answer is in
+    // -- unless the map has moved on to another box meanwhile.
+    const ringAfter = (first: Promise<void>, ring: Box) => {
+      void first.then(() => {
+        if (latest.current !== ring || waiting.current === null) return;
+        waiting.current = null;
+        void prefetch(ring, askedLevel.current);
+        setAsked(ring);
+      });
+    };
+    // The ring for bounds, the view's alone first where `first` and the
+    // ring is not answered already.
+    const toRing = (ring: Box, bounds: L.LatLngBounds, zoom: number, first: boolean) => {
+      latest.current = ring;
+      const view = first && asking.current && !answered(ring, zoom) ? boxAt(bounds, zoom) : null;
+      const sent = view && view.key !== ring.key ? prefetch(view, zoom) : null;
+      if (!view || !sent) {
+        waiting.current = null;
+        void prefetch(ring, zoom);
+        setAsked(ring);
+        return;
+      }
+      waiting.current = view;
+      setAsked(view);
+      ringAfter(sent, ring);
+    };
+    const ask = (bounds: L.LatLngBounds, zoom: number, first: boolean) => {
       const box = boxFor(bounds);
       askedLevel.current = levelOf(zoom);
-      prefetch(box, zoom);
-      if (box === latest.current) return;
-      latest.current = box;
-      setAsked(box);
+      if (box === latest.current) {
+        // The same box, a new level's question for it all the same (the
+        // Class D's from 8): the view's alone while its ring waits.
+        void prefetch(waiting.current ?? box, zoom);
+        return;
+      }
+      toRing(box, bounds, zoom, first);
     };
-    return {
-      zoomanim: (e: L.ZoomAnimEvent) => ask(boundsAt(map, e.center, e.zoom), e.zoom),
+    // As the page opens: the view's answer, asked by the layer's useQuery,
+    // and the ring once it is in.
+    const opened = () => {
+      const view = latest.current;
+      const ring = aheadOf(map.getBounds());
+      if (!asking.current || ring.key === view.key) return;
+      latest.current = ring;
+      const sent = answered(ring, map.getZoom()) ? null : prefetch(view, map.getZoom());
+      if (!sent) {
+        void prefetch(ring, map.getZoom());
+        setAsked(ring);
+        return;
+      }
+      waiting.current = view;
+      ringAfter(sent, ring);
+    };
+    const events = {
+      zoomanim: (e: L.ZoomAnimEvent) => ask(boundsAt(map, e.center, e.zoom), e.zoom, true),
       flystart: (e: FlightStart) => {
         const bounds = boundsAt(map, e.center, e.zoom);
-        if (flights) ask(bounds, e.zoom);
-        else prefetch(boxFor(bounds), e.zoom);
+        if (flights) ask(bounds, e.zoom, true);
+        else void prefetch(boxFor(bounds), e.zoom);
       },
       move: (e: Flying) => {
         if (e.flyTo) return;
@@ -198,10 +270,14 @@ export function useAhead(query?: AheadQuery, { flights = false }: { flights?: bo
         const zoom = map.getZoom();
         if (now - panned.current < PANNING_MS && levelOf(zoom) === askedLevel.current) return;
         panned.current = now;
-        ask(map.getBounds(), zoom);
+        ask(map.getBounds(), zoom, false);
       },
-      moveend: () => ask(map.getBounds(), map.getZoom()),
+      moveend: () => ask(map.getBounds(), map.getZoom(), true),
     };
-  }, [map, client, flights]));
+    return { events, opened };
+  }, [map, client, flights]);
+  useMapEvents(asker.events);
+  // As the layer is first drawn (and again only if the map were another).
+  useEffect(() => { asker.opened(); }, [asker]);
   return asked;
 }
