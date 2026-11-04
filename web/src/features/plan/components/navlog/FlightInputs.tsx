@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { N_NUMBER, profileOfRegistered, shortName } from "../../../../lib/aircraftChoice";
 import { api } from "../../../../lib/api/client";
 import { InlineField } from "../../../../components/InlineField";
-import { TEXT } from "../../../../lib/text";
 import DepartPicker from "./DepartPicker";
 
 /**
@@ -65,13 +64,15 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
       {/* A field as the altitude's is, at the owner's ask ("N-number should
           look similar to altitude"), the same field (InlineField): typed
           in, its card's button at its end once there is one. */}
-      {/* With none picked, "N-" and then "Pick airplane" in grey, the
-          example's style, where the "N-" alone read as a stray mark (the
-          design review, 2026-10-28, the owner's "I want all"); the field
-          as wide with it as without, as the owner keeps these fields. */}
+      {/* With none picked, "N-" and then five dashes in grey, one for each
+          place a US registration has after the N (14 CFR 47.15(b): at most
+          five), as the empty altitude shows "FL----": the field is as wide
+          as five characters picked or not, at the owner's ask ("N number
+          should be fixed width for 5 letters/numbers", 2026-11-04), where
+          "Pick airplane" had set it wider. */}
       <InlineField
         label="Airplane" testId="aircraft-select" widest="N-888MM" placeholder="" endRoom="w-0" shrink
-        placeholderClassName={TEXT.detail} hint={{ start: "N-", words: "Pick airplane" }}
+        hint={{ start: "N-", words: "-----" }}
         input={{
           // The N fixed before it, the rest typed, at the owner's ask
           // (2026-10-27: "N- can stay static while the rest of the number
