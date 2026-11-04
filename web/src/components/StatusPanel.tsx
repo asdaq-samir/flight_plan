@@ -5,9 +5,8 @@ import { ListGroup, ListRow } from "./GroupedList";
 import { api } from "../lib/api/client";
 import type { MapLayerAges } from "../lib/api/types";
 import { useMinuteClock, zuluTime } from "../lib/clock";
-import { PROBLEM_ID } from "../lib/fromCache";
+import { savedWords, useSaved } from "../lib/fromCache";
 import { ageWords, useLayerAges } from "../lib/map/layerAges";
-import { useSystemProblems } from "../lib/problems";
 import { TEXT } from "../lib/text";
 
 /**
@@ -25,7 +24,9 @@ import { TEXT } from "../lib/text";
 export default function StatusPanel() {
   const now = useMinuteClock();
   const online = useOnline();
-  const saved = useSystemProblems(s => s.problems.find(p => p.id === PROBLEM_ID));
+  // What the page is showing from the service worker's cache, said here
+  // and never on the map (lib/fromCache).
+  const saved = savedWords(Object.values(useSaved(s => s.saved)), now);
   // The map's settings ask the same question (useLayerAges), one answer
   // for both.
   const { data, isError } = useQuery({
@@ -37,7 +38,7 @@ export default function StatusPanel() {
       <ListGroup title="Connection">
         <ListRow
           title="This phone" value={online ? "Online" : "Offline"} data-testid="status-connection"
-          description={saved ? <span className={TEXT.detail}>{saved.title}</span> : undefined}
+          description={saved ? <span className={TEXT.detail}>{saved}</span> : undefined}
         />
       </ListGroup>
 

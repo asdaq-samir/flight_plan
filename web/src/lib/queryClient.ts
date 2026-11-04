@@ -3,7 +3,6 @@ import { ApiError, api, describeError, isDropped } from "./api/client";
 import type { ChartInfo } from "./api/types";
 import { keptStore } from "./storage";
 import { clearProblem, raiseProblem, showError } from "./problems";
-import { onAskAgain } from "./fromCache";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -34,9 +33,19 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       const silent = query.meta?.silent;
       if (silent === true || (typeof silent === "function" && silent(error))) return;
-      if (isDropped(error) && !askedAgain.has(query.queryHash)) {
+      // A connection lost is never said: in the air a phone is out of
+      // coverage most of the flight, and the line stood over the chart
+      // the whole way (the owner, 2026-11-04: "we shouldn't show the
+      // errors for internet loss specially in no coverage up in the
+      // air"). The page keeps what it had (TanStack keeps a query's data
+      // through a failed refetch, the service worker its answers), and
+      // the query is asked again once the phone is back: a second after
+      // the first drop, then every half minute, not every second all
+      // flight. The Status page says what is being shown from the cache.
+      if (isDropped(error) || globalThis.navigator?.onLine === false) {
+        const again = askedAgain.has(query.queryHash);
         askedAgain.add(query.queryHash);
-        whenBack(() => void queryClient.refetchQueries({ predicate: q => q.queryHash === query.queryHash }));
+        whenBack(() => void queryClient.refetchQueries({ predicate: q => q.queryHash === query.queryHash }), document, again ? 30_000 : 1000);
         return;
       }
       failingWith.set(query.queryHash, failed(describeError(error), retryable(error)));
@@ -55,10 +64,6 @@ export const queryClient = new QueryClient({
     },
   }),
 });
-
-/** The "No connection: showing what was saved" line's Try again
- *  (lib/fromCache): everything on the page asked again. */
-onAskAgain(() => void queryClient.refetchQueries({ type: "active" }));
 
 /**
  * One problem per distinct thing that went wrong, not one per call that
@@ -85,7 +90,7 @@ const failingWith = new Map<string, string>();
  */
 const askedAgain = new Set<string>();
 
-export function whenBack(run: () => void, doc: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener"> = document) {
+export function whenBack(run: () => void, doc: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener"> = document, afterMs = 1000) {
   const ready = () => doc.visibilityState === "visible" && globalThis.navigator?.onLine !== false;
   const done = () => {
     doc.removeEventListener("visibilitychange", go);
@@ -94,7 +99,7 @@ export function whenBack(run: () => void, doc: Pick<Document, "visibilityState" 
   function go() {
     if (!ready()) return;
     done();
-    setTimeout(run, 1000);
+    setTimeout(run, afterMs);
   }
   doc.addEventListener("visibilitychange", go);
   globalThis.addEventListener?.("online", go);
