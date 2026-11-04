@@ -22,6 +22,12 @@ struct RootView: View {
     // back with the scene (SceneStorage), as Apple restores state: a
     // restored scene lands where the pilot left it, not on the plan.
     @SceneStorage("tab") private var sceneTab: String?
+    /// The screen's layout, as the web app's Screen row has it: the four
+    /// tabs, or the strip (StripSheetView: one field, the flight as one
+    /// strip; the owner's pick of 2026-11-04). The same key as the web's
+    /// preference; a `-layout strip` launch argument sets it for CI's
+    /// pictures.
+    @AppStorage("layout") private var layoutName = "tabs"
     @State private var tab: Tabs = Tabs(rawValue: UserDefaults.standard.string(forKey: "tab") ?? "") ?? .fpl
     @State private var airports: [String] = []
     @State private var following = false
@@ -71,12 +77,18 @@ struct RootView: View {
             case .sheet:
                 map
                     .sheet(isPresented: $sheetUp) {
-                        SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill, asking: $asking)
-                            .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
-                            .presentationBackgroundInteraction(.enabled(upThrough: .medium))
-                            .presentationBackground(.regularMaterial)
-                            .presentationCornerRadius(24)
-                            .interactiveDismissDisabled()
+                        Group {
+                            if layoutName == "strip" {
+                                StripSheetView(detent: $detent, airports: $airports)
+                            } else {
+                                SheetView(tab: $tab, airports: $airports, pill: detent == RootView.pill, asking: $asking)
+                            }
+                        }
+                        .presentationDetents([RootView.pill, .medium, .large], selection: $detent)
+                        .presentationBackgroundInteraction(.enabled(upThrough: .medium))
+                        .presentationBackground(.regularMaterial)
+                        .presentationCornerRadius(24)
+                        .interactiveDismissDisabled()
                     }
             case .split:
                 SplitLayout(map: map, tab: $tab, airports: $airports, card: $sideCard)
@@ -87,6 +99,9 @@ struct RootView: View {
         // argument's tab (CI's pictures) wins over the kept one.
         .onAppear {
             if let raw = sceneTab, let kept = Tabs(rawValue: raw), !CommandLine.arguments.contains("-tab") { tab = kept }
+            if let at = CommandLine.arguments.firstIndex(of: "-layout"), at + 1 < CommandLine.arguments.count {
+                layoutName = CommandLine.arguments[at + 1]
+            }
         }
         .onChange(of: tab) { _, now in sceneTab = now.rawValue }
     }
@@ -141,7 +156,10 @@ struct RootView: View {
         )
         .ignoresSafeArea()
         .overlay(alignment: .topTrailing) {
-            MapButtons(following: $following, routeAway: routeAway && plan.course != nil, fitRoute: { fitRequest += 1 }, ask: { asking = true })
+            // In the strip the field is the way to the assistant, so the
+            // sparkle is not drawn.
+            MapButtons(following: $following, routeAway: routeAway && plan.course != nil, fitRoute: { fitRequest += 1 },
+                       ask: layoutName == "strip" ? nil : { asking = true })
         }
         .overlay(alignment: .top) {
             VStack(spacing: 8) {
@@ -321,7 +339,7 @@ struct SheetView: View {
 #Preview("SheetView") {
     @Previewable @State var tab: RootView.Tabs = .fpl
     @Previewable @State var airports: [String] = []
-    SheetView(tab: $tab, airports: $airports, pill: false)
+    SheetView(tab: $tab, airports: $airports, pill: false, asking: .constant(false))
         .environment(Session())
         .environment(Charts())
         .environment(Plan())

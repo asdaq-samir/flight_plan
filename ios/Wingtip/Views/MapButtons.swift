@@ -11,7 +11,9 @@ struct MapButtons: View {
     @Binding var following: Bool
     let routeAway: Bool
     let fitRoute: () -> Void
-    let ask: () -> Void
+    /// Opens Ask; nil in the strip layout, where the field is the way in
+    /// and no sparkle is drawn.
+    let ask: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 10) {
@@ -27,14 +29,16 @@ struct MapButtons: View {
             .accessibilityLabel(routeAway && !following ? "Show the whole route" : following ? "Stop following my position" : "My position")
             .background(.regularMaterial, in: Circle())
             .foregroundStyle(.primary)
-            Button(action: ask) {
-                Image(systemName: "sparkles")
-                    .font(.body.weight(.medium))
-                    .frame(width: 44, height: 44)
+            if let ask {
+                Button(action: ask) {
+                    Image(systemName: "sparkles")
+                        .font(.body.weight(.medium))
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Ask about this flight")
+                .background(.regularMaterial, in: Circle())
+                .foregroundStyle(Color.accentColor)
             }
-            .accessibilityLabel("Ask about this flight")
-            .background(.regularMaterial, in: Circle())
-            .foregroundStyle(Color.accentColor)
         }
         .padding(.trailing, 12)
         .padding(.top, 12)
