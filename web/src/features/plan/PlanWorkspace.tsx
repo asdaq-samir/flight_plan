@@ -11,13 +11,16 @@ import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuer
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
 import { N_NUMBER, aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
-import { legsWithoutWind, windsOutOfDate } from "./format";
+import { legsWithoutWind, PLAN_NAME, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
 import { bestStopIndex, distanceNm, type LatLon } from "../../lib/geo";
 import { placeOf, useAirportIndex } from "../../lib/airportIndex";
 import { useKeepOffline } from "../../lib/map/keepStatus";
 import { locateOnOpen, positionNow, useOwnShip, useOwnShipNear } from "../../lib/map/ownShip";
+import { useOwnTrail } from "../../lib/map/ownTrail";
+import { keepTrack, keptTrack } from "../../lib/track";
+import { useWantedPage } from "../../components/wantedPage";
 import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
@@ -104,6 +107,7 @@ import StripAir from "../strip/StripAir";
 import { ribbonPoints } from "../strip/stripData";
 import StripRibbon from "../strip/StripRibbon";
 import StripSheet from "../strip/StripSheet";
+import { DebriefCard } from "../strip/StripList";
 import type { FieldCommand, FieldScreen } from "../strip/fieldCommands";
 import type { BriefingPart } from "./components/briefing/sections";
 import { mayUse, useEntitlement } from "../../lib/subscription";
@@ -253,6 +257,11 @@ const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r 
 /** The saved flights in full, FPL's card (the console's list, loaded as
  *  it opens). */
 const SavedFlights = lazy(() => import("../pilot/AccountPanels").then(m => ({ default: m.FlightsPanel })));
+/** Own ship's trail ended within this of the destination: landed there,
+ *  the flight flown, for the strip's Debrief card -- the ACS's 3 nm of
+ *  the planned course (lib/debrief's OFF_ROUTE_NM), which a pattern and
+ *  a landing stay within. */
+const LANDED_NM = 3;
 /** An approach the pilot's instructor set them, opened from their
  *  Checkride page (`?lesson=12`): its own chunk, as the lesson's is. */
 const AssignedLesson = lazy(() => import("./components/AssignedLesson"));
@@ -2441,6 +2450,23 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     openBrief();
     useAsk.getState().want();
   }, [openBrief]);
+  // A change the assistant proposes (useAsk's actions), applied at the
+  // pilot's tap through the route box's own setters -- the route, the
+  // altitude flown, the departure time -- each a change of the address,
+  // which plans again. Registered while the workspace is up; the chip
+  // applies nothing otherwise.
+  useEffect(() => {
+    useAsk.setState({
+      applyChange: change => {
+        if (change.dep !== undefined || change.dest !== undefined || change.stops !== undefined) {
+          setRoute({ dep: change.dep ?? planned.dep, stops: change.stops ?? planned.stops, dest: change.dest ?? planned.dest });
+        }
+        if (change.altitude_ft !== undefined) flyAltitude(change.altitude_ft);
+        if (change.depart !== undefined) changeDepart(change.depart);
+      },
+    });
+    return () => useAsk.setState({ applyChange: null });
+  }, [setRoute, flyAltitude, changeDepart, planned.dep, planned.stops, planned.dest]);
   // Share and everything else the route's row had (ShareMenu).
   // What planning again would bring in fresh, said by the refresh's dot:
   // winds past the forecast's period the legs were flown on, legs flown
@@ -2476,7 +2502,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // The open card's name for the bar over it: an airport's ident, the
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
-  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Stops" : undefined);
+  // The strip names the Profile's card for its altitude, which its row
+  // under the head opens it for (StripHead).
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? (strip ? "Altitude" : "Profile") : stopsShown ? "Stops" : undefined);
   // The airport's card, in the panel's body.
   const placeCard = place && (
     <Suspense fallback={null}>
@@ -2550,17 +2578,39 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // Janesville" are done, not asked.
   const openStripScreen = useCallback(async (screen: FieldScreen): Promise<string | null> => {
     const up = () => { if (panelNow.current === "peek") setPanel("half"); };
+    // Setup all the way up, on one of its pages by the path of keys down
+    // to it (useWantedPage, which each ConsolePages on the way reads), or
+    // on its own list with none: the Controls and the Account are there.
+    const setupAt = (path: string[]) => {
+      useWantedPage.getState().want(path);
+      useConsoleOpen.getState().setOpen(true);
+      setPanel("full");
+      return null;
+    };
     switch (screen) {
       case "airplane": pickTab("aircraft"); setPanel("full"); return null;
-      // Setup's pages open from Setup's own rows: the logbook, the
-      // instructor, the account (ConsolePages keeps its page to itself).
-      case "logbook": case "instructor": case "settings": useConsoleOpen.getState().setOpen(true); setPanel("full"); return null;
+      case "settings": case "controls": return setupAt([]);
+      // Signed in, the pilot's details; signed out, Setup's Account with
+      // its Sign in.
+      case "account": return setupAt(pilot ? ["pilot"] : []);
+      case "guide": return setupAt(["guide"]);
+      // The currency is the Logbook's own page; the endorsements and the
+      // training the checkride's page in it, the instructor Instructing's.
+      case "logbook": case "currency": return setupAt(["logbook"]);
+      case "instructor": return setupAt(["logbook", "instructing"]);
+      case "endorsements": case "training": return setupAt(["logbook", "checkride"]);
       case "brief": if (!routed) return "Plan a route first: a field, a town or two idents."; openBrief(); return null;
+      // The mock oral and the passengers' briefing are the Brief's own
+      // sections (FlightBriefingView).
+      case "oral": if (!routed) return "Plan a route first: the mock oral is on your route."; openBrief(); return "The mock oral is in the Brief, under its findings.";
+      case "passengers": if (!routed) return "Plan a route first: the passengers' briefing is the flight's."; openBrief(); return "The passengers' briefing is in the Brief, with the paperwork.";
       case "nearest": openNearest(); return null;
       case "fuel": findNearby("fuel"); return null;
       case "food": findNearby("food"); return null;
       case "stops": openStops(); return null;
       case "routes": if (!routed) return "Plan a route first, then its other ways are chips at the head of the strip."; up(); return null;
+      // The altitude's wheel and profile: the Profile's card, named
+      // Altitude on the strip, as its row under the head opens it.
       case "altitude": if (!profileReady) return "Plan a route first; then say an altitude, \"altitude 5500\"."; openProfile(); return null;
       case "procedures": if (!planned.dest) return "Plan a route first: the procedures are the destination's."; setProceduresShown({ ident: planned.dest, kind: "approach" }); return null;
       case "navlog": if (!routed || !course) return "Plan a route first."; openNavLogCard(); return null;
@@ -2568,14 +2618,14 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       case "share": if (!routed) return "Plan a route first."; up(); return "Share, Save, Print and Plan again are under ••• at the head of the strip.";
       case "file": if (!fileable) return "A flight plan needs a route from an airport, its nav log in."; fileFlightPlan(); return null;
       case "clearance": case "radio": useAtcRadio.setState({ cardOpen: true }); return null;
-      case "dryrun": if (!profileReady) return "Plan a route first."; openProfile(); return "Dry run is the Profile's button, at the side view's foot.";
+      case "dryrun": if (!profileReady) return "Plan a route first."; openProfile(); return "Dry run is the Altitude card's button, at the side view's top right.";
       case "saved": openSaved(); return null;
       case "favorites": openList("favorites"); return null;
       case "recents": openList("recents"); return null;
       case "recentRoutes": openList("routes"); return null;
       case "map": return "The map's settings are its own button, the first of the map's.";
     }
-  }, [pickTab, setPanel, routed, openBrief, openNearest, findNearby, openStops, profileReady, openProfile, planned.dest, setProceduresShown, course,
+  }, [pickTab, setPanel, pilot, routed, openBrief, openNearest, findNearby, openStops, profileReady, openProfile, planned.dest, setProceduresShown, course,
     openNavLogCard, fileable, fileFlightPlan, openSaved, openList]);
   const fieldLine = useCallback(async (command: FieldCommand, text: string): Promise<string | null> => {
     const up = () => { if (panelNow.current === "peek") setPanel("half"); };
@@ -2641,6 +2691,48 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const glance = useGlance(g => g.glance);
   const stripVerdict = useMemo(() => (strip && routed && verdict.length ? verdictLine(verdict) : null), [strip, routed, verdict]);
   const stripActions = useMemo(() => (strip && routed && verdict.length ? glanceLines(verdict, glance).act : []), [strip, routed, verdict, glance]);
+  // The altitude's row under the strip's head (StripHead): the cruise as
+  // the route box writes it (FL-045) and the plan it flies, into the
+  // altitude's wheel and profile -- the Profile's card, reused as it is
+  // (openProfile); "Yours" for an altitude of the pilot's own.
+  const flownPlan = s.nav?.flown ?? null;
+  const stripAltitude = useMemo(() => (strip && profileReady ? {
+    words: [cruiseFt ? flightLevel(cruiseFt) : "Planning…", flownPlan ? (flownPlan === "custom" ? "Yours" : PLAN_NAME[flownPlan]) : null].filter(Boolean).join(" · "),
+    onOpen: openProfile,
+  } : null), [strip, profileReady, cruiseFt, flownPlan, openProfile]);
+  // The Debrief after the destination (StripList's DebriefCard): the
+  // flight saved as this route (FPL's Saved, flightsQuery, a signed-in
+  // pilot's), and flown -- its track saved to the account (the query its
+  // page reads, FlightPage), kept in this browser (lib/track), or own
+  // ship's trail (lib/map/ownTrail) ended at the destination, the
+  // airplane on the ground. Opened, the saved flight's page in Setup
+  // (Flights, then the flight: useWantedPage), its debrief under the
+  // figures; the trail kept as the flight's track first where it has
+  // none yet, so the debrief has something to measure.
+  const { data: savedList } = useQuery({ ...flightsQuery, enabled: strip && routed && !!pilot });
+  const savedFlight = useMemo(() => (strip && routed ? (savedList ?? []).find(f =>
+    sameField(f.departureIdent, planned.dep) && sameField(f.destinationIdent, `${planned.dest}`) && sameStops(f.stops, planned.stops)) ?? null : null),
+  [strip, routed, savedList, planned.dep, planned.dest, planned.stops]);
+  const { data: savedTrack } = useQuery({
+    queryKey: ["flight-track", savedFlight?.id ?? 0], queryFn: () => api.flights.track(savedFlight!.id), enabled: !!savedFlight, meta: { silent: true },
+  });
+  const keptFlightTrack = useMemo(() => (savedFlight ? keptTrack(savedFlight.id) : null), [savedFlight]);
+  const landedHere = useOwnTrail(t => {
+    const last = t.path.at(-1);
+    return !!last && !!course && t.path.length > 1 && distanceNm(last, course.destination) < LANDED_NM;
+  });
+  const flownHere = !!savedFlight && (!!savedTrack || !!keptFlightTrack || (!flying && landedHere));
+  const openDebrief = useCallback(() => {
+    if (!savedFlight) return;
+    if (!savedTrack && !keptFlightTrack) {
+      const path = useOwnTrail.getState().path;
+      if (path.length > 1) keepTrack(savedFlight.id, { source: "Own ship", points: path.map(p => ({ t: p.t, lat: p.lat, lon: p.lon, altFt: p.altFt })) });
+    }
+    useWantedPage.getState().want(["flights", `flight-${savedFlight.id}`]);
+    useConsoleOpen.getState().setOpen(true);
+    setPanel("full");
+  }, [savedFlight, savedTrack, keptFlightTrack, setPanel]);
+  const stripDebrief = flownHere ? <DebriefCard onOpen={openDebrief} /> : undefined;
   // The route's line as the canvas writes it: the route by its points,
   // the airplane, the altitude as FL, when.
   const stripLine = routed ? [
@@ -2656,10 +2748,13 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // the ribbon with its close back to the strip.
   const stripOver = strip && tab === "aircraft" && !flight && !list ? "My airplane" : null;
   const closeStripOver = useCallback(() => pickTab("fpl"), [pickTab]);
+  // The field's row, with the pilot's avatar at its right (ProfileButton):
+  // its menu opens the pilot's screens, the tabs' Setup among them.
   const oneField = strip ? (
     <OneField
       suggestions={stripSuggestions} flying={flying} onLine={fieldLine}
       onFocus={() => { if (panelNow.current === "peek") setPanel("half"); }}
+      avatar={<ProfileButton onOpen={screen => void openStripScreen(screen)} />}
     />
   ) : null;
   // In flight, the one way out of flying mode (useFlyingMode): a small
@@ -2824,9 +2919,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
         {!strip && <FirstFlight routed={routed} onPlan={setRoute} onPlanned={openNavLogCard} />}
-        {/* The strip's profile button at the map's top right: its menu
-            opens the pilot's screens, the tabs' Setup among them. */}
-        {strip && <ProfileButton onOpen={screen => void openStripScreen(screen)} />}
       </div>
     ),
     // The tab's body (TabBar): FPL's nav log, kept mounted under whatever
@@ -2975,7 +3067,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           <StripSheet
             routed={routed && !!course} dest={planned.dest} verdict={stripVerdict} line={stripLine} actions={stripActions}
             onAction={openBrief} onBrief={openBrief} menu={routed ? shareMenu("end", "strip-share") : undefined}
-            rows={routeRows} depart={depart} glance={glance}
+            rows={routeRows} depart={depart} glance={glance} altitude={stripAltitude} after={stripDebrief}
             onField={selectPlace} onPlates={ident => { setApproachesOf(ident); selectPlace(ident); }}
             onClearance={() => useAtcRadio.setState({ cardOpen: true })}
             onCheckpoint={(lat, lon) => { selectPointAt(lat, lon); openNavLogCard(); }}
@@ -3053,17 +3145,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // air the strip turns horizontal over it (StripAir): the ribbon with
     // the airplane on it, the figures grown, the field the radio's.
     foot: strip ? (flying ? (
-      <StripAir
-        rows={routeRows} field={oneField}
-        figures={(
-          <>
-            <div data-testid="flight-line">
-              <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} flying />
-            </div>
-            {doneFlyingRow}
-          </>
-        )}
-      />
+      <StripAir rows={routeRows} totals={s.totals} destination={`${planned.dest}`} field={oneField} foot={doneFlyingRow} />
     ) : oneField) : tab === "fpl" && !place && !heldPoint && !flight && !briefShown ? routed && (
       // Its own 16 at the sides under the nav log's card, whose foot
       // MapPanel leaves bare for a card's summary to set (cardInPill): the

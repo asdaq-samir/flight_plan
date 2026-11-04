@@ -47,6 +47,17 @@ describe("readField", () => {
     expect(readField("stops")).toEqual({ kind: "open", screen: "stops" });
   });
 
+  it("opens Setup's pages by name, and the Brief's sections by theirs", () => {
+    expect(readField("currency")).toEqual({ kind: "open", screen: "currency" });
+    expect(readField("my endorsements")).toEqual({ kind: "open", screen: "endorsements" });
+    expect(readField("training")).toEqual({ kind: "open", screen: "training" });
+    expect(readField("Pilot guide")).toEqual({ kind: "open", screen: "guide" });
+    expect(readField("account")).toEqual({ kind: "open", screen: "account" });
+    expect(readField("show me the controls")).toEqual({ kind: "open", screen: "controls" });
+    expect(readField("mock oral")).toEqual({ kind: "open", screen: "oral" });
+    expect(readField("passenger briefing")).toEqual({ kind: "open", screen: "passengers" });
+  });
+
   it("opens a field's card by its ident, not a route to it", () => {
     expect(readField("about KDLH")).toEqual({ kind: "field", ident: "KDLH" });
     expect(readField("KDLH info")).toEqual({ kind: "field", ident: "KDLH" });

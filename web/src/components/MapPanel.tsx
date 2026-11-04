@@ -1197,6 +1197,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // under the tabs, the tabs' own line of glass (TabGlass).
               pillLaid ? (fromBottom ? "mt-1.5 mb-1" : "mt-1 mb-1.5") : minimized ? "border-b border-border/60" : "",
               figuresPill && "hidden",
+              // The strip's pill is its field's row alone, as Maps' is (the
+              // owner's screenshot, 2026-11-04): its ribbon from half way
+              // up, not in the pill; a card's name and its close stay.
+              stackedPill && pillLaid && !minimized && "hidden",
               !fromBottom && onPhone && "h-auto pt-[env(safe-area-inset-top)]",
             )}
             // A swipe up or down on the tabs drags the panel as the head
@@ -1325,9 +1329,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // sat at the pill's top under the grabber, its column grown.
             // In flight the pill is as tall as the grown figures and their
             // foot (useFlyingMode), measured as any foot is.
-            // Under the strip's ribbon the field at its own height too, the
-            // ribbon's row over it (stackedPill).
-            pillLaid ? cn("shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none", flying ? "py-2" : stackedPill ? "pb-2" : "h-[3.625rem]") : "border-t border-border/60 pt-1 pb-2.5",
+            // The strip's field at its own height too, the pill's one row
+            // under the grabber (stackedPill), twelve in from the pill's
+            // sides and its foot as Maps' field sits in its pill, ten under
+            // the grabber's edge.
+            pillLaid ? cn("shrink-0 justify-center [&_[data-pill-hides]]:hidden [&>*]:flex-none", flying ? "py-2" : stackedPill ? "px-3 pt-2.5 pb-3" : "h-[3.625rem]") : "border-t border-border/60 pt-1 pb-2.5",
           )}
           style={{
             ...(toEdge && fromBottom && !pillLaid ? { paddingBottom: Math.max(10, edgeRoom) } : {}),

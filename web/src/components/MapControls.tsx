@@ -7,6 +7,7 @@ import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
 import RadioButton from "./RadioButton";
 import { useAtcRadio } from "../lib/atcRadio";
+import { usePreferences } from "../lib/preferences";
 import { FLYING_BUTTON, FLYING_STACK, GLASS, useFlying } from "./mapChrome";
 
 /**
@@ -39,6 +40,7 @@ export default function MapControls() {
   const nearest = useFlying(s => s.nearest);
   const direct = useFlying(s => s.direct);
   const pill = useAtcRadio(s => s.pill !== null);
+  const stripLayout = usePreferences(s => s.layout) === "strip";
   return (
     <>
     {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its
@@ -101,6 +103,10 @@ export default function MapControls() {
         things apart, one here and one at the top of the map (the owner,
         2026-11-03). The width eases through a grid column from 0fr to
         1fr, which is how a box of unknown width is animated in CSS. */}
+    {/* Not in the strip layout (lib/preferences), whose one field has
+        the microphone in it (features/strip's OneField): the owner's
+        pick of Maps' pill, 2026-11-04. */}
+    {!stripLayout && (
     <div data-map-food="" className={cn("absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] z-[1000] flex max-w-[min(28rem,calc(100vw-5rem))] items-end rounded-[26px] p-1", GLASS)} data-testid="mic-circle" data-listening={pill || undefined}>
       {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
           the pill's chips. */}
@@ -113,6 +119,7 @@ export default function MapControls() {
         </div>
       </div>
     </div>
+    )}
     </>
   );
 }

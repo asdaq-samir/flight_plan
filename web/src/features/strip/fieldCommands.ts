@@ -11,9 +11,15 @@
  */
 import { identOf } from "../../lib/identSchema";
 
-/** The screens the field opens by their word. */
+/** The screens the field opens by their word. Setup's pages each by
+ *  name -- the logbook, the instructor, the currency, the endorsements
+ *  and the training (the checkride's page), the guide, the account, the
+ *  controls -- opened straight (PlanWorkspace's openStripScreen, through
+ *  useWantedPage); the mock oral and the passengers' briefing are the
+ *  Brief's sections, so they open the Brief. */
 export type FieldScreen =
-  | "airplane" | "logbook" | "settings" | "instructor" | "brief" | "nearest" | "fuel" | "food" | "stops"
+  | "airplane" | "logbook" | "settings" | "instructor" | "currency" | "endorsements" | "training" | "guide" | "account" | "controls"
+  | "brief" | "oral" | "passengers" | "nearest" | "fuel" | "food" | "stops"
   | "routes" | "altitude" | "procedures" | "navlog" | "profile" | "share" | "file" | "clearance" | "dryrun"
   | "saved" | "favorites" | "recents" | "recentRoutes" | "radio" | "map";
 
@@ -34,10 +40,17 @@ export type FieldCommand =
 const SCREEN_WORDS: Record<string, FieldScreen> = {
   "airplane": "airplane", "my airplane": "airplane", "plane": "airplane", "aircraft": "airplane", "my aircraft": "airplane",
   "airplanes": "airplane", "weight and balance": "airplane", "w&b": "airplane", "checklist": "airplane", "poh": "airplane",
-  "logbook": "logbook", "log book": "logbook", "my logbook": "logbook", "currency": "logbook", "endorsements": "logbook",
-  "settings": "settings", "setup": "settings", "account": "settings", "sign in": "settings", "sign out": "settings",
-  "training": "settings", "pilot guide": "settings", "guide": "settings", "mock oral": "settings", "passenger briefing": "settings",
-  "instructor": "instructor", "my instructor": "instructor",
+  "logbook": "logbook", "log book": "logbook", "my logbook": "logbook",
+  "currency": "currency", "my currency": "currency", "am i current": "currency",
+  "endorsements": "endorsements", "my endorsements": "endorsements",
+  "training": "training", "my training": "training", "checkride": "training", "the checkride": "training",
+  "settings": "settings", "setup": "settings",
+  "account": "account", "my account": "account", "sign in": "account", "sign out": "account", "pilot details": "account",
+  "controls": "controls", "the controls": "controls", "quick controls": "controls",
+  "pilot guide": "guide", "guide": "guide", "the guide": "guide", "help": "guide",
+  "mock oral": "oral", "oral": "oral", "oral exam": "oral", "quiz me": "oral",
+  "passenger briefing": "passengers", "passengers": "passengers", "brief my passengers": "passengers", "passenger brief": "passengers",
+  "instructor": "instructor", "my instructor": "instructor", "instructing": "instructor", "students": "instructor",
   "brief": "brief", "brief me": "brief", "briefing": "brief", "the brief": "brief", "go no go": "brief", "go/no-go": "brief",
   "nearest": "nearest", "nearest airport": "nearest", "nearest airports": "nearest", "nrst": "nearest",
   "fuel": "fuel", "nearest fuel": "fuel", "gas": "fuel", "avgas": "fuel", "fuel stop": "fuel", "fuel stops": "fuel",

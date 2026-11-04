@@ -1,12 +1,14 @@
 import { useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, ClipboardCheck } from "lucide-react";
 import { cn } from "cn";
 import { Button } from "../../components/ui/button";
 import type { Frequency } from "../../lib/api/types";
 import { clockTime, duration } from "../../lib/clock";
 import { ctafOf, frequencyOf, mhzText } from "../../lib/frequencies";
 import type { BriefGlance, FieldGlance } from "../../lib/glance";
-import { airportQuery } from "../../lib/queryClient";
+import { airportQuery, servicesQuery } from "../../lib/queryClient";
+import { glanceOf } from "../../lib/stopServices";
 import { TEXT } from "../../lib/text";
 import { isLegPoint, legOf, rowPoint, type NavLogRow } from "../plan/components/navlog/rows";
 import { STRIP_CARD } from "./StripHead";
@@ -56,9 +58,25 @@ function Dot({ field }: { field: boolean }) {
   );
 }
 
+/**
+ * What a stop has on the ground, in the Stops' own few words (lib/
+ * stopServices' glanceOf): the avgas where it is sold ("100LL"), the
+ * nearest food and bed, a car -- from the field's services
+ * (servicesQuery, asked once per field and kept), as the card is drawn;
+ * nothing until they are in or where it has none. The FAA's airport
+ * file names the fuel sold, not its price: no price is had anywhere
+ * (planning-service), so none is said.
+ */
+function StopGlance({ ident }: { ident: string }) {
+  const { data } = useQuery({ ...servicesQuery(ident), enabled: !!ident });
+  const words = data ? glanceOf(data).map(g => g.words).join(" · ") : "";
+  if (!words) return null;
+  return <p className={cn("text-foreground/80", TEXT.detail)} data-testid="strip-stop-services">{words}</p>;
+}
+
 /** A field's card on the line: its ident and name, the time there, the
  *  runway and wind, its chips. The ident is the way into its card. */
-function FieldCard({ ident, name, at, atLabel, detail, chips, testId, onOpen }: {
+function FieldCard({ ident, name, at, atLabel, detail, chips, testId, onOpen, extra }: {
   ident: string;
   name: string;
   at: string | null;
@@ -67,6 +85,8 @@ function FieldCard({ ident, name, at, atLabel, detail, chips, testId, onOpen }: 
   chips: { label: string; words: string; onTap: () => void; testId: string }[];
   testId: string;
   onOpen: () => void;
+  /** A line of the card's own under the detail: a stop's services. */
+  extra?: ReactNode;
 }) {
   return (
     <li className="relative pl-8" data-testid={testId}>
@@ -90,6 +110,7 @@ function FieldCard({ ident, name, at, atLabel, detail, chips, testId, onOpen }: 
         {detail.some(Boolean) && (
           <p className={cn("text-foreground/80", TEXT.detail)} data-testid={`${testId}-detail`}>{detail.filter(Boolean).join(" · ")}</p>
         )}
+        {extra}
         {chips.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {chips.map(c => (
@@ -101,6 +122,29 @@ function FieldCard({ ident, name, at, atLabel, detail, chips, testId, onOpen }: 
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * The Debrief after the destination (StripList's `after`), once the
+ * flight is saved and flown -- its track saved or kept, or own ship's
+ * trail ended at the destination (PlanWorkspace) -- a card into the
+ * saved flight's page (FlightPage), where the track is measured against
+ * the plan. Nothing until then.
+ */
+export function DebriefCard({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button" onClick={onOpen} data-testid="strip-debrief"
+      className={cn("mt-2 flex min-h-11 w-full items-center gap-2.5 px-3.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", STRIP_CARD)}
+    >
+      <ClipboardCheck className="size-5 shrink-0 text-tint" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <span className={cn("block font-semibold", TEXT.row)}>Debrief</span>
+        <span className={cn("block text-muted-foreground", TEXT.note)}>How it was flown against the plan</span>
+      </span>
+      <ChevronRight className="size-5 shrink-0 text-tint" aria-hidden />
+    </button>
   );
 }
 
@@ -177,6 +221,7 @@ export default function StripList({ rows, depart, glance, onField, onPlates, onC
                 key={row.key} ident={row.airport.ident} name={row.airport.name} at={timeAt(row.minutesFlown)} atLabel="ETA" testId="strip-stop"
                 detail={[row.groundMin ? `${duration(row.groundMin)} on the ground` : null]}
                 chips={fieldChips(row.airport.ident, stopCard, false, false)} onOpen={() => onField(row.airport.ident)}
+                extra={row.airport.kind !== "fix" ? <StopGlance ident={row.airport.ident} /> : undefined}
               />
             );
           }

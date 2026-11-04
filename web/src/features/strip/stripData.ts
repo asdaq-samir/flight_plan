@@ -1,11 +1,13 @@
 /**
  * The strip's figures and inks, apart from its components (so each file
  * of components exports components alone, for fast refresh): the ribbon's
- * points from the nav log's rows, where the airplane is along them, the
- * pilot's initials, and the strip's colours.
+ * points from the nav log's rows, where the airplane is along them and
+ * what the plan has burnt by there, the pilot's initials, and the strip's
+ * colours.
  */
+import type { Leg } from "../../lib/api/types";
 import { distanceNm } from "../../lib/geo";
-import { isLegPoint, rowPoint, type NavLogRow } from "../plan/components/navlog/rows";
+import { isLegPoint, legOf, rowPoint, type NavLogRow } from "../plan/components/navlog/rows";
 
 /** The strip's colours (the canvas's boards, 2026-11-04): the course's
  *  magenta, a checkpoint's brown, a field's green -- the ink theme's
@@ -55,6 +57,61 @@ export function positionAlong(rows: NavLogRow[], fix: { lat: number; lon: number
     return { leg: nearest - 1, along: legNm > 0 ? Math.max(0, 1 - least / legNm) : 1 };
   }
   return { leg: 0, along: 0 };
+}
+
+/** What the plan says of the flight at a place on the ribbon: the fuel
+ *  burnt since the last landing, the distance and time still to fly, and
+ *  the hop (the flights between landings, Totals.hops) it is on. */
+export interface FlownAlong { burntGal: number; leftNm: number; leftMin: number; hop: number }
+
+/**
+ * The plan's own figures summed to the airplane's place on the ribbon
+ * (positionAlong), for the strip's figures in the air (StripAir): each
+ * leg's fuel, miles and minutes as the planner gave them (navlog/rows'
+ * pieces, the tops of climb and descent their own), the legs behind the
+ * airplane whole, and of the leg under it as much of each piece as the
+ * airplane has come along it by distance -- the dry run's accounting of
+ * the same legs (navlog/dryRun), by place rather than by time, since the
+ * planner has no figure for a position between two points. The fuel
+ * burnt starts again at each landing, where the plan fills the tanks
+ * (app.planning.route_totals). Null until every leg is in.
+ */
+export function flownAlong(rows: NavLogRow[], position: { leg: number; along: number } | null): FlownAlong | null {
+  if (!position || rows.length < 2) return null;
+  // Each ribbon leg's pieces, in order, and which ribbon legs end at a
+  // landing: a stop at a field, not a waypoint flown through.
+  const pieces: Leg[][] = [[]];
+  const landingAfter = new Set<number>();
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]!;
+    const leg = legOf(row);
+    if (!leg) return null;
+    pieces[pieces.length - 1]!.push(leg);
+    if (isLegPoint(row)) continue;
+    if (row.kind === "stop" && row.airport.kind !== "fix") landingAfter.add(pieces.length - 1);
+    pieces.push([]);
+  }
+  let burnt = 0, flownNm = 0, flownMin = 0, totalNm = 0, totalMin = 0, hop = 0;
+  pieces.forEach((legs, k) => {
+    const nm = legs.reduce((sum, l) => sum + l.distance_nm, 0);
+    // How far along this ribbon leg the airplane is: the whole of the legs
+    // behind it, as far as it has come on the one under it, none ahead.
+    let left = k < position.leg ? nm : k === position.leg ? nm * Math.min(1, Math.max(0, position.along)) : 0;
+    for (const l of legs) {
+      totalNm += l.distance_nm;
+      totalMin += l.ete_min ?? 0;
+      if (left <= 0) continue;
+      const take = Math.min(l.distance_nm, left);
+      const share = l.distance_nm > 0 ? take / l.distance_nm : 1;
+      burnt += (l.fuel_gal ?? 0) * share;
+      flownNm += take;
+      flownMin += (l.ete_min ?? 0) * share;
+      left -= take;
+    }
+    // Landed and off again: the next hop, its tanks full.
+    if (landingAfter.has(k) && k < position.leg) { hop++; burnt = 0; }
+  });
+  return { burntGal: burnt, leftNm: Math.max(0, totalNm - flownNm), leftMin: Math.max(0, totalMin - flownMin), hop };
 }
 
 /** The pilot's initials from their name ("Asdaq Samir" is AS), or the

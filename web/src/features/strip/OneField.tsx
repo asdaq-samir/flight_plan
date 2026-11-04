@@ -1,9 +1,9 @@
-import { Suspense, lazy, useEffect, useRef, useState } from "react";
-import { Mic, Square } from "lucide-react";
+import { Suspense, lazy, useEffect, useRef, useState, type ReactNode } from "react";
+import { Mic, Search, Square } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "../../components/CloseButton";
 import IconButton from "../../components/IconButton";
-import { PANEL_FIELD_FILL } from "../../components/panelField";
+import { GLASS } from "../../components/mapChrome";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useAsk } from "../plan/components/ask/useAsk";
@@ -27,29 +27,40 @@ const CHIP = cn("relative h-8 shrink-0 rounded-full border-tint px-3.5 text-tint
 
 /**
  * The one field at the foot of the chart, in every state of the sheet
- * (MapPanel's `foot`): "Where to, or ask anything", 56 points round, the
- * microphone a round blue button beside it. What it takes is read by
- * readField -- idents are a route, a name a place, a screen's word that
- * screen, anything else a question for the assistant -- and done by the
- * planner (`onLine`), which answers why not where it cannot, said under
- * the field (lib/problems' rule: where it happens, never a toast).
+ * (MapPanel's `foot`), as Maps' pill is (the owner's screenshot,
+ * 2026-11-04: "Why don't we do pill like this? With search bar, mic and
+ * person"): one row -- a glass field, 52 points tall, the magnifier at
+ * its left, "Where to, or ask", the microphone inside it at its right in
+ * the tint -- and beside it the pilot's round avatar (`avatar`,
+ * ProfileButton), 44 points, its menu the pilot's screens. The pill is
+ * the grabber and this row; the ribbon is the sheet's first row from
+ * half way up (StripRibbon). What the field takes is read by readField
+ * -- idents are a route, a name a place, a screen's word that screen,
+ * anything else a question for the assistant -- and done by the planner
+ * (`onLine`), which answers why not where it cannot, said under the
+ * field (lib/problems' rule: where it happens, never a toast).
  * Suggestions as chips while it is focused and empty, each one tap. The
  * assistant's last answer is a card over the field (AskCard's Turn),
- * its ✕ forgetting the conversation.
+ * its ✕ forgetting the conversation. Typed into, the field's own clear
+ * takes the microphone's place (Input), as Maps' does.
  *
  * The microphone listens once, as the Brief's Ask does (lib/atcListening
- * listenOnce): the map's pill types what is said, and the words come
- * here as the pause ends them, handled as typed. In the air the field is
- * the radio's: the pill's words in it as they come, its chips the
- * commands (RadioLayer), nothing typed.
+ * listenOnce): the words come here as the pause ends them, handled as
+ * typed. In the air the field is the radio's: the pill's words in it as
+ * they come, nothing typed, and the words done the same way once said --
+ * the pilot's commands first (PlanWorkspace's fieldLine: an altitude,
+ * direct to a place, a procedure), the rest asked -- since the map's
+ * microphone and its pill of chips (RadioLayer) are not in this layout.
  */
-export default function OneField({ suggestions, flying = false, onLine, onFocus }: {
+export default function OneField({ suggestions, flying = false, onLine, onFocus, avatar }: {
   suggestions: string[];
   flying?: boolean;
   /** The line read (readField) and as typed: null once done, else why not. */
   onLine: (command: FieldCommand, text: string) => Promise<string | null>;
   /** The field focused: the sheet up from the pill, clear of the keyboard. */
   onFocus?: () => void;
+  /** The pilot's avatar at the row's right (ProfileButton). */
+  avatar?: ReactNode;
 }) {
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
@@ -73,10 +84,10 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus 
     if (why) setProblem(why);
   };
   // The microphone's words once the pause ends them, handled as typed and
-  // the pill put away, its chips being for the air (CallActions); in the
-  // air the pill stays, its chips the way.
+  // the pill put away -- in the air too, where the field shows them as
+  // they come (`shown`).
   useEffect(() => {
-    if (!hearing || flying) return;
+    if (!hearing) return;
     return useAtcRadio.subscribe(s => {
       const pill = s.pill;
       if (!pill || pill.listening) return;
@@ -91,7 +102,7 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus 
     });
     // submit reads the latest props through the closure it was made in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hearing, flying]);
+  }, [hearing]);
   const hear = () => {
     setProblem(null);
     setHearing(true);
@@ -99,6 +110,11 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus 
     else void load().then(m => m.listenOnce([]));
   };
   const shown = flying ? pillText : text;
+  const listens = hearing || pillListening;
+  // The microphone in the field while nothing is typed; typed into, the
+  // field's own clear is there (Input). In the air the words are the
+  // radio's, so the microphone stays.
+  const micShown = flying || !shown;
   return (
     <div className="flex w-full min-w-0 flex-col gap-2" data-testid="one-field">
       {/* The assistant's last answer, a card over the field, as the Brief's
@@ -136,24 +152,39 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus 
       )}
       {problem && <p role="alert" className={cn("px-1 text-destructive-ink", TEXT.note)} data-testid="strip-problem">{problem}</p>}
       <div className="flex items-center gap-2">
-        <Input
-          ref={field} value={shown} readOnly={flying}
-          onChange={e => setText(e.target.value)}
-          placeholder={flying ? (pillListening ? "Listening…" : "Tap the mic and say it") : "Where to, or ask anything"}
-          aria-label={flying ? "The radio" : "Where to, or ask anything"}
-          enterKeyHint="go" autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} data-testid="strip-field"
-          onFocus={() => { setFocused(true); onFocus?.(); }} onBlur={() => setFocused(false)}
-          onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(text); } }}
-          // 56 points round, as the canvas draws it (H1), over the sheet's
-          // grey as the app's panel fields are (PANEL_FIELD_FILL).
-          className={cn("h-14 rounded-full border-0 px-5", PANEL_FIELD_FILL, TEXT.row)}
-        />
-        <IconButton
-          label={hearing || pillListening ? "Listening" : "Say it"} variant="default" size="icon-lg" onClick={hear} disabled={hearing || pillListening}
-          className="size-12 shrink-0 rounded-full" data-testid="strip-mic"
-        >
-          <Mic className={cn("size-5", (hearing || pillListening) && "animate-pulse")} strokeWidth={2.4} />
-        </IconButton>
+        <div className="relative min-w-0 flex-1">
+          <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" strokeWidth={2.25} />
+          <Input
+            ref={field} value={shown} readOnly={flying}
+            onChange={e => setText(e.target.value)}
+            placeholder={flying ? (pillListening ? "Listening…" : "Tap the mic and say it") : "Where to, or ask"}
+            aria-label={flying ? "The radio" : "Where to, or ask anything"}
+            enterKeyHint="go" autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} data-testid="strip-field"
+            onFocus={() => { setFocused(true); onFocus?.(); }} onBlur={() => setFocused(false)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); void submit(text); } }}
+            // 52 points tall, round, in the glass the pill itself is drawn
+            // in (GLASS), the magnifier's room at its left and the
+            // microphone's at its right.
+            className={cn("h-13 rounded-full border-0 pl-11 shadow-none", micShown ? "pr-12" : "pr-4", GLASS, TEXT.row)}
+          />
+          {micShown && (
+            <IconButton
+              label={listens ? "Listening" : "Say it"} size="icon-lg" onClick={hear} disabled={listens}
+              className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-full text-tint" data-testid="strip-mic"
+            >
+              <Mic className={cn("size-5", listens && "animate-pulse")} strokeWidth={2.25} />
+            </IconButton>
+          )}
+        </div>
+        {/* The avatar's taps its own: on the pill a finger on the foot drags
+            the sheet and a tap opens it (MapPanel), which the menu's
+            opening is not. */}
+        {avatar && (
+          // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- not a control: the avatar's own button is inside
+          <div className="shrink-0" data-testid="strip-avatar" onPointerDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+            {avatar}
+          </div>
+        )}
       </div>
     </div>
   );

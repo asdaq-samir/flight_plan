@@ -12,18 +12,21 @@ import { initialsOf } from "./stripData";
 export type ProfileScreen = "airplane" | "logbook" | "instructor" | "settings";
 
 /**
- * The round profile button at the map's top right (the strip layout has
- * no tabs): the pilot's initials, or a person's glyph signed out, and a
- * small menu -- My airplane, Logbook, Instructor, Settings, Sign in or
- * Sign out -- each opening the existing screen in the sheet. Glass, as
- * the map's own buttons are, 44 points: its own size is the hit area.
+ * The round profile button beside the one field, at the right of the
+ * pill's row (OneField), where Maps has the person (the owner's
+ * screenshot, 2026-11-04; it was at the map's top right): the pilot's
+ * initials, or a person's glyph signed out, and a small menu -- My
+ * airplane, Logbook, Instructor, Settings, Sign in or Sign out -- each
+ * opening the existing screen in the sheet. Glass, as the map's own
+ * buttons are, 44 points: its own size is the hit area. Its test id is
+ * kept from its corner days for the suite.
  */
 export default function ProfileButton({ onOpen }: { onOpen: (screen: ProfileScreen) => void }) {
   const { data: pilot } = useQuery(pilotQuery);
   const logout = useLogout();
   const initials = initialsOf(pilot);
   return (
-    <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] z-[1000] print:hidden" data-testid="profile-corner">
+    <div className="shrink-0 print:hidden" data-testid="profile-corner">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, MoveVertical } from "lucide-react";
 import { cn } from "cn";
 import FindingIcon from "../../components/FindingIcon";
 import { Button } from "../../components/ui/button";
@@ -20,10 +20,13 @@ const HEAD_PHOTO = false;
  * has none), the route's line under it in condensed capitals ("C81 →
  * KJVL → KDLH · C172 · FL045 · leaving 14:10"), and at most three
  * one-line actions from the glance (lib/glance's `act`), each a row into
- * the Brief. The route's menu (Share, Save, Plan again, File) at the
- * head's corner, where the tabs' route box had it.
+ * the Brief, and under them the altitude's row -- "Altitude · FL-045 ·
+ * Fastest" -- into the altitude's wheel and profile (the FPL tab's own
+ * AltitudeProfile, in its card over the strip). The route's menu (Share,
+ * Save, Plan again, File) at the head's corner, where the tabs' route
+ * box had it.
  */
-export default function StripHead({ dest, verdict, line, actions, onAction, onBrief, menu, ways, wayKey, onWay }: {
+export default function StripHead({ dest, verdict, line, actions, onAction, onBrief, menu, ways, wayKey, onWay, altitude }: {
   dest: string;
   verdict: { finding: Finding; words: string } | null;
   line: string | null;
@@ -36,6 +39,10 @@ export default function StripHead({ dest, verdict, line, actions, onAction, onBr
   ways?: { key: string; label: string }[];
   wayKey?: string;
   onWay?: (key: string) => void;
+  /** The cruise altitude and its plan's name ("FL-045 · Fastest"), the
+   *  row opening the altitude's card; none before there is a route to
+   *  draw it for. */
+  altitude?: { words: string; onOpen: () => void } | null;
 }) {
   // The photo as it comes: none until the planner answers, and none for
   // good where it has no aerial for the field (a 404). Off for now: of
@@ -98,6 +105,21 @@ export default function StripHead({ dest, verdict, line, actions, onAction, onBr
           <ChevronRight className="size-5 shrink-0 text-tint" aria-hidden />
         </button>
       ))}
+      {/* The altitude's row, a card as the actions are: its name, the
+          figure and the plan it flies, into the wheel. */}
+      {altitude && (
+        <button
+          type="button" onClick={altitude.onOpen} data-testid="strip-altitude" aria-label={`Altitude, ${altitude.words}: open the altitude's wheel`}
+          className={cn("flex min-h-11 w-full items-center gap-2.5 px-3.5 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", STRIP_CARD)}
+        >
+          <MoveVertical className="size-5 shrink-0 text-tint" aria-hidden />
+          <span className={cn("min-w-0 flex-1 truncate", TEXT.row)}>
+            <span className="font-semibold">Altitude</span>
+            <span className="text-muted-foreground"> · {altitude.words}</span>
+          </span>
+          <ChevronRight className="size-5 shrink-0 text-tint" aria-hidden />
+        </button>
+      )}
     </section>
   );
 }

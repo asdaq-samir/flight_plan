@@ -98,3 +98,46 @@ test("a screen's word in the field opens it, and the profile menu opens Settings
   await expect(page.getByTestId("quick-controls").first()).toBeVisible({ timeout: slow(15000) });
   await expect(page.getByTestId("layout-select")).toBeVisible();
 });
+
+test("the altitude's row under the head opens the altitude's wheel, named on the ribbon", async ({ page }) => {
+  await page.goto(stripPlan("dep=C81&dest=KDLH"));
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel.getByTestId("strip-field")).toBeVisible({ timeout: slow(30000) });
+  // The plan's altitude in the row once the legs are in.
+  const row = panel.getByTestId("strip-altitude");
+  await expect(row).toContainText(/FL-\d{3}/, { timeout: slow(120000) });
+  await row.click();
+  // The Profile's own wheel (AltitudeProfile), in its card over the strip.
+  await expect(panel.getByTestId("altitude-wheel")).toBeVisible({ timeout: slow(30000) });
+  await expect(panel.getByTestId("strip-card-title")).toHaveText("Altitude");
+  await panel.getByTestId("strip-card-close").click();
+  await expect(panel.getByTestId("altitude-profile")).toHaveCount(0);
+  await expect(row).toBeVisible();
+});
+
+test("a page's word in the field opens that page of Setup", async ({ page }) => {
+  // Signed in, as the logbook spec is, Spring's endpoints answered here.
+  await page.route("**/api/me", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ id: 1, email: "pilot@example.com", displayName: "A Pilot", developer: false }) }));
+  await page.route("**/api/logbook/currency", route => route.fulfill({
+    status: 200, contentType: "application/json", body: JSON.stringify({
+      dayPassengersUntil: null, nightPassengersUntil: null, flightReviewOn: null, flightReviewUntil: null,
+      medicalExpiresOn: null, totalHours: 0, nightHours: 0, crossCountryHours: 0, landings: 0, flights: 0,
+    }),
+  }));
+  await page.route("**/api/logbook", route => route.fulfill({ status: 200, contentType: "application/json", body: "[]" }));
+  await page.goto(stripPlan());
+  await settle(page);
+  const panel = sideDrawer(page);
+  const field = panel.getByTestId("strip-field");
+  await expect(field).toBeVisible({ timeout: slow(30000) });
+  await field.fill("logbook");
+  await field.press("Enter");
+  // Setup, open on its Logbook page (useWantedPage), not its list.
+  const console = page.getByTestId("console-sheet");
+  await expect(console.getByTestId("console-page").first()).toContainText("Logbook", { timeout: slow(15000) });
+  await expect(console.getByTestId("currency-day")).toBeVisible();
+  // The avatar is in the field's row now, the map's own microphone gone.
+  await expect(panel.getByTestId("strip-avatar")).toBeVisible();
+  await expect(page.getByTestId("mic-circle")).toHaveCount(0);
+});

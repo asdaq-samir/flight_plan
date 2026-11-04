@@ -18,7 +18,7 @@ import StripList from "./StripList";
  * airport's, the Brief, the nav log, the profile, the stops -- open over
  * it as they open over the tabs (PlanWorkspace).
  */
-export default function StripSheet({ routed, dest, verdict, line, actions, onAction, onBrief, menu, rows, depart, glance, onField, onPlates, onClearance, onCheckpoint, after, ways, wayKey, onWay }: {
+export default function StripSheet({ routed, dest, verdict, line, actions, onAction, onBrief, menu, rows, depart, glance, onField, onPlates, onClearance, onCheckpoint, after, ways, wayKey, onWay, altitude }: {
   routed: boolean;
   dest: string;
   verdict: { finding: Finding; words: string } | null;
@@ -38,6 +38,8 @@ export default function StripSheet({ routed, dest, verdict, line, actions, onAct
   ways?: { key: string; label: string }[];
   wayKey?: string;
   onWay?: (key: string) => void;
+  /** The altitude's row under the head (StripHead). */
+  altitude?: { words: string; onOpen: () => void } | null;
 }) {
   if (!routed) {
     return (
@@ -57,7 +59,7 @@ export default function StripSheet({ routed, dest, verdict, line, actions, onAct
   return (
     <TabPage testId="strip-sheet">
       <div className="flex flex-col gap-3">
-        <StripHead dest={dest} verdict={verdict} line={line} actions={actions} onAction={onAction} onBrief={onBrief} menu={menu} ways={ways} wayKey={wayKey} onWay={onWay} />
+        <StripHead dest={dest} verdict={verdict} line={line} actions={actions} onAction={onAction} onBrief={onBrief} menu={menu} ways={ways} wayKey={wayKey} onWay={onWay} altitude={altitude} />
         <StripList rows={rows} depart={depart} glance={glance} onField={onField} onPlates={onPlates} onClearance={onClearance} onCheckpoint={onCheckpoint} after={after} />
       </div>
     </TabPage>
