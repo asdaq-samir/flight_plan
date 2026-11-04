@@ -4966,10 +4966,12 @@
         "type": "object"
       },
       "DebriefWordsAsk": {
-        "description": "The debrief as POST /api/debrief answered it.",
+        "description": "The debrief as POST /api/debrief answered it (the debrief and the\ntolerances), or as the web app's own twin keeps it (lib/debrief: the\nfigures alone, their keys camel-cased, without the flown line and the\nprofile, thousands of points a sentence cannot use): `debrief_of`\nreads either.",
         "properties": {
           "debrief": {
-            "$ref": "#/components/schemas/DebriefAnswer"
+            "additionalProperties": true,
+            "title": "Debrief",
+            "type": "object"
           }
         },
         "required": [
@@ -12151,7 +12153,7 @@
         "type": "object"
       },
       "RiskAsk": {
-        "description": "The Go / No-Go as POST /api/go-no-go answered it, and the pilot's\nown record as the client keeps it -- personal minimums, currency,\nrecency, whatever it has, by its own keys -- given to the model as one\nsource the words can cite.",
+        "description": "The Go / No-Go as the client has it (RiskVerdict), and the pilot's\nown record as the client keeps it -- personal minimums, currency,\nrecency, whatever it has, by its own keys -- given to the model as one\nsource the words can cite.",
         "properties": {
           "pilot": {
             "anyOf": [
@@ -12166,7 +12168,7 @@
             "title": "Pilot"
           },
           "verdict": {
-            "$ref": "#/components/schemas/GoNoGo"
+            "$ref": "#/components/schemas/RiskVerdict"
           }
         },
         "required": [
@@ -12341,6 +12343,63 @@
           "points"
         ],
         "title": "RiskFactor",
+        "type": "object"
+      },
+      "RiskVerdict": {
+        "description": "The Go / No-Go as POST /api/go-no-go answers it (its line, its\nitems, its risk assessment), or as the web app's own twin keeps it\n(lib/verdict: the line's finding and words on the object itself, its\nitems, no risk assessment): either reads here, the extras dropped.",
+        "properties": {
+          "finding": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finding"
+          },
+          "items": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/VerdictItemLoose"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerdictLineLoose"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskAssessment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "words": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Words"
+          }
+        },
+        "title": "RiskVerdict",
         "type": "object"
       },
       "RouteAirport": {
@@ -15169,6 +15228,34 @@
         "title": "VerdictItem",
         "type": "object"
       },
+      "VerdictItemLoose": {
+        "properties": {
+          "detail": {
+            "default": "",
+            "title": "Detail",
+            "type": "string"
+          },
+          "finding": {
+            "title": "Finding",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "finding"
+        ],
+        "title": "VerdictItemLoose",
+        "type": "object"
+      },
       "VerdictLine": {
         "properties": {
           "finding": {
@@ -15192,6 +15279,24 @@
           "words"
         ],
         "title": "VerdictLine",
+        "type": "object"
+      },
+      "VerdictLineLoose": {
+        "properties": {
+          "finding": {
+            "title": "Finding",
+            "type": "string"
+          },
+          "words": {
+            "default": "",
+            "title": "Words",
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding"
+        ],
+        "title": "VerdictLineLoose",
         "type": "object"
       },
       "VfrMinimums": {

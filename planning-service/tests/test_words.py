@@ -264,3 +264,45 @@ def no_real_model(monkeypatch):
         raise AssertionError("the model was asked without a canned answer")
 
     monkeypatch.setattr(words, "_said", unexpected)
+
+
+def test_the_risk_words_read_the_webs_own_verdict_with_the_line_on_the_object(monkeypatch):
+    """The web app's Brief keeps the Go / No-Go as lib/verdict's twin: the
+    line's finding and words on the object itself, the items, no risk
+    assessment (RiskWords sends it so)."""
+    calls = canned(monkeypatch, {"sentences": [{"text": "Fuel is the finding to look at.", "sources": ["finding:fuel"]}]})
+    verdict = {"finding": "caution", "words": "Caution: 1 thing to check",
+               "items": [{"key": "fuel", "label": "Fuel", "finding": "caution", "detail": "2.1 gal over the reserve."}]}
+
+    pilot = {"personal_minimums": {"ceiling_ft": 3000}, "currency": ["Night not current"]}
+    resp = client.post("/api/words/risk", json={"verdict": verdict, "pilot": pilot})
+
+    assert resp.status_code == 200, resp.text
+    assert [s["id"] for s in resp.json()["sources"]] == ["finding:fuel"]
+    assert '<source id="verdict:line" label="Go / No-Go">\ncaution: Caution: 1 thing to check' in calls[0]
+    assert "currency: [\"Night not current\"]" in calls[0]
+
+
+def test_the_debrief_words_read_the_webs_own_figures_camel_cased_and_unmarked(monkeypatch):
+    """The web's DebriefWords sends lib/debrief's figures as they are: the
+    keys camel-cased, no marks, no drawn line or profile; the marks are
+    put on here as /api/debrief puts them on, the tolerances the engine's."""
+    calls = canned(monkeypatch, {"sentences": [{"text": "The second leg ran high.", "sources": ["leg:1"]}], "instructor_note": None})
+    figures = {
+        "takeoff": 1_759_417_320_000, "landing": 1_759_419_480_000, "flownMin": 36.0, "plannedMin": 36.0,
+        "legs": [{"from": "A", "to": "Lake", "plannedAltFt": 3500, "altitudeWithin": 0.9, "worstAltFt": 100, "courseDeg": 0,
+                  "courseWithin": 1.0, "worstOffNm": 0.5},
+                 {"from": "Lake", "to": "B", "plannedAltFt": 3500, "altitudeWithin": 0.8, "worstAltFt": 300, "courseDeg": 0,
+                  "courseWithin": 1.0, "worstOffNm": 0.5}],
+        "passes": [{"name": "Lake", "category": "lake", "dueMin": 18, "passedMin": 19.2, "closestNm": 0.5}],
+        "patterns": [{"ident": "B", "altFt": 1800, "patternFt": 1700}],
+        "hasAltitude": True, "notes": [],
+    }
+
+    resp = client.post("/api/words/debrief", json={"debrief": figures})
+
+    assert resp.status_code == 200, resp.text
+    assert [s["id"] for s in resp.json()["sources"]] == ["leg:1"]
+    assert "furthest off 300 ft high" in calls[0] and "outside tolerance" in calls[0]
+    assert '<source id="pattern:B"' in calls[0] and "100 ft high" in calls[0]
+    assert client.post("/api/words/debrief", json={"debrief": {"takeoff": 1}}).status_code == 422

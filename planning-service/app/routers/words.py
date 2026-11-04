@@ -18,6 +18,7 @@ The ids a sentence cites: "flight:route"; "notam:<id>" ("notam:BJC
 "pilot:record"; "time", "leg:<n>", "pass:<n>", "pattern:<ident>",
 "note:<n>", "tolerances"."""
 import json
+import re
 import time
 from datetime import datetime, timezone
 
@@ -27,9 +28,10 @@ from vfr import notams, tfr
 
 from .. import exposure
 from ..common import load_route
+from ..figures import debrief as debrief_rules
 from ..figures.schemas import Debrief, DebriefAnswer, DebriefTolerances
 from ..gonogo import ask as engine
-from ..gonogo.schemas import GoNoGo
+from ..gonogo.schemas import RiskAssessment
 from ..gonogo.words import WEATHER_SOURCE_LABEL, alt_ft, ceiling_and_visibility, gairmet_title, num, one, sigmet_hazard
 from ..schemas import Briefing, ForecastStation, GAirmet, Hazard, OnRoute
 from ..words import WORDS_MODEL, Source, WordsAnswer, WordsSaid, say
@@ -43,6 +45,13 @@ _UNCHECKED_ID = "unchecked"
 
 
 # --- The asks and the answers -------------------------------------------
+
+#: The sentences a reading keeps: a pilot looks and goes (the owner,
+#: 2026-11-03: "make it simpler for them to just look and go"), so a
+#: reading is one to three short sentences with their chips, never a
+#: paragraph; the debrief gets one more for the instructor's line.
+MOST_SENTENCES = 3
+MOST_DEBRIEF_SENTENCES = 4
 
 
 class RouteAsk(BaseModel):
@@ -67,20 +76,84 @@ class WeatherAsk(RouteAsk):
     leg_min: str = ""
 
 
+class VerdictLineLoose(BaseModel):
+    finding: str
+    words: str = ""
+
+
+class VerdictItemLoose(BaseModel):
+    key: str
+    label: str
+    finding: str
+    detail: str = ""
+
+
+class RiskVerdict(BaseModel):
+    """The Go / No-Go as POST /api/go-no-go answers it (its line, its
+    items, its risk assessment), or as the web app's own twin keeps it
+    (lib/verdict: the line's finding and words on the object itself, its
+    items, no risk assessment): either reads here, the extras dropped."""
+
+    line: VerdictLineLoose | None = None
+    finding: str | None = None
+    words: str | None = None
+    items: list[VerdictItemLoose] = []
+    risk: RiskAssessment | None = None
+
+    @property
+    def over(self) -> VerdictLineLoose | None:
+        """The line over the findings, however the client wrote it."""
+        if self.line:
+            return self.line
+        return VerdictLineLoose(finding=self.finding, words=self.words or "") if self.finding else None
+
+
 class RiskAsk(BaseModel):
-    """The Go / No-Go as POST /api/go-no-go answered it, and the pilot's
+    """The Go / No-Go as the client has it (RiskVerdict), and the pilot's
     own record as the client keeps it -- personal minimums, currency,
     recency, whatever it has, by its own keys -- given to the model as one
     source the words can cite."""
 
-    verdict: GoNoGo
+    verdict: RiskVerdict
     pilot: dict | None = None
 
 
 class DebriefWordsAsk(BaseModel):
-    """The debrief as POST /api/debrief answered it."""
+    """The debrief as POST /api/debrief answered it (the debrief and the
+    tolerances), or as the web app's own twin keeps it (lib/debrief: the
+    figures alone, their keys camel-cased, without the flown line and the
+    profile, thousands of points a sentence cannot use): `debrief_of`
+    reads either."""
 
-    debrief: DebriefAnswer
+    debrief: dict
+
+
+def _snake(value):
+    """The web's camelCase keys as the planner's snake_case, all the way
+    down: flownMin to flown_min, plannedAltFt to planned_alt_ft."""
+    if isinstance(value, dict):
+        return {re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", k).lower(): _snake(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_snake(v) for v in value]
+    return value
+
+
+def debrief_of(raw: dict) -> DebriefAnswer:
+    """The debrief and its tolerances from what the client sent: the
+    planner's own answer as it was, or the web's figures with the drawn
+    lists left empty and the engine's tolerances put beside them."""
+    if "tolerances" in raw or "debrief" in raw:
+        return DebriefAnswer.model_validate(raw)
+    # The web's twin keeps no marks (FlightPage works them beside each
+    # figure), so they are put on here as /api/debrief puts them on.
+    figures = debrief_rules.marked({"profile": [], "planned": [], "line": [], **_snake(raw)})
+    return DebriefAnswer(
+        debrief=Debrief.model_validate(figures),
+        tolerances=DebriefTolerances(
+            altitude_ft=debrief_rules.ALTITUDE_FT, course_deg=debrief_rules.COURSE_DEG, off_route_nm=debrief_rules.OFF_ROUTE_NM,
+            eta_min=debrief_rules.ETA_MIN, pattern_nm=debrief_rules.PATTERN_NM, pattern_ft=debrief_rules.PATTERN_FT,
+        ),
+    )
 
 
 class ChangesAsk(BaseModel):
@@ -415,18 +488,18 @@ def briefing_changes(then: Briefing, now: Briefing) -> list[Source]:
 # --- The endpoints ------------------------------------------------------
 
 NOTAMS_ASK = ("Which of these NOTAMs and TFRs matter for this flight, and why: the most important first, one sentence each, "
-              "leaving out those that do not bear on it.")
+              "leaving out those that do not bear on it. At most three sentences, each short: the pilot looks and goes.")
 WEATHER_ASK = ("The weather for this flight as a pilot would brief it: the departure now, each leg at its time, the destination "
                "at arrival, then what could change it -- the hazards, the pilot reports, the TFRs. Where the figures give a "
-               "reason not to go VFR, say so plainly.")
+               "reason not to go VFR, say so plainly. At most three sentences, each short: the pilot looks and goes.")
 RISK_ASK = ("Where the risk in this flight is, in the pilot's terms: the weather, the airplane, the pilot's own recency and "
             "minimums, the plan; and what would lower it, where the findings say. The most important first. Never say the "
-            "flight is safe.")
+            "flight is safe. At most three sentences, each short: the pilot looks and goes.")
 DEBRIEF_ASK = ("The flight as flown against its plan, as an instructor would debrief it: what was held and what was not, leg by "
                "leg, the checkpoints' times and the pattern entries, the most important first. Then one paragraph for the "
-               "pilot's instructor, from those sentences alone.")
+               "pilot's instructor, from those sentences alone. At most four sentences, each short: the pilot looks and goes.")
 CHANGES_ASK = ("What changed in this flight's weather since the last look, and what it means for the flight: each change in a "
-               "sentence, the most important first, with both readings where they help.")
+               "sentence, the most important first, with both readings where they help. At most three sentences, each short.")
 
 
 @router.post("/api/words/notams")
@@ -451,7 +524,7 @@ def notam_words(ask: RouteAsk) -> NotamWords:
     except tfr.TfrUnavailable:
         tfrs, unchecked = [], ["tfrs"]
     items = [*map(_notam_source, found), *map(_tfr_source, tfrs)]
-    words = say(NOTAMS_ASK, [_flight_source(r.idents[0], r.idents[-1], ask.stops, start), *items] if items else [], most=8)
+    words = say(NOTAMS_ASK, [_flight_source(r.idents[0], r.idents[-1], ask.stops, start), *items] if items else [], most=MOST_SENTENCES)
     return NotamWords(**words.model_dump(), since=exposure.iso(notams.since()), unchecked=unchecked)
 
 
@@ -468,7 +541,7 @@ def weather_words(ask: WeatherAsk) -> WordsAnswer:
     b = Briefing.model_validate(raw)
     flight = _flight_source(ask.dep.upper(), ask.dest.upper(), ask.stops, _start(ask.depart),
                             ask.ete_min if ask.ete_min is not None else briefing_router.DEFAULT_ETE_MIN)
-    return say(WEATHER_ASK, [flight, *_briefing_sources(b)], most=10)
+    return say(WEATHER_ASK, [flight, *_briefing_sources(b)], most=MOST_SENTENCES)
 
 
 @router.post("/api/words/risk")
@@ -480,7 +553,9 @@ def risk_words(ask: RiskAsk) -> WordsAnswer:
     the sources are the pilot's to read raw. Never "safe": the decision
     is the pilot in command's (14 CFR 91.3), and the briefer is told so."""
     v = ask.verdict
-    sources = [Source(id="verdict:line", label="Go / No-Go", text=f"{v.line.finding}: {v.line.words}")]
+    sources = []
+    if (line := v.over) is not None:
+        sources.append(Source(id="verdict:line", label="Go / No-Go", text=f"{line.finding}: {line.words}"))
     sources += [Source(id=f"finding:{i.key}", label=f"{i.label}: {i.finding}", text=i.detail) for i in v.items]
     if v.risk:
         sources.append(Source(id="risk:line", label="Risk assessment",
@@ -490,7 +565,7 @@ def risk_words(ask: RiskAsk) -> WordsAnswer:
             sources.append(Source(id=f"risk:{f.key}", label=f.label, text=f"{f.why or f.label}. {f.points} points.{unlawful}"))
     if ask.pilot:
         sources.append(Source(id="pilot:record", label="The pilot's record", text=_record_lines(ask.pilot)))
-    return say(RISK_ASK, sources, most=8)
+    return say(RISK_ASK, sources, most=MOST_SENTENCES)
 
 
 @router.post("/api/words/debrief")
@@ -502,10 +577,16 @@ def debrief_words(ask: DebriefWordsAsk) -> DebriefWordsAnswer:
     notes, and the ACS tolerances they are marked against); the words are
     the model's; the sources are the pilot's to read raw. A 422 where
     there is no debrief: the track never flew."""
-    if ask.debrief.debrief is None:
+    try:
+        answer = debrief_of(ask.debrief)
+    except (ValueError, KeyError, TypeError) as err:
+        # A validation error, or the marks asked of figures with no legs,
+        # passes or patterns at all: not a debrief either way.
+        raise HTTPException(422, f"The debrief is not in a shape the words can read: {err!r}") from err
+    if answer.debrief is None:
         raise HTTPException(422, "There is no debrief to put into words: the track never flew faster than taxiing.")
-    sources = _debrief_sources(ask.debrief.debrief, ask.debrief.tolerances)
-    return say(DEBRIEF_ASK, sources, most=10, output=DebriefWords, answer=DebriefWordsAnswer)
+    sources = _debrief_sources(answer.debrief, answer.tolerances)
+    return say(DEBRIEF_ASK, sources, most=MOST_DEBRIEF_SENTENCES, output=DebriefWords, answer=DebriefWordsAnswer)
 
 
 @router.post("/api/words/changes")
@@ -522,5 +603,5 @@ def changes_words(ask: ChangesAsk) -> ChangesWords:
     changes = briefing_changes(ask.then, ask.now)
     if not changes:
         return ChangesWords(changed=False, sentences=[], sources=[], model=WORDS_MODEL)
-    words = say(CHANGES_ASK, [_flight_source(ask.dep.upper(), ask.dest.upper(), ask.stops), *changes], most=8)
+    words = say(CHANGES_ASK, [_flight_source(ask.dep.upper(), ask.dest.upper(), ask.stops), *changes], most=MOST_SENTENCES)
     return ChangesWords(changed=True, **words.model_dump())
