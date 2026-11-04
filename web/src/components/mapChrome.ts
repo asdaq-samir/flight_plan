@@ -124,9 +124,6 @@ export const SETTLE_POINTS = 273;
 export const SETTLE_LEAST = 0.22;
 export const SETTLE_MOST = 0.35;
 
-/** How far a phone's sheet is in from the screen's sides, at every size
- *  (MapPanel), as Maps' medium sheet is. */
-export const SHEET_INSET = 8;
 /** The same corners as a class, for every sheet drawn with classes: a
  *  phone's floating sheet (PhoneSheetContent). Written out whole, as
  *  Tailwind finds a class only as it is written. */

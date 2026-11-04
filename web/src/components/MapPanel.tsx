@@ -4,7 +4,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_INSET, SHEET_MARGIN, TabBarMinimized,
+  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_MARGIN, TabBarMinimized,
   useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
 import { useOpenCards } from "../lib/openCards";
@@ -632,10 +632,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       data-capsule={atPill && atRest || undefined}
       style={{
         ...vars,
+        // Docked, the screen's width, as a classic iOS tab bar sits on the
+        // home indicator: the owner, 2026-11-04, "should the tabs not be
+        // screen width if they are not floating?", of a pill inset at the
+        // sides but on the screen's edge below, which read as neither.
         ...(slides ? {
-          left: SHEET_INSET, right: SHEET_INSET, top: 0, height: laid ?? undefined,
+          left: 0, right: 0, top: 0, height: laid ?? undefined,
           borderRadius: `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0`, willChange: "transform",
-        } : onPhone ? { left: SHEET_INSET, right: SHEET_INSET, top: 0, borderRadius: `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px` } : {}),
+        } : onPhone ? { left: 0, right: 0, top: 0, borderRadius: `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px` } : {}),
       }}
       className={cn(
         // Clipped rather than hidden: a hidden overflow can still be
