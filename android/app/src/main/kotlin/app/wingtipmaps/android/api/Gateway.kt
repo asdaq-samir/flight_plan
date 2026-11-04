@@ -25,7 +25,7 @@ import okhttp3.Response
 
 /**
  * The gateway's calls, by hand, as the iOS app's Gateway.swift has them:
- * its OpenAPI document gives them "*\/*" bodies, which a generated client
+ * its OpenAPI document gives them star-slash-star bodies, which a generated client
  * would hand over raw. One OkHttp client for the whole app, with the
  * session cookie the gateway sets kept by CookieStore, so a call made
  * after signing in is the pilot's, as in Chrome.

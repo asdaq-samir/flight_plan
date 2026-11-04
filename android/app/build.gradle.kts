@@ -30,7 +30,7 @@ val appId: String =
 
 android {
     namespace = "app.wingtipmaps.android"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = appId

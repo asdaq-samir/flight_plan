@@ -128,7 +128,7 @@ data class Course(
 )
 
 /** One of the planner's airplane types and the handbook figures it flies
- *  on (AircraftProfile, data/aircraft/*.json). */
+ *  on (AircraftProfile, the JSON files under data/aircraft). */
 @Serializable
 data class AircraftProfile(
     val name: String,
