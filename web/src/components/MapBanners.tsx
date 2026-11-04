@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import AircraftAlerts from "./AircraftAlerts";
 import AlertsBanner from "./AlertsBanner";
 import ProblemBanner from "./ProblemBanner";
+import SunlightBanner from "./SunlightBanner";
 import { useAtcRadio } from "../lib/atcRadio";
 
 const RadioLayer = lazy(() => import("./RadioLayer"));
@@ -37,6 +38,8 @@ export default function MapBanners() {
     <div
       className="pointer-events-none absolute right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px)+3.25rem)] z-[1000] flex flex-col items-center gap-2 nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] nav-bottom:right-[max(1rem,env(safe-area-inset-right))] nav-bottom:left-[calc(max(1rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] nav-bottom:bottom-auto"
     >
+      {/* The sunlight scheme, the first time the light sensor turns it on. */}
+      <SunlightBanner />
       <AlertsBanner />
       {radio && <Suspense fallback={null}><RadioLayer /></Suspense>}
       <AircraftAlerts />

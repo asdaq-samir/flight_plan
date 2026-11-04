@@ -319,6 +319,28 @@ new object; fitting on every one of those snapped the map back to the
 whole route from wherever a pilot had navigated to, seconds after a
 tap.
 
+**The first flight.** The first time the planner opens with no route on
+a device, `FirstFlight` (its view model `hooks/useFirstFlight.ts`) is a
+card over the map: a destination from the same airport search the
+route's box uses (`useAirportSearch`, through `PanelCapsule`'s field and
+results), and Plan it, which plans from own ship's nearest field, else
+the last departure or Home, else asks where from. Planned, the nav log
+opens, the card is marked seen in the tips store (`lib/tips`,
+`FIRST_FLIGHT`) and never comes back, and one tip (`brief`, gated
+`after` that key) points at the Brief.
+
+**Sunlight.** The map's settings' Sunlight (Auto, On, Off;
+`preferences.chartLight`) is a high-contrast scheme for a screen in a
+sunlit cockpit: `lib/sunlight` keeps `data-chart-light="bright"` on
+`<html>`, under which `index.css` draws the chart's tiles at more
+contrast, the course wider and black-cased, and every sheet, button and
+the figure strip solid white with black figures. Auto reads the
+ambient light sensor where the browser has one (on past 10,000 lux, off
+under 4,000), and the first time it switches on by itself
+`SunlightBanner` says so with a one-tap Keep off. The airspace rings
+draw on a canvas at their own width and are not reached by the
+stylesheet.
+
 ## What is deliberately not here
 
 - No global state library beyond `zustand`'s one small preferences
