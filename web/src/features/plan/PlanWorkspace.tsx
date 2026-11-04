@@ -87,6 +87,8 @@ import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
 import { useDryRun } from "./hooks/useDryRun";
+import { useFlyingMode } from "./hooks/useFlyingMode";
+import { nextLanding } from "./figures";
 import { procedureKind, useRouteEdits } from "./hooks/useRouteEdits";
 import { useSuggestedStops, withStopsAfter } from "./hooks/useSuggestedStops";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
@@ -173,6 +175,7 @@ const PlaceCard = fromRoutePanel("PlaceCard");
 const StopsCard = fromRoutePanel("StopsCard");
 const DryRunControls = fromRoutePanel("DryRunControls");
 const DryRunFigures = fromRoutePanel("DryRunFigures");
+const FlyingHead = fromRoutePanel("FlyingHead");
 /** A round button's room while its code comes (routePanel). */
 
 /** How many of the latest Recents, and of Saved, are planned ahead. */
@@ -2068,6 +2071,13 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const { running: dryRunning, goMissed, ready: dryRunReady, start: startDryRun, stop: stopDryRun, goMissedNow } = useDryRun({
     course, selected, legs: s.legs, depart, routed, profileShown,
   });
+  // The airplane flying the route (useFlyingMode): its NRST is Nearest's
+  // list over Airport, as the microphone's is; its D→ direct to the next
+  // landing, as the Stops' Direct To goes (directToPoint).
+  const flyNearest = useCallback(() => { setTabPick("airport"); openNearest(); }, [setTabPick, openNearest]);
+  const flyDirectTo = nextLanding(s.totals, `${planned.dest}`).to;
+  const flyDirect = useMemo(() => (flyDirectTo ? { to: flyDirectTo, go: () => directToPoint(flyDirectTo) } : null), [flyDirectTo, directToPoint]);
+  const { flying, done: doneFlying } = useFlyingMode({ routed, setPanel, nearest: flyNearest, direct: flyDirect });
   // The Profile opened, at rest, from the route's ••• menu and the
   // altitude's caution dot, where the map's Play opened it and flew its
   // dry run at once until the owner took Play off the map (2026-11-02:
@@ -2641,6 +2651,8 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           ways={wayLines} wayShown={lineKey === "none" ? "own" : lineKey} onPickWay={pickWay}
         />
         </Suspense>
+        {/* The next checkpoint over the map in flight (FlyingHead). */}
+        {flying && <Suspense fallback={null}><FlyingHead run={dryRunning} rows={routeRows} /></Suspense>}
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
         {lessonOpen !== null && (
           <Suspense fallback={null}>
@@ -2818,6 +2830,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // a back close button and title as the airport id").
     cardOver: cardOpen || briefShown || navLogShown || profileShown || stopsShown,
     toEdge: !!place,
+    flying,
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
@@ -2850,7 +2863,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       <div className={cn("flex min-h-0 w-full flex-col", (navLogShown || profileShown) && "px-4")}>
         {dryRunning ? (
           <Suspense fallback={null}>
-            <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />
+            <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} flying={flying} />
           </Suspense>
         ) : (
           <>
@@ -2858,9 +2871,20 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
               Put away in the pill, whose one row is the figures. */}
           {directParam && <div data-pill-hides=""><DirectStrip ident={directParam} onCancel={() => directToPoint(null)} /></div>}
           <div data-testid="flight-line">
-            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow />
+            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow flying={flying} />
           </div>
           </>
+        )}
+        {/* In flight, the one way out of flying mode (useFlyingMode): a
+            small Done flying at the figures' foot, as the canvas has the
+            line there; the tabs come back on the ground by themselves. */}
+        {flying && (
+          <div className={cn("flex items-center justify-between pt-1 text-foreground/65", TEXT.note)} data-testid="flying-foot">
+            <span>Flying</span>
+            <button type="button" className="relative font-semibold text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']" data-testid="done-flying" onClick={doneFlying}>
+              Done flying
+            </button>
+          </div>
         )}
       </div>
     ) : undefined,

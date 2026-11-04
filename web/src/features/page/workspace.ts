@@ -52,6 +52,9 @@ export interface WorkspacePieces {
    *  indicator (MapPanel's toEdge): an airport's card, its tiles and tabs
    *  at its foot. */
   toEdge?: boolean;
+  /** The airplane flying the route (useFlyingMode): the panel's tab bar
+   *  and top row put away and its foot grown (MapPanel's `flying`). */
+  flying?: boolean;
 }
 
 export interface WorkspaceProps {

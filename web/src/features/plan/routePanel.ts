@@ -23,3 +23,4 @@ export { default as PastFlightCard } from "./components/PastFlightCard";
 export { default as PlaceCard } from "./components/PlaceCard";
 export { default as StopsCard } from "./components/StopsCard";
 export { DryRunControls, DryRunFigures } from "./components/DryRunPanel";
+export { default as FlyingHead } from "./components/FlyingHead";
