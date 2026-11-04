@@ -292,8 +292,8 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     return () => { map.off("resize", read); };
   }, [map]);
   const edgeOf = useCallback((bottom: number) => !map ? 0 : (mapTop.current ?? 0) + map.getSize().y - bottom, [map]);
-  const sheetRoom = useCallback((bottom: number, el: HTMLElement) => ({
-    el, from: edgeOf(bottom), halfEdge: edgeOf(halfBottom.current ?? (map ? map.getSize().y / 2 : 0)),
+  const sheetRoom = useCallback((el: HTMLElement) => ({
+    el, halfEdge: edgeOf(halfBottom.current ?? (map ? map.getSize().y / 2 : 0)),
     pressed: () => pressed.current, free: () => !heldRef.current,
   }), [edgeOf, map]);
   // Under a finger on the sheet the map goes with it as it is dragged, not
@@ -306,7 +306,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const { left, bottom } = insetsRef.current;
       if (!el || left || !bottom || heldRef.current) return;
       pressed.current = true;
-      followSheet(map, sheetRoom(bottom, el));
+      followSheet(map, sheetRoom(el));
     };
     const up = () => { pressed.current = false; };
     // And as the sheet starts to move by itself (MapPanel's sheetturn: a
@@ -325,7 +325,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       }
       const { left, bottom } = insetsRef.current;
       if (!(el instanceof HTMLElement) || pressed.current || left || !bottom || heldRef.current) return;
-      followSheet(map, sheetRoom(bottom, el));
+      followSheet(map, sheetRoom(el));
     };
     doc.addEventListener("pointerdown", down, true);
     doc.addEventListener("pointerup", up, true);
@@ -389,7 +389,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     const phoneTurn = insets.left === was.left && insets.bottom !== was.bottom;
     const withSheet = () => {
       const el = map.getContainer().ownerDocument.querySelector<HTMLElement>('[data-slot="map-panel"]');
-      if (el) followSheet(map, { ...sheetRoom(was.bottom, el), to: edgeOf(insets.bottom) });
+      if (el) followSheet(map, { ...sheetRoom(el), to: edgeOf(insets.bottom) });
     };
     if (!turned && phoneTurn && what !== "route") return;
     if (turned) {

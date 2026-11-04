@@ -54,8 +54,7 @@ const LONGEST_MS = 1500;
  * (sheetEdge). Not above `halfEdge`: half way to all the way up and back
  * the map stays put, at the owner's ask.
  *
- * `from` is where the edge of the room was as it began, the room the map
- * was placed for. The pane is moved as Leaflet's own pan moves it
+ * The map goes from where the edge is as the follow starts. The pane is moved as Leaflet's own pan moves it
  * (`_rawPanBy`), in whole device pixels (subpixel), with a movestart and
  * one moveend once the sheet is still and no move between: what is drawn
  * for the view -- the airports' canvas, the lines -- stays as it is and is
@@ -64,9 +63,17 @@ const LONGEST_MS = 1500;
  * where the edge is going (`to`), which is when it has landed.
  */
 export function followSheet(map: L.Map, sheet: {
-  el: HTMLElement; from: number; halfEdge: number; pressed: () => boolean; free: () => boolean; to?: number;
+  el: HTMLElement; halfEdge: number; pressed: () => boolean; free: () => boolean; to?: number;
 }) {
-  const offsetAt = (edge: number) => (Math.max(edge, sheet.halfEdge) - Math.max(sheet.from, sheet.halfEdge)) / 2;
+  // From where the edge is now, read once as the follow starts -- not
+  // from the room the page last settled on: a sheet dragged down to the
+  // pill had taken the map with it under the finger, and the turn the
+  // page heard of once it landed started the map off again from the old
+  // room, the whole way a second time (the owner, 2026-11-04: "When I
+  // take the card to bottom, it readjusts the map"). Started mid-settle
+  // by a key, it goes the rest of the way and no more.
+  const base = sheetEdge(sheet.el);
+  const offsetAt = (edge: number) => (Math.max(edge, sheet.halfEdge) - Math.max(base, sheet.halfEdge)) / 2;
   if (sheet.to !== undefined) preload(map, L.point(0, -offsetAt(sheet.to)));
   const running = following.get(map);
   if (running) {
