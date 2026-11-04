@@ -387,20 +387,41 @@ export default function MapPanel({ label, top, kept, controls, compact, children
 
   // A settle: to `target`, from where the sheet is now, started after the
   // commit that lays the column out for it (the pending move, below).
-  const pending = useRef<{ from: number; to: number; target: PanelState } | null>(null);
+  // `begun`: already on its way, set off at the release itself (below).
+  const pending = useRef<{ from: number; to: number; target: PanelState; begun?: { at: number; seconds: number } } | null>(null);
   const landTimer = useRef(0);
-  const settleTo = useCallback((target: PanelState) => {
+  const settleTo = useCallback((target: PanelState, now = false) => {
     const from = currentHeight();
     const to = detentsRef.current[target];
     window.clearTimeout(landTimer.current);
-    pending.current = { from, to, target };
+    const move: NonNullable<typeof pending.current> = { from, to, target };
+    pending.current = move;
+    // A finger let go: the sheet sets off in this frame, not after the
+    // render the new size asks for. Dragged down to the pill, that render
+    // lays out the pill's row and puts the body away, and the sheet sat
+    // where the finger left it for as long as it took (the owner,
+    // 2026-11-04: "it still takes a second to settle when dragging
+    // down"). The column is laid out at the larger end already under a
+    // finger, and place() makes it taller where it is not.
+    if (now && slidesRef.current && nodes.current.panel) {
+      const seconds = prefersReducedMotion() || Math.abs(to - from) < 0.5 ? 0 : settleSeconds(to - from);
+      setEase(null);
+      place(from);
+      if (seconds > 0) {
+        void nodes.current.panel.offsetHeight;
+        setEase(seconds);
+      }
+      place(to);
+      motionRef.current = "settle";
+      move.begun = { at: performance.now(), seconds };
+    }
     setSize(target);
     setMotion("settle");
     if (slidesRef.current) setMoveLaid(Math.max(laidRef.current, to));
-  }, [currentHeight]);
-  const ask = useCallback((target: PanelState) => {
+  }, [currentHeight, setEase, place]);
+  const ask = useCallback((target: PanelState, now = false) => {
     asked.current = target;
-    settleTo(target);
+    settleTo(target, now);
   }, [settleTo]);
   // The page's own size, come as a prop: gone to.
   useEffect(() => {
@@ -438,6 +459,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const { panel: el, foot } = nodes.current;
     if (!el) return;
     const m = pending.current;
+    if (m?.begun) {
+      // Set off at the release: only its end to wait for, and the parts
+      // this render laid out (the pin, the column's height) put in step.
+      pending.current = null;
+      place(m.to);
+      foot?.style.setProperty("--sheet-progress", m.target === "full" ? "1" : "0");
+      el.dispatchEvent(new CustomEvent<SheetTurn>("sheetturn", { bubbles: true, detail: { insets: insetsFor(m.target, detents) } }));
+      const left = m.begun.seconds * 1000 + 40 - (performance.now() - m.begun.at);
+      landTimer.current = window.setTimeout(() => land(m.target), Math.max(0, left));
+      return;
+    }
     if (m) {
       pending.current = null;
       const seconds = prefersReducedMotion() || Math.abs(m.to - m.from) < 0.5 ? 0 : settleSeconds(m.to - m.from);
@@ -508,7 +540,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       const want = h > d.half + 1 ? d.full : d.half;
       if (slidesRef.current && want !== laidRef.current) setMoveLaid(want);
     },
-    release: (h, speed) => ask(restingAt(detentsRef.current, h, speed)),
+    release: (h, speed) => ask(restingAt(detentsRef.current, h, speed), true),
   });
   const setBodyRef = useCallback((node: HTMLDivElement | null) => {
     nodes.current.body = node;
