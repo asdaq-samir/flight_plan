@@ -187,11 +187,11 @@ test("plan page: the nav log is computed for an airplane the pilot picks in its 
   await expect(picker).toHaveAttribute("placeholder", "");
   await expect(page.getByTestId("aircraft-select")).toContainText("N");
   await expect(picker).toHaveValue("N-");
-  // And five grey dashes after it, the five places an N-number has, the
+  // And five grey underscores after it, the five places an N-number has, the
   // field as wide as five characters (the owner, 2026-11-04); gone once a
   // number is typed.
   const hint = page.getByTestId("aircraft-select-hint");
-  await expect(hint).toHaveText("N------");
+  await expect(hint).toHaveText("N-_____");
   await expect(picker).toHaveAccessibleName("Airplane, N-number: none picked");
   // An N-number typed is added at once, its type looked up behind it (the
   // owner's "You can do the lookup in the background") -- here a made-up

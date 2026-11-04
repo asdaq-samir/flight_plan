@@ -64,15 +64,16 @@ export default function FlightInputs({ aircraftValue, aircraftOptions, onAircraf
       {/* A field as the altitude's is, at the owner's ask ("N-number should
           look similar to altitude"), the same field (InlineField): typed
           in, its card's button at its end once there is one. */}
-      {/* With none picked, "N-" and then five dashes in grey, one for each
+      {/* With none picked, "N-" and then five underscores in grey, blanks, one for each
           place a US registration has after the N (14 CFR 47.15(b): at most
-          five), as the empty altitude shows "FL----": the field is as wide
+          five), as the empty altitude shows "FL-___" (the owner, 2026-11-04:
+          "n should have five underscores after it"): the field is as wide
           as five characters picked or not, at the owner's ask ("N number
           should be fixed width for 5 letters/numbers", 2026-11-04), where
           "Pick airplane" had set it wider. */}
       <InlineField
         label="Airplane" testId="aircraft-select" widest="N-888MM" placeholder="" endRoom="w-0" shrink
-        hint={{ start: "N-", words: "-----" }}
+        hint={{ start: "N-", words: "_____" }}
         input={{
           // The N fixed before it, the rest typed, at the owner's ask
           // (2026-10-27: "N- can stay static while the rest of the number

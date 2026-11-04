@@ -32,9 +32,10 @@ export function feet(ft: number | null | undefined): string {
 
 /** A cruising altitude as the pilot asked it written: hundreds of feet in
  *  three figures, "FL-045" for 4,500 ft (the owner, 2026-10-27: "make it
- *  in the format FL-***"), and "FL----" with none yet. */
+ *  in the format FL-***"), and "FL-___" with none yet, a blank for each figure (the owner,
+ *  2026-11-04: "FL should have three underscores"). */
 export function flightLevel(ft: number | null | undefined): string {
-  return ft === null || ft === undefined ? "FL----" : `FL-${String(Math.round(ft / 100)).padStart(3, "0")}`;
+  return ft === null || ft === undefined ? "FL-___" : `FL-${String(Math.round(ft / 100)).padStart(3, "0")}`;
 }
 
 /**
