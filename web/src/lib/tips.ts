@@ -12,10 +12,23 @@ export interface TipSpec {
   id: string;
   title: string;
   message: string;
+  /** Offered only once this key is seen: a tip that follows something
+   *  the pilot did (the first flight's Brief, after the first flight). */
+  after?: string;
 }
+
+/** The first flight's card (FirstFlight), seen once it has planned a
+ *  route or been closed: the tips store's key for it. */
+export const FIRST_FLIGHT = "first-flight";
 
 /** In the order they are offered, each when its control is in sight. */
 export const TIPS: TipSpec[] = [
+  {
+    // After the first flight's card planned a route (useFirstFlight): the
+    // one line that points at the Brief, the card's third step.
+    id: "brief", title: "Now the Brief", after: FIRST_FLIGHT,
+    message: "Weather, NOTAMs and what to look at before you go, read for your route and your time: one verdict first.",
+  },
   {
     id: "route", title: "Your route",
     message: "Type an airport or a waypoint at any arrow. Drag a point to move it; press and hold one to set its altitude or remove it.",
