@@ -19,6 +19,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@base-ui/react": "1.9.0",
     "@capacitor-community/apple-sign-in": "^7.1.0",
     "@capacitor/android": "^8.5.3",
     "@capacitor/app": "^8.1.2",
