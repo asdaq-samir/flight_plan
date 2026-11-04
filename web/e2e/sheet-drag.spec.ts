@@ -90,8 +90,10 @@ test("a drag held still before it is let go sets the sheet down where it is, not
   const panel = sideDrawer(page);
   // Down 110 from half, nearer half than the pill, held and let go: half
   // again. Its moves alone, let go at once, would have thrown it to the
-  // pill (useDetentDrag's SPEED_WINDOW).
-  const box = (await panel.getByTestId("tab-bar").boundingBox())!;
+  // pill (useDetentDrag's SPEED_WINDOW). By the grabber: the tabs are
+  // docked at the screen's foot, with no room under them to drag down.
+  await settled(panel);
+  const box = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
   await fingerDrag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 110, 600);
   await expect(panel).toHaveAttribute("data-panel", "half");
 });
@@ -103,12 +105,14 @@ test("a throw takes the sheet one size: from the pill half way, not all the way 
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel).toHaveAttribute("data-panel", "peek");
-  // A finger's flick on the tab bar: two moves as fast as they can be
-  // sent, let go at once -- thrown well past the next size.
+  // A finger's flick: two moves as fast as they can be sent, let go at
+  // once -- thrown well past the next size. Up on the tab bar, docked at
+  // the screen's foot and the sheet's handle as its grabber is; down on
+  // the grabber, the tabs having no room under them.
   const flick = async (dy: number) => {
-    // From the sheet at rest, its tabs where they stay.
+    // From the sheet at rest.
     await settled(panel);
-    const box = (await panel.getByTestId("tab-bar").boundingBox())!;
+    const box = (await (dy < 0 ? page.getByTestId("tab-bar") : page.getByTestId("sidebar-trigger-button")).boundingBox())!;
     const at = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     const cdp = await page.context().newCDPSession(page);
     const touch = (type: string, p?: { x: number; y: number }) =>
