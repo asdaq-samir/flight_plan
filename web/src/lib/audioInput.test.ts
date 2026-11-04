@@ -16,11 +16,14 @@ const PANEL = { id: "gma", label: "GMA 350c" };
 class FakeTrack extends EventTarget {
   kind = "audio";
   readyState: "live" | "ended" = "live";
+  muted = false;
   constructor(public label: string, public deviceId: string) { super(); }
   getSettings() { return { deviceId: this.deviceId }; }
   stop = vi.fn(() => { this.readyState = "ended"; });
   /** The device gone: as the browser ends a capture. */
   end() { this.readyState = "ended"; this.dispatchEvent(new Event("ended")); }
+  /** Paused by the phone (a call, Siri) and going on again. */
+  mute(on: boolean) { this.muted = on; this.dispatchEvent(new Event(on ? "mute" : "unmute")); }
   /** iOS moved the route: Safari renames the capture and says so. */
   reroute(label: string, deviceId: string) {
     this.label = label;
@@ -56,8 +59,9 @@ function mediaDevices() {
     enumerateDevices: vi.fn(async () => (granted
       ? present.map(d => ({ kind: "audioinput", deviceId: d.id, label: d.label, groupId: "" }))
       : [{ kind: "audioinput", deviceId: "", label: "", groupId: "" }])),
-    getUserMedia: vi.fn((constraints: { audio: true | { deviceId: { exact: string } } }) => {
-      const id = constraints.audio === true ? present[0]!.id : constraints.audio.deviceId.exact;
+    getUserMedia: vi.fn((constraints: { audio: { deviceId?: { exact: string } } }) => {
+      // No device asked for: the route's own, the first.
+      const id = constraints.audio.deviceId?.exact ?? present[0]!.id;
       const device = present.find(d => d.id === id);
       if (!device) return Promise.reject(Object.assign(new Error("no such device"), { name: "OverconstrainedError" }));
       const answer = () => {
@@ -137,26 +141,51 @@ describe("the inputs", () => {
 });
 
 describe("opening an input", () => {
-  test("an outside input by its exact id with the voice processing off; the phone's own by its id with it on; Find Inputs the default", async () => {
+  test("an outside input by its exact id with the voice processing off; the phone's own by its id with it asked on; Find Inputs the default, with it on", async () => {
     const devices = stubBrowser();
     const m = await load();
     const release = m.hold();
     await m.find();
     await settle();
-    expect(devices.getUserMedia).toHaveBeenLastCalledWith({ audio: true });
+    // On: a capture on iOS takes the shared unit's voice processing as an
+    // earlier one left it (WebKit's CoreAudioCaptureUnit).
+    expect(devices.getUserMedia).toHaveBeenLastCalledWith({ audio: { echoCancellation: true } });
     await m.pick("gma");
     expect(devices.getUserMedia).toHaveBeenLastCalledWith({
       audio: { deviceId: { exact: "gma" }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
     expect(m.heldTrack()?.label).toBe("GMA 350c");
-    expect(m.useAtcRadio.getState().input).toEqual({ label: "GMA 350c", outside: true, lost: false, instead: null });
+    expect(m.useAtcRadio.getState().input).toEqual({ label: "GMA 350c", outside: true, lost: false, why: null, instead: null, paused: false });
     // The one before is stopped once the new one is live, and its end is no loss.
     expect(tracks[0]!.stop).toHaveBeenCalled();
     await m.pick("iphone");
-    expect(devices.getUserMedia).toHaveBeenLastCalledWith({ audio: { deviceId: { exact: "iphone" } } });
-    expect(m.useAtcRadio.getState().input).toEqual({ label: "iPhone Microphone", outside: false, lost: false, instead: null });
+    expect(devices.getUserMedia).toHaveBeenLastCalledWith({ audio: { deviceId: { exact: "iphone" }, echoCancellation: true } });
+    expect(m.useAtcRadio.getState().input).toEqual({ label: "iPhone Microphone", outside: false, lost: false, why: null, instead: null, paused: false });
     expect(m.usePreferences.getState().listenInput).toEqual(IPHONE);
     release();
+  });
+
+  test("Find Inputs opens the outside input remembered, not the phone's own in its place", async () => {
+    const devices = stubBrowser();
+    const m = await load();
+    m.usePreferences.setState({ listenInput: PANEL });
+    const release = m.hold();
+    await m.find();
+    await settle();
+    expect(devices.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(devices.getUserMedia).toHaveBeenLastCalledWith({
+      audio: { deviceId: { exact: "gma" }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    expect(m.useInputs.getState()).toMatchObject({ found: true, chosen: "gma" });
+    release();
+  });
+
+  test("nothing is opened once nothing holds the input", async () => {
+    const devices = stubBrowser();
+    const m = await load();
+    await m.choose(PANEL);
+    expect(devices.getUserMedia).not.toHaveBeenCalled();
+    expect(contexts).toHaveLength(0);
   });
 
   test("Safari's session is play-and-record only once the track is live, and playback then auto as it is let go", async () => {
@@ -176,6 +205,31 @@ describe("opening an input", () => {
     expect(sessionLog).toEqual(["play-and-record", "playback", "auto"]);
   });
 
+  test("a switch puts the session back to auto before the capture, so play-and-record after it is a change WebKit takes", async () => {
+    stubBrowser();
+    const m = await load();
+    const release = m.hold();
+    await m.find();
+    await settle();
+    hold = true;
+    const picked = m.pick("gma");
+    expect(sessionLog).toEqual(["play-and-record", "auto"]);
+    pending.shift()!();
+    await picked;
+    expect(sessionLog).toEqual(["play-and-record", "auto", "play-and-record"]);
+    release();
+  });
+
+  test("refused in another browser: its own settings for the website", async () => {
+    const devices = stubBrowser({ userAgent: "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/142.0 Safari/537.36", audioSession: false });
+    devices.getUserMedia.mockImplementationOnce(() => Promise.reject(Object.assign(new Error("denied"), { name: "NotAllowedError" })));
+    const m = await load();
+    const release = m.hold();
+    await m.find();
+    expect(m.useInputs.getState().problem).toBe("Microphone access was refused; allow it in the browser's settings for this website.");
+    release();
+  });
+
   test("without navigator.audioSession (Chrome, Firefox) nothing throws", async () => {
     stubBrowser({ userAgent: "Mozilla/5.0 (Macintosh) Chrome/142.0", audioSession: false });
     const m = await load();
@@ -192,7 +246,8 @@ describe("opening an input", () => {
     const m = await load();
     const release = m.hold();
     await m.find();
-    expect(m.useInputs.getState().problem).toBe("Microphone access was refused; allow it for Wingtip Maps in Settings.");
+    // A website has no entry of its own in iOS's Settings.
+    expect(m.useInputs.getState().problem).toBe("Microphone access was refused; allow it in Safari's settings for this website.");
     // iOS 26's lost microphone (WebKit bug 319706): relaunch Safari.
     devices.getUserMedia.mockImplementationOnce(() => Promise.reject(Object.assign(new Error("No AVAudioSessionCaptureDevice"), { name: "NotAllowedError" })));
     await m.find();
@@ -213,34 +268,129 @@ describe("an input lost", () => {
     return { m, devices, release, track: tracks.at(-1)! };
   }
 
-  test("its track ended", async () => {
+  test("its track ended: no longer heard, not called disconnected while it is still listed", async () => {
     const { m, release, track } = await onThePanel();
     track.end();
-    expect(m.useAtcRadio.getState().input).toEqual({ label: "GMA 350c", outside: true, lost: true, instead: null });
-    expect(m.lostWords(m.useAtcRadio.getState().input!)).toBe("GMA 350c disconnected; hearing the default microphone");
+    expect(m.useAtcRadio.getState().input).toEqual({ label: "GMA 350c", outside: true, lost: true, why: "ended", instead: null, paused: false });
+    expect(m.lostWords(m.useAtcRadio.getState().input!)).toBe("GMA 350c is no longer heard; hearing the default microphone");
     // The recognizer is handed no ended track: it hears the default.
     expect(m.heldTrack()).toBeNull();
     release();
   });
 
-  test("no longer listed when the devices change", async () => {
+  test("no longer listed when the devices change: disconnected", async () => {
     const { m, devices, release } = await onThePanel();
     present = [IPHONE];
     devices.dispatchEvent(new Event("devicechange"));
     await settle();
-    expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", lost: true });
+    const input = m.useAtcRadio.getState().input!;
+    expect(input).toMatchObject({ label: "GMA 350c", lost: true, why: "disconnected" });
+    expect(m.lostWords(input)).toBe("GMA 350c disconnected; hearing the default microphone");
     release();
   });
 
-  test("the route fallen back to the iPhone's microphone, and back again", async () => {
+  test("the route moved to the iPhone's microphone with the panel still listed, and back again", async () => {
     const { m, release, track } = await onThePanel();
     track.reroute("iPhone Microphone", "iphone");
     const input = m.useAtcRadio.getState().input!;
-    expect(input).toEqual({ label: "GMA 350c", outside: true, lost: true, instead: "iPhone Microphone" });
-    expect(m.lostWords(input)).toBe("GMA 350c disconnected; hearing the iPhone microphone");
+    expect(input).toEqual({ label: "GMA 350c", outside: true, lost: true, why: "moved", instead: "iPhone Microphone", paused: false });
+    expect(m.lostWords(input)).toBe("Not hearing GMA 350c, the iPhone microphone took over; choose it again in Listen through");
+    // Not shown as chosen, so it can be chosen again.
+    expect(m.useInputs.getState().chosen).toBeNull();
     track.reroute("GMA 350c", "gma");
-    expect(m.useAtcRadio.getState().input).toEqual({ label: "GMA 350c", outside: true, lost: false, instead: null });
+    expect(m.useAtcRadio.getState().input).toEqual({ label: "GMA 350c", outside: true, lost: false, why: null, instead: null, paused: false });
     release();
+  });
+
+  test("paused by the phone, and going on", async () => {
+    const { m, release, track } = await onThePanel();
+    track.mute(true);
+    expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", lost: false, paused: true });
+    track.mute(false);
+    expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", lost: false, paused: false });
+    release();
+  });
+
+  test("its track ended and the panel back: the next listening opens it again", async () => {
+    const { m, devices, release, track } = await onThePanel();
+    track.end();
+    const listening = m.holdForListening();
+    expect(devices.getUserMedia).toHaveBeenLastCalledWith({
+      audio: { deviceId: { exact: "gma" }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    await settle();
+    expect(listening.track()?.label).toBe("GMA 350c");
+    expect(listening.track()).not.toBe(track);
+    expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", lost: false });
+    listening.release();
+    release();
+  });
+});
+
+describe("the list a hint", () => {
+  test("a panel back while nothing held an input, not in the list kept: asked for by its id all the same, and not called lost", async () => {
+    const devices = stubBrowser();
+    const m = await load();
+    const card = m.hold();
+    await m.find();
+    await settle();
+    await m.pick("gma");
+    await settle();
+    // The master off: the panel leaves the list; then nothing holds an input.
+    present = [IPHONE];
+    devices.dispatchEvent(new Event("devicechange"));
+    await settle();
+    card();
+    // The master on again, unheard: nothing listened for devices.
+    present = [IPHONE, PANEL];
+    const seen: (boolean | undefined)[] = [];
+    const off = m.useAtcRadio.subscribe(s => seen.push(s.input?.lost));
+    const listening = m.holdForListening();
+    expect(devices.getUserMedia).toHaveBeenLastCalledWith({
+      audio: { deviceId: { exact: "gma" }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+    });
+    for (let i = 0; i < 3; i++) await settle();
+    expect(listening.track()?.label).toBe("GMA 350c");
+    expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", lost: false });
+    expect(m.useInputs.getState().problem).toBeNull();
+    // Never said lost on the way, the list read before it was named.
+    expect(seen).not.toContain(true);
+    off();
+    listening.release();
+  });
+
+  test("the panel remembered not connected as listening begins: said as not found, with what is heard instead", async () => {
+    stubBrowser();
+    present = [IPHONE];
+    const m = await load();
+    m.usePreferences.setState({ listenInput: PANEL });
+    const listening = m.holdForListening();
+    for (let i = 0; i < 6; i++) await settle();
+    const input = m.useAtcRadio.getState().input!;
+    expect(input).toEqual({ label: "GMA 350c", outside: true, lost: true, why: "missing", instead: "iPhone Microphone", paused: false });
+    expect(m.lostWords(input)).toBe("GMA 350c not found; hearing the iPhone microphone");
+    expect(m.useInputs.getState().problem).toBe("GMA 350c could not be found; check it is connected.");
+    listening.release();
+    expect(m.useAtcRadio.getState().input).toBeNull();
+  });
+
+  test("listening ended while the default was being opened in a private window: nothing more is opened", async () => {
+    const devices = stubBrowser();
+    const m = await load();
+    m.usePreferences.setState({ listenInput: { id: "old-id", label: "GMA 350c" } });
+    hold = true;
+    const listening = m.holdForListening();
+    await settle();
+    // The id refused; the default asked for, its prompt not yet answered.
+    expect(devices.getUserMedia).toHaveBeenCalledTimes(2);
+    listening.release();
+    pending.shift()!();
+    for (let i = 0; i < 5; i++) await settle();
+    expect(devices.getUserMedia).toHaveBeenCalledTimes(2);
+    expect(tracks.every(t => t.readyState === "ended")).toBe(true);
+    // Only the one context, shut with the release.
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.state).toBe("closed");
   });
 });
 

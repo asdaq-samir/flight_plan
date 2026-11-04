@@ -8,7 +8,7 @@
  * the tap, as Safari asks.
  */
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { listen, NO_MICROPHONE, takesTrack } from "./listen";
+import { listen, noMicrophone, takesTrack } from "./listen";
 
 class Recognizer {
   static made: Recognizer[] = [];
@@ -92,14 +92,21 @@ describe("the recognizer's input", () => {
 });
 
 describe("its failures", () => {
-  test("no microphone: what to check, and Safari opened again (WebKit bug 319706)", async () => {
+  test("no microphone on an iPhone: what to check, and Safari opened again (WebKit bug 319706)", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 Version/26.1 Mobile/15E148 Safari/604.1" });
     const ended = vi.fn();
     await listen([], undefined, () => {}, ended);
     Recognizer.made[0]!.onerror!({ error: "audio-capture" });
     Recognizer.made[0]!.onend!();
-    expect(ended).toHaveBeenCalledWith(NO_MICROPHONE);
     // clearance.spec's prefix kept.
-    expect(NO_MICROPHONE).toMatch(/^No microphone could be used\. If a Bluetooth audio panel or headset was the input, check it is still connected; if it is, close Safari and open it again\.$/);
+    expect(ended).toHaveBeenCalledWith("No microphone could be used. If a Bluetooth audio panel or headset was the input, check it is still connected; if it is, close Safari and open it again.");
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (iPhone; CPU iPhone OS 26_1 like Mac OS X) AppleWebKit/605.1.15 CriOS/142.0 Mobile/15E148 Safari/604.1" });
+    expect(noMicrophone()).toMatch(/; if it is, close the browser and open it again\.$/);
+  });
+
+  test("no microphone elsewhere: the page reloaded, not Safari", () => {
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/142.0 Safari/537.36", maxTouchPoints: 0 });
+    expect(noMicrophone()).toBe("No microphone could be used. If a Bluetooth audio panel or headset was the input, check it is still connected; if it is, reload the page.");
   });
 });
 
@@ -111,6 +118,9 @@ describe("which recognizers take a track", () => {
     expect(takesTrack()).toBe(false);
     vi.stubGlobal("SpeechRecognition", Recognizer);
     vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Linux; Android 15) Chrome/142.0 Mobile" });
+    expect(takesTrack()).toBe(false);
+    // ChromeOS: Chromium's MediaStreamTrackWebSpeech is not stable there.
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (X11; CrOS x86_64 16181.0.0) AppleWebKit/537.36 Chrome/142.0 Safari/537.36" });
     expect(takesTrack()).toBe(false);
   });
 });

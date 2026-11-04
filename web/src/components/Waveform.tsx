@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { cn } from "cn";
 import { inputLevel } from "../lib/atcRadio";
+import { prefersReducedMotion } from "../lib/motion";
 
 /** Each bar's share of the level, the middle one tallest, as Siri's. */
 const SHAPE = [0.55, 0.8, 1, 0.8, 0.55];
@@ -17,6 +18,12 @@ const REST = "scaleY(0.4)";
  * radio reaching the phone from the recognizer missing it (the owner's
  * Bluetooth ask, 2026-11-04). Written through refs, ten times a second,
  * re-rendering nothing; with no input metered, the bars' own loop.
+ *
+ * Under Reduce Motion the bars do not move: index.css stills only CSS
+ * animations, so the level, written from script, asks lib/motion as the
+ * map's flights do, and is shown as the bars' strength at their resting
+ * height, changed twice a second -- a fade in place of motion, as Apple's
+ * guidelines have it.
  */
 export default function Waveform({ live = false, className }: { live?: boolean; className?: string }) {
   const bars = useRef<(HTMLSpanElement | null)[]>([]);
@@ -27,15 +34,30 @@ export default function Waveform({ live = false, className }: { live?: boolean; 
       if (!el) return;
       el.style.animation = "";
       el.style.transform = REST;
+      el.style.opacity = "";
     });
+    let shown = 0;
     const off = inputLevel.listen(level => {
       if (level === null) {
         rest();
         return;
       }
+      if (prefersReducedMotion()) {
+        const now = Date.now();
+        if (now - shown < 500) return;
+        shown = now;
+        els.forEach(el => {
+          if (!el) return;
+          el.style.animation = "none";
+          el.style.transform = REST;
+          el.style.opacity = (0.3 + 0.7 * level).toFixed(2);
+        });
+        return;
+      }
       els.forEach((el, i) => {
         if (!el) return;
         el.style.animation = "none";
+        el.style.opacity = "";
         el.style.transform = `scaleY(${(0.15 + 0.85 * level * SHAPE[i]!).toFixed(3)})`;
       });
     });

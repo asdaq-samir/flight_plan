@@ -27,9 +27,9 @@ let pending: (() => void)[];
 function stubBrowser() {
   const devices = Object.assign(new EventTarget(), {
     enumerateDevices: vi.fn(async () => [{ kind: "audioinput", deviceId: "gma", label: "GMA 350c", groupId: "" }]),
-    getUserMedia: vi.fn((constraints: { audio: true | { deviceId: { exact: string } } }) => {
+    getUserMedia: vi.fn((constraints: { audio: { deviceId?: { exact: string } } }) => {
       order.push("capture");
-      const label = constraints.audio === true ? "iPhone Microphone" : "GMA 350c";
+      const label = constraints.audio.deviceId ? "GMA 350c" : "iPhone Microphone";
       const track = Object.assign(new EventTarget(), { kind: "audio", readyState: "live", label, getSettings: () => ({ deviceId: "gma" }), stop: vi.fn() });
       const stream = { getAudioTracks: () => [track], getTracks: () => [track] };
       return new Promise(resolve => pending.push(() => resolve(stream)));
@@ -103,8 +103,9 @@ describe("listening through the input held", () => {
 });
 
 describe("nothing heard", () => {
-  test("through an outside input, the pill names it", async () => {
+  test("through an outside input the recognizer is handed (Chrome and Edge, Firefox, on the desktop), the pill names it, in words for a panel or a cable", async () => {
     stubBrowser();
+    vi.stubGlobal("SpeechRecognition", class {});
     const m = await load();
     m.usePreferences.setState({ listenInput: PANEL });
     await m.listenOnce([]);
@@ -112,7 +113,20 @@ describe("nothing heard", () => {
     await settle();
     expect(m.useAtcRadio.getState().pill?.listening).toBe(true);
     sessions[0]!.onEnded();
-    expect(m.useAtcRadio.getState().pill?.error).toBe("Nothing was heard through GMA 350c. Check its Bluetooth recording mode is on.");
+    expect(m.useAtcRadio.getState().pill?.error)
+      .toBe("Nothing was heard through GMA 350c. Check it is sending the radio: an audio panel's recording mode, or the cable.");
+  });
+
+  test("in Safari, whose recognizer is not known to hear the input held, the words as they were", async () => {
+    stubBrowser();
+    const m = await load();
+    m.usePreferences.setState({ listenInput: PANEL });
+    await m.listenOnce([]);
+    pending.shift()!();
+    await settle();
+    expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", lost: false });
+    sessions[0]!.onEnded();
+    expect(m.useAtcRadio.getState().pill?.error).toBe("Nothing was heard. Tap the microphone and speak, or hold the phone to the speaker.");
   });
 
   test("through the phone's own microphone, the words as they were", async () => {
@@ -121,5 +135,20 @@ describe("nothing heard", () => {
     await m.listenOnce([]);
     sessions[0]!.onEnded();
     expect(m.useAtcRadio.getState().pill?.error).toBe("Nothing was heard. Tap the microphone and speak, or hold the phone to the speaker.");
+  });
+});
+
+describe("one recognizer at a time", () => {
+  test("the radio or the microphone started stops the ATIS being heard first", async () => {
+    stubBrowser();
+    const m = await load();
+    const atis = vi.fn();
+    m.useAtcRadio.setState({ atisStop: atis });
+    await m.listenOnce([]);
+    expect(atis).toHaveBeenCalledTimes(1);
+    m.stopRadio();
+    await m.startRadio([]);
+    expect(atis).toHaveBeenCalledTimes(2);
+    m.stopRadio();
   });
 });

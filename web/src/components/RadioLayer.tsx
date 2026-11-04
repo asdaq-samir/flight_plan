@@ -6,7 +6,7 @@ import { GLASS } from "./mapChrome";
 import Waveform from "./Waveform";
 import { Button } from "./ui/button";
 import { api } from "../lib/api/client";
-import { callToUs, lostWords, useAtcRadio, useRadioActions, type HeardInput, type Transmission } from "../lib/atcRadio";
+import { callToUs, chosenOutside, heardThrough, lostWords, useAtcRadio, useRadioActions, type Transmission } from "../lib/atcRadio";
 import { clearedRoute, heardAny, placesAsked, readClearance, type Found } from "../lib/clearance";
 import { stopwatch } from "../lib/diversion";
 import { callOf } from "../lib/heardCall";
@@ -22,12 +22,6 @@ const capital = (words: string) => words.replace(/\b[a-z]/g, ch => ch.toUpperCas
 const named = (words: string) => (/[a-z]/.test(words) ? capital(words) : words);
 
 const CHIP = "rounded-full text-tint";
-
-/** An outside input held and heard, by its name (lib/audioInput): the
- *  pill and the captions say it, the owner having asked whether the mic
- *  can hear the radio itself (2026-11-04); the phone's own microphone
- *  leaves the words as they were. */
-const through = (input: HeardInput | null) => (input && input.outside && !input.lost ? input.label : null);
 
 /** The listening code (lib/atcListening), fetched as the pill comes so a
  *  chip's tap starts the readback at once: Safari lets a page listen only
@@ -274,8 +268,14 @@ export function RadioPill() {
   const readback = pill.readbackOf ?? null;
   // The input chosen gone while listening: said in the line, as an error is.
   const lost = pill.listening && input?.lost ? lostWords(input) : null;
-  const name = through(input);
-  const waiting = readback ? "Read it back…" : name ? `Listening through ${name}…` : "Listening…";
+  // An outside input by its name (lib/audioInput), the owner having asked
+  // whether the mic can hear the radio itself (2026-11-04): heard through
+  // where the recognizer is known to take it, else only chosen (lib/
+  // atcRadio's heardThrough); the phone's own microphone leaves the words
+  // as they were.
+  const name = heardThrough(input);
+  const chosen = chosenOutside(input);
+  const waiting = readback ? "Read it back…" : name ? `Listening through ${name}…` : chosen ? `Listening with ${chosen} chosen…` : "Listening…";
   return (
     <div className="min-w-0 py-1 px-1" data-testid="radio-pill">
       <div className="flex items-center gap-2">
@@ -333,7 +333,8 @@ function RadioCall({ call }: { call: Transmission }) {
 function RadioCaptions() {
   const { listening, error, heard, input } = useAtcRadio();
   const lines = heard.slice(-2);
-  const name = through(input);
+  const name = heardThrough(input);
+  const chosen = chosenOutside(input);
   const lost = input?.lost ? lostWords(input) : null;
   return (
     <button
@@ -351,7 +352,9 @@ function RadioCaptions() {
         {error && <span className="text-caution-ink">{error}</span>}
         {!error && lost && <span className="text-caution-ink" data-testid="radio-captions-lost">{lost}</span>}
         {!error && !lost && !lines.length && (
-          <span className="text-muted-foreground">{name ? `Listening to the radio through ${name}…` : "Listening to the radio…"}</span>
+          <span className="text-muted-foreground">
+            {name ? `Listening to the radio through ${name}…` : chosen ? `Listening to the radio with ${chosen} chosen…` : "Listening to the radio…"}
+          </span>
         )}
         {lines.map(t => (
           <span key={t.id} className={cn("line-clamp-2", t.forUs ? "font-semibold text-tint" : "text-foreground", !t.final && "opacity-80")}>

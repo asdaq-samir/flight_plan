@@ -30,8 +30,8 @@
  * nothing, and listening is as it always was.
  */
 import { create } from "zustand";
-import { inputLevel, useAtcRadio } from "./atcRadio";
-import { NO_MICROPHONE, takesTrack } from "./listen";
+import { inputLevel, useAtcRadio, type HeardInput } from "./atcRadio";
+import { noMicrophone, takesTrack } from "./listen";
 import { inNativeApp } from "./native";
 import { usePreferences } from "./preferences";
 
@@ -130,6 +130,10 @@ let source: MediaStreamAudioSourceNode | null = null;
 let meter: ReturnType<typeof setInterval> | null = null;
 let sessionSet = false;
 let watching = false;
+/** An outside input asked for that could not be opened -- the one
+ *  remembered, not connected as listening began -- said as lost until it
+ *  is had, another is chosen, or the input is let go. */
+let missing: InputChoice | null = null;
 const switched = new Set<() => void>();
 
 const devices = () => navigator.mediaDevices;
@@ -138,11 +142,6 @@ const devices = () => navigator.mediaDevices;
 export function heldTrack(): MediaStreamTrack | null {
   const track = held?.track;
   return track && track.readyState === "live" ? track : null;
-}
-
-/** Whether an input is held or being opened. */
-export function holding(): boolean {
-  return !!held || opening;
 }
 
 /** Called each time a new track is held; returns its unsubscribe. */
@@ -201,10 +200,14 @@ export async function refresh(): Promise<void> {
   }
 }
 
-/** Opens the default input, the tap that lets the page list the inputs by
- *  name (the picker's Find Inputs). */
+/** Opens an input, the tap that lets the page list the inputs by name (the
+ *  picker's Find Inputs): the outside input remembered where there is
+ *  one, so that finding the inputs does not put the phone's own
+ *  microphone in its place (a plain capture on an iPhone mostly lands on
+ *  it, WebKit bug 282939), else the default. */
 export function find(): Promise<void> {
-  return choose(null);
+  const want = remembered();
+  return choose(want && isOutside(want.label) ? want : null);
 }
 
 /** One of the listed inputs picked, remembered for the next listening. */
@@ -222,17 +225,20 @@ export function pick(id: string): Promise<void> {
  * tap. An outside input is opened with the browser's voice processing off,
  * which on iOS takes the shared capture unit off voice processing for the
  * recognizer too (WebKit's CoreAudioCaptureUnit; untested on a phone); the
- * phone's own microphone keeps it, as listening always had it.
+ * phone's own microphone asks for it on, as listening always had it.
+ *
+ * Nothing is opened once nothing holds the input: an answer that comes
+ * after listening ended starts no context and no capture.
  */
 export function choose(want: InputChoice | null): Promise<void> {
-  if (!canPickInput()) return Promise.resolve();
+  if (!canPickInput() || holds === 0) return Promise.resolve();
   startContext();
   const { found, inputs, chosen } = useInputs.getState();
+  // The list is a hint, not a gate: it is not read again while nothing
+  // holds an input, so a panel back since then (the avionics master on
+  // again after the engine's start) is asked for by its id all the same,
+  // and a real absence is the browser's answer (failed).
   const known = want && found ? matchInput(inputs, want) : null;
-  if (want && found && !known) {
-    useInputs.setState({ problem: `${want.label} could not be found; check it is connected.` });
-    return Promise.resolve();
-  }
   // The one already held and live: nothing to open again.
   if (known && known.id === chosen && heldTrack() && !opening) return Promise.resolve();
   const gen = ++generation;
@@ -244,6 +250,12 @@ export function choose(want: InputChoice | null): Promise<void> {
   const before = held;
   before?.detach();
   opening = true;
+  // A switch, too, puts Safari's session back to auto before the capture,
+  // the first step of WebKit bug 282939 comment 6: WebKit takes a type set
+  // again as no change (AudioSession::setCategoryOverride returns where the
+  // category is the one it has), so only after auto is adopt's
+  // play-and-record the change that moves iOS to the input.
+  if (sessionSet) setSession("auto");
   let asked: Promise<MediaStream>;
   try {
     asked = devices().getUserMedia({ audio: constraintsFor(target, outside) });
@@ -252,15 +264,19 @@ export function choose(want: InputChoice | null): Promise<void> {
   }
   return asked.then(
     stream => adopt(stream, gen, target, before),
-    err => failed(err, gen, want, target, before),
+    err => failed(err, gen, want, target, before, !!known),
   );
 }
 
-function constraintsFor(target: InputChoice | null, outside: boolean): MediaTrackConstraints | true {
-  if (!target) return true;
+/** The device's own microphone asks for the voice processing listening
+ *  always had: on iOS a new capture takes the shared unit's state as it
+ *  stands (WebKit's CoreAudioCaptureUnit; the research's claim 28), which
+ *  an outside input opened before has turned off. */
+function constraintsFor(target: InputChoice | null, outside: boolean): MediaTrackConstraints {
+  if (!target) return { echoCancellation: true };
   return outside
     ? { deviceId: { exact: target.id }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
-    : { deviceId: { exact: target.id } };
+    : { deviceId: { exact: target.id }, echoCancellation: true };
 }
 
 function adopt(stream: MediaStream, gen: number, target: InputChoice | null, before: Held | null) {
@@ -275,42 +291,73 @@ function adopt(stream: MediaStream, gen: number, target: InputChoice | null, bef
   const next: Held = { stream, track, id: target?.id ?? settingsId(track), label, outside: isOutside(label), detach: () => {} };
   next.detach = attach(next);
   held = next;
+  // Asked for by name and had: nothing chosen is missing any more. The
+  // default, opened in a missing one's place, leaves it said.
+  if (target) missing = null;
   if (before && before.track !== track) before.stream.getTracks().forEach(t => t.stop());
   // Only once the track is live: WebKit bug 282939 comment 6 found that
   // "play-and-record" set after the capture is what moves iOS to the
   // headset, and "playback" then "auto" after it full quality again.
   setSession("play-and-record");
+  sessionSet = true;
   meterOn(stream);
   useInputs.setState({ problem: null });
-  publish();
+  // A panel back while nothing held an input is not in the list yet: the
+  // list is read again before what is live is said, not called gone.
+  const { found, inputs } = useInputs.getState();
+  if (!found || matchInput(inputs, { id: next.id, label })) publish();
   void refresh().then(publish);
   for (const fn of [...switched]) fn();
 }
 
-function failed(err: unknown, gen: number, want: InputChoice | null, target: InputChoice | null, before: Held | null): Promise<void> | void {
+function failed(
+  err: unknown, gen: number, want: InputChoice | null, target: InputChoice | null, before: Held | null, listed: boolean,
+): Promise<void> | void {
   if (gen !== generation) return;
   opening = false;
   const name = (err as { name?: unknown } | null)?.name;
-  // A remembered input's id unknown to this page load (a private window
-  // gives devices other ids): the default input is opened, which lets the
-  // inputs be listed, and the one with its name is chosen from them.
-  if (want && !useInputs.getState().found && (name === "OverconstrainedError" || name === "NotFoundError")) {
-    return choose(null).then(refresh).then(() => {
+  const absent = name === "OverconstrainedError" || name === "NotFoundError";
+  // An input asked for by an id this page load does not list (a private
+  // window gives devices other ids; a panel back since the list was read):
+  // the default input is opened, which lets the inputs be listed, and the
+  // one with its name is chosen from them -- unless listening ended or
+  // another was asked for meanwhile.
+  if (want && !listed && absent) {
+    const fallback = choose(null);
+    const mine = generation;
+    return fallback.then(refresh).then(() => {
+      if (generation !== mine || holds === 0) return;
       const named = matchInput(useInputs.getState().inputs, { id: "", label: want.label });
       if (named && named.id !== useInputs.getState().chosen) return choose(named);
-      if (!named) useInputs.setState({ problem: `${want.label} could not be found; check it is connected.` });
+      // The default is the one wanted, under its id here.
+      if (named) {
+        missing = null;
+        publish();
+        return;
+      }
+      if (isOutside(want.label)) missing = want;
+      publish();
+      useInputs.setState({ problem: `${want.label} could not be found; check it is connected.` });
     });
   }
+  // An outside input not to be had is said as lost where listening shows,
+  // with what is heard instead, not left to the card's line alone.
+  if (want && absent && isOutside(want.label)) missing = want;
   if (before) reattach(before);
+  else publish();
   useInputs.setState({ problem: failWords(err, target?.label ?? null) });
 }
 
-/** Why a capture was refused, in a pilot's words. */
+/** Why a capture was refused, in a pilot's words. Only ever in a browser
+ *  (canPickInput), where a website has no entry of its own in iOS's
+ *  Settings: the browser's own settings for the site allow it. */
 function failWords(err: unknown, label: string | null): string {
   const { name, message } = (err ?? {}) as { name?: unknown; message?: unknown };
-  if (typeof message === "string" && /AVAudioSessionCaptureDevice/.test(message)) return NO_MICROPHONE;
+  if (typeof message === "string" && /AVAudioSessionCaptureDevice/.test(message)) return noMicrophone();
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Microphone access was refused; allow it for Wingtip Maps in Settings.";
+    const ua = navigator.userAgent ?? "";
+    const safari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|Edg\//.test(ua);
+    return `Microphone access was refused; allow it in ${safari ? "Safari's" : "the browser's"} settings for this website.`;
   }
   if (name === "NotFoundError" || name === "OverconstrainedError") {
     return `${label ?? "The microphone"} could not be found; check it is connected.`;
@@ -318,7 +365,7 @@ function failWords(err: unknown, label: string | null): string {
   if (name === "NotReadableError" || name === "AbortError") {
     return `${label ?? "The microphone"} could not be used; another app may have it.`;
   }
-  return NO_MICROPHONE;
+  return noMicrophone();
 }
 
 function settingsId(track: MediaStreamTrack): string {
@@ -339,9 +386,12 @@ function attach(h: Held): () => void {
   return () => { for (const e of events) h.track.removeEventListener(e, on); };
 }
 
+/** Back on the input held before a switch that failed, its session as it
+ *  was: the switch had put it back to auto. */
 function reattach(h: Held) {
   h.detach = attach(h);
   held = h;
+  if (sessionSet) setSession("play-and-record");
   publish();
 }
 
@@ -361,28 +411,36 @@ function watch() {
 
 /**
  * What is live, put in the radio's store: the track's own name now, or,
- * where the outside input chosen has gone -- its track ended, it is no
- * longer listed, or the route fell back to the device's own microphone --
- * that it is lost, and what is heard instead. Read at every input event
+ * where the outside input chosen is not heard, that it is lost, why as far
+ * as the page knows -- no longer listed, its track ended, the route moved
+ * to the device's own microphone, or not to be had at all -- and what is
+ * heard instead; and whether the capture is paused (muted), when no sound
+ * reaches the page whatever the input sends. Read at every input event
  * and a second after listening starts (lib/atcListening), as starting
  * Safari's recognizer may move the route itself.
  */
 export function publish() {
   const h = held;
-  if (!h) return;
+  if (!h) {
+    // An outside input wanted and not had, nothing in its place: the
+    // recognizer hears the default.
+    if (missing) useAtcRadio.setState({ input: { label: missing.label, outside: true, lost: true, why: "missing", instead: null, paused: false } });
+    return;
+  }
   const { track } = h;
   const live = track.readyState === "live";
   const now = track.label || h.label;
   const { found, inputs } = useInputs.getState();
   const gone = found && !matchInput(inputs, { id: h.id, label: h.label });
   const fellBack = live && !!track.label && !isOutside(track.label);
-  const lost = h.outside && (!live || gone || fellBack);
-  useAtcRadio.setState({
-    input: lost
-      ? { label: h.label, outside: true, lost: true, instead: fellBack ? track.label : null }
-      : { label: now, outside: isOutside(now), lost: false, instead: null },
-  });
-  useInputs.setState({ chosen: lost ? null : (matchInput(inputs, { id: live ? settingsId(track) || h.id : h.id, label: now })?.id ?? null) });
+  const why: HeardInput["why"] = !h.outside ? null : gone ? "disconnected" : !live ? "ended" : fellBack ? "moved" : null;
+  const input: HeardInput = why
+    ? { label: h.label, outside: true, lost: true, why, instead: fellBack ? track.label : null, paused: false }
+    : missing && !isOutside(now)
+      ? { label: missing.label, outside: true, lost: true, why: "missing", instead: live ? now : null, paused: false }
+      : { label: now, outside: isOutside(now), lost: false, why: null, instead: null, paused: live && !!track.muted };
+  useAtcRadio.setState({ input });
+  useInputs.setState({ chosen: input.lost ? null : (matchInput(inputs, { id: live ? settingsId(track) || h.id : h.id, label: now })?.id ?? null) });
 }
 
 function startContext() {
@@ -423,7 +481,6 @@ function setSession(type: "play-and-record" | "playback" | "auto") {
   if (!session) return;
   try {
     session.type = type;
-    sessionSet = type !== "auto";
   } catch {
     // Safari 16.4+ only; elsewhere the session is the browser's.
   }
@@ -453,7 +510,9 @@ function letGo() {
   if (sessionSet) {
     setSession("playback");
     setSession("auto");
+    sessionSet = false;
   }
+  missing = null;
   if (watching) {
     try {
       devices().removeEventListener?.("devicechange", onDeviceChange);
@@ -487,7 +546,10 @@ export interface ListeningHold {
 export function holdForListening(): ListeningHold {
   if (!canPickInput()) return { track: () => null, follow: () => {}, release: () => {} };
   const release = hold();
-  if (!holding()) {
+  // Nothing live held, or the outside input chosen not heard (its track
+  // ended as the panel dropped, and the panel back since): the one
+  // remembered is asked for again, unless one is being opened.
+  if (!opening && (!heldTrack() || useAtcRadio.getState().input?.lost)) {
     const want = remembered();
     if (want && isOutside(want.label)) void choose(want);
   }

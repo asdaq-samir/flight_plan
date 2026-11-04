@@ -23,8 +23,9 @@ async function stubs(page: Page) {
     devices.enumerateDevices = async () => (granted
       ? present.map(d => ({ kind: "audioinput", deviceId: d.id, label: d.label, groupId: "g" }))
       : [{ kind: "audioinput", deviceId: "", label: "", groupId: "" }]);
-    devices.getUserMedia = (constraints: { audio: true | { deviceId: { exact: string } } }) => {
-      const id = constraints.audio === true ? present[0]!.id : constraints.audio.deviceId.exact;
+    devices.getUserMedia = (constraints: { audio: { deviceId?: { exact: string } } }) => {
+      // No device asked for: the route's own, the first.
+      const id = constraints.audio.deviceId?.exact ?? present[0]!.id;
       const device = present.find(d => d.id === id);
       if (!device) return Promise.reject(Object.assign(new Error("gone"), { name: "OverconstrainedError" }));
       granted = true;
@@ -94,8 +95,21 @@ test("the Radio card finds the inputs, listens through the one picked with its l
   const card = page.getByTestId("clearance-card");
   await expect(card).toBeVisible({ timeout: slow(10_000) });
 
-  // Hear is open with nothing heard: Find Inputs, then the menu.
-  await card.getByTestId("listen-find").click();
+  // Hear is open with nothing heard: Find Inputs, its 44-point area
+  // meeting the Hear row's foot, not lying over it (index.css's rule).
+  const find = card.getByTestId("listen-find");
+  await expect(find).toBeVisible();
+  const row = (await card.getByTestId("clearance-row-hear").boundingBox())!;
+  const findBox = (await find.boundingBox())!;
+  const atRowFoot = await page.evaluate(([x, y]) => {
+    const hit = document.elementFromPoint(x!, y!);
+    return !!hit?.closest("[data-testid=clearance-row-hear]") && !hit.closest("[data-testid=listen-find]");
+  }, [findBox.x + findBox.width / 2, row.y + row.height - 2]);
+  expect(atRowFoot).toBe(true);
+  // Its name on one line, not broken over two in a column too narrow.
+  const name = (await card.getByTestId("listen-through").getByText("Listen through", { exact: true }).boundingBox())!;
+  expect(name.height).toBeLessThan(findBox.height * 1.5);
+  await find.click();
   const menu = card.getByTestId("listen-input");
   await expect(menu).toBeVisible({ timeout: slow(10_000) });
   await menu.click();
@@ -116,11 +130,11 @@ test("the Radio card finds the inputs, listens through the one picked with its l
   await expect(captions).toContainText("Listening to the radio through GMA 350c…", { timeout: slow(10_000) });
   expect(await page.evaluate(() => (window as unknown as { __starts: (string | null)[] }).__starts.at(-1))).toBe("GMA 350c");
 
-  // The panel switched off: the captions and the card say so.
+  // The panel switched off: the captions and the card, under the picker, say so.
   await page.evaluate(() => (window as unknown as { __panelGone: () => void }).__panelGone());
   const lost = "GMA 350c disconnected; hearing the default microphone";
   await expect(captions).toContainText(lost, { timeout: slow(10_000) });
-  await expect(card.getByTestId("clearance-error")).toHaveText(lost);
+  await expect(card.getByTestId("listen-problem")).toHaveText(lost);
 
   // Nothing moved: the mic is where map-mic.spec has it.
   const box = (await mic.boundingBox())!;

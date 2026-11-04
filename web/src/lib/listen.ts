@@ -79,15 +79,29 @@ export function canListen(): boolean {
  * whatever input is the default, given a track or not.
  */
 export function takesTrack(): boolean {
-  if (typeof window === "undefined" || inNativeApp() || /Android/.test(navigator.userAgent)) return false;
+  // ChromeOS too has the unprefixed recognizer without the track: Chromium's
+  // MediaStreamTrackWebSpeech flag is stable on Linux, Mac and Windows
+  // only (runtime_enabled_features.json5), and start(track) falls back to
+  // start() under WebIDL elsewhere.
+  if (typeof window === "undefined" || inNativeApp() || /Android|CrOS/.test(navigator.userAgent)) return false;
   return typeof (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition === "function";
 }
 
-/** No microphone could be had. Safari on iOS 26.3 to 26.6 loses the
- *  microphone after a media-services reset until it is opened again
- *  (WebKit bug 319706; its fix is on the 7625 line, Safari 27, not 26.x),
- *  and a Bluetooth panel or headset may simply have gone. */
-export const NO_MICROPHONE = "No microphone could be used. If a Bluetooth audio panel or headset was the input, check it is still connected; if it is, close Safari and open it again.";
+/** No microphone could be had, and what to try, by where. A Bluetooth
+ *  panel or headset may simply have gone. Safari on iOS 26.3 to 26.6
+ *  loses the microphone after a media-services reset until it is opened
+ *  again (WebKit bug 319706; its fix is on the 7625 line, Safari 27, not
+ *  26.x), and every browser on an iPhone or iPad is WebKit; elsewhere a
+ *  reload asks again. The apps' Speech plugins do not take Bluetooth
+ *  inputs, so they keep the words they always had. */
+export function noMicrophone(): string {
+  if (inNativeApp()) return "No microphone could be used.";
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent ?? "" : "";
+  // iPadOS's Safari says it is a Mac; a touch screen gives it away.
+  const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints ?? 0) > 1);
+  const again = !ios ? "reload the page" : /CriOS|FxiOS|EdgiOS/.test(ua) ? "close the browser and open it again" : "close Safari and open it again";
+  return `No microphone could be used. If a Bluetooth audio panel or headset was the input, check it is still connected; if it is, ${again}.`;
+}
 
 /** The recognizer's refusal or failure in a pilot's words. */
 function errorWords(code: string): string {
@@ -95,7 +109,7 @@ function errorWords(code: string): string {
     return "Microphone or speech recognition access was refused; allow it for Wingtip Maps in Settings.";
   }
   if (code === "network") return "Speech recognition needs the internet here; type the clearance instead.";
-  if (code === "audio-capture") return NO_MICROPHONE;
+  if (code === "audio-capture") return noMicrophone();
   return code;
 }
 
