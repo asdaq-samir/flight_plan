@@ -10,6 +10,8 @@ import { TEXT } from "../../lib/text";
 /** A card of the strip: 18-point corners, white on the sheet's grey, a
  *  hair of shadow (the canvas's boards). */
 export const STRIP_CARD = "rounded-[18px] bg-card shadow-[0_1px_4px_rgb(0_0_0/0.08)]";
+/** Whether the head carries the destination's aerial behind the verdict. */
+const HEAD_PHOTO = false;
 
 /**
  * The strip's head: the verdict -- go, caution or no-go, in the Brief's
@@ -36,8 +38,11 @@ export default function StripHead({ dest, verdict, line, actions, onAction, onBr
   onWay?: (key: string) => void;
 }) {
   // The photo as it comes: none until the planner answers, and none for
-  // good where it has no aerial for the field (a 404).
-  const [photo, setPhoto] = useState<"loading" | "shown" | "none">("loading");
+  // good where it has no aerial for the field (a 404). Off for now: of
+  // the canvas's looks the owner kept the chart's ink and the glass
+  // cockpit alone (2026-11-04, "I like chart ink and glass cockpit
+  // only"), so the head is a paper card and the picture waits.
+  const [photo, setPhoto] = useState<"loading" | "shown" | "none">(HEAD_PHOTO ? "loading" : "none");
   const pictured = photo === "shown";
   return (
     <section className="flex flex-col gap-2" aria-label="The flight" data-testid="strip-head">
