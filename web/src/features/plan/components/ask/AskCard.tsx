@@ -33,14 +33,23 @@ function Turn({ turn }: { turn: AskTurn }) {
           <Spinner aria-hidden />{turn.status}…
         </p>
       )}
-      {turn.answer && (
-        <p className={cn("tabular-nums whitespace-pre-wrap", TEXT.prose)} data-testid="ask-answer">{turn.answer}</p>
+      {/* The answer as the assistant's own message: a white card at the
+          left with its chips inside, as the canvas's Ask screen (7) has
+          it, facing the pilot's blue one. */}
+      {(turn.answer || turn.done) && (
+        <div className="flex max-w-[92%] flex-col gap-2.5 self-start rounded-2xl rounded-bl-md bg-card px-3.5 py-3 shadow-[0_1px_4px_rgb(0_0_0/0.06)]" data-testid="ask-bubble">
+          {turn.answer && <p className={cn("tabular-nums whitespace-pre-wrap", TEXT.prose)} data-testid="ask-answer">{turn.answer}</p>}
+          {turn.done && <SourceChips sources={turn.sources} testId="ask-source" />}
+        </div>
       )}
       {turn.error && <p className={cn("text-destructive-ink", TEXT.note)} role="alert" data-testid="ask-problem">{turn.error}</p>}
-      {turn.done && <SourceChips sources={turn.sources} testId="ask-source" />}
     </div>
   );
 }
+
+/** What a pilot asks first, offered as chips while nothing has been asked
+ *  (the canvas's Ask screen): one tap asks it. */
+const FIRST_QUESTIONS = ["Brief me", "Is the weather within my minimums?", "What if I leave an hour later?"];
 
 /**
  * The Brief's first section, the assistant's home: one line, "Ask about
@@ -105,26 +114,40 @@ export default function AskSection() {
           {turns.map(t => <Turn key={t.id} turn={t} />)}
         </div>
       )}
-      {/* The field and its two 32-point buttons at gap-3, so the buttons'
-          44-point areas (index.css's ::after) meet without overlapping
-          (the iOS review's rule 1). */}
-      <div className="flex items-center gap-3">
+      {/* The first questions as outlined chips, until one is asked. */}
+      {turns.length === 0 && !busy && (
+        <div className="flex gap-2 overflow-x-auto pb-1" data-testid="ask-suggestions">
+          {FIRST_QUESTIONS.map(q => (
+            <Button key={q} variant="outline" size="sm" className="shrink-0 rounded-full border-tint" onClick={() => void useAsk.getState().ask(q)} data-testid="ask-suggestion">
+              {q}
+            </Button>
+          ))}
+        </div>
+      )}
+      {/* The field row as the canvas's Ask screen (7) draws it: a round
+          48-point field, the microphone a round white button with the
+          tint's glyph beside it, and Send a round filled one; each its
+          own 44-point area, so gap-2 is room enough. */}
+      <div className="flex items-center gap-2">
         <Input
           ref={field} value={text} onChange={e => setText(e.target.value)} placeholder="Ask about this flight" aria-label="Ask about this flight"
           enterKeyHint="send" autoComplete="off" data-testid="ask-field"
           onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
           onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) { e.preventDefault(); send(); } }}
-          className={cn("rounded-full border-0", PANEL_FIELD)}
+          className={cn("h-12 rounded-full border-0 px-4", PANEL_FIELD)}
         />
-        <IconButton label="Ask by voice" size="icon-sm" onClick={hear} disabled={listeningFor === "ask"} data-testid="ask-mic">
-          <Mic className="size-5" />
+        <IconButton
+          label="Ask by voice" variant="outline" size="icon-lg" onClick={hear} disabled={listeningFor === "ask"} data-testid="ask-mic"
+          className="size-12 shrink-0 rounded-full border-0 bg-card shadow-[0_1px_4px_rgb(0_0_0/0.12)]"
+        >
+          <Mic className={cn("size-5", listeningFor === "ask" && "animate-pulse")} strokeWidth={2.4} />
         </IconButton>
         {busy ? (
-          <IconButton label="Stop" variant="secondary" size="icon-sm" className="rounded-full" onClick={() => useAsk.getState().stop()} data-testid="ask-stop">
+          <IconButton label="Stop" variant="secondary" size="icon-lg" className="size-12 shrink-0 rounded-full" onClick={() => useAsk.getState().stop()} data-testid="ask-stop">
             <Square className="size-4" />
           </IconButton>
         ) : (
-          <IconButton label="Send" variant="default" size="icon-sm" className="rounded-full" onClick={send} disabled={!text.trim()} data-testid="ask-send">
+          <IconButton label="Send" variant="default" size="icon-lg" className="size-12 shrink-0 rounded-full" onClick={send} disabled={!text.trim()} data-testid="ask-send">
             <ArrowUp className="size-5" />
           </IconButton>
         )}
