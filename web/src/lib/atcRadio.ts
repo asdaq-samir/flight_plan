@@ -5,7 +5,8 @@
  * captions over the map, a call to us with its actions (RadioCall), and
  * the clearance card's log. Kept while the page is; nothing is sent
  * anywhere or saved. The listening itself is lib/atcListening's, loaded
- * with the card that starts it.
+ * with the card that starts it, and the input it hears through lib/
+ * audioInput's, which this store names and meters.
  */
 import { create } from "zustand";
 import type { TypedProcedure } from "./procedures";
@@ -43,11 +44,65 @@ interface AtcRadio {
    *  the clearance it reads back (`readbackOf`, lib/readback); a timer the
    *  pilot started by voice counts from `timerFrom`. */
   pill: { listening: boolean; text: string; error: string | null; readbackOf?: string | null; timerFrom?: number | null } | null;
+  /** The input the phone hears through while lib/audioInput holds one
+   *  (the Radio card's Listen through, or a listening session after one
+   *  was chosen), for the pill, the captions and the card to name; null
+   *  while none is held, as in every browser that cannot pick one. */
+  input: HeardInput | null;
+}
+
+/** The input heard through, as lib/audioInput last read it off its track. */
+export interface HeardInput {
+  /** By the name the browser gives it ("GMA 350c", "iPhone Microphone");
+   *  once lost, the one that was chosen. */
+  label: string;
+  /** Not the phone's or the computer's own microphone: an audio panel or
+   *  headset over Bluetooth, or a cable. */
+  outside: boolean;
+  /** The outside input chosen is no longer heard: it disconnected, or the
+   *  phone's audio route fell back to another. */
+  lost: boolean;
+  /** Once lost, what is heard in its place, where the browser names it. */
+  instead: string | null;
 }
 
 export const useAtcRadio = create<AtcRadio>(() => ({
-  listening: false, error: null, heard: [], seen: null, cardOpen: false, cardText: null, tail: null, near: "", mode: null, pill: null,
+  listening: false, error: null, heard: [], seen: null, cardOpen: false, cardText: null, tail: null, near: "", mode: null, pill: null, input: null,
 }));
+
+/** A lost input in a pilot's words, the same line in the pill, the
+ *  captions and the card: "GMA 350c disconnected; hearing the iPhone
+ *  microphone". */
+export function lostWords(input: HeardInput): string {
+  const own = input.instead?.match(/^(.*\S)\s+Microphone$/i);
+  const instead = own ? `the ${own[1]} microphone` : input.instead || "the default microphone";
+  return `${input.label} disconnected; hearing ${instead}`;
+}
+
+type LevelListener = (level: number | null) => void;
+const levelListeners = new Set<LevelListener>();
+let lastLevel: number | null = null;
+
+/**
+ * The held input's sound level, 0 to 1, ten times a second while lib/
+ * audioInput meters it, and null once it lets the input go: a plain
+ * emitter beside the store rather than its state, so the Waveform's bars
+ * are written through refs and ten updates a second re-render nothing on
+ * the map page.
+ */
+export const inputLevel = {
+  /** Called with each level, and at once with the last one while one is
+   *  flowing; returns its unsubscribe. */
+  listen(fn: LevelListener): () => void {
+    levelListeners.add(fn);
+    if (lastLevel !== null) fn(lastLevel);
+    return () => { levelListeners.delete(fn); };
+  },
+  emit(level: number | null) {
+    lastLevel = level;
+    for (const fn of levelListeners) fn(level);
+  },
+};
 
 /** The newest call to us not yet put away, settled. */
 export function callToUs(s: Pick<AtcRadio, "heard" | "seen">): Transmission | null {

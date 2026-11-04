@@ -7,6 +7,8 @@
  * the approaches and runways in use, NOTAMs. The figures here are the
  * engine's; this file only listens and puts them into words.
  */
+import { useAtcRadio } from "./atcRadio";
+import { holdForListening } from "./audioInput";
 import { callEngine } from "./engine/engine";
 import { listen } from "./listen";
 import { altFt } from "./units";
@@ -130,13 +132,29 @@ const NOTHING_MS = 15000;
  *  is read in well under a minute. */
 const LONGEST_MS = 75000;
 
+/** What a hearing ended with: the words, the refusal in a pilot's words,
+ *  and the outside input it was heard through, by its name. */
+export interface AtisHeard {
+  text: string;
+  error?: string;
+  through?: string;
+}
+
 /**
  * Hears one broadcast through lib/listen: the words so far to `onHeard`
  * as they come, and the whole once it ends, by its pause, by nothing
  * said, by `stop` or by time. `error` is the recognizer's refusal in a
  * pilot's words.
+ *
+ * Through the same input as the radio's (lib/audioInput), so the ground
+ * test hears the panel the radio will (the owner's "Bluetooth is fine",
+ * 2026-11-04); and not while the radio is listened to, which would be a
+ * second recognizer on the one microphone.
  */
-export function hearAtis(onHeard: (text: string) => void): { stop: () => void; done: Promise<{ text: string; error?: string }> } {
+export function hearAtis(onHeard: (text: string) => void): { stop: () => void; done: Promise<AtisHeard> } {
+  if (useAtcRadio.getState().listening) {
+    return { stop: () => {}, done: Promise.resolve({ text: "", error: "The radio is being listened to; stop it in the Radio card first." }) };
+  }
   const said = new Map<number, string>();
   let stopper: (() => void) | null = null;
   let stopped = false;
@@ -145,9 +163,12 @@ export function hearAtis(onHeard: (text: string) => void): { stop: () => void; d
     stopper?.();
   };
   const typed = () => [...said.entries()].sort((a, b) => a[0] - b[0]).map(e => e[1]).join(" ");
-  const done = new Promise<{ text: string; error?: string }>(resolve => {
+  const done = new Promise<AtisHeard>(resolve => {
     let quiet = window.setTimeout(stop, NOTHING_MS);
     const longest = window.setTimeout(stop, LONGEST_MS);
+    // In the tap, before the recognizer: the input held, or the one
+    // remembered being opened.
+    const input = holdForListening();
     void listen([], undefined, (id, text) => {
       if (!text) return;
       // A finished phrase given again under a new number, or the last
@@ -165,8 +186,11 @@ export function hearAtis(onHeard: (text: string) => void): { stop: () => void; d
     }, error => {
       window.clearTimeout(quiet);
       window.clearTimeout(longest);
-      resolve({ text: typed(), error });
-    }).then(({ stop: s }) => {
+      const heardThrough = useAtcRadio.getState().input;
+      input.release();
+      resolve({ text: typed(), error, ...(heardThrough?.outside && !heardThrough.lost ? { through: heardThrough.label } : {}) });
+    }, input.track).then(({ stop: s, renew }) => {
+      input.follow(renew);
       stopper = s;
       if (stopped) s();
     });
