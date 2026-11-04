@@ -61,3 +61,41 @@ export function tileTemplate(chart: ChartInfo, kind: string): string {
 export function tileUrl(chart: ChartInfo, kind: string, z: number, x: number, y: number): string {
   return tileTemplate(chart, kind).replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
 }
+
+/** Leaflet's tiles, square, in pixels at their own level. */
+const TILE_PX = 256;
+
+/**
+ * The tiles a view needs at a level: those within `half` of `middle`
+ * either way, both in that level's pixels, as [column, row], nearest the
+ * middle first, as Leaflet asks for its own. Columns are left as they
+ * fall, past the antimeridian too, and rows unchecked: the asker wraps
+ * and drops them (ChartTiles' ask).
+ */
+export function tilesAround(middle: { x: number; y: number }, half: { x: number; y: number }): [number, number][] {
+  const tiles: [number, number][] = [];
+  for (let x = Math.floor((middle.x - half.x) / TILE_PX); x <= Math.floor((middle.x + half.x) / TILE_PX); x++) {
+    for (let y = Math.floor((middle.y - half.y) / TILE_PX); y <= Math.floor((middle.y + half.y) / TILE_PX); y++) tiles.push([x, y]);
+  }
+  const off = ([x, y]: [number, number]) => Math.hypot((x + 0.5) * TILE_PX - middle.x, (y + 0.5) * TILE_PX - middle.y);
+  return tiles.sort((a, b) => off(a) - off(b));
+}
+
+/**
+ * The level a zoom to `to` draws a chart layer at, where Leaflet asks for
+ * that level's tiles only once the zoom's animation is over: a zoom of
+ * more than a level from `from`. GridLayer's _update keeps the level it
+ * has while the map is more than one from it, and as the animation starts
+ * the map is still at `from`, so the location arrow's zoom and a route's
+ * fit asked for their chart a quarter of a second late (the map-load
+ * audit, 2026-11-04). Past the layer's last level it is drawn enlarged
+ * from that level. Null for a zoom of a level or less, which Leaflet asks
+ * for itself as it starts, and below the layer's first level, where it
+ * draws nothing.
+ */
+export function levelAhead(from: number, to: number, layer: Pick<ChartLayer, "min_zoom" | "max_zoom">): number | null {
+  const level = Math.round(to);
+  if (level < layer.min_zoom) return null;
+  const drawn = Math.min(level, layer.max_zoom);
+  return Math.abs(Math.min(from, layer.max_zoom) - drawn) > 1 ? drawn : null;
+}
