@@ -311,6 +311,36 @@
         "required" : [ "airportIdent", "cycle", "dueOn", "fixNotes", "procedureId", "procedureName" ],
         "type" : "object"
       },
+      "BriefingChangeDto" : {
+        "properties" : {
+          "sources" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "sources", "text" ],
+        "type" : "object"
+      },
+      "BriefingSourceDto" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "label", "text" ],
+        "type" : "object"
+      },
       "Capabilities" : {
         "properties" : {
           "access" : {
@@ -1042,6 +1072,40 @@
           }
         },
         "required" : [ "aircraftTailNumber", "altitudes", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "picks", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
+        "type" : "object"
+      },
+      "FlightWatchDto" : {
+        "properties" : {
+          "changedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "changes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BriefingChangeDto"
+            },
+            "type" : "array"
+          },
+          "checkedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "departAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "flightId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sources" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BriefingSourceDto"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "changedAt", "changes", "checkedAt", "departAt", "flightId", "sources" ],
         "type" : "object"
       },
       "FullNameRequest" : {
@@ -2250,6 +2314,16 @@
         },
         "required" : [ "interval", "status" ],
         "type" : "object"
+      },
+      "WatchFlightRequest" : {
+        "properties" : {
+          "departAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "departAt" ],
+        "type" : "object"
       }
     }
   },
@@ -3119,7 +3193,7 @@
         "tags" : [ "flight-controller" ]
       },
       "get" : {
-        "operationId" : "get_4",
+        "operationId" : "get_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3215,6 +3289,86 @@
           }
         },
         "tags" : [ "flight-controller" ]
+      }
+    },
+    "/api/flights/{id}/watch" : {
+      "delete" : {
+        "operationId" : "unwatch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-watch-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightWatchDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-watch-controller" ]
+      },
+      "post" : {
+        "operationId" : "watch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/WatchFlightRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightWatchDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-watch-controller" ]
       }
     },
     "/api/instructor" : {
@@ -4065,7 +4219,7 @@
     },
     "/api/subscription" : {
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "responses" : {
           "200" : {
             "content" : {
@@ -4104,7 +4258,7 @@
     },
     "/api/training" : {
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "responses" : {
           "200" : {
             "content" : {
