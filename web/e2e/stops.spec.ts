@@ -774,12 +774,15 @@ test("a VFR waypoint on the chart is a magenta triangle with its ident, and its 
   await page.mouse.move(middle.x, middle.y, { steps: 12 });
   await page.mouse.up();
   await page.waitForTimeout(500);
-  for (let i = 0; i < 7; i++) {
+  // A level at a time until it is drawn, from 10 as the GPS waypoints
+  // are, and on the screen: further in, 4 nm off C81 is off the map.
+  const inSight = async () => (await waypointMarks(page)).filter(w => w.x > map.x + 20 && w.x < map.x + map.width - 20 && w.y > map.y + 20 && w.y < map.y + map.height - 20);
+  for (let i = 0; i < 8 && !(await inSight()).length; i++) {
     await page.mouse.wheel(0, -60);
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(600);
   }
   // The waypoint drawn, its magenta triangle and ident (WaypointsLayer).
-  await expect.poll(async () => (await waypointMarks(page)).map(w => w.ident), { timeout: slow(20000) }).toEqual(["VPBNG"]);
+  await expect.poll(async () => (await inSight()).map(w => w.ident), { timeout: slow(20000) }).toEqual(["VPBNG"]);
   // Once the map has stopped: a tap as the zoom eases in landed where the
   // mark had been.
   let was = "";
