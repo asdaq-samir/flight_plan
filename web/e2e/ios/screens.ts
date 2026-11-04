@@ -26,6 +26,17 @@ export const SCREENS: Screen[] = [
     },
   },
   {
+    // The field over the tab bar (FieldTabsBar): the field with its Ask
+    // pill and the four tabs in the pill over the chart.
+    name: "field-tabs",
+    ready: async page => {
+      await page.goto(`/app/plan?layout=field-tabs&${ROUTE}`);
+      await settle(page);
+      await expect(page.getByTestId("field-tabs").getByTestId("field-ask")).toBeVisible({ timeout: slow(30000) });
+      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: slow(30000) });
+    },
+  },
+  {
     name: "map",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}`);

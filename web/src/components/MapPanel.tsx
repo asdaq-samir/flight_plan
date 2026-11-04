@@ -203,7 +203,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // at the tabs' height (figuresPill). The sheet above the pill is as
   // ever: the bar its first row, the foot pinned at its edge. Read from
   // the preference here for now, not handed in by the page (WorkspacePieces).
-  const stackedPill = usePreferences(s => s.layout === "strip") && !!bar && !!foot;
+  const layout = usePreferences(s => s.layout);
+  const stackedPill = layout === "strip" && !!bar && !!foot;
+  // The field over the tab bar (features/strip's FieldTabsBar, the
+  // owner's third screen, 2026-11-04): the pill its measured self, the
+  // grabber, the field and the tabs; the foot's figures from half way up,
+  // never in the tabs' place.
+  const fieldPill = layout === "field-tabs" && !!bar;
   // A size asked for in the panel itself -- its grabber, a key, a finger
   // let go, the tab bar's taps -- shown at once, and the page told once the
   // sheet has landed (below): told at once, the page drew the whole
@@ -495,7 +501,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // In flight the pill is its measured self: the figures grown and
     // their foot (useFlyingMode), taller than a row of tabs.
     // The strip's pill the same (stackedPill): its ribbon over its field.
-    const pillPx = flying || stackedPill ? capsuleHeight : Math.round(PILL_REM * rootPx());
+    const pillPx = flying || stackedPill || fieldPill ? capsuleHeight : Math.round(PILL_REM * rootPx());
     // Now that the settling sheet takes the pill's gap as it eases (its
     // shape, below), it stops at the pill's own height: stopped the gap
     // taller, it eased down 12 points more once it had turned, the
@@ -513,7 +519,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     // owner, 2026-10-29). Never under half, never past the room.
     const full = cardFit === null ? whole : Math.max(Math.min(half, whole), Math.min(whole, headHeight + halfChrome + cardFit));
     return { peek: lowest, half: Math.min(half, full), full };
-  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight, cardFit, flying, stackedPill]);
+  }, [peek, room, halfChrome, hasPill, capsule, capsuleHeight, settling, bar, headHeight, footHeight, cardFit, flying, stackedPill, fieldPill]);
   // The body's height at half, for what it shows first to fill and no
   // more (--half-body): the search's Favorites, an airport's name and
   // actions.
@@ -607,7 +613,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The pill with a route: its figures in the tabs' place, at the tabs'
   // height (3.625rem: their row and its margins).
   // Not the strip's, whose bar and foot stack in the pill (stackedPill).
-  const figuresPill = pillShape && !!bar && footShown && !stackedPill;
+  const figuresPill = pillShape && !!bar && footShown && !stackedPill && !fieldPill;
   // Laid out as the pill -- its grabber, its row of tabs or figures, where
   // the pill has them -- from the start of a settle down to it, not only
   // once there, what it shows still in sight: laid out as the half sheet
@@ -722,7 +728,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // once it landed (70), the map settling a second after the tabs had
   // (the owner, 2026-10-27: "After the tabs pill, map takes a while to
   // settle down").
-  const pillRest = bar && !flying && !stackedPill ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
+  const pillRest = bar && !flying && !stackedPill && !fieldPill ? Math.round(PILL_REM * rootPx()) : capsuleHeight;
   const coveredOnPhone = expanded ? detents.half : hasPill ? pillRest + capsuleGap : peek;
   const out = expanded;
   const insetsNow = useMemo<MapInsets>(() => {
@@ -1191,7 +1197,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // under a sheet's first row, set them high in the pill, the room
               // under them twice that over (the owner's "Not centered in the
               // bottom pill").
-              "flex shrink-0 px-2", pillLaid ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barHere && "hidden",
+              // The field over the tabs is two rows at their own heights
+              // (FieldTabsBar sizes the tabs' row).
+              "flex shrink-0 px-2", fieldPill ? "h-auto" : pillLaid ? "h-12" : minimized ? "min-h-11 pb-4" : "h-14", !barHere && "hidden",
               // In the pill the pill's whole, round its grabber; out of it,
               // under a card's name, the line under the sheet's first row --
               // under the tabs, the tabs' own line of glass (TabGlass).
@@ -1322,6 +1330,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             // the figures and the side view, in the frame the sheet was to
             // start moving in.
             "flex min-h-0 shrink flex-col print:hidden", cardInPill ? "px-0" : "px-4", !pillShape && SHEET_BELOW, !footShown && "hidden",
+            // Under the field and the tabs the pill holds no figures: they
+            // are the foot from half way up (fieldPill).
+            fieldPill && pillLaid && "hidden",
             // In the pill under the tabs, the figures alone: what the foot
             // keeps for half way and up (FPL's side view, data-pill-hides)
             // put away.
