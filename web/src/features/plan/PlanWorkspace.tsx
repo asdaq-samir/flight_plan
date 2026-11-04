@@ -1,7 +1,7 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin } from "lucide-react";
+import { Play, MapPin, ChartArea, Sparkles } from "lucide-react";
 import { AirplaneGlyph, AirportGlyph, RouteGlyph } from "../../components/tabGlyphs";
 import { navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
@@ -2451,12 +2451,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   }, [planned.dep, planned.dest, planned.stops, aircraft.profile, aircraft.aircraftId, flownFt, depart, eteMin, briefLegs, routed, s.local,
     flightCourse, flightToSave.totals, s.nav, s.legs, s.logSelected, altitudes, flightToSave.picks]);
   useEffect(() => () => useBriefPlan.getState().set(NO_PLAN), []);
-  // The assistant asked from the route's ••• menu: the Brief opened on
-  // its Ask, the field focused (useAsk's `wanted`).
-  const askAboutFlight = useCallback(() => {
-    openBrief();
-    useAsk.getState().want();
-  }, [openBrief]);
   // A change the assistant proposes (useAsk's actions), applied at the
   // pilot's tap through the route box's own setters -- the route, the
   // altitude flown, the departure time -- each a change of the address,
@@ -2488,7 +2482,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     <ShareMenu
       align={align} testId={testId} card={card} planned={planned} course={course} selected={selected} altitudeFt={s.nav?.altitude_ft ?? undefined}
       routed={routed} local={!!s.local} fileable={fileable} onFile={fileFlightPlan}
-      onAsk={card === undefined && routed ? askAboutFlight : undefined}
       saving={askReview => (
         <Suspense fallback={null}>
           <SaveFlightButton {...flightToSave} />
@@ -2500,7 +2493,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
       onShowFuel={card === undefined && fuelHidden ? showFuelStops : undefined}
-      onProfile={card === undefined && profileReady ? openProfile : undefined}
+      onNavLog={card === undefined && routed && course ? openNavLogCard : undefined}
     />
   );
 
@@ -2511,7 +2504,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const flightTitle = useCardTitle(t => t.title);
   // The strip names the Profile's card for its altitude, which its row
   // under the head opens it for (StripHead).
-  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? (strip ? "Altitude" : "Profile") : stopsShown ? "Stops" : undefined);
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "AI brief" : navLogShown ? "Nav log" : profileShown ? (strip ? "Altitude" : "Profile") : stopsShown ? "Stops" : undefined);
   // The airport's card, in the panel's body.
   const placeCard = place && (
     <Suspense fallback={null}>
@@ -2826,23 +2819,29 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           Back on this line at the owner's ask (2026-10-25), the sheet edge
           to edge for the room (MapPanel's HALF_INSET). */}
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-3.5" data-testid="route-actions">
-        {/* The nav log beside the Brief, out of the route's menu, at the
-            owner's ask (2026-10-27: "move the Navlog button next to
-            brief"). */}
-        {routed && course && (
-          <RoundButton label="Nav Log" onClick={openNavLogCard} className="size-8" data-testid="route-navlog">
-            <ListOrdered className="size-[1.125rem]" strokeWidth={2} />
+        {/* The Profile -- the route from the side, its altitude's wheel and
+            its dry run -- where the nav log's button was, the nav log in
+            the route's ••• menu, at the owner's ask (2026-11-04: "Replace
+            the navlog button with profile button ... Navlog can be moved
+            to the more button"). */}
+        {profileReady && (
+          <RoundButton label="Profile" onClick={openProfile} className="size-8" data-testid="route-profile">
+            <ChartArea className="size-[1.125rem]" strokeWidth={2} />
           </RoundButton>
         )}
-        {/* The Brief, a card over FPL (BriefCard), marked as the worst of
-            its pages is. */}
+        {/* The AI's brief, a card over FPL (BriefCard) -- its verdict, its
+            words with their sources and Ask at its foot -- marked as the
+            worst of its pages is: one sparkle where the Brief's clipboard
+            and the menu's "Ask about this flight" were, at the owner's ask
+            ("Replace ... the brief button with AI button because they are
+            both the same thing", 2026-11-04). */}
         {routed && (
           <RoundButton
-            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
+            label={briefMark ? `AI brief, ${briefMark === "stop" ? "warning" : "caution"}` : "AI brief"} onClick={openBrief} className="size-8"
             data-testid="route-brief" data-finding={briefMark ?? undefined} data-tip="brief"
           >
             <span className="relative">
-              <ClipboardList className="size-[1.125rem]" strokeWidth={2} />
+              <Sparkles className="size-[1.125rem]" strokeWidth={2} />
               {briefMark && (
                 <span
                   aria-hidden="true" data-testid="route-brief-mark"

@@ -439,28 +439,29 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/** The nav log, in its own sheet from the route's box's Nav log button
- *  (NavLogView), FPL all the way up under it: FPL lists the route in
- *  order in its place (ProceduresRoute), at the owner's ask. */
+/** The nav log, in its own sheet from the route's ••• menu (NavLogView),
+ *  FPL all the way up under it: FPL lists the route in order in its place
+ *  (ProceduresRoute), at the owner's ask. */
 export async function openNavLog(page: Page) {
   await openTab(page, "Nav Log");
   const sheet = navLogSheet(page);
-  // Its button beside the Brief's (the owner, 2026-10-27).
-  if (!(await sheet.isVisible())) await sideDrawer(page).getByTestId("route-navlog").click();
+  // In the route's menu since the Profile took its button (the owner,
+  // 2026-11-04).
+  if (!(await sheet.isVisible())) {
+    await sideDrawer(page).getByTestId("share-route").click({ timeout: slow(60_000) });
+    await page.getByTestId("route-navlog").click();
+  }
   await expect(sheet).toBeVisible();
   return sheet;
 }
 
 /** The side view, a card over FPL, with the altitude's wheel in its
- *  corner: opened at rest from the route's ••• menu (Profile), where the
- *  map's Play was until the owner took it off the map (2026-11-02). */
+ *  corner: opened at rest from the route's Profile button, beside the AI
+ *  brief's (the owner, 2026-11-04). */
 export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
-  if (!(await card.isVisible())) {
-    await sideDrawer(page).getByTestId("share-route").click({ timeout: slow(60_000) });
-    await page.getByTestId("route-profile").click();
-  }
+  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("route-profile").click({ timeout: slow(60_000) });
   await expect(card).toBeVisible();
   return card;
 }

@@ -88,14 +88,21 @@ test("the Brief's words come with their chips, and a reading the model could not
   await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
 });
 
-test("the route's ••• menu opens the Brief on Ask with the field focused", async ({ page }) => {
+test("the route's AI button opens the AI brief, its Ask at its foot, and the menu has no Ask of its own", async ({ page }) => {
   await mockAi(page, []);
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
   await controlsInSight(page);
-  await panel.getByTestId("share-route").click({ timeout: slow(30000) });
-  await page.getByTestId("route-ask").click();
+  const ai = panel.getByTestId("route-brief");
+  await expect(ai).toHaveAccessibleName(/^AI brief/, { timeout: slow(30000) });
+  // The route's menu: the nav log in it, no Ask, no Profile (its own
+  // button now).
+  await panel.getByTestId("share-route").click();
+  await expect(page.getByTestId("route-navlog")).toBeVisible({ timeout: slow(60000) });
+  await expect(page.getByTestId("route-ask")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await ai.click();
   await expect(panel.getByTestId("brief-card")).toBeVisible();
-  await expect(panel.getByTestId("ask-field")).toBeFocused({ timeout: slow(10000) });
+  await expect(panel.getByTestId("ask-field")).toBeAttached({ timeout: slow(10000) });
 });

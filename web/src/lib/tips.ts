@@ -26,8 +26,8 @@ export const TIPS: TipSpec[] = [
   {
     // After the first flight's card planned a route (useFirstFlight): the
     // one line that points at the Brief, the card's third step.
-    id: "brief", title: "Now the Brief", after: FIRST_FLIGHT,
-    message: "Weather, NOTAMs and what to look at before you go, read for your route and your time: one verdict first.",
+    id: "brief", title: "Now the AI brief", after: FIRST_FLIGHT,
+    message: "Weather, NOTAMs and what to look at before you go, read for your route and your time: one verdict first, and ask it anything.",
   },
   {
     id: "route", title: "Your route",
@@ -39,7 +39,7 @@ export const TIPS: TipSpec[] = [
   },
   {
     id: "altitude", title: "Why this altitude",
-    message: "Profile, in the route's ••• menu, shows the flight from the side, how the altitude was chosen and its other plans. Red means no VFR altitude fits; a dot, a rule to check.",
+    message: "Profile, the button beside the AI brief, shows the flight from the side, how the altitude was chosen and its other plans. Red means no VFR altitude fits; a dot, a rule to check.",
   },
   {
     id: "tabs", title: "Dots mean look here",

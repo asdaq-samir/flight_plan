@@ -89,7 +89,7 @@ test("a screen's word in the field opens it, and the profile menu opens Settings
   await field.fill("Brief me");
   await field.press("Enter");
   await expect(panel.getByTestId("brief-glance")).toBeVisible({ timeout: slow(30000) });
-  await expect(panel.getByTestId("strip-card-title")).toHaveText("Brief");
+  await expect(panel.getByTestId("strip-card-title")).toHaveText("AI brief");
   await panel.getByTestId("strip-card-close").click();
   await expect(panel.getByTestId("brief-glance")).toHaveCount(0);
 

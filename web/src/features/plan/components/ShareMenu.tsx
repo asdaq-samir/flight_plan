@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { ChartArea, Ellipsis, FileArchive, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share, Sparkles } from "lucide-react";
+import { Ellipsis, FileArchive, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share, ListOrdered } from "lucide-react";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
@@ -49,15 +49,12 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, local, fileable, onFile, saving, reviewSheet, planAgain, onShowFuel, onProfile, onAsk,
+  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, local, fileable, onFile, saving, reviewSheet, planAgain, onShowFuel, onNavLog,
 }: {
   /** The suggested fuel stops taken out of the route box, put back. */
   onShowFuel?: () => void;
-  /** The assistant asked about the flight: the Brief opened on its Ask
-   *  section (the route box's, with a route planned). */
-  onAsk?: () => void;
-  /** The route's Profile opened: the route box's, with a route drawn. */
-  onProfile?: () => void;
+  /** The route's nav log opened: the route box's, with a course drawn. */
+  onNavLog?: () => void;
   align: "start" | "end";
   /** Its button's: the route box's, or the tab bar's over the Brief and
    *  the nav log (TabBar's `routeShare`). */
@@ -155,11 +152,10 @@ export default function ShareMenu({
           </DropdownMenuTrigger>
         </ResponsivePopoverAnchor>
         <DropdownMenuContent align={align} className="min-w-56 print:hidden">
-          {/* The route from the side, with its altitude's wheel and its dry
-              run, where the map's Play was (the owner, 2026-11-02). */}
-          {onProfile && <DropdownMenuItem onSelect={onProfile} data-testid="route-profile"><ChartArea />Profile</DropdownMenuItem>}
-          {/* The assistant, in the Brief, where the AI's surfaces live. */}
-          {onAsk && <DropdownMenuItem onSelect={onAsk} data-testid="route-ask"><Sparkles />Ask about this flight</DropdownMenuItem>}
+          {/* The nav log, its button's place beside the AI's brief now the
+              Profile's (the owner, 2026-11-04: "Navlog can be moved to the
+              more button"). The assistant's Ask is the AI brief's own. */}
+          {onNavLog && <DropdownMenuItem onSelect={onNavLog} data-testid="route-navlog"><ListOrdered />Nav log</DropdownMenuItem>}
           {routed && onShowFuel && <DropdownMenuItem onSelect={onShowFuel} data-testid="route-show-fuel"><Fuel />Show Fuel Stops</DropdownMenuItem>}
           {routed && <DropdownMenuItem onSelect={() => void share()} data-testid="share-link"><Link2 />Share link</DropdownMenuItem>}
           {card === "route" && (

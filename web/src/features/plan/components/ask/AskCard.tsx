@@ -84,21 +84,12 @@ const FIRST_QUESTIONS = ["Brief me", "Is the weather within my minimums?", "What
 export default function AskSection() {
   const turns = useAsk(s => s.turns);
   const busy = useAsk(s => s.busy);
-  const wanted = useAsk(s => s.wanted);
   const listeningFor = useAsk(s => s.listeningFor);
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
   const field = useRef<HTMLInputElement>(null);
   const expanded = focused || busy || turns.length > 0;
   useEffect(() => { void load(); }, []);
-  // Asked for from the route's ••• menu: the field focused, the keyboard up.
-  useEffect(() => {
-    if (!wanted) return;
-    field.current?.focus();
-    field.current?.scrollIntoView({ block: "nearest" });
-    // Heard once: the Brief opened later by its own button is not asked.
-    useAsk.setState({ wanted: 0 });
-  }, [wanted]);
   // The microphone's words, once the pause ends them, asked as typed;
   // the pill put away, its chips being for a command, not a question.
   useEffect(() => {

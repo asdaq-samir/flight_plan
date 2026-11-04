@@ -74,9 +74,6 @@ interface AskState {
   /** The pilot's tap on a chip: the change applied, the chip marked done.
    *  Nothing is applied without it. */
   apply: (change: AssistantChange) => void;
-  /** The Ask section asked for from outside the Brief (the route's •••
-   *  menu): counted up, and the field focuses itself once drawn. */
-  wanted: number;
   /** The map's microphone is listening for a question for the card
    *  (AskCard's mic), not for a command of its own. */
   listeningFor: "ask" | null;
@@ -85,7 +82,6 @@ interface AskState {
   stop: () => void;
   /** The conversation forgotten: a new one starts. */
   clear: () => void;
-  want: () => void;
 }
 
 let inFlight: AbortController | null = null;
@@ -214,7 +210,6 @@ function messagesOf(turns: AskTurn[], question: string): AssistantMessage[] {
 export const useAsk = create<AskState>((set, get) => ({
   turns: [],
   busy: false,
-  wanted: 0,
   listeningFor: null,
   applyChange: null,
   apply: change => {
@@ -223,7 +218,6 @@ export const useAsk = create<AskState>((set, get) => ({
     applyChange(change);
     set(s => ({ turns: s.turns.map(t => ({ ...t, actions: t.actions.map(a => (a.change === change ? { ...a, applied: true } : a)) })) }));
   },
-  want: () => set(s => ({ wanted: s.wanted + 1 })),
   // Aborted, and left to `ask`'s own tail to settle: it clears `busy`
   // once it sees its controller is still the one in flight.
   stop: () => inFlight?.abort(),
