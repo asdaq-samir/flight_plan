@@ -68,8 +68,15 @@ struct GoNoGoSection: View {
     @Environment(Verdict.self) private var verdict
     /// Scrolls the Brief to one of its sections.
     var open: (String) -> Void
+    /// The Go / No-Go in words (Words.swift), over its findings: the
+    /// planner's, else this iPhone's; written again as the answer changes.
+    @State private var riskWords: SaidWords?
+    @State private var writingWords = false
 
     var body: some View {
+        if verdict.answer != nil {
+            WordsSection(title: "The flight in words", said: riskWords, writing: writingWords)
+        }
         Section {
             if let answer = verdict.answer {
                 Label {
@@ -94,6 +101,19 @@ struct GoNoGoSection: View {
                 Text("Go / No-Go")
                 if verdict.asking, verdict.answer != nil { ProgressView().controlSize(.mini) }
             }
+        }
+        // The words for the answer on the page; the findings stay as they
+        // are while they are written.
+        .task(id: verdict.answer) {
+            guard let answer = verdict.answer else { riskWords = nil; return }
+            writingWords = true
+            defer { writingWords = false }
+            let minimums = PersonalMinimums.Key.allCases.compactMap { key in verdict.minimums[key].map { "\(key.title): \(key.words($0))" } }
+            let pilot: [String: String]? = minimums.isEmpty ? nil : ["personal minimums": minimums.joined(separator: ", ")]
+            guard let ask = try? WordsAsk(kind: .risk, body: RiskWordsAsk(answer, pilot: pilot), figures: WordsFigures.risk(answer)) else { return }
+            let said = await WordsFor().said(ask)
+            guard !Task.isCancelled else { return }
+            riskWords = said
         }
     }
 
