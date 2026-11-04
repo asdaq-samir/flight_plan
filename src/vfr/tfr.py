@@ -16,6 +16,7 @@ the highest ceiling of them.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import threading
 import time
@@ -33,6 +34,8 @@ from shapely.geometry import LineString, Point, shape
 from .config import FAA_HEADERS as HEADERS
 from .geo import along_track_distance_nm
 
+log = logging.getLogger(__name__)
+
 SHAPES_URL = (
     "https://tfr.faa.gov/geoserver/TFR/ows?service=WFS&version=1.1.0&request=GetFeature"
     "&typeName=TFR:V_TFR_LOC&outputFormat=application/json"
@@ -41,6 +44,9 @@ DETAIL_URL = "https://tfr.faa.gov/download/detail_{}.xml"
 
 #: How long the shapes are held: the site updates them every few minutes.
 SHAPES_TTL_S = 10 * 60
+#: After tfr.faa.gov fails to answer, how long before it is asked again:
+#: every map pan and briefing in an outage must not wait on a time-out.
+RETRY_AFTER_S = 60
 #: How near the route a TFR is listed with it: a pilot plans round one,
 #: not along its edge.
 NEAR_NM = 5.0
@@ -55,6 +61,12 @@ _LOCK = threading.Lock()
 #: When the shapes held were fetched from tfr.faa.gov (UNIX seconds), for
 #: the map to say how old its TFRs are; None before the first fetch.
 _FETCHED_AT: float | None = None
+#: The last list tfr.faa.gov gave, kept past SHAPES_TTL_S for when it
+#: does not answer: a momentary outage then shows the TFRs known a few
+#: minutes ago, their age said (fetched_at), rather than a sky with none.
+_HELD: list | None = None
+#: Not before this (UNIX seconds) is tfr.faa.gov asked again after a failure.
+_RETRY_AT = 0.0
 
 
 class TfrUnavailable(RuntimeError):
@@ -62,22 +74,48 @@ class TfrUnavailable(RuntimeError):
 
 
 def _shapes() -> list:
-    """Every TFR area's GeoJSON feature, held SHAPES_TTL_S."""
+    """Every TFR area's GeoJSON feature, held SHAPES_TTL_S, and the last
+    list fetched served on while tfr.faa.gov does not answer (asked again
+    after RETRY_AFTER_S); TfrUnavailable only where none was ever had."""
+    global _FETCHED_AT, _HELD, _RETRY_AT
     with _LOCK:
         hit = _SHAPES.get("all")
-    if hit is not None:
-        return hit
+        if hit is not None:
+            return hit
+        if _HELD is not None and time.time() < _RETRY_AT:
+            return _HELD
     try:
         resp = requests.get(SHAPES_URL, headers=HEADERS, timeout=30)
         resp.raise_for_status()
         features = resp.json().get("features", [])
     except (requests.RequestException, ValueError) as err:
+        with _LOCK:
+            _RETRY_AT = time.time() + RETRY_AFTER_S
+            held, fetched = _HELD, _FETCHED_AT
+        if held is not None:
+            log.warning("tfr.faa.gov did not answer (%s); serving the TFRs fetched %.0f minutes ago",
+                        err, (time.time() - (fetched or time.time())) / 60)
+            return held
         raise TfrUnavailable(f"tfr.faa.gov did not answer: {err}") from err
-    global _FETCHED_AT
     with _LOCK:
         _SHAPES["all"] = features
+        _HELD = features
         _FETCHED_AT = time.time()
     return features
+
+
+def _ended(detail: dict, now: datetime) -> bool:
+    """Whether a TFR's NOTAM has passed its expiry: a TFR is in force only
+    from its effective to its expiry time, as its NOTAM gives them (AIM
+    3-5-3; 14 CFR 91.137-91.145). One with no expiry is until further
+    notice."""
+    expires = detail.get("expires")
+    if not expires:
+        return False
+    try:
+        return datetime.fromisoformat(expires.replace("Z", "+00:00")) < now
+    except ValueError:
+        return False
 
 
 def fetched_at() -> float | None:
@@ -144,10 +182,16 @@ def all_tfrs() -> list:
     entries = list(by_notam.values())
     with ThreadPoolExecutor(max_workers=8) as pool:
         details = list(pool.map(lambda e: _detail(e["notam_id"], e["modified"]), entries))
+    # A list held through an outage may name TFRs that have since expired,
+    # which the site's own list would no longer carry: those are left out.
+    # One issued since cannot be known; the map says how old the list is.
+    held = _FETCHED_AT is not None and time.time() - _FETCHED_AT >= SHAPES_TTL_S
+    now = datetime.now(timezone.utc)
     return [
         {**{k: v for k, v in e.items() if k not in ("polygons", "modified")},
          "geometry": {"type": "MultiPolygon", "coordinates": e["polygons"]}, **detail}
         for e, detail in zip(entries, details)
+        if not (held and _ended(detail, now))
     ]
 
 

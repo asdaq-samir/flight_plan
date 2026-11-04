@@ -49,7 +49,9 @@ _TOWNS: list | None = None
 _RETRY_AT = 0.0
 #: Addresses already asked, by the text normalised, for ADDRESS_TTL_S: a
 #: pilot's typing pauses, and anyone calling the endpoint, do not each
-#: reach the Census geocoder. Only answers are kept, not failures.
+#: reach the Census geocoder. Only answers are kept, not failures; an
+#: answer past its time is still given when the geocoder does not answer,
+#: since an address does not move.
 ADDRESS_TTL_S = 3600
 ADDRESS_CACHE_MAX = 512
 _ADDRESSES: dict = {}
@@ -161,7 +163,7 @@ def find_addresses(query: str, limit: int = 4) -> list:
         matches = resp.json().get("result", {}).get("addressMatches", [])
     except (requests.RequestException, ValueError) as err:
         log.warning("The Census geocoder did not answer for an address: %s", err)
-        return []
+        return kept[1][:limit] if kept else []
     found = [
         {"label": _address_label(m["matchedAddress"]), "lat": m["coordinates"]["y"], "lon": m["coordinates"]["x"]}
         for m in matches[:limit] if m.get("matchedAddress") and m.get("coordinates")

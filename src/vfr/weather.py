@@ -13,14 +13,17 @@ download every few minutes replaces all of them. The winds/temps product
 is small and stays a direct request, one per forecast period. Every one
 of them is a source in _SOURCES, held by one rule (see _dataset): parsed
 as it is fetched, kept for its own time, a failed refresh serving the
-previous copy for a while -- so an outage degrades to "conditions from a
-few minutes ago" rather than a failure per request -- and a failure with
+previous copy for as long as that product itself is still valid (a TAF
+to the end of its valid period, a winds forecast to the end of its for-
+use window) -- so an outage degrades to "the last forecast issued"
+rather than a failure per request, and the copy's fetch time
+(dataset_status) tells the page how old it is -- and a failure with
 nothing to serve remembered for a minute rather than tried again by
 every caller.
 
 Unlike the FAA NASR/DOF data in vfr.faa_data, none of this is cached to
-disk: it's live/current-conditions data, and a copy older than an hour
-or two is stale, not "the current cycle".
+disk: it's live/current-conditions data, and a copy past its product's
+own validity is stale, not "the current cycle".
 """
 import gzip
 import json
@@ -315,11 +318,17 @@ def wind_in_levels(levels: dict, altitude_ft: float) -> dict | None:
 # --- Every source, held by one rule ---
 
 _DATASET_TTL_S = 300
-# How old a copy may be and still be served when a refresh fails.
+# How old a copy may be and still be served when a refresh fails, for a
+# product whose copy says nothing of its own validity (an empty set of
+# advisories, a winds product with no FOR USE line): what every source
+# was held to before each was held to its own (2026-11-04).
 _DATASET_STALE_MAX_S = 3 * 3600
-# The winds are issued a few times a day but held only this long, and
-# served no older when a refresh fails: the nav log's wind triangle is
-# only as good as its winds, and a plan says when it has none.
+# The winds are issued a few times a day and fetched again this often,
+# so a new issue is taken up soon after it is out. A refresh that fails
+# serves the held copy to the end of its for-use window (_winds_until):
+# on 2026-11-04 aviationweather.gov's windtemp API answered 204 with no
+# body for every request, and a copy held only 15 minutes left the
+# planner with no winds at all for the afternoon.
 _WINDS_TTL_S = 900
 # How long to wait before trying a failed refresh again -- every weather
 # call during an outage must not be a fresh download attempt, with its
@@ -329,9 +338,82 @@ _DATASET_RETRY_AFTER_S = 60
 _DATASET_WAIT_S = 120
 
 
+# --- How long each product's held copy stays good when a refresh fails ---
+# Each takes the parsed copy and when it was fetched, and gives the UNIX
+# time it may be served to. Worked out once, when the copy is fetched, and
+# kept on its _Record: a TAF set's is a pass over every station's periods.
+
+
+def _winds_until(stations, fetched: float) -> float:
+    """A winds and temperatures aloft forecast is for use only in the
+    window its header gives, "FOR USE 0200-0900Z" (AC 00-45H, Winds and
+    Temperatures Aloft Forecast (FB)): served to its end, and no further,
+    since the next period's product is the one for after it. A product
+    with no such line is held as any other source."""
+    use_to = _unix((getattr(stations, "period", None) or {}).get("use_to"))
+    return use_to if use_to is not None else fetched + _DATASET_STALE_MAX_S
+
+
+def _metars_until(metars, fetched: float) -> float:
+    """A METAR is an observation, not a forecast: AC 00-45H (METAR) gives
+    it no period of validity, only the time it was made, and every report
+    carries that time ("observed_at"), which the page shows beside it and
+    the map's layer ages say how old the set is (/api/map/ages). So the
+    last set heard is served however long the outage, as "the latest
+    reports, made at ..." -- the owner's call of 2026-11-04 -- rather than
+    none."""
+    return float("inf")
+
+
+def _tafs_until(stations, fetched: float) -> float:
+    """A TAF is valid to the end of its valid period, 24 or 30 hours from
+    issue (AC 00-45H, Terminal Aerodrome Forecast (TAF)): the set is
+    served to the end of the latest period in it. Every reader takes the
+    period covering the time it asks about (_current_forecast_period,
+    _periods_in_window), so a station whose own TAF has run out says
+    nothing rather than reading an expired forecast as current."""
+    ends = [p["timeTo"] for s in stations for p in s.get("fcsts", ()) if p.get("timeTo") is not None]
+    return max(ends) if ends else fetched + _DATASET_STALE_MAX_S
+
+
+def _airsigmets_until(advisories, fetched: float) -> float:
+    """A SIGMET or AIRMET is valid to the "valid until" time it is issued
+    with -- up to 4 hours for a SIGMET (6 for volcanic ash or a tropical
+    cyclone), 2 for a convective SIGMET, 6 for an AIRMET (AC 00-45H,
+    SIGMET, Convective SIGMET and AIRMET): the set
+    is served to the latest of them. hazards_along_route leaves out each
+    one past its own end. A set with none in force says nothing of how
+    long that holds, so is held as any other source."""
+    ends = [a["valid_to"] for a in advisories if a.get("valid_to") is not None]
+    return max(ends) if ends else fetched + _DATASET_STALE_MAX_S
+
+
+def _pireps_until(reports, fetched: float) -> float:
+    """A PIREP has no period of validity (AIM chapter 7, section 1, Pilot
+    Weather Reports, asks for them; AC 00-45H describes them); the
+    briefing tells one for PIREP_MAX_AGE_S
+    after it was made, so the set is served until its newest report is
+    that old. Past then a held set would read as "no reports along the
+    route" when the truth is "none could be had"."""
+    observed = [r["observed"] for r in reports if r.get("observed") is not None]
+    return max(observed) + PIREP_MAX_AGE_S if observed else fetched + _DATASET_STALE_MAX_S
+
+
+def _gairmets_until(advisories, fetched: float) -> float:
+    """A G-AIRMET is a set of snapshots, each valid at its own time, three
+    hours apart out to 12 hours from issue (AC 00-45H, Graphical AIRMET
+    (G-AIRMET)); the briefing tells one within GAIRMET_SNAPSHOT_S of its
+    time. The set is served until its last snapshot is past that."""
+    valid = [a["valid"] for a in advisories if a.get("valid") is not None]
+    return max(valid) + GAIRMET_SNAPSHOT_S if valid else fetched + _DATASET_STALE_MAX_S
+
+
 def _winds_source(fcst_hr: str) -> tuple:
     return (WINDTEMP_URL, {"region": "us", "level": "low", "fcst": fcst_hr},
-            lambda resp: parse_fd_text(resp.text), _WINDS_TTL_S, _WINDS_TTL_S)
+            # Its day of the month placed by the same clock the held copy is
+            # timed by, so the for-use window it is served to is that day's.
+            lambda resp: parse_fd_text(resp.text, datetime.fromtimestamp(time.time(), timezone.utc)),
+            _WINDS_TTL_S, _winds_until)
 
 
 # Each source as a pilot knows it, for the line said when it cannot be had.
@@ -342,18 +424,19 @@ _PRODUCT_WORDS = {
 }
 
 
-# name -> (url, params, parse(response), fresh for, served stale up to).
+# name -> (url, params, parse(response), fresh for, held_until(copy,
+# fetched at) -- to when a held copy is served when a refresh fails).
 _SOURCES = {
     "metars": (f"{CACHE_BASE_URL}/metars.cache.xml.gz", {},
-               lambda resp: _parse_metars(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+               lambda resp: _parse_metars(gzip.decompress(resp.content)), _DATASET_TTL_S, _metars_until),
     "tafs": (f"{CACHE_BASE_URL}/tafs.cache.xml.gz", {},
-             lambda resp: _parse_tafs(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+             lambda resp: _parse_tafs(gzip.decompress(resp.content)), _DATASET_TTL_S, _tafs_until),
     "airsigmets": (f"{CACHE_BASE_URL}/airsigmets.cache.xml.gz", {},
-                   lambda resp: _parse_airsigmets(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+                   lambda resp: _parse_airsigmets(gzip.decompress(resp.content)), _DATASET_TTL_S, _airsigmets_until),
     "pireps": (f"{CACHE_BASE_URL}/aircraftreports.cache.xml.gz", {},
-               lambda resp: _parse_pireps(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+               lambda resp: _parse_pireps(gzip.decompress(resp.content)), _DATASET_TTL_S, _pireps_until),
     "gairmets": (f"{CACHE_BASE_URL}/gairmets.cache.xml.gz", {},
-                 lambda resp: _parse_gairmets(gzip.decompress(resp.content)), _DATASET_TTL_S, _DATASET_STALE_MAX_S),
+                 lambda resp: _parse_gairmets(gzip.decompress(resp.content)), _DATASET_TTL_S, _gairmets_until),
     **{f"winds-{hr}": _winds_source(hr) for hr in ("06", "12", "24")},
 }
 
@@ -364,12 +447,15 @@ class _Record(NamedTuple):
     held copy was fetched (None when there is none); `error`, the last
     attempt's failure, None once one succeeds; `validators`, the held
     copy's ETag and Last-Modified, for the next fetch to ask whether it
-    has changed."""
+    has changed; `until`, the time to which the held copy may still be
+    served when a refresh fails, by the product's own validity (the
+    source's held_until)."""
     at: float | None
     data: object
     attempted: float
     error: WeatherServiceError | None
     validators: dict | None = None
+    until: float | None = None
 
 
 def _validators_of(resp) -> dict | None:
@@ -406,12 +492,18 @@ _DATASET_FETCHING: dict = {}
 _DUE = object()
 
 
-def _serve(record: _Record | None, now: float, ttl_s: float, stale_max_s: float):
+def _servable(record: _Record | None, now: float) -> bool:
+    """Whether a record holds a copy still valid by its product's own
+    rule, to be served when a refresh fails or one is in flight."""
+    return record is not None and record.at is not None and record.until is not None and now < record.until
+
+
+def _serve(record: _Record | None, now: float, ttl_s: float):
     """What a record can answer now: its data, the remembered failure
     (raised), or _DUE when a fetch should start."""
     if record is None:
         return _DUE
-    servable = record.at is not None and now - record.at < stale_max_s
+    servable = _servable(record, now)
     if record.at is not None and now - record.at < ttl_s:
         return record.data
     if now - record.attempted < _DATASET_RETRY_AFTER_S:
@@ -441,11 +533,11 @@ def _dataset(name: str, force: bool = False):
     download, up to a minute and a half on a bad day, so every briefing,
     nav log and Class B marker stood in line behind the server's own
     periodic refresh."""
-    url, params, parse, ttl_s, stale_max_s = _SOURCES[name]
+    url, params, parse, ttl_s, held_until = _SOURCES[name]
     if not force:
         global _LAST_ASKED
         _LAST_ASKED = time.time()
-        served = _serve(_DATASETS.get(name), time.time(), ttl_s, stale_max_s)
+        served = _serve(_DATASETS.get(name), time.time(), ttl_s)
         if served is not _DUE:
             return served
     while True:
@@ -453,7 +545,7 @@ def _dataset(name: str, force: bool = False):
             record = _DATASETS.get(name)
             now = time.time()
             if not force:
-                served = _serve(record, now, ttl_s, stale_max_s)
+                served = _serve(record, now, ttl_s)
                 if served is not _DUE:
                     return served
             in_flight = _DATASET_FETCHING.get(name)
@@ -461,7 +553,7 @@ def _dataset(name: str, force: bool = False):
                 done = threading.Event()
                 _DATASET_FETCHING[name] = done
                 break
-            if record is not None and record.at is not None and now - record.at < stale_max_s:
+            if _servable(record, now):
                 return record.data
         if not in_flight.wait(timeout=_DATASET_WAIT_S):
             raise WeatherServiceError(f"aviationweather.gov {name} is still downloading")
@@ -486,17 +578,25 @@ def _dataset(name: str, force: bool = False):
         with _DATASET_LOCKS[name]:
             _DATASETS[name] = _Record(
                 at=record.at if record else None, data=record.data if record else None, attempted=now, error=error,
-                validators=record.validators if record else None,
+                validators=record.validators if record else None, until=record.until if record else None,
             )
             _DATASET_FETCHING.pop(name, None)
         done.set()
-        if record is not None and record.at is not None and now - record.at < stale_max_s:
-            log.warning("%s refresh failed (%s); serving the copy from %.0f minutes ago",
-                        name, err, (now - record.at) / 60)
+        if _servable(record, now):
+            log.warning("%s refresh failed (%s); serving the copy from %.0f minutes ago, valid to %s",
+                        name, err, (now - record.at) / 60,
+                        datetime.fromtimestamp(record.until, timezone.utc).isoformat()
+                        if record.until != float("inf") else "its reports' own times")
             return record.data
         raise error from err
+    try:
+        until = held_until(data, now)
+    except (KeyError, TypeError, ValueError):
+        # A copy whose validity cannot be read is held as long as one that
+        # does not say.
+        until = now + _DATASET_STALE_MAX_S
     with _DATASET_LOCKS[name]:
-        _DATASETS[name] = _Record(at=now, data=data, attempted=now, error=None, validators=validators)
+        _DATASETS[name] = _Record(at=now, data=data, attempted=now, error=None, validators=validators, until=until)
         _DATASET_FETCHING.pop(name, None)
     done.set()
     return data
@@ -504,7 +604,9 @@ def _dataset(name: str, force: bool = False):
 
 def dataset_status() -> dict[str, float | None]:
     """When each source's held copy was fetched, None for one not held --
-    what the Dev console shows as the weather's age."""
+    what the Dev console (/api/status) and the map's layer ages
+    (/api/map/ages) show as the weather's age. A copy served on through
+    an outage keeps its own fetch time, so the age said grows with it."""
     return {name: (record.at if (record := _DATASETS.get(name)) else None) for name in _SOURCES}
 
 
