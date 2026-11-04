@@ -44,6 +44,8 @@ import app.wingtipmaps.android.flight.OwnShip
 import app.wingtipmaps.android.flight.OwnTrail
 import app.wingtipmaps.android.map.ChartMap
 import app.wingtipmaps.android.notify.Notifications
+import app.wingtipmaps.android.strip.StripLayout
+import app.wingtipmaps.android.strip.StripTheme
 import kotlinx.coroutines.flow.StateFlow
 
 /** The sheet's four tabs, as the web app and the iOS app have them. */
@@ -154,6 +156,35 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
     // The sheet sits over the navigation bar (edge to edge): its pill is
     // the strip and the tabs above the bar, and its content ends above it.
     val navigationBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    // The map and its buttons, the same under either layout.
+    val mapContent: @Composable (onAsk: (() -> Unit)?) -> Unit = { onAsk ->
+        Box(Modifier.fillMaxSize()) {
+            ChartMap(
+                template = template,
+                minZoom = base?.minZoom ?: 5,
+                maxZoom = base?.maxZoom ?: 12,
+                line = state.course?.courseLine.orEmpty(),
+                modifier = Modifier.fillMaxSize(),
+                ownShip = if (ownShipOn) fix else null,
+                trail = flown,
+                follow = following,
+                onDragged = { following = false },
+            )
+            MapButtons(ownShip = ownShipMode, onOwnShip = onOwnShip, onAsk = onAsk, modifier = Modifier.align(Alignment.TopEnd))
+        }
+    }
+    // The strip (the other session's StripLayout: one field, the flight
+    // as one strip, the owner's pick of 2026-11-04), tried beside the
+    // tabs: Setup's Screen row switches (LayoutPreference). In the air,
+    // own ship at flying speed, the strip turns to the airplane.
+    val layout by rememberLayout()
+    if (layout == LayoutPreference.STRIP) {
+        val flying = ownShipOn && (fix?.groundspeedKt ?: 0.0) > OwnShip.MOVING_KT
+        StripTheme {
+            StripLayout(plan = plan, session = session, ownShip = ownShip, flying = flying, map = { mapContent(null) })
+        }
+        return
+    }
     BottomSheetScaffold(
         scaffoldState = rememberBottomSheetScaffoldState(),
         sheetPeekHeight = 120.dp + navigationBar,
@@ -177,20 +208,7 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
             }
         },
     ) {
-        Box(Modifier.fillMaxSize()) {
-            ChartMap(
-                template = template,
-                minZoom = base?.minZoom ?: 5,
-                maxZoom = base?.maxZoom ?: 12,
-                line = state.course?.courseLine.orEmpty(),
-                modifier = Modifier.fillMaxSize(),
-                ownShip = if (ownShipOn) fix else null,
-                trail = flown,
-                follow = following,
-                onDragged = { following = false },
-            )
-            MapButtons(ownShip = ownShipMode, onOwnShip = onOwnShip, onAsk = { asking = true }, modifier = Modifier.align(Alignment.TopEnd))
-        }
+        mapContent { asking = true }
     }
     // Ask (AskScreen): a question about the flight put to the assistant,
     // as a modal sheet over the map and the tabs, opened at the sparkle

@@ -13,6 +13,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +23,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -43,6 +47,21 @@ fun SetupScreen(session: Session) {
     var email by rememberSaveable { mutableStateOf("") }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // The tabs, or the strip (StripLayout), as the web app's Screen row
+        // has it: a setting of two is a segmented control.
+        val context = LocalContext.current
+        val layout by rememberLayout()
+        Text("Screen", style = MaterialTheme.typography.titleLarge)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            val choices = listOf(LayoutPreference.TABS to "Tabs", LayoutPreference.STRIP to "Strip")
+            choices.forEachIndexed { i, (value, label) ->
+                SegmentedButton(
+                    selected = layout == value,
+                    onClick = { LayoutPreference.set(context, value) },
+                    shape = SegmentedButtonDefaults.itemShape(index = i, count = choices.size),
+                ) { Text(label) }
+            }
+        }
         Text("Account", style = MaterialTheme.typography.titleLarge)
         val signedIn = pilot
         when {

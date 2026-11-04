@@ -34,7 +34,7 @@ enum class OwnShipMode { OFF, READING, FOLLOWING }
  * its 48-dp touch target, so nothing is grown to be tappable.
  */
 @Composable
-fun MapButtons(ownShip: OwnShipMode, onOwnShip: () -> Unit, onAsk: () -> Unit, modifier: Modifier = Modifier) {
+fun MapButtons(ownShip: OwnShipMode, onOwnShip: () -> Unit, onAsk: (() -> Unit)?, modifier: Modifier = Modifier) {
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     Column(modifier.padding(top = top + 8.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val tint = when (ownShip) {
@@ -55,11 +55,14 @@ fun MapButtons(ownShip: OwnShipMode, onOwnShip: () -> Unit, onAsk: () -> Unit, m
                 },
             )
         }
-        FilledTonalIconButton(
-            onClick = onAsk,
-            colors = IconButtonDefaults.filledTonalIconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
-        ) {
-            Icon(Icons.Filled.AutoAwesome, contentDescription = "Ask about this flight")
+        // In the strip the field is the way to the assistant, so no sparkle.
+        if (onAsk != null) {
+            FilledTonalIconButton(
+                onClick = onAsk,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+            ) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = "Ask about this flight")
+            }
         }
     }
 }
