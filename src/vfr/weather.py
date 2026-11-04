@@ -334,6 +334,14 @@ def _winds_source(fcst_hr: str) -> tuple:
             lambda resp: parse_fd_text(resp.text), _WINDS_TTL_S, _WINDS_TTL_S)
 
 
+# Each source as a pilot knows it, for the line said when it cannot be had.
+_PRODUCT_WORDS = {
+    "metars": "METARs", "tafs": "TAFs", "airsigmets": "AIRMETs and SIGMETs", "pireps": "PIREPs",
+    "gairmets": "G-AIRMETs", "winds-06": "Winds aloft (6-hour forecast)",
+    "winds-12": "Winds aloft (12-hour forecast)", "winds-24": "Winds aloft (24-hour forecast)",
+}
+
+
 # name -> (url, params, parse(response), fresh for, served stale up to).
 _SOURCES = {
     "metars": (f"{CACHE_BASE_URL}/metars.cache.xml.gz", {},
@@ -470,7 +478,11 @@ def _dataset(name: str, force: bool = False):
         data = held.data if unchanged else parse(resp)
         validators = held.validators if unchanged else _validators_of(resp)
     except (WeatherServiceError, OSError, ET.ParseError) as err:
-        error = WeatherServiceError(f"aviationweather.gov {name} unavailable: {err}")
+        # The pilot reads this line (the map's problem banner, a stream's
+        # last line), so it names the product in a pilot's words; the
+        # cause, which only a developer can act on, goes to the log.
+        log.warning("aviationweather.gov %s unavailable: %s", name, err)
+        error = WeatherServiceError(f"{_PRODUCT_WORDS.get(name, name)} unavailable from aviationweather.gov just now")
         with _DATASET_LOCKS[name]:
             _DATASETS[name] = _Record(
                 at=record.at if record else None, data=record.data if record else None, attempted=now, error=error,
