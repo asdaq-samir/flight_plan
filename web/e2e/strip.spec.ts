@@ -96,7 +96,7 @@ test("a screen's word in the field opens it, and the profile menu opens Settings
   await page.getByTestId("profile-button").click();
   await page.getByTestId("profile-settings").click();
   await expect(page.getByTestId("quick-controls").first()).toBeVisible({ timeout: slow(15000) });
-  await expect(page.getByTestId("layout-select")).toBeVisible();
+  await expect(page.getByTestId("layout-select")).toHaveCount(0);
 });
 
 test("the altitude's row under the head opens the altitude's wheel, named on the ribbon", async ({ page }) => {

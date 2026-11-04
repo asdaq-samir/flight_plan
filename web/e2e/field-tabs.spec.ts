@@ -92,13 +92,10 @@ test("the tabs are docked: nothing of the map under the sheet at the pill", asyn
   expect(box.x).toBe(0);
 });
 
-test("Setup's Screen row has the third choice, and picks it", async ({ page }) => {
+test("Setup has no Screen row: the tabs are the app's", async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   await expect(page.getByTestId("field-tabs")).toHaveCount(0);
   await openSetup(page);
-  const screen = page.getByTestId("layout-select");
-  await expect(screen).toBeVisible();
-  await screen.getByText("Field + tabs").click();
-  await expect(page.getByTestId("field-tabs").getByTestId("strip-field")).toBeVisible({ timeout: slow(15000) });
+  await expect(page.getByTestId("layout-select")).toHaveCount(0);
 });

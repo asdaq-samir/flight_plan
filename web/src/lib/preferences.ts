@@ -425,13 +425,17 @@ export const usePreferences = create<Preferences>()(
       // browser as for a new one.
       // 4: a look no longer offered (Sectional, Windsock, Clear Sky) is
       // the Glass Cockpit, the default now.
-      version: 4,
+      // 5: the tabs for everyone, the strip and the field over the tabs
+      // taken out of Setup (the owner, 2026-11-04: "I like the tab, I
+      // don't want the strip or field, remove it from settings").
+      version: 5,
       migrate: (kept, from) => ({
         ...(kept as object),
         ...(from < 1 ? { waypoints: false } : {}),
         ...(from < 2 ? { airspace: true, navaids: true } : {}),
         ...(from < 3 ? { chartLight: "auto" } : {}),
         ...(from < 4 && !["cockpit", "ink"].includes((kept as { brand?: string }).brand ?? "") ? { brand: "cockpit" } : {}),
+        ...(from < 5 ? { layout: "tabs" } : {}),
       }) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
