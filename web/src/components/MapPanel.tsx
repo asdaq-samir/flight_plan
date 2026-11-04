@@ -460,8 +460,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     place(hRef.current);
   });
   useEffect(() => () => window.clearTimeout(landTimer.current), []);
+  // Said a frame on, so that what the workspace draws for a sheet on the
+  // move (FPL's strips, usePanelDragging) is not in the frame the sheet
+  // sets off in: there it held the first frame of the move back by the
+  // workspace's render (sampled at CPU 4x, 2026-11-04).
   useEffect(() => {
-    usePanelDragging.setState({ dragging: motion !== null });
+    const frame = requestAnimationFrame(() => usePanelDragging.setState({ dragging: motion !== null }));
+    return () => cancelAnimationFrame(frame);
   }, [motion]);
   // The room it leaves the map, told once at rest (the turn's event said
   // it as the sheet set off).
