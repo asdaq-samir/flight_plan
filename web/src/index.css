@@ -203,8 +203,7 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
     box-shadow: none !important;
     backdrop-filter: none !important;
   }
-  [data-slot="map-panel"] > div,
-  [data-slot="map-panel"] > [data-sheet-content] > div {
+  [data-slot="map-panel"] > div {
     display: block !important;
     height: auto !important;
     overflow: visible !important;

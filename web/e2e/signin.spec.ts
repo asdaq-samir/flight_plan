@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { DEVELOPER, openLinkFor, signInByEmail } from "./emailSignIn";
-import { closeConsole, library, noTips, openConsole, openAccount, roleMenu, showTabs, consolePage } from "./helpers";
+import { closeConsole, library, noTips, openConsole, openAccount, roleMenu, showTabs, sideDrawer, consolePage } from "./helpers";
 
 /**
  * Signing in and out on the running stack, from a browser with no
@@ -129,7 +129,7 @@ test("a pilot's link lands on the planner, with no dev switch, and the pilot con
 
   await page.waitForURL("**/app/plan**");
   // The planner as a fresh load opens, the tabs alone.
-  await expect(page.getByTestId("tab-bar")).toBeVisible();
+  await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
   await page.waitForTimeout(500);   // a moment for a console that was coming down by itself
   await expect(consoleSheet(page)).toHaveCount(0);
   await expect(await devSwitchInSettings(page)).toHaveCount(0);

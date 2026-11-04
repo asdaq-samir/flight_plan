@@ -70,7 +70,7 @@ test("on a phone the credit rides on the sheet's top, under a finger and at rest
   }
   // Dragged up from its tabs and held: the credit goes with it, where it
   // stayed at the inset the sheet had at rest (the owner, 2026-10-28).
-  const tabs = (await page.getByTestId("tab-bar").boundingBox())!;
+  const tabs = (await panel.getByTestId("tab-bar").boundingBox())!;
   const at = { x: tabs.x + tabs.width / 2, y: tabs.y + tabs.height / 2 };
   const cdp = await page.context().newCDPSession(page);
   const touch = (type: string, q?: { x: number; y: number }) =>

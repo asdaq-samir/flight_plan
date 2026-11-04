@@ -34,24 +34,21 @@ import { PAGES, grabberTo, settle, slow, expectDrawerClosed, openBrief, openSide
 test.describe("/app/plan", () => {
   // At rest the panel is a pill of the tabs, at the owner's ask ("When no
   // route is entered, let's have tabs on the pill"), a route's figures
-  // pinned over them ("If a route is entered, then let's pin the
-  // calculations at the bottom") -- on a phone the tabs docked at the
-  // screen's foot under them (2026-11-04), from `md` up the figures in the
-  // tabs' place; the grabber half way.
-  test("the panel rests as the tabs, a route's figures with them, and half way has the route's box", async ({ page }) => {
-    const phone = page.viewportSize()!.width < 768;
+  // pinned under them ("If a route is entered, then let's pin the
+  // calculations at the bottom"); the grabber half way.
+  test("the panel rests as the tabs, a route's figures under them, and half way has the route's box", async ({ page }) => {
     await page.goto("/app/plan");
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
-    await expect(page.getByTestId("tab-bar")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("tab-bar")).toBeVisible();
     await expect(sideDrawer(page).getByTestId("route-type")).toBeHidden();
     await expect(sideDrawer(page).getByTestId("flight-line")).toHaveCount(0);
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
     await expect(sideDrawer(page)).toHaveAttribute("data-capsule", "true");
+    // With a route, its figures in the tabs' place.
     await expect(sideDrawer(page).getByTestId("flight-line")).toContainText(/\d+ nm/, { timeout: slow(30000) });
-    if (phone) await expect(page.getByTestId("tab-bar")).toBeVisible();
-    else await expect(sideDrawer(page).getByTestId("tab-bar")).toBeHidden();
+    await expect(sideDrawer(page).getByTestId("tab-bar")).toBeHidden();
     await page.getByTestId("sidebar-trigger-button").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
     await expect(page.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
@@ -78,7 +75,7 @@ test.describe("/app/plan", () => {
     }).toPass({ timeout: 10_000 });
     await page.getByTestId("sidebar-trigger-button").click();
     await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
-    await expect(page.getByTestId("tab-bar").getByTestId("setup-button")).toBeVisible();
+    await expect(sideDrawer(page).getByTestId("tab-bar").getByTestId("setup-button")).toBeVisible();
     await grabberTo(page, "full");
 
     await page.goto("/app/plan?dep=C81&dest=KDLH");
@@ -276,16 +273,16 @@ for (const path of PAGES) {
       // At the end of the training page's route capsule, which has no
       // search bar.
       await showTabs(page);
-      await expect(page.getByTestId("tab-bar").getByTestId("setup-button")).toBeVisible();
+      await expect(sideDrawer(page).getByTestId("setup-button")).toBeVisible();
     } else {
       // At the end of the route's capsule, as at the search bar's once
       // the route is closed, as Maps' account is.
       await showTabs(page);
-      await expect(page.getByTestId("tab-bar").getByTestId("setup-button")).toBeVisible();
+      await expect(sideDrawer(page).getByTestId("setup-button")).toBeVisible();
       await page.goto(path);
       await settle(page);
       await showTabs(page);
-      await expect(page.getByTestId("tab-bar").getByTestId("setup-button")).toBeVisible();
+      await expect(sideDrawer(page).getByTestId("setup-button")).toBeVisible();
       expect(await page.locator("[data-map-controls]").getByTestId("setup-button").count()).toBe(0);
     }
 

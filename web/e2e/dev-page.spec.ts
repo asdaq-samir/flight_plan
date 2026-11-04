@@ -14,7 +14,7 @@ test("dev page: the dev console opens on training, and the waypoint drawer opens
   // FPL's with a route; the pill its tabs: Train, Perf and Setup.
   if ((page.viewportSize()?.width ?? 0) < 768) await expect(sideDrawer(page).getByTestId("train-figures")).toBeVisible();
   await showTabs(page);
-  await expect(page.getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Setup"]);
+  await expect(sideDrawer(page).getByTestId("tab-bar").getByRole("button")).toHaveText(["Train", "Perf", "Setup"]);
   await expect(page.getByTestId("tab-train")).toHaveAttribute("aria-current", "page");
   // Its tabs half way (the figures are the pill's); down again, the pill.
   await grabberTo(page, "peek");

@@ -38,13 +38,13 @@ test("the field is at the top of the map, the four tabs in the pill, and a route
   await expect(top.getByTestId("strip-avatar")).toHaveCount(0);
   // The map's own microphone is put away: the field has one.
   await expect(page.getByTestId("mic-circle")).toHaveCount(0);
-  // The four tabs at the foot, docked under the sheet, FPL up.
+  // The four tabs in the pill at the foot, FPL up.
   const panel = sideDrawer(page);
-  for (const tab of ["tab-fpl", "tab-airport", "tab-aircraft", "setup-button"]) await expect(page.getByTestId(tab)).toBeVisible();
-  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("data-current", "true");
+  for (const tab of ["tab-fpl", "tab-airport", "tab-aircraft", "setup-button"]) await expect(panel.getByTestId(tab)).toBeVisible();
+  await expect(panel.getByTestId("tab-fpl")).toHaveAttribute("data-current", "true");
   // The field at the top, the tabs under it.
   const fieldBox = (await field.boundingBox())!;
-  const tabsBox = (await page.getByTestId("tab-fpl").boundingBox())!;
+  const tabsBox = (await panel.getByTestId("tab-fpl").boundingBox())!;
   expect(fieldBox.height).toBeGreaterThanOrEqual(44);
   expect(tabsBox.y).toBeGreaterThan(fieldBox.y + fieldBox.height);
   // Idents typed are a route, as in the strip: the sheet comes up half
@@ -52,7 +52,7 @@ test("the field is at the top of the map, the four tabs in the pill, and a route
   await field.fill("C81 KDLH");
   await field.press("Enter");
   await expect(panel.getByTestId("route-box")).toContainText("KDLH", { timeout: slow(30000) });
-  await expect(page.getByTestId("tab-fpl")).toHaveAttribute("data-current", "true");
+  await expect(panel.getByTestId("tab-fpl")).toHaveAttribute("data-current", "true");
 });
 
 test("the field is the assistant's by default, one mic and no Ask button, its answer under the field", async ({ page }) => {
@@ -85,7 +85,7 @@ test("the tabs are docked: nothing of the map under the sheet at the pill", asyn
   await page.goto(fieldTabsPlan());
   await settle(page);
   const panel = sideDrawer(page);
-  await expect(page.getByTestId("tab-fpl")).toBeVisible({ timeout: slow(30000) });
+  await expect(panel.getByTestId("tab-fpl")).toBeVisible({ timeout: slow(30000) });
   const box = (await panel.boundingBox())!;
   const height = page.viewportSize()!.height;
   expect(Math.abs(box.y + box.height - height)).toBeLessThanOrEqual(1);

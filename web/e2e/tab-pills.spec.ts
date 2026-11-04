@@ -27,10 +27,7 @@ async function keep(page: Page, state: Record<string, unknown>) {
  *  finger. */
 async function swipeAcross(page: Page, by: number) {
   const panel = sideDrawer(page);
-  // The row a card's line is in at the sheet's top, or the tabs' (docked at
-  // the screen's foot on a phone, the card's first row from `md` up).
-  const line = page.getByTestId("tab-head");
-  const row = (await (await line.isVisible() ? line : page.getByTestId("tab-bar")).locator("xpath=..").boundingBox())!;
+  const row = (await panel.getByTestId("tab-bar").locator("xpath=..").boundingBox())!;
   const x0 = by > 0 ? row.x + 5 : row.x + row.width - 5;
   const y = row.y + row.height / 2;
   await panel.evaluate((el, [from, to, at]) => {
@@ -48,7 +45,7 @@ async function pickHalf(page: Page, tab: string) {
   await grabberTo(page, "half");
 }
 
-test("each tab's pill is the tabs, FPL's with a route its figures over them on a phone, and half way is one height on every tab", async ({ page }) => {
+test("each tab's pill is the tabs, FPL's with a route its figures in their place at the same height, and half way is one height on every tab", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
@@ -56,30 +53,18 @@ test("each tab's pill is the tabs, FPL's with a route its figures over them on a
     await settled(panel);
     return (await panel.boundingBox())!.height;
   };
-  const docked = (page.viewportSize()?.width ?? 0) < 768;
   await expect(panel.getByTestId("flight-line")).toBeVisible({ timeout: 30_000 });
-  // On a phone the tabs docked under the figures (the owner's pick,
-  // 2026-11-04); from `md` up the figures in their place.
-  if (docked) await expect(page.getByTestId("tab-bar")).toBeVisible();
-  else await expect(panel.getByTestId("tab-bar")).toBeHidden();
+  await expect(panel.getByTestId("tab-bar")).toBeHidden();
   const fpl = await height();
-  const tabsAt = docked ? (await page.getByTestId("tab-bar").boundingBox())!.y : 0;
   // Another tab picked at the pill: half way, then down: the tabs alone.
   await showTabs(page);
   await page.getByTestId("tab-airport").click();
   await grabberTo(page, "peek");
-  await expect(page.getByTestId("tab-bar")).toBeVisible();
+  await expect(panel.getByTestId("tab-bar")).toBeVisible();
   await expect(panel.getByTestId("search-airports")).toBeHidden();
   await expect(panel.getByTestId("flight-line")).toHaveCount(0);
-  if (docked) {
-    // The tabs where they were under the figures, the pill the grabber's
-    // band over them where FPL's was the figures' row.
-    expect(Math.abs((await page.getByTestId("tab-bar").boundingBox())!.y - tabsAt)).toBeLessThan(0.5);
-    expect(await height()).toBeLessThan(fpl - 40);
-  } else {
-    // The same height as FPL's figures (the owner's "keeping it the same size").
-    expect(Math.abs(await height() - fpl)).toBeLessThan(1);
-  }
+  // The same height as FPL's figures (the owner's "keeping it the same size").
+  expect(Math.abs(await height() - fpl)).toBeLessThan(1);
   // Half way one height on every tab, FPL's with its route too (the
   // owner's "Keep the half card consistent in size for all tabs including
   // fpl").
@@ -299,33 +284,32 @@ test("on a phone, an airport's card opened from another tab has Share at the top
   await expect(share).toHaveCount(0);
 });
 
-test("on a phone, a card's line is the sheet's first row over its card, the tabs docked in sight under the sheet, and its close goes back", async ({ page }) => {
-  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs are docked on a phone only");
-  // The tabs were minimized to the card's line, a tap anywhere on it
-  // showing them (the owner's "Clicking anywhere on the tabs bar should
-  // show tabs except the back/close button should do their action");
-  // docked at the screen's foot (2026-11-04) they are always in sight, and
-  // the line names the card.
+test("on a phone, a tap anywhere on the tabs' minimized line shows the tabs, but Back goes back", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "the tabs minimize on a phone only");
+  // The owner's ask: "Clicking anywhere on the tabs bar should show tabs
+  // except the back/close button should do their action".
   await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
   await settle(page);
   const panel = sideDrawer(page);
   await expect(panel.getByTestId("place-card")).toBeVisible();
   // The line the pill's: half way the card's pictures have its own (A2).
   await grabberTo(page, "peek");
-  const title = panel.getByTestId("tab-title");
-  await expect(title).toContainText("KDLH");
-  const tabs = page.getByTestId("tab-dock").getByTestId("tab-bar");
-  await expect(tabs).toBeVisible();
-  // The line over the tabs, in the sheet.
-  expect((await title.boundingBox())!.y).toBeLessThan((await tabs.boundingBox())!.y);
-  // A tap on it leaves the card open, the tabs where they are.
-  await title.click();
+  const title = page.getByTestId("tab-title");
+  const back = (await page.getByTestId("tab-share").boundingBox())!;
+  const close = (await page.getByTestId("tab-close").boundingBox())!;
+  const line = (await title.boundingBox())!;
+  // Between Share and the title, off both: the tabs.
+  await page.mouse.click((back.x + back.width + line.x) / 2, line.y + line.height / 2);
+  await expect(page.getByTestId("tab-fpl")).toBeVisible();
   await expect(page).toHaveURL(/[?&]place=KDLH/);
-  await expect(tabs.getByTestId("tab-fpl")).toBeVisible();
-  // The close does its own.
+  // The close on a fresh load does its own, not the tabs'.
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  await expect(panel.getByTestId("place-card")).toBeVisible();
+  await grabberTo(page, "peek");
+  expect(close.x).toBeGreaterThan(line.x);
   await page.getByTestId("tab-close").click();
   await expect(page).not.toHaveURL(/[?&]place=/);
-  await expect(tabs).toBeVisible();
 });
 
 test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with Add until one is kept, and kept from the search's pick", async ({ page }) => {
@@ -438,7 +422,7 @@ test("a finger's swipe across the panel switches no tab, and on a Setup page to 
   await settle(page);
   await grabberTo(page, "half");
   const panel = sideDrawer(page);
-  const up = () => page.locator('[data-testid="tab-bar"] button[aria-current="page"]');
+  const up = () => panel.locator('[data-testid="tab-bar"] button[aria-current="page"]');
   await showTabs(page);
   await expect(up()).toHaveAttribute("data-testid", "tab-fpl");
   for (const by of [-130, 130]) {
@@ -481,5 +465,5 @@ test("with Back showing, a swipe across the panel goes back, not to the tab besi
   await expect(page).not.toHaveURL(/[?&]place=/);
   await expect(page.getByTestId("tab-share")).toHaveCount(0);
   await showTabs(page);
-  await expect(page.locator('[data-testid="tab-bar"] button[aria-current="page"]')).toHaveAttribute("data-testid", "tab-fpl");
+  await expect(panel.locator('[data-testid="tab-bar"] button[aria-current="page"]')).toHaveAttribute("data-testid", "tab-fpl");
 });

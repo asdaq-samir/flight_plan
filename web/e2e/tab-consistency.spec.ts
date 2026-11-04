@@ -26,8 +26,7 @@ test.beforeEach(async ({ page }) => {
 interface Section { heading: string | null; font: string | null; top: number; bottom: number; left: number; right: number }
 
 /** The tab page in sight and its sections, the outermost in it, in
- *  points from the panel's edges, and from where the tab bar ends -- or
- *  the sheet's top, where the bar is docked under it. */
+ *  points from the panel's edges; and where the tab bar ends. */
 async function layout(page: Page) {
   const panel = sideDrawer(page);
   await settled(panel);
@@ -35,9 +34,7 @@ async function layout(page: Page) {
     const box = el.getBoundingClientRect();
     const shown = (e: Element) => e.getBoundingClientRect().height > 0;
     const tabPage = [...el.querySelectorAll("[data-panel-body] [data-tab-page]")].find(shown);
-    // From the bar's foot where it is the card's first row (from `md` up),
-    // else from the sheet's top, its tabs docked at the screen's foot.
-    const bar = el.querySelector('[data-testid="tab-bar"]')?.getBoundingClientRect() ?? { bottom: box.top };
+    const bar = el.querySelector('[data-testid="tab-bar"]')!.getBoundingClientRect();
     if (!tabPage) return null;
     const sections = [...tabPage.querySelectorAll("section")].filter(s => {
       for (let up = s.parentElement; up && up !== tabPage; up = up.parentElement) if (up.tagName === "SECTION") return false;

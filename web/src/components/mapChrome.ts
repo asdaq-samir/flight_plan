@@ -50,16 +50,6 @@ export const ConsoleInPanelContext = createContext<{ close: () => void } | null>
  *  (TabBar). */
 export const TabBarMinimized = createContext(false);
 
-/** Where a phone's tab bar is docked (MapPanel): the row at the screen's
- *  foot its tabs are drawn into, and the sheet above it, whose gestures
- *  it shares. Docked at every size of the sheet, at the owner's pick
- *  (2026-11-04, "The tab bar seems to be moving from bottom as I am
- *  moving it between detents"), as Find My's is: the sheet slides above
- *  it, and a card's name, Share and close stay the sheet's first row.
- *  Null where the bar is the sheet's own first row -- from `md` up, in
- *  flight, with the keyboard up, in the strip's layout. */
-export const TabDock = createContext<{ dock: HTMLElement; panel: HTMLElement } | null>(null);
-
 /** Whether the minimized bar lies in the pill over a card's picture
  *  (MapPanel's PillPicture, lib/openCards' `pill`): its words and glyphs
  *  white, its round buttons a light glass, and the card's line under its

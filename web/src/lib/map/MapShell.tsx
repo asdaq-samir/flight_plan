@@ -302,10 +302,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     if (!map) return;
     const doc = map.getContainer().ownerDocument;
     const down = (event: PointerEvent) => {
-      // The sheet, or the tab bar docked under it (MapPanel), whose drag
-      // is the sheet's.
-      const hit = (event.target as Element | null)?.closest?.<HTMLElement>('[data-slot="map-panel"], [data-tab-dock]');
-      const el = hit?.hasAttribute("data-tab-dock") ? doc.querySelector<HTMLElement>('[data-slot="map-panel"]') : hit;
+      const el = (event.target as Element | null)?.closest?.<HTMLElement>('[data-slot="map-panel"]');
       const { left, bottom } = insetsRef.current;
       if (!el || left || !bottom || heldRef.current) return;
       pressed.current = true;

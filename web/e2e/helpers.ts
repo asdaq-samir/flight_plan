@@ -40,19 +40,15 @@ export async function settle(page: Page) {
  *  `data-panel`: peek at rest, half or full when it is out. */
 export const sideDrawer = (page: Page) => page.locator('[data-slot="map-panel"]');
 
-/** The tab bar's tabs in sight: on a phone docked at the screen's foot at
- *  every size; from `md` up the card's first row at half and all the way
- *  up, minimized to the tab up's name over a card (TabBar), tapped to show
- *  them all, and not in the pill with a route (MapPanel): the card half
- *  way for them. */
+/** The tab bar's tabs in sight: the sheet's first row at half and all the
+ *  way up, minimized to the tab up's name over a card (TabBar), tapped to
+ *  show them all. Not in the pill, which is one row (MapPanel): the sheet
+ *  half way for them. */
 export async function showTabs(page: Page) {
   // From the sheet at rest: settling to the pill it keeps the half's
   // layout, tabs and all, until it lands (MapPanel), and tabs seen then
   // were gone a moment later under the route's figures.
   await settled(sideDrawer(page));
-  // On a phone the tabs are docked at the screen's foot at every size
-  // (MapPanel's dock, the owner's pick of 2026-11-04): in sight already.
-  if (await page.getByTestId("tab-dock").getByTestId("tab-bar").isVisible()) return;
   // An airport's or an airplane's card over its pictures has its own
   // share and close out of the pill, the minimized bar left out over it
   // (MapPanel's ownHead): its bar is the pill's.
