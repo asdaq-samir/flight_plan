@@ -42,6 +42,7 @@ import { NO_PLAN, useBriefPlan } from "../../lib/briefPlan";
 import { briefingLegs } from "./hooks/briefingLegs";
 import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
+import FirstFlight from "./components/FirstFlight";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
 import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
@@ -2560,7 +2561,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         {routed && (
           <RoundButton
             label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
-            data-testid="route-brief" data-finding={briefMark ?? undefined}
+            data-testid="route-brief" data-finding={briefMark ?? undefined} data-tip="brief"
           >
             <span className="relative">
               <ClipboardList className="size-[1.125rem]" strokeWidth={2} />
@@ -2648,6 +2649,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         )}
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
+        <FirstFlight routed={routed} onPlan={setRoute} onPlanned={openNavLogCard} />
       </div>
     ),
     // The tab's body (TabBar): FPL's nav log, kept mounted under whatever

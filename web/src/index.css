@@ -516,6 +516,68 @@ html.dark[data-chart-night="dimmed"] .course-casing {
   background: var(--background);
 }
 
+/* The chart in sunlight (the map's settings' Sunlight, lib/preferences
+   chartLight, set on <html> by lib/sunlight from the light sensor or by
+   hand; the owner's canvas "Sunlight mode", 2026-11-03): a screen held
+   up in a sunlit cockpit, where the glass and a sectional's pale inks
+   wash out. The chart's tiles at a quarter more contrast and a fifth
+   more colour, each tile as the night's dimming is; the course wider and
+   cased in black (CourseLine's classes; the stylesheet's stroke-width
+   outranks Leaflet's attribute); and no glass -- every sheet, button and
+   figure strip solid white with black figures and a deep blue tint,
+   AA-large on white. The airspace rings draw on a canvas at their own
+   width (AirspaceLinesCanvas) and are not reached from here. */
+html[data-chart-light="bright"] .chart-tiles .leaflet-tile,
+html.dark[data-chart-light="bright"] .chart-tiles .leaflet-tile {
+  filter: contrast(1.25) saturate(1.2);
+}
+html[data-chart-light="bright"] .course-casing {
+  stroke: #000;
+  stroke-width: 9;
+  stroke-opacity: 1;
+}
+html[data-chart-light="bright"] .course-core {
+  stroke: #e4007c;
+  stroke-width: 5;
+}
+:root[data-chart-light="bright"],
+:root.dark[data-chart-light="bright"] {
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --sheet: #ffffff;
+  --muted: #eeeeee;
+  --muted-foreground: #333333;
+  --border: #000000;
+  --primary: #0040c0;
+  --primary-foreground: #ffffff;
+  --tint: #0040c0;
+  --tint-shade: #0040c0;
+  --glass-sheen: #ffffff;
+  --glass-light: #ffffff;
+  --glass-edge: #000000;
+  --glass-shade: transparent;
+  --glass-pressed: #dddddd;
+}
+html[data-chart-light="bright"] .liquid-glass {
+  background-color: #ffffff !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+/* The sheet and the map's buttons edged in black, as the canvas draws
+   them, where a shadow alone is lost in the sun. */
+html[data-chart-light="bright"] [data-slot="map-panel"],
+html[data-chart-light="bright"] [data-map-controls] button {
+  box-shadow: inset 0 0 0 2px #000;
+}
+html[data-chart-light="bright"] [data-slot="section-summary"] {
+  background-color: #ffffff;
+  color: #000000;
+}
+
 @layer base {
   /* One weight for emphasis: <b> and <strong> at 600, as every
      font-semibold heading, figure and name is, rather than the

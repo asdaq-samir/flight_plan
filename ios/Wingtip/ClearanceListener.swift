@@ -243,6 +243,36 @@ final class ClearanceListener {
         return text
     }
 
+    /// One broadcast heard and no more -- an ATIS or AWOS off the
+    /// field's frequency (Atis) -- as the web's lib/atis hears it: the
+    /// words so far to `heard` as they come, and the whole once they
+    /// stop coming for `pause` seconds, nothing has come for `nothing`
+    /// seconds, or `longest` seconds have passed. Nil where the
+    /// microphone or the recognizer refused (`problem` says why).
+    func hearBroadcast(words: [String] = [], pause: TimeInterval = 3, nothing: TimeInterval = 15, longest: TimeInterval = 75,
+                  heard: @MainActor (String) -> Void = { _ in }) async -> String? {
+        let from = next
+        await start(words: words)
+        guard listening else { return nil }
+        let began = Date()
+        var last = began
+        var said = ""
+        defer { stop() }
+        while listening {
+            try? await Task.sleep(for: .milliseconds(250))
+            let now = Date()
+            let text = self.heard.filter { $0.id >= from }.map(\.text).joined(separator: " ")
+            if text != said {
+                said = text
+                last = now
+                heard(text)
+            }
+            let quiet = now.timeIntervalSince(last)
+            if (said.isEmpty && quiet >= nothing) || (!said.isEmpty && quiet >= pause) || now.timeIntervalSince(began) >= longest { break }
+        }
+        return said
+    }
+
     func stop() {
         listening = false
         cut?.cancel()

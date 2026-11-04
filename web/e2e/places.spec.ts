@@ -938,3 +938,49 @@ test("a military field's card shows 'permission required' whole in its line, not
   // wraps it where one line would cut it).
   await expect(line).toHaveJSProperty("scrollHeight", await line.evaluate(el => el.clientHeight));
 });
+
+/**
+ * Listen to ATIS on the Weather tab: one broadcast heard through the
+ * microphone and read by the engine (lib/atis, read_atis), the runway in
+ * use and the altimeter in one line, the figures under it, the
+ * transcript folded. The browser's recognizer is a stand-in saying the
+ * broadcast.
+ */
+test("the Weather tab listens to an ATIS and shows the runway in use and the altimeter at a glance", async ({ page }) => {
+  await page.addInitScript(() => {
+    class Heard {
+      lang = ""; continuous = false; interimResults = false;
+      onresult: ((e: unknown) => void) | null = null; onerror: ((e: unknown) => void) | null = null; onend: (() => void) | null = null;
+      start() {
+        const said = "Duluth information Charlie, one eight five two zulu, wind two one zero at one two gust one eight, visibility one zero, "
+          + "few clouds at four thousand five hundred, temperature one eight, dew point one two, altimeter two niner niner two, "
+          + "ILS runway two seven approach in use, landing and departing runway two seven, advise on initial contact you have information Charlie";
+        setTimeout(() => this.onresult?.({ resultIndex: 0, results: [Object.assign([{ transcript: said }], { isFinal: true })] }), 300);
+      }
+      stop() { setTimeout(() => this.onend?.(), 50); }
+    }
+    Object.assign(window, { SpeechRecognition: Heard, webkitSpeechRecognition: Heard });
+  });
+  await cardWeather(page, "KDLH", { metar: { raw: "KDLH 102155Z 27008KT 10SM CLR 12/02 A3001", flight_category: "VFR", ceiling_ft: null }, taf: null });
+  await page.goto("/app/plan?dep=C81&dest=KDLH&place=KDLH");
+  await settle(page);
+  await card(page).getByTestId("place-tab-weather").click();
+  const listen = card(page).getByTestId("place-atis-listen");
+  await expect(listen).toContainText("Listen to ATIS");
+  await listen.click();
+  await expect(listen).toContainText("Listening", { timeout: slow(5000) });
+  // The pause after the broadcast ends the hearing, and the engine's
+  // reading is the line and the table.
+  const glance = card(page).getByTestId("place-atis-glance");
+  await expect(glance).toContainText("Runway 27 · 29.92 inHg", { timeout: slow(15_000) });
+  await expect(glance).toContainText("Information C");
+  const rows = card(page).getByTestId("place-atis-row");
+  await expect(rows).toHaveText([
+    /Information.*C · 1852Z/, /Wind.*210° at 12 kt, gusts 18/, /Visibility.*10 sm/, /Sky.*Few 4,500 ft/,
+    /Temperature.*18 °C, dew point 12 °C/, /Altimeter.*29.92 inHg/, /Approach.*ILS runway 27/, /Runways.*27/,
+  ]);
+  // The transcript folded under them until asked for.
+  await expect(card(page).getByTestId("place-atis-raw")).toBeHidden();
+  await card(page).getByTestId("place-atis-transcript").click();
+  await expect(card(page).getByTestId("place-atis-raw")).toContainText("altimeter two niner niner two");
+});

@@ -1,0 +1,495 @@
+{
+  "about": "ATIS and AWOS/ASOS broadcasts as a phone's recognizer writes them, read into their figures (lib/atis readAtis, the engine's read_atis, Atis.read in the native app): AIM 4-1-13's order and JO 7110.65's wind, visibility and altimeter phraseology, figures said one by one (AIM 4-2-7) or written whole by the recognizer, with its slips (niner as nine, 29.92, 18:52). A figure not said is null; the words left over are remarks; raw is the transcript as given.",
+  "cases": [
+    {
+      "name": "A tower's ATIS, said as AIM 4-1-13 orders it",
+      "heard": "Milwaukee information Charlie, one eight five two zulu, wind two one zero at one two gust one eight, visibility one zero, few clouds at four thousand five hundred, temperature one eight, dew point one two, altimeter two niner niner two, ILS runway one niner right approach in use, landing and departing runway one niner right, advise on initial contact you have information Charlie",
+      "reading": {
+        "information": "C",
+        "time_z": "1852Z",
+        "wind": {
+          "from_deg": 210,
+          "kt": 12,
+          "gust_kt": 18,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "few",
+            "base_ft": 4500
+          }
+        ],
+        "temp_c": 18,
+        "dewpoint_c": 12,
+        "altimeter_inhg": 29.92,
+        "approach": "ILS runway 19R",
+        "runways": {
+          "landing": [
+            "19R"
+          ],
+          "departing": [
+            "19R"
+          ]
+        },
+        "remarks": [],
+        "raw": "Milwaukee information Charlie, one eight five two zulu, wind two one zero at one two gust one eight, visibility one zero, few clouds at four thousand five hundred, temperature one eight, dew point one two, altimeter two niner niner two, ILS runway one niner right approach in use, landing and departing runway one niner right, advise on initial contact you have information Charlie"
+      }
+    },
+    {
+      "name": "An AWOS as the recognizer writes figures whole, no letter",
+      "heard": "Kenosha Regional Airport automated weather observation, 1853 Zulu, wind 210 at 12, visibility 10, sky clear, temperature 18 Celsius, dew point 12 Celsius, altimeter 29.92",
+      "reading": {
+        "information": null,
+        "time_z": "1853Z",
+        "wind": {
+          "from_deg": 210,
+          "kt": 12,
+          "gust_kt": null,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "clear",
+            "base_ft": null
+          }
+        ],
+        "temp_c": 18,
+        "dewpoint_c": 12,
+        "altimeter_inhg": 29.92,
+        "approach": null,
+        "runways": {
+          "landing": [],
+          "departing": []
+        },
+        "remarks": [],
+        "raw": "Kenosha Regional Airport automated weather observation, 1853 Zulu, wind 210 at 12, visibility 10, sky clear, temperature 18 Celsius, dew point 12 Celsius, altimeter 29.92"
+      }
+    },
+    {
+      "name": "Calm wind, a fraction of a mile, mist, a ceiling overcast",
+      "heard": "Madison information Delta, zero niner five three zulu, wind calm, visibility two and one half, mist, ceiling eight hundred overcast, temperature one two, dew point one one, altimeter three zero zero one, ILS runway one eight approach in use, landing and departing runway one eight, advise on initial contact you have information Delta",
+      "reading": {
+        "information": "D",
+        "time_z": "0953Z",
+        "wind": {
+          "from_deg": null,
+          "kt": 0,
+          "gust_kt": null,
+          "variable": false
+        },
+        "visibility_sm": 2.5,
+        "sky": [
+          {
+            "cover": "overcast",
+            "base_ft": 800
+          }
+        ],
+        "temp_c": 12,
+        "dewpoint_c": 11,
+        "altimeter_inhg": 30.01,
+        "approach": "ILS runway 18",
+        "runways": {
+          "landing": [
+            "18"
+          ],
+          "departing": [
+            "18"
+          ]
+        },
+        "remarks": [
+          "mist"
+        ],
+        "raw": "Madison information Delta, zero niner five three zulu, wind calm, visibility two and one half, mist, ceiling eight hundred overcast, temperature one two, dew point one one, altimeter three zero zero one, ILS runway one eight approach in use, landing and departing runway one eight, advise on initial contact you have information Delta"
+      }
+    },
+    {
+      "name": "Variable wind, rain, two layers, visuals, a runway each way",
+      "heard": "Chicago Midway Airport information Kilo, two two five one zulu, wind variable at four, visibility seven, light rain, scattered clouds at one thousand two hundred, ceiling two thousand five hundred broken, temperature one zero, dew point eight, altimeter two niner eight five, visual approaches in use, landing runway three one center, departing runway two two left, advise on initial contact you have information Kilo",
+      "reading": {
+        "information": "K",
+        "time_z": "2251Z",
+        "wind": {
+          "from_deg": null,
+          "kt": 4,
+          "gust_kt": null,
+          "variable": true
+        },
+        "visibility_sm": 7,
+        "sky": [
+          {
+            "cover": "scattered",
+            "base_ft": 1200
+          },
+          {
+            "cover": "broken",
+            "base_ft": 2500
+          }
+        ],
+        "temp_c": 10,
+        "dewpoint_c": 8,
+        "altimeter_inhg": 29.85,
+        "approach": "visual",
+        "runways": {
+          "landing": [
+            "31C"
+          ],
+          "departing": [
+            "22L"
+          ]
+        },
+        "remarks": [
+          "light rain"
+        ],
+        "raw": "Chicago Midway Airport information Kilo, two two five one zulu, wind variable at four, visibility seven, light rain, scattered clouds at one thousand two hundred, ceiling two thousand five hundred broken, temperature one zero, dew point eight, altimeter two niner eight five, visual approaches in use, landing runway three one center, departing runway two two left, advise on initial contact you have information Kilo"
+      }
+    },
+    {
+      "name": "An ASOS: gusts, clear below one two thousand, below freezing, remarks",
+      "heard": "Duluth International Airport automated weather observation one four five three zulu, wind two seven zero at niner gusts one six, visibility one zero, clear below one two thousand, temperature minus zero three Celsius, dew point minus zero eight Celsius, altimeter three zero one two, remarks density altitude minus one thousand two hundred",
+      "reading": {
+        "information": null,
+        "time_z": "1453Z",
+        "wind": {
+          "from_deg": 270,
+          "kt": 9,
+          "gust_kt": 16,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "clear",
+            "base_ft": null
+          }
+        ],
+        "temp_c": -3,
+        "dewpoint_c": -8,
+        "altimeter_inhg": 30.12,
+        "approach": null,
+        "runways": {
+          "landing": [],
+          "departing": []
+        },
+        "remarks": [
+          "density altitude minus 1200"
+        ],
+        "raw": "Duluth International Airport automated weather observation one four five three zulu, wind two seven zero at niner gusts one six, visibility one zero, clear below one two thousand, temperature minus zero three Celsius, dew point minus zero eight Celsius, altimeter three zero one two, remarks density altitude minus one thousand two hundred"
+      }
+    },
+    {
+      "name": "Figures written whole with no punctuation, the runway in use",
+      "heard": "Oshkosh information Bravo 1352 Zulu wind 220 at 8 visibility 10 few clouds at 5,000 temperature 21 dew point 14 altimeter 30.05 runway in use 27 advise on initial contact you have information Bravo",
+      "reading": {
+        "information": "B",
+        "time_z": "1352Z",
+        "wind": {
+          "from_deg": 220,
+          "kt": 8,
+          "gust_kt": null,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "few",
+            "base_ft": 5000
+          }
+        ],
+        "temp_c": 21,
+        "dewpoint_c": 14,
+        "altimeter_inhg": 30.05,
+        "approach": null,
+        "runways": {
+          "landing": [
+            "27"
+          ],
+          "departing": [
+            "27"
+          ]
+        },
+        "remarks": [],
+        "raw": "Oshkosh information Bravo 1352 Zulu wind 220 at 8 visibility 10 few clouds at 5,000 temperature 21 dew point 14 altimeter 30.05 runway in use 27 advise on initial contact you have information Bravo"
+      }
+    },
+    {
+      "name": "Gusting to, variable between, haze, a ceiling and a layer over it, an RNAV GPS, two runways both ways",
+      "heard": "Grand Rapids information Echo, one six five four zulu, wind one eight zero at one five gusting to two five variable between one five zero and two one zero, visibility six, haze, ceiling one thousand five hundred broken, two thousand five hundred overcast, temperature two four, dew point one niner, altimeter two niner niner zero, RNAV GPS runway two six left approach in use, landing and departing runways two six left and three five, advise on initial contact you have information Echo",
+      "reading": {
+        "information": "E",
+        "time_z": "1654Z",
+        "wind": {
+          "from_deg": 180,
+          "kt": 15,
+          "gust_kt": 25,
+          "variable": true
+        },
+        "visibility_sm": 6,
+        "sky": [
+          {
+            "cover": "broken",
+            "base_ft": 1500
+          },
+          {
+            "cover": "overcast",
+            "base_ft": 2500
+          }
+        ],
+        "temp_c": 24,
+        "dewpoint_c": 19,
+        "altimeter_inhg": 29.9,
+        "approach": "RNAV GPS runway 26L",
+        "runways": {
+          "landing": [
+            "26L",
+            "35"
+          ],
+          "departing": [
+            "26L",
+            "35"
+          ]
+        },
+        "remarks": [
+          "haze"
+        ],
+        "raw": "Grand Rapids information Echo, one six five four zulu, wind one eight zero at one five gusting to two five variable between one five zero and two one zero, visibility six, haze, ceiling one thousand five hundred broken, two thousand five hundred overcast, temperature two four, dew point one niner, altimeter two niner niner zero, RNAV GPS runway two six left approach in use, landing and departing runways two six left and three five, advise on initial contact you have information Echo"
+      }
+    },
+    {
+      "name": "An AWOS in fog: light and variable, three quarters, an indefinite ceiling",
+      "heard": "Watertown automated weather observation, time zero six one five zulu, wind light and variable, visibility three quarters, fog, indefinite ceiling three hundred sky obscured, temperature zero four, dew point zero four, altimeter three zero zero eight",
+      "reading": {
+        "information": null,
+        "time_z": "0615Z",
+        "wind": {
+          "from_deg": null,
+          "kt": null,
+          "gust_kt": null,
+          "variable": true
+        },
+        "visibility_sm": 0.75,
+        "sky": [
+          {
+            "cover": "obscured",
+            "base_ft": 300
+          }
+        ],
+        "temp_c": 4,
+        "dewpoint_c": 4,
+        "altimeter_inhg": 30.08,
+        "approach": null,
+        "runways": {
+          "landing": [],
+          "departing": []
+        },
+        "remarks": [
+          "fog"
+        ],
+        "raw": "Watertown automated weather observation, time zero six one five zulu, wind light and variable, visibility three quarters, fog, indefinite ceiling three hundred sky obscured, temperature zero four, dew point zero four, altimeter three zero zero eight"
+      }
+    },
+    {
+      "name": "Dewpoint as one word, the altimeter with its point, a visual to a runway, arriving and departure runways, a NOTAM",
+      "heard": "Appleton information Foxtrot, one one five two zulu, wind three four zero at one zero, visibility one zero, sky clear, temperature one five, dewpoint niner, altimeter two niner point niner two, visual approach runway three zero in use, arriving runway three zero, departure runway two one, notice to airmen taxiway alpha closed, advise on initial contact you have information Foxtrot",
+      "reading": {
+        "information": "F",
+        "time_z": "1152Z",
+        "wind": {
+          "from_deg": 340,
+          "kt": 10,
+          "gust_kt": null,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "clear",
+            "base_ft": null
+          }
+        ],
+        "temp_c": 15,
+        "dewpoint_c": 9,
+        "altimeter_inhg": 29.92,
+        "approach": "visual runway 30",
+        "runways": {
+          "landing": [
+            "30"
+          ],
+          "departing": [
+            "21"
+          ]
+        },
+        "remarks": [
+          "taxiway alpha closed"
+        ],
+        "raw": "Appleton information Foxtrot, one one five two zulu, wind three four zero at one zero, visibility one zero, sky clear, temperature one five, dewpoint niner, altimeter two niner point niner two, visual approach runway three zero in use, arriving runway three zero, departure runway two one, notice to airmen taxiway alpha closed, advise on initial contact you have information Foxtrot"
+      }
+    },
+    {
+      "name": "The recognizer's 18:52 and 29 92",
+      "heard": "Milwaukee information Golf 18:52 Zulu wind calm visibility 10 sky clear temperature 18 dew point 12 altimeter 29 92 ILS runway 19 right approach in use landing and departing runway 19 right advise on initial contact you have information Golf",
+      "reading": {
+        "information": "G",
+        "time_z": "1852Z",
+        "wind": {
+          "from_deg": null,
+          "kt": 0,
+          "gust_kt": null,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "clear",
+            "base_ft": null
+          }
+        ],
+        "temp_c": 18,
+        "dewpoint_c": 12,
+        "altimeter_inhg": 29.92,
+        "approach": "ILS runway 19R",
+        "runways": {
+          "landing": [
+            "19R"
+          ],
+          "departing": [
+            "19R"
+          ]
+        },
+        "remarks": [],
+        "raw": "Milwaukee information Golf 18:52 Zulu wind calm visibility 10 sky clear temperature 18 dew point 12 altimeter 29 92 ILS runway 19 right approach in use landing and departing runway 19 right advise on initial contact you have information Golf"
+      }
+    },
+    {
+      "name": "Zero zero zero at zero is calm, half a mile, an approach expected",
+      "heard": "Rochester information Hotel, two three five three zulu, wind zero zero zero at zero, visibility one half, fog, ceiling two hundred overcast, temperature zero two, dew point zero two, altimeter two niner seven eight, expect ILS runway three one approach, landing and departing runway three one, advise on initial contact you have information Hotel",
+      "reading": {
+        "information": "H",
+        "time_z": "2353Z",
+        "wind": {
+          "from_deg": null,
+          "kt": 0,
+          "gust_kt": null,
+          "variable": false
+        },
+        "visibility_sm": 0.5,
+        "sky": [
+          {
+            "cover": "overcast",
+            "base_ft": 200
+          }
+        ],
+        "temp_c": 2,
+        "dewpoint_c": 2,
+        "altimeter_inhg": 29.78,
+        "approach": "ILS runway 31",
+        "runways": {
+          "landing": [
+            "31"
+          ],
+          "departing": [
+            "31"
+          ]
+        },
+        "remarks": [
+          "fog"
+        ],
+        "raw": "Rochester information Hotel, two three five three zulu, wind zero zero zero at zero, visibility one half, fog, ceiling two hundred overcast, temperature zero two, dew point zero two, altimeter two niner seven eight, expect ILS runway three one approach, landing and departing runway three one, advise on initial contact you have information Hotel"
+      }
+    },
+    {
+      "name": "Niner heard as nine, a layer said as broken at",
+      "heard": "Green Bay information Alpha, one seven five three zulu, wind two nine zero at one four gust two zero, visibility one zero, scattered clouds at three thousand, broken at six thousand, temperature one six, dew point one zero, altimeter two nine nine two, ILS runway three six approach in use, landing and departing runway three six, advise on initial contact you have information Alpha",
+      "reading": {
+        "information": "A",
+        "time_z": "1753Z",
+        "wind": {
+          "from_deg": 290,
+          "kt": 14,
+          "gust_kt": 20,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "scattered",
+            "base_ft": 3000
+          },
+          {
+            "cover": "broken",
+            "base_ft": 6000
+          }
+        ],
+        "temp_c": 16,
+        "dewpoint_c": 10,
+        "altimeter_inhg": 29.92,
+        "approach": "ILS runway 36",
+        "runways": {
+          "landing": [
+            "36"
+          ],
+          "departing": [
+            "36"
+          ]
+        },
+        "remarks": [],
+        "raw": "Green Bay information Alpha, one seven five three zulu, wind two nine zero at one four gust two zero, visibility one zero, scattered clouds at three thousand, broken at six thousand, temperature one six, dew point one zero, altimeter two nine nine two, ILS runway three six approach in use, landing and departing runway three six, advise on initial contact you have information Alpha"
+      }
+    },
+    {
+      "name": "An AWOS with its units said, the altimeter setting, the density altitude",
+      "heard": "Juneau County Airport automated weather observation one niner one five zulu weather, wind two one zero at one two knots, visibility one zero miles, sky condition clear, temperature one eight degrees Celsius, dew point one two degrees Celsius, altimeter setting two niner niner five, density altitude one thousand niner hundred",
+      "reading": {
+        "information": null,
+        "time_z": "1915Z",
+        "wind": {
+          "from_deg": 210,
+          "kt": 12,
+          "gust_kt": null,
+          "variable": false
+        },
+        "visibility_sm": 10,
+        "sky": [
+          {
+            "cover": "clear",
+            "base_ft": null
+          }
+        ],
+        "temp_c": 18,
+        "dewpoint_c": 12,
+        "altimeter_inhg": 29.95,
+        "approach": null,
+        "runways": {
+          "landing": [],
+          "departing": []
+        },
+        "remarks": [
+          "density altitude 1900"
+        ],
+        "raw": "Juneau County Airport automated weather observation one niner one five zulu weather, wind two one zero at one two knots, visibility one zero miles, sky condition clear, temperature one eight degrees Celsius, dew point one two degrees Celsius, altimeter setting two niner niner five, density altitude one thousand niner hundred"
+      }
+    },
+    {
+      "name": "Nothing of a broadcast in it",
+      "heard": "Plan a trip to Las Vegas",
+      "reading": {
+        "information": null,
+        "time_z": null,
+        "wind": null,
+        "visibility_sm": null,
+        "sky": [],
+        "temp_c": null,
+        "dewpoint_c": null,
+        "altimeter_inhg": null,
+        "approach": null,
+        "runways": {
+          "landing": [],
+          "departing": []
+        },
+        "remarks": [],
+        "raw": "Plan a trip to Las Vegas"
+      }
+    }
+  ]
+}

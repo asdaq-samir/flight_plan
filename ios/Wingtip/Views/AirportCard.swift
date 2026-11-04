@@ -341,6 +341,7 @@ struct AirportWeatherTab: View {
                 figure("cloud", "Ceiling", modelled.ceilingFt.map(AirportWords.feet) ?? "None", spoken: modelled.ceilingFt.map(SpokenFigures.feet))
             }
         }
+        AtisSection()
         if place.metar == nil, let nearby = place.nearbyMetar {
             Section("Nearest report, \(AirportWords.plain(nearby.distanceNm)) nm \(AirportWords.compassPoint(Double(nearby.bearingDeg)))") {
                 CardRow(title: nearby.ident, detail: nearby.metar.observedAt.flatMap { AirportWords.observed($0) }) {
@@ -350,6 +351,75 @@ struct AirportWeatherTab: View {
                 }
                 if let raw = nearby.metar.raw { Text(raw).font(.footnote.monospaced()).textSelection(.enabled) }
             }
+        }
+    }
+
+    /// Listen to ATIS: one broadcast heard through the microphone
+    /// (ClearanceListener.hearBroadcast, the radio's recognizer), read by the
+    /// engine (Atis), and what matters at the hold-short line in one
+    /// line -- the runway in use and the altimeter -- with the figures
+    /// in a short table under it and the transcript folded away. A
+    /// failure is said in the row (ProblemLine), not an alert.
+    struct AtisSection: View {
+        @State private var listening = false
+        @State private var heard = ""
+        @State private var reading: Atis?
+        @State private var problem: String?
+        @State private var hearing: Task<Void, Never>?
+
+        var body: some View {
+            Section {
+                Button {
+                    if listening {
+                        ClearanceListener.shared.stop()
+                        return
+                    }
+                    listening = true
+                    problem = nil
+                    reading = nil
+                    heard = ""
+                    hearing = Task { @MainActor in
+                        let text = await ClearanceListener.shared.hearBroadcast { heard = $0 }
+                        listening = false
+                        guard let text else {
+                            problem = ClearanceListener.shared.problem ?? "Nothing could be heard."
+                            return
+                        }
+                        guard !text.isEmpty else {
+                            problem = "Nothing was heard. Tune the ATIS, hold the phone to the speaker and tap again."
+                            return
+                        }
+                        guard let read = Atis.read(text) else {
+                            problem = "The broadcast could not be read."
+                            return
+                        }
+                        reading = read
+                        if !read.heardAny { problem = "Nothing of a broadcast was heard in that." }
+                    }
+                } label: {
+                    CardRow(badge: RowBadge(systemImage: "dot.radiowaves.left.and.right", colour: Badge.weather),
+                            title: listening ? "Listening…" : "Listen to ATIS",
+                            detail: listening ? (heard.isEmpty ? "Tune the ATIS or AWOS and hold the phone to the speaker" : heard) : nil) {
+                        if listening { ProgressView() }
+                    }
+                }
+                .accessibilityLabel(listening ? "Stop listening" : "Listen to ATIS")
+                ProblemLine(problem)
+                if let reading, reading.heardAny {
+                    CardRow(title: reading.glance) {
+                        if let letter = reading.information { Text("Information \(letter)") }
+                    }
+                    ForEach(Array(reading.rows.enumerated()), id: \.offset) { _, row in
+                        LabeledContent(row.label, value: row.value)
+                    }
+                }
+                if let reading {
+                    DisclosureGroup("Transcript") {
+                        Text(reading.raw).font(.footnote.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
+                }
+            }
+            .onDisappear { hearing?.cancel(); if listening { ClearanceListener.shared.stop() } }
         }
     }
 
