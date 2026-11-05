@@ -1,8 +1,10 @@
 import { lazy, Suspense } from "react";
+import type L from "leaflet";
 import AircraftAlerts from "./AircraftAlerts";
 import AlertsBanner from "./AlertsBanner";
 import ProblemBanner from "./ProblemBanner";
 import SunlightBanner from "./SunlightBanner";
+import ZoomBanner from "./ZoomBanner";
 import { useAtcRadio } from "../lib/atcRadio";
 import { cn } from "cn";
 import { useFlying } from "./mapChrome";
@@ -31,7 +33,7 @@ const RadioLayer = lazy(() => import("./RadioLayer"));
  * The radio's (RadioLayer) after what is ahead: a call to us with its
  * actions, and the captions while the app listens, once it first has.
  */
-export default function MapBanners() {
+export default function MapBanners({ map }: { map: L.Map | null }) {
   // The microphone's pill too, which stays with what it heard or why it
   // heard nothing until put away: with nothing heard it went with the
   // listening, a few seconds after the tap (the owner's report, 2026-11-02).
@@ -49,6 +51,8 @@ export default function MapBanners() {
           : "right-[calc(max(0.5rem,env(safe-area-inset-right))+3.25rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px)+3.25rem)]",
       )}
     >
+      {/* The zoom level while it changes (ZoomBanner), first. */}
+      <ZoomBanner map={map} />
       {/* The sunlight scheme, the first time the light sensor turns it on. */}
       <SunlightBanner />
       <AlertsBanner />

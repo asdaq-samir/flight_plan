@@ -567,7 +567,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       )}
       {/* Two fingers held on the chart measure it, as ForeFlight's ruler. */}
       {chart && map && <MapRuler map={map} />}
-      <MapBanners />
+      <MapBanners map={map} />
       <MapControls />
     </div>
   );
