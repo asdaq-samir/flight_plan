@@ -88,7 +88,12 @@ test("the tabs are docked: nothing of the map under the sheet at the pill", asyn
   await expect(panel.getByTestId("tab-fpl")).toBeVisible({ timeout: slow(30000) });
   const box = (await panel.boundingBox())!;
   const height = page.viewportSize()!.height;
-  expect(Math.abs(box.y + box.height - height)).toBeLessThanOrEqual(1);
+  // On the screen's edge, nothing under it. The sheet is laid out once at
+  // its full height and moved down by a transform to the pill (MapPanel's
+  // place), so the rest of its box is off the screen below the edge: its
+  // foot at the edge or past it, never short of it, its top on the screen.
+  expect(box.y + box.height).toBeGreaterThanOrEqual(height - 1);
+  expect(box.y).toBeLessThan(height);
   expect(box.x).toBe(0);
 });
 
