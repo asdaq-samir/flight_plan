@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { flushSync } from "react-dom";
 import { Drawer } from "@base-ui/react/drawer";
 import { cn } from "cn";
 import { useIsMobile } from "../hooks/use-mobile";
@@ -208,6 +209,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // has landed -- told at once, the page drew the whole workspace again
   // for the new size as the sheet set off (140 ms at 4x).
   const [size, setSize] = useState(pageState);
+  // Where the popup is going: its snap point, set on its own and at once
+  // as a finger lets go, ahead of `size`, which the whole sheet is laid
+  // out by and which follows in a transition. With the two together the
+  // sheet sat where the finger left it while the page drew itself for the
+  // new size (the trace of a drag at CPU 4x, 2026-11-04: 0.6 s there).
+  const [snap, setSnap] = useState(pageState);
   const sizeRef = useRef(size);
   const asked = useRef<PanelState | null>(null);
   // On its way to `size`, and how long the way takes.
@@ -359,8 +366,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const restRef = useRef(0);
   useLayoutEffect(() => {
     fullRef.current = detents.full;
-    restRef.current = Math.max(0, detents.full - detents[size]);
-  }, [detents, size]);
+    restRef.current = Math.max(0, detents.full - detents[snap]);
+  }, [detents, snap]);
   const follow = useCallback((held: boolean) => {
     if (!panel) return;
     cancelAnimationFrame(followFrame.current);
@@ -405,14 +412,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The parts held in sight go where the sheet is going, in the commit
   // that sets its snap point, on its curve and time; at rest, put there.
   useLayoutEffect(() => {
-    const off = Math.max(0, detents.full - detents[size]);
+    const off = Math.max(0, detents.full - detents[snap]);
     pin(off, moving && seconds > 0 ? `${seconds}s cubic-bezier(0, 0, 0.58, 1)` : "");
-  }, [pin, moving, seconds, detents, size, footShown, fromBottom]);
+  }, [pin, moving, seconds, detents, snap, footShown, fromBottom]);
 
-  // Off to `target`: the popup's snap point changes in this render, the
-  // map told as it sets off, the page once it has landed.
+  // Off to `target`: the popup's snap point first, the map told as it
+  // sets off, the sheet laid out for the size after, the page once it has
+  // landed. `now` for a finger or a key: the snap point committed at once
+  // (flushSync) and the map told a frame on, so the popup's settle is
+  // running before either's work.
   const landTimer = useRef(0);
-  const go = useCallback((target: PanelState, tell: boolean) => {
+  const go = useCallback((target: PanelState, tell: boolean, now = false) => {
     const from = detentsRef.current[sizeRef.current];
     const to = detentsRef.current[target];
     const settle = prefersReducedMotion() ? 0 : settleSeconds(to - from);
@@ -420,10 +430,18 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     if (tell) asked.current = target;
     sizeRef.current = target;
     movingRef.current = true;
-    setSize(target);
-    setSeconds(settle);
-    setMoving(true);
-    panel?.dispatchEvent(new CustomEvent<SheetTurn>("sheetturn", { bubbles: true, detail: { insets: insetsFor(target, detentsRef.current) } }));
+    const setOff = () => {
+      setSnap(target);
+      setSeconds(settle);
+      setMoving(true);
+    };
+    if (now) flushSync(setOff);
+    else setOff();
+    const turn = () => panel?.dispatchEvent(new CustomEvent<SheetTurn>("sheetturn", { bubbles: true, detail: { insets: insetsFor(target, detentsRef.current) } }));
+    if (now) requestAnimationFrame(turn);
+    else turn();
+    if (now) startTransition(() => setSize(target));
+    else setSize(target);
     follow(false);
     landTimer.current = window.setTimeout(() => {
       movingRef.current = false;
@@ -436,7 +454,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       if (footNode) setFootHeight(footNode.offsetHeight);
     }, settle * 1000 + 40);
   }, [panel, insetsFor, follow, tellPage, headBand, footNode]);
-  const ask = useCallback((target: PanelState) => go(target, true), [go]);
+  const ask = useCallback((target: PanelState, now = false) => go(target, true, now), [go]);
   useEffect(() => () => window.clearTimeout(landTimer.current), []);
   useLayoutEffect(() => {
     detentsRef.current = detents;
@@ -467,7 +485,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const d = detentsRef.current;
     const px = typeof point === "number" ? point : parseFloat(point);
     const target = (Object.keys(d) as PanelState[]).reduce((best, s) => (Math.abs(d[s] - px) < Math.abs(d[best] - px) ? s : best));
-    if (target !== sizeRef.current) ask(target);
+    if (target !== sizeRef.current) ask(target, true);
   };
   const openChanged = (open: boolean, details: Drawer.Root.ChangeEventDetails) => {
     if (open) return;
@@ -541,10 +559,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     setWas(size);
     setRising(RANK[size] > RANK[was]);
   }
-  const cycle = () => ask(size === "peek" || size === "full" ? "half" : rising ? "full" : "peek");
+  const cycle = () => ask(size === "peek" || size === "full" ? "half" : rising ? "full" : "peek", true);
   const arrows = (event: ReactKeyboardEvent) => {
-    if (event.key === "ArrowUp" && size !== "full") ask(size === "peek" ? "half" : "full");
-    else if (event.key === "ArrowDown" && size !== "peek") ask(size === "full" ? "half" : "peek");
+    if (event.key === "ArrowUp" && size !== "full") ask(size === "peek" ? "half" : "full", true);
+    else if (event.key === "ArrowDown" && size !== "peek") ask(size === "full" ? "half" : "peek", true);
     else return;
     event.preventDefault();
   };
@@ -588,7 +606,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     <Drawer.Root
       open modal={false} disablePointerDismissal
       swipeDirection={fromBottom ? "down" : "up"}
-      snapPoints={snapPoints} snapPoint={detents[size]} onSnapPointChange={snapped}
+      snapPoints={snapPoints} snapPoint={detents[snap]} onSnapPointChange={snapped}
       snapToSequentialPoints
       onOpenChange={openChanged}
     >
@@ -725,7 +743,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                 style={{ "--sheet-progress": size === "full" ? "1" : "0", ...(toEdge && fromBottom && !atPill ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties}
                 data-testid="panel-foot"
                 // In the pill a tap on it opens it half way.
-                onClick={atPill ? () => ask("half") : undefined}
+                onClick={atPill ? () => ask("half", true) : undefined}
               >{foot}</div>
             )}
             {!fromBottom && grabber}
