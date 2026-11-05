@@ -26,7 +26,7 @@ async function mockAssistant(page: Page, asked: { body: unknown }[]) {
 
 const fieldTabsPlan = (query = "") => `/app/plan?layout=field-tabs${query ? `&${query}` : ""}`;
 
-test("the field is at the top of the map, the four tabs in the pill, and a route typed plans", async ({ page }) => {
+test("the field is at the top of the map, the four tabs in the pill, and a route typed plans", async ({ page, isMobile }) => {
   await page.goto(fieldTabsPlan());
   await settle(page);
   const top = page.getByTestId("field-tabs");
@@ -42,11 +42,15 @@ test("the field is at the top of the map, the four tabs in the pill, and a route
   const panel = sideDrawer(page);
   for (const tab of ["tab-fpl", "tab-airport", "tab-aircraft", "setup-button"]) await expect(panel.getByTestId(tab)).toBeVisible();
   await expect(panel.getByTestId("tab-fpl")).toHaveAttribute("data-current", "true");
-  // The field at the top, the tabs under it.
+  // The field at the top, the tabs under it. The tabs are at the foot
+  // where the sheet is, a phone's bottom edge; a desktop's sheet is at
+  // the top unless Setup says otherwise (useNavEdge).
   const fieldBox = (await field.boundingBox())!;
-  const tabsBox = (await panel.getByTestId("tab-fpl").boundingBox())!;
   expect(fieldBox.height).toBeGreaterThanOrEqual(44);
-  expect(tabsBox.y).toBeGreaterThan(fieldBox.y + fieldBox.height);
+  if (isMobile) {
+    const tabsBox = (await panel.getByTestId("tab-fpl").boundingBox())!;
+    expect(tabsBox.y).toBeGreaterThan(fieldBox.y + fieldBox.height);
+  }
   // Idents typed are a route, as in the strip: the sheet comes up half
   // way on FPL with the route's box.
   await field.fill("C81 KDLH");

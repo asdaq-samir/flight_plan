@@ -752,7 +752,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               onPhone ? "inset-x-0" : "left-[max(1rem,env(safe-area-inset-left))] w-[24rem] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
             )}
           >
-            {pillPictured && pill && <PillPicture pill={pill} />}            {pillPictured && pill && <PillPicture pill={pill} />}
+            {pillPictured && pill && <PillPicture pill={pill} />}
             {fromBottom && grabber}
             {/* The head's band: the first row (the bar), the top row, any
                 notice, the controls. Over the body, which runs on up under
