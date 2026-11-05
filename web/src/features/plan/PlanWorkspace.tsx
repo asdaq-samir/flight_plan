@@ -1475,10 +1475,19 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // is typed in (its Add a Stop, a point's Add a Stop After).
   const [routeOpen, setRouteOpen] = useState(false);
   const [addAt, setAddAt] = useState<number | null>(null);
+  // In the Plan, a stop added as an empty card at its place in the list,
+  // with no route box (the owner, 2026-11-05: "I want to completely get rid
+  // of the route box for in the plan, when adding a stop just add a stop
+  // with the editable card").
+  const [newStopAt, setNewStopAt] = useState<number | null>(null);
   const typeStopAt = useCallback((index: number) => {
+    if (routeEdit === "plan") {
+      setNewStopAt(index);
+      return;
+    }
     setAddAt(index);
     setAddingStop("stop");
-  }, []);
+  }, [routeEdit]);
   // A point dragged by its grip in FPL's list onto another's place, as the
   // box's pills are dragged: the ends kept airports (or a position), as
   // the box keeps them -- a waypoint is flown through, never taken off
@@ -1502,13 +1511,21 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     if (!points[at] || points.some((p, i) => i > 0 && p === points[i - 1])) return;
     setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
   }, [routePoints, setRoute]);
+  const insertPoint = useCallback((at: number, ident: string) => {
+    setNewStopAt(null);
+    const points = [...routePoints];
+    points.splice(at, 0, ident.trim().toUpperCase());
+    if (points.some((p, i) => i > 0 && p === points[i - 1])) return;
+    setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
+  }, [routePoints, setRoute]);
+  const cancelNewStop = useCallback(() => setNewStopAt(null), []);
   const listEdit = useMemo(() => ({
     onMove: movePoint, onAddAt: typeStopAt, onReplace: replacePoint,
-    // In the Plan, the points as cards (ProceduresRoute), and a point
-    // changed from its card's menu in the box, there being no head to
-    // open it from.
-    cards: routeEdit === "plan", onChange: routeEdit === "plan" ? () => setRouteOpen(true) : undefined,
-  }), [movePoint, typeStopAt, replacePoint, routeEdit]);
+    newAt: newStopAt, onInsert: insertPoint, onCancelNew: cancelNewStop,
+    // In the Plan, the points as cards (ProceduresRoute), each changed by
+    // its own ident's text box, no menu's Change to a box.
+    cards: routeEdit === "plan",
+  }), [movePoint, typeStopAt, replacePoint, newStopAt, insertPoint, cancelNewStop, routeEdit]);
   // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
   // routes planned, Aircraft's Favorites and Recents -- the address's
   // (`list`, useAddressCards), kept for their tab as its cards are.
@@ -2606,8 +2623,8 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         wheelHidden={!!dryRunning}
         problem={unflyable ? (
           <RouteProblem
-            problem={unflyable} onAddStop={() => { closeProfileCard(); setAddingStop("stop"); }}
-            onFlyVia={() => { closeProfileCard(); setAddingStop("via"); }} onAcceptClassB={() => acceptClassB(true)}
+            problem={unflyable} onAddStop={() => { closeProfileCard(); if (routeEdit === "plan") typeStopAt(routePoints.length - 1); else setAddingStop("stop"); }}
+            onFlyVia={() => { closeProfileCard(); if (routeEdit === "plan") typeStopAt(routePoints.length - 1); else setAddingStop("via"); }} onAcceptClassB={() => acceptClassB(true)}
             onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
           />
         ) : undefined}
@@ -2838,7 +2855,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     setWasWhole(wholeRoute);
     if (wholeRoute && routeOpen) setRouteOpen(false);
   }
-  const routeFolded = routeEdit !== "box" && !routeOpen && !addingStop;
+  // In the Plan never the box (the owner, 2026-11-05: "completely get rid
+  // of the route box for in the plan").
+  const routeFolded = routeEdit === "plan" || (routeEdit === "folded" && !routeOpen && !addingStop);
   const routeControls = (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
       {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row

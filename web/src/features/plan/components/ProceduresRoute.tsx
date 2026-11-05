@@ -10,6 +10,7 @@ import {
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
+import CardIdent from "./CardIdent";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
@@ -92,6 +93,12 @@ export interface RouteListEdit {
   onAddAt: (index: number) => void;
   /** The point at this place made another, from its card's ident. */
   onReplace?: (index: number, ident: string) => void;
+  /** A stop being added at this place, an empty card there to type it
+   *  in (In the Plan, which has no route box), and what is typed put in;
+   *  left empty, given up. */
+  newAt?: number | null;
+  onInsert?: (index: number, ident: string) => void;
+  onCancelNew?: () => void;
   /** Each point a card of its own, easier to see as it is dragged (In the
    *  Plan, the owner's pick of the canvas's option 3 as cards). */
   cards?: boolean;
@@ -131,47 +138,22 @@ function CardThread({ first, last }: { first: boolean; last: boolean }) {
 }
 
 /**
- * A card's ident a text box, at the owner's ask (2026-11-05: "the airport
- * id should be a text box", after "Make the cards airport ids editable so
- * it can be changed to anything"): typed over and taken as typed on Return
- * or as it is left, Escape putting it back. The app's neutral fill, a
- * field's, its width the ident's; over the head's tap that folds the card.
+ * A stop being added, In the Plan: an empty card at its place, its text
+ * box ready to type in (CardIdent), on the course's line, at the owner's
+ * ask (2026-11-05: "when adding a stop just add a stop with the editable
+ * card"). Return or leaving it puts the stop in; left empty, it goes.
  */
-function CardIdent({ value, label, onCommit, testId, bold = true }: {
-  value: string;
-  label: string;
-  onCommit: (ident: string) => void;
-  testId: string;
-  bold?: boolean;
-}) {
-  const [draft, setDraft] = useState(value);
-  // Its ident again where the route changed it from elsewhere.
-  const [was, setWas] = useState(value);
-  if (was !== value) {
-    setWas(value);
-    setDraft(value);
-  }
-  const commit = () => {
-    const next = draft.trim().toUpperCase();
-    if (next && next !== value) onCommit(next);
-    else setDraft(value);
-  };
+function NewStopCard({ onCommit, onCancel }: { onCommit: (ident: string) => void; onCancel: () => void }) {
   return (
-    <input
-      value={draft} aria-label={label} data-testid={testId}
-      autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="done"
-      size={Math.max(4, draft.length)}
-      onChange={e => setDraft(e.target.value.toUpperCase())}
-      onBlur={commit}
-      onKeyDown={e => {
-        if (e.key === "Enter") e.currentTarget.blur();
-        if (e.key === "Escape") { setDraft(value); e.currentTarget.blur(); }
-      }}
-      className={cn(
-        "relative z-10 -my-0.5 min-w-0 rounded-md bg-foreground/8 px-1.5 py-0.5 uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        bold ? "font-semibold" : "font-normal", TEXT.row,
-      )}
-    />
+    <li className={cn("relative flex items-center gap-2.5", POINT_CARD, "isolate", CARD_GAP)} data-testid="route-new-stop">
+      <CardThread first={false} last={false} />
+      <span className="grid w-7 shrink-0 place-items-center" aria-hidden="true">
+        <span className="size-4 rounded-full border-[3px] border-dashed bg-card" style={{ borderColor: "var(--course)" }} />
+      </span>
+      <div className="flex min-w-0 flex-1 pr-1.5">
+        <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" autoFocus wide onCommit={onCommit} onEmpty={onCancel} />
+      </div>
+    </li>
   );
 }
 
@@ -995,6 +977,16 @@ export default function ProceduresRoute({
   // the Routes row's (the iOS audit's P1, CI on 4d7da5f0).
   const lineRow = routeLine ? <RouteLine line={routeLine} /> : null;
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
+  // The stop being added, its card before the point at its place.
+  const newAt = asCards && edit?.onInsert ? edit.newAt ?? null : null;
+  const newCard = newAt !== null ? <NewStopCard key="new-stop" onCommit={v => edit!.onInsert!(newAt, v)} onCancel={() => edit!.onCancelNew?.()} /> : null;
+  let newPut = false;
+  const newBefore = (index: number | undefined, into: ReactNode[]) => {
+    if (newCard && !newPut && index === newAt) {
+      into.push(newCard);
+      newPut = true;
+    }
+  };
   points.forEach((row, i) => {
     const last = i === points.length - 1;
     // By the field, not its spelling: a stop typed UES comes back from the
@@ -1014,6 +1006,7 @@ export default function ProceduresRoute({
     };
     if (field) {
       shown.add(field);
+      newBefore(pointIndex(field.ident, field.role), steps);
       steps.push(fieldStep(field, row, last, steps.length === 0));
       if (field.role === "Destination") steps.push(holdRow(field.ident));
       return;
@@ -1024,6 +1017,7 @@ export default function ProceduresRoute({
     const to = row.kind !== "departure" && "airport" in row && !isPosition(row.airport.ident);
     const typedAt = to ? routePoints.findIndex(p => sameField(p, row.airport.ident)) : -1;
     const end = to ? pointEnd(row.airport.ident, { time, waypoint: true, elevationFt: null, to: true, stop: row.kind === "stop", holdable: true, row, index: typedAt >= 0 ? typedAt : undefined }) : null;
+    if (typedAt >= 0) newBefore(typedAt, steps);
     steps.push(
       <Step
         key={row.key} first={steps.length === 0} last={last}
@@ -1041,7 +1035,11 @@ export default function ProceduresRoute({
     if (to) steps.push(holdRow(row.airport.ident));
   });
   const fieldsAlone = rows.length === 0
-    ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1, i === 0))
+    ? airports.flatMap((a, i) => {
+      const before: ReactNode[] = [];
+      newBefore(pointIndex(a.ident, a.role), before);
+      return [...before, fieldStep(a, undefined, i === airports.length - 1, i === 0)];
+    })
     : null;
 
   const field = on ? airports.find(a => sameField(a.ident, on.ident)) : undefined;

@@ -1,6 +1,5 @@
 import { cn } from "cn";
-import AirportPicker from "../../../components/AirportPicker";
-import { TEXT } from "../../../lib/text";
+import CardIdent from "./CardIdent";
 
 /** The course's magenta, as the plan's line between its cards. */
 const ROUTE_LINE = { borderColor: "var(--course)" } as const;
@@ -11,9 +10,8 @@ const ROUTE_LINE = { borderColor: "var(--course)" } as const;
  * FPL canvas (2026-11-05, option 3 as cards: "On the plan should ask for
  * depart and destination on two lines, no n number or altitude"): the
  * departure and the destination each a card, as the plan's points are
- * once there is a route, on its dashed line; each the stock airport
- * picker (AirportPicker), its search a sheet with Home, the Favorites
- * and the Recents. The airplane, the altitude and the route's buttons
+ * once there is a route, on its dashed line; each a text box, the ident
+ * typed in. The airplane, the altitude and the route's buttons
  * come with the route, over its Routes.
  */
 export default function RouteEnds({ dep, dest, onDep, onDest }: {
@@ -48,12 +46,12 @@ function EndCard({ value, onChange, label, testId, round = false }: {
           style={ROUTE_LINE}
         />
       </span>
-      {/* The whole card the field's tap; its placeholder in the words'
-          own case, not the idents' capitals. */}
-      <AirportPicker
-        value={value} onChange={onChange} placeholder={label} ariaLabel={label} testId={testId}
-        className={cn("h-full min-w-0 flex-1 justify-between rounded-xl bg-transparent px-1 shadow-none hover:bg-transparent", TEXT.row, !value && "font-sans normal-case")}
-      />
+      {/* A text box, as every card's ident is (CardIdent), at the owner's
+          ask (2026-11-05: "Even the start can be consistent with it to
+          have editable cards"); its placeholder in the words' own case. */}
+      <div className="flex min-w-0 flex-1 pr-1.5">
+        <CardIdent value={value} onCommit={onChange} placeholder={label} label={label} testId={testId} wide />
+      </div>
     </div>
   );
 }
