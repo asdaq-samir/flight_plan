@@ -82,7 +82,6 @@ import MiniProfile from "./components/navlog/MiniProfile";
 import ProfileCard from "./components/ProfileCard";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
-import { useProfileOpener } from "../../lib/profileOpener";
 import { useWindPicks } from "../../lib/windPicks";
 import { useStopsAlong } from "../../lib/stopsAlong";
 import { usePointActions } from "../../lib/map/pointActions";
@@ -2122,8 +2121,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const flyDirectTo = nextLanding(s.totals, `${planned.dest}`).to;
   const flyDirect = useMemo(() => (flyDirectTo ? { to: flyDirectTo, go: () => directToPoint(flyDirectTo) } : null), [flyDirectTo, directToPoint]);
   const { flying, done: doneFlying } = useFlyingMode({ routed, setPanel, nearest: flyNearest, direct: flyDirect });
-  // The Profile opened, at rest, from the route's ••• menu and the
-  // altitude's caution dot, where the map's Play opened it and flew its
+  // The Profile opened, at rest, from the route's Profile button, where the map's Play opened it and flew its
   // dry run at once until the owner took Play off the map (2026-11-02:
   // "I don't want the play button there, just the mic"); the run is the
   // profile's own Dry run button. With a route to draw it for: the side
@@ -2133,10 +2131,12 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     setTabPick("fpl");
     openProfileCard();
   }, [setTabPick, openProfileCard]);
-  useEffect(() => {
-    useProfileOpener.setState({ open: profileReady ? openProfile : null });
-  }, [profileReady, openProfile]);
-  useEffect(() => () => useProfileOpener.setState({ open: null }), []);
+  // A caution on the pilot's own altitude, or one tight in its band, marked
+  // on the Profile button where the caution is said, as the AI brief's mark
+  // is on its own (the owner, 2026-11-05: "The red dot can be on profile
+  // (like brief) instead of the altitude"); not for a route with no legal
+  // altitude, which the altitude's field says in red itself.
+  const altitudeMark = !profileReady || s.unflyable || !s.nav ? null : s.nav.cautions?.length ? "caution" : tightLeg ? "tight" : null;
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
@@ -2826,8 +2826,19 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
             the navlog button with profile button ... Navlog can be moved
             to the more button"). */}
         {profileReady && (
-          <RoundButton label="Profile" onClick={openProfile} className="size-8" data-testid="route-profile">
-            <ChartArea className="size-[1.125rem]" strokeWidth={2} />
+          <RoundButton
+            label={altitudeMark === "caution" ? "Profile, your altitude has a caution" : altitudeMark === "tight" ? "Profile, your altitude is tight" : "Profile"}
+            onClick={openProfile} className="size-8" data-testid="route-profile"
+          >
+            <span className="relative">
+              <ChartArea className="size-[1.125rem]" strokeWidth={2} />
+              {altitudeMark && (
+                <span
+                  aria-hidden="true" data-testid={altitudeMark === "caution" ? "own-altitude-flag" : "tight-altitude-flag"}
+                  className="absolute -top-0.5 -right-1 size-2 rounded-full bg-caution"
+                />
+              )}
+            </span>
           </RoundButton>
         )}
         {/* The AI's brief, a card over FPL (BriefCard) -- its verdict, its

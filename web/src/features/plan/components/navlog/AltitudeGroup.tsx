@@ -6,7 +6,6 @@ import { Button } from "../../../../components/ui/button";
 import PullDown from "../../../../components/PullDown";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { InlineField } from "../../../../components/InlineField";
-import { useProfileOpener } from "../../../../lib/profileOpener";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -150,7 +149,6 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   // is in, at the owner's ask ("make the profile button appear right after
   // entry but just make it disabled").
   const entered = shown !== "";
-  const dotShown = profiled && !problem && (cautions.length > 0 || !!tight);
   const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
@@ -175,31 +173,16 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
         onBlur: fly, "data-testid": "altitude-input",
       }}
       inputClassName={problem ? "text-destructive-ink" : "text-foreground"}
-      // Room for the caution's dot only while there is one: the field as
-      // narrow as its figures otherwise (the owner's "why is there so much
-      // space ... after altitude").
-      endRoom={dotShown ? "w-[1.125rem]" : "w-0"}
+      endRoom="w-0"
       // No button of its own at its end, at the owner's ask (2026-10-27: "No
-      // need for a separate profile button"): the profile opens with its
-      // from the route's ••• menu (Profile). Its amber dot stays, at
-      // the field's end, on a caution on the pilot's own altitude or a tight
-      // one -- a warning is never dropped -- and what the altitude is and
-      // why, in its name for VoiceOver.
+      // need for a separate profile button"), and no caution's dot there
+      // either: that is on the route's Profile button now, as the AI
+      // brief's is on its own (the owner, 2026-11-05: "The red dot can be
+      // on profile (like brief) instead of the altitude"; PlanWorkspace's
+      // altitudeMark). What the altitude is and why stays in its name for
+      // VoiceOver.
       button={(profiled || entered) && (
-        <span className={dotShown ? "relative mr-2.5 flex size-2 shrink-0" : "relative flex size-0 shrink-0"}>
-          <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" className="absolute inset-0" />
-          {/* The dot opens the profile where the caution is said, as the
-              route's ••• menu does (the owner, 2026-10-27: "just open the
-              same profile view as the play button"); 44 points round it. */}
-          {dotShown && (
-            <button
-              type="button" onClick={() => useProfileOpener.getState().open?.()}
-              aria-label={cautions.length > 0 ? "Your altitude has a caution: open the profile" : "Your altitude is tight: open the profile"}
-              className="relative size-2 rounded-full bg-caution outline-none after:absolute after:-inset-[18px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
-              data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
-            />
-          )}
-        </span>
+        <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" className="relative flex size-0 shrink-0" />
       )}
     />
   );
