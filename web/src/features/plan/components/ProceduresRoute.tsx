@@ -19,7 +19,7 @@ import { Skeleton } from "../../../components/ui/skeleton";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
 import { useMinuteClock, zuluTime } from "../../../lib/clock";
-import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
+import type { AircraftProfile, Detour, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm, normalizeDeg } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
@@ -97,6 +97,8 @@ export interface RouteListEdit {
    *  in (In the Plan, which has no route box), and what is typed put in;
    *  left empty, given up. */
   newAt?: number | null;
+  /** Fly via's ways round the Class B, offered on that card, best first. */
+  newVia?: Detour[] | null;
   onInsert?: (index: number, ident: string) => void;
   onCancelNew?: () => void;
   /** Each point a card of its own, easier to see as it is dragged (In the
@@ -143,16 +145,41 @@ function CardThread({ first, last }: { first: boolean; last: boolean }) {
  * ask (2026-11-05: "when adding a stop just add a stop with the editable
  * card"). Return or leaving it puts the stop in; left empty, it goes.
  */
-function NewStopCard({ onCommit, onCancel }: { onCommit: (ident: string) => void; onCancel: () => void }) {
+function NewStopCard({ via, onCommit, onCancel }: { via: Detour[] | null; onCommit: (ident: string) => void; onCancel: () => void }) {
   return (
-    <li className={cn("relative flex items-center gap-2.5", POINT_CARD, "isolate", CARD_GAP)} data-testid="route-new-stop">
+    <li className={cn("relative", POINT_CARD, "isolate", CARD_GAP)} data-testid="route-new-stop">
       <CardThread first={false} last={false} />
-      <span className="grid w-7 shrink-0 place-items-center" aria-hidden="true">
-        <span className="size-4 rounded-full border-[3px] border-dashed bg-card" style={{ borderColor: "var(--course)" }} />
-      </span>
-      <div className="flex min-w-0 flex-1 pr-1.5">
-        <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" autoFocus wide onCommit={onCommit} onEmpty={onCancel} />
+      <div className="flex items-center gap-2.5">
+        <span className="grid w-7 shrink-0 place-items-center" aria-hidden="true">
+          <span className="size-4 rounded-full border-[3px] border-dashed bg-card" style={{ borderColor: "var(--course)" }} />
+        </span>
+        <div className="flex min-w-0 flex-1 pr-1.5">
+          <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" autoFocus wide onCommit={onCommit} onEmpty={onCancel} />
+        </div>
       </div>
+      {/* Fly via's ways round, on the card between the points they go
+          between, at the owner's ask (2026-11-05: "Fly via suggestions
+          should come between the cards right?"): each a tap that puts it
+          in, as the box's Suggested were; held off the text box's blur,
+          which would take the empty card away before the tap. */}
+      {via && via.length > 0 && (
+        <ul className="mt-2 pl-[2.375rem]" aria-label="Suggested" data-testid="route-new-stop-via">
+          {via.map(d => (
+            <li key={d.ident}>
+              <button
+                type="button" onPointerDown={e => e.preventDefault()} onClick={() => onCommit(d.ident)} data-testid="picker-suggestion"
+                className="flex min-h-11 w-full items-center gap-2 pr-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block font-semibold text-tint", TEXT.row)}>{d.ident}</span>
+                  <span className={cn("block truncate text-muted-foreground", TEXT.note)}>{[d.kind, d.description].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className={cn("shrink-0 text-muted-foreground tabular-nums", TEXT.detail)}>+{Math.round(d.added_nm)} nm</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </li>
   );
 }
@@ -979,7 +1006,7 @@ export default function ProceduresRoute({
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   // The stop being added, its card before the point at its place.
   const newAt = asCards && edit?.onInsert ? edit.newAt ?? null : null;
-  const newCard = newAt !== null ? <NewStopCard key="new-stop" onCommit={v => edit!.onInsert!(newAt, v)} onCancel={() => edit!.onCancelNew?.()} /> : null;
+  const newCard = newAt !== null ? <NewStopCard key="new-stop" via={edit!.newVia ?? null} onCommit={v => edit!.onInsert!(newAt, v)} onCancel={() => edit!.onCancelNew?.()} /> : null;
   let newPut = false;
   const newBefore = (index: number | undefined, into: ReactNode[]) => {
     if (newCard && !newPut && index === newAt) {

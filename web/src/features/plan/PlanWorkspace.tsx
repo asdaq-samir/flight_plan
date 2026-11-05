@@ -9,7 +9,7 @@ import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, procedureQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
-import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
+import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
 import { N_NUMBER, aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, PLAN_NAME, windsOutOfDate } from "./format";
@@ -1480,6 +1480,8 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // of the route box for in the plan, when adding a stop just add a stop
   // with the editable card").
   const [newStopAt, setNewStopAt] = useState<number | null>(null);
+  // Fly via's ways round the Class B, offered on that card.
+  const [newStopVia, setNewStopVia] = useState<Detour[] | null>(null);
   const typeStopAt = useCallback((index: number) => {
     if (routeEdit === "plan") {
       setNewStopAt(index);
@@ -1513,19 +1515,23 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   }, [routePoints, setRoute]);
   const insertPoint = useCallback((at: number, ident: string) => {
     setNewStopAt(null);
+    setNewStopVia(null);
     const points = [...routePoints];
     points.splice(at, 0, ident.trim().toUpperCase());
     if (points.some((p, i) => i > 0 && p === points[i - 1])) return;
     setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
   }, [routePoints, setRoute]);
-  const cancelNewStop = useCallback(() => setNewStopAt(null), []);
+  const cancelNewStop = useCallback(() => {
+    setNewStopAt(null);
+    setNewStopVia(null);
+  }, []);
   const listEdit = useMemo(() => ({
     onMove: movePoint, onAddAt: typeStopAt, onReplace: replacePoint,
-    newAt: newStopAt, onInsert: insertPoint, onCancelNew: cancelNewStop,
+    newAt: newStopAt, newVia: newStopVia, onInsert: insertPoint, onCancelNew: cancelNewStop,
     // In the Plan, the points as cards (ProceduresRoute), each changed by
     // its own ident's text box, no menu's Change to a box.
     cards: routeEdit === "plan",
-  }), [movePoint, typeStopAt, replacePoint, newStopAt, insertPoint, cancelNewStop, routeEdit]);
+  }), [movePoint, typeStopAt, replacePoint, newStopAt, newStopVia, insertPoint, cancelNewStop, routeEdit]);
   // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
   // routes planned, Aircraft's Favorites and Recents -- the address's
   // (`list`, useAddressCards), kept for their tab as its cards are.
@@ -2624,7 +2630,15 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         problem={unflyable ? (
           <RouteProblem
             problem={unflyable} onAddStop={() => { closeProfileCard(); if (routeEdit === "plan") typeStopAt(routePoints.length - 1); else setAddingStop("stop"); }}
-            onFlyVia={() => { closeProfileCard(); if (routeEdit === "plan") typeStopAt(routePoints.length - 1); else setAddingStop("via"); }} onAcceptClassB={() => acceptClassB(true)}
+            onFlyVia={() => {
+              closeProfileCard();
+              if (routeEdit !== "plan") return setAddingStop("via");
+              // Between the points the ways round go between, as the box
+              // put them (its `asked`).
+              const detours = s.unflyable?.detours ?? [];
+              setNewStopVia(detours.length ? detours : null);
+              typeStopAt(detours.length ? detours[0]!.stop_index + 1 : routePoints.length - 1);
+            }} onAcceptClassB={() => acceptClassB(true)}
             onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
           />
         ) : undefined}
