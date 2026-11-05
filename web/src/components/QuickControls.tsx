@@ -49,7 +49,7 @@ export default function QuickControls() {
         options={[
           { value: "box", label: "Route Box", testId: "route-edit-box" },
           { value: "folded", label: "One Line", testId: "route-edit-folded" },
-          { value: "plan", label: "In the Plan", testId: "route-edit-plan" },
+          { value: "plan", label: "Route Cards", testId: "route-edit-plan" },
         ]}
       />
       {/* The app's look, Glass Cockpit or Chart ink (lib/brand), its Theme, where
