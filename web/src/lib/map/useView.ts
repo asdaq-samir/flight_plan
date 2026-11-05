@@ -202,13 +202,17 @@ export function useAhead(query?: AheadQuery, { flights = false }: { flights?: bo
       const options = asking.current?.(box, levelOf(zoom));
       return !!options?.enabled && client.getQueryData(options.queryKey) !== undefined;
     };
-    // The ring asked, and given to the layer, once the view's answer is in
-    // -- unless the map has moved on to another box meanwhile.
+    // The ring given to the layer once the view's answer is in -- unless
+    // the map has moved on to another box meanwhile -- and asked by the
+    // layer's useQuery as it takes the ring's key. Not prefetched here as
+    // well: no map event is waiting on it, and where the planner failed
+    // it before that render, the useQuery found a key with no answer and
+    // asked it again, the ring twice as the layer opened (useView.test's
+    // "asks a question the planner failed once more at most").
     const ringAfter = (first: Promise<void>, ring: Box) => {
       void first.then(() => {
         if (latest.current !== ring || waiting.current === null) return;
         waiting.current = null;
-        void prefetch(ring, askedLevel.current);
         setAsked(ring);
       });
     };

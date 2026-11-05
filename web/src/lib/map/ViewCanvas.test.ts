@@ -45,7 +45,9 @@ describe("ViewCanvasLayer's frames", () => {
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
       { setTransform() {}, clearRect() {} } as unknown as CanvasRenderingContext2D,
     );
-    const container = document.createElement("div");
+    // In the document, as a map's is: a canvas put back in its pane is
+    // then connected, which the spare canvas's test reads.
+    const container = document.body.appendChild(document.createElement("div"));
     Object.defineProperty(container, "clientWidth", { value: 400 });
     Object.defineProperty(container, "clientHeight", { value: 800 });
     map = L.map(container, { zoomAnimation: false, fadeAnimation: false }).setView([42.3, -88.0], 9);
@@ -56,6 +58,7 @@ describe("ViewCanvasLayer's frames", () => {
   afterEach(() => {
     layer.remove();
     map.remove();
+    map.getContainer().remove();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
