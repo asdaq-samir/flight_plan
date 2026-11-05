@@ -2810,10 +2810,22 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
 
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
-  // Half a route or none, the box is the box: opened again from its line
-  // before, it folds again with the next whole route.
-  if (routeOpen && !(planned.dep && planned.dest)) setRouteOpen(false);
-  const routeFolded = routeEdit !== "box" && !!planned.dep && !!planned.dest && !routeOpen && !addingStop;
+  // Folded from the start, no route yet too, at the owner's ask ("They
+  // should not have route box from the start", 2026-11-05): the box only
+  // while it is opened from the head, or a stop is typed in. Opened to
+  // type a route, it folds by itself once the route is whole -- the
+  // destination in -- as the pilot has what they opened it for.
+  const wholeRoute = !!planned.dep && !!planned.dest;
+  const [wasWhole, setWasWhole] = useState(wholeRoute);
+  if (wholeRoute !== wasWhole) {
+    setWasWhole(wholeRoute);
+    if (wholeRoute && routeOpen) setRouteOpen(false);
+  }
+  const routeFolded = routeEdit !== "box" && !routeOpen && !addingStop;
+  // The route as the folded head says it: half a route with the end it
+  // lacks, none the box's own word.
+  const routeWords = wholeRoute ? routeName(planned.dep, planned.dest, planned.stops)
+    : planned.dep || planned.dest ? [planned.dep || "Departure", ...planned.stops, planned.dest || "Destination"].join(" → ") : "";
   const routeControls = (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
       {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
@@ -3258,24 +3270,26 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // box again (A), or its name over the plan whose rows change it (B);
     // the airplane, the altitude and the route's buttons under either, as
     // they were under the box. The box again while a stop is typed in
-    // from the list or a problem, and before there is a destination.
+    // from the list or a problem, and while it is opened from the head;
+    // with no route either, the head folded (the owner, 2026-11-05).
     route: strip ? undefined : routeFolded ? (
       <div className="flex min-w-0 flex-1 flex-col gap-2.5" data-testid="route-folded">
         {routeEdit === "plan" ? (
           <div className="flex min-w-0 items-start gap-2 px-1.5">
             <div className="flex min-w-0 flex-1 flex-col">
               <h2 className={cn("font-semibold text-balance", TEXT.heading)} data-testid="route-title">
-                {course ? (s.local ? placeName(course.departure.name, course.departure.ident)
+                {course && wholeRoute ? (s.local ? placeName(course.departure.name, course.departure.ident)
                   : `${placeName(course.departure.name, course.departure.ident)} to ${placeName(course.destination.name, course.destination.ident)}`)
-                  : routeName(planned.dep, planned.dest, planned.stops)}
+                  : routeWords || "New Route"}
               </h2>
-              {course && <span className={cn("truncate text-muted-foreground", TEXT.detail)}>{routeName(planned.dep, planned.dest, planned.stops)}</span>}
+              {course && wholeRoute && <span className={cn("truncate text-muted-foreground", TEXT.detail)}>{routeWords}</span>}
             </div>
+            {/* With no route, Add: the box opened for its departure. */}
             <button
               type="button" onClick={() => setRouteOpen(true)} data-testid="route-edit"
               className={cn("relative mt-0.5 shrink-0 font-semibold text-tint outline-none after:absolute after:-inset-2.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.row)}
             >
-              Edit
+              {routeWords ? "Edit" : "Add"}
             </button>
           </div>
         ) : (
@@ -3283,11 +3297,19 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           // tap that opens it.
           <button
             type="button" onClick={() => setRouteOpen(true)} data-testid="route-line"
-            aria-label={`The route, ${routeName(planned.dep, planned.dest, planned.stops)}: edit`}
+            aria-label={routeWords ? `The route, ${routeWords}: edit` : "The route, from its departure"}
             className={cn("flex h-[2.5625rem] w-full min-w-0 items-center gap-2 rounded-[20.5px] px-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", PANEL_FIELD)}
           >
-            <span className={cn("min-w-0 flex-1 truncate font-mono font-semibold", TEXT.row)}>{routeName(planned.dep, planned.dest, planned.stops)}</span>
-            <span className={cn("shrink-0 font-semibold text-tint", TEXT.row)}>Edit</span>
+            {/* None yet: the box's own word for it, as a field's
+                placeholder, and nothing to edit. */}
+            {routeWords ? (
+              <>
+                <span className={cn("min-w-0 flex-1 truncate font-mono font-semibold", TEXT.row)}>{routeWords}</span>
+                <span className={cn("shrink-0 font-semibold text-tint", TEXT.row)}>Edit</span>
+              </>
+            ) : (
+              <span className={cn("min-w-0 flex-1 truncate text-muted-foreground", TEXT.row)}>Route</span>
+            )}
           </button>
         )}
         <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>
@@ -3312,7 +3334,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           footer={routeControls}
           addAt={addAt}
           // Opened from its folded line: Done folds it again.
-          onDone={routeOpen && planned.dep && planned.dest ? () => setRouteOpen(false) : undefined}
+          onDone={routeEdit !== "box" && routeOpen ? () => setRouteOpen(false) : undefined}
         />
         </SearchNear.Provider>
         </Suspense>

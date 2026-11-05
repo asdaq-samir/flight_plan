@@ -79,7 +79,8 @@ export type Layout = "tabs" | "strip" | "field-tabs";
  *  route's box over the plan as before; `folded`, the
  *  route's box folded to one line, a tap opening it again (A); `plan`, no
  *  box, the route's name over the plan, whose rows are dragged and added
- *  to (B). Before a destination either way the box. In Setup's Controls. */
+ *  to (B); both folded from the start, no route yet too, the box opened
+ *  from the head. In Setup's Layout. */
 export type RouteEdit = "box" | "folded" | "plan";
 
 /** The stock C172 until a pilot picks one of their own. */
