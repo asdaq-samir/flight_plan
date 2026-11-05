@@ -440,9 +440,6 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
             onPointerDown={grab} onPointerMove={move} onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={stepKey}
             className="absolute inset-0 cursor-ns-resize touch-none rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="altitude-wheel"
-            // Its own drag up and down, not the sheet's (the stock sheet's
-            // Drawer leaves an element so marked alone).
-            data-base-ui-swipe-ignore=""
           />
         )}
         {corner}

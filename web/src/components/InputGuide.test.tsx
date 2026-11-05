@@ -34,6 +34,7 @@ describe("guideFor", () => {
     expect(guide.line).toBe("May hear the radio: test it on the ground");
     expect(guide.how).toBe("How to test it");
     expect(guide.steps.length).toBeGreaterThan(0);
+  });
 });
 
 describe("InputGuide", () => {

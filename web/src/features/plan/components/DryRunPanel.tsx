@@ -145,8 +145,6 @@ export function DryRunControls({ run, ends, onClose, missed = false, onMissed }:
             the tabs' swipe (a slider, TabBar). The ring round the chart
             while its thumb has the keyboard's focus. */}
         <Slider
-          // Across, its own; up and down, still the sheet's.
-          data-base-ui-swipe-ignore="x"
           min={tenth(first)} max={Math.max(tenth(last), tenth(first) + 0.1)} step={0.1}
           value={[tenth(nowNm ?? first)]}
           onValueChange={([nm]) => { if (nm !== undefined) seekNm(nm); }}

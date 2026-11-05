@@ -1,12 +1,10 @@
 import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
-import { flushSync } from "react-dom";
-import { Drawer } from "@base-ui/react/drawer";
 import { cn } from "cn";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SETTLE_LEAST, SHEET_MARGIN, TabBarMinimized,
+  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_MARGIN, TabBarMinimized,
   useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
 import { useOpenCards } from "../lib/openCards";
@@ -16,7 +14,8 @@ import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
 import { prefersReducedMotion } from "../lib/motion";
 import { usePreferences } from "../lib/preferences";
-import { settleSeconds, type Detents } from "./sheet/engine";
+import { restingAt, settleSeconds, type Detents } from "./sheet/engine";
+import { useSheetDrag } from "./sheet/useSheetDrag";
 
 interface Props {
   /** The panel's name -- "Flight Planning", "Model Training" -- for its
@@ -80,6 +79,8 @@ const GRABBER = 16;
  *  in it four from the edge (iOS's is five on a sheet, two on Maps' pill:
  *  one place at every size here). */
 const ROW_PAD = "pt-2.5";
+/** A settle's curve: iOS's ease-out (feedback: no spring). */
+const CURVE = "cubic-bezier(0, 0, 0.58, 1)";
 /** The sizes in order, for which way the panel last moved. */
 const RANK: Record<PanelState, number> = { peek: 0, half: 1, full: 2 };
 
@@ -149,25 +150,27 @@ export interface SheetTurn { insets: MapInsets }
  * Escape lowers it. The screen's width on a phone; from `md` up 24 rem
  * wide at the left.
  *
- * A stock sheet, Base UI's Drawer, at the owner's ask (2026-11-04: "Can
- * we try the stock sheet?"), the one shadcn's drawer moved to once Vaul
- * went unmaintained: a bottom sheet or a top sheet by the pilot's Layout
- * setting (useNavEdge), the detents its snap points, non-modal so the map
- * stays the map's. The Drawer follows the finger, picks the detent and
- * slides the popup, laid out at its full height, by its snap point's
- * offset; a flick goes one size (snapToSequentialPoints, the owner's
- * "the pill should not go straight to full"), and a swipe past the pill
- * never closes it (its null snap point refused). What must stay in sight
- * at the sheet's free edge is moved back by the same offset (pin): a
- * bottom sheet's route figures, the body cut off over them, and a top
- * sheet's head -- written to those few elements alone, a frame at a time
- * under a finger and as one eased transition in a settle, never through
- * a variable every element under the sheet inherits, which restyled the
- * whole sheet at each frame of a drag (the owner, 2026-11-04: "the
- * movement of sheet is not smooth, it's jerky"). The map goes with the sheet's edge frame
- * by frame (lib/map/sheetSlide, reading the popup's transform), and the
- * page hears the room the sheet leaves as it sets off (sheetturn) and
- * once it has landed (onInsetsChange).
+ * Our own sheet again after a try of the stock one (Base UI's Drawer,
+ * 100 KB on the first load), at the owner's ask (2026-11-04: "I just want
+ * a simple top/bottom fixed sheet that moves smoothly to three
+ * positions"): a bottom sheet or a top sheet by the pilot's Layout
+ * (useNavEdge), held on its edge by its own style and laid out once at
+ * its full height, so nothing about it is laid out again as it moves. It
+ * is placed by one number, its height `h`, written straight to the style
+ * (place): slid off its edge by full - h, a frame at a time under a
+ * finger (useSheetDrag) and as one CSS transition in a settle, started in
+ * the same frame the finger lets go -- never waiting for React, which
+ * hears of the new size afterwards in a transition. What must stay in
+ * sight at its free edge is moved back by the same number on those few
+ * elements alone (pin): a bottom sheet's figures, the body cut off over
+ * them, and a top sheet's head. The map's buttons ride its top by a
+ * translate of their own (ride), the map follows once it has set off
+ * (sheetturn, lib/map/sheetSlide's glide) and stays still under a finger,
+ * and the page hears the room it leaves once it has landed
+ * (onInsetsChange). The rules each of today's bugs broke, kept: its edge
+ * never leaves the screen's, nothing it does waits on a render, nothing
+ * under it inherits a value that changes per frame, and the pill is
+ * measured only as the pill at rest.
  */
 export default function MapPanel({ label, top, kept, controls, compact, children, state: pageState, onStateChange: tellPage, onInsetsChange: tellInsets, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot, flying = false }: Props) {
   // The pill's first row: the tab bar, or in the strip layout the strip's
@@ -218,19 +221,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // has landed -- told at once, the page drew the whole workspace again
   // for the new size as the sheet set off (140 ms at 4x).
   const [size, setSize] = useState(pageState);
-  // Where the popup is going: its snap point, set on its own and at once
-  // as a finger lets go, ahead of `size`, which the whole sheet is laid
-  // out by and which follows in a transition. With the two together the
-  // sheet sat where the finger left it while the page drew itself for the
-  // new size (the trace of a drag at CPU 4x, 2026-11-04: 0.6 s there).
-  const [snap, setSnap] = useState(pageState);
   const sizeRef = useRef(size);
   const asked = useRef<PanelState | null>(null);
-  // On its way to `size`, and how long the way takes.
+  // On its way: under a finger or easing to a size. What the workspace
+  // draws for a sheet on the move, and the measures held till it rests.
   const [moving, setMoving] = useState(false);
-  // None until it first moves: drawn where it rests as the page opens,
-  // not eased there from wherever the Drawer had it before measuring.
-  const [seconds, setSeconds] = useState(0);
   const atPill = size === "peek" && hasPill;
 
   // Measured at rest: the head's band, the foot, and what the pill shows.
@@ -330,7 +325,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     return { peek, half: Math.min(half, full), full };
   }, [pillHeight, room, halfChrome, headHeight, footHeight, cardFit]);
   const detentsRef = useRef(detents);
-  const snapPoints = useMemo(() => [detents.peek, detents.half, detents.full], [detents]);
   const halfBody = Math.max(0, detents.half - headHeight - halfChrome - footHeight);
   const fullBody = Math.max(0, detents.full - headHeight - halfChrome - footHeight);
 
@@ -370,14 +364,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     write(head, bottom ? 0 : off);
     if (body && body.style.overflow !== (up ? "clip" : "")) body.style.overflow = up ? "clip" : "";
   }, []);
-  // How far in the popup's free edge is this frame, from its transform.
-  const offNow = useCallback(() => {
-    if (!panel) return 0;
-    const transform = getComputedStyle(panel).transform;
-    const y = transform && transform !== "none" ? new DOMMatrix(transform).m42 : 0;
-    return Math.max(0, pinState.current.fromBottom ? y : -y);
-  }, [panel]);
-
   // The map's buttons ride on a phone's bottom sheet's top: placed at the
   // height it rests at (--sheet-cover, their `bottom`, set once a move)
   // and moved from there by a translate on the compositor, on the sheet's
@@ -413,102 +399,65 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     rule.setProperty("translate", `0 ${coverAt.current - Math.round(h)}px`);
   }, [onPhone]);
 
-  // A frame at a time while a finger is on it or it is on its way, until
-  // it has been still a few frames: under a finger (the Drawer's
-  // data-swiping) the parts held in sight, and on a phone's bottom sheet
-  // the map's buttons riding on its top (--sheet-cover).
-  const followFrame = useRef(0);
+  // The sheet at `h`, written straight to the style: slid off its edge by
+  // what is laid out past h (its full height less h), with the parts held
+  // in sight and the map's buttons going with it. `ease` for a settle,
+  // the transition the browser runs on the compositor; none under a
+  // finger. `from` for a settle's start, where the buttons are shown.
+  const hRef = useRef(detents[size]);
   const fullRef = useRef(detents.full);
-  const restRef = useRef(0);
-  useLayoutEffect(() => {
-    fullRef.current = detents.full;
-    restRef.current = Math.max(0, detents.full - detents[snap]);
-  }, [detents, snap]);
-  const follow = useCallback((held: boolean) => {
+  const place = useCallback((h: number, ease: string, from?: number) => {
+    hRef.current = h;
     if (!panel) return;
-    cancelAnimationFrame(followFrame.current);
-    let last = NaN, still = 0, pressed = held, swiped = false;
-    const lift = () => { pressed = false; };
-    window.addEventListener("pointerup", lift, { once: true });
-    window.addEventListener("pointercancel", lift, { once: true });
-    const step = () => {
-      const off = offNow();
-      const swiping = panel.hasAttribute("data-swiping");
-      // What the workspace draws for a sheet on the move (FPL's strips),
-      // from the finger's first move too, not only once it lets go.
-      if (swiping && !swiped) usePanelDragging.setState({ dragging: true });
-      const h = Math.max(0, Math.round(fullRef.current - off));
-      if (swiping) {
-        pin(off, "");
-        ride(h, "");
-      }
-      else if (swiped && !movingRef.current) {
-        usePanelDragging.setState({ dragging: false });
-        // Let go where it was (or past the pill, the close refused): no
-        // new size to commit, so the popup and the parts go back to it
-        // here, on the shortest settle's time.
-        panel.style.setProperty("--sheet-seconds", `${SETTLE_LEAST}s`);
-        pin(restRef.current, `${SETTLE_LEAST}s cubic-bezier(0, 0, 0.58, 1)`);
-        ride(fullRef.current - restRef.current, `${SETTLE_LEAST}s cubic-bezier(0, 0, 0.58, 1)`);
-      }
-      swiped = swiping;
-      still = h === last ? still + 1 : 0;
-      last = h;
-      if (pressed || movingRef.current || still < 6) followFrame.current = requestAnimationFrame(step);
-      else {
-        window.removeEventListener("pointerup", lift);
-        window.removeEventListener("pointercancel", lift);
-      }
-    };
-    step();
-  }, [panel, offNow, pin, ride]);
-  useEffect(() => () => {
-    cancelAnimationFrame(followFrame.current);
-    coverRule().removeProperty("--sheet-cover");
-    for (const name of ["translate", "transition"]) rideRule().removeProperty(name);
-  }, []);
-  useLayoutEffect(() => {
-    if (!moving) follow(false);
-  }, [moving, follow, detents, size]);
-  // The parts held in sight go where the sheet is going, in the commit
-  // that sets its snap point, on its curve and time; at rest, put there.
-  useLayoutEffect(() => {
-    const off = Math.max(0, detents.full - detents[snap]);
-    const ease = moving && seconds > 0 ? `${seconds}s cubic-bezier(0, 0, 0.58, 1)` : "";
+    const off = Math.max(0, fullRef.current - h);
+    const y = Math.round((pinState.current.fromBottom ? off : -off) * 100) / 100;
+    const transition = ease ? `transform ${ease}` : "";
+    if (panel.style.transition !== transition) panel.style.transition = transition;
+    panel.style.transform = `translate3d(0, ${y}px, 0)`;
     pin(off, ease);
-    // The map's buttons from where the sheet's top is now to where it goes.
-    ride(detents[snap], ease, ease ? Math.max(0, fullRef.current - offNow()) : detents[snap]);
-  }, [pin, ride, offNow, moving, seconds, detents, snap, footShown, fromBottom]);
+    ride(h, ease, from);
+  }, [panel, pin, ride]);
+  // Where it is this frame: its last placing, or on its way, from the
+  // transform the browser has it at.
+  const currentHeight = useCallback(() => {
+    if (!panel || !movingRef.current) return hRef.current;
+    const t = getComputedStyle(panel).transform;
+    const y = t && t !== "none" ? Math.abs(new DOMMatrix(t).m42) : 0;
+    return fullRef.current - y;
+  }, [panel]);
 
-  // Off to `target`: the popup's snap point first, the map told as it
-  // sets off, the sheet laid out for the size after, the page once it has
-  // landed. `now` for a finger or a key: the snap point committed at once
-  // (flushSync) and the map told a frame on, so the popup's settle is
-  // running before either's work.
+  // To `target`, from where it is, at once: the transition written in this
+  // frame -- a finger's release, a tap, a key -- and the map told a frame
+  // on and the sheet laid out for the size in a React transition after,
+  // so neither's work is in the way of its first frames; the page told
+  // once it has landed.
   const landTimer = useRef(0);
-  const go = useCallback((target: PanelState, tell: boolean, now = false) => {
-    const from = detentsRef.current[sizeRef.current];
+  const settle = useCallback((target: PanelState, tell: boolean, now: boolean) => {
+    const from = currentHeight();
     const to = detentsRef.current[target];
-    const settle = prefersReducedMotion() ? 0 : settleSeconds(to - from);
+    const seconds = prefersReducedMotion() || Math.abs(to - from) < 0.5 ? 0 : settleSeconds(to - from);
     window.clearTimeout(landTimer.current);
     if (tell) asked.current = target;
     sizeRef.current = target;
     movingRef.current = true;
-    const setOff = () => {
-      setSnap(target);
-      setSeconds(settle);
+    place(from, "");
+    if (seconds > 0 && panel) void panel.offsetHeight;
+    place(to, seconds > 0 ? `${seconds}s ${CURVE}` : "", from);
+    const turn = () => panel?.dispatchEvent(new CustomEvent<SheetTurn>("sheetturn", { bubbles: true, detail: { insets: insetsFor(target, detentsRef.current) } }));
+    const lay = () => {
+      setSize(target);
       setMoving(true);
     };
-    if (now) flushSync(setOff);
-    else setOff();
-    const turn = () => panel?.dispatchEvent(new CustomEvent<SheetTurn>("sheetturn", { bubbles: true, detail: { insets: insetsFor(target, detentsRef.current) } }));
-    if (now) requestAnimationFrame(turn);
-    else turn();
-    if (now) startTransition(() => setSize(target));
-    else setSize(target);
-    follow(false);
+    if (now) {
+      requestAnimationFrame(turn);
+      startTransition(lay);
+    } else {
+      turn();
+      lay();
+    }
     landTimer.current = window.setTimeout(() => {
       movingRef.current = false;
+      place(detentsRef.current[target], "");
       setMoving(false);
       if (asked.current === target) {
         asked.current = null;
@@ -516,17 +465,35 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       }
       if (headBand) setHeadHeight(headBand.offsetHeight);
       if (footNode) setFootHeight(footNode.offsetHeight);
-    }, settle * 1000 + 40);
-  }, [panel, insetsFor, follow, tellPage, headBand, footNode]);
-  const ask = useCallback((target: PanelState, now = false) => go(target, true, now), [go]);
+    }, seconds * 1000 + 40);
+  }, [panel, currentHeight, place, insetsFor, tellPage, headBand, footNode]);
+  const ask = useCallback((target: PanelState, now = false) => settle(target, true, now), [settle]);
   useEffect(() => () => window.clearTimeout(landTimer.current), []);
+  useEffect(() => () => {
+    coverRule().removeProperty("--sheet-cover");
+    for (const name of ["translate", "transition"]) rideRule().removeProperty(name);
+  }, []);
+
+  // At rest after a commit: put where its size is -- eased there where it
+  // has grown or shrunk at rest (the route's figures come to the pill,
+  // the keyboard up), at once on the first measure.
+  const settledOnce = useRef(false);
   useLayoutEffect(() => {
+    fullRef.current = detents.full;
     detentsRef.current = detents;
-  }, [detents]);
+    if (movingRef.current) return;
+    const target = detents[size];
+    if (settledOnce.current && Math.abs(hRef.current - target) > 1 && !prefersReducedMotion()) {
+      settle(size, false, false);
+      return;
+    }
+    if (pillHeight !== null || !atPill) settledOnce.current = true;
+    place(target, "");
+  }, [detents, size, pillHeight, atPill, footShown, fromBottom, place, settle]);
   // The page's own size, come as a prop: gone to.
   useEffect(() => {
-    if (pageState !== sizeRef.current) go(pageState, false);
-  }, [pageState, go]);
+    if (pageState !== sizeRef.current) settle(pageState, false, false);
+  }, [pageState, settle]);
   // What the workspace draws for a sheet on the move (FPL's strips).
   useEffect(() => {
     const frame = requestAnimationFrame(() => usePanelDragging.setState({ dragging: moving }));
@@ -539,28 +506,39 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     if (!moving) tellInsets(insetsNow);
   }, [moving, insetsNow, tellInsets]);
 
-  // The Drawer's own say: the detent a drag let go at, and a close -- by
-  // a swipe past the pill or Escape -- refused, Escape lowering it.
-  const snapped = (point: Drawer.Root.SnapPoint | null, details: Drawer.Root.SnapPointChangeEventDetails) => {
-    // A close: the Drawer's reading of a drag let go nearer its closed
-    // place than the pill. Refused, it would settle back where the drag
-    // began -- a drag from half down to the pill went back up to half (the
-    // trace of a drag at CPU 4x, 2026-11-04) -- so it goes to the pill.
-    if (point === null) {
-      details.cancel();
-      if (sizeRef.current !== "peek") ask("peek", true);
-      return;
-    }
-    const d = detentsRef.current;
-    const px = typeof point === "number" ? point : parseFloat(point);
-    const target = (Object.keys(d) as PanelState[]).reduce((best, s) => (Math.abs(d[s] - px) < Math.abs(d[best] - px) ? s : best));
-    if (target !== sizeRef.current) ask(target, true);
-  };
-  const openChanged = (open: boolean, details: Drawer.Root.ChangeEventDetails) => {
-    if (open) return;
-    details.cancel();
-    if (details.reason === "escape-key" && sizeRef.current !== "peek") ask("peek");
-  };
+  // A drag: from the grabber, the first row, the head and the pill's foot
+  // by pointer; from the body by touch where its content is not
+  // scrolling (useSheetDrag). It follows the finger a frame at a time and
+  // lets go to the detent it was heading for, one size at most.
+  const { startDrag, swallow, body: dragBody } = useSheetDrag({
+    detents, fromBottom,
+    height: currentHeight,
+    began: () => {
+      const h = currentHeight();
+      window.clearTimeout(landTimer.current);
+      movingRef.current = true;
+      place(h, "");
+      setMoving(true);
+    },
+    place: h => place(h, ""),
+    release: (h, speed) => settle(restingAt(detentsRef.current, h, speed), true, true),
+  });
+  const setBody = useCallback((node: HTMLDivElement | null) => {
+    setBodyNode(node);
+    dragBody(node);
+  }, [setBodyNode, dragBody]);
+
+  // Escape lowers it, pressed anywhere in it -- but not in a menu or a
+  // list it opened, which closes first.
+  const expanded = size !== "peek";
+  useEffect(() => {
+    if (!panel || !expanded) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented) ask("peek", true);
+    };
+    panel.addEventListener("keydown", onKey);
+    return () => panel.removeEventListener("keydown", onKey);
+  }, [panel, expanded, ask]);
 
   // Scrolled up, a page's content runs on under the head and is seen
   // through it (--head-room, the under-head utility); while there is
@@ -587,7 +565,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     };
   }, [headBand, panel, under, label, cardOver, layer, cardsUp]);
 
-  const expanded = size !== "peek";
   // A card opened comes up half way at the least, all the way for a
   // search; the last put away, the panel goes back to where it was.
   const raisedFrom = useRef<PanelState | null>(null);
@@ -657,6 +634,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       aria-expanded={expanded}
       data-testid="sidebar-trigger-button"
       onClick={cycle} onKeyDown={arrows}
+      onPointerDown={event => { event.stopPropagation(); startDrag(event); }}
       className={cn(
         "absolute inset-x-0 z-30 mx-auto flex w-24 touch-none justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset print:hidden",
         "after:inset-x-0! after:top-0! after:bottom-0!",
@@ -666,68 +644,45 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       <span className={cn("h-[5px] w-9 rounded-full", ownHead || pillPictured ? "bg-white/75 shadow-[0_0_3px_rgba(0,0,0,.5)]" : "bg-muted-foreground/40")} aria-hidden="true" />
     </button>
   );
-  // The popup eases to its snap point on the owner's curve and time, and
-  // follows the finger with no transition (data-swiping).
-  const withSheet = "transition-transform duration-[var(--sheet-seconds)] ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none";
   const restingPill = atPill && !moving;
 
   return (
-    <Drawer.Root
-      open modal={false} disablePointerDismissal
-      swipeDirection={fromBottom ? "down" : "up"}
-      snapPoints={snapPoints} snapPoint={detents[snap]} onSnapPointChange={snapped}
-      snapToSequentialPoints
-      onOpenChange={openChanged}
-    >
-      <Drawer.Portal>
-        {/* The screen the sheet is held on: on the keyboard while it is up.
-            Not a target itself, so the map under it is the map's. */}
-        <Drawer.Viewport className="pointer-events-none fixed inset-x-0 top-0 z-40 print:static" style={{ bottom: keyboard }}>
-          <Drawer.Popup
+          <section
             ref={setPanel}
-            // A finger on it: the map's buttons go with it.
-            onPointerDown={() => follow(true)}
-            initialFocus={false}
-            finalFocus={false}
-            aria-label={label}
             data-slot="map-panel" data-panel={size} {...(onPhone ? { "data-sheet": "" } : {})}
+            aria-label={label}
+            onClickCapture={swallow}
             data-capsule={restingPill || undefined}
             // Its three heights, for a probe or a test to read.
             data-detents={`${detents.peek},${detents.half},${detents.full}`}
             style={{
               ...vars,
+              // Held on its edge, on the keyboard while it is up; laid out
+              // once at its full height and slid (place).
+              ...(fromBottom ? { bottom: keyboard } : { top: 0 }),
               height: detents.full,
               borderRadius: fromBottom ? `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0` : `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px`,
-              "--sheet-seconds": `${seconds}s`,
             } as CSSProperties}
             className={cn(
               // Clipped rather than hidden: a hidden overflow can still be
               // scrolled by a script, and a row brought into view in the
               // body scrolled the whole panel, its head up out of sight.
-              "group/sheet pointer-events-auto absolute flex flex-col overflow-clip text-foreground outline-none will-change-transform",
-              // Slid by the Drawer's offset and the finger's movement, in
-              // a class, not the element's own style: the Drawer clears
-              // its popup's inline transform as a finger goes down, which
-              // took the sheet to its full height at a touch (the owner,
-              // 2026-11-04: "As soon as I touch the sheet it goes all the
-              // way up"), and React never put it back.
-              "[transform:translateY(calc(var(--drawer-snap-point-offset)_+_var(--drawer-swipe-movement-y)))]",
-              withSheet, "data-[swiping]:transition-none",
-              fromBottom ? "bottom-0" : "top-0",
+              "fixed z-40 flex flex-col overflow-clip text-foreground outline-none will-change-transform print:static",
               // Liquid Glass at every size, as Maps' is: the chart through
               // it, blurred, the same pane whether it is the pill or the sheet.
               onPhone ? GLASS : MATERIAL,
               onPhone ? "inset-x-0" : "left-[max(1rem,env(safe-area-inset-left))] w-[24rem] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
             )}
           >
-            {pillPictured && pill && <PillPicture pill={pill} />}
+            {pillPictured && pill && <PillPicture pill={pill} />}            {pillPictured && pill && <PillPicture pill={pill} />}
             {fromBottom && grabber}
             {/* The head's band: the first row (the bar), the top row, any
                 notice, the controls. Over the body, which runs on up under
                 it (`under`): frosted while anything is there. */}
             <div
               ref={setHeadBand} data-head-band=""
-              className={cn("relative flex shrink-0 flex-col", under && "z-20", !fromBottom && "pt-[env(safe-area-inset-top)]")}
+              onPointerDown={startDrag}
+              className={cn("relative flex shrink-0 touch-none flex-col", under && "z-20", !fromBottom && "pt-[env(safe-area-inset-top)]")}
             >
               {bar && (
                 <div
@@ -776,7 +731,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                 content moved back by the same. At rest in the pill out of
                 sight and of the keyboard's reach. */}
             <div
-              ref={setBodyNode}
+              ref={setBody}
               className={cn(
                 "flex min-h-0 flex-1 flex-col border-border/60", expanded && cn(!ownHead && "border-t", !fromBottom && "pb-4"),
                 SHEET_BELOW,
@@ -808,12 +763,17 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                   // (data-pill-hides) is put away there.
                   "flex min-h-[3.875rem] shrink-0 flex-col justify-center border-t pb-1 print:hidden", ROW_PAD, cardInPill ? "px-0" : "px-4",
                   !footShown && "hidden",
-                  atPill ? "border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
+                  // In the pill the finger is the sheet's (touch-none), as on
+                  // the tabs: the browser's own scroll took it and
+                  // cancelled the drag.
+                  atPill ? "touch-none border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
                   fieldPill && atPill && "px-3",
                 )}
                 style={{ "--sheet-progress": size === "full" ? "1" : "0", ...(toEdge && fromBottom && !atPill ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties}
                 data-testid="panel-foot"
-                // In the pill a tap on it opens it half way.
+                // In the pill a finger anywhere on it drags the sheet, as
+                // the tabs do; a tap on it opens it half way.
+                onPointerDown={atPill ? startDrag : undefined}
                 onClick={atPill ? () => ask("half", true) : undefined}
               >{foot}</div>
             )}
@@ -821,9 +781,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             {/* The rest of the way to the screen's edge, under the home
                 indicator -- in the body where it runs to the edge (toEdge). */}
             {!toEdge && edgeInset > 0 && <div className="shrink-0" style={{ height: edgeInset }} aria-hidden="true" />}
-          </Drawer.Popup>
-        </Drawer.Viewport>
-      </Drawer.Portal>
-    </Drawer.Root>
+          </section>
   );
 }

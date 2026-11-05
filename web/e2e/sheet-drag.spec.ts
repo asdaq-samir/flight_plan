@@ -4,8 +4,7 @@ import { grabberTo, openBrief, panelTabs, settle, settled, sideDrawer } from "./
 /**
  * The map's panel dragged by a finger from anywhere on its body, as an
  * iOS sheet's scrolling content hands its drag to the sheet
- * (the stock sheet, Base UI's Drawer, in MapPanel): up, the sheet comes
- * out until it is all the way out;
+ * (useSheetDrag): up, the sheet comes out until it is all the way out;
  * down, once the content is back at its start, the sheet goes down --
  * and while the content is scrolled, it scrolls instead.
  */
@@ -91,7 +90,7 @@ test("a drag held still before it is let go sets the sheet down where it is, not
   const panel = sideDrawer(page);
   // Down 110 from half, nearer half than the pill, held and let go: half
   // again. Its moves alone, let go at once, would have thrown it to the
-  // pill had it not been held.
+  // pill (the engine's SPEED_WINDOW).
   const box = (await panel.getByTestId("tab-bar").boundingBox())!;
   await fingerDrag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 110, 600);
   await expect(panel).toHaveAttribute("data-panel", "half");
@@ -149,9 +148,9 @@ test("a drag from half down past the pill lands on the pill: not closed, not bac
   await expect(panel).toHaveAttribute("data-panel", "peek");
   const pill = (await detents(page)).peek;
   await grabberTo(page, "half");
-  // Down past the pill to the screen's foot: the stock sheet reads it as
-  // a close, which MapPanel refuses by going to the pill -- refused and
-  // nothing more, it went back up to half (the drag probe, 2026-11-04).
+  // Down past the pill to the screen's foot: the pill, where the stock
+  // sheet's refused close once took it back up to half (the drag probe,
+  // 2026-11-04).
   const at = await onTabs(page);
   await fingerDrag(page, at, page.viewportSize()!.height - at.y - 4);
   await expect(panel).toHaveAttribute("data-panel", "peek");
@@ -168,9 +167,8 @@ test("a drag from half down past the pill lands on the pill: not closed, not bac
 
 test("a touch on the sheet that does not move leaves it where it is", async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
-  // The stock sheet clears its popup's inline transform as a finger goes
-  // down; held there, the sheet went all the way up at a touch (the
-  // owner, 2026-11-04). On the figures, not a tab, which a tap would pick.
+  // A touch once took the stock sheet all the way up (the owner,
+  // 2026-11-04). On the figures, not a tab, which a tap would pick.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const panel = sideDrawer(page);

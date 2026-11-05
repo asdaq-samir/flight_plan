@@ -161,8 +161,7 @@ async function panelFull(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if ((await panel.getAttribute("data-panel")) === "full") return;
-  // By the grabber, as a keyboard and VoiceOver take it: the stock sheet
-  // (Base UI's Drawer) takes a drag by touch, not a mouse on a button.
+  // By the grabber, as a keyboard and VoiceOver take it.
   await grabberTo(page, "full");
   await settled(panel);
 }
