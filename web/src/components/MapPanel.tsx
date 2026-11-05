@@ -286,9 +286,21 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // its own row), the figures where they are its row, and the grabber's
   // or the home indicator's room.
   const halfChrome = fromBottom ? edgeInset : GRABBER;
+  // Whether the sheet is laid out as the pill at rest this commit, set as
+  // the commit is made: the observer below can fire after a commit that
+  // laid the sheet out for half, before this effect's cleanup has run,
+  // and took the half's head for the pill's -- a 236-point pill the sheet
+  // settled to and then jumped from (the drag probe, 2026-11-04).
+  const pillLaid = useRef(false);
+  useLayoutEffect(() => {
+    pillLaid.current = atPill && !moving;
+  }, [atPill, moving]);
   useEffect(() => {
     if (!atPill || moving || !headBand) return;
-    const measure = () => setPillHeight(Math.ceil(headBand.offsetHeight + (footShown && footNode ? footNode.offsetHeight : 0) + halfChrome));
+    const measure = () => {
+      if (!pillLaid.current || movingRef.current) return;
+      setPillHeight(Math.ceil(headBand.offsetHeight + (footShown && footNode ? footNode.offsetHeight : 0) + halfChrome));
+    };
     measure();
     const watch = new ResizeObserver(measure);
     watch.observe(headBand);
