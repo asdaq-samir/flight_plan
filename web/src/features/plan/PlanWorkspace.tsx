@@ -2380,7 +2380,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       // Under the strip the nav log's card keeps the route in order too:
       // its pills' menus -- a stop taken out, a point's altitude, a hold,
       // direct to -- have no route box there (features/strip).
-      route={navLogShown && !strip ? undefined : routeList}
+      // Route Cards with one end only: its card is the end's own (RouteEnds),
+      // not again under it as the list's row (the owner's screenshot,
+      // 2026-11-05: C81 typed as the departure, there twice).
+      route={(navLogShown && !strip) || (routeEdit === "plan" && !(planned.dep && planned.dest)) ? undefined : routeList}
       cardHead={navLogShown ? (
         <CardHead
           // As the Brief's head: the route's name, and the line under it --
@@ -2410,7 +2413,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   ), [s.totals, s.descriptionError, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
-    routeList, navLogShown, strip, closeNavLogCard, planned.stops, briefLine]);
+    routeList, navLogShown, strip, closeNavLogCard, planned.stops, briefLine, routeEdit, planned.dep, planned.dest]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({

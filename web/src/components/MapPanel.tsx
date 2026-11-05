@@ -744,7 +744,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             <div
               ref={setBody}
               className={cn(
-                "flex min-h-0 flex-1 flex-col border-border/60", expanded && cn(!ownHead && "border-t", !fromBottom && "pb-4"),
+                // No line over it at rest, on any tab: the head draws its own
+                // while content is scrolled under it (index.css, data-under),
+                // as iOS's sheets do (the owner, 2026-11-05: "why is there a
+                // separator for all the tabs?", then "Ok").
+                "flex min-h-0 flex-1 flex-col", expanded && !fromBottom && "pb-4",
                 SHEET_BELOW,
                 restingPill && "invisible",
               )}
