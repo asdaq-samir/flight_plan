@@ -48,7 +48,7 @@ export default function QuickControls() {
         icon={routeEdit === "plan" ? <ListOrdered /> : routeEdit === "folded" ? <Rows2 /> : <Route />}
         options={[
           { value: "box", label: "Route Box", testId: "route-edit-box" },
-          { value: "folded", label: "One Line", testId: "route-edit-folded" },
+          { value: "folded", label: "Route Line", testId: "route-edit-folded" },
           { value: "plan", label: "Route Cards", testId: "route-edit-plan" },
         ]}
       />
