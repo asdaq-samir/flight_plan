@@ -56,11 +56,11 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
   depart: string;
   /** One airport to itself: the time aloft and the time back. */
   local: boolean;
-  /** Pinned at the sheet's foot at every height: smaller at the pill's
-   *  size ("you can make the calculations smaller"), growing smoothly to
-   *  their full size as the sheet comes up (the owner's "just make them
-   *  bigger smoothly as expanded") -- by MapPanel's --sheet-progress, 0 at
-   *  the pill, 1 all the way up. */
+  /** Pinned at the sheet's foot at every height: small at half, under the
+   *  list, and their full size at the pill and all the way up (the owner,
+   *  2026-11-05: "when in small detent, the font should become larger size
+   *  as in large detent"), eased between as the sheet moves -- by
+   *  MapPanel's --sheet-progress, 0 at half, 1 at the other two. */
   grow?: boolean;
   /** A dry run flying: the same figures from where the airplane is
    *  (tripFigures' `flown`), the same taps on them. */

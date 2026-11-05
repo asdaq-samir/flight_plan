@@ -239,7 +239,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const setBodyNode = useCallback((node: HTMLDivElement | null) => { parts.current.body = node; }, []);
   const setInnerNode = useCallback((node: HTMLDivElement | null) => { parts.current.inner = node; }, []);
   const [headHeight, setHeadHeight] = useState(0);
-  const [footHeight, setFootHeight] = useState(0);
+  // The figures' height at half and at the other two sizes, each measured
+  // at its own: smaller at half, where they are set small and the box
+  // fits them, than at the pill and all the way up (the owner,
+  // 2026-11-05); either the other's till it has been seen.
+  const [footHeights, setFootHeights] = useState<{ half: number | null; other: number | null }>({ half: null, other: null });
   const [pillHeight, setPillHeight] = useState<number | null>(null);
   const movingRef = useRef(moving);
   useEffect(() => {
@@ -250,7 +254,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   }, [headBand]);
   useEffect(() => {
     if (!footNode) return;
-    const watch = new ResizeObserver(() => { if (!movingRef.current) setFootHeight(footNode.offsetHeight); });
+    const watch = new ResizeObserver(() => {
+      if (movingRef.current) return;
+      const at = sizeRef.current === "half" ? "half" : "other";
+      const h = footNode.offsetHeight;
+      setFootHeights(was => (was[at] === h ? was : { ...was, [at]: h }));
+    });
     watch.observe(footNode);
     return () => watch.disconnect();
   }, [footNode]);
@@ -312,21 +321,23 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     return () => watch.disconnect();
   }, [atPill, moving, headBand, footNode, footShown, halfChrome]);
 
+  const footHalf = footHeights.half ?? footHeights.other ?? 0;
+  const footFull = footHeights.other ?? footHeights.half ?? 0;
   // Where it comes to rest: the pill, half and all the way up, in px.
   const detents = useMemo<Detents>(() => {
     const peek = pillHeight ?? Math.round(4.25 * rootPx()) + halfChrome;
     const whole = Math.max(peek, room);
     const askedHalf = Math.max(peek, Math.min(Math.round(HALF_REM * rootPx()) + halfChrome, Math.round(whole * HALF_MOST)));
-    const body = askedHalf - headHeight - halfChrome - footHeight;
+    const body = askedHalf - headHeight - halfChrome - footHalf;
     const half = body > 0 && body < HALF_BODY_LEAST_REM * rootPx() ? Math.max(peek, askedHalf - body) : askedHalf;
     // All the way up only as far as a short card on top needs (cardFit):
     // a fix's card was a line and an empty sheet up to the status bar.
     const full = cardFit === null ? whole : Math.max(Math.min(half, whole), Math.min(whole, headHeight + halfChrome + cardFit));
     return { peek, half: Math.min(half, full), full };
-  }, [pillHeight, room, halfChrome, headHeight, footHeight, cardFit]);
+  }, [pillHeight, room, halfChrome, headHeight, footHalf, cardFit]);
   const detentsRef = useRef(detents);
-  const halfBody = Math.max(0, detents.half - headHeight - halfChrome - footHeight);
-  const fullBody = Math.max(0, detents.full - headHeight - halfChrome - footHeight);
+  const halfBody = Math.max(0, detents.half - headHeight - halfChrome - footHalf);
+  const fullBody = Math.max(0, detents.full - headHeight - halfChrome - footFull);
 
   // What it covers of the map where it comes to rest (insetsOf).
   const insetsFor = useCallback((s: PanelState, d: Detents) => insetsOf(s, d, onPhone, fromBottom), [onPhone, fromBottom]);
@@ -756,12 +767,15 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               <div
                 ref={setFootNode}
                 className={cn(
-                  // One box at every size, the figures centred in it, so
-                  // the figures growing (--sheet-progress) never lays the
-                  // sheet out again: the row's 44 and its padding, the line
-                  // over it clear in the pill. What gives way in the pill
-                  // (data-pill-hides) is put away there.
-                  "flex min-h-[3.875rem] shrink-0 flex-col justify-center border-t pb-1 print:hidden", ROW_PAD, cardInPill ? "px-0" : "px-4",
+                  // One box at the pill and all the way up, the figures
+                  // centred in it at their large size: the row's 44 and its
+                  // padding, the line over it clear in the pill. At half
+                  // the figures small and the box only as tall as they
+                  // are, for the list over it (the owner, 2026-11-05: "The
+                  // calculations strip at the bottom should shrink to fit
+                  // the small text while in medium detent"). What gives
+                  // way in the pill (data-pill-hides) is put away there.
+                  "flex shrink-0 flex-col justify-center border-t pb-1 print:hidden", size === "half" ? "min-h-0" : "min-h-[3.875rem]", ROW_PAD, cardInPill ? "px-0" : "px-4",
                   !footShown && "hidden",
                   // In the pill the finger is the sheet's (touch-none), as on
                   // the tabs: the browser's own scroll took it and
@@ -769,7 +783,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                   atPill ? "touch-none border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
                   fieldPill && atPill && "px-3",
                 )}
-                style={{ "--sheet-progress": size === "full" ? "1" : "0", ...(toEdge && fromBottom && !atPill ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties}
+                style={{ "--sheet-progress": size === "half" ? "0" : "1", ...(toEdge && fromBottom && !atPill ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties}
                 data-testid="panel-foot"
                 // In the pill a finger anywhere on it drags the sheet, as
                 // the tabs do; a tap on it opens it half way.
