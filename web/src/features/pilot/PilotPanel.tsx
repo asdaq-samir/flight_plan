@@ -5,6 +5,7 @@ import { cn } from "cn";
 import type { ReactNode } from "react";
 import AboutPanel from "../../components/AboutPanel";
 import StatusPanel from "../../components/StatusPanel";
+import LoadLogPanel from "../../components/LoadLogPanel";
 import { ConsolePages, PageButton, PageLink, PageRow } from "../../components/ConsolePages";
 import { PillSection } from "../../components/Favorites";
 import EmptyState from "../../components/EmptyState";
@@ -73,6 +74,9 @@ function Personal({ pilot, dev }: {
     // connection, for every pilot (the owner, 2026-11-04); a developer's
     // has the stack's own status under it.
     status: { title: "Status", content: dev ? <div className="space-y-5"><StatusPanel />{dev.status}</div> : <StatusPanel /> },
+    // When the map's layers showed at this device's loads (lib/loadLog),
+    // beside Status, at the owner's ask (2026-11-05).
+    log: { title: "Log", content: <LoadLogPanel /> },
     guide: { title: "Guide", content: dev ? dev.guide : <PilotGuide /> },
     about: { title: "About", content: <AboutPanel /> },
     aircraft: { title: "Airplanes", content: <AircraftPanel /> },
@@ -131,6 +135,7 @@ function Personal({ pilot, dev }: {
               2026-11-04 ("a Status sheet next to About and Guide"). */}
           <nav aria-label="More" className="flex justify-center gap-6 pb-2">
             <PageLink page="status" testId="status-link">Status</PageLink>
+            <PageLink page="log" testId="log-link">Log</PageLink>
             <PageLink page="guide" testId="guide-link">Guide</PageLink>
             <PageLink page="about" testId="about-link">About</PageLink>
           </nav>
