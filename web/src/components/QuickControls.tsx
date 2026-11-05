@@ -63,9 +63,10 @@ export default function QuickControls() {
         options={BRANDS.map(b => ({ value: b.value, label: b.label, testId: `brand-${b.value}` }))}
       />
       {/* The edge the route panel is on, which the sheets come from too
-          and the map's buttons keep clear of (useNavEdge). */}
+          and the map's buttons keep clear of (useNavEdge). Position, where
+          it was Layout, the section's name since (the owner, 2026-11-05). */}
       <MenuTile<NavEdge>
-        label="Layout" value={edge} onChange={setNavBar} on={false} testId="nav-bar-select"
+        label="Position" value={edge} onChange={setNavBar} on={false} testId="nav-bar-select"
         icon={edge === "top" ? <PanelTop /> : <PanelBottom />}
         options={[{ value: "top", label: "Top", testId: "nav-bar-top" }, { value: "bottom", label: "Bottom", testId: "nav-bar-bottom" }]}
       />
