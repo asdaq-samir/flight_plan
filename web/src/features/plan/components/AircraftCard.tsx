@@ -8,7 +8,7 @@ import type { AircraftRegistration, TrafficAircraft } from "../../../lib/api/typ
 import { useOwnFix } from "../../../lib/map/ownShip";
 import { usePreferences, type KeptAircraft } from "../../../lib/preferences";
 import { pickKeptAircraft, useTabSearch } from "../../../lib/tabSearch";
-import { HomePlane, ListPageHead, PillSection, PillStrip, PlaneMark, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
+import { HomePlane, ListPageHead, PLANE_TILE, PillSection, PillStrip, PlaneMark, SmallMark, SmallTile, StripNote } from "../../../components/Favorites";
 import { planeLink } from "../../../lib/flightLink";
 import TabPage from "../../../components/TabPage";
 import { ClearList, SwipeToDelete } from "../../../components/SwipeToDelete";
@@ -214,7 +214,7 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
     <PillStrip testId="pill-aircraft-favorites">
       {/* My Plane first, with Add until one is kept, as Home is. */}
       <SmallTile
-        mark={<SmallMark icon={<HomePlane />} className="bg-teal-600 text-white" />} title="Plane" detail={mine?.name ?? "Add"}
+        mark={<SmallMark icon={<HomePlane />} className={PLANE_TILE} />} title="Plane" detail={mine?.name ?? "Add"}
         label={mine ? `Plane, ${mine.name}` : "Add your Plane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
       />
       {favorites.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => onOpen(a.hex)} testId="pill-aircraft-favorite" />)}

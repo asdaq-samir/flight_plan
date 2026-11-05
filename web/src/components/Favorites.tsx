@@ -1,5 +1,5 @@
 import { ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plane, Plus } from "lucide-react";
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -611,31 +611,29 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome, onAddFavorit
 }
 
 /**
- * The pilot's own airplane's glyph: lucide's airplane, as the map's
- * Traffic shows one, a little smaller, with a solid house at its bottom
- * right cut into its wing -- the owner's pick of a sheet of designs ("D
- * but add a home to the bottom right of it"), for the Plane tile that is
- * to airplanes what Home is to airports. Sized by its container's svg
- * rule, as a lucide glyph is; the cut a mask, so it shows whatever the
- * glyph sits on.
+ * The pilot's own airplane's glyph: the app icon in miniature, its
+ * airplane seen from above in the dashed airspace ring -- the owner's
+ * pick ("I like 3 for my plane", 2026-11-04, beside the icon's A), for
+ * the Plane tile that is to airplanes what Home is to airports. Drawn in
+ * currentColor and sized by its container's svg rule, as a lucide glyph
+ * is; the ring needs more room than a glyph, so its marks size it up
+ * (PLANE_TILE, PLANE_ROW).
  */
 export function HomePlane() {
-  const cut = useId();
-  const house = "M14.5 22.5v-4.2l3.75-3.2 3.75 3.2v4.2z";
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <mask id={cut}>
-        <rect width="24" height="24" fill="#fff" />
-        <path d={house} fill="#000" stroke="#000" strokeWidth={3.4} />
-      </mask>
-      {/* lucide's plane, at 0.85 with its stroke kept at 2. */}
-      <g mask={`url(#${cut})`}>
-        <path
-          d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
-          transform="scale(0.85)" strokeWidth={2.35}
-        />
+    <svg viewBox="6 6 52 52" aria-hidden="true">
+      {/* Twelve dashes, as the icon's ring: 2 pi 22 is 138.2, eleven and
+          a half a dash. */}
+      <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" strokeWidth={3.6} strokeDasharray="8 3.52" transform="rotate(-100.4 32 32)" />
+      <g transform="translate(32 32.5) scale(0.6) translate(-32 -31.5)" fill="currentColor" stroke="currentColor" strokeWidth={2} strokeLinejoin="round">
+        <path d="M32 12C34.2 12 35 14.5 35 18L34.2 44 33 51H31L29.8 44 29 18C29 14.5 29.8 12 32 12Z" />
+        <rect x="9" y="23" width="46" height="6.5" rx="3" />
+        <rect x="23" y="45" width="18" height="4.5" rx="2.2" />
       </g>
-      <path d={house} fill="currentColor" strokeWidth={1} />
     </svg>
   );
 }
+
+/** HomePlane's sizes: 40 in a strip tile's 56, 24 in a row's 32. */
+export const PLANE_TILE = "bg-teal-600 text-white [&_svg]:size-10";
+export const PLANE_ROW = "bg-teal-600 text-white [&_svg]:size-6";

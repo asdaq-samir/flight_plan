@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { EditToggle, HomePlane, ListPageHead, Mark, MoveHandle, PlaneMark, RemoveMinus, SortableRow, SortableRows } from "../../../components/Favorites";
+import { EditToggle, HomePlane, ListPageHead, Mark, MoveHandle, PLANE_ROW, PlaneMark, RemoveMinus, SortableRow, SortableRows } from "../../../components/Favorites";
 import { planeLink } from "../../../lib/flightLink";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { SwipeToDelete } from "../../../components/SwipeToDelete";
@@ -48,7 +48,7 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
               />
             ) : (
               <ListRow
-                media={<Mark icon={<HomePlane />} className="bg-teal-600 text-white" />} chevron
+                media={<Mark icon={<HomePlane />} className={PLANE_ROW} />} chevron
                 title={name(mine)} description={mine.type ?? undefined} onClick={onChangeMine} data-testid="aircraft-favorites-mine"
               />
             )}
