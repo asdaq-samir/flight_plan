@@ -3,7 +3,6 @@ import { Lightbulb } from "lucide-react";
 import { RowBadge } from "../../components/RowBadge";
 import { SETTING_BADGE } from "../../lib/rowBadges";
 import { useTips } from "../../lib/tips";
-import { Download, Layers, Maximize, Navigation, Settings } from "lucide-react";
 import { cn } from "cn";
 import { ConsolePages, PageRow, StepRow } from "../../components/ConsolePages";
 import DrillPage from "./DrillPage";
@@ -23,22 +22,21 @@ const BUCKETS: [string, string][] = [
   [scoreColor(0), "below 3: not one to plan on"],
 ];
 
-/** A page's reading: the text's own colour at a paragraph's size. */
-function Reading({ children }: { children: ReactNode }) {
-  return <div className={cn("space-y-3", TEXT.prose)}>{children}</div>;
+/** One tip: a short bold line and, under it, a sentence or two. */
+function Tip({ title, children }: { title: string; children: ReactNode }) {
+  return <ListRow title={<span className="font-semibold">{title}</span>} description={<span className={TEXT.detail}>{children}</span>} />;
 }
 
 /**
- * The planner explained to the pilot, the pilot console's Guide tab, as
- * iOS lays out a page of Settings: what to do, in five numbered steps
- * (the last points to Print beside the route, NavLogActions, and to
- * keeping the charts for the air, a setting); what the checkpoints'
- * colours mean; the longer reading -- how the nav log flies the
- * airplane, the map's buttons, the app on a phone -- a row each that
- * opens a page of its own (ConsolePages). It was a column of headings over
- * paragraphs, a screen and a half of reading on a phone before the
- * colours, and still told the pilot about the header and its drawer
- * after both had gone.
+ * The guide, one page a pilot reads top to bottom, at the owner's ask
+ * ("Can we make the guide a page of information and tips that's easy for
+ * a pilot to read?", 2026-11-04): planning a flight in four steps, then
+ * short tips under plain headings -- the sheet, the chart, the brief,
+ * flying with no signal, your airplane's figures -- each a bold line and
+ * a sentence or two, as iOS's Tips app reads. The longer reading that
+ * was three pages of its own (the map, the phone, the airplane) is
+ * folded in as tips; only the practice drills, which are tools, still
+ * open pages of their own.
  */
 export default function PilotGuide() {
   return (
@@ -49,72 +47,34 @@ export default function PilotGuide() {
         "vfr-minimums": { title: "VFR weather minimums", content: <DrillPage deck="vfr-minimums" /> },
         holding: { title: "Holding entries", content: <HoldingPage /> },
         "lost-comms": { title: "Lost communications", content: <LostCommsPage /> },
-        airplane: {
-          title: "Your airplane in the day's air",
-          content: (
-            <Reading>
-              <p>
-                Your airplane's cruise speed and fuel burn are taken as its figures at its cruise power
-                at {altFt(CRUISE_REFERENCE_FT)} ft on a standard day, a row of its handbook's cruise table.
-              </p>
-              <p>
-                Each leg flies them in the forecast air at its altitude, as a density altitude: faster in thinner
-                air at the same power, and slower and thriftier where full throttle can no longer make it. Climbs
-                slow as the air thins, and a warm day lowers the service ceiling.
-              </p>
-              <p>
-                The nav log gives each leg's TAS, and the altitude's reasoning the rest. A model, within a few
-                percent of most handbooks: yours governs.
-              </p>
-            </Reading>
-          ),
-        },
-        map: {
-          title: "The map and its buttons",
-          content: (
-            <>
-              <Reading>
-                <p>The chart is the FAA sectional, the whole country, at every zoom, and the route panel sits over it.</p>
-                <p>
-                  Hold a finger on the chart, or right-click it, for the airspace over that point: each class from the
-                  ground up, its VFR minimums by day and night, what it takes to go in and what to carry, and any
-                  special-use airspace or TFR there.
-                </p>
-              </Reading>
-              <ListGroup title="The map's buttons">
-                <ListRow media={<Settings className="size-5 text-tint" />} title="Setup" description="The last tab: the controls, your airplanes and flights, and this guide" />
-                <ListRow media={<Navigation className="size-5 text-tint" />} title="My position" description="Where you are, from the phone's GPS, the map brought in close and kept on you; again to hide it" />
-                <ListRow media={<Maximize className="size-5 text-tint" />} title="Full screen" description="Where your browser allows it" />
-              </ListGroup>
-              <ListGroup title="In the settings">
-                <ListRow media={<Layers className="size-5 text-tint" />} title="Charts" description="Sectional, IFR low or IFR high, the terminal area chart over it, and the Class B airports" />
-                <ListRow media={<Download className="size-5 text-tint" />} title="Offline" description="Keep each route's charts on this device for the air" />
-              </ListGroup>
-            </>
-          ),
-        },
-        phone: {
-          title: "On your phone",
-          content: (
-            <Reading>
-              <p>
-                Add this to your Home Screen and it opens as its own app: the whole screen, with no browser bar over
-                the chart, and the charts you keep stay kept. In Safari tap Share, then Add to Home Screen.
-              </p>
-              <p>In a browser tab the address bar stays put, because the page holds still under your finger rather than scrolling.</p>
-            </Reading>
-          ),
-        },
       }}
     >
-      <div className="space-y-6">
+      <div className="space-y-6" data-testid="pilot-guide">
+        <p className={cn("px-1 text-foreground", TEXT.prose)}>
+          Wingtip Maps plans a VFR flight on the FAA sectional: the route, the checkpoints you will see from the
+          air, the nav log and the weather for it. Here is how to get the most from it.
+        </p>
+
         <TipsGroup />
+
         <ListGroup title="Plan a flight">
-          <StepRow n={1} title="Choose your route" description="Departure and destination at the top of the panel, then the arrow. The course draws at once." />
-          <StepRow n={2} title="Find your checkpoints" description="The numbered dots are landmarks you can pick out from the air. Tap one for how to spot it, and add your own note." />
-          <StepRow n={3} title="Read the nav log" description="Pull the panel up: each leg's heading, time and fuel, then the weather, NOTAMs and airports. Your airplane and departure time are under the route." />
-          <StepRow n={4} title="Look at an airport" description="Close in and tap one on the chart for its weather, radio and runways. Fly Here makes it your destination." />
-          <StepRow n={5} title="Take it with you" description="Print, beside the route, for the nav log on paper; and Offline in Setup's Controls keeps each route's charts on this device for the air." />
+          <StepRow n={1} title="Type your route" description="Departure and destination on the FPL tab, by identifier or name. The course draws on the chart at once." />
+          <StepRow n={2} title="Set your airplane and altitude" description="Your N-number and cruise altitude sit beside the route. Every time, fuel figure and altitude choice uses them." />
+          <StepRow n={3} title="Read the brief" description="Brief opens on a verdict and at most three things to act on. Tap any of them for the why, the sources and the raw reports." />
+          <StepRow n={4} title="Fly the nav log" description="Each leg's heading, time and fuel, checkpoint by checkpoint, worked in the forecast winds at your altitude." />
+        </ListGroup>
+
+        <ListGroup title="The sheet">
+          <Tip title="Three sizes">Drag the sheet between a pill, half and full. A flick moves it one size, so the chart is never far away.</Tip>
+          <Tip title="Four tabs">FPL is your flight, Airport any field you pick, Aircraft yours and the traffic around you, and Setup your settings, airplanes, logbook and this guide.</Tip>
+          <Tip title="Close goes back">The close button at a page's top goes back one step, not all the way out.</Tip>
+        </ListGroup>
+
+        <ListGroup title="On the chart">
+          <Tip title="Hold for the airspace">Hold a finger on the chart for every class of airspace over that point, its VFR minimums by day and night, and any TFR or special-use airspace there.</Tip>
+          <Tip title="Tap an airport">Its weather, frequencies, runways and procedures. Fly Here makes it your destination.</Tip>
+          <Tip title="The Map button">Chooses the chart (sectional, IFR low or high, the terminal area chart) and its layers, and keeps the charts on this phone for the air.</Tip>
+          <Tip title="Your position">The arrow button puts you on the chart from the phone's GPS and keeps the map on you; tap it again to let go.</Tip>
         </ListGroup>
 
         <ListGroup title="Checkpoint colours">
@@ -128,17 +88,27 @@ export default function PilotGuide() {
           ))}
         </ListGroup>
 
+        <ListGroup title="With no signal">
+          <Tip title="Open your route before you go">With signal on the ground, open your route and its brief: the app keeps the chart, the nav log, the weather and the TFRs it showed you.</Tip>
+          <Tip title="Keep the charts">Turn on Keep Charts Offline in the Map button's settings, and each route's charts stay on this phone.</Tip>
+          <Tip title="It stays quiet in the air">Losing coverage is normal in flight, so the app shows no errors for it and asks again by itself when the signal comes back.</Tip>
+          <Tip title="Check how old it is">Setup's Status page shows whether you are online and how old each piece of weather and the TFRs are. Saved weather is not a briefing: get a fresh one when you can.</Tip>
+        </ListGroup>
+
+        <ListGroup title="Good to know">
+          <Tip title="Your airplane's figures">
+            Cruise speed and fuel burn start from your airplane's cruise power at {altFt(CRUISE_REFERENCE_FT)} ft on a standard
+            day, then each leg flies them in the day's air at its altitude. A model within a few percent of most handbooks: yours governs.
+          </Tip>
+          <Tip title="A planning aid">Check everything against the current charts, NOTAMs and an official briefing before you fly.</Tip>
+          <Tip title="Add it to your Home Screen">In Safari tap Share, then Add to Home Screen: it opens as its own app, the whole screen, with no browser bar over the chart.</Tip>
+        </ListGroup>
+
         <ListGroup title="Practice">
           <PageRow page="light-gun" title="Light gun signals" description="14 CFR 91.125" />
           <PageRow page="vfr-minimums" title="VFR weather minimums" description="14 CFR 91.155" />
           <PageRow page="holding" title="Holding entries" description="AIM 5-3-8: the entry, drawn, and the wind" />
           <PageRow page="lost-comms" title="Lost communications" description="14 CFR 91.185: route, altitude, and when to leave" />
-        </ListGroup>
-
-        <ListGroup title="More">
-          <PageRow page="airplane" title="Your airplane in the day's air" />
-          <PageRow page="map" title="The map and its buttons" />
-          <PageRow page="phone" title="On your phone" />
         </ListGroup>
       </div>
     </ConsolePages>
