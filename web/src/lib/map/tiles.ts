@@ -110,7 +110,9 @@ export const PREFETCH_SLICE_MS = 8;
  *  waiting already. */
 export type IdleRun = (go: (deadline: IdleDeadline | null) => void) => () => void;
 const whenIdle: IdleRun = go => {
-  if ("requestIdleCallback" in window) {
+  // Asked of the function, not `in window`: the DOM types declare it
+  // always, so `in` narrowed window to never in the branch after.
+  if (typeof window.requestIdleCallback === "function") {
     const handle = window.requestIdleCallback(go, { timeout: 1000 });
     return () => window.cancelIdleCallback(handle);
   }
