@@ -16,6 +16,7 @@ import AircraftRow from "./AircraftRow";
 
 import { useTracking } from "../../../lib/map/tracking";
 import { TEXT } from "../../../lib/text";
+import { aircraftKind, keptKind } from "../../../lib/aircraftKind";
 
 /** What is typed waits this long for the next letter before it is asked
  *  about: each search is a request adsb.lol paces (vfr.traffic). */
@@ -148,7 +149,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
             ))}
             {registered && (
               <ListRow
-                media={<PlaneMark small />} data-testid="aircraft-registered"
+                media={<PlaneMark small kind={aircraftKind({ faa: registered })} />} data-testid="aircraft-registered"
                 title={<span className="font-semibold">{registered.n_number}</span>}
                 description={[[registered.manufacturer, registered.model].filter(Boolean).join(" "),
                   unchecked ? "not yet known whether it is flying" : "not in the air now"].filter(Boolean).join(" · ")}
@@ -214,7 +215,7 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
     <PillStrip testId="pill-aircraft-favorites">
       {/* My Plane first, with Add until one is kept, as Home is. */}
       <SmallTile
-        mark={<SmallMark icon={<HomePlane />} className={PLANE_TILE} />} title="Plane" detail={mine?.name ?? "Add"}
+        mark={<SmallMark icon={<HomePlane kind={mine ? keptKind(mine) : "high"} />} className={PLANE_TILE} />} title="Plane" detail={mine?.name ?? "Add"}
         label={mine ? `Plane, ${mine.name}` : "Add your Plane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
       />
       {favorites.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => onOpen(a.hex)} testId="pill-aircraft-favorite" />)}
@@ -231,7 +232,7 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
 function KeptAircraftTile({ aircraft, onClick, testId }: { aircraft: KeptAircraft; onClick: () => void; testId: string }) {
   return (
     <SmallTile
-      mark={<PlaneMark />} title={aircraft.name} detail={aircraft.type ?? undefined}
+      mark={<PlaneMark kind={keptKind(aircraft)} />} title={aircraft.name} detail={aircraft.type ?? undefined}
       label={`${aircraft.name}${aircraft.type ? `, ${aircraft.type}` : ""}`} onClick={onClick} testId={testId}
     />
   );
@@ -240,13 +241,16 @@ function KeptAircraftTile({ aircraft, onClick, testId }: { aircraft: KeptAircraf
 /** What is kept of an airplane the FAA's registry names: its address, its
  *  N-number and its model. */
 function keptOf(record: AircraftRegistration): KeptAircraft {
-  return { hex: record.mode_s_hex!.toLowerCase(), name: record.n_number, type: record.model ?? null };
+  return { hex: record.mode_s_hex!.toLowerCase(), name: record.n_number, type: record.model ?? null, kind: aircraftKind({ faa: record }) };
 }
 
 /** What is kept of an airplane heard: its address, the name it is kept by
  *  (its registration first) and its type. */
 function keptPlane(plane: TrafficAircraft): KeptAircraft {
-  return { hex: plane.hex, name: plane.registration ?? plane.callsign ?? plane.hex.toUpperCase(), type: plane.type ?? null };
+  return {
+    hex: plane.hex, name: plane.registration ?? plane.callsign ?? plane.hex.toUpperCase(), type: plane.type ?? null,
+    kind: aircraftKind({ type: plane.type, category: plane.category }),
+  };
 }
 
 /** The airplanes opened last as tiles, newest first, as the Favorites' are,
@@ -282,7 +286,7 @@ export function AircraftRecentsPage({ onBack, onPick }: { onBack: () => void; on
           {recents.map(a => (
             <SwipeToDelete key={a.hex} label={`Remove ${a.name} from Recents`} onDelete={() => removeRecent(a.hex)} share={planeLink(a)}>
               <ListRow
-                media={<PlaneMark small />} data-testid="aircraft-recent"
+                media={<PlaneMark small kind={keptKind(a)} />} data-testid="aircraft-recent"
                 title={<span className="font-semibold">{a.name}</span>} description={a.type ?? undefined}
                 chevron onClick={() => onPick(a)}
               />
