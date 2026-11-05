@@ -5,7 +5,7 @@ import { useIsMobile } from "../hooks/use-mobile";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { useKeyboardInset, useSafeArea, useWindowHeight } from "../hooks/use-viewport";
 import {
-  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SHEET_MARGIN, TabBarMinimized,
+  GLASS, MATERIAL, BarOverPicture, PanelSize, PILL_RADIUS, usePanelDragging, SETTLE_LEAST, SHEET_MARGIN, TabBarMinimized,
   useTabsShown, type MapInsets, type PanelState,
 } from "./mapChrome";
 import { useOpenCards } from "../lib/openCards";
@@ -148,9 +148,13 @@ export interface SheetTurn { insets: MapInsets }
  * offset; a flick goes one size (snapToSequentialPoints, the owner's
  * "the pill should not go straight to full"), and a swipe past the pill
  * never closes it (its null snap point refused). What must stay in sight
- * at the sheet's free edge is moved back by the same offset in CSS
- * (--sheet-off): a bottom sheet's route figures, the body cut off over
- * them, and a top sheet's head. The map goes with the sheet's edge frame
+ * at the sheet's free edge is moved back by the same offset (pin): a
+ * bottom sheet's route figures, the body cut off over them, and a top
+ * sheet's head -- written to those few elements alone, a frame at a time
+ * under a finger and as one eased transition in a settle, never through
+ * a variable every element under the sheet inherits, which restyled the
+ * whole sheet at each frame of a drag (the owner, 2026-11-04: "the
+ * movement of sheet is not smooth, it's jerky"). The map goes with the sheet's edge frame
  * by frame (lib/map/sheetSlide, reading the popup's transform), and the
  * page hears the room the sheet leaves as it sets off (sheetturn) and
  * once it has landed (onInsetsChange).
@@ -215,8 +219,14 @@ export default function MapPanel({ label, top, kept, controls, compact, children
 
   // Measured at rest: the head's band, the foot, and what the pill shows.
   const [panel, setPanel] = useState<HTMLElement | null>(null);
-  const [headBand, setHeadBand] = useState<HTMLDivElement | null>(null);
-  const [footNode, setFootNode] = useState<HTMLDivElement | null>(null);
+  const [headBand, setHeadBandState] = useState<HTMLDivElement | null>(null);
+  const [footNode, setFootNodeState] = useState<HTMLDivElement | null>(null);
+  // The parts held in sight at the free edge (pin), written to directly.
+  const parts = useRef<{ head: HTMLElement | null; body: HTMLElement | null; inner: HTMLElement | null; foot: HTMLElement | null }>({ head: null, body: null, inner: null, foot: null });
+  const setHeadBand = useCallback((node: HTMLDivElement | null) => { parts.current.head = node; setHeadBandState(node); }, []);
+  const setFootNode = useCallback((node: HTMLDivElement | null) => { parts.current.foot = node; setFootNodeState(node); }, []);
+  const setBodyNode = useCallback((node: HTMLDivElement | null) => { parts.current.body = node; }, []);
+  const setInnerNode = useCallback((node: HTMLDivElement | null) => { parts.current.inner = node; }, []);
   const [headHeight, setHeadHeight] = useState(0);
   const [footHeight, setFootHeight] = useState(0);
   const [pillHeight, setPillHeight] = useState<number | null>(null);
@@ -299,35 +309,82 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // What it covers of the map where it comes to rest (insetsOf).
   const insetsFor = useCallback((s: PanelState, d: Detents) => insetsOf(s, d, onPhone, fromBottom), [onPhone, fromBottom]);
 
-  // The map's buttons ride on a phone's bottom sheet's top (--sheet-cover),
-  // read from the popup's transform a frame at a time while a finger is on
-  // it or it is on its way, until it has been still a few frames.
+  // The parts held in sight, `off` px in from where the popup's free edge
+  // is laid out (its full height less its height now): a bottom sheet's
+  // figures and body up by it, the body's content back down; a top
+  // sheet's head and body down by it. Transform only, on these alone.
+  const pinState = useRef({ fromBottom, footShown });
+  useLayoutEffect(() => {
+    pinState.current = { fromBottom, footShown };
+  }, [fromBottom, footShown]);
+  const pin = useCallback((off: number, ease: string) => {
+    const { head, body, inner, foot } = parts.current;
+    const { fromBottom: bottom, footShown: figures } = pinState.current;
+    const shift = (px: number) => (Math.abs(px) < 0.25 ? "" : `translate3d(0, ${Math.round(px * 100) / 100}px, 0)`);
+    const write = (el: HTMLElement | null, px: number) => {
+      if (!el) return;
+      // The figures' growth (--sheet-progress) eased with the sheet too.
+      el.style.transition = !ease ? "" : el === foot ? `transform ${ease}, --sheet-progress ${ease}` : `transform ${ease}`;
+      el.style.transform = shift(px);
+    };
+    const up = bottom && figures ? off : 0;
+    write(foot, bottom ? -up : 0);
+    write(body, bottom ? -up : off);
+    write(inner, up);
+    write(head, bottom ? 0 : off);
+    if (body) body.style.overflow = up ? "clip" : "";
+  }, []);
+  // How far in the popup's free edge is this frame, from its transform.
+  const offNow = useCallback(() => {
+    if (!panel) return 0;
+    const transform = getComputedStyle(panel).transform;
+    const y = transform && transform !== "none" ? new DOMMatrix(transform).m42 : 0;
+    return Math.max(0, pinState.current.fromBottom ? y : -y);
+  }, [panel]);
+
+  // A frame at a time while a finger is on it or it is on its way, until
+  // it has been still a few frames: under a finger (the Drawer's
+  // data-swiping) the parts held in sight, and on a phone's bottom sheet
+  // the map's buttons riding on its top (--sheet-cover).
   const followFrame = useRef(0);
+  const fullRef = useRef(detents.full);
+  const restRef = useRef(0);
+  useLayoutEffect(() => {
+    fullRef.current = detents.full;
+    restRef.current = Math.max(0, detents.full - detents[size]);
+  }, [detents, size]);
   const follow = useCallback((held: boolean) => {
-    if (!panel || !onPhone || !fromBottom) {
-      coverRule().removeProperty("--sheet-cover");
-      return;
-    }
+    if (!panel) return;
     cancelAnimationFrame(followFrame.current);
-    let last = NaN, still = 0, pressed = held;
+    let last = NaN, still = 0, pressed = held, swiped = false;
     const lift = () => { pressed = false; };
     window.addEventListener("pointerup", lift, { once: true });
     window.addEventListener("pointercancel", lift, { once: true });
     const step = () => {
-      const transform = getComputedStyle(panel).transform;
-      const down = transform && transform !== "none" ? new DOMMatrix(transform).m42 : 0;
-      const h = Math.max(0, Math.round(panel.offsetHeight - down));
-      coverRule().setProperty("--sheet-cover", `${h}px`);
+      const off = offNow();
+      const swiping = panel.hasAttribute("data-swiping");
+      if (swiping) pin(off, "");
+      else if (swiped && !movingRef.current) {
+        // Let go where it was (or past the pill, the close refused): no
+        // new size to commit, so the popup and the parts go back to it
+        // here, on the shortest settle's time.
+        panel.style.setProperty("--sheet-seconds", `${SETTLE_LEAST}s`);
+        pin(restRef.current, `${SETTLE_LEAST}s cubic-bezier(0, 0, 0.58, 1)`);
+      }
+      swiped = swiping;
+      const h = Math.max(0, Math.round(fullRef.current - off));
+      if (onPhone && pinState.current.fromBottom) coverRule().setProperty("--sheet-cover", `${h}px`);
+      else coverRule().removeProperty("--sheet-cover");
       still = h === last ? still + 1 : 0;
       last = h;
-      if (pressed || still < 6) followFrame.current = requestAnimationFrame(step);
+      if (pressed || movingRef.current || still < 6) followFrame.current = requestAnimationFrame(step);
       else {
         window.removeEventListener("pointerup", lift);
         window.removeEventListener("pointercancel", lift);
       }
     };
     step();
-  }, [panel, onPhone, fromBottom]);
+  }, [panel, onPhone, offNow, pin]);
   useEffect(() => () => {
     cancelAnimationFrame(followFrame.current);
     coverRule().removeProperty("--sheet-cover");
@@ -335,6 +392,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   useLayoutEffect(() => {
     if (!moving) follow(false);
   }, [moving, follow, detents, size]);
+  // The parts held in sight go where the sheet is going, in the commit
+  // that sets its snap point, on its curve and time; at rest, put there.
+  useLayoutEffect(() => {
+    const off = Math.max(0, detents.full - detents[size]);
+    pin(off, moving && seconds > 0 ? `${seconds}s cubic-bezier(0, 0, 0.58, 1)` : "");
+  }, [pin, moving, seconds, detents, size, footShown, fromBottom]);
 
   // Off to `target`: the popup's snap point changes in this render, the
   // map told as it sets off, the page once it has landed.
@@ -506,15 +569,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       <span className={cn("h-[5px] w-9 rounded-full", ownHead || pillPictured ? "bg-white/75 shadow-[0_0_3px_rgba(0,0,0,.5)]" : "bg-muted-foreground/40")} aria-hidden="true" />
     </button>
   );
-  // The parts moved back by the popup's offset ease with it, on the same
-  // curve and time, and follow the finger with it (no transition while
-  // the Drawer has a finger on it, data-swiping on the popup).
-  const withSheet = "transition-transform duration-[var(--sheet-seconds)] ease-[cubic-bezier(0,0,0.58,1)] group-data-[swiping]/sheet:transition-none motion-reduce:transition-none";
-  // A bottom sheet's figures and body, up by the offset (the body cut off
-  // over the figures, its content back down by the same); a top sheet's
-  // head and body, down by it.
-  const pinUp = "translate-y-[calc(-1*var(--sheet-off))]";
-  const pinDown = "translate-y-[var(--sheet-off)]";
+  // The popup eases to its snap point on the owner's curve and time, and
+  // follows the finger with no transition (data-swiping).
+  const withSheet = "transition-transform duration-[var(--sheet-seconds)] ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none";
   const restingPill = atPill && !moving;
 
   return (
@@ -542,13 +599,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               ...vars,
               height: detents.full,
               borderRadius: fromBottom ? `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0` : `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px`,
-              // How far its free edge is in from where it would be laid
-              // out whole, resolved here from the Drawer's own variables
-              // (which its children do not inherit) for the parts held in
-              // sight (pinUp, pinDown).
-              "--sheet-off": fromBottom
-                ? "max(0px, calc(var(--drawer-snap-point-offset) + var(--drawer-swipe-movement-y)))"
-                : "max(0px, calc(-1 * (var(--drawer-snap-point-offset) + var(--drawer-swipe-movement-y))))",
               "--sheet-seconds": `${seconds}s`,
             } as CSSProperties}
             className={cn(
@@ -578,7 +628,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                 it (`under`): frosted while anything is there. */}
             <div
               ref={setHeadBand} data-head-band=""
-              className={cn("relative flex shrink-0 flex-col", under && "z-20", !fromBottom && cn("pt-[env(safe-area-inset-top)]", pinDown, withSheet))}
+              className={cn("relative flex shrink-0 flex-col", under && "z-20", !fromBottom && "pt-[env(safe-area-inset-top)]")}
             >
               {bar && (
                 <div
@@ -627,10 +677,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                 content moved back by the same. At rest in the pill out of
                 sight and of the keyboard's reach. */}
             <div
+              ref={setBodyNode}
               className={cn(
                 "flex min-h-0 flex-1 flex-col border-border/60", expanded && cn(!ownHead && "border-t", !fromBottom && "pb-4"),
-                SHEET_BELOW, withSheet,
-                fromBottom ? (footShown && cn(pinUp, "overflow-clip")) : pinDown,
+                SHEET_BELOW,
                 restingPill && "invisible",
               )}
               inert={restingPill}
@@ -639,7 +689,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               style={{ "--half-body": `${halfBody}px`, "--full-body": `${fullBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
               data-panel-body=""
             >
-              <div className={cn("flex min-h-0 flex-1 flex-col", withSheet, fromBottom && footShown && "translate-y-[var(--sheet-off)]")}>
+              <div ref={setInnerNode} className="flex min-h-0 flex-1 flex-col">
                 <TabKept away={cardsUp}>{children}</TabKept>
                 <SheetCardHost shown={cardsUp} />
               </div>
@@ -659,9 +709,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                   // (data-pill-hides) is put away there.
                   "flex min-h-[3.875rem] shrink-0 flex-col justify-center border-t pb-1 print:hidden", ROW_PAD, cardInPill ? "px-0" : "px-4",
                   !footShown && "hidden",
-                  // Its figures' growth (--sheet-progress) eased with the sheet.
-                  "transition-[transform,--sheet-progress] duration-[var(--sheet-seconds)] ease-[cubic-bezier(0,0,0.58,1)] group-data-[swiping]/sheet:transition-none motion-reduce:transition-none",
-                  fromBottom && pinUp,
                   atPill ? "border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
                   fieldPill && atPill && "px-3",
                 )}
