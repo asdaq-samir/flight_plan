@@ -64,8 +64,8 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
   if (wide) return box;
   return (
     <span className="inline-grid min-w-0">
-      <span aria-hidden="true" className={cn("invisible col-start-1 row-start-1 -my-0.5 px-1.5 py-0.5 whitespace-pre uppercase", bold ? "font-semibold" : "font-normal", TEXT.row)}>
-        {(draft || "WWW") + " "}
+      <span aria-hidden="true" className={cn("invisible col-start-1 row-start-1 -my-0.5 px-1.5 py-0.5 whitespace-pre", draft || !placeholder ? cn("uppercase", bold ? "font-semibold" : "font-normal") : "font-normal", TEXT.row)}>
+        {(draft || placeholder || "WWW") + " "}
       </span>
       {box}
     </span>
