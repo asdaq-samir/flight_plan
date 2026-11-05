@@ -22,7 +22,7 @@ function scaleAt(map: L.Map, center: L.LatLng, zoom: number) {
   const at = map.project(center, zoom);
   const metres = map.distance(map.unproject(at, zoom), map.unproject(at.add([BAR_MOST, 0]), zoom));
   const nmPerPx = metres / METRES_PER_NM / BAR_MOST;
-  const nm = [...NICE_NM].reverse().find(n => n / nmPerPx <= BAR_MOST) ?? NICE_NM[0];
+  const nm = [...NICE_NM].reverse().find(n => n / nmPerPx <= BAR_MOST) ?? 0.25;
   return { nm, px: Math.round(nm / nmPerPx) };
 }
 
