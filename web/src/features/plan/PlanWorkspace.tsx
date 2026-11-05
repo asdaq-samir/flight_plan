@@ -15,7 +15,6 @@ import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, PLAN_NAME, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
-import { PANEL_FIELD } from "../../components/panelField";
 import { bestStopIndex, distanceNm, type LatLon } from "../../lib/geo";
 import { placeOf, useAirportIndex } from "../../lib/airportIndex";
 import { useKeepOffline } from "../../lib/map/keepStatus";
@@ -171,6 +170,7 @@ const ReviewAskItem = fromRoutePanel("ReviewAskItem");
 const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
 const RouteBox = fromRoutePanel("RouteBox");
 const RouteEnds = fromRoutePanel("RouteEnds");
+const RouteSplit = fromRoutePanel("RouteSplit");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
 const AltitudeGroup = fromRoutePanel("AltitudeGroup");
@@ -2829,10 +2829,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     if (wholeRoute && routeOpen) setRouteOpen(false);
   }
   const routeFolded = routeEdit !== "box" && !routeOpen && !addingStop;
-  // The route as the folded head says it: half a route with the end it
-  // lacks, none the box's own word.
-  const routeWords = wholeRoute ? routeName(planned.dep, planned.dest, planned.stops)
-    : planned.dep || planned.dest ? [planned.dep || "Departure", ...planned.stops, planned.dest || "Destination"].join(" → ") : "";
   const routeControls = (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
       {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
@@ -3295,26 +3291,24 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
             />
           </Suspense>
         )) : (
-          // The box's own field, folded to its route, the whole line the
-          // tap that opens it.
-          <button
-            type="button" onClick={() => setRouteOpen(true)} data-testid="route-line"
-            aria-label={routeWords ? `The route, ${routeWords}: edit` : "The route, from its departure"}
-            className={cn("flex h-[2.5625rem] w-full min-w-0 items-center gap-2 rounded-[20.5px] px-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", PANEL_FIELD)}
-          >
-            {/* None yet: the box's own word for it, as a field's
-                placeholder, and nothing to edit. */}
-            {routeWords ? (
-              <>
-                <span className={cn("min-w-0 flex-1 truncate font-mono font-semibold", TEXT.row)}>{routeWords}</span>
-                <span className={cn("shrink-0 font-semibold text-tint", TEXT.row)}>Edit</span>
-              </>
-            ) : (
-              <span className={cn("min-w-0 flex-1 truncate text-muted-foreground", TEXT.row)}>Route</span>
-            )}
-          </button>
+          // One Line, the owner's pick L1 of the canvas (2026-11-05): the
+          // route split in three, each end its own tap, the stops between
+          // them the box's.
+          <Suspense fallback={<div className="h-[3.25rem] rounded-[1.625rem] bg-card" />}>
+            <RouteSplit
+              dep={planned.dep} dest={planned.dest} stops={planned.stops}
+              depName={wholeRoute && course ? placeName(course.departure.name, course.departure.ident) : null}
+              destName={wholeRoute && course ? placeName(course.destination.name, course.destination.ident) : null}
+              onDep={dep => setRoute({ dep, stops: planned.stops, dest: planned.dest })}
+              onDest={dest => setRoute({ dep: planned.dep, stops: planned.stops, dest })}
+              onStops={() => (planned.stops.length ? setRouteOpen(true) : typeStopAt(routePoints.length - 1))}
+            />
+          </Suspense>
         )}
-        {(routeEdit !== "plan" || wholeRoute) && <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>}
+        {/* The airplane, the altitude and the route's buttons once the route
+            is whole, in either: none before, at the owner's ask ("no n
+            number or altitude" till both ends are in). */}
+        {wholeRoute && <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>}
       </div>
     ) : (
       <div className="min-w-0 flex-1">
