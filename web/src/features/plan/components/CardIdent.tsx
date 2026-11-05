@@ -40,11 +40,15 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
     else if (!next && onEmpty) onEmpty();
     else setDraft(value);
   };
-  return (
+  // As wide as what it holds: the input over a hidden copy of its words in
+  // one grid cell, the copy giving the width, where its `size` in
+  // characters cut KUGN's N off in the semibold capitals (the owner's
+  // screenshot, 2026-11-05).
+  const box = (
     <input
       value={draft} aria-label={label} data-testid={testId} placeholder={placeholder} autoFocus={autoFocus}
       autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="done"
-      size={wide ? undefined : Math.max(4, draft.length)}
+      size={1}
       onChange={e => setDraft(e.target.value.toUpperCase())}
       onBlur={commit}
       onKeyDown={e => {
@@ -53,8 +57,17 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
       }}
       className={cn(
         "relative z-10 -my-0.5 min-w-0 rounded-md bg-foreground/8 px-1.5 py-0.5 uppercase outline-none placeholder:font-normal placeholder:normal-case placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring",
-        bold ? "font-semibold" : "font-normal", wide && "w-full flex-1 py-1.5", TEXT.row,
+        bold ? "font-semibold" : "font-normal", wide ? "w-full flex-1 py-1.5" : "col-start-1 row-start-1 w-full", TEXT.row,
       )}
     />
+  );
+  if (wide) return box;
+  return (
+    <span className="inline-grid min-w-0">
+      <span aria-hidden="true" className={cn("invisible col-start-1 row-start-1 -my-0.5 px-1.5 py-0.5 whitespace-pre uppercase", bold ? "font-semibold" : "font-normal", TEXT.row)}>
+        {(draft || "WWW") + " "}
+      </span>
+      {box}
+    </span>
   );
 }

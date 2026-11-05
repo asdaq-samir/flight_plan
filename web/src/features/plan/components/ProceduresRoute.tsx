@@ -120,25 +120,27 @@ const CARD_GAP = "mb-[1.375rem]";
 
 /**
  * The course's line through the cards, from each card's mark to the
- * next's, at the owner's ask (2026-11-05: "magenta connecting line can go
- * through the card to airport icons"): down the card's left edge, 8 in,
- * meeting each mark's 36 at its left side (its 12 less the face's 4
- * outset), clear of the runway's capsule 12 in, at the owner's next ask
- * ("can the airport icons connect from the left side so it doesn't go
- * over runway capsule"); behind all the card holds (the card isolated,
- * the line under its content), and across the gap to the next card. The
- * first card's starts, and the last's ends, 32 down, under its mark: the
- * mark's 36 round its middle covers it at any size the head's type takes,
- * on a disc of the card's own fill (CardMark), as the mark's grey is see-
- * through.
+ * next's, at the owner's asks (2026-11-05: "magenta connecting line can go
+ * through the card to airport icons", then "can the airport icons connect
+ * from the left side so it doesn't go over runway capsule", and the
+ * screenshot after, the line still on the capsule's rounded end): down
+ * outside the cards' left edge, 8 off it, and into each mark from its
+ * left, a stub across the card's edge at the mark's middle, 32 down (the
+ * card's 12 and half the mark's 36, at the mark's own type size), so
+ * nothing inside the card is crossed but the stub, which the mark's disc
+ * meets. Behind all the card holds (the card isolated, the line under its
+ * content); the first's starts at its stub, the last's ends there.
  */
 function CardThread({ first, last }: { first: boolean; last: boolean }) {
   if (first && last) return null;
   return (
-    <span
-      aria-hidden="true" style={ROUTE_LINE}
-      className={cn("absolute left-[calc(0.5rem-1px)] -z-10 w-0.5", first ? "top-8" : "top-0", last ? "h-8" : "-bottom-[1.375rem]")}
-    />
+    <>
+      <span
+        aria-hidden="true" style={ROUTE_LINE}
+        className={cn("absolute -left-[calc(0.5rem+1px)] -z-10 w-0.5", first ? "top-[calc(2rem-1px)]" : "top-0", last ? "h-[calc(2rem+1px)]" : "-bottom-[1.375rem]")}
+      />
+      <span aria-hidden="true" style={ROUTE_LINE} className="absolute top-[calc(2rem-1px)] -left-[calc(0.5rem+1px)] -z-10 h-0.5 w-[calc(1rem+2px)]" />
+    </>
   );
 }
 
