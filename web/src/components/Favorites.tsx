@@ -218,6 +218,8 @@ export function MoveHandle({ label, index, count, onMove }: {
   return (
     <IconButton
       label={label} className="touch-none"
+      // Its own drag, the row's (dnd-kit), not the sheet's.
+      data-base-ui-swipe-ignore=""
       {...sort?.attributes} {...sort?.listeners} ref={sort?.ref}
       onKeyDown={e => {
         if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); return; }

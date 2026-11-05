@@ -4,7 +4,8 @@ import { grabberTo, openBrief, panelTabs, settle, settled, sideDrawer } from "./
 /**
  * The map's panel dragged by a finger from anywhere on its body, as an
  * iOS sheet's scrolling content hands its drag to the sheet
- * (useDetentDrag): up, the sheet comes out until it is all the way out;
+ * (the stock sheet, Base UI's Drawer, in MapPanel): up, the sheet comes
+ * out until it is all the way out;
  * down, once the content is back at its start, the sheet goes down --
  * and while the content is scrolled, it scrolls instead.
  */
@@ -90,7 +91,7 @@ test("a drag held still before it is let go sets the sheet down where it is, not
   const panel = sideDrawer(page);
   // Down 110 from half, nearer half than the pill, held and let go: half
   // again. Its moves alone, let go at once, would have thrown it to the
-  // pill (useDetentDrag's SPEED_WINDOW).
+  // pill had it not been held.
   const box = (await panel.getByTestId("tab-bar").boundingBox())!;
   await fingerDrag(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 }, 110, 600);
   await expect(panel).toHaveAttribute("data-panel", "half");
@@ -125,4 +126,62 @@ test("a throw takes the sheet one size: from the pill half way, not all the way 
   await grabberTo(page, "full");
   await flick(320);
   await expect(panel).toHaveAttribute("data-panel", "half");
+});
+
+/** The sheet's three heights, from its popup (MapPanel's data-detents). */
+async function detents(page: Page) {
+  const [peek, half, full] = (await sideDrawer(page).getAttribute("data-detents"))!.split(",").map(Number);
+  return { peek, half, full };
+}
+
+/** The tab bar's middle, where a finger takes the sheet. */
+async function onTabs(page: Page) {
+  await settled(sideDrawer(page));
+  const box = (await sideDrawer(page).getByTestId("tab-bar").boundingBox())!;
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+test("a drag from half down past the pill lands on the pill: not closed, not back at half, and the pill its own height", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  await page.goto("/app/plan");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  const pill = (await detents(page)).peek;
+  await grabberTo(page, "half");
+  // Down past the pill to the screen's foot: the stock sheet reads it as
+  // a close, which MapPanel refuses by going to the pill -- refused and
+  // nothing more, it went back up to half (the drag probe, 2026-11-04).
+  const at = await onTabs(page);
+  await fingerDrag(page, at, page.viewportSize()!.height - at.y - 4);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await expect(panel).toBeVisible();
+  // The pill measured at rest the same as before: a half's head once
+  // taken for it put in a 236-point pill the sheet stopped at, then
+  // dropped from.
+  await settled(panel);
+  await page.waitForTimeout(500);
+  expect((await detents(page)).peek).toBe(pill);
+  const box = (await panel.boundingBox())!;
+  expect(Math.abs(page.viewportSize()!.height - box.y - pill)).toBeLessThanOrEqual(2);
+});
+
+test("a touch on the sheet that does not move leaves it where it is", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
+  // The stock sheet clears its popup's inline transform as a finger goes
+  // down; held there, the sheet went all the way up at a touch (the
+  // owner, 2026-11-04). On the figures, not a tab, which a tap would pick.
+  await page.goto("/app/plan?dep=C81&dest=KDLH");
+  await settle(page);
+  const panel = sideDrawer(page);
+  await expect(panel).toHaveAttribute("data-panel", "peek");
+  await settled(panel);
+  const before = (await panel.boundingBox())!.y;
+  const cdp = await page.context().newCDPSession(page);
+  const at = { x: 20, y: before + 30, id: 1 };
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
+  await page.waitForTimeout(150);
+  expect(Math.abs((await panel.boundingBox())!.y - before)).toBeLessThanOrEqual(1);
+  await cdp.send("Input.dispatchTouchEvent", { type: "touchCancel", touchPoints: [] });
+  await cdp.detach();
 });

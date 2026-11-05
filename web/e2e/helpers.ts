@@ -161,24 +161,9 @@ async function panelFull(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if ((await panel.getAttribute("data-panel")) === "full") return;
-  if ((await panel.getAttribute("data-panel")) === "peek") {
-    await grabberTo(page, "full");
-    return;
-  }
-  await settled(panel);
-  const box = (await panel.boundingBox())!;
-  const grab = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
-  const x = grab.x + grab.width / 2, y = grab.y + grab.height / 2;
-  // From the bottom of a phone the grabber is the sheet's top: up. From
-  // the top, its foot: down.
-  const up = Math.abs(y - box.y) < Math.abs(y - (box.y + box.height));
-  const viewport = page.viewportSize()!;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x, up ? y - 40 : y + 40, { steps: 4 });
-  await page.mouse.move(x, up ? 8 : viewport.height - 8, { steps: 10 });
-  await page.mouse.up();
-  await expect(panel).toHaveAttribute("data-panel", "full");
+  // By the grabber, as a keyboard and VoiceOver take it: the stock sheet
+  // (Base UI's Drawer) takes a drag by touch, not a mouse on a button.
+  await grabberTo(page, "full");
   await settled(panel);
 }
 

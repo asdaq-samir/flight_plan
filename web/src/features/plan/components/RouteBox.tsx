@@ -815,6 +815,8 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
     // (KeyboardSensor) and its Delete.
     <span
       ref={setNodeRef} {...attributes} {...listeners} role="group" aria-label={`${label} ${ident}`}
+      // Held and moved, the pill's own drag (dnd-kit), not the sheet's.
+      data-base-ui-swipe-ignore=""
       aria-keyshortcuts="Delete" data-point={index}
       onPointerDown={press} onPointerMove={slide} onPointerUp={letGo} onPointerCancel={letGo}
       // Moved, never scaled: across lines the pills differ in width, and
