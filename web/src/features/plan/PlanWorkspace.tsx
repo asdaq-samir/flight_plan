@@ -2258,14 +2258,6 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   }, [lineOpen, routeLine, routeWays, chips, browsing, ownMinutes, ownGround]);
   // A way's line or chip on the chart tapped: its chip picked.
   const pickWay = useCallback((key: string) => applyChip(key === "own" ? "none" : key), [applyChip]);
-  // The routes the chips put in, end to end, for the route box to keep
-  // its height through them while the line is open and they are tapped
-  // through (RouteBox's holdFor); folded, the box is the route's own
-  // height -- a short route's one line was held at two.
-  const browsedRoutes = useMemo(() => {
-    if (!routeLine || !lineOpen) return undefined;
-    return chips.map(c => [planned.dep, ...c.stops, `${planned.dest ?? ""}`]);
-  }, [routeLine, lineOpen, chips, planned.dep, planned.dest]);
   const routeList = useMemo(() => (
     <>
     <ProceduresRoute
@@ -3221,7 +3213,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           onChange={setRoute} onTypedProcedures={typeProcedures}
           adding={!!addingStop} onAddingChange={addingChange}
           via={addingStop === "via" ? s.unflyable?.detours : undefined}
-          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop} holdFor={browsedRoutes}
+          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop}
           // An airport's pill tapped: its card over the route, as a tap on
           // it on the chart opens it, at the pilot's ask; closed, the route.
           onOpenAirport={selectPlace}

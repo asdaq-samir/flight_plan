@@ -615,7 +615,9 @@ test("a short town's name (four letters) takes the first airport shown at Enter,
   await expect(page).toHaveURL(new RegExp(`[?&]stops=${ident}(&|$)`));
 });
 
-test("a long route's box wraps its points onto lines and scrolls down to the rest, never sideways", async ({ page }) => {
+test("a long route's box is one row that slides sideways to the rest, faded where it runs on", async ({ page }) => {
+  // The owner (2026-11-04): "FPL can be fixed as one row, in which ids can
+  // slide etc. even when routes have more fixes than the space in the row".
   // Nothing past the course asked of the planner: the box is the claim.
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
   // The most stops a route takes (MAX_STOPS): ten points.
@@ -627,34 +629,18 @@ test("a long route's box wraps its points onto lines and scrolls down to the res
   const box = await lines.evaluate(el => ({
     clientHeight: el.clientHeight, scrollHeight: el.scrollHeight, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
     tops: [...new Set([...el.querySelectorAll("[role=group]")].map(g => Math.round(g.getBoundingClientRect().top)))].length,
+    mask: getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage,
   }));
-  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
-  expect(box.tops).toBeGreaterThanOrEqual(2);
-  // The box grown to two lines in sight, as the route needs them, where a
-  // short route's is one; where there are more (the box the panel's width
-  // since the pilot asked, ten points take two lines on most screens), the
-  // top of a third and the rest a scroll down, the destination not whole
-  // in sight until then.
-  expect(box.clientHeight).toBeGreaterThanOrEqual(72);
-  expect(box.clientHeight).toBeLessThanOrEqual(100);
+  // One line, its height a line's, the rest past its end.
+  expect(box.tops).toBe(1);
+  expect(box.clientHeight).toBeLessThanOrEqual(48);
+  expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight + 1);
+  expect(box.scrollWidth).toBeGreaterThan(box.clientWidth + 40);
+  expect(box.mask).toContain("gradient");
+  // Slid to its end: the destination whole in sight.
   const destination = sideDrawer(page).getByTestId("route-dest");
-  await lines.evaluate(el => el.scrollTo(0, el.scrollHeight));
+  await lines.evaluate(el => el.scrollTo(el.scrollWidth, 0));
   await expect(destination).toBeInViewport({ ratio: 1 });
-
-  // A pill dragged from the first line onto the second: the route flown in
-  // the new order (a reorder that broke would fly it in the wrong one).
-  await lines.evaluate(el => el.scrollTo(0, 0));
-  const from = (await lines.getByRole("group", { name: "Stop 1 KRYV" }).boundingBox())!;
-  const to = (await lines.getByRole("group", { name: "Stop 6 KSTE" }).boundingBox())!;
-  expect(to.y).toBeGreaterThan(from.y + from.height / 2);
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2, { steps: 4 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  // Held there a moment, as a finger is, for the pills to make room.
-  await page.waitForTimeout(300);
-  await page.mouse.up();
-  await expect(page).toHaveURL(/[?&]stops=KMSN%2CKEAU%2CKOSH%2CKCWA%2CKSTE%2CKRYV%2CKATW%2CKGRB(&|$)|[?&]stops=KMSN,KEAU,KOSH,KCWA,KSTE,KRYV,KATW,KGRB(&|$)/);
 });
 
 test("a stop may be a VFR waypoint, offered after the airports as it is typed and flown through", async ({ page }) => {

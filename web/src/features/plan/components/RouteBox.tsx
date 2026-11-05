@@ -4,7 +4,7 @@ import { ArrowRight, Coffee, Fuel, PlaneLanding, PlaneTakeoff, Plus, Route, Tras
 import {
   DndContext, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDndMonitor, useSensor, useSensors, type DragEndEvent,
 } from "@dnd-kit/core";
-import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { SortableContext, arrayMove, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { cn } from "cn";
 import AirportPicker from "../../../components/AirportPicker";
@@ -19,6 +19,7 @@ import { InputGroup } from "../../../components/ui/input-group";
 import { Popover, PopoverAnchor, PopoverContent } from "../../../components/ui/popover";
 import type { Detour, FuelStopSuggestion } from "../../../lib/api/types";
 import { MAX_STOPS, frdOf, identOf, isPosition, pointName, stopOf } from "../../../lib/identSchema";
+import { prefersReducedMotion } from "../../../lib/motion";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "../../../lib/preferences";
 import { useAirportSearch, type AirportSearchRow } from "../../../lib/useAirportSearch";
 import { useKeyboardInset } from "../../../hooks/use-viewport";
@@ -78,13 +79,13 @@ const PROCEDURE_GLYPH = { approach: PlaneLanding, arrival: Route, departure: Pla
  * The ends stay airports: a waypoint is flown through, never taken off
  * from or landed at, so a change that would put one at an end is undone.
  */
-/** How far past the box its pills must reach before it scrolls, px: past
- *  a hit area's reach, short of a line (32 px or more). */
-const LINE_OVER_PX = 8;
+/** How far past the box's width its pills must reach before it counts as
+ *  running on, px: past a hit area's reach, short of a pill. */
+const RUNS_ON_PX = 8;
 
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
-  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop, holdFor,
+  procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop,
   footer,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
@@ -133,11 +134,6 @@ export default function RouteBox({
   /** A suggested fuel stop taken out of the box, the pilot not wanting it
    *  (its menu's Remove); the route's menu or FPL's Routes put it back. */
   onHideFuelStop?: (ident: string) => void;
-  /** The routes FPL's Routes' cards are browsing, each its points end to
-   *  end: where any of them takes two lines the box keeps two lines'
-   *  height while they are browsed, so it does not grow and shrink from
-   *  card to card (the owner, 2026-10-24). */
-  holdFor?: string[][];
   /** The route's buttons -- the airplane, the altitude, the Brief, the nav
    *  log and Share -- in the box under its lines, as a message box has its
    *  own under what is typed, at the owner's ask ("I want the route box
@@ -271,46 +267,21 @@ export default function RouteBox({
   // at an arrow put in first, as a tap away from it would. Pressed, the
   // field keeps the focus, the keyboard staying up.
   const slide = useRef<HTMLDivElement>(null);
-  // A box to scroll only once its lines are past its height -- a third at
-  // the most text -- not by the few points its pills' 44-point hit areas
-  // (index.css) reach past one or two: the phone scrolled those under a
-  // finger, the route's one line moving in its box where the card was to
-  // be dragged ("it's still scrolling even when in one line", 2026-10-21).
-  // Read as the box or its pills change.
-  const [lineOver, setLineOver] = useState(false);
-  // Two lines of pills at the most, the rest a scroll down, at the owner's
-  // ask ("FPL should not be bigger than two lines, the rest can scrolled to
-  // see", 2026-10-24): measured off a pill, so it holds at any text size --
-  // the 6 rem it was showed a third line's top at the owner's larger text.
-  const [twoLines, setTwoLines] = useState<number | null>(null);
-  // Whether a route browsed (holdFor) takes two lines: each laid out as
-  // the box lays its pills, a line filled before the next is begun, by
-  // the widths of the pills and arrows in it now and the idents' own.
-  // Held at two lines, the one line of a shorter route stays at the top,
-  // level with the clear (content-start): centred in the two, it sat a
-  // half line down (the owner's screenshot, 2026-10-25).
-  const [holdTwo, setHoldTwo] = useState(false);
-  const holdKey = (holdFor ?? []).map(r => r.join(",")).join("|");
+  // One row, at the owner's ask (2026-11-04: "FPL can be fixed as one
+  // row, in which ids can slide etc. even when routes have more fixes
+  // than the space in the row"): the box keeps one line's height whatever
+  // the route, and the pills slide sideways under a finger. Whether they
+  // run on past its end, read as the box or its pills change, for the
+  // fade at the edge that says there is more.
+  const [runsOn, setRunsOn] = useState(false);
   useEffect(() => {
     const el = slide.current;
     if (!el) return;
-    const routes = holdKey ? holdKey.split("|").map(r => r.split(",")) : [];
-    // Once a frame, however many pills a change rewrites: each read lays
-    // the box out again, and a swipe through the Routes' cards rewrote
-    // the pills several times a frame.
+    // Once a frame, however many pills a change rewrites.
     let frame = 0;
     const read = () => {
       frame = 0;
-      setLineOver(el.scrollHeight - el.clientHeight > LINE_OVER_PX);
-      // Off a pill, not whatever comes first: with no departure yet that is
-      // the arrow, 12 points, and the box was held to one line.
-      const pill = el.querySelector<HTMLElement>(PILL_PICK);
-      if (!pill?.offsetHeight) return;
-      const style = getComputedStyle(el);
-      const gap = parseFloat(style.rowGap) || 0;
-      const pad = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
-      setTwoLines(Math.ceil(pill.offsetHeight * 2 + gap + pad));
-      setHoldTwo(routes.some(route => takesTwoLines(el, route.map(pointName))));
+      setRunsOn(el.scrollWidth - el.clientWidth > RUNS_ON_PX);
     };
     const soon = () => { if (!frame) frame = requestAnimationFrame(read); };
     const sized = new ResizeObserver(soon);
@@ -319,7 +290,14 @@ export default function RouteBox({
     changed.observe(el, { childList: true, subtree: true });
     soon();
     return () => { cancelAnimationFrame(frame); sized.disconnect(); changed.disconnect(); };
-  }, [holdKey]);
+  }, []);
+  // A point added or the field taken: the row slid to its end, where the
+  // new point and what is typed are.
+  const pointCount = points.length;
+  useEffect(() => {
+    const el = slide.current;
+    if (el && (focused || pointCount)) el.scrollTo({ left: el.scrollWidth, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [pointCount, focused]);
   const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
   const toEnd = (e: MouseEvent<HTMLDivElement>) => {
     if (!isRoom(e)) return;
@@ -488,32 +466,23 @@ export default function RouteBox({
             className={cn("h-auto flex-wrap items-start rounded-[20.5px] border-0 pt-1 pb-0 pr-1.5 pl-1 shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0", !footer && "pb-1", PANEL_FIELD)}
             data-testid="route-box" data-tip="route"
           >
-            {/* The pills wrap, two lines of them in sight and the top of a
-                third -- so a point below them reads as there, the
-                destination most of all -- and the rest a scroll down, as
-                ForeFlight's flight plan box does: one line that slid
-                sideways hid all but the first few of a long route, at the
-                pilot's ask. Up and down only: the 44-point hit areas
-                (index.css) reaching past a line's end let it slide
-                sideways by a few points (the iPhone audit's "no sideways
-                scroll in a panel"). Lines eight apart, as rows are, so the
-                hit areas meet; room round them for the areas at the box's
-                edges. A swipe up or down in it scrolls it, not the sheet
-                (the root takes the presses). In rem, as the pills are: at
-                96 px, a phone at a larger text size (pills 2rem tall, the
-                lines' gap and padding with them) needed 98 for two lines,
-                and two lines scrolled with no third (the owner's notice). */}
-            <div ref={slide} style={twoLines ? { maxHeight: twoLines, minHeight: holdTwo ? twoLines : undefined } : undefined} className={cn("flex max-h-[6rem] min-w-0 flex-1 flex-wrap content-start items-center gap-x-px gap-y-2 overflow-x-hidden overscroll-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", lineOver ? "overflow-y-auto" : "overflow-y-hidden")} data-testid="route-slide"
-              // Its own lines scrolled first under a finger, then the sheet
-              // dragged (the stock sheet's drag, MapPanel).
-              data-scroll-first="">
+            {/* The pills in one row that slides sideways under a finger
+                when the route is longer than the box (the owner,
+                2026-11-04), as ForeFlight's flight plan box does; the end
+                faded where it runs on, so a point past it reads as there.
+                A drag up or down on it is the sheet's (useSheetDrag), across
+                is the row's. */}
+            <div ref={slide} className={cn(
+              "flex min-w-0 flex-1 flex-nowrap items-center gap-x-px overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0",
+              runsOn && "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
+            )} data-testid="route-slide">
               {/* The box does not scroll itself under a drag: the pill dragged
                   is in the box it scrolls, so each step down carried it
                   further, and a pill held over the second line ran the box
                   671 points down to the last point. A line out of sight is
                   scrolled to first. */}
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} autoScroll={false}>
-                <SortableContext items={ids} strategy={rectSortingStrategy}>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} autoScroll={{ threshold: { x: 0.15, y: 0 } }}>
+                <SortableContext items={ids} strategy={horizontalListSortingStrategy}>
                   {points.map((point, i) => (
                     <Fragment key={ids[i]}>
                       {/* Before the first point an arrow only with no
@@ -868,32 +837,3 @@ function Pill({ id, ident, waypoint, index, role, stopNumber, airspaceOf, metarC
   );
 }
 
-/** Whether a route of these names would wrap in the box `el` to a second
- *  line: its pills as wide as the box's own are for their words (the
- *  widest pill's room round its words, so it errs to two), an arrow
- *  between each, as the box wraps them. */
-/** The route's own pills in the box: its departure, stops and destination. */
-const PILL_PICK = "[data-testid=route-dep],[data-testid=stop],[data-testid=route-dest]";
-
-function takesTwoLines(el: HTMLElement, names: string[]): boolean {
-  const pills = [...el.querySelectorAll<HTMLElement>(PILL_PICK)];
-  const arrow = el.querySelector<HTMLElement>("[data-testid=route-arrow]");
-  const context = document.createElement("canvas").getContext("2d");
-  if (!pills.length || !context) return false;
-  // The words' own face: the button in the pill, not its group (whose
-  // `font` shorthand Firefox leaves empty where its parts disagree).
-  const face = getComputedStyle(pills[0]!.querySelector("button") ?? pills[0]!);
-  context.font = `${face.fontWeight} ${face.fontSize} ${face.fontFamily}`;
-  const words = (text: string) => context.measureText(text).width;
-  const room = Math.max(...pills.map(p => p.offsetWidth - words((p.textContent ?? "").trim())));
-  const style = getComputedStyle(el);
-  const line = el.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
-  const columnGap = parseFloat(style.columnGap) || 0;
-  const widths = names.flatMap((name, i) => [...(i ? [arrow?.offsetWidth ?? 12] : []), room + words(name)]);
-  let used = 0;
-  for (const w of widths) {
-    if (used && used + columnGap + w > line) return true;
-    used += (used ? columnGap : 0) + w;
-  }
-  return false;
-}
