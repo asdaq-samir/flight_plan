@@ -10,7 +10,6 @@ import {
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
-import AirportPicker from "../../../components/AirportPicker";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
@@ -131,9 +130,50 @@ function CardThread({ first, last }: { first: boolean; last: boolean }) {
   );
 }
 
-/** A card's ident, the button of its search: the ident as it stood, the
- *  picker's field look taken off it. */
-const CARD_IDENT = "h-auto min-w-0 justify-start rounded-md bg-transparent p-0 font-sans normal-case shadow-none hover:bg-transparent dark:bg-transparent";
+/**
+ * A card's ident a text box, at the owner's ask (2026-11-05: "the airport
+ * id should be a text box", after "Make the cards airport ids editable so
+ * it can be changed to anything"): typed over and taken as typed on Return
+ * or as it is left, Escape putting it back. The app's neutral fill, a
+ * field's, its width the ident's; over the head's tap that folds the card.
+ */
+function CardIdent({ value, label, onCommit, testId, bold = true }: {
+  value: string;
+  label: string;
+  onCommit: (ident: string) => void;
+  testId: string;
+  bold?: boolean;
+}) {
+  const [draft, setDraft] = useState(value);
+  // Its ident again where the route changed it from elsewhere.
+  const [was, setWas] = useState(value);
+  if (was !== value) {
+    setWas(value);
+    setDraft(value);
+  }
+  const commit = () => {
+    const next = draft.trim().toUpperCase();
+    if (next && next !== value) onCommit(next);
+    else setDraft(value);
+  };
+  return (
+    <input
+      value={draft} aria-label={label} data-testid={testId}
+      autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="done"
+      size={Math.max(4, draft.length)}
+      onChange={e => setDraft(e.target.value.toUpperCase())}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") { setDraft(value); e.currentTarget.blur(); }
+      }}
+      className={cn(
+        "relative z-10 -my-0.5 min-w-0 rounded-md bg-foreground/8 px-1.5 py-0.5 uppercase outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        bold ? "font-semibold" : "font-normal", TEXT.row,
+      )}
+    />
+  );
+}
 
 /** A card's mark on a disc of the card's fill, hiding the line under it. */
 const CardMark = ({ children }: { children: ReactNode }) => <span className="grid place-items-center rounded-full bg-card">{children}</span>;
@@ -666,9 +706,7 @@ export default function ProceduresRoute({
     // and its takeoff -- the glyph, the runways, the procedures, a stop's
     // time to leave again -- named for a screen reader as its parts are.
     const key = `${a.role}:${a.ident}`;
-    // A card always open, at the owner's ask (2026-11-05: "Now that it's a
-    // card, we don't need the expanding arrow next to airport").
-    const opened = asCards || isOpen(key);
+    const opened = isOpen(key);
     // `line`, the runway line's key and the runway picked on it
     // (PatternChips folds a line with a runway picked to that runway's chip).
     type Part = { role: "Arrive" | "Depart"; kinds: Kind[]; chips: (trailing: ReactNode) => ReactNode; leaves: ReactNode; line: { key: string; chosen: string | null } };
@@ -793,7 +831,12 @@ export default function ProceduresRoute({
                     {/* The disclosure, iOS's small chevron by the symbol, not
                         an icon button (data-disclosure): the Collapsible's
                         trigger, the arrow turned by its open state. */}
-                    {!asCards && <CollapsibleTrigger asChild>
+                    {/* A card's without its arrow, at the owner's ask (2026-11-05:
+                        "Now that it's a card, we don't need the expanding
+                        arrow next to airport", then "It should still become
+                        a smaller card with a tap"): its tap over the lines
+                        alone. */}
+                    <CollapsibleTrigger asChild>
                       <button
                         type="button" data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
                         aria-label={`${a.ident}: runways and procedures`}
@@ -807,26 +850,23 @@ export default function ProceduresRoute({
                         // twelve over it, into the room above the field, where the
                         // arrow's 44 points, round its line, reach (the iOS
                         // audit's P1).
-                        className="group static -ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none before:absolute before:inset-x-0 before:-top-3 before:bottom-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                        className={cn(
+                          "group static grid shrink-0 place-items-center text-tint outline-none before:absolute before:inset-x-0 before:-top-3 before:bottom-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+                          asCards ? "-ml-1.5 size-0" : "-ml-0.5 size-4",
+                        )}
                       >
-                        <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+                        {!asCards && <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />}
                       </button>
-                    </CollapsibleTrigger>}
+                    </CollapsibleTrigger>
                     {/* The size the list's names were ("the font size is bigger
                         than it used to be for airport id"). */}
-                    {/* A card's ident its search, at the owner's ask (2026-11-05:
-                        "Make the cards airport ids editable so it can be
-                        changed to anything"): the stock airport picker, a
-                        stop's with the waypoints too, and what it does not
-                        know going through as typed. */}
                     {asCards && edit?.onReplace && pointIndex(a.ident, a.role) !== undefined ? (
-                      <AirportPicker
-                        value={a.ident} fixes={a.role === "Stop"} placeholder={a.ident} ariaLabel={`${a.ident}, change`} testId="field-ident"
-                        onChange={v => { const at = pointIndex(a.ident, a.role); if (v && at !== undefined && !sameField(v, a.ident)) edit.onReplace!(at, v); }}
-                        className={CARD_IDENT}
-                      >
-                        <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
-                      </AirportPicker>
+                      <h3 className="min-w-0">
+                        <CardIdent
+                          value={a.ident} label={`${a.ident}, change`} testId="field-ident"
+                          onCommit={v => { const at = pointIndex(a.ident, a.role); if (at !== undefined && !sameField(v, a.ident)) edit.onReplace!(at, v); }}
+                        />
+                      </h3>
                     ) : <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>}
                     {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
                   </div>
@@ -1291,7 +1331,7 @@ function PointGrip({ ident, index }: { ident: string; index: number }) {
 }
 
 function Step({ mark, title, sub, figures, menu, grip, card = false, first = false, last, field = false, testId, icon, rename, children }: {
-  /** A card's: its name the search to change it (AirportPicker). */
+  /** A card's: its name a text box to change it (CardIdent). */
   rename?: (ident: string) => void;
   /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
@@ -1325,9 +1365,7 @@ function Step({ mark, title, sub, figures, menu, grip, card = false, first = fal
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="flex min-w-0 items-center gap-1">
               {rename ? (
-                <AirportPicker value={title} fixes placeholder={title} ariaLabel={`${title}, change`} testId="step-ident" onChange={v => { if (v && v !== title) rename(v); }} className={CARD_IDENT}>
-                  <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
-                </AirportPicker>
+                <Name className="min-w-0"><CardIdent value={title} label={`${title}, change`} testId="step-ident" onCommit={rename} bold={field} /></Name>
               ) : <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>}
               {icon}
             </span>
