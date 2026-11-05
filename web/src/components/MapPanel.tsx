@@ -230,6 +230,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
 
   // Measured at rest: the head's band, the foot, and what the pill shows.
   const [panel, setPanel] = useState<HTMLElement | null>(null);
+  // The same node for the writes made outside render (place, the settle):
+  // a state's value is not to be changed, a ref's may be.
+  const panelRef = useRef<HTMLElement | null>(null);
+  const setPanelNode = useCallback((node: HTMLElement | null) => { panelRef.current = node; setPanel(node); }, []);
   const [headBand, setHeadBandState] = useState<HTMLDivElement | null>(null);
   const [footNode, setFootNodeState] = useState<HTMLDivElement | null>(null);
   // The parts held in sight at the free edge (pin), written to directly.
@@ -244,6 +248,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // fits them, than at the pill and all the way up (the owner,
   // 2026-11-05); either the other's till it has been seen.
   const [footHeights, setFootHeights] = useState<{ half: number | null; other: number | null }>({ half: null, other: null });
+  const halfLook = useRef<{ className: string; paddingBottom: string } | null>(null);
+  const halfSeen = useRef(false);
   const [pillHeight, setPillHeight] = useState<number | null>(null);
   const movingRef = useRef(moving);
   useEffect(() => {
@@ -254,11 +260,35 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   }, [headBand]);
   useEffect(() => {
     if (!footNode) return;
+    // Half's box measured before the sheet first comes to half, so the
+    // list there is laid out for it at once, not for the larger box and
+    // then again as the sheet rests: the box given half's look for the one
+    // read and its own put back in the same task, so it is never drawn so.
+    const measureHalf = (el: HTMLElement) => {
+      const look = halfLook.current;
+      if (!look) return null;
+      const kept = { className: el.className, style: el.getAttribute("style") };
+      el.className = look.className;
+      el.style.transition = "none";
+      el.style.setProperty("--sheet-progress", "0");
+      el.style.paddingBottom = look.paddingBottom;
+      const h = el.offsetHeight;
+      el.className = kept.className;
+      if (kept.style === null) el.removeAttribute("style");
+      else el.setAttribute("style", kept.style);
+      return h;
+    };
     const watch = new ResizeObserver(() => {
-      if (movingRef.current) return;
+      const el = parts.current.foot;
+      if (movingRef.current || !el) return;
       const at = sizeRef.current === "half" ? "half" : "other";
-      const h = footNode.offsetHeight;
-      setFootHeights(was => (was[at] === h ? was : { ...was, [at]: h }));
+      const h = el.offsetHeight;
+      const half = at === "other" && !halfSeen.current ? measureHalf(el) : null;
+      if (half !== null) halfSeen.current = true;
+      setFootHeights(was => {
+        const next = { ...was, [at]: h, ...(half !== null && was.half === null ? { half } : {}) };
+        return next.half === was.half && next.other === was.other ? was : next;
+      });
     });
     watch.observe(footNode);
     return () => watch.disconnect();
@@ -419,6 +449,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const fullRef = useRef(detents.full);
   const place = useCallback((h: number, ease: string, from?: number) => {
     hRef.current = h;
+    const panel = panelRef.current;
     if (!panel) return;
     const off = Math.max(0, fullRef.current - h);
     const y = Math.round((pinState.current.fromBottom ? off : -off) * 100) / 100;
@@ -427,15 +458,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     panel.style.transform = `translate3d(0, ${y}px, 0)`;
     pin(off, ease);
     ride(h, ease, from);
-  }, [panel, pin, ride]);
+  }, [pin, ride]);
   // Where it is this frame: its last placing, or on its way, from the
   // transform the browser has it at.
   const currentHeight = useCallback(() => {
+    const panel = panelRef.current;
     if (!panel || !movingRef.current) return hRef.current;
     const t = getComputedStyle(panel).transform;
     const y = t && t !== "none" ? Math.abs(new DOMMatrix(t).m42) : 0;
     return fullRef.current - y;
-  }, [panel]);
+  }, []);
 
   // To `target`, from where it is, at once: the transition written in this
   // frame -- a finger's release, a tap, a key -- and the map told a frame
@@ -685,29 +717,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       style: { "--sheet-progress": at === "half" ? "0" : "1", ...(toEdge && fromBottom && !pillHere ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties,
     };
   };
-  // Half's box measured before the sheet first comes to half, so the list
-  // there is laid out for it at once, not for the larger box and then
-  // again as the sheet rests: the box given half's look for the one read,
-  // and its own put back, in the same task, so it is never drawn so.
+  // Half's look for the box, for its measure before the sheet is first
+  // there (the foot's observer, above).
   useLayoutEffect(() => {
-    const el = footNode;
-    if (!el || moving || !footShown || size === "half" || footHeights.half !== null) return;
-    const kept = { className: el.className, style: el.getAttribute("style") };
     const look = footLook("half");
-    el.className = look.className;
-    el.style.transition = "none";
-    el.style.setProperty("--sheet-progress", "0");
-    el.style.paddingBottom = "paddingBottom" in look.style ? `${look.style.paddingBottom}px` : "";
-    const h = el.offsetHeight;
-    el.className = kept.className;
-    if (kept.style === null) el.removeAttribute("style");
-    else el.setAttribute("style", kept.style);
-    setFootHeights(was => (was.half === null ? { ...was, half: h } : was));
+    halfLook.current = { className: look.className, paddingBottom: "paddingBottom" in look.style ? `${look.style.paddingBottom}px` : "" };
   });
 
   return (
           <section
-            ref={setPanel}
+            ref={setPanelNode}
             data-slot="map-panel" data-panel={size} {...(onPhone ? { "data-sheet": "" } : {})}
             aria-label={label}
             onClickCapture={swallow}
