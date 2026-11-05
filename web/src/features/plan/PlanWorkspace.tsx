@@ -1474,7 +1474,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // is typed in (its Add a Stop, a point's Add a Stop After).
   const [routeOpen, setRouteOpen] = useState(false);
   const [addAt, setAddAt] = useState<number | null>(null);
-  const addStopAt = useCallback((index: number) => {
+  const typeStopAt = useCallback((index: number) => {
     setAddAt(index);
     setAddingStop("stop");
   }, []);
@@ -1491,7 +1491,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     if (!isEnd(points[0]!) || !isEnd(points.at(-1)!) || points.some((p, i) => i > 0 && p === points[i - 1])) return;
     setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
   }, [routePoints, waypointStops, setRoute]);
-  const listEdit = useMemo(() => ({ onMove: movePoint, onAddAt: addStopAt }), [movePoint, addStopAt]);
+  const listEdit = useMemo(() => ({ onMove: movePoint, onAddAt: typeStopAt }), [movePoint, typeStopAt]);
   // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
   // routes planned, Aircraft's Favorites and Recents -- the address's
   // (`list`, useAddressCards), kept for their tab as its cards are.
