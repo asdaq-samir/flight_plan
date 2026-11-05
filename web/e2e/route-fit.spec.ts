@@ -272,14 +272,23 @@ test("a route entered is fitted above the half sheet, to the whole screen at the
   await fittedClearOf(page, sideDrawer(page));
 });
 
-test("a route the pilot has moved is fitted again as the sheet goes up and down while any of it is in sight, and left alone once it is not", async ({ page }) => {
+test("a route the pilot has moved is slid with a phone's sheet as it goes up and down, fitted again beside a wider screen's card while any of it is in sight, and left alone once it is not", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await fittedClearOf(page, sideDrawer(page));
-  // Moved, the route part off the screen: fitted again.
+  // Moved, the route part off the screen: on a phone slid with the sheet,
+  // never fitted again at a turn (the owner, 2026-11-04: a fit redrew the
+  // route and the airspace while the sheet moved); beside a card, fitted.
   await drag(page, 120, 80);
-  await openPanel(page);
-  await fittedClearOf(page, sideDrawer(page));
+  if (page.viewportSize()!.width < 768) {
+    const moved = await paneAndSheet(page);
+    await openPanel(page);
+    await settled(sideDrawer(page));
+    await slidWithSheet(page, moved);
+  } else {
+    await openPanel(page);
+    await fittedClearOf(page, sideDrawer(page));
+  }
 
   // Panned right off it: not fitted again, slid with the sheet on a phone.
   await closeSidebarWithTheStockKey(page);

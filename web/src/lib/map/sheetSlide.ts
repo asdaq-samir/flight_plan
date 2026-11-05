@@ -72,6 +72,9 @@ const LONGEST_MS = 1500;
  */
 export function followSheet(map: L.Map, sheet: {
   el: HTMLElement; halfEdge: number; pressed: () => boolean; free: () => boolean; to?: number;
+  /** Where the edge was when the map was last centred for it, where that
+   *  is not where it is now (a finger has had the sheet, the map still). */
+  from?: number;
 }) {
   // From where the edge is now, read once as the follow starts -- not
   // from the room the page last settled on: a sheet dragged down to the
@@ -80,7 +83,7 @@ export function followSheet(map: L.Map, sheet: {
   // room, the whole way a second time (the owner, 2026-11-04: "When I
   // take the card to bottom, it readjusts the map"). Started mid-settle
   // by a key, it goes the rest of the way and no more.
-  const base = sheetEdge(sheet.el);
+  const base = sheet.from ?? sheetEdge(sheet.el);
   // Its laid-out top, read once: the popup's height holds through a drag
   // and a settle, and a read of it each frame made the browser lay the
   // page out again there, after the map's buttons had moved with the
