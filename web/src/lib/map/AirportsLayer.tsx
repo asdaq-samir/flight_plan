@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Marker, Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
-import { usePreferences } from "../preferences";
+import { usePreferences, type AirspaceClass } from "../preferences";
 import { closeSheetCards } from "../sheetCards";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
@@ -15,10 +15,20 @@ import { boundsAt, boxAt, boxOf, hovers, type Box } from "./view";
 import { PANNING_MS, levelOf, useAhead, useLiveZoom, type FlightStart } from "./useView";
 
 /** The panes' places among the map's own (as `style`, constants so a
- *  render does not restyle them): the marks just over the airspace's
- *  rings (350), the selected field's ring just under the marks. */
-const AIRPORTS_PANE = { zIndex: 352 };
-const SELECTED_PANE = { zIndex: 351 };
+ *  render does not restyle them). The fields in Class B, C or D airspace
+ *  just over the airspace's rings (350, AirspaceLayer), under its
+ *  altitudes (355), the VORs (360) and the course line (400), at the
+ *  owner's ask (2026-11-05: "move the order of class B,C,D airports to
+ *  right after airspace rings", then "split the airports layer"); every
+ *  other field over all of those, as all of them were. Each selected
+ *  field's ring just under its own marks. */
+const TOWERED_PANE = { zIndex: 352 };
+const TOWERED_SELECTED_PANE = { zIndex: 351 };
+const AIRPORTS_PANE = { zIndex: 450 };
+const SELECTED_PANE = { zIndex: 445 };
+
+/** The classes of airspace whose fields are drawn by the rings. */
+const UNDER_RINGS = new Set<AirspaceClass | null>(["B", "C", "D"]);
 
 /** From this zoom in a sectional draws its airports big enough to aim a
  *  finger at; further out the targets would be a field of overlapping
@@ -100,9 +110,9 @@ const NEAR_MISS_PX = 22;
 
 /** The canvas the marks are drawn on (AirportCanvas), in the airports'
  *  pane: made once, given the marks as they change. */
-function AirportCanvasMarks({ marks }: { marks: CanvasMark[] }) {
+function AirportCanvasMarks({ marks, pane }: { marks: CanvasMark[]; pane: string }) {
   const map = useMap();
-  const layer = useMemo(() => new AirportMarksLayer("airports"), []);
+  const layer = useMemo(() => new AirportMarksLayer(pane), [pane]);
   useEffect(() => {
     layer.addTo(map);
     return () => { layer.remove(); };
@@ -414,6 +424,9 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     return [...byIdent.values()];
   }, [flight, own]);
   useEffect(() => { drawnMarks.current = marks; }, [marks]);
+  const towered = useMemo(() => marks.filter(m => UNDER_RINGS.has(m.space)), [marks]);
+  const untowered = useMemo(() => marks.filter(m => !UNDER_RINGS.has(m.space)), [marks]);
+  const selectedLow = !!selected && towered.some(m => m.ident === selected.ident);
   // The fields wearing a mark and an ident just now, the canvas's and the
   // route's own, for the VORs' tags to keep off (declutter): given as what
   // is drawn changes, not at every render; and as a flight lands, not as
@@ -428,13 +441,13 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
   return (
     <>
-      {/* Right over the airspace's rings (350, AirspaceLayer) and under
-          its altitudes (355), the VORs (360) and the course line (400),
-          at the owner's ask (2026-11-05: "move the order of class B,C,D
-          airports to right after airspace rings"); it was over all of
-          them at 450. */}
+      {/* The Class B, C and D fields by the rings, the rest over
+          everything (TOWERED_PANE, AIRPORTS_PANE). */}
+      <Pane name="towered-airports" style={TOWERED_PANE}>
+        <AirportCanvasMarks marks={towered} pane="towered-airports" />
+      </Pane>
       <Pane name="airports" style={AIRPORTS_PANE}>
-        <AirportCanvasMarks marks={marks} />
+        <AirportCanvasMarks marks={untowered} pane="airports" />
       </Pane>
       {hovers && <AirportHover fields={shown} />}
       {/* Under the marks (the airports' pane), round the field's own:
@@ -442,7 +455,11 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
           mark. Over the rings and the chart; the route's and the Class B
           fields' marks, in the marker pane (600), lie in it as these do. */}
       {selected && !ringCovered && (
-        <Pane name="selected-airport" style={SELECTED_PANE}>
+        <Pane
+          key={selectedLow ? "low" : "high"}
+          name={selectedLow ? "towered-selected-airport" : "selected-airport"}
+          style={selectedLow ? TOWERED_SELECTED_PANE : SELECTED_PANE}
+        >
           <Marker
             position={[selected.lat, selected.lon]} icon={selectionIcon()}
             interactive={false} keyboard={false}

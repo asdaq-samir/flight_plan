@@ -84,12 +84,12 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
   // sheet over the lower half of a phone's screen.
   const ringPoint = async () => page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>(".leaflet-airspace-pane canvas[data-airspace-rings]");
-    const marks = document.querySelector<HTMLCanvasElement>("canvas[data-airport-marks]");
+    const marks = [...document.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")];
     if (!canvas) return null;
     const box = document.querySelector(".leaflet-container")!.getBoundingClientRect();
     // Only the fields wearing a mark take a tap near them; the canvas
     // writes every field it knows, mark or not.
-    const fields: { x: number; y: number; chip: boolean }[] = JSON.parse(marks?.dataset.airportMarks || "[]");
+    const fields: { x: number; y: number; chip: boolean }[] = marks.flatMap(m => JSON.parse(m.dataset.airportMarks || "[]"));
     const rings: { class: string; x: number; y: number }[] = JSON.parse(canvas.dataset.airspaceRings || "[]");
     // A Class D ring is 35 px across its radius at the card's zoom on a
     // phone, so the clearance is the mark's own reach (22 px) and a little;
