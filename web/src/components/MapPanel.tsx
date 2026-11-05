@@ -478,8 +478,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // The Drawer's own say: the detent a drag let go at, and a close -- by
   // a swipe past the pill or Escape -- refused, Escape lowering it.
   const snapped = (point: Drawer.Root.SnapPoint | null, details: Drawer.Root.SnapPointChangeEventDetails) => {
+    // A close: the Drawer's reading of a drag let go nearer its closed
+    // place than the pill. Refused, it would settle back where the drag
+    // began -- a drag from half down to the pill went back up to half (the
+    // trace of a drag at CPU 4x, 2026-11-04) -- so it goes to the pill.
     if (point === null) {
       details.cancel();
+      if (sizeRef.current !== "peek") ask("peek", true);
       return;
     }
     const d = detentsRef.current;
