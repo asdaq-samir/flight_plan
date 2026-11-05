@@ -19,28 +19,31 @@ export const CARD_GAP = "mb-[1.375rem]";
 /**
  * The course's line through the cards, from each card's mark to the
  * next's, at the owner's asks (2026-11-05: "magenta connecting line can go
- * through the card to airport icons", then "can the airport icons connect
- * from the left side so it doesn't go over runway capsule", and the
- * screenshot after, the line still on the capsule's rounded end): down
- * outside the cards' left edge, 8 off it, and into each mark from its
- * left, a stub across the card's edge at the mark's middle, 32 down (the
- * card's 12 and half the mark's 36, at the mark's own type size), so
- * nothing inside the card is crossed but the stub, which the mark's disc
- * meets. Behind all the card holds (the card isolated, the line under its
- * content); the first's starts at its stub, the last's ends there.
+ * through the card to airport icons"; then, the line tried outside the
+ * cards with a stub into each mark, "I don't like the connections from the
+ * left, can we squeeze the capsule space and maybe slide them to the right
+ * so we have non overlapping space for connections on the left of
+ * runways"): down the marks' column (the card's 12 and half its 28), the
+ * card's runways and procedures starting right of it (CARD_BODY), behind
+ * all the card holds (the card isolated, the line under its content), and
+ * across the gap to the next card. The first card's starts, and the
+ * last's ends, 32 down, under its mark, on a disc of the card's fill
+ * (CardMark), as the mark's grey is see-through.
  */
 export function CardThread({ first, last }: { first: boolean; last: boolean }) {
   if (first && last) return null;
   return (
-    <>
-      <span
-        aria-hidden="true" style={ROUTE_LINE}
-        className={cn("absolute -left-[calc(0.5rem+1px)] -z-10 w-0.5", first ? "top-[calc(2rem-1px)]" : "top-0", last ? "h-[calc(2rem+1px)]" : "-bottom-[1.375rem]")}
-      />
-      <span aria-hidden="true" style={ROUTE_LINE} className="absolute top-[calc(2rem-1px)] -left-[calc(0.5rem+1px)] -z-10 h-0.5 w-[calc(1rem+2px)]" />
-    </>
+    <span
+      aria-hidden="true" style={ROUTE_LINE}
+      className={cn("absolute left-[calc(1.625rem-1px)] -z-10 w-0.5", first ? "top-8" : "top-0", last ? "h-8" : "-bottom-[1.375rem]")}
+    />
   );
 }
+
+/** A card's runways and procedures, started 20 in, 5 clear of the line
+ *  down the marks' column (CardThread), not under the ident's 38 as the
+ *  list's are: the room the capsules and pull-downs gain. */
+export const CARD_BODY = "pl-5";
 
 /** A card's mark on a disc of the card's fill, hiding the line under it. */
 export const CardMark = ({ children }: { children: ReactNode }) => <span className="grid place-items-center rounded-full bg-card">{children}</span>;

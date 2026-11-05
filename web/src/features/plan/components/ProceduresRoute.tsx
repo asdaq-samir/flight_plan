@@ -11,7 +11,7 @@ import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
 import CardIdent from "./CardIdent";
-import { CARD_GAP, CardMark, CardThread, EmptyMark, POINT_CARD } from "./routeCard";
+import { CARD_BODY, CARD_GAP, CardMark, CardThread, EmptyMark, POINT_CARD } from "./routeCard";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
@@ -868,13 +868,14 @@ export default function ProceduresRoute({
                   {end.grip && <div className="relative z-10 col-start-3 row-span-2 row-start-1 self-center">{end.grip}</div>}
                 </div>
               </div>
-              {/* A card's runways and procedures the card's whole width, at
+              {/* A card's runways and procedures nearly its whole width, at
                   the owner's ask ("we can use all card width for runway and
-                  arrival approach buttons"): the arrival and the approach
-                  then fit on the runway's line. */}
-              <CollapsibleContent className={cn(!asCards && "pl-[2.375rem]")}>{partBody(first)}</CollapsibleContent>
+                  arrival approach buttons"), right of the line down its
+                  marks (CARD_BODY): the arrival and the approach then fit
+                  on the runway's line. */}
+              <CollapsibleContent className={asCards ? CARD_BODY : "pl-[2.375rem]"}>{partBody(first)}</CollapsibleContent>
             </section>
-            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={cn(!asCards && "pl-[2.375rem] pb-5")}>{partBody(parts[1])}</section>}
+            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={asCards ? CARD_BODY : "pl-[2.375rem] pb-5"}>{partBody(parts[1])}</section>}
           </li>
         </Collapsible>
       );
@@ -1635,7 +1636,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
       // a field with an arrival and an approach to add ran the nav log
       // 41 points past a phone's width (the iOS audit's "no sideways
       // scroll in a panel").
-      <div ref={line} className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="procedure-patterns">
+      <div ref={line} className="flex flex-wrap items-center gap-x-2 gap-y-2" data-testid="procedure-patterns">
         {/* Still the group's choice to a screen reader, picked: the same
             stock ToggleGroup as the open line's, with the one runway in it,
             so VoiceOver says the same group and choice folded or open. A
