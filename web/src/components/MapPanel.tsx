@@ -475,7 +475,13 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         tellPage(target);
       }
       if (headBand) setHeadHeight(headBand.offsetHeight);
-      if (footNode) setFootHeight(footNode.offsetHeight);
+      if (footNode) {
+        // Measured at rest at the size it came to: half's own, or the
+        // other two's.
+        const at = target === "half" ? "half" : "other";
+        const h = footNode.offsetHeight;
+        setFootHeights(was => (was[at] === h ? was : { ...was, [at]: h }));
+      }
     }, seconds * 1000 + 40);
   }, [panel, currentHeight, place, insetsFor, tellPage, headBand, footNode]);
   const ask = useCallback((target: PanelState, now = false) => settle(target, true, now), [settle]);
