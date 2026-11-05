@@ -1,4 +1,27 @@
 # syntax=docker/dockerfile:1
+# >>> vfr-native: the same in every image that imports vfr, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. vfr's Rust
+# extension (native/py, over wingtip-engine in native/engine), which vfr
+# imports at module level since the shared engine (2026-11-03): built
+# here, with Rust copied in from its own image, so the image carries the
+# wheel and none of the toolchain. The stage is the same text in each
+# Dockerfile so that BuildKit's cache key is the same: one bake of every
+# image compiles it once, and a commit that leaves native/ alone takes
+# it from the registry's cache.
+FROM python:3.13-slim AS native
+COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
+COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
+ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev
+RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
+COPY native /native
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
+# <<< vfr-native
+
 FROM python:3.13-slim
 
 WORKDIR /workspace
@@ -35,11 +58,15 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirement
 COPY src/requirements.txt src/
 COPY docker/requirements-ml.txt docker/
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-ml.txt
+# The engine's wheel from the native stage above, mounted rather than
+# copied, so no layer keeps it.
+RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
+    pip install --no-cache-dir --no-deps /tmp/wheels/*.whl
 # The build fails here if a package the notebooks and vfr import is
 # missing, rather than a notebook cell later. This image carries no
 # source (compose mounts the checkout), so it is the packages alone:
 # vfr's own list, then the notebooks'.
-RUN python -B -c "import numpy, pandas, requests, pyarrow.parquet, shapely.ops, shapefile, pyproj, scipy.spatial, pygeomag, astral, sklearn, joblib, matplotlib, PIL, folium, notebook, transformers, sentence_transformers, torch, tensorflow, pyspark.ml"
+RUN python -B -c "import vfr_native, numpy, pandas, requests, pyarrow.parquet, shapely.ops, shapefile, pyproj, scipy.spatial, pygeomag, astral, sklearn, joblib, matplotlib, PIL, folium, notebook, transformers, sentence_transformers, torch, tensorflow, pyspark.ml"
 
 # Non-root, matching every other image built from this same
 # python:3.13-slim base (Dockerfile.processing, Dockerfile.training,

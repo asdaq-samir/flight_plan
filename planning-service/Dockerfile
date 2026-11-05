@@ -1,10 +1,14 @@
 # syntax=docker/dockerfile:1
 
-# vfr's Rust extension (native/py, over wingtip-engine in native/engine):
-# route options' straight lines, the airspace at a point and the cycle
-# pack, which the planner imports and cannot start without.
-# Built here, with Rust copied in from its own image, so the image the
-# planner runs carries the wheel and none of the toolchain.
+# >>> vfr-native: the same in every image that imports vfr, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. vfr's Rust
+# extension (native/py, over wingtip-engine in native/engine), which vfr
+# imports at module level since the shared engine (2026-11-03): built
+# here, with Rust copied in from its own image, so the image carries the
+# wheel and none of the toolchain. The stage is the same text in each
+# Dockerfile so that BuildKit's cache key is the same: one bake of every
+# image compiles it once, and a commit that leaves native/ alone takes
+# it from the registry's cache.
 FROM python:3.13-slim AS native
 COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
 COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
@@ -17,6 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
 COPY native /native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
+# <<< vfr-native
 
 FROM python:3.13-slim
 
@@ -42,8 +47,10 @@ RUN useradd -m appuser && mkdir -p /workspace/data && chown appuser:appuser /wor
 COPY src/requirements.txt src/requirements-charts.txt /workspace/src/
 COPY planning-service/requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
-COPY --from=native /wheels /tmp/wheels
-RUN pip install --no-cache-dir --no-deps /tmp/wheels/*.whl && rm -rf /tmp/wheels
+# The engine's wheel from the native stage above, mounted rather than
+# copied, so no layer keeps it.
+RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
+    pip install --no-cache-dir --no-deps /tmp/wheels/*.whl
 
 COPY planning-service/app ./app
 COPY src /workspace/src

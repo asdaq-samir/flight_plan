@@ -13,8 +13,12 @@ Wingtip's Rust, in four crates:
   read from bytes the caller maps.
 - `py/` (`vfr_native`): the engine as vfr imports it, through PyO3. It
   only carries arrays and mapped files across; every figure is the
-  engine's. The planner's image builds it (planning-service/Dockerfile)
-  and cannot start without it.
+  engine's. vfr imports it at module level, so every image that copies
+  src/ builds it: the planner, the pipeline stages, ML, both Airflow
+  images and both agents, each with the same vfr-native stage as
+  docker/Dockerfile.native (tests/test_dockerfiles.py keeps the copies
+  the same, so the engine compiles once per bake and comes from cache
+  after). A new image that reads src/ needs the stage too.
 
 - The engine also reads an ATC clearance heard into its items and a call
   to us by its call sign (`clearance.rs`, the web's lib/clearance and
