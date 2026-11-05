@@ -1,8 +1,5 @@
-import { ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plane, Plus } from "lucide-react";
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { ChevronRight, CircleMinus, House, ListFilter, Plane, Plus } from "lucide-react";
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { AircraftKind } from "../lib/aircraftKind";
 import { cn } from "cn";
@@ -11,14 +8,11 @@ import { colourOf } from "../lib/map/flightCategory";
 import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
 import { holdOpenCard } from "../lib/openCards";
-import { SwipeToDelete } from "./SwipeToDelete";
-import { SortItem, useSwipeRow } from "./swipeRow";
-import { placeLink } from "../lib/flightLink";
+import { useSwipeRow } from "./swipeRow";
 import { useAway } from "../lib/useAway";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import PullDown from "./PullDown";
-import { ListGroup, ListRow } from "./GroupedList";
 import IconButton from "./IconButton";
 import CloseButton from "./CloseButton";
 import { airportQuery } from "../lib/queryClient";
@@ -271,161 +265,6 @@ export function RemoveMinus({ label, onClick, testId }: { label: string; onClick
     <IconButton label={label} className="-ml-1.5 text-destructive" onClick={row ? row.reveal : onClick} data-testid={testId}>
       <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
     </IconButton>
-  );
-}
-
-/** The rows a list's handles drag: dnd-kit's sortable (as the route's
- *  stops are, RouteBox), round the ListGroup that draws them, each row a
- *  `SortableRow` -- a drag by the handle, the list making room under it,
- *  VoiceOver told where it is, and the move made once, at the drop. */
-export function SortableRows({ ids, onMove, children }: {
-  ids: string[];
-  onMove: (from: number, to: number) => void;
-  children: ReactNode;
-}) {
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-  return (
-    <DndContext
-      sensors={sensors} collisionDetection={closestCenter}
-      onDragEnd={({ active, over }) => {
-        if (!over || active.id === over.id) return;
-        const from = ids.indexOf(`${active.id}`), to = ids.indexOf(`${over.id}`);
-        if (from >= 0 && to >= 0) onMove(from, to);
-      }}
-    >
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
-    </DndContext>
-  );
-}
-
-const SortHandle = createContext<{
-  ref: (node: HTMLElement | null) => void; attributes: DraggableAttributes; listeners: DraggableSyntheticListeners;
-} | null>(null);
-
-/** One of a `SortableRows`' rows, lifted over the others while dragged. */
-export function SortableRow({ id, children }: { id: string; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
-  // The row's own box is what moves (SwipeToDelete's, by SortItem), not a
-  // box round it: wrapped, each row was the first and the last of its own,
-  // and lost the reach over the group's gaps that a list's rows have, a
-  // band above and below every Favorite that a tap did nothing on (the
-  // owner's screenshot, 2026-10-28).
-  const item = useMemo(() => ({
-    ref: setNodeRef, style: { transform: CSS.Translate.toString(transform), transition },
-    className: cn(isDragging && "relative z-10 bg-card shadow-lg"),
-  }), [setNodeRef, transform, transition, isDragging]);
-  return (
-    <SortItem.Provider value={item}>
-      <SortHandle.Provider value={{ ref: setActivatorNodeRef, attributes, listeners }}>{children}</SortHandle.Provider>
-    </SortItem.Provider>
-  );
-}
-
-/** The handle after a row being edited, in a `SortableRow`: dragged, its
- *  row goes with it (dnd-kit); and the arrow keys a place at a time, as
- *  they did, besides dnd-kit's own Space to lift and drop. */
-export function MoveHandle({ label, index, count, onMove }: {
-  label: string;
-  index: number;
-  count: number;
-  onMove: (from: number, to: number) => void;
-}) {
-  const sort = useContext(SortHandle);
-  return (
-    <IconButton
-      label={label} className="touch-none"
-      {...sort?.attributes} {...sort?.listeners} ref={sort?.ref}
-      onKeyDown={e => {
-        if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); return; }
-        if (e.key === "ArrowDown" && index < count - 1) { e.preventDefault(); onMove(index, index + 1); return; }
-        sort?.listeners?.onKeyDown?.(e);
-      }}
-    >
-      <GripVertical className="size-5 text-muted-foreground" />
-    </IconButton>
-  );
-}
-
-/**
- * Favorites in full, as Maps' own list: Home, which a tap changes
- * through the search bar, and the kept airports, which a tap opens --
- * and with Edit, a minus before each to let it go and a handle after
- * each to drag it up or down the list (or move it with the arrow keys).
- * Add a Favorite asks the search bar for one more.
- */
-export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, onRemoveHome, onRemove, onMove, onAdd }: {
-  home: RecentAirport | null;
-  favorites: RecentAirport[];
-  onBack: () => void;
-  onOpen: (airport: RecentAirport) => void;
-  onChangeHome: () => void;
-  onRemoveHome: () => void;
-  onRemove: (airport: RecentAirport) => void;
-  onMove: (from: number, to: number) => void;
-  onAdd: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  return (
-    <div className="space-y-6" data-testid="favorites-list">
-      {/* Every list's head (ListPageHead), where this was a copy of it. */}
-      <ListPageHead
-        title="Favorites" backLabel="Back to the search" onBack={onBack} testId="favorites-page"
-        action={<EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="favorites-edit" />}
-      />
-      <ListGroup title="Home">
-        {!home ? (
-          <ListRow media={<Plus className="size-5" />} title="Add Home" onClick={onChangeHome} data-testid="favorites-home" />
-        ) : (
-          // Taken off as every kept list's rows are: a swipe to the left, or
-          // Edit's minus bringing out the Delete (SwipeToDelete).
-          <SwipeToDelete label={`Remove ${home.ident} as Home`} onDelete={onRemoveHome} share={placeLink(home)}>
-            {editing ? (
-              <ListRow
-                media={<RemoveMinus label={`Remove ${home.ident} as Home…`} testId="favorites-home-remove" />}
-                title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
-                description={home.municipality ?? undefined}
-              />
-            ) : (
-              <ListRow
-                media={<Mark icon={<House />} className="bg-teal-600 text-white" />} chevron
-                title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
-                description={home.municipality ?? undefined} onClick={onChangeHome} data-testid="favorites-home"
-              />
-            )}
-          </SwipeToDelete>
-        )}
-      </ListGroup>
-      <SortableRows ids={favorites.map(a => a.ident)} onMove={onMove}>
-      <ListGroup title="Airports">
-        {favorites.length === 0 && <ListRow muted title="A star on an airport's card adds it here" />}
-        {favorites.map((a, index) => (
-          <SortableRow key={a.ident} id={a.ident}>
-          <SwipeToDelete label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)} share={placeLink(a)}>
-            {editing ? (
-              <ListRow
-                media={<RemoveMinus label={`Remove ${a.ident} from Favorites…`} />}
-                title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-                description={a.municipality ?? undefined}
-              >
-                <MoveHandle label={`Move ${a.ident}`} index={index} count={favorites.length} onMove={onMove} />
-              </ListRow>
-            ) : (
-              <ListRow
-                media={<KeptMark airport={a} />} chevron
-                title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-                description={a.municipality ?? undefined} onClick={() => onOpen(a)}
-              />
-            )}
-          </SwipeToDelete>
-          </SortableRow>
-        ))}
-        <ListRow media={<Plus className="size-5" />} title="Add a Favorite" onClick={onAdd} data-testid="favorites-add" />
-      </ListGroup>
-      </SortableRows>
-    </div>
   );
 }
 

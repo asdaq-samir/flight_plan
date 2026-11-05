@@ -51,7 +51,7 @@ import { useCardTitle, useConsoleOpen, usePanelDragging } from "../../components
 import { CardHead } from "../../components/PanelCard";
 import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
-import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
+import { FavoriteStrip } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import type { FitInputs, ProcedureAirport, ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
@@ -61,10 +61,9 @@ import { holdsOf, holdsParam, type Hold } from "../../lib/holds";
 import { FIELD_LIST_KEYS, fieldListParams, fieldListsOf, prunedFieldLists, renamedFieldLists } from "../../lib/fieldLists";
 import { picksOf, planHrefOf, recentHrefOf } from "../../lib/flightLink";
 import { runwayNumber } from "../../lib/pattern";
-import NearestCard, { NearestStrip } from "./components/NearestCard";
+import { NearestStrip } from "./components/NearestStrip";
 import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
-import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import type { RouteWay } from "../../lib/map/RouteWaysLayer";
 import { gridScale, sameStops, wayTime } from "../../lib/routeWays";
@@ -78,7 +77,6 @@ import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
 import FplStrip from "./components/FplStrip";
 import { RecentRoutesPage } from "./components/RecentRoutes";
-import MiniProfile from "./components/navlog/MiniProfile";
 import ProfileCard from "./components/ProfileCard";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
@@ -267,6 +265,16 @@ const LANDED_NM = 3;
 /** An approach the pilot's instructor set them, opened from their
  *  Checkride page (`?lesson=12`): its own chunk, as the lesson's is. */
 const AssignedLesson = lazy(() => import("./components/AssignedLesson"));
+// The Favorites in full, airports' and airplanes', when one is opened:
+// their drag to reorder (dnd-kit, SortableRows) is kept out of the first
+// load (scripts/first-load.mjs's budget, 2026-11-05).
+const FavoritesList = lazy(() => import("../../components/FavoritesList"));
+const AircraftFavoritesList = lazy(() => import("./components/AircraftFavoritesList"));
+// The route from the side, drawn only in the Profile's card: out of the
+// first load as the lists above are.
+const MiniProfile = lazy(() => import("./components/navlog/MiniProfile"));
+// Nearest's list in full, when it is opened; its strip is the pill's.
+const NearestCard = lazy(() => import("./components/NearestCard"));
 
 const PLANNER_TABS: BarTab<PanelTab>[] = [
   // FPL first and Aircraft third, swapped back at the owner's ask ("Swap
@@ -2623,7 +2631,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     <Suspense fallback={<div className="h-56" />}>
       <AltitudeProfile
         nav={s.nav} legs={s.legs} ends={course}
-        chart={(preview, scaleTop) => <MiniProfile ends={course} selected={selected} legs={s.legs} preview={preview} scaleTop={scaleTop} ruler />}
+        chart={(preview, scaleTop) => <Suspense fallback={null}><MiniProfile ends={course} selected={selected} legs={s.legs} preview={preview} scaleTop={scaleTop} ruler /></Suspense>}
         corner={(
           <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
             <Play className="size-5" />
@@ -3087,11 +3095,13 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         {opened.includes("aircraft") && (
           <TabKept away={cardUp || tab !== "aircraft"}>{flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
             <TabPage testId="aircraft-favorites">
-              <AircraftFavoritesList
-                onBack={closeList} onOpen={hex => selectFlight(hex)}
-                onChangeMine={() => { closeList(); addFromPill("mine"); }}
-                onAdd={() => { closeList(); addFromPill("airplane"); }}
-              />
+              <Suspense fallback={null}>
+                <AircraftFavoritesList
+                  onBack={closeList} onOpen={hex => selectFlight(hex)}
+                  onChangeMine={() => { closeList(); addFromPill("mine"); }}
+                  onAdd={() => { closeList(); addFromPill("airplane"); }}
+                />
+              </Suspense>
             </TabPage>
           ) : aircraftRecentsOpen && !aircraftTyped ? (
             // Kept open under an airplane's card opened from it, as the
@@ -3104,17 +3114,19 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           )))}</TabKept>
         )}
         {!cardUp && tab !== "aircraft" && nearOpen && (
-          <NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} onBack={closeNearest} />
+          <Suspense fallback={null}><NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} onBack={closeNearest} /></Suspense>
         )}
         {opened.includes("airport") && (
           <TabKept away={cardUp || tab !== "airport" || nearOpen}>{favoritesOpen ? (
             <TabPage testId="favorites-page">
-              <FavoritesList
-                home={home} favorites={favorites}
-                onBack={closeList} onOpen={airport => selectPlace(airport.ident)}
-                onChangeHome={() => askFor("home")} onRemoveHome={() => setHomeAirport(null)}
-                onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
-              />
+              <Suspense fallback={null}>
+                <FavoritesList
+                  home={home} favorites={favorites}
+                  onBack={closeList} onOpen={airport => selectPlace(airport.ident)}
+                  onChangeHome={() => askFor("home")} onRemoveHome={() => setHomeAirport(null)}
+                  onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
+                />
+              </Suspense>
             </TabPage>
           ) : airportRecentsOpen && !query ? (
             <TabPage testId="airport-recents-list">
