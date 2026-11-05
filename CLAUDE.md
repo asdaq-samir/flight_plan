@@ -74,7 +74,7 @@ shell per app round it (the owner, 2026-11-03).
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
 | `planning-service/` | `ruff check app tests && pytest tests/` |
 | `src/vfr`, `tests/` | `ruff check src/vfr tests && pytest tests/` (repo root) |
-| `native/` (Rust, `vfr_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); the planner's image builds it, and the planner won't start without it |
+| `native/` (Rust, `vfr_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same vfr-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
 | `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |

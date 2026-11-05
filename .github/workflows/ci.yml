@@ -419,33 +419,41 @@ jobs:
             docs:
               - springboot-app/**
               - infra/lambda-retrain-trigger/**
-            # The images, each by what its Dockerfile reads.
+            # The images, each by what its Dockerfile reads: native/** for
+            # every one with the vfr-native stage (docker/Dockerfile.native).
             ml:
               - docker/Dockerfile.ml
               - docker/requirements-ml*.txt
               - src/**
+              - native/**
             pipeline-processing:
               - docker/Dockerfile.processing
               - docker/requirements-processing.txt
               - src/**
+              - native/**
             pipeline-training:
               - docker/Dockerfile.training
               - docker/requirements-training.txt
               - src/**
+              - native/**
             airflow:
               - docker/Dockerfile.airflow
               - airflow/**
               - src/**
+              - native/**
             airflow-aws:
               - docker/Dockerfile.airflow.aws
               - airflow/dags/vfr_pipeline_aws_dag.py
               - src/**
+              - native/**
             nav-log-agent:
               - nav-log-agent/**
               - src/**
+              - native/**
             crewai-agent:
               - crewai-agent/**
               - src/**
+              - native/**
             planning-service:
               - planning-service/**
               - src/**
