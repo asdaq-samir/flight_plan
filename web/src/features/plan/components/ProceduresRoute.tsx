@@ -131,7 +131,7 @@ function NewStopCard({ via, onCommit, onCancel }: { via: Detour[] | null; onComm
           <CardMark><EmptyMark /></CardMark>
         </span>
         <div className="flex min-w-0 flex-1 pr-1.5">
-          <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" autoFocus wide onCommit={onCommit} onEmpty={onCancel} />
+          <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" focused wide onCommit={onCommit} onEmpty={onCancel} />
         </div>
       </div>
       {/* Fly via's ways round, on the card between the points they go

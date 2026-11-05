@@ -823,6 +823,8 @@ def test_sources_status_names_each_source_and_says_which_is_served_on(monkeypatc
     monkeypatch.setitem(weather._DATASETS, "winds-06", weather._Record(at=100.0, data={}, attempted=200.0, error=failed, until=900.0))
     monkeypatch.setitem(weather._DATASETS, "metars", weather._Record(at=150.0, data={}, attempted=150.0, error=None, until=float("inf")))
     by_name = {s["name"]: s for s in weather.sources_status()}
-    assert by_name["Winds aloft (6-hour forecast)"] == {"name": "Winds aloft (6-hour forecast)", "fetched_at": 100.0, "kept_until": 900.0, "failing": True}
+    assert by_name["Winds aloft (6-hour forecast)"] == {
+        "name": "Winds aloft (6-hour forecast)", "fetched_at": 100.0, "kept_until": 900.0, "failing": True,
+    }
     assert by_name["METARs"] == {"name": "METARs", "fetched_at": 150.0, "kept_until": None, "failing": False}
     assert by_name["TAFs"]["fetched_at"] is None and not by_name["TAFs"]["failing"]

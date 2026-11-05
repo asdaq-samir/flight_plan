@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { cn } from "cn";
 import { TEXT } from "../../../lib/text";
 
@@ -13,7 +13,7 @@ import { TEXT } from "../../../lib/text";
  * (ProceduresRoute), there being no route box there ("I want to
  * completely get rid of the route box for in the plan").
  */
-export default function CardIdent({ value, label, onCommit, testId, bold = true, placeholder, autoFocus = false, wide = false, onEmpty }: {
+export default function CardIdent({ value, label, onCommit, testId, bold = true, placeholder, focused = false, wide = false, onEmpty }: {
   value: string;
   label: string;
   onCommit: (ident: string) => void;
@@ -21,13 +21,17 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
   bold?: boolean;
   /** Its words while empty, in their own case. */
   placeholder?: string;
-  autoFocus?: boolean;
+  /** Focused as it is drawn: a stop being added, typed into at once. By a
+   *  ref, which runs as the input is put in, not the autoFocus attribute
+   *  (jsx-a11y/no-autofocus, CI's lint); the same where it is asked for. */
+  focused?: boolean;
   /** The rest of the card's line, not the ident's width. */
   wide?: boolean;
   /** Left empty: a stop being added, given up. */
   onEmpty?: () => void;
 }) {
   const [draft, setDraft] = useState(value);
+  const focusIn = useCallback((el: HTMLInputElement | null) => el?.focus(), []);
   // Its ident again where the route changed it from elsewhere.
   const [was, setWas] = useState(value);
   if (was !== value) {
@@ -46,7 +50,7 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
   // screenshot, 2026-11-05).
   const box = (
     <input
-      value={draft} aria-label={label} data-testid={testId} placeholder={placeholder} autoFocus={autoFocus}
+      value={draft} aria-label={label} data-testid={testId} placeholder={placeholder} ref={focused ? focusIn : undefined}
       autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="done"
       size={1}
       onChange={e => setDraft(e.target.value.toUpperCase())}
