@@ -190,7 +190,7 @@ export async function openSetup(page: Page) {
 }
 
 /** One of Setup's Controls set from its menu: its tile, then the item. */
-export async function pickControl(page: Page, control: "alerts-mode" | "nav-bar-select" | "theme-select", item: string) {
+export async function pickControl(page: Page, control: "nav-bar-select" | "theme-select", item: string) {
   await page.getByTestId("setup-page").getByTestId(control).click();
   await page.getByTestId(item).click();
 }
