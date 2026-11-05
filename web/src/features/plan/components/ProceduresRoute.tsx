@@ -90,7 +90,23 @@ export interface RouteListEdit {
   onMove: (from: number, to: number) => void;
   /** The route's box opened to type a stop in at this place. */
   onAddAt: (index: number) => void;
+  /** Each point a card of its own, easier to see as it is dragged (In the
+   *  Plan, the owner's pick of the canvas's option 3 as cards). */
+  cards?: boolean;
+  /** A point changed, from its menu's Change: the route's box opened. */
+  onChange?: () => void;
 }
+
+/** A point's card, where the list is cards (RouteListEdit's `cards`):
+ *  dimmed while it is dragged, ringed in the tint while one is held over
+ *  it (PointGrip's data-dragging and data-over). */
+const POINT_CARD = cn(
+  "rounded-2xl bg-card py-3 pr-1.5 pl-3 shadow-sm ring-1 ring-black/5 dark:ring-white/10",
+  "has-[[data-dragging]]:opacity-40 has-[[data-over]]:ring-2 has-[[data-over]]:ring-tint",
+);
+/** The course's line from a card to the next, in the gap between them,
+ *  through the marks' column (the card's 12 and half its 28). */
+const CARD_LINK = "mb-[1.375rem] after:absolute after:top-full after:left-[calc(1.625rem-1px)] after:h-[1.375rem] after:w-0.5 after:bg-(--course) after:content-['']";
 
 export interface ProcedureAirport {
   ident: string;
@@ -499,6 +515,7 @@ export default function ProceduresRoute({
   // `altitudes`), else a waypoint's cruise to it, a field's elevation --
   // and its menu. `to`, a point flown to: Direct to it and its altitude
   // set there; `stop`, one the route's points can lose.
+  const cards = !!edit?.cards;
   // A field's place among the typed points, for its grip and Add a Stop
   // After: the departure first, the destination last (a round trip's
   // field is both, by its role), a stop its own place between them.
@@ -551,6 +568,7 @@ export default function ProceduresRoute({
           } : undefined}
           // Not after the destination: what follows it is a new
           // destination, the route box's own (its end).
+          onChange={edit?.onChange && typed ? edit.onChange : undefined}
           onAddAfter={edit && at.index !== undefined && at.index < routePoints.length - 1 && !stopsFull ? () => edit.onAddAt(at.index! + 1) : undefined}
           onRemove={at.stop && typed ? () => onRemove(ident) : undefined}
         />
@@ -702,9 +720,9 @@ export default function ProceduresRoute({
         // its content. A stop's second part, in a section of its own, is
         // shown with it (a Collapsible has one content).
         <Collapsible key={key} asChild open={opened} onOpenChange={next => toggleField(key, a.ident, next)}>
-          <li className="relative" data-testid="route-field" data-ident={a.ident}>
-            {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
-            <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && "pb-5")}>
+          <li className={cn("relative", cards && POINT_CARD, cards && !last && CARD_LINK)} data-testid="route-field" data-ident={a.ident}>
+            {!last && !cards && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
+            <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && !cards && "pb-5")}>
               {/* The airport's lines: a tap anywhere on them -- its symbol, its
                   ident, its fuel, its wind, its time -- opens it, at the
                   owner's ask ("it should expand when tapped anywhere on the
@@ -782,7 +800,7 @@ export default function ProceduresRoute({
               </div>
               <CollapsibleContent className="pl-[2.375rem]">{partBody(first)}</CollapsibleContent>
             </section>
-            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className="pb-5 pl-[2.375rem]">{partBody(parts[1])}</section>}
+            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={cn("pl-[2.375rem]", !cards && "pb-5")}>{partBody(parts[1])}</section>}
           </li>
         </Collapsible>
       );
@@ -926,7 +944,7 @@ export default function ProceduresRoute({
         // Direct to in the line's own colour: it says how the leg is
         // flown, and only what is tapped is in the tint.
         sub={end?.direct ? <span className="font-semibold">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "airport" in row && isPosition(row.airport.ident) ? placeOfPoint(row.airport.ident) : "Departure"}${along(row)}`}
-        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu} grip={end?.grip}
+        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu} grip={end?.grip} card={cards}
       />,
     );
     if (to) steps.push(holdRow(row.airport.ident));
@@ -1177,10 +1195,12 @@ function RouteListDrag({ on, children }: { on?: (from: number, to: number) => vo
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setLifted(null)}>
       {children}
       <DragOverlay dropAnimation={null}>
+        {/* The point lifted off the list as a card the row's size, tilted
+            a little and ringed in the tint, as the canvas drew it. */}
         {lifted && (
-          <span className={cn("inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3 font-semibold shadow-lg ring-1 ring-black/10", TEXT.row)}>
-            <GripVertical className="size-4 text-tint" aria-hidden />{pointName(lifted)}
-          </span>
+          <div className={cn("flex h-full max-h-16 w-full -rotate-[1.5deg] items-center justify-between gap-2 rounded-2xl bg-card pr-3 pl-4 font-semibold shadow-xl ring-2 ring-tint", TEXT.row)}>
+            {pointName(lifted)}<GripVertical className="size-5 text-tint" aria-hidden />
+          </div>
         )}
       </DragOverlay>
     </DndContext>
@@ -1196,8 +1216,18 @@ function PointGrip({ ident, index }: { ident: string; index: number }) {
   const drop = useDroppable({ id });
   return (
     <button
-      type="button" ref={node => { drag.setNodeRef(node); drop.setNodeRef(node); }} {...drag.attributes} {...drag.listeners}
+      // The grip starts the drag; what is dragged and dropped on is the
+      // point's whole row, its card where the list is cards, so the one
+      // lifted is as big as it is and a drop anywhere on another counts.
+      type="button" {...drag.attributes} {...drag.listeners}
+      ref={node => {
+        drag.setActivatorNodeRef(node);
+        const row = node?.closest("li") ?? node;
+        drag.setNodeRef(row);
+        drop.setNodeRef(row);
+      }}
       aria-label={`Move ${pointName(ident)}`} data-testid="route-grip" data-ident={ident}
+      data-dragging={drag.isDragging ? "" : undefined} data-over={drop.isOver && !drag.isDragging ? "" : undefined}
       onPointerDown={e => e.stopPropagation()}
       className={cn(
         "relative grid size-8 shrink-0 touch-none place-items-center rounded-full text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -1209,7 +1239,7 @@ function PointGrip({ ident, index }: { ident: string; index: number }) {
   );
 }
 
-function Step({ mark, title, sub, figures, menu, grip, last, field = false, testId, icon, children }: {
+function Step({ mark, title, sub, figures, menu, grip, card = false, last, field = false, testId, icon, children }: {
   /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
   /** After its name: the fuel in the tanks there (FuelGauge). */
@@ -1223,6 +1253,8 @@ function Step({ mark, title, sub, figures, menu, grip, last, field = false, test
   menu?: (face: ReactNode) => ReactNode;
   /** Its grip, where the list changes the route (PointGrip). */
   grip?: ReactNode;
+  /** A card of its own, as the fields' are where the list is cards. */
+  card?: boolean;
   last: boolean;
   field?: boolean;
   testId?: string;
@@ -1230,10 +1262,10 @@ function Step({ mark, title, sub, figures, menu, grip, last, field = false, test
 }) {
   const Name = field ? "h3" : "span";
   return (
-    <li className="relative flex gap-2.5" data-testid={testId}>
-      {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
+    <li className={cn("relative flex gap-2.5", card && POINT_CARD, card && !last && CARD_LINK)} data-testid={testId}>
+      {!last && !card && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
       <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{menu ? menu(mark) : mark}</div>
-      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
+      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", !card && (field ? "pb-5" : "pb-4"))}>
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="flex min-w-0 items-center gap-1">

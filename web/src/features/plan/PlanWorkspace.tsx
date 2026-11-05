@@ -170,6 +170,7 @@ const SaveFlightButton = fromRoutePanel("SaveFlightButton");
 const ReviewAskItem = fromRoutePanel("ReviewAskItem");
 const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
 const RouteBox = fromRoutePanel("RouteBox");
+const RouteEnds = fromRoutePanel("RouteEnds");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
 const AltitudeGroup = fromRoutePanel("AltitudeGroup");
@@ -1491,7 +1492,13 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     if (!isEnd(points[0]!) || !isEnd(points.at(-1)!) || points.some((p, i) => i > 0 && p === points[i - 1])) return;
     setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
   }, [routePoints, waypointStops, setRoute]);
-  const listEdit = useMemo(() => ({ onMove: movePoint, onAddAt: typeStopAt }), [movePoint, typeStopAt]);
+  const listEdit = useMemo(() => ({
+    onMove: movePoint, onAddAt: typeStopAt,
+    // In the Plan, the points as cards (ProceduresRoute), and a point
+    // changed from its card's menu in the box, there being no head to
+    // open it from.
+    cards: routeEdit === "plan", onChange: routeEdit === "plan" ? () => setRouteOpen(true) : undefined,
+  }), [movePoint, typeStopAt, routeEdit]);
   // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
   // routes planned, Aircraft's Favorites and Recents -- the address's
   // (`list`, useAddressCards), kept for their tab as its cards are.
@@ -3274,25 +3281,20 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // with no route either, the head folded (the owner, 2026-11-05).
     route: strip ? undefined : routeFolded ? (
       <div className="flex min-w-0 flex-1 flex-col gap-2.5" data-testid="route-folded">
-        {routeEdit === "plan" ? (
-          <div className="flex min-w-0 items-start gap-2 px-1.5">
-            <div className="flex min-w-0 flex-1 flex-col">
-              <h2 className={cn("font-semibold text-balance", TEXT.heading)} data-testid="route-title">
-                {course && wholeRoute ? (s.local ? placeName(course.departure.name, course.departure.ident)
-                  : `${placeName(course.departure.name, course.departure.ident)} to ${placeName(course.destination.name, course.destination.ident)}`)
-                  : routeWords || "New Route"}
-              </h2>
-              {course && wholeRoute && <span className={cn("truncate text-muted-foreground", TEXT.detail)}>{routeWords}</span>}
-            </div>
-            {/* With no route, Add: the box opened for its departure. */}
-            <button
-              type="button" onClick={() => setRouteOpen(true)} data-testid="route-edit"
-              className={cn("relative mt-0.5 shrink-0 font-semibold text-tint outline-none after:absolute after:-inset-2.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.row)}
-            >
-              {routeWords ? "Edit" : "Add"}
-            </button>
-          </div>
-        ) : (
+        {/* In the Plan, the owner's pick of the canvas's option 3 as
+            cards (2026-11-05): until the route is whole, its departure
+            and destination as two cards and nothing else -- no airplane,
+            no altitude; once it is, those over the plan, whose Routes
+            and cards follow (ProceduresRoute), with no title. */}
+        {routeEdit === "plan" ? (!wholeRoute && (
+          <Suspense fallback={<div className="h-[7.75rem]" />}>
+            <RouteEnds
+              dep={planned.dep} dest={planned.dest}
+              onDep={dep => setRoute({ dep, stops: planned.stops, dest: planned.dest })}
+              onDest={dest => setRoute({ dep: planned.dep, stops: planned.stops, dest })}
+            />
+          </Suspense>
+        )) : (
           // The box's own field, folded to its route, the whole line the
           // tap that opens it.
           <button
@@ -3312,7 +3314,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
             )}
           </button>
         )}
-        <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>
+        {(routeEdit !== "plan" || wholeRoute) && <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>}
       </div>
     ) : (
       <div className="min-w-0 flex-1">
