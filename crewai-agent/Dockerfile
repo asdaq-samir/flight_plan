@@ -8,7 +8,7 @@
 # Dockerfile so that BuildKit's cache key is the same: one bake of every
 # image compiles it once, and a commit that leaves native/ alone takes
 # it from the registry's cache.
-FROM python:3.13-slim AS native
+FROM python:3.14-slim AS native
 COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
 COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
 ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
@@ -22,6 +22,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
 # <<< wingtip-native
 
+# Python 3.13, not the 3.14 the other images use: crewai declares
+# requires-python <3.14 (1.15.22 and the newest release alike). Move up
+# once crewai allows 3.14; the ci.yml test-crewai-agent job matches this.
+# The native stage above is 3.14 like every other image's; its abi3 wheel
+# installs on 3.13.
 FROM python:3.13-slim
 
 WORKDIR /workspace/crewai-agent

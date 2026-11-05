@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml)
 
-![Python](https://img.shields.io/badge/Python%203.13-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)

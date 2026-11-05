@@ -88,7 +88,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       # wingtip's Rust extension (native/), which wingtip.route_options and
@@ -230,7 +230,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       # The planner imports wingtip's Rust extension (native/), as in the test job.
@@ -250,7 +250,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
@@ -271,7 +271,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
       - run: uv pip install --system -r requirements-dev.txt
@@ -300,7 +300,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.13"   # crewai requires <3.14; crewai-agent/Dockerfile matches
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
@@ -1465,7 +1465,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7
         with:
-          go-version: "1.25"
+          go-version: "1.27"
       - name: godoc (lambda-retrain-trigger)
         working-directory: infra/lambda-retrain-trigger
         run: |
@@ -1495,7 +1495,7 @@ jobs:
       - uses: ./.github/actions/hub-mirror
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install cfn-lint==1.57.2
       - run: cfn-lint infra/cloudformation/template.yaml
       - run: shellcheck infra/server/*.sh

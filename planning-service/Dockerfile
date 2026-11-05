@@ -9,7 +9,7 @@
 # Dockerfile so that BuildKit's cache key is the same: one bake of every
 # image compiles it once, and a commit that leaves native/ alone takes
 # it from the registry's cache.
-FROM python:3.13-slim AS native
+FROM python:3.14-slim AS native
 COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
 COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
 ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
 # <<< wingtip-native
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 WORKDIR /workspace/planning-service
 

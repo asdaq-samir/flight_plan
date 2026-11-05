@@ -10,7 +10,7 @@
 # exactly the kind of silent version skew that file's own comment warns
 # about for a joblib artifact -- the same risk applies to any dependency
 # this service and its callers both need to agree on. Pinned to what
-# python:3.13-slim (this service's own base image) currently resolves.
+# python:3.14-slim (this service's own base image) currently resolves.
 -r ../src/requirements-charts.txt   # wingtip's own list, charts included: this service draws them
 fastapi==0.142.2
 uvicorn[standard]==0.54.0

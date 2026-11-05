@@ -21,13 +21,13 @@ task and a LangGraph tool, unchanged.
 
 ```bash
 # The test suite and the linter, exactly what CI runs
-docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
+docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.14-slim \
   sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/wingtip tests && pytest tests/ -q"
 ```
 
 The pipeline images deliberately carry no test tooling — they mirror what
 a SageMaker Processing or Training job needs and nothing more — so tests
-run in a plain `python:3.13-slim` against `requirements-dev.txt`, plus
+run in a plain `python:3.14-slim` against `requirements-dev.txt`, plus
 the one system library (`libexpat1`) rasterio's wheel expects and the
 slim image leaves out -- without it `tests/test_charts.py` fails to import.
 

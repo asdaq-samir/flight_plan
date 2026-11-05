@@ -10,7 +10,7 @@
 # other's toolchain.
 
 # Node's LTS line, the major in .nvmrc (which CI's web job reads).
-FROM node:24-slim AS web
+FROM node:26-slim AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 # --mount=type=cache: npm's own download/extract cache, keyed by this
@@ -27,10 +27,10 @@ COPY springboot-app/openapi.json /springboot-app/openapi.json
 RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 
 # 25, not the truly-latest 26: spring-boot-maven-plugin 3.5.3's bundled
-# ASM can't yet parse a Java 26 class file (major version 70) --
-# `repackage` fails with "Unsupported class file major version 70".
-# 25 (major version 69) is the newest JDK it actually understands.
-FROM maven:3.9-eclipse-temurin-26 AS build
+# JDK 25, the same LTS the app targets (pom.xml's java.version), runs on
+# (the eclipse-temurin:25-jre stage below) and CI tests with. ASM in
+# Spring Boot's `repackage` can't parse Java 26+ class files anyway.
+FROM maven:3.9-eclipse-temurin-25 AS build
 WORKDIR /build
 COPY springboot-app/pom.xml .
 # The dependencies into the layer itself (/build/m2), not only into the

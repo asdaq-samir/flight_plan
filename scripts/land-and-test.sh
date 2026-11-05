@@ -47,7 +47,7 @@ touch_landed() {
 # session's are said and left to it.
 check() {
   local out mine
-  out=$(docker run --rm -m 3g -v "$WT":/repo -v "$LIVE/web/node_modules":/repo/web/node_modules:ro -w /repo/web node:24-slim \
+  out=$(docker run --rm -m 3g -v "$WT":/repo -v "$LIVE/web/node_modules":/repo/web/node_modules:ro -w /repo/web node:26-slim \
     sh -c 'npm run -s types >/dev/null && npx tsc --noEmit -p . --tsBuildInfoFile /tmp/tsc.info' 2>&1 | grep -v "npm notice" || true)
   [ -z "$out" ] && { echo "types: clean"; return 0; }
   # The worktree's files as they are, committed or not, and new ones.

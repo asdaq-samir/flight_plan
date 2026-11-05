@@ -243,7 +243,7 @@ services:
     # it. Read-only -- serving never writes to it.
     volumes:
       - ./data/models/chart/current:/opt/ml/chart-model:ro
-    # No curl/wget in the python:3.13-slim base -- a stdlib urllib call
+    # No curl/wget in the python:3.14-slim base -- a stdlib urllib call
     # needs neither.
     healthcheck:
       <<: *python-healthcheck

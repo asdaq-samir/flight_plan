@@ -1,6 +1,6 @@
 # Wingtip Maps Nav Log Platform
 
-![Python](https://img.shields.io/badge/Python%203.13-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
@@ -584,24 +584,24 @@ compose up ml`. Full per-notebook breakdown is in the
 # runs what CI runs, from requirements-dev.txt.
 # libexpat1 is the one system library rasterio's wheel needs that the
 # slim image leaves out.
-docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
+docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.14-slim \
   sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/wingtip tests && pytest tests/ -q"
 
 # planning-service (its own FastAPI-layer suite, separate from the one
 # above since it needs the service's own requirements on top of pytest)
-docker run --rm -v "$PWD":/w -w /w/planning-service python:3.13-slim \
+docker run --rm -v "$PWD":/w -w /w/planning-service python:3.14-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
 # model-service, nav-log-agent and crewai-agent: the same shape, each
 # from its own directory and requirements-dev.txt. nav-log-agent wants
 # the CPU torch wheel first (`pip install torch --index-url
 # https://download.pytorch.org/whl/cpu`), as its Dockerfile does.
-docker run --rm -v "$PWD":/w -w /w/model-service python:3.13-slim \
+docker run --rm -v "$PWD":/w -w /w/model-service python:3.14-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
 # Web front end (web/): typecheck plus unit tests. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
-docker run --rm -v "$PWD":/w -w /w/web node:24-slim \
+docker run --rm -v "$PWD":/w -w /w/web node:26-slim \
   sh -c "npm ci && npm run types && npx tsc --noEmit && npx vitest run"
 
 # Java (webapp). No native Maven needed, matching the rest of this

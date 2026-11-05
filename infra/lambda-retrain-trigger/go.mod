@@ -1,6 +1,6 @@
 module retrain-trigger
 
-go 1.25.14
+go 1.27.3
 
 require (
 	github.com/aws/aws-lambda-go v1.47.0

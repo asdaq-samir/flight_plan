@@ -61,7 +61,7 @@ flights, checkpoint notes).
 
 ## Running it
 
-No native Node toolchain is used. Everything runs in `node:24-slim`, the
+No native Node toolchain is used. Everything runs in `node:26-slim`, the
 image `springboot-app/Dockerfile` builds the bundle with.
 
 ```bash
@@ -69,7 +69,7 @@ image `springboot-app/Dockerfile` builds the bundle with.
 docker compose up -d --build --wait webapp   # full stack; returns once the pages answer (webapp's healthcheck)
 
 # typecheck, lint and unit tests
-docker run --rm -v "$PWD/web":/w -w /w node:24-slim \
+docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
   sh -c "npm ci && npm run types && npx tsc -b && npx eslint . && npx vitest run"
 
 # real-browser layout tests, against the running stack
@@ -116,7 +116,7 @@ docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w
   mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/checkpoints.spec.ts -g "nav log"
 
 # the checks, with their caches: seconds after the first run
-docker run --rm -v "$PWD/web":/w -w /w node:24-slim \
+docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
   sh -c "npx tsc --noEmit && npx eslint --cache --cache-location node_modules/.cache/eslint/ . && npx vitest run"
 
 # before a push: the whole suite (about four and a half minutes)

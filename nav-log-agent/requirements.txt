@@ -7,7 +7,7 @@
 # and crewai-agent/requirements.txt were the two unpinned service
 # requirements files in the repo, with no lockfile behind either, so a
 # plain rebuild could silently pull a newer langgraph/anthropic/mcp
-# between one build and the next. Pinned to what python:3.13-slim
+# between one build and the next. Pinned to what python:3.14-slim
 # currently resolves.
 langgraph==1.2.14
 anthropic==1.11.0

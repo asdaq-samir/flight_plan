@@ -8,7 +8,7 @@ description: Run the checks that cover a change in this repo, on the owner's Mac
 CLAUDE.md says what to run for each part of the repo; this says how to run it here.
 
 **Where you are running matters:**
-- **In CI (GitHub's runners):** the workflow sets up node, Python 3.13 and Java 25. Run CLAUDE.md's commands directly, after `pip install -r requirements-dev.txt` in that directory, and skip sections 3 and 4.
+- **In CI (GitHub's runners):** the workflow sets up node, Python 3.14 (3.13 for crewai-agent) and Java 25. Run CLAUDE.md's commands directly, after `pip install -r requirements-dev.txt` in that directory, and skip sections 3 and 4.
 - **On the owner's Mac:** it has no node, npm, pytest or ruff, so everything runs in a container from the repo root. Chain every step with `&&` so that one failure stops the rest. Report exit codes, never an "OK" marker found with grep: an old marker can look like a new pass.
 
 ## 1. What the change needs
@@ -25,14 +25,14 @@ CLAUDE.md says what to run for each part of the repo; this says how to run it he
 
 ## 2. Commands
 
-**Web.** These are CI's steps; node 24 matches `.nvmrc`.
+**Web.** These are CI's steps; node 26 matches `.nvmrc`.
 ```sh
-docker run --rm -v "$PWD":/repo -w /repo/web node:24-slim sh -c 'npm run -s types && npx tsc --noEmit && npx eslint . && npx vitest run'
+docker run --rm -v "$PWD":/repo -w /repo/web node:26-slim sh -c 'npm run -s types && npx tsc --noEmit && npx eslint . && npx vitest run'
 ```
 
-**Python.** This mirrors CI: Python 3.13, the directory's `requirements-dev.txt` installed with uv, and a cache volume that brings a repeat run down to under a minute. Use `-w /repo` with `ruff check src/wingtip tests`, or `-w /repo/<service>` with `ruff check app tests`. For nav-log-agent, first run `uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu`.
+**Python.** This mirrors CI: Python 3.14 (3.13 for crewai-agent), the directory's `requirements-dev.txt` installed with uv, and a cache volume that brings a repeat run down to under a minute. Use `-w /repo` with `ruff check src/wingtip tests`, or `-w /repo/<service>` with `ruff check app tests`. For nav-log-agent, first run `uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu`.
 ```sh
-docker run --rm -v "$PWD":/repo -v fp-uv-cache:/root/.cache/uv -w /repo/planning-service python:3.13-slim sh -c 'pip install -q uv && uv pip install --system -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q -p no:cacheprovider'
+docker run --rm -v "$PWD":/repo -v fp-uv-cache:/root/.cache/uv -w /repo/planning-service python:3.14-slim sh -c 'pip install -q uv && uv pip install --system -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q -p no:cacheprovider'
 ```
 The planner's OpenAPI document comes from the same container: `python -m app.openapi` in `planning-service`.
 

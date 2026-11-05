@@ -1,5 +1,5 @@
 # The developer console's Docker sidecar (docker/dev-services/server.py):
 # standard library only, so python and one file.
-FROM python:3.13-slim
+FROM python:3.14-slim
 COPY docker/dev-services/server.py /app/server.py
 CMD ["python", "-u", "/app/server.py"]

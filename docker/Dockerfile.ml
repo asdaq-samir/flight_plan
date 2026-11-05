@@ -8,7 +8,7 @@
 # Dockerfile so that BuildKit's cache key is the same: one bake of every
 # image compiles it once, and a commit that leaves native/ alone takes
 # it from the registry's cache.
-FROM python:3.13-slim AS native
+FROM python:3.14-slim AS native
 COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
 COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
 ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
@@ -22,6 +22,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
 # <<< wingtip-native
 
+# Python 3.13, not the 3.14 the other images use: TensorFlow has no stable
+# release with 3.14 wheels yet (only 2.22.0rc0), so `pip install tensorflow`
+# finds nothing on 3.14. Move up once a stable 2.22 ships. The native stage
+# above is 3.14 like every other image's; its abi3 wheel installs on 3.13.
 FROM python:3.13-slim
 
 WORKDIR /workspace
@@ -69,7 +73,7 @@ RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
 RUN python -B -c "import wingtip_native, numpy, pandas, requests, pyarrow.parquet, shapely.ops, shapefile, pyproj, scipy.spatial, pygeomag, astral, sklearn, joblib, matplotlib, PIL, folium, notebook, transformers, sentence_transformers, torch, tensorflow, pyspark.ml"
 
 # Non-root, matching every other image built from this same
-# python:3.13-slim base (Dockerfile.processing, Dockerfile.training,
+# python:3.14-slim base, bar this one and crewai-agent's (Dockerfile.processing, Dockerfile.training,
 # planning-service, model-service, nav-log-agent, crewai-agent) -- this
 # one used to run (and need --allow-root for) root specifically,
 # despite mounting the same `.:/workspace` bind mount the other two

@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 SETTINGS = ("SWIM_HOST", "SWIM_USERNAME", "SWIM_PASSWORD")
 FEEDS = ("STDDS", "FNS", "TFMS")
 #: The CA certificates the FAA's broker's certificate is checked against:
-#: the image's own (python:3.13-slim's ca-certificates).
+#: the image's own (python:3.14-slim's ca-certificates).
 TRUST_STORE = os.environ.get("SWIM_TRUST_STORE", "/etc/ssl/certs")
 #: How long to wait before connecting again, s, doubling to the most.
 RETRY_FIRST_S, RETRY_MOST_S = 10.0, 300.0
