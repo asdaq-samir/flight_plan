@@ -14,6 +14,12 @@ import { useDrawnAirports } from "./declutter";
 import { boundsAt, boxAt, boxOf, hovers, type Box } from "./view";
 import { PANNING_MS, levelOf, useAhead, useLiveZoom, type FlightStart } from "./useView";
 
+/** The panes' places among the map's own (as `style`, constants so a
+ *  render does not restyle them): the marks just over the airspace's
+ *  rings (350), the selected field's ring just under the marks. */
+const AIRPORTS_PANE = { zIndex: 352 };
+const SELECTED_PANE = { zIndex: 351 };
+
 /** From this zoom in a sectional draws its airports big enough to aim a
  *  finger at; further out the targets would be a field of overlapping
  *  circles over half a state. */
@@ -422,17 +428,21 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
   return (
     <>
-      <Pane name="airports" style={{ zIndex: 450 }}>
+      {/* Right over the airspace's rings (350, AirspaceLayer) and under
+          its altitudes (355), the VORs (360) and the course line (400),
+          at the owner's ask (2026-11-05: "move the order of class B,C,D
+          airports to right after airspace rings"); it was over all of
+          them at 450. */}
+      <Pane name="airports" style={AIRPORTS_PANE}>
         <AirportCanvasMarks marks={marks} />
       </Pane>
       {hovers && <AirportHover fields={shown} />}
-      {/* Under the marks (the airports' pane, 450), round the field's
-          own: over them, it hid the first letters of its ident beside its
-          mark. Over the course line and the chart (the overlay pane, 400);
-          the route's and the Class B fields' marks, in the marker pane
-          (600), lie in it as these do. */}
+      {/* Under the marks (the airports' pane), round the field's own:
+          over them, it hid the first letters of its ident beside its
+          mark. Over the rings and the chart; the route's and the Class B
+          fields' marks, in the marker pane (600), lie in it as these do. */}
       {selected && !ringCovered && (
-        <Pane name="selected-airport" style={{ zIndex: 445 }}>
+        <Pane name="selected-airport" style={SELECTED_PANE}>
           <Marker
             position={[selected.lat, selected.lon]} icon={selectionIcon()}
             interactive={false} keyboard={false}
