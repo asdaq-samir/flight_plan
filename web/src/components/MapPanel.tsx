@@ -628,6 +628,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
             aria-label={label}
             data-slot="map-panel" data-panel={size} {...(onPhone ? { "data-sheet": "" } : {})}
             data-capsule={restingPill || undefined}
+            // Its three heights, for a probe or a test to read.
+            data-detents={`${detents.peek},${detents.half},${detents.full}`}
             style={{
               ...vars,
               height: detents.full,
