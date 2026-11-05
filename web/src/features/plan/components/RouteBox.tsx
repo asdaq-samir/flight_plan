@@ -295,17 +295,15 @@ export default function RouteBox({
     soon();
     return () => { cancelAnimationFrame(frame); sized.disconnect(); changed.disconnect(); el.removeEventListener("scroll", soon); };
   }, []);
-  // A point added or the field taken: the row slid to its end, where the
-  // new point and what is typed are. Not as it opens, which shows the
-  // route from its departure.
+  // The field taken, and each point typed into it: the row slid to its
+  // end, where the field and the new point are. Not as it opens -- a
+  // route arrives a point at a time as it loads, which slid it there --
+  // where it shows the route from its departure.
   const pointCount = points.length;
-  const countWas = useRef(pointCount);
   useEffect(() => {
     const el = slide.current;
-    const added = pointCount > countWas.current;
-    countWas.current = pointCount;
-    if (el && (focused || added)) el.scrollTo({ left: el.scrollWidth, behavior: prefersReducedMotion() ? "auto" : "smooth" });
-  }, [pointCount, focused]);
+    if (el && focused && at === null) el.scrollTo({ left: el.scrollWidth, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }, [pointCount, focused, at]);
   const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
   const toEnd = (e: MouseEvent<HTMLDivElement>) => {
     if (!isRoom(e)) return;
