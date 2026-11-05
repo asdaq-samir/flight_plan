@@ -72,6 +72,13 @@ export type FlightRules = "vfr" | "ifr";
  *  pick that day, to compare them on the phone. The switch is in Setup's
  *  Controls. */
 export type Layout = "tabs" | "strip" | "field-tabs";
+/** How FPL's route is changed once it has a destination, the owner's
+ *  two picks of the FPL canvas (2026-11-05, artifact W9FwhatzHhe2hV9qroiYzv:
+ *  "I want to have a toggle between A and B in settings"): `folded`, the
+ *  route's box folded to one line, a tap opening it again (A); `plan`, no
+ *  box, the route's name over the plan, whose rows are dragged and added
+ *  to (B). Before a destination either way the box. In Setup's Controls. */
+export type RouteEdit = "folded" | "plan";
 
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
@@ -181,6 +188,8 @@ interface Preferences {
   flightRules: FlightRules;
   /** The planner's layout: the tabs, or the strip (features/strip). */
   layout: Layout;
+  /** How FPL's route is changed once it has a destination (RouteEdit). */
+  routeEdit: RouteEdit;
   /** The input last chosen to listen through (lib/audioInput, the Radio
    *  card's Listen through): an audio panel's or a headset's Bluetooth
    *  link, a cable, or the phone's own microphone, by the browser's id
@@ -261,6 +270,7 @@ interface Preferences {
   setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
   setLayout: (layout: Layout) => void;
+  setRouteEdit: (routeEdit: RouteEdit) => void;
   addRecentAirport: (airport: RecentAirport) => void;
   /** One airport taken off the Recents (a swipe), or all of them (Clear). */
   removeRecentAirport: (ident: string) => void;
@@ -328,6 +338,7 @@ export const usePreferences = create<Preferences>()(
       narrative: "langgraph",
       flightRules: "vfr",
       layout: "tabs",
+      routeEdit: "folded",
       listenInput: null,
       recentAirports: [],
       homeAirport: null,
@@ -400,6 +411,7 @@ export const usePreferences = create<Preferences>()(
       setNarrative: narrative => set({ narrative }),
       setFlightRules: flightRules => set({ flightRules }),
       setLayout: layout => set({ layout }),
+      setRouteEdit: routeEdit => set({ routeEdit }),
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
       })),
@@ -449,7 +461,7 @@ export const usePreferences = create<Preferences>()(
       // The functions are not state; only the values are written.
       partialize: s => ({
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
-        flightRules: s.flightRules, layout: s.layout, listenInput: s.listenInput,
+        flightRules: s.flightRules, layout: s.layout, routeEdit: s.routeEdit, listenInput: s.listenInput,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
         recentRoutes: s.recentRoutes,

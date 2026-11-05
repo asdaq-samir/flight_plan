@@ -15,6 +15,7 @@ import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, PLAN_NAME, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
 import { TEXT } from "../../lib/text";
+import { PANEL_FIELD } from "../../components/panelField";
 import { bestStopIndex, distanceNm, type LatLon } from "../../lib/geo";
 import { placeOf, useAirportIndex } from "../../lib/airportIndex";
 import { useKeepOffline } from "../../lib/map/keepStatus";
@@ -26,7 +27,7 @@ import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab, type TabList } from "./hooks/useTabCards";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, nameOwnPoints, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, isPosition, nameOwnPoints, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type FlightRules, type RecentAirport } from "../../lib/preferences";
 import Segmented from "../../components/Segmented";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
@@ -357,6 +358,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // beside the tabs until it is the app. The address's `layout` sets it
   // (a link to the phone, the tests), the preference keeping it.
   const layout = usePreferences(p => p.layout);
+  // How the route is changed once it has a destination (RouteEdit): its
+  // box folded to a line, or the plan's own rows under the route's name.
+  const routeEdit = usePreferences(p => p.routeEdit);
   const strip = layout === "strip";
   // The third: the tabs' layout with the strip's field, the assistant's
   // by default, a glass bar at the top of the map, the owner's pick from Target's
@@ -1465,6 +1469,29 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
     course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop)
     || (isAirwayToken(stop) && !course?.stops?.some(a => a.ident === stop)))), [planned.stops, course]);
+  // A whole route's box opened again from its folded line (RouteEdit's
+  // "folded"), till its Done; and where a stop asked for from FPL's list
+  // is typed in (its Add a Stop, a point's Add a Stop After).
+  const [routeOpen, setRouteOpen] = useState(false);
+  const [addAt, setAddAt] = useState<number | null>(null);
+  const addStopAt = useCallback((index: number) => {
+    setAddAt(index);
+    setAddingStop("stop");
+  }, []);
+  // A point dragged by its grip in FPL's list onto another's place, as the
+  // box's pills are dragged: the ends kept airports (or a position), as
+  // the box keeps them -- a waypoint is flown through, never taken off
+  // from or landed at -- and the route planned again.
+  const movePoint = useCallback((from: number, to: number) => {
+    const points = [...routePoints];
+    const [moved] = points.splice(from, 1);
+    if (moved === undefined || points.length < 1) return;
+    points.splice(to, 0, moved);
+    const isEnd = (p: string) => (!!identOf(p) && !waypointStops.has(p)) || isPosition(p);
+    if (!isEnd(points[0]!) || !isEnd(points.at(-1)!) || points.some((p, i) => i > 0 && p === points[i - 1])) return;
+    setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
+  }, [routePoints, waypointStops, setRoute]);
+  const listEdit = useMemo(() => ({ onMove: movePoint, onAddAt: addStopAt }), [movePoint, addStopAt]);
   // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
   // routes planned, Aircraft's Favorites and Recents -- the address's
   // (`list`, useAddressCards), kept for their tab as its cards are.
@@ -2271,12 +2298,15 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuel={tankFigures}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches} routeLine={routeLine}
+      // The list changes the route too where the box is folded away once
+      // the route is whole (RouteEdit, both of the owner's picks).
+      edit={planned.dep && planned.dest ? listEdit : undefined}
     />
     </>
   ), [routeLine, procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length,
-    tankFigures]);
+    tankFigures, listEdit]);
   // Its head: the route by name, and its plan under it -- where from and
   // to, the airplane, the altitude, when -- as an airport's card has its
   // name and where it is.
@@ -2394,7 +2424,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     routed, depart, changeDepart, flightRules, s.replanning, altitudeFt, altitudeNearest]);
 
   // Saving the flight, the narrative and Print.
-  const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
+  const addingChange = useCallback((open: boolean) => {
+    setAddingStop(open ? "stop" : false);
+    if (!open) setAddAt(null);
+  }, []);
 
   // The flight plan filed: the Brief's Flight Plan, where the FAA's form
   // is filled in from the plan and sent where Flight Service is connected
@@ -2776,6 +2809,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
 
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
+  // Half a route or none, the box is the box: opened again from its line
+  // before, it folds again with the next whole route.
+  if (routeOpen && !(planned.dep && planned.dest)) setRouteOpen(false);
+  const routeFolded = !!planned.dep && !!planned.dest && !routeOpen && !addingStop;
   const routeControls = (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
       {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
@@ -3213,7 +3250,48 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // Share menu (Clear the route). An airport twice (a round trip with its
     // stop taken out) keeps the box, its notice saying what to change.
     // Whatever the tab: MapPanel keeps it under the others' heads (`kept`).
-    route: strip ? undefined : (
+    // Once the route is whole, folded away (lib/preferences RouteEdit, the
+    // owner's A and B of the FPL canvas, 2026-11-05: "keeping the route box
+    // on top after a destination is known is redundant because the plan
+    // at the bottom can have dragables"): the route on one line, a tap the
+    // box again (A), or its name over the plan whose rows change it (B);
+    // the airplane, the altitude and the route's buttons under either, as
+    // they were under the box. The box again while a stop is typed in
+    // from the list or a problem, and before there is a destination.
+    route: strip ? undefined : routeFolded ? (
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5" data-testid="route-folded">
+        {routeEdit === "plan" ? (
+          <div className="flex min-w-0 items-start gap-2 px-1.5">
+            <div className="flex min-w-0 flex-1 flex-col">
+              <h2 className={cn("font-semibold text-balance", TEXT.heading)} data-testid="route-title">
+                {course ? (s.local ? placeName(course.departure.name, course.departure.ident)
+                  : `${placeName(course.departure.name, course.departure.ident)} to ${placeName(course.destination.name, course.destination.ident)}`)
+                  : routeName(planned.dep, planned.dest, planned.stops)}
+              </h2>
+              {course && <span className={cn("truncate text-muted-foreground", TEXT.detail)}>{routeName(planned.dep, planned.dest, planned.stops)}</span>}
+            </div>
+            <button
+              type="button" onClick={() => setRouteOpen(true)} data-testid="route-edit"
+              className={cn("relative mt-0.5 shrink-0 font-semibold text-tint outline-none after:absolute after:-inset-2.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.row)}
+            >
+              Edit
+            </button>
+          </div>
+        ) : (
+          // The box's own field, folded to its route, the whole line the
+          // tap that opens it.
+          <button
+            type="button" onClick={() => setRouteOpen(true)} data-testid="route-line"
+            aria-label={`The route, ${routeName(planned.dep, planned.dest, planned.stops)}: edit`}
+            className={cn("flex h-[2.5625rem] w-full min-w-0 items-center gap-2 rounded-[20.5px] px-3.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", PANEL_FIELD)}
+          >
+            <span className={cn("min-w-0 flex-1 truncate font-mono font-semibold", TEXT.row)}>{routeName(planned.dep, planned.dest, planned.stops)}</span>
+            <span className={cn("shrink-0 font-semibold text-tint", TEXT.row)}>Edit</span>
+          </button>
+        )}
+        <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>
+      </div>
+    ) : (
       <div className="min-w-0 flex-1">
         {/* Its room while its code comes: the box's own line. */}
         <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-card" />}>
@@ -3231,6 +3309,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           directTo={directParam} onDirectTo={directToPoint}
           onClear={clearRoute}
           footer={routeControls}
+          addAt={addAt}
+          // Opened from its folded line: Done folds it again.
+          onDone={routeOpen && planned.dep && planned.dest ? () => setRouteOpen(false) : undefined}
         />
         </SearchNear.Provider>
         </Suspense>
