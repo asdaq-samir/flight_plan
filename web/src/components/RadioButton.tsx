@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
-import { Mic } from "lucide-react";
 import Waveform from "./Waveform";
+import CommsGlyph from "./CommsGlyph";
 import { cn } from "cn";
 import IconButton from "./IconButton";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "./ResponsivePopover";
@@ -55,12 +55,12 @@ export default function RadioButton() {
     <ResponsivePopover open={open} onOpenChange={setOpen}>
       <ResponsivePopoverAnchor asChild>
         <IconButton
-          label={mode === "once" ? "Stop listening" : mode === "radio" ? "The radio, listening: open the log" : "Listen"}
+          label={mode === "once" ? "Stop listening" : mode === "radio" ? "The radio, listening: open the log" : "Comms assist: listen"}
           aria-pressed={busy} data-testid="radio-button" onClick={tap}
           className={cn(busy && "text-tint", mode === "radio" && "animate-pulse")}
         >
           {/* Live: the input's level where one is metered (lib/audioInput). */}
-          {mode === "once" && busy ? <Waveform live /> : <Mic className="size-5" strokeWidth={1.5} aria-hidden="true" />}
+          {mode === "once" && busy ? <Waveform live /> : <CommsGlyph />}
         </IconButton>
       </ResponsivePopoverAnchor>
       <ResponsivePopoverContent title="Radio" side="right" align="end" className="flex w-96 flex-col gap-3 p-3" data-testid="clearance-card">
