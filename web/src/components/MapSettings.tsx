@@ -20,6 +20,7 @@ import { useLayerAges } from "../lib/map/layerAges";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { inNativeApp } from "../lib/native";
 import { useReceiver } from "../lib/map/receiver";
+import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 
 /**
  * The map's settings, the whole of the map's own button's sheet
@@ -27,9 +28,10 @@ import { useReceiver } from "../lib/map/receiver";
  * owner's pick (2026-10-27, canvas RZDPvJ6hxfp93UL53LYLec): the chart and
  * what is over it as pictures, then what is drawn on the map as iOS's
  * switches, then how the chart looks, then where its data comes from. It
- * was one list of nineteen rows of three kinds of control; the alerts and
- * the charts kept offline, which work in the air whatever the map shows,
- * are Setup's Controls (QuickControls). Since the owner's split
+ * was one list of nineteen rows of three kinds of control. The alerts,
+ * Setup's for a while, are here again since 2026-11-05, at the owner's
+ * ask; Setup's Layout (QuickControls) has FPL, the theme, the sheet's
+ * edge and light or dark. Since the owner's split
  * (2026-10-27: "Everything else in the overlay"), with no Settings page,
  * this is the one home of everything else: the app's look, the chart at
  * night and own ship's look among it.
@@ -51,6 +53,7 @@ export default function MapSettings() {
   // How old each weather layer's data is, beside where it comes from.
   const ages = useLayerAges();
   const sec = prefs.base === "sec";
+  const [alertMode, setAlertMode] = useAlertMode();
   return (
     <div className="flex flex-col gap-5" data-testid="map-settings-groups">
       <PictureChoices
@@ -134,6 +137,17 @@ export default function MapSettings() {
             default, as most pilots may not land there without the
             service's permission. A joint-use field is drawn either way. */}
         <SwitchRow title="Military Fields" on={prefs.military} onChange={prefs.setMilitary} testId="military-toggle" />
+      </ListGroup>
+      {/* The in-flight alerts, off, shown or said aloud (lib/alertMode),
+          here from Setup's tiles since the owner's ask ("alerts can go to
+          overlay settings", 2026-11-05): a pick of three, segmented. */}
+      <ListGroup title="Alerts">
+        <ListRow title="Alerts">
+          <Segmented
+            label="Alerts" value={alertMode} onChange={v => setAlertMode(v as AlertMode)} testId="alerts-mode"
+            options={ALERT_MODES}
+          />
+        </ListRow>
       </ListGroup>
       <ListGroup title="Appearance">
         {/* The white paper chart dimmed in the dark theme, so it does not

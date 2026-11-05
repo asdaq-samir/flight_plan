@@ -2,7 +2,7 @@ import { PillSection } from "../../components/Favorites";
 import QuickControls from "../../components/QuickControls";
 
 /**
- * Setup's pill: the Controls, the cockpit's four, alone -- the owner's pick
+ * Setup's pill: its Layout (once Controls), the four tiles, alone -- the owner's pick
  * of the Setup canvas (2026-10-27, T3, "Controls first"): the half sheet
  * the cockpit's, big tiles for a hand in rough air; who is signed in and
  * their things under it, all the way up (PilotPanel). Setup's page starts
@@ -14,7 +14,9 @@ export default function SetupPill({ testId = "setup-pill" }: {
 } = {}) {
   return (
     <div data-testid={testId}>
-      <PillSection title="Controls" testId={`${testId}-controls`}>
+      {/* Layout, where it was Controls, at the owner's ask ("we can
+          rename Controls to Layout", 2026-11-05). */}
+      <PillSection title="Layout" testId={`${testId}-controls`}>
         <QuickControls />
       </PillSection>
     </div>
