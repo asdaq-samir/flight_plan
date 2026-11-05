@@ -686,8 +686,9 @@ jobs:
       # on every shard, when only the dev page's training tests ask for
       # it (they start it themselves, and the planner shares it).
       #
-      # A pull request's token cannot push, so a key no image has yet is
-      # built by its shards themselves, from the registry cache main
+      # A fork's or Dependabot's pull request's token cannot push (SHARED
+      # below), so there a key no image has yet is built by the shards
+      # themselves, from the registry cache main
       # writes: with the runner's own builder, Docker's, whose image store
       # is containerd's, so it reads the registry cache and builds straight
       # into Docker (a BuildKit container of setup-buildx's took 5 to 15
@@ -697,6 +698,12 @@ jobs:
         env:
           REGISTRY: ghcr.io/${{ github.repository }}
           EVENT: ${{ github.event_name }}
+          # Whether this run's images are shared: built once by build (e2e)
+          # and pulled by every shard. A push, and a pull request from a
+          # branch of this repository, whose token can push them; not a
+          # fork's or Dependabot's, whose token cannot, and whose shards
+          # build what they cannot pull.
+          SHARED: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
@@ -730,7 +737,7 @@ jobs:
             there "$ref:e2e-$2" || built=""
             small
             if [ -z "$built" ]; then
-              if [ "$EVENT" = pull_request ]; then
+              if [ "$SHARED" != true ]; then
                 docker buildx bake -f .github/ci-images.hcl "$1" --load || return 1
                 mark "$1 built"
                 return 0
@@ -773,7 +780,7 @@ jobs:
           while read -r name key; do
             if [ "$name" != page ]; then
               { fetch "$name" "$key" && start "$name"; } &
-            elif [ "$EVENT" != pull_request ]; then
+            elif [ "$SHARED" = true ]; then
               page "$key" &
             fi
           done <<< "$keys"
@@ -865,18 +872,19 @@ jobs:
       # page, which most commits make, needs no image built: the webapp's
       # is built again only for its jar (.github/e2e-keys.sh), and build
       # (webapp) still builds the whole image, page and all, whenever web/
-      # changes. On a push, e2e-images builds the page once for its key
-      # and the stack's background piece copies it in; on a pull request,
-      # which e2e-images does not run for, it is built here, with Node as
+      # changes. On a push or a pull request from this repository,
+      # e2e-images builds the page once for its key and the stack's
+      # background piece copies it in; on a fork's or Dependabot's, which
+      # e2e-images does not run for, it is built here, with Node as
       # .nvmrc has it and the suite's packages, from the same lock file.
       # The webapp reads the page from disk when it is asked for, so it is
       # started before the page is there, and the step below waits for it.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
-        if: github.event_name == 'pull_request'
+        if: ${{ !(github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
         with:
           node-version-file: .nvmrc
       - name: The page, built from this commit
-        if: github.event_name == 'pull_request'
+        if: ${{ !(github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
         working-directory: web
         # node_modules is always there, a tmpfs mounted above, so whether
         # the packages are is told by npm's own record of an install: a
@@ -1222,17 +1230,27 @@ jobs:
   #
   # Not after `changes`, as every other job is: a shard starts ten
   # seconds into the run, and a key's image, when there is one to build,
-  # should be on its way by then. So it runs on every push, the suite due
-  # or not; with nothing to build it is a checkout and four lookups. Not
-  # on a pull request, whose token cannot push: its shards build what
-  # they cannot pull. The images with a BuildKit container of
+  # should be on its way by then. So it runs on every push and every
+  # pull request from this repository, the suite due or not; with nothing
+  # to build it is a checkout and four lookups. Not on a fork's or
+  # Dependabot's, whose token cannot push: their shards build what they
+  # cannot pull. The images with a BuildKit container of
   # setup-buildx's rather than the runner's own builder: it pushes what
   # the registry cache already holds without first pulling it. No
   # attestation: nothing verifies these.
   e2e-images:
     name: build (e2e)
     runs-on: ubuntu-26.04
-    if: github.event_name != 'pull_request'
+    # A push, and a pull request from this repository's own branches --
+    # every claude/ and maps-layout pull request, the most of CI's runs --
+    # whose token can push: their eight shards pulled nothing and each
+    # built the stack's images and the page itself, eight times over (the
+    # handover's run on 77f6b687, 2026-11-05: the page 127 s and the
+    # webapp 178 s into each shard). Not a fork's or Dependabot's, whose
+    # token is read-only. The images are pushed under their content's
+    # keys, so a branch's are the same any other commit with those keys
+    # would push.
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     permissions:
       contents: read
       packages: write
