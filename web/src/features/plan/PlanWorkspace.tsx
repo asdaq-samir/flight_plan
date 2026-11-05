@@ -2501,7 +2501,13 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   );
 
 
-  const dragging = usePanelDragging(d => d.dragging);
+  // The strips and lists drawn under the pill too while the sheet is on
+  // the move, so they are there as it comes up: read as one answer with
+  // the size, so a move between half and full -- where they are drawn
+  // either way -- does not draw the whole workspace again at its start
+  // and its end (the drag probe at CPU 4x, 2026-11-04: 100 to 170 ms each,
+  // with the map's follow of the sheet waiting behind them).
+  const stripsDrawn = usePanelDragging(d => panel !== "peek" || d.dragging);
   // The open card's name for the bar over it: an airport's ident, the
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
@@ -2992,7 +2998,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
           ) : (
             // The strip once, in the pill or here: at the pill's size the
             // body is out of sight but for a finger taking it up.
-            <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={panel !== "peek" || dragging ? aircraftStrip : null} />
+            <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={stripsDrawn ? aircraftStrip : null} />
           )))}</TabKept>
         )}
         {!cardUp && tab !== "aircraft" && nearOpen && (
@@ -3020,7 +3026,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
               <SearchResults
                 query={query} onPick={airport => void pickPlace(airport)}
                 // The pill's strip where it was, the Recents under it.
-                places={picking === "place" && (panel !== "peek" || dragging) && airportStrip}
+                places={picking === "place" && stripsDrawn && airportStrip}
                 onAllRecents={() => openList("recents")}
               />
             </TabPage>
@@ -3033,7 +3039,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
             up"). */}
         {/* Not under the Stops with no route: FPL's Saved stood over
             its list (the owner's screenshot, 2026-10-26). */}
-        {!strip && !savedOpen && !hasPoints && !stopsHere && (panel !== "peek" || dragging) && (
+        {!strip && !savedOpen && !hasPoints && !stopsHere && stripsDrawn && (
           routeRecentsOpen ? (
             <TabPage testId="route-recents-list">
               <RecentRoutesPage onBack={closeList} />

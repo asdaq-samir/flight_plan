@@ -390,8 +390,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const step = () => {
       const off = offNow();
       const swiping = panel.hasAttribute("data-swiping");
+      // What the workspace draws for a sheet on the move (FPL's strips),
+      // from the finger's first move too, not only once it lets go.
+      if (swiping && !swiped) usePanelDragging.setState({ dragging: true });
       if (swiping) pin(off, "");
       else if (swiped && !movingRef.current) {
+        usePanelDragging.setState({ dragging: false });
         // Let go where it was (or past the pill, the close refused): no
         // new size to commit, so the popup and the parts go back to it
         // here, on the shortest settle's time.
