@@ -104,9 +104,32 @@ const POINT_CARD = cn(
   "rounded-2xl bg-card py-3 pr-1.5 pl-3 shadow-sm ring-1 ring-black/5 dark:ring-white/10",
   "has-[[data-dragging]]:opacity-40 has-[[data-over]]:ring-2 has-[[data-over]]:ring-tint",
 );
-/** The course's line from a card to the next, in the gap between them,
- *  through the marks' column (the card's 12 and half its 28). */
-const CARD_LINK = "mb-[1.375rem] after:absolute after:top-full after:left-[calc(1.625rem-1px)] after:h-[1.375rem] after:w-0.5 after:bg-(--course) after:content-['']";
+/** The room between a card and the next, the course's line across it. */
+const CARD_GAP = "mb-[1.375rem]";
+
+/**
+ * The course's line through the cards, from each card's mark to the
+ * next's, at the owner's ask (2026-11-05: "magenta connecting line can go
+ * through the card to airport icons"): down the marks' column (the card's
+ * 12 and half its 28), behind all the card holds (the card isolated, the
+ * line under its content), and across the gap to the next card's top. The
+ * first card's starts, and the last's ends, 32 down, under its mark: the
+ * mark's 36 round its middle covers it at any size the head's type takes,
+ * on a disc of the card's own fill (CardMark), as the mark's grey is see-
+ * through.
+ */
+function CardThread({ first, last }: { first: boolean; last: boolean }) {
+  if (first && last) return null;
+  return (
+    <span
+      aria-hidden="true" style={ROUTE_LINE}
+      className={cn("absolute left-[calc(1.625rem-1px)] -z-10 w-0.5", first ? "top-8" : "top-0", last ? "h-8" : "-bottom-[1.375rem]")}
+    />
+  );
+}
+
+/** A card's mark on a disc of the card's fill, hiding the line under it. */
+const CardMark = ({ children }: { children: ReactNode }) => <span className="grid place-items-center rounded-full bg-card">{children}</span>;
 
 export interface ProcedureAirport {
   ident: string;
@@ -580,7 +603,7 @@ export default function ProceduresRoute({
   };
 
   // A field's step: what is flown there, in the order it is flown.
-  const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
+  const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean, leads: boolean) => {
     // A kind's pull-down: the one in the route said on it (ProcedureMenu).
     const wind = windOf(a.ident);
     const i = airports.findIndex(f => sameField(f.ident, a.ident));
@@ -636,7 +659,9 @@ export default function ProceduresRoute({
     // and its takeoff -- the glyph, the runways, the procedures, a stop's
     // time to leave again -- named for a screen reader as its parts are.
     const key = `${a.role}:${a.ident}`;
-    const opened = isOpen(key);
+    // A card always open, at the owner's ask (2026-11-05: "Now that it's a
+    // card, we don't need the expanding arrow next to airport").
+    const opened = asCards || isOpen(key);
     // `line`, the runway line's key and the runway picked on it
     // (PatternChips folds a line with a runway picked to that runway's chip).
     type Part = { role: "Arrive" | "Depart"; kinds: Kind[]; chips: (trailing: ReactNode) => ReactNode; leaves: ReactNode; line: { key: string; chosen: string | null } };
@@ -720,7 +745,8 @@ export default function ProceduresRoute({
         // its content. A stop's second part, in a section of its own, is
         // shown with it (a Collapsible has one content).
         <Collapsible key={key} asChild open={opened} onOpenChange={next => toggleField(key, a.ident, next)}>
-          <li className={cn("relative", asCards && POINT_CARD, asCards && !last && CARD_LINK)} data-testid="route-field" data-ident={a.ident}>
+          <li className={cn("relative", asCards && cn(POINT_CARD, "isolate"), asCards && !last && CARD_GAP)} data-testid="route-field" data-ident={a.ident}>
+            {asCards && <CardThread first={leads} last={last} />}
             {!last && !asCards && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
             <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && !asCards && "pb-5")}>
               {/* The airport's lines: a tap anywhere on them -- its symbol, its
@@ -740,7 +766,7 @@ export default function ProceduresRoute({
                 {/* Centred on the two lines, at the owner's ask ("Center it
                     on the two lines"): the column as tall as they are. */}
                 <div className="relative z-10 flex w-7 shrink-0 items-center justify-center">
-                  {end.menu(
+                  {(face => (asCards ? <CardMark>{face}</CardMark> : face))(end.menu(
                     <span className="relative">
                       {mark}
                       {a.role === "Stop" && isFuelStop(a.ident) && (
@@ -749,7 +775,7 @@ export default function ProceduresRoute({
                         </span>
                       )}
                     </span>,
-                  )}
+                  ))}
                 </div>
                 {/* Two lines, as a waypoint's row and the list before had them,
                     at the owner's ask ("line up the time with airport id and
@@ -760,7 +786,7 @@ export default function ProceduresRoute({
                     {/* The disclosure, iOS's small chevron by the symbol, not
                         an icon button (data-disclosure): the Collapsible's
                         trigger, the arrow turned by its open state. */}
-                    <CollapsibleTrigger asChild>
+                    {!asCards && <CollapsibleTrigger asChild>
                       <button
                         type="button" data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
                         aria-label={`${a.ident}: runways and procedures`}
@@ -778,7 +804,7 @@ export default function ProceduresRoute({
                       >
                         <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />
                       </button>
-                    </CollapsibleTrigger>
+                    </CollapsibleTrigger>}
                     {/* The size the list's names were ("the font size is bigger
                         than it used to be for airport id"). */}
                     <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
@@ -798,9 +824,13 @@ export default function ProceduresRoute({
                   {end.grip && <div className="relative z-10 col-start-3 row-span-2 row-start-1 self-center">{end.grip}</div>}
                 </div>
               </div>
-              <CollapsibleContent className="pl-[2.375rem]">{partBody(first)}</CollapsibleContent>
+              {/* A card's runways and procedures the card's whole width, at
+                  the owner's ask ("we can use all card width for runway and
+                  arrival approach buttons"): the arrival and the approach
+                  then fit on the runway's line. */}
+              <CollapsibleContent className={cn(!asCards && "pl-[2.375rem]")}>{partBody(first)}</CollapsibleContent>
             </section>
-            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={cn("pl-[2.375rem]", !asCards && "pb-5")}>{partBody(parts[1])}</section>}
+            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={cn(!asCards && "pl-[2.375rem] pb-5")}>{partBody(parts[1])}</section>}
           </li>
         </Collapsible>
       );
@@ -924,7 +954,7 @@ export default function ProceduresRoute({
     };
     if (field) {
       shown.add(field);
-      steps.push(fieldStep(field, row, last));
+      steps.push(fieldStep(field, row, last, steps.length === 0));
       if (field.role === "Destination") steps.push(holdRow(field.ident));
       return;
     }
@@ -936,7 +966,7 @@ export default function ProceduresRoute({
     const end = to ? pointEnd(row.airport.ident, { time, waypoint: true, elevationFt: null, to: true, stop: row.kind === "stop", holdable: true, row, index: typedAt >= 0 ? typedAt : undefined }) : null;
     steps.push(
       <Step
-        key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
+        key={row.key} first={steps.length === 0} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
         title={rowPoint(row).name} testId={`route-${row.kind}`}
         icon={tanks.has(row.key) ? <FuelGauge gal={tanks.get(row.key)!.gal} usable={tanks.get(row.key)!.usable} tone={tanks.get(row.key)!.low ? "low" : undefined} /> : undefined}
         // A present position, POS0, by its coordinates under it, where its
@@ -950,7 +980,7 @@ export default function ProceduresRoute({
     if (to) steps.push(holdRow(row.airport.ident));
   });
   const fieldsAlone = rows.length === 0
-    ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1))
+    ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1, i === 0))
     : null;
 
   const field = on ? airports.find(a => sameField(a.ident, on.ident)) : undefined;
@@ -1239,7 +1269,7 @@ function PointGrip({ ident, index }: { ident: string; index: number }) {
   );
 }
 
-function Step({ mark, title, sub, figures, menu, grip, card = false, last, field = false, testId, icon, children }: {
+function Step({ mark, title, sub, figures, menu, grip, card = false, first = false, last, field = false, testId, icon, children }: {
   /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
   /** After its name: the fuel in the tanks there (FuelGauge). */
@@ -1255,6 +1285,7 @@ function Step({ mark, title, sub, figures, menu, grip, card = false, last, field
   grip?: ReactNode;
   /** A card of its own, as the fields' are where the list is cards. */
   card?: boolean;
+  first?: boolean;
   last: boolean;
   field?: boolean;
   testId?: string;
@@ -1262,9 +1293,10 @@ function Step({ mark, title, sub, figures, menu, grip, card = false, last, field
 }) {
   const Name = field ? "h3" : "span";
   return (
-    <li className={cn("relative flex gap-2.5", card && POINT_CARD, card && !last && CARD_LINK)} data-testid={testId}>
+    <li className={cn("relative flex gap-2.5", card && cn(POINT_CARD, "isolate"), card && !last && CARD_GAP)} data-testid={testId}>
       {!last && !card && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
-      <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{menu ? menu(mark) : mark}</div>
+      {card && <CardThread first={first} last={last} />}
+      <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{card ? <CardMark>{menu ? menu(mark) : mark}</CardMark> : menu ? menu(mark) : mark}</div>
       <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", !card && (field ? "pb-5" : "pb-4"))}>
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-col">
