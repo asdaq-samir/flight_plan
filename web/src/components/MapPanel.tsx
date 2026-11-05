@@ -662,6 +662,48 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     </button>
   );
   const restingPill = atPill && !moving;
+  // The figures' box at a size: its classes and style, for the box as it
+  // is drawn and for half's measured before the sheet is first there.
+  const footLook = (at: PanelState) => {
+    const pillHere = at === "peek" && hasPill;
+    return {
+      className: cn(
+        // One box at the pill and all the way up, the figures centred in
+        // it at their large size: the row's 44 and its padding, the line
+        // over it clear in the pill. At half the figures small and the box
+        // only as tall as they are, for the list over it (the owner,
+        // 2026-11-05: "The calculations strip at the bottom should shrink
+        // to fit the small text while in medium detent"). What gives way
+        // in the pill (data-pill-hides) is put away there.
+        "flex shrink-0 flex-col justify-center border-t pb-1 print:hidden", at === "half" ? "min-h-0" : "min-h-[3.875rem]", ROW_PAD, cardInPill ? "px-0" : "px-4",
+        !footShown && "hidden",
+        // In the pill the finger is the sheet's (touch-none), as on the
+        // tabs: the browser's own scroll took it and cancelled the drag.
+        pillHere ? "touch-none border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
+        fieldPill && pillHere && "px-3",
+      ),
+      style: { "--sheet-progress": at === "half" ? "0" : "1", ...(toEdge && fromBottom && !pillHere ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties,
+    };
+  };
+  // Half's box measured before the sheet first comes to half, so the list
+  // there is laid out for it at once, not for the larger box and then
+  // again as the sheet rests: the box given half's look for the one read,
+  // and its own put back, in the same task, so it is never drawn so.
+  useLayoutEffect(() => {
+    const el = footNode;
+    if (!el || moving || !footShown || size === "half" || footHeights.half !== null) return;
+    const kept = { className: el.className, style: el.getAttribute("style") };
+    const look = footLook("half");
+    el.className = look.className;
+    el.style.transition = "none";
+    el.style.setProperty("--sheet-progress", "0");
+    el.style.paddingBottom = "paddingBottom" in look.style ? `${look.style.paddingBottom}px` : "";
+    const h = el.offsetHeight;
+    el.className = kept.className;
+    if (kept.style === null) el.removeAttribute("style");
+    else el.setAttribute("style", kept.style);
+    setFootHeights(was => (was.half === null ? { ...was, half: h } : was));
+  });
 
   return (
           <section
@@ -776,24 +818,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer convenience, not a control: the grabber is the keyboard's way to open the sheet, and the figures' own buttons stay focusable
               <div
                 ref={setFootNode}
-                className={cn(
-                  // One box at the pill and all the way up, the figures
-                  // centred in it at their large size: the row's 44 and its
-                  // padding, the line over it clear in the pill. At half
-                  // the figures small and the box only as tall as they
-                  // are, for the list over it (the owner, 2026-11-05: "The
-                  // calculations strip at the bottom should shrink to fit
-                  // the small text while in medium detent"). What gives
-                  // way in the pill (data-pill-hides) is put away there.
-                  "flex shrink-0 flex-col justify-center border-t pb-1 print:hidden", size === "half" ? "min-h-0" : "min-h-[3.875rem]", ROW_PAD, cardInPill ? "px-0" : "px-4",
-                  !footShown && "hidden",
-                  // In the pill the finger is the sheet's (touch-none), as on
-                  // the tabs: the browser's own scroll took it and
-                  // cancelled the drag.
-                  atPill ? "touch-none border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
-                  fieldPill && atPill && "px-3",
-                )}
-                style={{ "--sheet-progress": size === "half" ? "0" : "1", ...(toEdge && fromBottom && !atPill ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties}
+                className={footLook(size).className}
+                style={footLook(size).style}
                 data-testid="panel-foot"
                 // In the pill a finger anywhere on it drags the sheet, as
                 // the tabs do; a tap on it opens it half way.
