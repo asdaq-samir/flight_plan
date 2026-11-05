@@ -1492,13 +1492,23 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     if (!isEnd(points[0]!) || !isEnd(points.at(-1)!) || points.some((p, i) => i > 0 && p === points[i - 1])) return;
     setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
   }, [routePoints, waypointStops, setRoute]);
+  // A point made another from its card's ident (In the Plan): anything
+  // typed, as the box takes it; only a point the same as its neighbour's
+  // is let go, a leg of none.
+  const replacePoint = useCallback((at: number, ident: string) => {
+    const points = [...routePoints];
+    if (at < 0 || at >= points.length) return;
+    points[at] = ident.trim().toUpperCase();
+    if (!points[at] || points.some((p, i) => i > 0 && p === points[i - 1])) return;
+    setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
+  }, [routePoints, setRoute]);
   const listEdit = useMemo(() => ({
-    onMove: movePoint, onAddAt: typeStopAt,
+    onMove: movePoint, onAddAt: typeStopAt, onReplace: replacePoint,
     // In the Plan, the points as cards (ProceduresRoute), and a point
     // changed from its card's menu in the box, there being no head to
     // open it from.
     cards: routeEdit === "plan", onChange: routeEdit === "plan" ? () => setRouteOpen(true) : undefined,
-  }), [movePoint, typeStopAt, routeEdit]);
+  }), [movePoint, typeStopAt, replacePoint, routeEdit]);
   // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
   // routes planned, Aircraft's Favorites and Recents -- the address's
   // (`list`, useAddressCards), kept for their tab as its cards are.

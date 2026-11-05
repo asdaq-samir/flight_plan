@@ -10,6 +10,7 @@ import {
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
+import AirportPicker from "../../../components/AirportPicker";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
@@ -90,6 +91,8 @@ export interface RouteListEdit {
   onMove: (from: number, to: number) => void;
   /** The route's box opened to type a stop in at this place. */
   onAddAt: (index: number) => void;
+  /** The point at this place made another, from its card's ident. */
+  onReplace?: (index: number, ident: string) => void;
   /** Each point a card of its own, easier to see as it is dragged (In the
    *  Plan, the owner's pick of the canvas's option 3 as cards). */
   cards?: boolean;
@@ -127,6 +130,10 @@ function CardThread({ first, last }: { first: boolean; last: boolean }) {
     />
   );
 }
+
+/** A card's ident, the button of its search: the ident as it stood, the
+ *  picker's field look taken off it. */
+const CARD_IDENT = "h-auto min-w-0 justify-start rounded-md bg-transparent p-0 font-sans normal-case shadow-none hover:bg-transparent dark:bg-transparent";
 
 /** A card's mark on a disc of the card's fill, hiding the line under it. */
 const CardMark = ({ children }: { children: ReactNode }) => <span className="grid place-items-center rounded-full bg-card">{children}</span>;
@@ -807,7 +814,20 @@ export default function ProceduresRoute({
                     </CollapsibleTrigger>}
                     {/* The size the list's names were ("the font size is bigger
                         than it used to be for airport id"). */}
-                    <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
+                    {/* A card's ident its search, at the owner's ask (2026-11-05:
+                        "Make the cards airport ids editable so it can be
+                        changed to anything"): the stock airport picker, a
+                        stop's with the waypoints too, and what it does not
+                        know going through as typed. */}
+                    {asCards && edit?.onReplace && pointIndex(a.ident, a.role) !== undefined ? (
+                      <AirportPicker
+                        value={a.ident} fixes={a.role === "Stop"} placeholder={a.ident} ariaLabel={`${a.ident}, change`} testId="field-ident"
+                        onChange={v => { const at = pointIndex(a.ident, a.role); if (v && at !== undefined && !sameField(v, a.ident)) edit.onReplace!(at, v); }}
+                        className={CARD_IDENT}
+                      >
+                        <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
+                      </AirportPicker>
+                    ) : <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>}
                     {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
                   </div>
                   <div className="relative z-10 col-start-2 row-start-1 justify-self-end">{end.time}</div>
@@ -966,7 +986,8 @@ export default function ProceduresRoute({
     const end = to ? pointEnd(row.airport.ident, { time, waypoint: true, elevationFt: null, to: true, stop: row.kind === "stop", holdable: true, row, index: typedAt >= 0 ? typedAt : undefined }) : null;
     steps.push(
       <Step
-        key={row.key} first={steps.length === 0} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
+        key={row.key} first={steps.length === 0} last={last}
+        rename={asCards && edit?.onReplace && typedAt >= 0 ? v => edit.onReplace!(typedAt, v) : undefined} mark={<PointMark row={row} number={undefined} weather={weather} />}
         title={rowPoint(row).name} testId={`route-${row.kind}`}
         icon={tanks.has(row.key) ? <FuelGauge gal={tanks.get(row.key)!.gal} usable={tanks.get(row.key)!.usable} tone={tanks.get(row.key)!.low ? "low" : undefined} /> : undefined}
         // A present position, POS0, by its coordinates under it, where its
@@ -1269,7 +1290,9 @@ function PointGrip({ ident, index }: { ident: string; index: number }) {
   );
 }
 
-function Step({ mark, title, sub, figures, menu, grip, card = false, first = false, last, field = false, testId, icon, children }: {
+function Step({ mark, title, sub, figures, menu, grip, card = false, first = false, last, field = false, testId, icon, rename, children }: {
+  /** A card's: its name the search to change it (AirportPicker). */
+  rename?: (ident: string) => void;
   /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
   /** After its name: the fuel in the tanks there (FuelGauge). */
@@ -1301,7 +1324,11 @@ function Step({ mark, title, sub, figures, menu, grip, card = false, first = fal
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="flex min-w-0 items-center gap-1">
-              <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
+              {rename ? (
+                <AirportPicker value={title} fixes placeholder={title} ariaLabel={`${title}, change`} testId="step-ident" onChange={v => { if (v && v !== title) rename(v); }} className={CARD_IDENT}>
+                  <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
+                </AirportPicker>
+              ) : <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>}
               {icon}
             </span>
             {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
