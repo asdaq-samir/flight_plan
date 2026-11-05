@@ -1,29 +1,29 @@
 import { test, expect } from "@playwright/test";
-import { settle, slow } from "./helpers";
+import { settle, sideDrawer, slow } from "./helpers";
 
 /**
- * The map's microphone in the Tabs screen: at the top right of the map,
- * under the status bar (the owner, 2026-11-04, "move the mic button to
- * top right which expands to glass listening pill"); its listening pill
- * widens out of it to the left (RadioPill).
+ * The map's microphone in the Tabs screen: at the left of the map's foot,
+ * just over the sheet's tabs (the owner, 2026-11-04, "Move the mic back
+ * to the left side, above the tabs"); its listening pill widens out of it
+ * to the right (RadioPill).
  */
-test("the map's microphone is at the top right, and its pill widens to the left", async ({ page }) => {
+test("the map's microphone is at the left over the sheet, and its pill widens to the right", async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 768, "a phone's sheet across the screen's foot");
   await page.goto("/app/plan?layout=tabs");
   await settle(page);
   const mic = page.getByTestId("mic-circle");
   await expect(mic).toBeVisible({ timeout: slow(30000) });
-  const view = page.viewportSize()!;
   const shut = (await mic.boundingBox())!;
-  expect(shut.y).toBeLessThan(view.height / 4);
-  expect(view.width - (shut.x + shut.width)).toBeLessThanOrEqual(16);
-  // Tapped: the pill, listening or saying why it cannot -- the right
-  // edge stays where it was, and it grows to the left.
+  const sheet = (await sideDrawer(page).boundingBox())!;
+  expect(shut.x).toBeLessThanOrEqual(16);
+  // Over the sheet's top, close above it.
+  expect(shut.y + shut.height).toBeLessThanOrEqual(sheet.y);
+  expect(sheet.y - (shut.y + shut.height)).toBeLessThanOrEqual(40);
+  // Tapped: the pill, listening or saying why it cannot -- the left edge
+  // stays where it was, and it grows to the right.
   await mic.getByTestId("radio-button").click();
   const pill = page.getByTestId("radio-pill");
   await expect(pill).toBeVisible({ timeout: slow(10000) });
-  {
-    await expect.poll(async () => (await mic.boundingBox())!.width).toBeGreaterThan(shut.width + 40);
-    const open = (await mic.boundingBox())!;
-    expect(Math.abs(open.x + open.width - (shut.x + shut.width))).toBeLessThanOrEqual(1);
-  }
+  await expect.poll(async () => (await mic.boundingBox())!.width).toBeGreaterThan(shut.width + 40);
+  expect(Math.abs((await mic.boundingBox())!.x - shut.x)).toBeLessThanOrEqual(1);
 });

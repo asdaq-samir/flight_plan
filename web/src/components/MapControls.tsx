@@ -121,27 +121,22 @@ export default function MapControls() {
     {/* Not in the strip layout (lib/preferences), whose one field has
         the microphone in it (features/strip's OneField): the owner's
         pick of Maps' pill, 2026-11-04. */}
-    {/* At the top right of the map, under the status bar, at the owner's
-        ask ("move the mic button to top right which expands to glass
-        listening pill", 2026-11-04): tapped, it widens to the left into
-        the pill. Left of the map's buttons where those are at the top (a
-        wide screen with the bar at the foot). In the air it stays at the
-        foot's left, 60 points, the next checkpoint's card holding the
-        top of the map there (FlyingHead). */}
+    {/* At the foot's left, over the tabs, riding the sheet's top as the
+        map's buttons do at the right: back from the top right at the
+        owner's ask (2026-11-04, "Move the mic back to the left side, above
+        the tabs"); tapped, it widens to the right into the pill. In the
+        air it grows to 60 points there. */}
     {!stripLayout && (
     <div
       data-map-food=""
       className={cn(
         "absolute z-[1000] flex items-end rounded-[26px] p-1",
-        flying
-          ? "bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] max-w-[min(28rem,calc(100vw-5rem))]"
-          : "top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.5rem,env(safe-area-inset-right))] md:nav-bottom:right-16 flex-row-reverse max-w-[min(28rem,calc(100vw-1rem))]",
+        "bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] max-w-[min(28rem,calc(100vw-5rem))]",
         GLASS,
       )}
       data-testid="mic-circle" data-listening={pill || undefined}
-      // At the foot of the map in flight, riding the sheet's top there
-      // (MapPanel's ride rule); at its top on the ground.
-      data-rides={flying || undefined}
+      // Riding the sheet's top (MapPanel's ride rule).
+      data-rides=""
     >
       {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
           the pill's chips. */}
