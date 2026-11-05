@@ -246,7 +246,13 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
       if (next === "aircraft") out.set("aircraft", "1");
       for (const [key, value] of back) out.set(key, value);
       return out;
-    }, { replace: true });
+      // In the same commit as the pick and Setup put away (TabBar), not in
+      // the router's transition after them: in between, the tab bar drew
+      // the tab the address still had -- Airport for a card, a list or
+      // Nearest left open on it -- a frame on the way from Setup to FPL
+      // (the owner, 2026-11-05: "Why does the airport tab get selected
+      // momentarily when going from airport to setup to fpl?").
+    }, { replace: true, flushSync: true });
   }, [setSearchParams, searchParams, tab, flight, past]);
 
   // The tab up tapped again where the tab bar has no panel to size (the
