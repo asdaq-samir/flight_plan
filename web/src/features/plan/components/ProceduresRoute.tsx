@@ -1694,10 +1694,13 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
           >
             {/* A runway each: no None, at the owner's ask ("Why is none even
                 an option?"), as every takeoff and landing is on one -- and
-                the chip picked tapped again is no way to unpick it either. */}
+                the chip picked tapped again is no way to unpick it either:
+                it folds the line, as a new pick does (the owner, 2026-11-05:
+                "The runways should fold when a runway is picked", "Even the
+                same one"); the ToggleGroup's "" is that tap. */}
             <Chips
               label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE}
-              onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart tray
+              onChange={v => { if (v === NONE) return; setOpen(false); if (v) onPick(v); }} trailing={trailing} flushStart tray
               trailingRef={after} enter={chosen !== null ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300" : undefined}
             >
               {ends.map(({ runway, end }) => {
