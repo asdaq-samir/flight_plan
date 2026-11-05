@@ -515,7 +515,7 @@ export default function ProceduresRoute({
   // `altitudes`), else a waypoint's cruise to it, a field's elevation --
   // and its menu. `to`, a point flown to: Direct to it and its altitude
   // set there; `stop`, one the route's points can lose.
-  const cards = !!edit?.cards;
+  const asCards = !!edit?.cards;
   // A field's place among the typed points, for its grip and Add a Stop
   // After: the departure first, the destination last (a round trip's
   // field is both, by its role), a stop its own place between them.
@@ -720,9 +720,9 @@ export default function ProceduresRoute({
         // its content. A stop's second part, in a section of its own, is
         // shown with it (a Collapsible has one content).
         <Collapsible key={key} asChild open={opened} onOpenChange={next => toggleField(key, a.ident, next)}>
-          <li className={cn("relative", cards && POINT_CARD, cards && !last && CARD_LINK)} data-testid="route-field" data-ident={a.ident}>
-            {!last && !cards && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
-            <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && !cards && "pb-5")}>
+          <li className={cn("relative", asCards && POINT_CARD, asCards && !last && CARD_LINK)} data-testid="route-field" data-ident={a.ident}>
+            {!last && !asCards && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
+            <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && !asCards && "pb-5")}>
               {/* The airport's lines: a tap anywhere on them -- its symbol, its
                   ident, its fuel, its wind, its time -- opens it, at the
                   owner's ask ("it should expand when tapped anywhere on the
@@ -800,7 +800,7 @@ export default function ProceduresRoute({
               </div>
               <CollapsibleContent className="pl-[2.375rem]">{partBody(first)}</CollapsibleContent>
             </section>
-            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={cn("pl-[2.375rem]", !cards && "pb-5")}>{partBody(parts[1])}</section>}
+            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={cn("pl-[2.375rem]", !asCards && "pb-5")}>{partBody(parts[1])}</section>}
           </li>
         </Collapsible>
       );
@@ -944,7 +944,7 @@ export default function ProceduresRoute({
         // Direct to in the line's own colour: it says how the leg is
         // flown, and only what is tapped is in the tint.
         sub={end?.direct ? <span className="font-semibold">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "airport" in row && isPosition(row.airport.ident) ? placeOfPoint(row.airport.ident) : "Departure"}${along(row)}`}
-        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu} grip={end?.grip} card={cards}
+        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu} grip={end?.grip} card={asCards}
       />,
     );
     if (to) steps.push(holdRow(row.airport.ident));
