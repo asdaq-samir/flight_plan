@@ -137,7 +137,7 @@ export abstract class ViewCanvasLayer extends L.Layer {
     this.canvas = canvas;
     // Drawn again through a pan too, a frame at a time: past the canvas's
     // edge a long pan's airport marks came in only as it ended.
-    map.on("resize viewreset", this.schedule, this);
+    map.on("resize viewreset", this.reset, this);
     map.on("moveend", this.ended, this);
     map.on("zoom", this.zoomed, this);
     map.on("move", this.moved, this);
@@ -148,7 +148,7 @@ export abstract class ViewCanvasLayer extends L.Layer {
   }
 
   onRemove(map: L.Map): this {
-    map.off("resize viewreset", this.schedule, this);
+    map.off("resize viewreset", this.reset, this);
     map.off("moveend", this.ended, this);
     map.off("zoom", this.zoomed, this);
     map.off("move", this.moved, this);
@@ -184,8 +184,38 @@ export abstract class ViewCanvasLayer extends L.Layer {
   private moved(): void {
     const map = this._map;
     if (!map || !this.topLeft) return this.schedule();
+    this.place();
     const zooming = map.getZoom() !== this.drawnZoom;
     if (!this.covers(zooming ? L.point(0, 0) : map.getSize().multiplyBy(PAD / 2))) this.schedule();
+  }
+
+  /** The view's size or its pixel origin changed (a phone's toolbar going,
+   *  Leaflet's view reset): the canvas put back on the chart at once and
+   *  drawn again at the next frame. */
+  private reset(): void {
+    this.place();
+    this.schedule();
+  }
+
+  /**
+   * The drawing put where the map now has the place its top left was drawn
+   * for -- a no-op while the map's pixel origin and the pane hold, as
+   * through a plain pan. Where Leaflet moves its pixel origin under a pan
+   * (a view reset, a resize as Safari's toolbar comes and goes), the
+   * canvas, placed in the old layer points, stood off the chart until the
+   * next frame drew it again, and under a busy main thread for several:
+   * the rings, their altitudes and the airports' marks jumped against the
+   * chart and settled back as the finger moved (the owner's recording,
+   * 2026-11-04 22:11, a pan over Rockford: "class b rings dragging as I
+   * move"; the chart still while the marks moved 50 points between two
+   * frames).
+   */
+  private place(): void {
+    const map = this._map as (L.Map & { _animatingZoom?: boolean }) | undefined;
+    if (!map || !this.canvas || !this.topLeft || map._animatingZoom) return;
+    const zoom = map.getZoom();
+    const at = map.project(this.topLeft, zoom).subtract(map.getPixelOrigin());
+    L.DomUtil.setTransform(this.canvas, at, map.getZoomScale(zoom, this.drawnZoom));
   }
 
   /** Whether what was drawn, where the map now has it, reaches `margin`
