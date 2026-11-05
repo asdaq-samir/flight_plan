@@ -4,7 +4,7 @@ import AppIntents
 /// names the app, and the airport in it is an AirportEntity, so "Plan a
 /// trip to KLAS in Wingtip Maps" goes in one breath. Siri listens for the
 /// fields the entity suggests (the kept route's, the Favorites, the
-/// Recents: AirportQuery.suggestedEntities), so the app calls
+/// Recents: AirportEntityQuery.suggestedEntities), so the app calls
 /// `updateAppShortcutParameters()` when those change. A navaid or a fix
 /// for Direct To is free text, asked for after the phrase. Shown in the
 /// Shortcuts app and Spotlight as well.

@@ -524,9 +524,13 @@ private enum PreviewData {
 
 #Preview("FlightProfileChart") {
     let start = 1_762_000_000.0
-    let points = (0..<40).map { i in
-        Replay.Point(t: start + Double(i) * 60, lat: 46.84 - Double(i) * 0.01, lon: -92.19 - Double(i) * 0.015,
-                     altFt: 1400 + Double(min(i, 20)) * 250, gsKt: 95 + Double(i % 7) * 3)
+    // Typed out: as one inferred closure the type checker gave up on it.
+    let points: [Replay.Point] = (0..<40).map { (i: Int) -> Replay.Point in
+        let n = Double(i)
+        let climb: Double = Double(min(i, 20)) * 250
+        let gust: Double = Double(i % 7) * 3
+        return Replay.Point(t: start + n * 60, lat: 46.84 - n * 0.01, lon: -92.19 - n * 0.015,
+                            altFt: 1400 + climb, gsKt: 95 + gust)
     }
     return FlightProfileChart(points: points, cursor: points[15])
         .frame(height: 180)

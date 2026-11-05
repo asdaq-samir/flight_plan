@@ -7,11 +7,11 @@ import AppIntents
 /// (the synonyms), so "KLAS", "Harry Reid" and "Las Vegas" all find it.
 /// Siri listens for the fields `suggestedEntities` offers -- the kept
 /// route's, the Favorites and the Recents -- and asks for any other,
-/// which `AirportQuery` then finds on the planner as the microphone's
+/// which `AirportEntityQuery` then finds on the planner as the microphone's
 /// "plan a trip to Las Vegas" does (IntentLookups.field).
 struct AirportEntity: AppEntity {
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Airport"
-    static let defaultQuery = AirportQuery()
+    static let defaultQuery = AirportEntityQuery()
 
     /// The ident as pilots write it: KLAS, 3CK.
     let id: String
@@ -54,8 +54,9 @@ struct AirportEntity: AppEntity {
 }
 
 /// How Siri and Shortcuts find a field: by its ident, by what was typed
-/// or said, and the few offered without asking.
-struct AirportQuery: EntityStringQuery {
+/// or said, and the few offered without asking. Not `AirportQuery`: that
+/// is the iPad sidebar's search text (SplitLayout).
+struct AirportEntityQuery: EntityStringQuery {
     /// The fields Siri listens for in a phrase, and Shortcuts offers first:
     /// the kept route's, then the Favorites and the Recents, each once.
     /// Named from the device, so this answers with no signal.
