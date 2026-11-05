@@ -271,9 +271,9 @@ export default function RouteBox({
   // row, in which ids can slide etc. even when routes have more fixes
   // than the space in the row"): the box keeps one line's height whatever
   // the route, and the pills slide sideways under a finger. Whether they
-  // run on past its end, read as the box or its pills change, for the
-  // fade at the edge that says there is more.
-  const [runsOn, setRunsOn] = useState(false);
+  // run on past either end, read as the box or its pills change and as it
+  // is slid, for the fade at each edge that says there is more there.
+  const [runsOn, setRunsOn] = useState({ before: false, after: false });
   useEffect(() => {
     const el = slide.current;
     if (!el) return;
@@ -281,22 +281,30 @@ export default function RouteBox({
     let frame = 0;
     const read = () => {
       frame = 0;
-      setRunsOn(el.scrollWidth - el.clientWidth > RUNS_ON_PX);
+      const over = el.scrollWidth - el.clientWidth > RUNS_ON_PX;
+      const before = over && el.scrollLeft > RUNS_ON_PX;
+      const after = over && el.scrollWidth - el.clientWidth - el.scrollLeft > RUNS_ON_PX;
+      setRunsOn(was => (was.before === before && was.after === after ? was : { before, after }));
     };
     const soon = () => { if (!frame) frame = requestAnimationFrame(read); };
     const sized = new ResizeObserver(soon);
     sized.observe(el);
     const changed = new MutationObserver(soon);
     changed.observe(el, { childList: true, subtree: true });
+    el.addEventListener("scroll", soon, { passive: true });
     soon();
-    return () => { cancelAnimationFrame(frame); sized.disconnect(); changed.disconnect(); };
+    return () => { cancelAnimationFrame(frame); sized.disconnect(); changed.disconnect(); el.removeEventListener("scroll", soon); };
   }, []);
   // A point added or the field taken: the row slid to its end, where the
-  // new point and what is typed are.
+  // new point and what is typed are. Not as it opens, which shows the
+  // route from its departure.
   const pointCount = points.length;
+  const countWas = useRef(pointCount);
   useEffect(() => {
     const el = slide.current;
-    if (el && (focused || pointCount)) el.scrollTo({ left: el.scrollWidth, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    const added = pointCount > countWas.current;
+    countWas.current = pointCount;
+    if (el && (focused || added)) el.scrollTo({ left: el.scrollWidth, behavior: prefersReducedMotion() ? "auto" : "smooth" });
   }, [pointCount, focused]);
   const isRoom = (e: MouseEvent<HTMLDivElement>) => e.target === e.currentTarget || e.target === slide.current;
   const toEnd = (e: MouseEvent<HTMLDivElement>) => {
@@ -474,7 +482,9 @@ export default function RouteBox({
                 is the row's. */}
             <div ref={slide} className={cn(
               "flex min-w-0 flex-1 flex-nowrap items-center gap-x-px overflow-x-auto overflow-y-hidden overscroll-x-contain py-1 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0",
-              runsOn && "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]",
+              runsOn.before && runsOn.after ? "[mask-image:linear-gradient(to_right,transparent,black_1.5rem,black_calc(100%-1.5rem),transparent)]"
+                : runsOn.after ? "[mask-image:linear-gradient(to_right,black_calc(100%-1.5rem),transparent)]"
+                  : runsOn.before && "[mask-image:linear-gradient(to_right,transparent,black_1.5rem)]",
             )} data-testid="route-slide">
               {/* The box does not scroll itself under a drag: the pill dragged
                   is in the box it scrolls, so each step down carried it
