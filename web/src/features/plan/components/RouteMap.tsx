@@ -10,7 +10,7 @@ import { pointName } from "../../../lib/identSchema";
 import { placeWords } from "../../../lib/advisories";
 import type { Candidate, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
-import { AirportsLayer } from "../../../lib/map/AirportsLayer";
+import { AirportsAsk, AirportsLayer } from "../../../lib/map/AirportsLayer";
 import { airportBox, overlaps, useDrawnAirports } from "../../../lib/map/declutter";
 import { useAfterPaint } from "../../../hooks/use-after-paint";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
@@ -783,6 +783,7 @@ export default memo(function RouteMap({
     >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
+      <AirportsAsk />
       {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} others={chippedFields} route={routeBox} />}
       {layered && <TfrLayer />}
       {layered && <WaypointsLayer exclude={chipped} />}

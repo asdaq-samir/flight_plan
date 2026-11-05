@@ -1,6 +1,6 @@
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Marker, Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import { usePreferences, type AirspaceClass } from "../preferences";
@@ -108,6 +108,24 @@ const HOVER_PX = 13;
 /** How far off a field's mark a tap on the chart is still the field's:
  *  half a finger's 44 points. */
 const NEAR_MISS_PX = 22;
+
+/** The airports' first question, asked as the map is made: their layer
+ *  comes a frame after the chart (RouteMap's useAfterPaint), where the
+ *  airspace and the VORs ask at once, and the VORs were on the map
+ *  before the fields (the owner, 2026-11-05: "on the app vors show up
+ *  first"). The same question the layer's own first is -- the view's
+ *  box, its key the layer's -- so the layer finds the answer in, or on
+ *  its way. */
+export function AirportsAsk() {
+  const map = useMap();
+  const client = useQueryClient();
+  useEffect(() => {
+    const zoom = map.getZoom();
+    const query = airportsQuery(boxAt(map.getBounds(), zoom), zoom);
+    if (query.enabled) void client.prefetchQuery(query);
+  }, [map, client]);
+  return null;
+}
 
 /** The canvas the marks are drawn on (AirportCanvas), in the airports'
  *  pane: made once, given the marks as they change. */
@@ -440,6 +458,9 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     useDrawnAirports.setState({ fields });
   }, [flight, own, others]);
   useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
+  // The first answer in, the VORs may come (NavaidsLayer waits for it).
+  const answered = inView !== undefined;
+  useEffect(() => { if (answered) useDrawnAirports.setState({ airportsIn: true }); }, [answered]);
   return (
     <>
       {/* The Class B, C and D fields by the rings, the rest over

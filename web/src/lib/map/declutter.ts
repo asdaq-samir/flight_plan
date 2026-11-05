@@ -63,5 +63,8 @@ const NO_FIELDS: DrawnField[] = [];
 
 /** The fields drawn with their marks and idents just now (AirportsLayer's
  *  and the route's), for what else is drawn on the map -- the VORs' tags
- *  -- to keep off. A new list only when what is drawn changes. */
-export const useDrawnAirports = create<{ fields: DrawnField[] }>(() => ({ fields: NO_FIELDS }));
+ *  -- to keep off. A new list only when what is drawn changes. And
+ *  whether the airports' first answer is in: the VORs are drawn after it
+ *  (NavaidsLayer), at the owner's ask ("on the app vors show up first",
+ *  2026-11-05: the rings, then the airports, then the navaids). */
+export const useDrawnAirports = create<{ fields: DrawnField[]; airportsIn: boolean }>(() => ({ fields: NO_FIELDS, airportsIn: false }));

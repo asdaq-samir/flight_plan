@@ -29,6 +29,9 @@ import { PointWhere } from "./PointWhere";
 /** The VORs from a region's zoom in: a few to a state, each a station a
  *  pilot tunes, and the chart's compass roses round them. */
 const VOR_ZOOM = 8;
+/** The longest the VORs wait for the airports' first answer before they
+ *  are drawn anyway. */
+const AIRPORTS_WAIT_MS = 2000;
 /** The enroute chart's fixes only close in: further out there are dozens
  *  to a county, a scatter over the chart's own marks. */
 const FIX_ZOOM = 10;
@@ -126,10 +129,21 @@ export function NavaidsLayer() {
   // Not the fixes of an answer kept from closer in, zoomed back out.
   const fixes = withFixes ? (data?.fixes ?? NO_FIXES) : NO_FIXES;
   const sides = useTagSides(on ? vors : NO_VORS, zoom);
-  const marks = useMemo((): NavaidMark[] => (on ? [
+  // Drawn after the airports, as the owner asked ("on the app vors show
+  // up first", 2026-11-05): asked for at once, but put on the map once
+  // the airports' first answer is in -- or after AIRPORTS_WAIT_MS where
+  // none comes (a map without the airports' layer, a planner too slow).
+  const airportsIn = useDrawnAirports(s => s.airportsIn);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setWaited(true), AIRPORTS_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const drawn = on && (airportsIn || waited);
+  const marks = useMemo((): NavaidMark[] => (drawn ? [
     ...fixes.map((f): NavaidMark => ({ key: `fix-${f.ident}`, ident: f.ident, lat: f.lat, lon: f.lon, kind: "fix", side: "right" })),
     ...vors.map((v): NavaidMark => ({ key: vorKey(v), ident: v.ident, lat: v.lat, lon: v.lon, kind: "vor", side: sides.get(vorKey(v)) ?? "right" })),
-  ] : []), [on, fixes, vors, sides]);
+  ] : []), [drawn, fixes, vors, sides]);
   if (!on) return null;
   return (
     <Pane name="navaids" style={MARKS_PANE}>
