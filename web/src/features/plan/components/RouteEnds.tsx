@@ -1,9 +1,6 @@
 import { cn } from "cn";
 import CardIdent from "./CardIdent";
-import { CARD_GAP, CardMark, CardThread, POINT_CARD } from "./routeCard";
-
-/** The course's magenta, the ends' marks. */
-const COURSE = { borderColor: "var(--course)" } as const;
+import { CARD_GAP, CardMark, CardThread, EmptyMark, POINT_CARD } from "./routeCard";
 
 /**
  * FPL's two lines before there is a route, where the route is changed in
@@ -27,33 +24,26 @@ export default function RouteEnds({ dep, dest, onDep, onDest }: {
   // line outside the cards' left edge into each mark.
   return (
     <ol className="flex min-w-0 flex-1 flex-col pt-1 pb-2 pl-0" aria-label="The route" data-testid="route-ends">
-      <EndCard value={dep} onChange={onDep} label="Departure" testId="route-end-departure" round first />
+      <EndCard value={dep} onChange={onDep} label="Departure" testId="route-end-departure" first />
       <EndCard value={dest} onChange={onDest} label="Destination" testId="route-end-destination" />
     </ol>
   );
 }
 
-function EndCard({ value, onChange, label, testId, round = false, first = false }: {
+function EndCard({ value, onChange, label, testId, first = false }: {
   value: string;
   onChange: (ident: string) => void;
   label: string;
   testId: string;
-  /** The departure's mark a circle, the destination's a square, as the
-   *  canvas drew them. */
-  round?: boolean;
   first?: boolean;
 }) {
   return (
     <li className={cn("relative isolate flex min-h-16 items-center gap-2.5", POINT_CARD, first && CARD_GAP)}>
       <CardThread first={first} last={!first} />
-      {/* The marks' 36 on its grey, as an airport's is (PointMenu's face),
-          the dashed end in it until its ident is in. */}
+      {/* The airport symbol on the marks' grey, faded, at the owner's ask
+          (2026-11-05: "The stop icons can be airport like when empty"). */}
       <span className="grid w-7 shrink-0 place-items-center" aria-hidden="true">
-        <CardMark>
-          <span className="-mx-1 grid size-9 place-items-center rounded-full bg-foreground/8">
-            <span className={cn("size-4 border-[3px] border-dashed", round ? "rounded-full" : "rounded-[4px]", value && "border-solid")} style={COURSE} />
-          </span>
-        </CardMark>
+        <CardMark><EmptyMark /></CardMark>
       </span>
       {/* A text box, as every card's ident is (CardIdent), at the owner's
           ask (2026-11-05: "Even the start can be consistent with it to

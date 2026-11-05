@@ -11,7 +11,7 @@ import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
 import CardIdent from "./CardIdent";
-import { CARD_GAP, CardMark, CardThread, POINT_CARD } from "./routeCard";
+import { CARD_GAP, CardMark, CardThread, EmptyMark, POINT_CARD } from "./routeCard";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
@@ -111,6 +111,7 @@ export interface RouteListEdit {
 
 
 
+
 /**
  * A stop being added, In the Plan: an empty card at its place, its text
  * box ready to type in (CardIdent), on the course's line, at the owner's
@@ -123,8 +124,11 @@ function NewStopCard({ via, onCommit, onCancel }: { via: Detour[] | null; onComm
       <CardThread first={false} last={false} />
       <div className="flex items-center gap-2.5">
         <span className="grid w-7 shrink-0 place-items-center" aria-hidden="true">
-          {/* The marks' size, so the line meets it at its left as theirs. */}
-          <span className="-mx-1 size-9 rounded-full border-2 border-dashed bg-card" style={{ borderColor: "var(--course)" }} />
+          {/* An airport's mark in the marks' grey disc, faded till its ident
+              is in, at the owner's ask (2026-11-05: "The stop icons can be
+              airport like when empty"); the disc the marks' 36, so the line
+              meets it at its left as theirs. */}
+          <CardMark><EmptyMark /></CardMark>
         </span>
         <div className="flex min-w-0 flex-1 pr-1.5">
           <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" autoFocus wide onCommit={onCommit} onEmpty={onCancel} />
