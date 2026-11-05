@@ -1,18 +1,18 @@
 //! wingtip-engine: the planner's figures in plain Rust, with no network
 //! and nothing but std, so the same code answers on the planner (through
-//! native/py, the vfr_native module) and on the phones (through
+//! native/py, the wingtip_native module) and on the phones (through
 //! native/ffi's C functions: iOS from Swift, Android later from Kotlin).
 //! It must build for aarch64-apple-ios and aarch64-linux-android as it
 //! is: no Python, no host-only crates, and the cycle pack read from bytes
 //! the caller maps.
 //!
 //! - call: one way in for every host, a rule asked by name with JSON in
-//!   and JSON out (the web app's wasm, vfr_native.call, wt_call);
+//!   and JSON out (the web app's wasm, wingtip_native.call, wt_call);
 //! - grid: route options' straight lines over the grid;
 //! - ahead: the alerts ahead of the airplane from the phone's packs;
 //! - airspace: whether an airspace volume holds a point;
 //! - pack: the cycle pack, one file per FAA cycle;
-//! - geo: great-circle distances, as vfr.geo has them;
+//! - geo: great-circle distances, as wingtip.geo has them;
 //! - rules: the airspace over a point in bands, with the rules of each;
 //! - phone: the planner's airspace-at-a-point answer from a phone's pack;
 //! - view: the map's airspace, airports and VORs in view from the packs,

@@ -21,7 +21,7 @@ import { inNativeApp } from "../native";
 import { trafficCredit } from "./trafficCredit";
 
 /** How often the traffic is asked for again, ms: the planner asks
- *  adsb.lol about a region at most every five seconds (vfr.traffic). */
+ *  adsb.lol about a region at most every five seconds (wingtip.traffic). */
 const EVERY_MS = 5000;
 /** How often the airplanes are moved on the map between answers, ms:
  *  ten times a second reads as gliding, at a tenth of the frames. */
@@ -55,7 +55,7 @@ interface Target {
 }
 
 /**
- * The airplanes ADS-B receivers hear about the map (vfr.traffic, from
+ * The airplanes ADS-B receivers hear about the map (wingtip.traffic, from
  * adsb.lol's open data), when the map's settings show them: each a
  * chevron on its track with a line to where it will be in a minute,
  * amber within 1,000 ft of own ship's height, cyan otherwise, with,
@@ -126,7 +126,7 @@ function Traffic() {
   // Said where it is drawn, as the licence asks; gone with it. Whose the
   // airplanes are: adsb.lol's, ADS-B Exchange's where the planner asked it
   // because adsb.lol turned it away, and adsb.fi's or ADS-B Exchange's for
-  // an airplane watched that adsb.lol does not hear (vfr.traffic).
+  // an airplane watched that adsb.lol does not hear (wingtip.traffic).
   const credit = trafficCredit(data?.source);
   useEffect(() => {
     const control = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(credit).addTo(map);
@@ -151,7 +151,7 @@ function Traffic() {
   const receiverOwn = useReceiver(s => s.ownHex);
   const receiving = useReceiver(s => s.connected);
   // The planner answers 503 only once adsb.lol has given nothing for a
-  // minute (vfr.traffic): then the map says so, and the airplanes, carried
+  // minute (wingtip.traffic): then the map says so, and the airplanes, carried
   // on no further than half a minute, have gone -- unless a receiver in
   // the cockpit is heard, whose traffic is drawn without the internet.
   useEffect(() => () => clearProblem(PROBLEM), []);
@@ -366,7 +366,7 @@ function Traffic() {
 }
 
 /** From the middle of the map to its corner, nm, kept between 10 and 165:
- *  the planner gives a view out to 165 its traffic (vfr.traffic), the
+ *  the planner gives a view out to 165 its traffic (wingtip.traffic), the
  *  map zoomed out to a state or two. */
 /** The most airplanes put on the page in one step of the traffic's. */
 const ADD_PER_STEP = 40;
@@ -394,7 +394,7 @@ const NOT_HEARD_WAIT_MS = 4000;
  * The path a tracked flight has flown today, as FlightAware draws one:
  * from its takeoff (or where its trace begins) to its last report, in
  * the colours of its heights (heightColour) over a white casing -- its
- * trace from the planner (vfr.traffic.flight, read again every minute)
+ * trace from the planner (wingtip.traffic.flight, read again every minute)
  * and the reports since (lib/map/tracking's `path`).
  */
 function TrackedPath({ hex }: { hex: string }) {

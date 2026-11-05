@@ -1,4 +1,4 @@
-"""The Rust extension (native/, vfr_native) held to references it does not
+"""The Rust extension (native/, wingtip_native) held to references it does not
 share code with:
 
 - route options' straight lines against the Python they were until
@@ -10,7 +10,7 @@ share code with:
   pyshp and shapely code gave at real taps round Chicago (O'Hare, KDPA,
   Midway and its shelf, Wheeling under O'Hare's shelf), captured then from
   the NASR Class Airspace shapefile the planner held, cut to the volumes
-  there; and the same from the cycle pack (vfr.pack) made of that file.
+  there; and the same from the cycle pack (wingtip.pack) made of that file.
 
 The route grids and the Chicago taps are shared with the engine's own
 tests (native/engine/tests/fixtures.rs).
@@ -28,10 +28,10 @@ import shapefile
 from shapely.geometry import Point
 from shapely.geometry import shape as shapely_shape
 
-import vfr_native
-from vfr import airspace_at, geo
-from vfr import pack as cycle_pack
-from vfr import route_options as ro
+import wingtip_native
+from wingtip import airspace_at, geo
+from wingtip import pack as cycle_pack
+from wingtip import route_options as ro
 
 FIXTURES = Path(__file__).parent / "fixtures" / "native"
 
@@ -199,7 +199,7 @@ def test_real_routes_turn_where_the_python_turned(route):
             pytest.approx(case["legs_min"], rel=1e-9)
         assert [grid.line_cells(points[0], p) for p in points[1:]] == \
             [[tuple(c) for c in cells] for cells in case["cells_from_first"]]
-        # The miles the engine's tests are given are vfr.geo's.
+        # The miles the engine's tests are given are wingtip.geo's.
         lats, lons = np.array([p[0] for p in points]), np.array([p[1] for p in points])
         assert np.asarray(geo.distance_nm(lats[:-1], lons[:-1], lats[1:], lons[1:])).reshape(-1).tolist() == \
             pytest.approx(case["leg_nm"], rel=1e-9)
@@ -239,7 +239,7 @@ def test_a_shape_holds_what_shapely_says_it_holds(chicago):
         for x, y in zip(rng.uniform(x0, x1, 300), rng.uniform(y0, y1, 300)):
             inside = polygon.contains(Point(x, y))
             held += inside
-            assert vfr_native.shape_holds(content, float(x), float(y)) == inside, (i, x, y)
+            assert wingtip_native.shape_holds(content, float(x), float(y)) == inside, (i, x, y)
     reader.close()
     assert held > 1000
 
@@ -249,7 +249,7 @@ def test_a_shape_holds_what_shapely_says_it_holds(chicago):
 
 @pytest.fixture()
 def chicago_pack(chicago, tmp_path, monkeypatch):
-    """A pack of the Chicago cut alone, where vfr.pack looks for one."""
+    """A pack of the Chicago cut alone, where wingtip.pack looks for one."""
     path = cycle_pack.write(tmp_path, "2026-10-29", shp_path=chicago, sua_held=[], sua_at=0.0, urban=[],
                             urban_path=None, tables={})
     monkeypatch.setattr(cycle_pack, "PACK_DIR", tmp_path)
@@ -259,11 +259,11 @@ def chicago_pack(chicago, tmp_path, monkeypatch):
 def test_the_pack_reads_back_as_written(chicago_pack):
     pack = cycle_pack.Pack(chicago_pack)
     assert pack.verify()
-    header = vfr_native.pack_header(pack.mapped)
+    header = wingtip_native.pack_header(pack.mapped)
     assert header["cycle"] == pack.cycle == "2026-10-29"
     assert header["crc32"] == pack.crc32
     assert set(header["sections"]) == set(pack.sections)
-    assert vfr_native.pack_verify(pack.mapped)
+    assert wingtip_native.pack_verify(pack.mapped)
     assert cycle_pack.matches(pack, "airspace", chicago_pack.parent.parent / "missing.shp") is False
 
 
@@ -286,21 +286,21 @@ def test_the_packs_rings_hold_what_the_shapefiles_hold(chicago, chicago_pack):
     assert len(wkbs) == len(contents)
     for wkb, content, (x0, y0, x1, y1) in zip(wkbs, contents, boxes):
         for x, y in zip(rng.uniform(x0, x1, 200), rng.uniform(y0, y1, 200)):
-            assert vfr_native.wkb_holds(wkb, float(x), float(y)) == vfr_native.shape_holds(content, float(x), float(y))
+            assert wingtip_native.wkb_holds(wkb, float(x), float(y)) == wingtip_native.shape_holds(content, float(x), float(y))
 
 
 def test_one_way_in_answers_a_rule_by_name_as_its_own_function_does():
-    """vfr_native.call, the engine's one way in that the web app's
+    """wingtip_native.call, the engine's one way in that the web app's
     WebAssembly and the phones' wt_call share (wingtip_engine::call): a
     rule by name, JSON in and out, the answer the rule's own function
     gives; a name not known or input of the wrong shape a ValueError."""
-    asked = json.loads(vfr_native.call("diversion", json.dumps({
+    asked = json.loads(wingtip_native.call("diversion", json.dumps({
         "true_course_deg": 360, "distance_nm": 18, "tas_kt": 110, "fuel_burn_gph": 8.5, "magnetic_variation_deg": -3,
         "wind": {"wind_dir_true_deg": 270, "wind_speed_kt": 20}, "to": "KDPA", "mh": 350,
     })))
-    assert asked == json.loads(vfr_native.diversion_json(360, 18, 110, 8.5, -3, 270, 20, "KDPA", 350, None, None, None))
-    assert json.loads(vfr_native.call("holding_leg_minutes", '{"altitude_ft": 16000}')) == vfr_native.holding_leg_minutes(16000)
+    assert asked == json.loads(wingtip_native.diversion_json(360, 18, 110, 8.5, -3, 270, 20, "KDPA", 350, None, None, None))
+    assert json.loads(wingtip_native.call("holding_leg_minutes", '{"altitude_ft": 16000}')) == wingtip_native.holding_leg_minutes(16000)
     with pytest.raises(ValueError, match="no rule called"):
-        vfr_native.call("nope", "{}")
+        wingtip_native.call("nope", "{}")
     with pytest.raises(ValueError, match='"heading" is missing'):
-        vfr_native.call("holding", '{"inbound": 360}')
+        wingtip_native.call("holding", '{"inbound": 360}')

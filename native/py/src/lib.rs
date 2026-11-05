@@ -1,4 +1,4 @@
-//! vfr_native: wingtip-engine (native/engine) as vfr imports it. Only
+//! wingtip_native: wingtip-engine (native/engine) as wingtip imports it. Only
 //! the crossing from Python lives here -- numpy's arrays and mapped files
 //! borrowed in place, errors turned into ValueError; every figure is the
 //! engine's.
@@ -68,7 +68,7 @@ fn line_minutes(py: Python<'_>, a: Point, b: Point, nm: f64, lat0: f64, lon0: f6
 }
 
 /// _straightened's turns, as indices into the points (grid::straightened).
-/// `nm_from(i)` is vfr.geo's distance from point i to every point.
+/// `nm_from(i)` is wingtip.geo's distance from point i to every point.
 #[pyfunction]
 #[allow(clippy::too_many_arguments)]
 fn straightened(py: Python<'_>, points: Vec<Point>, lat0: f64, lon0: f64, cell: f64, closed: PyBuffer<i64>,
@@ -438,7 +438,7 @@ fn diversion_json(tc_deg: f64, distance_nm: f64, tas_kt: f64, fuel_burn_gph: f64
 }
 
 /// The entry into a hold for an airplane arriving on a course, a key
-/// (holding::entry, vfr.holds.entry).
+/// (holding::entry, wingtip.holds.entry).
 #[pyfunction]
 fn hold_entry(arrival_deg: f64, inbound_deg: f64, right: bool) -> &'static str {
     holding::entry(arrival_deg, inbound_deg, right).key()
@@ -509,7 +509,7 @@ fn call(name: &str, input: &str) -> PyResult<String> {
 }
 
 #[pymodule]
-fn vfr_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn wingtip_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(call, m)?)?;
     m.add_function(wrap_pyfunction!(line_cells, m)?)?;
     m.add_function(wrap_pyfunction!(line_minutes, m)?)?;

@@ -6,8 +6,8 @@ that /api/plan and /api/checkpoints serialise, and that the nav-log
 stream's lines are the messages app.schemas declares."""
 import pytest
 from fastapi.testclient import TestClient
-from vfr import altitude as altitude_module
-from vfr import navlog
+from wingtip import altitude as altitude_module
+from wingtip import navlog
 
 from app import scoring
 from app.main import app
@@ -25,7 +25,7 @@ CANDIDATES = [
 
 
 def _leg(start, end, altitude_ft, profile, fcst_hr="06") -> dict:
-    """What vfr.navlog.assemble_leg returns, minus the live winds call."""
+    """What wingtip.navlog.assemble_leg returns, minus the live winds call."""
     return {
         "true_course_deg": 320.0, "distance_nm": 10.0, "altitude_ft": altitude_ft,
         "wind": {"wind_dir_true_deg": 270.0, "wind_speed_kt": 15.0},
@@ -135,7 +135,7 @@ def test_a_departure_time_picks_the_winds_forecast_period(monkeypatch, messages)
 
     monkeypatch.setattr(navlog, "assemble_leg", leg)
     # No product's header to hand: the period by hours ahead.
-    from vfr import weather
+    from wingtip import weather
     monkeypatch.setattr(weather, "winds_period", lambda fcst_hr="06": None)
     soon = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
     later = (datetime.now(timezone.utc) + timedelta(hours=14)).isoformat()
@@ -161,7 +161,7 @@ def test_the_winds_product_is_the_one_whose_for_use_window_holds_the_departure(m
     from datetime import datetime, timezone
 
     from app import planning
-    from vfr import weather
+    from wingtip import weather
 
     periods = {
         "06": {"valid_at": "2026-10-20T18:00:00Z", "use_from": "2026-10-20T14:00:00Z", "use_to": "2026-10-20T21:00:00Z"},
@@ -178,14 +178,14 @@ def test_the_winds_product_is_the_one_whose_for_use_window_holds_the_departure(m
 
 def test_totals_say_when_the_plan_was_made_and_the_winds_it_flies(messages, monkeypatch):
     from app import planning
-    from vfr import weather
+    from wingtip import weather
 
     period = {"valid_at": "2026-09-22T18:00:00Z", "use_from": "2026-09-22T14:00:00Z", "use_to": "2026-09-22T21:00:00Z"}
     asked = []
     monkeypatch.setattr(weather, "winds_period", lambda fcst_hr="06": asked.append(fcst_hr) or period)
     t = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"}))[-1]["totals"]
     # "Now" is noon in Chicago (conftest): the 6-hour product's period.
-    # The FB's own winds, not the GFS's (modelled, vfr.modelwinds).
+    # The FB's own winds, not the GFS's (modelled, wingtip.modelwinds).
     assert (t["planned_at"], t["winds"], asked) == ("2026-09-22T17:00:00Z", {**period, "modelled": False}, ["06"])
     assert planning.now().isoformat().startswith("2026-09-22T17:00")
 
@@ -284,7 +284,7 @@ def test_navlog_flies_a_route_with_no_legal_altitude_anyway(monkeypatch, altitud
 # --- the altitude outcome, decided once ---
 
 def _no_winds(monkeypatch):
-    from vfr.weather import WeatherServiceError
+    from wingtip.weather import WeatherServiceError
 
     def fail(*args, **kwargs):
         raise WeatherServiceError("aviationweather.gov winds-06 unavailable: timed out")
@@ -536,7 +536,7 @@ def test_an_altitude_the_pilot_set_is_checked_against_the_band_and_warned_not_re
 
 
 def test_under_ifr_the_plan_says_so_and_the_reserve_is_45_minutes_by_day(messages):
-    """rules=ifr plans the route under IFR (vfr.ifr): the selection says
+    """rules=ifr plans the route under IFR (wingtip.ifr): the selection says
     which rules it was made under, and the fuel check keeps 14 CFR
     91.167(a)(3)'s 45 minutes where VFR's day reserve is 30."""
     lines = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH", "rules": "ifr"}))

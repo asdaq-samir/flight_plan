@@ -218,7 +218,7 @@ struct StopServicesSections: View {
                     CardRow(badge: RowBadge(systemImage: "fuelpump", colour: Badge.fuel),
                             title: (s.fuelTypes ?? []).isEmpty ? "None listed" : AirportWords.fuelNames(s.fuelTypes ?? []))
                     // The remarks in plain English as the planner gives
-                    // them (vfr.remarks.service_notes).
+                    // them (wingtip.remarks.service_notes).
                     ForEach(s.fuelNotes ?? [], id: \.self) { Text($0) }
                 }
                 let field = onTheField(s)

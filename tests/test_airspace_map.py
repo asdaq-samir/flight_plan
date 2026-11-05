@@ -1,10 +1,10 @@
-"""vfr.airspace_map: the Class B, C and D in a box, as lines on the
+"""wingtip.airspace_map: the Class B, C and D in a box, as lines on the
 chart and the altitudes for their labels, from a stand-in shapefile."""
 import pytest
 import shapefile
 from shapely.geometry import Point, Polygon
 
-from vfr import airspace, airspace_map
+from wingtip import airspace, airspace_map
 
 
 def _write(path) -> None:

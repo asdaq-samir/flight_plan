@@ -5,7 +5,7 @@ import threading
 
 import pandas as pd
 from fastapi.testclient import TestClient
-from vfr import chartlabels, chartmodel, chartvision, model_client
+from wingtip import chartlabels, chartmodel, chartvision, model_client
 
 from app import chart_model
 from app.main import app

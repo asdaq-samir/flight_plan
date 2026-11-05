@@ -26,7 +26,7 @@ test("a fresh device opens straight onto the map, and About says what the planne
   await consolePage(page.getByTestId("console-sheet"), "About");
   const about = page.getByTestId("about-panel");
   await expect(about).toContainText("Wingtip Maps");
-  await expect(about.getByTestId("about-planning-aid")).toContainText("planning aid for VFR flight");
+  await expect(about.getByTestId("about-planning-aid")).toContainText("planning aid for VFR and IFR flight");
   await expect(about.getByTestId("about-planning-aid")).toContainText("14 CFR 91.103");
   await expect(about.getByTestId("about-build")).toBeVisible();
   await expect(about.getByTestId("about-chart-edition")).not.toHaveText(/—/);

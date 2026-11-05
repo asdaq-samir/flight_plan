@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from vfr import notams, tfr
+from wingtip import notams, tfr
 
 from .. import exposure
 from ..common import load_route
@@ -245,7 +245,7 @@ def _altitudes(low: float | None, high: float | None) -> str:
 
 
 def _notam_source(n: dict) -> Source:
-    """A NOTAM as the FAA's feed gave it (vfr.notams.at_fields), with its
+    """A NOTAM as the FAA's feed gave it (wingtip.notams.at_fields), with its
     times in ISO beside the form a briefing reads."""
     when = _span(n.get("starts"), n.get("ends"), capital=True)
     if n.get("estimated"):
@@ -256,7 +256,7 @@ def _notam_source(n: dict) -> Source:
 
 
 def _tfr_source(t: dict) -> Source:
-    """A TFR as vfr.tfr reads its NOTAM and places it on the route."""
+    """A TFR as wingtip.tfr reads its NOTAM and places it on the route."""
     lines = [f"TFR {t['notam_id']}: {t.get('title') or 'no title'}."]
     kind = ", ".join(x for x in (t.get("kind"), t.get("purpose")) if x)
     if kind:
@@ -506,9 +506,9 @@ CHANGES_ASK = ("What changed in this flight's weather since the last look, and w
 def notam_words(ask: RouteAsk) -> NotamWords:
     """The NOTAMs that matter for a flight, in a few sentences. The figures
     are the planner's: the NOTAMs in force or to come at every field the
-    route lands at, as the FAA's NOTAM feed gave them (vfr.notams, SWIM's
+    route lands at, as the FAA's NOTAM feed gave them (wingtip.notams, SWIM's
     FNS), and the TFRs near the route over the briefing's hours
-    (vfr.tfr.along_route, as GET /api/briefing asks them: two hours of
+    (wingtip.tfr.along_route, as GET /api/briefing asks them: two hours of
     flight and an hour past, the route's own time not being known here).
     The words are the model's; the sources are the pilot's to read raw.
     With no NOTAM and no TFR there is nothing to say and no call."""

@@ -1,10 +1,10 @@
 """/api/cycle-packs and /api/cycle-pack/{cycle}/{region}.pack: the phones'
-packs as vfr.pack keeps them, kept by the phone and the CDN for their
+packs as wingtip.pack keeps them, kept by the phone and the CDN for their
 cycle."""
 import json
 
 from fastapi.testclient import TestClient
-from vfr import pack as cycle_pack
+from wingtip import pack as cycle_pack
 
 from app.main import app
 

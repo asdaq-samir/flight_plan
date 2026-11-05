@@ -1,6 +1,6 @@
 import pytest
 
-from vfr.chartlabels import (
+from wingtip.chartlabels import (
     delete_pick,
     load_picks,
     route_key,
@@ -122,7 +122,7 @@ def test_a_zero_rating_is_a_rejection_not_a_missing_value(picks_file):
 
 # --- DR checkpoints and visual references are different jobs ---
 
-from vfr.chartlabels import ROLES, default_role  # noqa: E402
+from wingtip.chartlabels import ROLES, default_role  # noqa: E402
 
 
 def test_on_course_defaults_to_a_dead_reckoning_checkpoint():

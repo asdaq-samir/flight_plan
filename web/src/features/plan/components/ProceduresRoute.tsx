@@ -72,7 +72,7 @@ const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arr
 /** A kind as a branch's head says it, under the procedure's name. */
 const KIND_WORD: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", departure: "Departure" };
 /** The FAA's chart codes in a field's d-TPP for each kind (its card's
- *  terminal charts, vfr.publications, as the d-TPP metafile's chart_code
+ *  terminal charts, wingtip.publications, as the d-TPP metafile's chart_code
  *  has them): an instrument approach procedure, a STAR ("STR"), a
  *  departure procedure (a SID or a graphic obstacle departure) or a
  *  textual one. */
@@ -206,7 +206,7 @@ export type ProceduresAt = { ident: string; kind: Kind; pick?: { approach: strin
  * A pattern is picked by its runway, as a chip, the runway the wind
  * favours marked (the redesign's A); it is drawn on the map
  * (PatternLayer). An instrument procedure from the FAA's CIFP
- * (vfr.procedures) is picked in a sheet of its own, as ForeFlight's
+ * (wingtip.procedures) is picked in a sheet of its own, as ForeFlight's
  * Procedure Advisor picks one: the field's of that kind, then the one
  * procedure, its transition chosen, the map above the sheet drawing it
  * as it is chosen (`onPreview`, ProcedureLayer), its fixes listed, and

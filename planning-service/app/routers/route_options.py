@@ -1,4 +1,4 @@
-"""The ways to fly a route, for FPL's Routes (vfr.route_options): the
+"""The ways to fly a route, for FPL's Routes (wingtip.route_options): the
 fastest, the best weather's and the fewest stops', each clear of
 thunderstorms, weather under the pilot's minimums, prohibited areas, TFRs
 and high ground."""
@@ -8,8 +8,8 @@ from typing import Annotated
 
 from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Query
-from vfr import filed_routes, nearby
-from vfr import route_options as vfr_route_options
+from wingtip import filed_routes, nearby
+from wingtip import route_options as vfr_route_options
 
 from .. import prefetch
 from ..common import DEFAULT_AIRCRAFT, load_route, resolve
@@ -34,7 +34,7 @@ _LOCK = threading.Lock()
 #: 2026-10-26). The fewest stops' way is not offered (lib/routeWays).
 CHIP_WORDS = {"weather": "Avoid Weather", "fastest": "Fastest", "land": "Over Land"}
 #: The last chip's: the route pilots file most between the two fields
-#: (vfr.filed_routes; the owner, 2026-10-27: "Most filed is how you get
+#: (wingtip.filed_routes; the owner, 2026-10-27: "Most filed is how you get
 #: most flown").
 FILED_WORDS = "Most Filed"
 def _same(ident: str) -> str:
@@ -137,7 +137,7 @@ def route_options(
     current_landed = [not a.get("fix") for a in route.airports[1:-1]] if route else []
     filed, filed_as = _most_filed(dep, dest)
     # Where there is somewhere to eat at each fuel field the ways weigh
-    # (vfr.nearby, the places kept for it), so a stop with a meal is
+    # (wingtip.nearby, the places kept for it), so a stop with a meal is
     # landed at among chains of as many stops; a field not read yet is
     # read on the side and taken as having none this time.
     unread: list[str] = []

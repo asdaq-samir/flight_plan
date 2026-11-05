@@ -40,7 +40,7 @@ pilot ──HTTPS──▶ CloudFront  (app.example.com, ACM certificate)
                                      └──▶ db (Postgres 18 + pgvector, on the data disk)
                           nightly pg_dump ─▶ S3 server bucket (14 days)
 
-EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m vfr.charts refresh
+EventBridge, daily 08:30 UTC ─▶ Fargate Spot task: python -m wingtip.charts refresh
    a no-op until the FAA's new cycle, then fetches every sheet, draws the
    pyramid (1.5 million tiles) and publishes it to the tiles bucket,
    serving.json last, so every browser moves to the new cycle at once
@@ -392,7 +392,7 @@ a final snapshot: delete them by hand when they are no longer wanted.
   makes `/workspace/data` its user's for that, and the task's 60 GB of
   storage holds the sheets and the pyramid.
 - **The refresh task's empty disk would read as a cycle never drawn;**
-  it asks the bucket's `serving.json` first (`vfr.charts.refresh`).
+  it asks the bucket's `serving.json` first (`wingtip.charts.refresh`).
 - **A new server waits for the data disk.** Its first boot attaches the
   disk only once the last server has let it go, so a replacement that
   starts before the old server has stopped waits, then carries on.

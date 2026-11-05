@@ -4,13 +4,13 @@
 # because that one runs DockerOperator sibling containers over the host's
 # Docker socket, which Fargate does not have. This image bakes in only the
 # AWS-mode DAG (vfr_pipeline_aws_dag.py, which launches SageMaker Jobs
-# instead of sibling containers) and the src/vfr package it imports --
+# instead of sibling containers) and the src/wingtip package it imports --
 # under /opt/project, not /opt/airflow: the task mounts its EFS home at
 # /opt/airflow (AirflowTaskDefinition), which would hide anything baked
 # beneath it.
-# >>> vfr-native: the same in every image that imports vfr, kept so by
-# tests/test_dockerfiles.py against docker/Dockerfile.native. vfr's Rust
-# extension (native/py, over wingtip-engine in native/engine), which vfr
+# >>> wingtip-native: the same in every image that imports wingtip, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. wingtip's Rust
+# extension (native/py, over wingtip-engine in native/engine), which wingtip
 # imports at module level since the shared engine (2026-11-03): built
 # here, with Rust copied in from its own image, so the image carries the
 # wheel and none of the toolchain. The stage is the same text in each
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
 COPY native /native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
-# <<< vfr-native
+# <<< wingtip-native
 
 FROM apache/airflow:3.3.2-python3.13
 
@@ -53,4 +53,4 @@ COPY src /opt/project/src
 # The build fails if the provider or the registry evaluate and promote
 # run in-process cannot be imported. (The DAG itself reads an Airflow
 # Variable as it loads, which a build has no database for.)
-RUN python -B -c "import vfr_native, vfr.model_registry, airflow.providers.amazon.aws.operators.sagemaker"
+RUN python -B -c "import wingtip_native, wingtip.model_registry, airflow.providers.amazon.aws.operators.sagemaker"

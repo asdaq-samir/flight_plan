@@ -1,7 +1,7 @@
-//! Places said aloud, found as idents -- vfr.spoken, here so the native
+//! Places said aloud, found as idents -- wingtip.spoken, here so the native
 //! app finds them in the air with no signal, among the places the phone
 //! keeps: the airports, navaids and fixes of each region it holds a pack
-//! of (crate::phone, vfr.pack's `write_phone`), the regions its routes
+//! of (crate::phone, wingtip.pack's `write_phone`), the regions its routes
 //! cross. The planner looks nationwide; offline, a place outside the kept
 //! regions is not found, and is said so.
 //!
@@ -204,7 +204,7 @@ fn airport_named<'a>(words: &[String], places: &'a [Place]) -> Option<&'a Place>
 }
 
 /// The place `said` names among `places`, the nearest to the route first;
-/// None where nothing is near enough. As vfr.spoken.point.
+/// None where nothing is near enough. As wingtip.spoken.point.
 pub fn point(said: &str, places: &[Place]) -> Option<Found> {
     let (words, kind) = words_of(said);
     if words.is_empty() {
@@ -247,7 +247,7 @@ pub fn point(said: &str, places: &[Place]) -> Option<Found> {
 }
 
 /// The places a run of words names one after another, the longest names
-/// first; a word that names nothing kept, unfound. As vfr.spoken.points.
+/// first; a word that names nothing kept, unfound. As wingtip.spoken.points.
 pub fn points(said: &str, places: &[Place]) -> Vec<Found> {
     let (words, _) = words_of(said);
     let mut out = Vec::new();
@@ -283,7 +283,7 @@ pub fn find(limit: Option<&str>, runs: &[&str], places: &[Place]) -> FoundPlaces
     }
 }
 
-/// The navaid kinds a route flies over, as vfr.fixes keeps them.
+/// The navaid kinds a route flies over, as wingtip.fixes keeps them.
 const NAVAID_KINDS: &[&str] = &["VORTAC", "VOR/DME", "VOR", "DME", "TACAN", "NDB/DME", "NDB"];
 
 /// "SIOUX FALLS" as "Sioux Falls", as Python's str.title() writes it.
@@ -302,7 +302,7 @@ pub fn title(s: &str) -> String {
     out
 }
 
-/// The airports, navaids and fixes of a phone pack's tables (vfr.pack's
+/// The airports, navaids and fixes of a phone pack's tables (wingtip.pack's
 /// COLUMNS: NASR's APT_BASE, NAV_BASE and FIX_BASE, a row each): the
 /// airports open to the public in service by their ICAO ident where they
 /// have one, the navaids in service of the kinds a route flies over, by

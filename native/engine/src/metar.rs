@@ -1,6 +1,6 @@
 //! METARs and SPECIs as sent -- the raw text a phone gets from ADS-B's
 //! FIS-B with no internet -- decoded into the figures the planner reads
-//! from the Aviation Weather Center's decoded feed (vfr.weather's
+//! from the Aviation Weather Center's decoded feed (wingtip.weather's
 //! `_parse_metars`): the wind, visibility, ceiling, weather, temperature
 //! and dewpoint, altimeter and flight category. The groups are the
 //! Federal Meteorological Handbook No. 1's (FMH-1, ch. 12, coding) and
@@ -353,7 +353,7 @@ pub fn parse(raw: &str) -> Option<Metar> {
 }
 
 /// The figures the planner keeps of a report, as JSON with
-/// vfr.weather's names.
+/// wingtip.weather's names.
 pub fn to_json(m: &Metar) -> String {
     let mut out = String::from("{\"station\":");
     json::string(&mut out, &m.station);

@@ -4,7 +4,7 @@ equinox, where sunrise is about 06:40 and sunset about 18:50 local
 each."""
 from datetime import datetime, timezone
 
-from vfr.sun import civil_twilight, is_night
+from wingtip.sun import civil_twilight, is_night
 
 CHICAGO = (41.88, -87.63)
 

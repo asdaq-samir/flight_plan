@@ -3,7 +3,7 @@ not read the corridor replays a finished read rather than reading it
 again, and a new cycle of tiles is read afresh."""
 import numpy as np
 import pytest
-from vfr import charts, chartvision
+from wingtip import charts, chartvision
 
 from app import detection
 

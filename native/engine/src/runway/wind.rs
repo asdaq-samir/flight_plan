@@ -1,4 +1,4 @@
-//! A wind on a runway (web/src/lib/wind.ts, vfr.runway_wind): how much of
+//! A wind on a runway (web/src/lib/wind.ts, wingtip.runway_wind): how much of
 //! it is along and how much across, the gust's crosswind against the
 //! steady one, when a wind is calm, the end of each runway the reported
 //! wind favours, and the end a pilot would pick into a wind the field's
@@ -7,7 +7,7 @@
 //! A runway end's heading is OurAirports' true heading where it has one;
 //! where not, the runway's number -- its magnetic heading in tens of
 //! degrees -- turned true with the field's magnetic variation, which the
-//! host works out (vfr.magnetic, the engine's own WMM). A METAR's wind is
+//! host works out (wingtip.magnetic, the engine's own WMM). A METAR's wind is
 //! true, so the two are compared as they are. A helipad ("H1") or an end
 //! with no number has no heading, and no wind of its own.
 

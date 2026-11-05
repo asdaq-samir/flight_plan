@@ -7,7 +7,7 @@
  *
  * Worked out by the shared engine (native/engine/src/runway/wind.rs,
  * through lib/engine), the very code behind the planner's
- * vfr.runway_wind and the phones' wt_call: the rules and their sources
+ * wingtip.runway_wind and the phones' wt_call: the rules and their sources
  * live there.
  */
 import type { Runway } from "./api/types";
@@ -18,13 +18,13 @@ interface Components { headwind_kt: number; crosswind_kt: number }
 /** The headwind of a wind from `fromDeg` at `kt` on a heading of
  *  `headingDeg`, the same reference both (true for a METAR's wind and a
  *  runway's true heading): negative for a tailwind -- as the planner's
- *  vfr.runway_wind.components_kt. */
+ *  wingtip.runway_wind.components_kt. */
 export function headwindKt(fromDeg: number, kt: number, headingDeg: number): number {
   return callEngine<Components>("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).headwind_kt;
 }
 
 /** The crosswind of that wind: positive from the right, negative from
- *  the left, as vfr.runway_wind.components_kt. */
+ *  the left, as wingtip.runway_wind.components_kt. */
 export function crosswindKt(fromDeg: number, kt: number, headingDeg: number): number {
   return callEngine<Components>("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).crosswind_kt;
 }
@@ -37,7 +37,7 @@ export function steadyOrGustKt(steadyKt: number, gustKt: number | null | undefin
   return callEngine<number>("wind_steady_or_gust", { steady_kt: steadyKt, gust_kt: gustKt ?? null });
 }
 
-/** A runway's wind as the planner works it out (vfr.runway_wind), judged
+/** A runway's wind as the planner works it out (wingtip.runway_wind), judged
  *  by steadyOrGustKt. */
 export function runwayCrosswindKt(wind: Pick<NonNullable<Runway["wind"]>, "crosswind_kt" | "gust_crosswind_kt">): number {
   return callEngine<number>("runway_crosswind", { wind: { crosswind_kt: wind.crosswind_kt, gust_crosswind_kt: wind.gust_crosswind_kt ?? null } });

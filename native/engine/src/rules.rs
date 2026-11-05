@@ -1,5 +1,5 @@
 //! The airspace over a point in bands, from the ground to FL600, with the
-//! rules of each: vfr.airspace_at's `column`, `minimums`, `equipment`,
+//! rules of each: wingtip.airspace_at's `column`, `minimums`, `equipment`,
 //! `speed_kt` and `ENTRY`, written again here so the phone answers as the
 //! planner does with no network. tests/test_native.py holds the two to
 //! the same answer at every tap it asks.
@@ -31,7 +31,7 @@ pub enum FloorRef {
     Msl,
 }
 
-/// One Class B, C, D or E volume holding the point, as vfr.airspace_at's
+/// One Class B, C, D or E volume holding the point, as wingtip.airspace_at's
 /// `_volume` gives it: its floor in feet over its reference, its ceiling
 /// in feet MSL.
 #[derive(Clone, Debug)]

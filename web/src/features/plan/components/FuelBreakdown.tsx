@@ -3,7 +3,7 @@ import type { Totals } from "../../../lib/api/types";
 import { one } from "../format";
 import { gal } from "../../../lib/units";
 
-/** The reserve's rule, as the planner chose it (vfr.navlog.fuel_plan). */
+/** The reserve's rule, as the planner chose it (wingtip.navlog.fuel_plan). */
 function reserveRule(totals: Totals): string {
   if (totals.rules === "ifr") return "IFR, day or night (14 CFR 91.167)";
   if (totals.night == null) return "Day VFR, no departure time set (14 CFR 91.151)";
@@ -15,7 +15,7 @@ function reserveRule(totals: Totals): string {
  * ("fuel is the fuel required which gives a breakdown when tapped"): the
  * legs flown, the start, taxi and takeoff allowance, any alternate, and
  * the reserve at the cruise burn, summed as the planner sums them
- * (vfr.navlog.fuel_plan); then the tanks' usable fuel, red where they do
+ * (wingtip.navlog.fuel_plan); then the tanks' usable fuel, red where they do
  * not hold it. Opened from the flight's figures (FlightLine); the Brief's
  * Fuel section says the same for every hop.
  */

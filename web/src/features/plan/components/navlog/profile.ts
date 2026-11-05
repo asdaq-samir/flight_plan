@@ -61,7 +61,7 @@ export function nameFits(a: { from_nm: number; to_nm: number }, lengthNm: number
 
 /** An airspace's ceiling over its floor as the sectional prints them: in
  *  hundreds of feet MSL, the surface SFC (FAA Aeronautical Chart User's
- *  Guide, Airspace; vfr.airspace keeps an SFC floor as 0 MSL). */
+ *  Guide, Airspace; wingtip.airspace keeps an SFC floor as 0 MSL). */
 export function ceilingOverFloor(a: { floor_ft?: number | null; ceiling_ft?: number | null }): string {
   if (a.ceiling_ft == null) return "";
   const floor = !a.floor_ft ? "SFC" : String(Math.round(a.floor_ft / 100));

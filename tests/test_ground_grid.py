@@ -1,9 +1,9 @@
-"""vfr.ground_grid: the ground under the lower 48 read once, and a leg's
-floor read from it (vfr.terrain.floor_profile)."""
+"""wingtip.ground_grid: the ground under the lower 48 read once, and a leg's
+floor read from it (wingtip.terrain.floor_profile)."""
 import numpy as np
 import pytest
 
-from vfr import congested, elevation, faa_data, geo, ground_grid, terrain
+from wingtip import congested, elevation, faa_data, geo, ground_grid, terrain
 
 START, END = (45.0, -90.0), (45.0, -89.0)   # due east, about 42.4 nm
 TOTAL_NM = geo.distance_nm(*START, *END)
@@ -21,7 +21,7 @@ def grid(monkeypatch, tmp_path):
     low = np.full((ground_grid.ROWS, ground_grid.COLS), 900, dtype=np.int16)
     monkeypatch.setattr(ground_grid, "_grids", lambda: (high, low))
     monkeypatch.setattr(faa_data, "_OBSTACLES_CACHE", {})
-    # Over a town everywhere: 14 CFR 91.119(b)'s 1,000 ft (vfr.congested).
+    # Over a town everywhere: 14 CFR 91.119(b)'s 1,000 ft (wingtip.congested).
     monkeypatch.setattr(congested, "congested", lambda lats, lons: np.ones(len(lats), dtype=bool))
     dof = tmp_path / "DOF.DAT"
     dof.write_text("", encoding="latin-1")

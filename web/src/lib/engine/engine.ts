@@ -1,6 +1,6 @@
 /**
  * The shared Rust engine (native/engine) in the browser: the very rules
- * the planner (vfr_native) and the phones (wt_call) run, asked by name
+ * the planner (wingtip_native) and the phones (wt_call) run, asked by name
  * with JSON in and JSON out, so an aviation rule is written once, in
  * Rust, and not again here. The module is native/wasm, built by
  * scripts/build-engine-wasm.sh into wingtip-engine.wasm beside this file

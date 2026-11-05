@@ -87,7 +87,7 @@ struct AircraftFormView: View {
             }
             // The cruise figures are the airplane's at this power at the
             // planner's reference altitude on a standard day, a row of its
-            // handbook's cruise table (vfr.performance, CRUISE_REFERENCE_FT).
+            // handbook's cruise table (wingtip.performance, CRUISE_REFERENCE_FT).
             Section("Cruise figures at 6,000 ft, standard day") {
                 number("Cruise power", unit: "%", text: $form.cruisePowerPct, placeholder: "65", key: "cruisePowerPct", problems: problems)
             }

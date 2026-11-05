@@ -1,8 +1,8 @@
 """Model-serving microservice: the chart model's scores for the chart
-reader's detections, which the planner sends it (vfr.model_client).
+reader's detections, which the planner sends it (wingtip.model_client).
 
 The planner never loads a model itself. This owns the promoted chart
-model (vfr.chartmodel, promoted to data/models/chart/current, which
+model (wingtip.chartmodel, promoted to data/models/chart/current, which
 docker-compose mounts at CHART_MODEL_DIR) and the scikit-learn it was
 pickled with, and reads it again whenever a promotion rewrites it.
 """
@@ -46,7 +46,7 @@ def _fresh(key, files: list, load):
 
     A missing file is a 503, not a container that crashloops before it
     can say why, and a model that appears later is served from the next
-    request. A promotion (vfr.model_registry.promote) rewrites the files
+    request. A promotion (wingtip.model_registry.promote) rewrites the files
     in place under a running service: a stat each per request is what
     makes the next answer come from the new ones. The signature is taken
     before the read, so a read that races a write is read again next

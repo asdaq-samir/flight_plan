@@ -10,8 +10,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from vfr import airports
-from vfr.airports import (
+from wingtip import airports
+from wingtip.airports import (
     _among, _place_of, _places_of, find_place, get_airport, get_frequencies, get_frequencies_for, get_runways,
     places_in, search_airports,
 )
@@ -108,7 +108,7 @@ def test_get_frequencies_sorts_ctaf_first(frequencies_csv):
 
 
 def test_the_faas_frequencies_come_first_with_ourairports_weather_beside_them(frequencies_csv, monkeypatch):
-    from vfr import faa_data
+    from wingtip import faa_data
 
     monkeypatch.setattr(faa_data, "airport_frequencies", lambda ident, cache_dir: [
         {"type": "ATIS", "description": None, "frequency_mhz": 124.1},
@@ -122,7 +122,7 @@ def test_the_faas_frequencies_come_first_with_ourairports_weather_beside_them(fr
 
 
 def test_ourairports_ctaf_stays_where_the_faa_lists_only_the_approach(frequencies_csv, monkeypatch):
-    from vfr import faa_data
+    from wingtip import faa_data
 
     only_approach = [{"type": "A/D", "description": "Duluth", "frequency_mhz": 125.45}]
     monkeypatch.setattr(faa_data, "airport_frequencies", lambda ident, cache_dir: only_approach)
@@ -140,7 +140,7 @@ def test_two_stages_asking_for_a_table_at_once_download_it_once_and_both_read_it
     half-written file: "No columns to parse from file", a 500 for the
     first briefing after a fresh start."""
     import threading
-    from vfr import airports
+    from wingtip import airports
 
     downloads = []
     body = b"id,airport_ident,le_ident,he_ident\n1,KDLH,09,27\n" + b"2,KDLH,03,21\n" * 20000
@@ -242,7 +242,7 @@ def test_the_places_in_a_box_are_landing_fields_biggest_first(us_airports_csv):
 
 
 def test_the_box_helpers_answer_as_isin_and_iterrows_did(us_airports_csv):
-    from vfr.airports import _us_airports
+    from wingtip.airports import _us_airports
     df = _us_airports(us_airports_csv)
     for chosen in ({"KDLH", "nowhere"}, set()):
         assert _among(df["ident"], chosen).tolist() == df["ident"].isin(list(chosen)).tolist()
@@ -406,7 +406,7 @@ def test_the_us_table_is_built_once_however_many_ask_at_once(tmp_path, monkeypat
 def _place_as_before(ident: str, cache_path):
     """find_place as it was before its idents were indexed: each column
     upper-cased and compared whole, the first match's row -- the oracle."""
-    from vfr.airports import _us_airports
+    from wingtip.airports import _us_airports
 
     ident = ident.strip().upper()
     if not ident:
@@ -431,7 +431,7 @@ def test_the_indexed_place_is_the_one_each_column_scan_found(us_airports_csv):
 @pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "data/raw/airports.csv").exists(),
                     reason="needs OurAirports' table on disk")
 def test_the_indexed_place_matches_on_the_real_table():
-    from vfr.airports import DEFAULT_CACHE_PATH, _us_airports
+    from wingtip.airports import DEFAULT_CACHE_PATH, _us_airports
 
     df = _us_airports(DEFAULT_CACHE_PATH)
     picked = df.sample(150, random_state=91)

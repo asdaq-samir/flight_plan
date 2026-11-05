@@ -8,7 +8,7 @@ import type { Box, Point } from "./declutter";
  * map's own pixels at one zoom (map.project), y pointing down.
  *
  * The planner sends each line with its volume on the line's left in
- * lon/lat (vfr.airspace_map orients every polygon first), which is the
+ * lon/lat (wingtip.airspace_map orients every polygon first), which is the
  * line's right on the screen, where y points down: so the words go a
  * few pixels to the right of the way the line runs, and two shelves that
  * share a line each have theirs on their own side of it.

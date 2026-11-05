@@ -1,7 +1,7 @@
 """A route's slow parts started as soon as the route is known, ahead of
 the nav log that needs them: the chart's read along each hop, for its
 checkpoints (app.chart_model), and the ground under it, from USGS's
-point service (vfr.terrain) -- measured on a new route at 3 to 6 s and
+point service (wingtip.terrain) -- measured on a new route at 3 to 6 s and
 9 s, one after the other, of the 15 s from the route to its nav log.
 
 Asked for by /api/course, the first thing the web app asks for a route,
@@ -15,7 +15,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from cachetools import TTLCache
-from vfr import chartlabels, terrain
+from wingtip import chartlabels, terrain
 
 from . import chart_model
 from .common import load_route
@@ -57,7 +57,7 @@ def _read(dep: str, dest: str, stops: str) -> None:
         except Exception:  # noqa: BLE001 -- the checkpoints' own request reports a failed read
             log.warning("prefetch: the chart along %s -> %s", hop.dep_ident, hop.dest_ident, exc_info=True)
     for hop in hops:
-        # The same samples the altitude selection reads (vfr.terrain), so
+        # The same samples the altitude selection reads (wingtip.terrain), so
         # its read finds them on disk.
         try:
             terrain.floor_profile(hop.start, hop.end, [0.0, hop.length_nm])

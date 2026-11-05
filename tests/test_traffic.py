@@ -1,4 +1,4 @@
-"""vfr.traffic: adsb.lol's answer read into the map's airplanes, and how
+"""wingtip.traffic: adsb.lol's answer read into the map's airplanes, and how
 often adsb.lol is asked, with adsb.lol stubbed in its own shape (readsb's
 JSON, `ac`) and the clock stood in for."""
 import json
@@ -8,7 +8,7 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from vfr import traffic
+from wingtip import traffic
 
 CESSNA = {"hex": "a128b9", "type": "adsr_icao", "flight": "N174HA  ", "r": "N174HA", "t": "C172", "alt_baro": 1200,
           "alt_geom": 1325, "gs": 93.7, "track": 320.19, "baro_rate": -512, "geom_rate": -384, "lat": 42.301282,
@@ -74,7 +74,7 @@ def _turned_away():
 
 
 def test_an_airplane_in_the_air_as_the_map_draws_it(clock):
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])) as get:
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])) as get:
         found = traffic.near(42.3246, -88.0741, 25)
     # Its region's middle, out to 80 nm.
     assert get.call_args.args[0] == "https://api.adsb.lol/v2/point/42.50/-88.00/80"
@@ -93,20 +93,20 @@ def test_on_the_ground_without_a_position_or_with_an_old_one_is_left_out(clock):
         {**CESSNA, "hex": "a3", "seen_pos": 45.0},
         {**CESSNA, "hex": "a4"},
     ]
-    with patch("vfr.traffic.requests.get", return_value=_answer(entries)):
+    with patch("wingtip.traffic.requests.get", return_value=_answer(entries)):
         assert [a["hex"] for a in traffic.near(42.3, -88.1, 25)["aircraft"]] == ["a4"]
 
 
 def test_a_pressure_altitude_alone_is_said_to_be_one(clock):
     entry = {k: v for k, v in CESSNA.items() if k not in ("alt_geom", "geom_rate")}
-    with patch("vfr.traffic.requests.get", return_value=_answer([entry])):
+    with patch("wingtip.traffic.requests.get", return_value=_answer([entry])):
         (cessna,) = traffic.near(42.3, -88.1, 25)["aircraft"]
     assert cessna["altitude_ft"] == 1200.0 and cessna["pressure_altitude"] is True and cessna["vertical_fpm"] == -512.0
 
 
 def test_a_view_is_given_the_airplanes_within_it_from_its_regions_answer(clock):
     far = {**CESSNA, "hex": "far", "lat": 42.9}           # 36 nm north of 42.3
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA, far])) as get:
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA, far])) as get:
         near_view = traffic.near(42.3, -88.1, 20)["aircraft"]
         wide_view = traffic.near(42.35, -88.05, 50)["aircraft"]
     assert [a["hex"] for a in near_view] == ["a128b9"]
@@ -116,7 +116,7 @@ def test_a_view_is_given_the_airplanes_within_it_from_its_regions_answer(clock):
 
 
 def test_a_region_is_asked_again_after_five_seconds_and_says_how_old_it_is(clock):
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])) as get:
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])) as get:
         traffic.near(42.3, -88.1, 25)
         clock.now += 3
         assert traffic.near(42.3, -88.1, 25)["age_s"] == 3.0
@@ -132,7 +132,7 @@ def test_two_requests_are_never_closer_than_five_seconds(clock):
         asked_at.append(clock.now)
         return _answer([])
 
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         traffic.near(42.3, -88.1, 25)
         clock.now += 1
         # Another region, with nothing of its own yet: it waits its turn.
@@ -141,10 +141,10 @@ def test_two_requests_are_never_closer_than_five_seconds(clock):
 
 
 def test_turned_away_the_last_answer_is_given_and_nothing_asked_for_fifteen_seconds(clock):
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])):
         traffic.near(42.3, -88.1, 25)
     clock.now += 6
-    with patch("vfr.traffic.requests.get", return_value=_turned_away()) as get:
+    with patch("wingtip.traffic.requests.get", return_value=_turned_away()) as get:
         assert traffic.near(42.3, -88.1, 25)["age_s"] == 6.0
         clock.now += 10
         assert traffic.near(42.3, -88.1, 25)["age_s"] == 16.0
@@ -152,9 +152,9 @@ def test_turned_away_the_last_answer_is_given_and_nothing_asked_for_fifteen_seco
 
 
 def test_with_nothing_for_a_minute_traffic_is_unavailable(clock):
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])):
         traffic.near(42.3, -88.1, 25)
-    with patch("vfr.traffic.requests.get", side_effect=requests.ConnectionError("down")):
+    with patch("wingtip.traffic.requests.get", side_effect=requests.ConnectionError("down")):
         for _ in range(4):
             clock.now += 16
             try:
@@ -173,7 +173,7 @@ def test_askers_at_once_share_one_request(clock):
         time.sleep(0.2)
         return _answer([])
 
-    with patch("vfr.traffic.requests.get", side_effect=slow) as get:
+    with patch("wingtip.traffic.requests.get", side_effect=slow) as get:
         threads = [threading.Thread(target=traffic.near, args=(42.3, -88.1, 25)) for _ in range(5)]
         for t in threads:
             t.start()
@@ -183,7 +183,7 @@ def test_askers_at_once_share_one_request(clock):
 
 
 def test_a_region_with_an_answer_is_not_kept_behind_another_regions_request(clock):
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])):
         traffic.near(42.3, -88.1, 25)
     started, release = threading.Event(), threading.Event()
 
@@ -192,7 +192,7 @@ def test_a_region_with_an_answer_is_not_kept_behind_another_regions_request(cloc
         release.wait(5)
         return _answer([])
 
-    with patch("vfr.traffic.requests.get", side_effect=slow):
+    with patch("wingtip.traffic.requests.get", side_effect=slow):
         clock.now += 6
         other = threading.Thread(target=traffic.near, args=(45.0, -93.0, 25))
         other.start()
@@ -221,7 +221,7 @@ def test_an_airplane_is_found_by_its_callsign_registration_or_address(clock):
     # The recent trace cannot be read here, so an address is asked of the API too.
     get, asked = _routed({"/callsign/UAL2088": _answer([{**CESSNA, "flight": "UAL2088 ", "squawk": "3324"}]),
                           "/reg/N174HA": _answer([CESSNA]), "/hex/a128b9": _answer([CESSNA]), "trace_recent_": _status(503)})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         (ual,) = traffic.find("ual 2088")
         assert ual["callsign"] == "UAL2088" and ual["squawk"] == "3324" and ual["emergency"] is None
         assert [a["hex"] for a in traffic.find("N174HA")] == ["a128b9"]
@@ -258,7 +258,7 @@ def test_an_airplane_named_by_its_address_or_n_number_is_found_from_its_recent_t
     # Behind a refusal's back-off, where the API would not be asked at all.
     traffic._STATE["blocked_until"] = clock.now + 60
     get, asked = _routed({"trace_recent_a128b9": _status(200, RECENT)})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         (plane,) = traffic.find("N174HA")
         assert traffic.find("a128b9") == [plane]
     assert plane["hex"] == "a128b9" and plane["callsign"] == "N174HA" and plane["squawk"] == "1200"
@@ -278,7 +278,7 @@ def test_an_airplane_named_by_its_address_or_n_number_is_found_from_its_recent_t
 def test_an_airplane_whose_recent_trace_has_it_down_or_gone_is_not_in_the_air(clock, monkeypatch, answer):
     monkeypatch.setattr(traffic, "_wall", lambda: 1791800120.0)
     get, asked = _routed({"trace_recent_a128b9": answer})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         assert traffic.find("A128B9") == []
     assert len(asked) == 1
 
@@ -286,7 +286,7 @@ def test_an_airplane_whose_recent_trace_has_it_down_or_gone_is_not_in_the_air(cl
 def test_a_search_takes_its_turn_between_requests(clock):
     get, asked = _routed({"/point/": _answer([]), "/callsign/": _answer([]), "/reg/": _answer([])})
     asked_at = []
-    with patch("vfr.traffic.requests.get", side_effect=lambda url, **kw: (asked_at.append(clock.now), get(url))[1]):
+    with patch("wingtip.traffic.requests.get", side_effect=lambda url, **kw: (asked_at.append(clock.now), get(url))[1]):
         traffic.near(42.3, -88.1, 25)
         # A callsign with nothing, then the same as a registration: each
         # five seconds after the one before.
@@ -295,10 +295,10 @@ def test_a_search_takes_its_turn_between_requests(clock):
 
 
 def test_an_airplane_heard_about_a_region_is_found_there_at_once(clock):
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])):
         traffic.near(42.3, -88.1, 25)
     clock.now += 20
-    with patch("vfr.traffic.requests.get") as get:
+    with patch("wingtip.traffic.requests.get") as get:
         (by_reg,) = traffic.find("N174HA")
         (by_hex,) = traffic.find("a128b9")
         (by_callsign,) = traffic.find("n174ha")
@@ -315,7 +315,7 @@ def test_a_search_goes_ahead_of_the_regions_turns(clock):
         asked_at.append((clock.now, url.split("/v2/")[1].split("/")[0]))
         return get(url)
 
-    with patch("vfr.traffic.requests.get", side_effect=timed):
+    with patch("wingtip.traffic.requests.get", side_effect=timed):
         traffic.near(42.3, -88.1, 25)
         clock.now += 1
         assert traffic.find("FOO123") == []
@@ -325,7 +325,7 @@ def test_a_search_goes_ahead_of_the_regions_turns(clock):
 
 
 def test_a_region_whose_turn_a_search_took_gives_way(clock, monkeypatch):
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])):
         traffic.near(42.3, -88.1, 25)
     asked_at = []
     sleeps = []
@@ -338,7 +338,7 @@ def test_a_region_whose_turn_a_search_took_gives_way(clock, monkeypatch):
         clock.sleep(seconds)
 
     monkeypatch.setattr(traffic, "_sleep", sleep)
-    with patch("vfr.traffic.requests.get", side_effect=lambda *a, **kw: (asked_at.append(clock.now), _answer([]))[1]):
+    with patch("wingtip.traffic.requests.get", side_effect=lambda *a, **kw: (asked_at.append(clock.now), _answer([]))[1]):
         clock.now += 1
         # Another region, with no answer to give: it waits for a turn after the search's.
         traffic.near(45.0, -93.0, 25)
@@ -346,7 +346,8 @@ def test_a_region_whose_turn_a_search_took_gives_way(clock, monkeypatch):
 
 
 def test_a_search_answer_is_given_again_for_a_few_seconds(clock):
-    with patch("vfr.traffic.requests.get", return_value=_answer([{**CESSNA, "flight": "UAL2088 ", "r": "N14511", "hex": "a0b7d8"}])) as get:
+    answer = _answer([{**CESSNA, "flight": "UAL2088 ", "r": "N14511", "hex": "a0b7d8"}])
+    with patch("wingtip.traffic.requests.get", return_value=answer) as get:
         assert [a["hex"] for a in traffic.find("UAL2088")] == ["a0b7d8"]
         clock.now += 10
         assert [a["hex"] for a in traffic.find("UAL2088")] == ["a0b7d8"]
@@ -374,7 +375,7 @@ def test_a_tracked_flight_is_what_it_is_where_it_took_off_and_its_track_since(cl
     monkeypatch.setattr(traffic, "_TRACES", {})
     monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [
         {"ident": "KORD", "name": "Chicago O'Hare International Airport", "distance_nm": 0.4}])
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=TRACE))) as get:
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=TRACE))) as get:
         found = traffic.flight("A0B7D8")
         traffic.flight("a0b7d8")
     assert get.call_args.args[0] == "https://adsb.lol/data/traces/d8/trace_full_a0b7d8.json"
@@ -391,17 +392,17 @@ def test_a_flight_whose_track_begins_in_the_air_or_away_from_a_field_says_no_dep
     monkeypatch.setattr(traffic, "_TRACES", {})
     monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [{"ident": "C81", "distance_nm": 7.0}])
     airborne = {**TRACE, "trace": [TRACE["trace"][0], TRACE["trace"][3]]}
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=airborne))):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=airborne))):
         assert traffic.flight("a0b7d8")["departed"] is None
     monkeypatch.setattr(traffic, "_TRACES", {})
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=TRACE))):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=TRACE))):
         # On the ground seven miles from the nearest field: no airport.
         assert traffic.flight("a0b7d8")["departed"] is None
 
 
 def test_a_flight_with_no_trace_is_drawn_without_its_past(clock, monkeypatch):
     monkeypatch.setattr(traffic, "_TRACES", {})
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=404)):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=404)):
         found = traffic.flight("a0b7d8")
     assert found["trail"] == [] and found["departed"] is None and found["registration"] is None
 
@@ -413,7 +414,7 @@ def test_a_flight_that_has_landed_is_its_flight_to_the_landing_not_the_parked_ta
     parked = {**TRACE, "trace": TRACE["trace"] + [
         [800.0, 41.97, -87.90, "ground", 10.0, 90.0, 0, 0, None, "adsb_icao", None],
         [900.0, 41.97, -87.90, "ground", 0.0, 90.0, 0, 0, None, "adsb_icao", None]]}
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=parked))):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=parked))):
         found = traffic.flight("a0b7d8")
     # Departed when it left the ground, 660 s in; the trail ends at its landing.
     assert found["departed"]["at"] == 1791656660
@@ -425,13 +426,13 @@ def test_a_trace_that_could_not_be_had_is_asked_again_not_kept(clock, monkeypatc
     # The trace's reads alone: a card with no trail also asks for the
     # airplane itself (`_watch`, its own test below).
     monkeypatch.setattr(traffic, "_watch", lambda hex_id: None)
-    with patch("vfr.traffic.requests.get", side_effect=requests.Timeout("slow")) as get:
+    with patch("wingtip.traffic.requests.get", side_effect=requests.Timeout("slow")) as get:
         assert traffic.flight("a0b7d8")["trail"] == []
         assert traffic.flight("a0b7d8")["trail"] == []
     assert get.call_count == 2
     # A refusal is not kept either, but the globe is let be a while after
     # one (GLOBE_BACKOFF_S): the card shows what it has without asking.
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=429)) as get:
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=429)) as get:
         traffic.flight("a0b7d8")
         traffic.flight("a0b7d8")
     assert get.call_count == 1
@@ -439,12 +440,12 @@ def test_a_trace_that_could_not_be_had_is_asked_again_not_kept(clock, monkeypatc
 
 def test_a_trace_that_is_not_an_object_or_has_short_points_is_drawn_without_its_past(clock, monkeypatch):
     monkeypatch.setattr(traffic, "_TRACES", {})
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=[1, 2]))):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=[1, 2]))):
         assert traffic.flight("a0b7d8")["trail"] == []
     monkeypatch.setattr(traffic, "_TRACES", {})
     monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [])
     short = {**TRACE, "trace": [[0.0, 41.9, -87.9], *TRACE["trace"]]}
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=short))):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=200, json=Mock(return_value=short))):
         assert len(traffic.flight("a0b7d8")["trail"]) == 3
 
 
@@ -470,7 +471,7 @@ def test_a_flight_numbers_route_and_whether_the_airplane_is_on_it(clock, monkeyp
         resp.json = Mock(return_value=UAL2088_ROUTE)
         return resp
 
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         # Over Kentucky, near the great circle from San Juan to O'Hare.
         on = traffic.route("ual 2088", 37.5, -84.9)
         assert [a["ident"] for a in on["airports"]] == ["TJSJ", "KORD"] and on["plausible"] is True
@@ -502,7 +503,7 @@ def test_a_view_zoomed_out_further_than_sixty_nm_is_asked_of_a_wide_region(clock
     a state, out to 165 nm, from a region two degrees square asked for out
     to 250 nm, adsb.lol's furthest; and kept apart from the near regions'."""
     far = {**CESSNA, "hex": "far", "lat": 44.3}           # 120 nm north of 42.3
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA, far])) as get:
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA, far])) as get:
         wide = traffic.near(42.3, -88.1, 150)["aircraft"]
         widest = traffic.near(42.3, -88.1, 400)["aircraft"]
     assert get.call_args_list[0].args[0] == "https://api.adsb.lol/v2/point/42.00/-88.00/250"
@@ -510,7 +511,7 @@ def test_a_view_zoomed_out_further_than_sixty_nm_is_asked_of_a_wide_region(clock
     # The same wide region for both, within five seconds: one request.
     assert get.call_count == 1
     clock.now += traffic.MIN_GAP_S
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])) as get:
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])) as get:
         traffic.near(42.3, -88.1, 40)
     assert get.call_args.args[0] == "https://api.adsb.lol/v2/point/42.50/-88.00/80"
 
@@ -599,7 +600,7 @@ def test_a_past_days_trace_is_read_from_the_archive_once(clock):
 
     traffic._DAYS.clear()
     day = dt.date(2026, 10, 10)
-    with patch("vfr.traffic.requests.get", return_value=_answer([])) as get:
+    with patch("wingtip.traffic.requests.get", return_value=_answer([])) as get:
         get.return_value.status_code = 200
         get.return_value.json = Mock(return_value=_trace_of(1791590400.0, []))
         assert traffic._day_trace("a89c1e", day)["r"] == "N654FL"
@@ -625,7 +626,7 @@ def test_a_past_day_that_could_not_be_read_is_counted_not_taken_for_no_flights(c
 
     traffic._DAYS.clear()
     monkeypatch.setattr(traffic, "_trace", lambda hex_id: None)
-    with patch("vfr.traffic.requests.get", side_effect=requests.Timeout("slow")):
+    with patch("wingtip.traffic.requests.get", side_effect=requests.Timeout("slow")):
         found = traffic.history("a89c1e", today=dt.date(2026, 10, 11))
     # A fortnight asked for, today's from the recent trace and thirteen days before.
     assert found["flights"] == [] and found["unread_days"] == traffic.HISTORY_DAYS_PER_ASK - 1
@@ -702,14 +703,14 @@ def test_an_airplane_that_seldom_flies_is_looked_for_a_fortnight_at_a_time(clock
 def test_a_view_panned_into_a_new_region_while_adsb_lol_waits_is_given_a_region_that_holds_it(clock):
     """Over Indiana zoomed out, then in on Lafayette while adsb.lol was
     turning the planner away: the wide region's answer, not a 503."""
-    with patch("vfr.traffic.requests.get", return_value=_answer([CESSNA])):
+    with patch("wingtip.traffic.requests.get", return_value=_answer([CESSNA])):
         traffic.near(40.0, -86.0, 150)                      # the wide region, out to 250 nm
     clock.now += traffic.MIN_GAP_S
-    with patch("vfr.traffic.requests.get", return_value=_turned_away()):
+    with patch("wingtip.traffic.requests.get", return_value=_turned_away()):
         with pytest.raises(traffic.TrafficUnavailable):
             traffic._region_answer(traffic._region(41.0, -87.0, 150))   # another wide region, refused
     # Now in the back-off: a near view by Lafayette is held by the first wide region's answer.
-    with patch("vfr.traffic.requests.get") as get:
+    with patch("wingtip.traffic.requests.get") as get:
         found = traffic.near(40.4, -86.9, 30)
     assert get.call_count == 0 and found["age_s"] == traffic.MIN_GAP_S
     # One no answer holds still says so.
@@ -775,7 +776,7 @@ def adsbx(clock, monkeypatch, tmp_path):
 
 def test_where_adsb_lol_turns_us_away_ads_b_exchange_answers_and_is_credited(adsbx, clock):
     get, asked = _routed({"api.adsb.lol": _turned_away(), "adsbexchange-com1": _answer([CESSNA])})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         found = traffic.near(42.3246, -88.0741, 25)
     assert [a["hex"] for a in found["aircraft"]] == ["a128b9"]
     assert found["source"] == "ADS-B Exchange"
@@ -786,7 +787,7 @@ def test_where_adsb_lol_turns_us_away_ads_b_exchange_answers_and_is_credited(ads
 
 def test_ads_b_exchange_is_asked_no_more_than_its_gap_and_its_month_allow(adsbx, clock, monkeypatch):
     get, asked = _routed({"api.adsb.lol": _turned_away(), "adsbexchange-com1": _answer([CESSNA])})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         traffic.near(42.3, -88.1, 25)
         # Another region at once: within the gap, not asked; nothing to give.
         with pytest.raises(traffic.TrafficUnavailable):
@@ -804,7 +805,7 @@ def test_a_search_adsb_lol_cannot_take_now_is_asked_of_ads_b_exchange_at_once(ad
     # A region asked of it a moment ago: a search is not held to that gap.
     traffic._ADSBX["last"] = clock.now
     get, asked = _routed({"adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088": _answer([{**CESSNA, "flight": "UAL2088 "}])})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         (ual,) = traffic.find("UAL2088")
     assert ual["callsign"] == "UAL2088"
     assert asked == ["https://adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088/"]
@@ -813,7 +814,7 @@ def test_a_search_adsb_lol_cannot_take_now_is_asked_of_ads_b_exchange_at_once(ad
 def test_without_a_key_ads_b_exchange_is_never_asked(clock, monkeypatch):
     monkeypatch.delenv("ADSBX_RAPIDAPI_KEY", raising=False)
     get, asked = _routed({"api.adsb.lol": _turned_away()})
-    with patch("vfr.traffic.requests.get", side_effect=get), pytest.raises(traffic.TrafficUnavailable):
+    with patch("wingtip.traffic.requests.get", side_effect=get), pytest.raises(traffic.TrafficUnavailable):
         traffic.near(42.3, -88.1, 25)
     assert not any("adsbexchange" in u for u in asked)
 
@@ -828,7 +829,7 @@ def test_a_search_is_asked_of_ads_b_exchange_first_by_what_the_name_is_and_credi
         "adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088": _answer([{**CESSNA, "hex": "a0b7d8", "flight": "UAL2088 "}]),
         "adsbexchange-com1.p.rapidapi.com/v2/registration/G-ABCD": _answer([{**CESSNA, "hex": "400abc", "r": "G-ABCD"}]),
     })
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         found, credit = traffic.find_credited("N174HA")
         assert [a["hex"] for a in found] == ["a128b9"] and credit == traffic.ADSBX_SOURCE
         assert [a["hex"] for a in traffic.find("UAL2088")] == ["a0b7d8"]
@@ -846,7 +847,7 @@ def test_an_address_ads_b_exchange_does_not_have_is_read_from_the_free_recent_tr
         "adsbexchange-com1.p.rapidapi.com/v2/icao/a128b9": _answer([]),
         "adsb.lol/data/traces/b9/trace_recent_a128b9.json": _status(200, RECENT),
     })
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         found, credit = traffic.find_credited("a128b9")
     assert credit == traffic.ADSB_LOL_SOURCE
     assert [u.split("/")[2] for u in asked] == ["adsbexchange-com1.p.rapidapi.com", "adsb.lol"]
@@ -856,7 +857,7 @@ def test_an_address_ads_b_exchange_does_not_have_is_read_from_the_free_recent_tr
 def test_with_the_months_requests_spent_a_search_goes_to_adsb_lol_as_before(adsbx, clock):
     adsbx.write_text(json.dumps({"2026-10": traffic.ADSBX_MONTHLY}))
     get, asked = _routed({"api.adsb.lol/v2/callsign/UAL2088": _answer([{**CESSNA, "flight": "UAL2088 "}])})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         found, credit = traffic.find_credited("UAL2088")
     assert credit == traffic.ADSB_LOL_SOURCE and len(found) == 1
     assert not any("adsbexchange" in u for u in asked)
@@ -867,7 +868,7 @@ def test_the_months_count_follows_what_rapidapi_says_the_key_has_used(adsbx, clo
     answer = _answer([CESSNA])
     answer.headers = {"x-ratelimit-api-requests-limit": "10000", "x-ratelimit-api-requests-remaining": "950"}
     get, asked = _routed({"adsbexchange-com1.p.rapidapi.com/v2/callsign/UAL2088": answer})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         traffic.find("UAL2088")
     assert json.loads(adsbx.read_text()) == {"2026-10": 9050}
     # Past the month's own budget now: the next search goes to adsb.lol.
@@ -902,7 +903,7 @@ def test_an_airplane_in_the_air_is_airborne_from_where_it_took_off(clock, monkey
     monkeypatch.setattr(traffic, "_wall", lambda: 1791800120.0)
     monkeypatch.setattr(traffic.airports, "nearest", _near_galt(0.1))
     get, asked = _routed({"trace_recent_a06d40": _status(200, CLIMBING_OUT)})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         state = traffic.status("A06D40")
         traffic.status("a06d40")
     assert state["airborne"] is True and state["heard_s"] == 4.0 and state["arrived"] is None
@@ -919,7 +920,7 @@ def test_an_airplane_on_the_ground_at_a_field_has_landed_there_at_once(clock, mo
         [100.0, 42.4030, -88.3600, 1100, 60.0, 270.0, 0, -500, None, "adsr_icao", 1025],
         [116.0, 42.4027, -88.3740, "ground", 40.0, 270.0, 0, 0, None, "adsr_icao", None],
     ]}
-    with patch("vfr.traffic.requests.get", return_value=_status(200, landed)):
+    with patch("wingtip.traffic.requests.get", return_value=_status(200, landed)):
         state = traffic.status("a06d40")
     assert state["airborne"] is False and state["aircraft"] is None and state["departed"] is None
     assert state["arrived"] == {"ident": "10C", "name": "Galt Field Airport", "city": "Greenwood/Wonder Lake",
@@ -934,7 +935,7 @@ def test_one_last_heard_low_by_a_field_has_landed_only_once_unheard_for_two_minu
     monkeypatch.setattr(traffic, "_wall", lambda: 1791800116.0 + unheard_s)
     monkeypatch.setattr(traffic.airports, "nearest", _near_galt(1.2, bearing_deg=90.0))
     low = {**CLIMBING_OUT, "trace": [[116.0, 42.4027, -88.4000, 1300, 65.0, 90.0, 0, -500, None, "adsr_icao", 1250]]}
-    with patch("vfr.traffic.requests.get", return_value=_status(200, low)):
+    with patch("wingtip.traffic.requests.get", return_value=_status(200, low)):
         state = traffic.status("a06d40")
     assert state["airborne"] is False and state["aircraft"] is None
     assert (state["arrived"] or {}).get("ident") == arrived
@@ -944,7 +945,7 @@ def test_one_last_heard_high_far_from_any_field_has_not_landed(clock, monkeypatc
     monkeypatch.setattr(traffic, "_wall", lambda: 1791800116.0 + 600)
     monkeypatch.setattr(traffic.airports, "nearest", _near_galt(40.0))
     away = {**CLIMBING_OUT, "trace": [[116.0, 43.0, -89.0, 5500, 110.0, 300.0, 0, 0, None, "adsr_icao", 5600]]}
-    with patch("vfr.traffic.requests.get", return_value=_status(200, away)):
+    with patch("wingtip.traffic.requests.get", return_value=_status(200, away)):
         state = traffic.status("a06d40")
     assert state["airborne"] is False and state["arrived"] is None and state["heard_s"] == 600.0
 
@@ -955,18 +956,18 @@ def test_with_no_recent_trace_today_s_trace_says_where_it_landed(clock, monkeypa
     monkeypatch.setattr(traffic.airports, "nearest", _near_galt(0.2))
     today = {**CLIMBING_OUT, "trace": [[116.0, 42.4027, -88.3740, "ground", 5.0, 270.0, 0, 0, None, "adsr_icao", None]]}
     get, asked = _routed({"trace_recent_a06d40": _status(404), "trace_full_a06d40": _status(200, today)})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         state = traffic.status("a06d40")
     assert state["arrived"]["ident"] == "10C" and state["airborne"] is False
     # Neither trace: nothing known, and nothing made up.
     get, _ = _routed({"trace_recent_a12345": _status(404), "trace_full_a12345": _status(404)})
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         assert traffic.status("a12345") == {"hex": "a12345", "heard_s": None, "airborne": False, "aircraft": None,
                                             "departed": None, "arrived": None}
 
 
 def test_a_recent_trace_that_cannot_be_read_is_unavailable_not_landed(clock):
-    with patch("vfr.traffic.requests.get", return_value=_status(503)), pytest.raises(traffic.TrafficUnavailable):
+    with patch("wingtip.traffic.requests.get", return_value=_status(503)), pytest.raises(traffic.TrafficUnavailable):
         traffic.status("a06d40")
 
 
@@ -988,7 +989,7 @@ def test_an_airplane_whose_card_is_open_and_adsb_lol_does_not_hear_is_recorded_f
     monkeypatch.setattr(traffic, "_recent_trace", lambda hex_id: None)
     # No field near: OurAirports' file is not read here (CI has none to hand).
     monkeypatch.setattr(traffic.airports, "nearest", lambda lat, lon, limit=1: [])
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=403)):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=403)):
         first = traffic.flight("a128b9")
         assert asked == ["icao/a128b9"] and [p["lat"] for p in first["trail"]] == [42.30128]
         # Asked again only after WATCH_GAP_S, its new place recorded.
@@ -1027,7 +1028,7 @@ def test_a_watched_airplane_adsb_lol_does_not_hear_is_asked_of_adsb_fi_before_ad
         resp = _answer([CESSNA])
         resp.status_code = 200
         return resp
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         traffic._watch("a128b9")
     assert urls == ["https://opendata.adsb.fi/api/v2/hex/a128b9"] and paid == []
     assert traffic._recorded("a128b9")[-1]["lat"] == pytest.approx(42.30128, abs=1e-4)
@@ -1038,15 +1039,15 @@ def test_a_watched_airplane_adsb_lol_does_not_hear_is_asked_of_adsb_fi_before_ad
     # A second within the second is not asked; turned away, not for ten minutes.
     assert traffic._adsbfi("a128b9") == [] and len(urls) == 1
     clock.now += 2
-    with patch("vfr.traffic.requests.get", return_value=Mock(status_code=429)):
+    with patch("wingtip.traffic.requests.get", return_value=Mock(status_code=429)):
         assert traffic._adsbfi("a128b9") == []
     clock.now += 60
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         assert traffic._adsbfi("a128b9") == [] and len(urls) == 1
     # And off where the stack says so (production, until adsb.fi agrees).
     clock.now += traffic.ADSBFI_BACKOFF_S
     monkeypatch.setenv("ADSBFI_OPEN_DATA", "0")
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         assert traffic._adsbfi("a128b9") == [] and len(urls) == 1
 
 
@@ -1070,14 +1071,14 @@ def test_a_followed_airplane_is_asked_of_adsb_fi_in_the_background_and_stays_fol
         resp = _answer([CESSNA])
         resp.status_code = 200
         return resp
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         assert traffic.follow_round() == 1
     assert urls == ["https://opendata.adsb.fi/api/v2/hex/a128b9"]
     assert traffic._recorded("a128b9")[-1]["lat"] == pytest.approx(42.30128, abs=1e-4)
     # One the FAA's radar has just now is not asked for.
     traffic.heard_elsewhere(traffic._aircraft(CESSNA), 1791800000.0)
     clock.now += 30
-    with patch("vfr.traffic.requests.get", side_effect=get):
+    with patch("wingtip.traffic.requests.get", side_effect=get):
         assert traffic.follow_round() == 0
     assert len(urls) == 1
 
@@ -1189,7 +1190,7 @@ def test_the_globe_turning_the_planner_away_is_not_asked_again_for_a_while(clock
     # adsb.lol's verification wall (2026-10-23): a 403 page for every file.
     monkeypatch.setattr(traffic, "_TRACES", {})
     wall = Mock(status_code=403, headers={"content-type": "text/html"})
-    with patch("vfr.traffic.requests.get", return_value=wall) as get:
+    with patch("wingtip.traffic.requests.get", return_value=wall) as get:
         assert traffic._trace("a0b7d8") is None
         assert traffic._recent_trace("a0b7d8") is traffic.UNREAD
         assert traffic._day_trace("a0b7d8", __import__("datetime").date(2026, 10, 22)) is traffic.UNREAD

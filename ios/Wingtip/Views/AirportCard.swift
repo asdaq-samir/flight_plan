@@ -271,7 +271,7 @@ struct AirportInfoTab: View {
             if place.frequencies.isEmpty { Text("None listed").foregroundStyle(.secondary) }
             ForEach(Array(place.frequencies.enumerated()), id: \.offset) { _, f in FrequencyRowView(frequency: f) }
             // What some fields read out on so many clicks of the mic on
-            // the CTAF: the weather, a radio check (vfr.remarks).
+            // the CTAF: the weather, a radio check (wingtip.remarks).
             ForEach(place.radioNotes ?? [], id: \.self) { note in
                 CardRow(badge: RowBadge(systemImage: "antenna.radiowaves.left.and.right", colour: Badge.traffic), title: note)
             }
@@ -331,7 +331,7 @@ struct AirportWeatherTab: View {
             }
         }
         // The National Weather Service's Gridded LAMP at the field for the
-        // hour (vfr.glmp): planning guidance from a model, not a report.
+        // hour (wingtip.glmp): planning guidance from a model, not a report.
         if place.metar == nil, let modelled = place.modelledWeather {
             Section("Modelled for \(AirportWords.date(modelled.validAt).map(AirportWords.zulu) ?? modelled.validAt)") {
                 figure("cloud.sun", "Flight category", modelled.flightCategory, spoken: SpokenFigures.flightCategory(modelled.flightCategory))
@@ -460,7 +460,7 @@ struct AirportChartsTab: View {
     let place: AirportPlace
     @Binding var shown: ShownPicture?
 
-    /// The groups by the FAA's chart codes (vfr.publications); the
+    /// The groups by the FAA's chart codes (wingtip.publications); the
     /// airport's own -- hot spots, land and hold short -- go with its
     /// diagram.
     static let groups: [(title: String, kinds: [String])] = [

@@ -1,7 +1,7 @@
-"""vfr.chartmodel: the training page's ratings on the chart reader's
+"""wingtip.chartmodel: the training page's ratings on the chart reader's
 detections, whether they are enough, and the model they train.
 
-The table and the readiness need nothing past vfr's own list. retrain
+The table and the readiness need nothing past wingtip's own list. retrain
 needs scikit-learn, which the root suite does not install (it is the
 training image's), so that test runs where it is there and skips where
 it is not."""
@@ -10,8 +10,8 @@ import json
 import pandas as pd
 import pytest
 
-from vfr import chartmodel
-from vfr.chartfeatures import FEATURE_COLS
+from wingtip import chartmodel
+from wingtip.chartfeatures import FEATURE_COLS
 
 
 def _detection(lat, lon, category="road_or_rail", score=3.6):
@@ -67,7 +67,7 @@ def test_the_holdout_is_the_same_ratings_from_one_run_to_the_next_and_never_empt
 
 def test_retrain_scores_the_model_against_the_palettes_constants_on_the_same_held_out_ratings(tmp_path):
     pytest.importorskip("sklearn")
-    from vfr.pipeline import InsufficientLabelsError
+    from wingtip.pipeline import InsufficientLabelsError
 
     # A power line read as a road is a 0, a real crossing a 4: the
     # palette gives both 3.6, and the model can tell them by their ink.

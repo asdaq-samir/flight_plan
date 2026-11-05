@@ -10,8 +10,8 @@ from datetime import datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from vfr import airports, navlog, pattern
-from vfr.weather import WeatherServiceError
+from wingtip import airports, navlog, pattern
+from wingtip.weather import WeatherServiceError
 
 from ..common import DEFAULT_AIRCRAFT
 from ..figures import debrief as debrief_rules
@@ -33,7 +33,7 @@ FIELD_CATEGORIES = ("departure", "stop", "destination")
 
 def _pattern_altitudes(idents: list[str]) -> dict[str, float]:
     """Each field's pattern altitude, ft MSL, as its card gives it
-    (vfr.pattern.pattern_at: the FAA's published one, else AC 90-66C's
+    (wingtip.pattern.pattern_at: the FAA's published one, else AC 90-66C's
     1,000 ft above the field), by the ident the flight saved; a field not
     found, or with no elevation, has none and is not graded."""
     out = {}
@@ -91,9 +91,9 @@ def diversion(
 ) -> Diversion:
     """The diversion drill (web/src/lib/diversion, ACS PA.VI.C): from a point
     to a field, in the planner's air on the way there at `altitude_ft` --
-    the winds and temperature aloft for the hour (vfr.weather, the FD
+    the winds and temperature aloft for the hour (wingtip.weather, the FD
     period for `depart`, now by default), the airplane's true airspeed and
-    burn in that air (vfr.performance) and the variation (vfr.magnetic,
+    burn in that air (wingtip.performance) and the variation (wingtip.magnetic,
     the WMM) -- the true course and distance, the wind triangle, the
     magnetic heading, ground speed, time and fuel, each step in words;
     and the student's estimates (`mh`, `gs`, `ete`, `fuel`) checked

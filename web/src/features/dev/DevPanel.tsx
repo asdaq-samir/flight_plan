@@ -76,7 +76,7 @@ export function DevPanel() {
 
 /** Every algorithm anyone has actually trained for this problem, not
  *  just the sklearn family retrain() grid-searches -- PyTorch/
- *  TensorFlow/Spark's own candidates (vfr.model_candidates) show up
+ *  TensorFlow/Spark's own candidates (wingtip.model_candidates) show up
  *  here too once trained. Sorted best-first; each row names its own
  *  metric rather than implying they're all on the same footing (see
  *  the backend's own reasoning in planning-service's docstring). */
@@ -216,7 +216,7 @@ function RoutesGroup({ status, failed }: { status: Status | undefined; failed: b
 /**
  * The promoted landmark model: what it is, how it scored, and the
  * versions promoted before it (a page of their own), with how each
- * moved the error. Then the chart model (vfr.chartmodel), which scores
+ * moved the error. Then the chart model (wingtip.chartmodel), which scores
  * the chart reader's points on the training page, against the palette's
  * constants it is to replace on the ratings it held out: the
  * checkpoints move onto the chart once it beats them.

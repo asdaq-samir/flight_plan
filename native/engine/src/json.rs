@@ -1,7 +1,7 @@
 //! The little JSON the engine writes for the phones (crate::phone), with
 //! the planner's own field names; a phone pack's place tables
 //! (crate::spoken), `{"columns": [...], "rows": [[...], ...]}` of
-//! strings, as vfr.pack writes them; and any JSON value (`parse`), which
+//! strings, as wingtip.pack writes them; and any JSON value (`parse`), which
 //! is how every host asks the engine a rule by name (crate::call). No
 //! dependency, so the engine stays plain std for the phones and the web.
 

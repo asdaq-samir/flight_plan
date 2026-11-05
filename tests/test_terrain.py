@@ -7,7 +7,7 @@ otherwise (`towns`), as where the towns cannot be read."""
 import numpy as np
 import pytest
 
-from vfr import congested, elevation, faa_data, geo, ground_grid, terrain
+from wingtip import congested, elevation, faa_data, geo, ground_grid, terrain
 
 START, END = (45.0, -90.0), (45.0, -89.0)   # due east, about 42.4 nm
 GROUND_M = 300.0                             # 984.25 ft: terrain floor 2,000 ft

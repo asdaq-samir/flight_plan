@@ -1,14 +1,14 @@
 //! The alerts ahead of the airplane with no network, from the phone's
-//! packs: vfr.alerts' `ahead` as the phone works it out in the air when
+//! packs: wingtip.alerts' `ahead` as the phone works it out in the air when
 //! the planner cannot be reached -- the Class B, C and D and special-use
 //! areas the track goes into in the next five minutes, the TFRs as the
 //! phone last downloaded them, and the ground it comes within 500 ft of
 //! in the next minute -- as the planner's /api/alerts/ahead answers it
 //! (AheadAlert, the same names), with what cannot be known offline said
 //! so: the obstacles (the FAA's Digital Obstacle File is not in a pack),
-//! and the TFRs' age. Every figure is vfr.alerts' own; see it for why.
+//! and the TFRs' age. Every figure is wingtip.alerts' own; see it for why.
 //!
-//! The ground is the pack's `terrain` (vfr.pack's `_terrain`): the ground
+//! The ground is the pack's `terrain` (wingtip.pack's `_terrain`): the ground
 //! grid's highest ground pooled to a 60th of a degree, plus the grid's
 //! margin, so never under the planner's grid; the planner reads the zoom-12
 //! tiles point by point, so the phone's ground can stand some hundreds of
@@ -17,7 +17,7 @@
 use crate::json;
 use crate::pack::Pack;
 
-/// vfr.alerts' figures, each a design choice explained there.
+/// wingtip.alerts' figures, each a design choice explained there.
 pub const LOOK_AHEAD_S: f64 = 300.0;
 pub const AIRSPACE_STEP_S: f64 = 5.0;
 pub const ALTITUDE_BUFFER_FT: f64 = 200.0;
@@ -25,7 +25,7 @@ pub const TERRAIN_LOOK_AHEAD_S: f64 = 60.0;
 pub const TERRAIN_WARNING_S: f64 = 30.0;
 pub const TERRAIN_STEP_S: f64 = 2.0;
 /// Borrowed from 14 CFR 91.119(c)'s 500 ft, so the alert comes before the
-/// rule is broken (vfr.alerts).
+/// rule is broken (wingtip.alerts).
 pub const TERRAIN_CLEARANCE_FT: f64 = 500.0;
 pub const WARNING_CLEARANCE_FT: f64 = 100.0;
 pub const SWATH_NM: f64 = 0.25;
@@ -34,7 +34,7 @@ pub const NEAR_FIELD_AGL_FT: f64 = 1000.0;
 pub const AIRBORNE_KT: f64 = 40.0;
 /// Class A from here (14 CFR 71.33): a volume with no ceiling reaches it.
 const CLASS_A_FT: f64 = 18000.0;
-/// vfr.ground_grid's RESAMPLED_MARGIN_FT, added to every cell it reads.
+/// wingtip.ground_grid's RESAMPLED_MARGIN_FT, added to every cell it reads.
 pub const GROUND_MARGIN_FT: f64 = 150.0;
 const GROUND_NONE: i16 = i16::MIN;
 
@@ -61,7 +61,7 @@ fn special_use_need(kind: &str) -> Option<(&'static str, &'static str)> {
 const TERRAIN_WARNING: &str = "At or near the airplane's altitude: climb or turn now.";
 const TERRAIN_CAUTION: &str = "Within 500 ft of the airplane's altitude: climb or turn (91.119(c)).";
 
-/// A point reached from (lat, lon) along a great circle on vfr.geo's
+/// A point reached from (lat, lon) along a great circle on wingtip.geo's
 /// sphere, as its `destination_point` (pyproj's Geod with f = 0) reaches it.
 pub fn destination(lat: f64, lon: f64, bearing_deg: f64, nm: f64) -> (f64, f64) {
     let d = nm / crate::geo::EARTH_RADIUS_NM;
@@ -236,7 +236,7 @@ fn classes(packs: &[Pack], track: &Track) -> Vec<Alert> {
     found.into_iter().filter(|(k, _)| !inside_of.contains(k)).map(|(_, a)| a).collect()
 }
 
-/// A floor or ceiling in feet MSL, as vfr.alerts' `_height_msl`.
+/// A floor or ceiling in feet MSL, as wingtip.alerts' `_height_msl`.
 fn height_msl(value: Option<f64>, agl: bool, ground: Option<f64>, missing: f64) -> f64 {
     match value {
         None => missing,
@@ -370,7 +370,7 @@ fn tfrs(packs: &[Pack], track: &Track, ground: Option<f64>, now: i64, text: &str
     let until = now + *track.times.last().unwrap() as i64;
     let mut found = Vec::new();
     for t in tfrs_of(text) {
-        // In force at some time over the look-ahead (vfr.tfr's in_force).
+        // In force at some time over the look-ahead (wingtip.tfr's in_force).
         if t.to.is_some_and(|e| e < now) || t.from.is_some_and(|s| s > until) {
             continue;
         }
@@ -457,7 +457,7 @@ fn terrain(packs: &[Pack], track: &Track) -> Option<Vec<Alert>> {
 }
 
 /// Whether the airplane is taking off or landing at a field: within 3 nm
-/// of one and no more than 1,000 ft over it (vfr.alerts' `_near_field`),
+/// of one and no more than 1,000 ft over it (wingtip.alerts' `_near_field`),
 /// from the packs' airports (NASR's airports, seaplane bases, gliderports
 /// and ultralight fields; a heliport or a balloonport is no field).
 fn near_field(packs: &[Pack], lat: f64, lon: f64, alt: f64) -> bool {
@@ -567,7 +567,7 @@ mod tests {
 
     #[test]
     fn destination_is_the_sphere_s() {
-        // Due north 60 nm is a degree of latitude on vfr.geo's sphere.
+        // Due north 60 nm is a degree of latitude on wingtip.geo's sphere.
         let (lat, lon) = destination(45.0, -93.0, 0.0, 60.0);
         assert!((lat - 45.999_413).abs() < 1e-4 && (lon + 93.0).abs() < 1e-9, "{lat} {lon}");
         assert!((crate::geo::distance_nm(45.0, -93.0, lat, lon) - 60.0).abs() < 1e-9);

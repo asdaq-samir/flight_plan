@@ -85,7 +85,7 @@ export function ownShipHex(planes: TrafficAircraft[], fix: Fix | null): string |
 
 /** How long after its report an airplane is carried on along its track:
  *  past this it may have turned anywhere, and is not drawn (the planner
- *  leaves out positions as old, vfr.traffic's STALE_S). */
+ *  leaves out positions as old, wingtip.traffic's STALE_S). */
 export const CARRY_S = 30;
 /** How far ahead its line reaches, seconds: ForeFlight's TrafficTrend
  *  vector shows where a target will be in the next 60. */

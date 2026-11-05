@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from app.common import Route
 from app.routers import plan
-from vfr.fuelstops import FuelStop
+from wingtip.fuelstops import FuelStop
 
 ROUTE = Route(("C81", "KJAX"), ({"lat": 42.3, "lon": -88.1}, {"lat": 30.5, "lon": -81.7}))
 SHORT = {"fuel_margin_gal": -15.0, "usable_fuel_gal": 48.0, "distance_nm": 774.0, "fuel_gal": 61.0, "ete_min": 387.0,

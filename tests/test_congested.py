@@ -1,4 +1,4 @@
-"""vfr.congested: whether a point is over a congested area or within
+"""wingtip.congested: whether a point is over a congested area or within
 14 CFR 91.119(b)'s "horizontal radius of 2,000 feet" of one, from the
 Census urban areas and gazetteer places -- here a town of a few streets
 drawn by hand."""
@@ -9,7 +9,7 @@ import pytest
 import requests
 import shapely
 
-from vfr import congested
+from wingtip import congested
 
 LAT, LON = 45.0, -90.0
 FT_LAT = 1 / congested.FT_PER_DEG_LAT                       # a foot, in degrees of latitude
@@ -88,7 +88,7 @@ def test_without_the_census_data_nothing_is_ruled_out(monkeypatch, tmp_path):
 
 
 def _one_at_a_time(tree, lats, lons) -> np.ndarray:
-    """vfr.congested.congested as it was before its 2,000 ft test took
+    """wingtip.congested.congested as it was before its 2,000 ft test took
     every pair at once: each point near a town clipped, scaled and
     measured on its own -- the oracle the vectorised one must match to
     the bit (14 CFR 91.119(b)'s 2,000 ft, RADIUS_FT)."""
@@ -148,7 +148,7 @@ def test_every_pair_at_once_matches_one_at_a_time_at_the_2000_ft_edge(monkeypatc
 @pytest.mark.skipif(not (congested.URBAN_AREAS_PATH.exists() and (congested.DIR.parents[0] / "faa_nasr" / "DOF.DAT").exists()),
                     reason="needs the Census urban areas and the FAA's DOF.DAT on disk")
 def test_every_pair_at_once_matches_one_at_a_time_on_the_real_obstacles_round_chicago_and_milwaukee():
-    from vfr import faa_data
+    from wingtip import faa_data
 
     tree = congested._tree()
     if tree is None:
@@ -186,7 +186,7 @@ def test_the_urban_areas_are_read_from_the_cycle_pack_made_of_their_download(mon
 
     import shapefile
 
-    from vfr import pack as cycle_pack
+    from wingtip import pack as cycle_pack
 
     base = tmp_path / "ua"
     with shapefile.Writer(str(base), shapeType=shapefile.POLYGON) as w:

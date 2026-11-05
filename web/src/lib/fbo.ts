@@ -9,7 +9,7 @@ import type { TrafficAircraft } from "./api/types";
  * -- the map's view, near the pilot, or round an airport, and there
  * inbound, departing, based or just about -- and what: its kind, its
  * height, its operator, an emergency. Each a plain test on an airplane
- * the planner gives (vfr.traffic), so the list and its tests agree --
+ * the planner gives (wingtip.traffic), so the list and its tests agree --
  * worked out by the shared engine (native/engine/src/aircraft, through
  * lib/engine), with their sources there; only the filter's own shape and
  * what is asked of it stay here.
@@ -85,7 +85,7 @@ export interface FilterField extends LatLon {
  * openly: inbound where it is pointed at the field and coming down (or
  * already close in), departing where it is pointed away and going up (or
  * still close in and low), within 40 nm and not far above it; about it
- * within 10 nm. As the planner reads a past flight's ends (vfr.traffic
+ * within 10 nm. As the planner reads a past flight's ends (wingtip.traffic
  * FIELD_APPROACH_*).
  */
 export function relationTo(plane: TrafficAircraft, field: FilterField): { around: boolean; inbound: boolean; departing: boolean } {

@@ -33,7 +33,7 @@ pub fn three_figures(deg: f64) -> String {
 /// radials are laid out, to the station's own declination (NASR NAV_BASE
 /// MAG_VARN, the year it was set in MAG_VARN_YEAR), not today's variation
 /// at the airplane -- as the planner turns a pilot's "JOT/045/12"
-/// (vfr.fixes.frd_point). The course to it is the radial's reciprocal.
+/// (wingtip.fixes.frd_point). The course to it is the radial's reciprocal.
 /// None where the station has no declination filed.
 pub fn radial_of(station: &Station, lat: f64, lon: f64) -> Option<(f64, f64, f64)> {
     let var = station.mag_var?;

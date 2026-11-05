@@ -4,7 +4,7 @@ Feature-Engineer/Retrain run as real SageMaker Processing/Training Jobs
 instead of DockerOperator sibling containers -- there's no host Docker
 socket to launch siblings from once Airflow itself runs on Fargate (see
 docker/Dockerfile.airflow.aws). Evaluate/Promote stay in-process, same as
-the local DAG, for the same reason: vfr.model_registry has zero third-party
+the local DAG, for the same reason: wingtip.model_registry has zero third-party
 dependencies, so there's no compute to hand off either way.
 
 Only this DAG file (not vfr_pipeline_dag.py) ships in the AWS Airflow image
@@ -73,7 +73,7 @@ def _processing_config(job_name: str, image_uri_var: str, container_arguments: l
         "RoleArn": _job_role_arn(),
         "AppSpecification": {
             "ImageUri": Variable.get(image_uri_var),
-            "ContainerEntrypoint": ["python3", "-m", "vfr.pipeline"],
+            "ContainerEntrypoint": ["python3", "-m", "wingtip.pipeline"],
             "ContainerArguments": container_arguments,
         },
         "ProcessingInputs": processing_inputs,
@@ -154,7 +154,7 @@ def vfr_pipeline_aws():
             # Dockerfile.training's own `CMD ["retrain"]` default is what
             # actually runs; retrain() itself picks up SM_CHANNEL_FEATURES/
             # SM_CHANNEL_LABELS/SM_MODEL_DIR (see _retrain_defaults() in
-            # src/vfr/pipeline.py) from the channels/output path below.
+            # src/wingtip/pipeline.py) from the channels/output path below.
             "InputDataConfig": [
                 {
                     "ChannelName": "features",
@@ -184,7 +184,7 @@ def vfr_pipeline_aws():
     )
 
     def _metrics_pass() -> bool:
-        from vfr import model_registry
+        from wingtip import model_registry
 
         return model_registry.evaluate()
 
@@ -192,7 +192,7 @@ def vfr_pipeline_aws():
 
     @task
     def promote() -> str:
-        from vfr import model_registry
+        from wingtip import model_registry
 
         return str(model_registry.promote())
 

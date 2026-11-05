@@ -210,7 +210,7 @@ struct Grade {
 
 /// A flight debriefed against its track; None where the track never flew.
 /// `points` in time order; `patterns` the fields' pattern altitudes, ft
-/// MSL, by ident (the planner's own, vfr.pattern's).
+/// MSL, by ident (the planner's own, wingtip.pattern's).
 pub fn debrief(checkpoints: &[Checkpoint], points: &[Point], patterns: &[(String, f64)]) -> Option<Debrief> {
     let mut cps = checkpoints.to_vec();
     cps.sort_by_key(|c| c.sequence_no);

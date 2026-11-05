@@ -1,10 +1,10 @@
-"""The phones' cycle packs (vfr.pack's write_phone): the airspace, the
+"""The phones' cycle packs (wingtip.pack's write_phone): the airspace, the
 special-use areas and the places of one region, for the phone to answer
 with no network. The same for every pilot for the whole cycle, which a
 pack's address names."""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
-from vfr import pack as cycle_pack
+from wingtip import pack as cycle_pack
 
 from ..common import DIAGRAM_CACHE, SHARED_CACHE
 from ..schemas import CyclePacks

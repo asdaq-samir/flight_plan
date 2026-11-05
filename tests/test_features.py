@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from vfr.features import log_size_feature, name_uniqueness, nearest_neighbor_distance_nm
+from wingtip.features import log_size_feature, name_uniqueness, nearest_neighbor_distance_nm
 
 
 def test_log_size_feature_zero_area_maps_to_zero():

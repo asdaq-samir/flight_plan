@@ -6,7 +6,7 @@ import type { LatLon } from "./geo";
  * An approach taught as an instructor teaches it, at the owner's ask
  * ("do it all", 2026-10-30): briefed before anything moves, flown fix by
  * fix with a word at each, and asked back. All of it from the FAA's coded
- * procedure (vfr.procedures, the CIFP) and the field's radio: what the
+ * procedure (wingtip.procedures, the CIFP) and the field's radio: what the
  * coded data does not hold -- the minimums above all -- is "See the
  * plate", never a figure made up. A training aid; the plate flies.
  *

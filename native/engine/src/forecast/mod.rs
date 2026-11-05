@@ -1,6 +1,6 @@
 //! A field's weather as the app says it: the flight category a ceiling and
 //! a visibility fall in, where only some of the figures are known (the
-//! web's lib/map/flightCategory, the planner's vfr.glmp), and an hour of a
+//! web's lib/map/flightCategory, the planner's wingtip.glmp), and an hour of a
 //! TAF read from its change groups (the web's lib/hourly). The TAF's text
 //! is read by each host (the web by metar-taf-parser); what its groups
 //! mean for the hour is decided here, once.

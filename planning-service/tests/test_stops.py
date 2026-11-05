@@ -5,8 +5,8 @@ same stubbed world as test_plan: every hop is read off the same two
 candidates, flies at the one legal altitude, and each leg is 10 nm."""
 import pytest
 from fastapi.testclient import TestClient
-from vfr import airports, fixes, geo, navlog
-from vfr import altitude as altitude_module
+from wingtip import airports, fixes, geo, navlog
+from wingtip import altitude as altitude_module
 
 from app import planning, scoring
 from app.common import load_hop, load_route
@@ -537,9 +537,9 @@ def test_a_direct_to_climbs_from_the_gps_altitude_and_with_none_starts_level(alt
 
 
 def test_an_airway_among_the_stops_is_flown_fix_by_fix_with_its_altitudes(monkeypatch):
-    """"BAE V900 DDD" is BAE, the fixes V900 passes, DDD (vfr.airways): each
+    """"BAE V900 DDD" is BAE, the fixes V900 passes, DDD (wingtip.airways): each
     one a waypoint, each hop into one carrying its segment's MEA."""
-    from vfr import airways
+    from wingtip import airways
 
     from app import common
 
@@ -566,7 +566,7 @@ def test_each_leg_along_an_airway_carries_its_segment_for_the_nav_log():
 
 def test_an_airway_that_cannot_be_flown_as_written_is_a_422_that_says_why(monkeypatch):
     from fastapi import HTTPException
-    from vfr import airways
+    from wingtip import airways
 
     from app import common
 
@@ -745,9 +745,9 @@ def test_a_hold_makes_the_flights_after_it_leave_later(monkeypatch):
 
 def test_where_the_ceiling_stops_it_over_high_ground_the_way_round_is_offered(monkeypatch):
     """No legal altitude because the ground needs more than the airplane's
-    service ceiling: the points round it (vfr.terrain_detour), in order, as
+    service ceiling: the points round it (wingtip.terrain_detour), in order, as
     one detour, with the miles it adds."""
-    from vfr import terrain_detour
+    from wingtip import terrain_detour
 
     from app.common import load_hop
     from app.routers.plan import terrain_way

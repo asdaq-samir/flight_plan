@@ -2,7 +2,7 @@
  * Magnetic variation at a point, from the World Magnetic Model (WMM-2025,
  * NOAA NCEI and the British Geological Survey, valid 2025.0 to 2030.0):
  * the shared engine's (native/engine/src/wmm.rs, through lib/engine), the
- * very code the planner's vfr.magnetic runs for the nav log's legs and the
+ * very code the planner's wingtip.magnetic runs for the nav log's legs and the
  * phones run with no signal, so a course the map's ruler gives and a
  * leg's agree. magnetic.test holds it to the declinations NOAA's
  * calculator gave the planner.
@@ -18,7 +18,7 @@ export type Declination = (lat: number, lon: number) => number;
 
 /** The variation on `day` (today by default), its UTC date's, once the
  *  engine has loaded. A date outside the model's five years is held at
- *  its nearest edge, as vfr.magnetic holds it: variation drifts a
+ *  its nearest edge, as wingtip.magnetic holds it: variation drifts a
  *  fraction of a degree a year, and the edge of a lapsed model is nearer
  *  the truth than no course. */
 export async function loadDeclination(day: Date = new Date()): Promise<Declination> {

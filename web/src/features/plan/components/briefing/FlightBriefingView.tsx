@@ -492,7 +492,7 @@ export default memo(function FlightBriefingView({
   const landings = [...new Set([dep, ...stops, dest])];
   const stretches = windStretches(legs);
   // "VFR flight not recommended" (AIM 7-1-5) and its reasons are the
-  // planner's call (vfr.weather), made against 14 CFR 91.155's minimums
+  // planner's call (wingtip.weather), made against 14 CFR 91.155's minimums
   // in one place; this page states them.
   const briefing = briefingState.state === "ready" ? briefingState.data : null;
   const failed = briefingState.state === "failed" ? briefingState.detail : null;
@@ -525,7 +525,7 @@ export default memo(function FlightBriefingView({
     return !pass || tfrWhen(t, pass) === "in-force";
   };
   const tfrsCrossed = briefing?.tfrs.filter(t => t.crosses && tfrInForce(t)) ?? [];
-  // The special-use areas the legs cross (vfr.sua, with the altitudes),
+  // The special-use areas the legs cross (wingtip.sua, with the altitudes),
   // and their times of use read for when the flight passes each, in the
   // area's own time zone.
   const specialUse = (nav?.altitude_selection.special_use ?? []).map(area => {

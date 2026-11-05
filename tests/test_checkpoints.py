@@ -1,4 +1,4 @@
-from vfr.checkpoints import select_checkpoints
+from wingtip.checkpoints import select_checkpoints
 
 
 def _c(along, score, name="x"):

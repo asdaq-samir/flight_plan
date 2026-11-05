@@ -182,7 +182,7 @@ fn a_vors_radial_its_morse_and_its_service_volume() {
 
 #[test]
 fn the_variation_agrees_with_noaas_calculator() {
-    // The rows tests/test_magnetic.py holds vfr.magnetic to.
+    // The rows tests/test_magnetic.py holds wingtip.magnetic to.
     for (lat, lon, noaa) in [(44.58, -90.14, -2.55629), (42.33, -88.08, -3.89582), (43.02, -89.0, -3.274)] {
         let at: f64 = call("magnetic_variation", &format!("{{\"lat\": {lat}, \"lon\": {lon}, \"date\": \"2026-09-21\"}}")).unwrap().parse().unwrap();
         assert!((at - noaa).abs() < 0.05, "{lat} {lon}: {at} against {noaa}");

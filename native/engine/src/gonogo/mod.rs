@@ -1,5 +1,5 @@
 //! The Brief's Go / No-Go, one copy for the planner (app.gonogo, through
-//! vfr_native, for POST /api/go-no-go) and the phones (native/ffi), so
+//! wingtip_native, for POST /api/go-no-go) and the phones (native/ffi), so
 //! neither states a rule of its own (docs/NATIVE.md): the seven findings
 //! and the line over them, and what each is worked out from. Each was
 //! app.gonogo's Python, itself the web app's TypeScript ported line for

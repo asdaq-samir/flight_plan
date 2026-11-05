@@ -1,12 +1,12 @@
 //! The map's view from the phone's packs, with no network: the Class B, C
 //! and D, the landing fields and the VORs inside a box, each as the
 //! planner's endpoint answers it -- /api/airspace/in-view (AirspaceInView,
-//! vfr.airspace_map), /api/airports/in-view (AirportPin, vfr.airports) and
-//! /api/navaids/in-view (VorPin, vfr.fixes) -- as JSON with the same field
+//! wingtip.airspace_map), /api/airports/in-view (AirportPin, wingtip.airports) and
+//! /api/navaids/in-view (VorPin, wingtip.fixes) -- as JSON with the same field
 //! names and the same nulls, so the native app decodes it as it decodes
 //! the planner's and draws the chart's overlays from the packs it keeps.
 //!
-//! What a phone pack (vfr.pack's `write_phone`) holds of each, and what it
+//! What a phone pack (wingtip.pack's `write_phone`) holds of each, and what it
 //! cannot, which is answered null:
 //!
 //! - The airspace layer's rings (crate::pack, simplified to the phone's
@@ -22,22 +22,22 @@
 //!   one, else the FAA's. The planner lists OurAirports' fields and names
 //!   them as OurAirports does; here the name is NASR's, set in title case.
 //!   `kind` is the SIZE column, OurAirports' size written into the pack
-//!   (vfr.pack.airport_sizes); a pack without it has every field "other".
+//!   (wingtip.pack.airport_sizes); a pack without it has every field "other".
 //!   `military` is OWNERSHIP_TYPE_CODE's, null from a pack without that
 //!   column. `flight_category` is a live METAR's and always null here.
 //!   `airspace_class` is read off the pack's own airspace, as
-//!   vfr.airspace.surface_classes reads it off the file: the lowest class
+//!   wingtip.airspace.surface_classes reads it off the file: the lowest class
 //!   whose floor is the surface over the field, else E where a Class E
 //!   reaches the surface there, else G. The planner lists the fields that
 //!   report their weather first; with no weather here, the biggest first
 //!   and then by ident, at most AIRPORT_LIMIT as the planner's default.
 //! - The `navaids` table (NAV_BASE rows): the VORs, VOR/DMEs and VORTACs
-//!   not shut down, by ident, as vfr.fixes keeps them. `service_volume`
+//!   not shut down, by ident, as wingtip.fixes keeps them. `service_volume`
 //!   and `hours` are ALT_CODE and OPER_HOURS, null from a pack without
 //!   those columns. `remarks` is NAV_RMK's, which no pack holds: always
 //!   empty. `fixes` is what the planner answers unasked: empty.
 //!
-//! A volume's lines are drawn as vfr.airspace_map draws them: every ring
+//! A volume's lines are drawn as wingtip.airspace_map draws them: every ring
 //! oriented with the volume on its left in lon/lat (its outside
 //! counter-clockwise, its holes clockwise), then simplified under a pixel
 //! for the box asked (`tolerance_for`) and written [lat, lon] to five
@@ -55,7 +55,7 @@ use crate::pack::Pack;
 pub const AIRPORT_LIMIT: usize = 300;
 pub const NAVAID_LIMIT: usize = 500;
 
-/// vfr.airspace_map's: the finest a line is simplified to, and a box's
+/// wingtip.airspace_map's: the finest a line is simplified to, and a box's
 /// share of its height, in degrees.
 pub const MIN_TOLERANCE_DEG: f64 = 0.00005;
 pub const TOLERANCE_PER_BOX: f64 = 1.0 / 12000.0;
@@ -65,13 +65,13 @@ pub fn tolerance_for(south: f64, north: f64) -> f64 {
     MIN_TOLERANCE_DEG.max((north - south) * TOLERANCE_PER_BOX)
 }
 
-/// vfr.faa_data's MILITARY_OWNERS: the Air Force's, the Navy's, the
+/// wingtip.faa_data's MILITARY_OWNERS: the Air Force's, the Navy's, the
 /// Army's and the Coast Guard's fields.
 const MILITARY_OWNERS: &[&str] = &["MA", "MN", "MR", "CG"];
-/// vfr.fixes' VOR_KINDS and NAVAID_KINDS, the likelier to fly to first.
+/// wingtip.fixes' VOR_KINDS and NAVAID_KINDS, the likelier to fly to first.
 const VOR_KINDS: &[&str] = &["VORTAC", "VOR/DME", "VOR"];
 const NAVAID_KINDS: &[&str] = &["VORTAC", "VOR/DME", "VOR", "DME", "TACAN", "NDB/DME", "NDB"];
-/// vfr.fixes' SAME_FACILITY_NM: two navaids by one ident this close are
+/// wingtip.fixes' SAME_FACILITY_NM: two navaids by one ident this close are
 /// one facility filed twice.
 const SAME_FACILITY_NM: f64 = 1.0;
 
@@ -442,7 +442,7 @@ pub fn airspace_in_view(packs: &[Pack], south: f64, west: f64, north: f64, east:
                 ident: attr.ident.clone(),
                 name: name.to_owned(),
                 class,
-                // vfr.airspace's floor in feet MSL: the surface, or a
+                // wingtip.airspace's floor in feet MSL: the surface, or a
                 // height MSL; anything else 0 (floor ref 1 is AGL).
                 floor_ft: if r[1] == 2 { floor } else { 0.0 },
                 ceiling_ft: (!ceiling.is_nan()).then_some(ceiling),
@@ -518,7 +518,7 @@ fn rank(kind: &str) -> usize {
 }
 
 /// The class of airspace at the surface of the point, from the packs'
-/// airspace, as vfr.airspace.surface_classes reads it off the file: the
+/// airspace, as wingtip.airspace.surface_classes reads it off the file: the
 /// lowest of the Class B, C and D whose floor is the surface there, else
 /// E where a Class E reaches the surface (its E2 to E4 areas), else G.
 fn surface_class(packs: &[Pack], lat: f64, lon: f64) -> char {
@@ -703,7 +703,7 @@ pub fn navaids_in_view(packs: &[Pack], south: f64, west: f64, north: f64, east: 
             }
             let likelier = |k: &str| NAVAID_KINDS.iter().position(|n| *n == k).unwrap();
             // One facility filed as two kinds at one place is one, the
-            // likelier to fly to (vfr.fixes' _read_navaids).
+            // likelier to fly to (wingtip.fixes' _read_navaids).
             if let Some(at) = vors.iter().position(|v| v.ident == ident && crate::geo::distance_nm(la, lo, v.lat, v.lon) < SAME_FACILITY_NM) {
                 if likelier(kind) < likelier(vors[at].kind) {
                     vors.remove(at);

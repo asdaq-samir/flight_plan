@@ -7,9 +7,9 @@
 # in-process here (ShortCircuitOperator/PythonOperator in the DAG) since
 # they're plain file/JSON operations with zero third-party dependencies --
 # not real compute, so they don't need their own container either.
-# >>> vfr-native: the same in every image that imports vfr, kept so by
-# tests/test_dockerfiles.py against docker/Dockerfile.native. vfr's Rust
-# extension (native/py, over wingtip-engine in native/engine), which vfr
+# >>> wingtip-native: the same in every image that imports wingtip, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. wingtip's Rust
+# extension (native/py, over wingtip-engine in native/engine), which wingtip
 # imports at module level since the shared engine (2026-11-03): built
 # here, with Rust copied in from its own image, so the image carries the
 # wheel and none of the toolchain. The stage is the same text in each
@@ -28,7 +28,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
 COPY native /native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
-# <<< vfr-native
+# <<< wingtip-native
 
 FROM apache/airflow:3.3.2-python3.13
 
@@ -49,7 +49,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,uid=50000,gid=0 pip install \
 RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
     pip install --no-cache-dir --no-deps /tmp/wheels/*.whl
 
-# The DAGs and the vfr package they import (evaluate/promote run
+# The DAGs and the wingtip package they import (evaluate/promote run
 # in-process), baked in rather than read from the repo. This container
 # holds the host's Docker socket, and the repo is mounted read-write
 # into ml, both pipeline jobs, planning-service and both agents -- so a
@@ -63,8 +63,8 @@ ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
 ENV PYTHONPATH=/opt/project/src
 COPY airflow/dags/vfr_pipeline_dag.py /opt/project/airflow/dags/vfr_pipeline_dag.py
 COPY src /opt/project/src
-# The build fails if the DAG does not load here -- a provider or a vfr
+# The build fails if the DAG does not load here -- a provider or a wingtip
 # import missing -- rather than Airflow listing an import error later.
 # (The host path and the project name are compose's to give; any will do
 # for loading.)
-RUN PROJECT_HOST_PATH=/build-check PIPELINE_IMAGE_PREFIX=build-check python -B -c "import vfr_native; from airflow.dag_processing.dagbag import DagBag; bag = DagBag('/opt/project/airflow/dags'); assert not bag.import_errors, bag.import_errors; assert set(bag.dags) == {'vfr_pipeline'}, set(bag.dags)"
+RUN PROJECT_HOST_PATH=/build-check PIPELINE_IMAGE_PREFIX=build-check python -B -c "import wingtip_native; from airflow.dag_processing.dagbag import DagBag; bag = DagBag('/opt/project/airflow/dags'); assert not bag.import_errors, bag.import_errors; assert set(bag.dags) == {'vfr_pipeline'}, set(bag.dags)"

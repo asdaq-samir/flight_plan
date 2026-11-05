@@ -1,6 +1,6 @@
 import pytest
 
-from vfr import pack as cycle_pack
+from wingtip import pack as cycle_pack
 
 
 @pytest.fixture(autouse=True)

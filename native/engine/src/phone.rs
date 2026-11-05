@@ -1,6 +1,6 @@
 //! The airspace over a point from a phone's pack, with no network: the
 //! planner's /api/airspace/at answer, as JSON with its field names, for
-//! what a pack holds. A phone pack (vfr.pack's `write_phone`) is a cycle
+//! what a pack holds. A phone pack (wingtip.pack's `write_phone`) is a cycle
 //! pack of one region, its rings simplified, with these sections besides
 //! the layers (crate::pack):
 //!
@@ -22,7 +22,7 @@
 //!
 //! The place tables (`airports`, `navaids`, `fixes`: crate::spoken,
 //! crate::view) are JSON, `{"columns": [...], "rows": [[...], ...]}` of
-//! strings, the NASR columns vfr.pack's COLUMNS names, read by name: a
+//! strings, the NASR columns wingtip.pack's COLUMNS names, read by name: a
 //! column a newer pack adds is unknown from an older one, not an error.
 //!
 //! What a pack cannot know is said so: the ground's height is not in it
@@ -34,7 +34,7 @@ use crate::json;
 use crate::pack::Pack;
 use crate::rules::{self, FloorRef, Volume};
 
-/// A phone pack's region: a square of this many degrees (vfr.pack's
+/// A phone pack's region: a square of this many degrees (wingtip.pack's
 /// REGION_DEG), named by its south-west corner.
 pub const REGION_DEG: f64 = 4.0;
 

@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => { await page.addInitScript(noTips); });
 
 const PAGES = [
   { path: "/app/privacy.html", heading: "Privacy policy", text: /Anthropic/ },
-  { path: "/app/terms.html", heading: "Terms of use", text: /Wingtip Maps is a planning aid for VFR flight\./ },
+  { path: "/app/terms.html", heading: "Terms of use", text: /Wingtip Maps is a planning aid for VFR and IFR flight\./ },
   { path: "/app/support.html", heading: "Support", text: /github\.com\/asdaq-samir\/flight_plan\/issues/ },
 ];
 

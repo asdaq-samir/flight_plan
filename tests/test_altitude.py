@@ -1,4 +1,4 @@
-"""vfr.altitude.select_cruise_altitude with its data sources stubbed: the
+"""wingtip.altitude.select_cruise_altitude with its data sources stubbed: the
 hemispheric rule leg by leg, and every 500 ft within 3,000 ft of the
 ground where it does not apply; and the freezing level as an icing
 warning rather than a ceiling."""
@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from vfr import airspace, altitude, performance, sua, terrain, weather
+from wingtip import airspace, altitude, performance, sua, terrain, weather
 
 PROFILE = {"service_ceiling_ft": 14000, "cruise_tas_kt": 110}
 DEP, DEST = (45.0, -90.0), (46.0, -90.0)          # due north
@@ -264,7 +264,7 @@ def test_the_book_service_ceiling_where_the_temperatures_are_unknown(sources, mo
 # at 1,900. Below 3,000 ft above the ground any altitude is legal, so
 # 1,800 is -- under the shelf, not at it -- though tight.
 
-from vfr.altitude import tight_cruising_altitude  # noqa: E402
+from wingtip.altitude import tight_cruising_altitude  # noqa: E402
 
 
 def test_the_highest_whole_hundred_under_the_ceiling_that_clears_the_floor():
@@ -278,13 +278,13 @@ def test_nothing_tight_where_nothing_fits_or_the_rule_applies():
     assert tight_cruising_altitude(3800.0, 4000.0, 3600.0) is None   # 91.159's altitudes up there
 
 
-# --- Under IFR (vfr.ifr) -------------------------------------------------
+# --- Under IFR (wingtip.ifr) -------------------------------------------------
 
 @pytest.fixture
 def ifr_floors(sources, monkeypatch):
     """IFR floors of 3,100 ft over every leg, the first over a mountainous
     area; and an airspace ceiling that would cap a VFR flight at 3,000."""
-    from vfr import ifr
+    from wingtip import ifr
 
     def floors(fixes, faa_cache_dir=None):
         return [ifr.LegFloor(3100.0, 2050.0, False, i == 0) for i in range(len(fixes) - 1)]

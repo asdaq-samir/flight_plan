@@ -166,7 +166,7 @@ def test_the_weather_words_rest_on_the_briefings_metar(monkeypatch):
 
 
 def test_the_notam_words_come_from_the_feeds_notams_at_the_fields_landed_at(monkeypatch):
-    from vfr import notams
+    from wingtip import notams
 
     asked = {}
 

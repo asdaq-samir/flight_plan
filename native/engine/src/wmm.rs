@@ -1,6 +1,6 @@
 //! Magnetic variation from the World Magnetic Model (WMM-2025, NOAA NCEI
 //! and the British Geological Survey, valid 2025.0 to 2030.0), worked
-//! out as vfr.magnetic's pygeomag does it -- the model's own spherical
+//! out as wingtip.magnetic's pygeomag does it -- the model's own spherical
 //! harmonic sum to degree and order 12, its coefficients the file NOAA
 //! publishes (WMM.COF, public domain), copied here so the phone has the
 //! same variation the planner and the sectional's isogonic lines use.
@@ -163,7 +163,7 @@ fn model() -> &'static Model {
     })
 }
 
-/// A day as the model's decimal year: 2026.5 is mid-2026 (vfr.magnetic's
+/// A day as the model's decimal year: 2026.5 is mid-2026 (wingtip.magnetic's
 /// `_decimal_year`).
 pub fn decimal_year(year: i32, day_of_year: u32, days_in_year: u32) -> f64 {
     year as f64 + (day_of_year - 1) as f64 / days_in_year as f64
@@ -171,7 +171,7 @@ pub fn decimal_year(year: i32, day_of_year: u32, days_in_year: u32) -> f64 {
 
 /// The variation in degrees, east positive, at a point on the ellipsoid
 /// for a decimal year. A year outside the model's life is held at its
-/// nearest edge, as vfr.magnetic holds it: the variation drifts a
+/// nearest edge, as wingtip.magnetic holds it: the variation drifts a
 /// fraction of a degree a year, far closer than none.
 pub fn declination(lat: f64, lon: f64, year: f64) -> f64 {
     let year = year.clamp(EPOCH, LIFE_END - 1e-6);

@@ -22,7 +22,7 @@
 //! lat); `L.off`, n + 1 u64, where each shape's WKB starts in `L.wkb` and
 //! where the last ends; `L.wkb`, the shapes as little-endian 2D WKB; and
 //! `L.attr`, a UTF-8 JSON array of each shape's fields. `meta` is a JSON
-//! object: the pack's sources and when each was read. vfr.pack writes it.
+//! object: the pack's sources and when each was read. wingtip.pack writes it.
 
 pub const MAGIC: &[u8; 4] = b"WTPK";
 pub const VERSION: u32 = 1;
@@ -189,7 +189,7 @@ mod tests {
         assert_eq!(crc32(b""), 0);
     }
 
-    /// A pack of one layer, one square, written as vfr.pack writes one.
+    /// A pack of one layer, one square, written as wingtip.pack writes one.
     fn tiny() -> Vec<u8> {
         let mut wkb = vec![1u8];
         wkb.extend_from_slice(&3u32.to_le_bytes());

@@ -1,7 +1,7 @@
 """When the planner fetches and renders a new FAA chart cycle: the one
 place that decides it, for both the hourly check (app.main's warm-up
 loop) and the Dev console's "refresh now" (app.routers.system).
-vfr.charts does the work -- the download, the render, the publish --
+wingtip.charts does the work -- the download, the render, the publish --
 and answers what is on disk; this is only the policy of when, and with
 how much of the machine.
 
@@ -23,7 +23,7 @@ import logging
 import os
 import time
 
-from vfr import charts
+from wingtip import charts
 
 from .settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 

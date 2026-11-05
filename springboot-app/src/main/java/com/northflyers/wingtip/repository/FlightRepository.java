@@ -1,0 +1,21 @@
+package com.northflyers.wingtip.repository;
+
+import com.northflyers.wingtip.domain.Flight;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+/** Persistence for {@link Flight}, scoped to the pilot who filed it. */
+public interface FlightRepository extends JpaRepository<Flight, Long> {
+
+    /** Fetches {@code aircraft} eagerly -- {@link com.northflyers.wingtip.controller.FlightController}
+     *  reads every flight's tail number to build its summary list, which
+     *  otherwise issues one extra query per flight for a LAZY association. */
+    @EntityGraph(attributePaths = "aircraft")
+    List<Flight> findByPilotIdOrderByCreatedAtDesc(Long pilotId);
+
+    /** Scoped by pilot for the same reason as {@code AircraftRepository}:
+     *  a flight is private to the person who planned it. */
+    Optional<Flight> findByIdAndPilotId(Long id, Long pilotId);
+}

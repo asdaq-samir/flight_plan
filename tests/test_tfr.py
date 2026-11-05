@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from vfr import tfr
+from wingtip import tfr
 
 # A trimmed copy of the site's detail_6_6654.xml: a fire-fighting TFR,
 # its times in UTC, one area from the surface to 10,000 ft MSL.

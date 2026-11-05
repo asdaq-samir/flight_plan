@@ -18,7 +18,7 @@ import { TEXT } from "../lib/text";
  * each source the planner downloads -- the METARs, TAFs, AIRMETs and
  * SIGMETs, G-AIRMETs, PIREPs, winds aloft and TFRs -- with when its copy
  * was fetched and, where the source is not answering, to when the copy
- * held is used by its product's own validity (vfr.weather); and the
+ * held is used by its product's own validity (wingtip.weather); and the
  * traffic, as the map last heard it. Asked again each minute while open.
  */
 export default function StatusPanel() {

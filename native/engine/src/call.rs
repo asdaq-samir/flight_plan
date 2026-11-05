@@ -1,6 +1,6 @@
 //! One way in for every host: a rule asked by its name, its input a JSON
 //! object, its answer JSON. The web app (native/wasm, from TypeScript),
-//! the planner (vfr_native.call) and the phones (wt_call) all come in
+//! the planner (wingtip_native.call) and the phones (wt_call) all come in
 //! here, so a rule moved into the engine needs no new function on any of
 //! them -- only a name below. The answers are the planner's endpoints'
 //! own JSON, snake_case, where a rule has an endpoint.
@@ -206,7 +206,7 @@
 //!
 //! Runways, the wind on them and the traffic pattern (crate::runway, the
 //! web's lib/wind, lib/pattern, lib/runwayFit, lib/takeoffLanding and
-//! lib/trafficPattern, and vfr.runway_wind and vfr.pattern), a runway as
+//! lib/trafficPattern, and wingtip.runway_wind and wingtip.pattern), a runway as
 //! the planner sends one, `{"closed"?, "surface"?, "length_ft"?,
 //! "runway_ends": [{"ident", "heading_true_deg"?, "traffic"?, "lat"?,
 //! "lon"?}], "wind"?: {"end", "headwind_kt", "crosswind_kt",
@@ -282,7 +282,7 @@
 //!   `{"ident"}`; `service_volume` (AIM 1-1-8 TBL 1-1-1) from `{"code"?}`;
 //!   `navaid_hours` from `{"hours"?}`;
 //! - `magnetic_variation`: degrees east, the World Magnetic Model's (wmm,
-//!   as vfr.magnetic), from `{"lat", "lon", "date": "YYYY-MM-DD"}`.
+//!   as wingtip.magnetic), from `{"lat", "lon", "date": "YYYY-MM-DD"}`.
 //!
 //! Instrument approaches taught and debriefed (crate::approach, the web's
 //! lib/approachDebrief and lib/approachLesson), a drawing the planner's
@@ -323,7 +323,7 @@
 //!   "answer", "explain", "focus"}]` from `{"drawing", "gs_kt"}`.
 //!
 //! A field's weather as the app says it (crate::forecast, the web's
-//! lib/map/flightCategory and lib/hourly, the planner's vfr.glmp) and the
+//! lib/map/flightCategory and lib/hourly, the planner's wingtip.glmp) and the
 //! traffic list's filters and the registry's airplanes (crate::aircraft,
 //! the web's lib/fbo and lib/aircraftChoice, the iPhone's Registered):
 //!
@@ -604,7 +604,7 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             if !(1..=12).contains(&month) || day < 1 || day > crate::time::days_in_month(year, month as u32) as i64 {
                 return Err(bad());
             }
-            // The model's time, a decimal year, as vfr.magnetic works it out.
+            // The model's time, a decimal year, as wingtip.magnetic works it out.
             let start = crate::time::days_from_civil(year, 1, 1);
             let of_year = crate::time::days_from_civil(year + 1, 1, 1) - start;
             let day_of_year = crate::time::days_from_civil(year, month as u32, day as u32) - start + 1;

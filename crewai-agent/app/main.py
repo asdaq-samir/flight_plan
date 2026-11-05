@@ -31,7 +31,7 @@ import argparse
 import os
 
 from crewai import Agent, Crew, Task
-from vfr.narrative import briefing_prompt
+from wingtip.narrative import briefing_prompt
 
 from .tools import compute_dead_reckoning_legs, get_recommended_altitude, get_route_checkpoints
 

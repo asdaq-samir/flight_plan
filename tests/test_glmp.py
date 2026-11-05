@@ -1,4 +1,4 @@
-"""vfr.glmp: the NWS's Gridded LAMP read from GRIB2 files in GLMP's own
+"""wingtip.glmp: the NWS's Gridded LAMP read from GRIB2 files in GLMP's own
 shape (tests/glmp): the National Blend of Models' Lambert conformal grid
 (R 6,371,200 m, 2,539.703 m cells) cut to four points by three from
 42.30 N 88.10 W, round Campbell Airport (C81), packed as GLMP packs
@@ -17,7 +17,7 @@ import pytest
 import requests
 from pyproj import Proj
 
-from vfr import glmp
+from wingtip import glmp
 
 FIXTURES = Path(__file__).parent / "glmp"
 FIRST = (42.30, -88.10)

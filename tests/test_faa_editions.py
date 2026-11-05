@@ -1,10 +1,10 @@
-"""vfr.faa_data.refresh_editions: the planner's FAA files fetched again
+"""wingtip.faa_data.refresh_editions: the planner's FAA files fetched again
 when the FAA has a newer edition, a zip's files together, and a file on
 disk of the current cycle left alone."""
 from pathlib import Path
 
 import pytest
-from vfr import faa_data
+from wingtip import faa_data
 
 CYCLE_PAGE = "https://www.faa.gov/air_traffic/flight_info/aeronav/aero_data/NASR_Subscription/2026-10-01"
 

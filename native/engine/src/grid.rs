@@ -1,4 +1,4 @@
-//! Route options' straight lines over the grid (vfr.route_options): the
+//! Route options' straight lines over the grid (wingtip.route_options): the
 //! cells a line crosses, its minutes, and the loop that straightens a way
 //! through cell centres into the fewest turns. Each gives exactly what the
 //! Python it stood in for gave -- the same samples, the same sums in the

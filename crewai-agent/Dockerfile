@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-# >>> vfr-native: the same in every image that imports vfr, kept so by
-# tests/test_dockerfiles.py against docker/Dockerfile.native. vfr's Rust
-# extension (native/py, over wingtip-engine in native/engine), which vfr
+# >>> wingtip-native: the same in every image that imports wingtip, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. wingtip's Rust
+# extension (native/py, over wingtip-engine in native/engine), which wingtip
 # imports at module level since the shared engine (2026-11-03): built
 # here, with Rust copied in from its own image, so the image carries the
 # wheel and none of the toolchain. The stage is the same text in each
@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
 COPY native /native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
-# <<< vfr-native
+# <<< wingtip-native
 
 FROM python:3.13-slim
 
@@ -42,10 +42,10 @@ USER appuser
 ENV PYTHONPATH=/workspace/src
 # The build fails here if a package this image's code imports is
 # missing, rather than the container on its next start: on 2026-09-22 a
-# new import in vfr left both agents and both pipeline stages unable to
+# new import in wingtip left both agents and both pipeline stages unable to
 # start, and every build passed. The lazy imports are named too, as
 # importing the entry module does not reach them.
-RUN python -B -c "import vfr_native, app.server, app.main"
+RUN python -B -c "import wingtip_native, app.server, app.main"
 # The HTTP wrapper the webapp's flight planning drawer calls. The one-shot CLI is
 # `python3 -m app.main ...`, passed as the command instead.
 CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000"]

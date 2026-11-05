@@ -6,7 +6,7 @@ import { closeConsole, openSetup, pickControl, settle, slow } from "./helpers";
  * beside its buttons (AlertsBanner) and drawn where it is (AheadLayer).
  * The GPS is a fake one in flight -- east at 120 kt, 3,000 ft, near
  * Campbell Airport (C81) -- and the planner's answer is stubbed: what it
- * finds ahead is vfr.alerts' to test (tests/test_alerts.py).
+ * finds ahead is wingtip.alerts' to test (tests/test_alerts.py).
  */
 
 test.use({ permissions: ["geolocation"] });

@@ -22,19 +22,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
 import numpy as np
-import vfr_native
+import wingtip_native
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, StreamingResponse
-from vfr import (
+from wingtip import (
     airports, airspace, altitude, chartlabels, charts, elevation, faa_data, fixes, fuelstops, geo, magnetic, navlog, pattern,
     places, procedure_paths, procedures, runway_wind, sun, terrain_detour, weather,
 )
 # As vfr_holds: PlanQuery's own `holds` is the address's.
-from vfr import holds as vfr_holds
-from vfr.profile import route_profile as side_view
-from vfr.units import M_TO_FT
-from vfr.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
-from vfr.weather import WeatherServiceError
+from wingtip import holds as vfr_holds
+from wingtip.profile import route_profile as side_view
+from wingtip.units import M_TO_FT
+from wingtip.config import DATA_DIR, VFR_SECTIONAL_MAX_ZOOM, VFR_SECTIONAL_MIN_ZOOM
+from wingtip.weather import WeatherServiceError
 
 from .. import chart_model, foreflight, prefetch
 from ..common import CHART_CACHE, DEFAULT_AIRCRAFT, Route, line, load_route, ndjson
@@ -112,11 +112,11 @@ class PlanQuery:
     service_ceiling_ft: ServiceCeiling = None
     depart: datetime | None = None
     #: The pilot will have a Class B clearance: its shelves are no
-    #: ceiling, and the route is planned through it (vfr.altitude).
+    #: ceiling, and the route is planned through it (wingtip.altitude).
     class_b_clearance: bool = False
     #: The flight rules: "ifr" plans it under IFR -- 14 CFR 91.177's
     #: minimum altitudes, 91.179's by direction of flight, 91.167's
-    #: reserve (vfr.ifr) -- where "vfr", the default, plans it as before.
+    #: reserve (wingtip.ifr) -- where "vfr", the default, plans it as before.
     rules: FlightRules = "vfr"
     #: Under IFR, the alternate filed: the fuel on to it after the
     #: destination (14 CFR 91.167(a)(2)), in the totals.
@@ -137,7 +137,7 @@ class PlanQuery:
     procedures: str = ""
     #: The runway each field is left from, where the pilot picked one, as
     #: "KSTL:30R,KMSN:36": a departure picked there flown by its runway
-    #: transition for it (vfr.procedure_paths.procedure_path), or with no
+    #: transition for it (wingtip.procedure_paths.procedure_path), or with no
     #: departure there, out along it and its upwind (with_procedures).
     runways: str = ""
     #: The runway each field is landed on, where the pilot picked one (or
@@ -154,7 +154,7 @@ class PlanQuery:
     #: that fix wherever a procedure picked passes it -- the descent planned
     #: to it and the path's heights (drawn_procedures).
     crossings: str = ""
-    #: Holds the pilot put on the route's points (vfr.holds): the point,
+    #: Holds the pilot put on the route's points (wingtip.holds): the point,
     #: its inbound course, R or L, its legs and how long, as
     #: "VPBNG/090/30:270:R:1M:2T"; several joined by commas.
     holds: str = ""
@@ -224,7 +224,7 @@ class PlanQuery:
         return out
 
     def own_holds(self) -> list[vfr_holds.Hold]:
-        """`holds`, each as vfr.holds.parse reads it; a 422 for one that is
+        """`holds`, each as wingtip.holds.parse reads it; a 422 for one that is
         not a hold."""
         out = []
         for part, hold in vfr_holds.parse_all(self.holds):
@@ -255,7 +255,7 @@ class PlanQuery:
 
     def drawn_procedures(self) -> list[tuple[str, dict]]:
         """The procedures picked (procedure_picks), each its field and its
-        drawing (vfr.procedures.procedure_drawing), read once for the
+        drawing (wingtip.procedures.procedure_drawing), read once for the
         request; one the CIFP does not have, or cannot be had, left out:
         its leg is flown as the route goes. A fix the pilot was given an
         altitude to cross at (own_crossings) is crossed at it, in place of
@@ -277,7 +277,7 @@ class PlanQuery:
 
 def engine(name: str, **ask):
     """The shared engine's rule `name` (wingtip_engine::call) on `ask`."""
-    return json.loads(vfr_native.call(name, json.dumps(ask)))
+    return json.loads(wingtip_native.call(name, json.dumps(ask)))
 
 
 def point_figure(part: str) -> bool:
@@ -293,7 +293,7 @@ def point_figure(part: str) -> bool:
 
 def point_key(ident: str) -> str:
     """A point's ident as the route has it (Route.idents): a point off a
-    fix in its one written form (vfr.fixes.frd_ident), packed or not."""
+    fix in its one written form (wingtip.fixes.frd_ident), packed or not."""
     parts = fixes.parse_frd(ident)
     return fixes.frd_ident(*parts) if parts else ident.upper()
 
@@ -341,7 +341,7 @@ def departure_elevation(r) -> float | None:
     at the first leg's altitude -- as a hop out of a waypoint does, flown
     through at cruise.
 
-    Never under the ground at the position (USGS 3DEP, vfr.elevation: the
+    Never under the ground at the position (USGS 3DEP, wingtip.elevation: the
     first of the route's terrain samples, read already for its floor): a
     phone indoors gave its GPS altitude as 0 ft MSL where the ground is
     730 ft, and the log climbed from under it. Where the ground cannot be
@@ -663,7 +663,7 @@ def unflyable_parts(outcome: Unflyable, runs: list[HopRun]) -> tuple[dict, list[
 
 def terrain_way(selection: dict, hop: Route) -> dict | None:
     """Where the airplane's service ceiling is what stops the route over
-    high ground, the way round it (vfr.terrain_detour): the points to fly
+    high ground, the way round it (wingtip.terrain_detour): the points to fly
     by, as a detour of its own, with how much longer it makes the hop.
     None where something else stops it (clouds, Class B) or there is no
     way round in reach. At the owner's ask ("Suggest a way around the
@@ -741,7 +741,7 @@ def _stuck_where(selection: dict, hop: Route) -> str | None:
 
 def field_pattern_ft(ident: str, airport: dict) -> float | None:
     """A field's traffic pattern altitude above sea level
-    (vfr.faa_data.pattern_agl_ft), to the nearest hundred feet, as a pilot
+    (wingtip.faa_data.pattern_agl_ft), to the nearest hundred feet, as a pilot
     flies it; None where its elevation is not known."""
     elevation = airport.get("elevation_ft")
     if elevation is None:
@@ -771,7 +771,7 @@ def approach_end(flight: Route, drawn: list[tuple[str, dict]],
     its altitude comes down to the next fix lower, the final approach
     fix's, say, as the approach steps down. The altitude is the chart's
     lowest for the fix, coded in the FAA's CIFP
-    (vfr.procedures.altitude_limits, ARINC 424-18 5.29) as the plate
+    (wingtip.procedures.altitude_limits, ARINC 424-18 5.29) as the plate
     prints it (AIM 5-4-5), or its highest where it is crossed at or below
     one. The route runs to the field, not to the fix: the descent ends
     where the route is the fix's own distance out, and the approach is
@@ -809,7 +809,7 @@ def with_procedures(r: Route, runs: list[HopRun], outcome: Flown, drawn: list[tu
     PlanQuery.drawn_procedures): a flight's first leg out of its field by
     the departure picked there, its last into the field it lands at by the
     arrival and the approach picked there, each along their path from the
-    leg's start (vfr.procedure_paths.flown), a departure by its transition
+    leg's start (wingtip.procedure_paths.flown), a departure by its transition
     for the runway the pilot leaves from (`runways`) -- an arrival flown out to its
     first fix and round to the runway can be a hundred miles more than the
     leg it is flown in place of (C81 to O'Hare by BENKY6, 2026-10-19). The
@@ -823,10 +823,10 @@ def with_procedures(r: Route, runs: list[HopRun], outcome: Flown, drawn: list[tu
 
     With no departure picked, a flight leaves by the runway picked to
     leave from (`runways`): along it and its upwind, then out of the
-    pattern straight on or at 45° (vfr.pattern.departure_circuit, AIM
+    pattern straight on or at 45° (wingtip.pattern.departure_circuit, AIM
     4-3-3). With no approach, it lands by the traffic pattern for the
     runway picked to land on (`landings`): in at 45° to the downwind, then
-    base and final (vfr.pattern.arrival_circuit, AIM 4-3-3, AC 90-66C) --
+    base and final (wingtip.pattern.arrival_circuit, AIM 4-3-3, AC 90-66C) --
     where it was flown straight to the middle of the field, with the
     pattern drawn round it on the map and not flown (the owner,
     2026-10-27: "is it not flying that and landing?")."""
@@ -891,11 +891,11 @@ def wind_picks(r: Route, outcome: "Flown", q: "PlanQuery") -> tuple[dict[str, st
     """The runways left from and landed on (`runways`, `patterns`): the
     pilot's own picks and, at every other field, the runway into the wind
     the page picks for it as its weather comes in -- the field's own
-    report's within FORECAST_AFTER_S of now (vfr.runway_wind.runway_in_use),
+    report's within FORECAST_AFTER_S of now (wingtip.runway_wind.runway_in_use),
     or with none of its own or a variable one, the nearest report's
     (_wind_of, wind_pick); the forecast's for the time the flight is there
     after that (wind_pick, its own TAF or the nearest's,
-    vfr.weather.forecast_wind) -- so a first plan flies its patterns and is
+    wingtip.weather.forecast_wind) -- so a first plan flies its patterns and is
     the plan the page then asks for, where its time jumped as the picks
     came. The times: the departure (`depart`, now when not given),
     each landing the legs' ETEs on from it and each stop's minutes on the
@@ -946,7 +946,7 @@ def wind_picks(r: Route, outcome: "Flown", q: "PlanQuery") -> tuple[dict[str, st
 def _wind_of(report: dict | None, airport: dict, source: str) -> dict | None:
     """The wind a field's runway is picked by where its own report put
     none on a runway (wind_picks): its own report's variable wind, else the
-    nearest report's within reach (vfr.weather.nearest_report), as the
+    nearest report's within reach (wingtip.weather.nearest_report), as the
     airport's card gives the page them (`metar`, `nearby_metar`)."""
     if report is None:
         near = weather.nearest_report(airport["lat"], airport["lon"], exclude=source)
@@ -956,7 +956,7 @@ def _wind_of(report: dict | None, airport: dict, source: str) -> dict | None:
 
 def _field_runway(ident: str, airport: dict, end: str) -> dict | None:
     """The runway at a field with the end `end`, its ends' places and
-    traffic as the map has them (vfr.pattern.with_traffic)."""
+    traffic as the map has them (wingtip.pattern.with_traffic)."""
     if airport.get("fix") or airport.get("lat") is None:
         return None
     try:
@@ -968,14 +968,14 @@ def _field_runway(ident: str, airport: dict, end: str) -> dict | None:
 
 
 def _circuit_out(ident: str, airport: dict, end: str, toward: tuple) -> dict | None:
-    """The way out by runway `end` and its upwind (vfr.pattern.departure_circuit)."""
+    """The way out by runway `end` and its upwind (wingtip.pattern.departure_circuit)."""
     runway = _field_runway(ident, airport, end)
     return pattern.departure_circuit(runway, end, toward) if runway else None
 
 
 def _circuit_in(ident: str, airport: dict, end: str) -> dict | None:
     """The traffic pattern flown to land on runway `end`
-    (vfr.pattern.arrival_circuit), at the field's pattern altitude
+    (wingtip.pattern.arrival_circuit), at the field's pattern altitude
     (field_pattern_ft) down to its elevation."""
     runway = _field_runway(ident, airport, end)
     return pattern.arrival_circuit(runway, end, field_pattern_ft(ident, airport), airport.get("elevation_ft")) if runway else None
@@ -984,7 +984,7 @@ def _circuit_in(ident: str, airport: dict, end: str) -> dict | None:
 def with_holds(r: Route, runs: list[HopRun], outcome: Flown, held: list[vfr_holds.Hold]) -> Flown:
     """The legs with the pilot's holds flown (PlanQuery.own_holds): each at
     its point, on the leg that leaves it -- at the destination, the leg into
-    it -- its minutes (vfr.holds.held_minutes) at the leg's true airspeed
+    it -- its minutes (wingtip.holds.held_minutes) at the leg's true airspeed
     and cruise burn added to the leg's time and fuel, so the totals and the
     fuel required (14 CFR 91.151, 91.167) are the flight's with the hold.
     The leg says its hold for the map and the dry run: the entry from the
@@ -1013,7 +1013,7 @@ def with_holds(r: Route, runs: list[HopRun], outcome: Flown, held: list[vfr_hold
         if leg["ete_min"] is None:
             continue
         tas = leg["tas_kt"]
-        # Magnetic = true - variation, east positive (vfr.magnetic): the
+        # Magnetic = true - variation, east positive (wingtip.magnetic): the
         # course flown to the point, and the hold's inbound course in true.
         arrival = (before["true_course_deg"] - before["magnetic_variation_deg"]) % 360
         inbound_true = (hold.inbound_deg + magnetic.magnetic_variation_deg(fix["lat"], fix["lon"])) % 360
@@ -1140,7 +1140,7 @@ def night_on_the_way(start: tuple, end: tuple, depart: datetime | None, minutes:
 
 def fuel_stops_of(r: Route, per_flight: list[dict], flown: list[tuple[list[dict], datetime | None]]) -> list[dict]:
     """Where each flight the tanks do not hold could land for fuel
-    (vfr.fuelstops.suggest), at the owner's ask ("suggest fuel stops just
+    (wingtip.fuelstops.suggest), at the owner's ask ("suggest fuel stops just
     like Tesla suggests"): the stops that make it, and other fields for the
     first, by the flight's own burn and minutes per mile and the reserve it
     is held to. Fuel alone, at the owner's ask ("only suggest fuel stops in
@@ -1246,7 +1246,7 @@ def chart_info(response: Response) -> ChartInfo:
 def route_profile(dep: str, dest: str, stops: str = "") -> RouteProfile:
     """The route's side view: the ground under it every 2 nm and the
     Class B, C and D airspace it passes through, floor and ceiling, along
-    the whole route through its stops (vfr.profile) -- for the page to
+    the whole route through its stops (wingtip.profile) -- for the page to
     draw the plan's altitudes, climbs and descents over."""
     r = load_route(dep, dest, stops)
     shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
@@ -1369,7 +1369,7 @@ def foreflight_pack(route: str, file: str, request: Request) -> Response:
 def planned_within_limit(r: Route, q: "PlanQuery", profile: dict) -> tuple[list, list, list[HopRun], "Flown | NoWinds | Unflyable"]:
     """The checkpoints scored and picked, each hop's run and the altitude
     chosen, all inside the one bound (COMPUTE_LIMIT_S), scoring included:
-    the agents' client waits exactly that long (vfr.planner_client). For
+    the agents' client waits exactly that long (wingtip.planner_client). For
     /api/plan and the Go / No-Go (app.routers.gonogo); the nav log streams
     its own, a stage line at each step."""
     runs: list[HopRun] = []
@@ -1410,11 +1410,11 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     """The whole plan: course line, every scored candidate, the selected
     checkpoints, and a nav log leg between each consecutive pair.
 
-    altitude_ft is optional. Omitted, vfr.altitude works out each leg's
+    altitude_ft is optional. Omitted, wingtip.altitude works out each leg's
     own legal altitudes -- clear of terrain and obstacles, under the
     Class B shelf over that leg alone and the aircraft's service
     ceiling, on the hemispheric rule for that leg's own course
-    -- and vfr.navlog makes four plans of them: the lowest, the
+    -- and wingtip.navlog makes four plans of them: the lowest, the
     highest, the fastest for the winds aloft, and the one that burns the
     least fuel, climb and cruise. altitude_choice picks
     which one the legs fly -- the fastest unless asked otherwise, the
@@ -1429,7 +1429,7 @@ def plan(q: Annotated[PlanQuery, Depends()]) -> Plan:
     them in its own air: the cruise figures are the aeroplane's at a
     reference altitude on a standard day, and the forecast temperature
     at the leg's altitude gives the density altitude they are flown at
-    (vfr.performance). depart, an ISO time (UTC when naive), picks the
+    (wingtip.performance). depart, an ISO time (UTC when naive), picks the
     winds-aloft forecast period the legs are flown on -- the 6-, 12- or
     24-hour product, whichever is valid closest to the departure;
     without it, the 6-hour product, i.e. about now -- and whether the
@@ -1515,7 +1515,7 @@ def navlog_stream(q: Annotated[PlanQuery, Depends()]) -> StreamingResponse:
     a wrapper over /api/plan: that one commits to a single synchronous
     JSON response, and mixing a streaming and a non-streaming contract
     into one function would compromise both. The overlap is the same
-    handful of calls into app.planning and vfr.navlog either way.
+    handful of calls into app.planning and wingtip.navlog either way.
 
     An unflyable route (some leg with no legal cruising altitude at all)
     is reported as an "error" line, not an HTTP error status -- by the

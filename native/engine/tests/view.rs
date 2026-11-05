@@ -41,7 +41,7 @@ const BOXES: [(&str, f64, f64, f64, f64); 2] = [
 ];
 
 /// shapely's representative_point on the pack's own rings (oriented), as
-/// vfr.airspace_map takes it, for volumes of n40w088 (2026-11-03), by
+/// wingtip.airspace_map takes it, for volumes of n40w088 (2026-11-03), by
 /// the engine's id of each: (id, lat, lon) to five places.
 const SHAPELY_LABELS: [(&str, f64, f64); 5] = [
     ("GYY-0", 41.61472, -87.41278),

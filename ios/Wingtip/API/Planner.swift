@@ -214,7 +214,7 @@ enum Planner {
     }
 
     /// An ATC clearance heard: the places it named, found near the route
-    /// (/api/clearance/places, vfr.spoken).
+    /// (/api/clearance/places, wingtip.spoken).
     static func clearancePlaces(_ ask: ClearanceAsk) async throws -> ClearancePlaces {
         try await postRead(ClearancePlaces.self, "/api/clearance/places", ask)
     }

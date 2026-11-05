@@ -82,7 +82,7 @@ final class WaypointMarkView: MKAnnotationView {
 final class HeldAnnotation: MKPointAnnotation {}
 
 /// An approach plate's plan view laid on the chart where the planner
-/// places it by the FAA's georeference (vfr.plates), on its white sheet,
+/// places it by the FAA's georeference (wingtip.plates), on its white sheet,
 /// the procedure's own lines over it: a sketch to fly the dry run
 /// against, not the chart to navigate by.
 final class PlateMapOverlay: NSObject, MKOverlay {

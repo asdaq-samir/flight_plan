@@ -1,6 +1,6 @@
 ---
 name: checks
-description: Run the checks that cover a change in this repo, on the owner's Mac (in containers, since it has no npm or pytest) or in CI, and read failures correctly. Use after editing code and before saying anything works, before committing, and whenever a test, a build or the running stack fails. Covers web (tsc, eslint, vitest), src/vfr and the Python services, the Spring Boot app, OpenAPI types, the running stack, Playwright, the iPhone audit and WebKit.
+description: Run the checks that cover a change in this repo, on the owner's Mac (in containers, since it has no npm or pytest) or in CI, and read failures correctly. Use after editing code and before saying anything works, before committing, and whenever a test, a build or the running stack fails. Covers web (tsc, eslint, vitest), src/wingtip and the Python services, the Spring Boot app, OpenAPI types, the running stack, Playwright, the iPhone audit and WebKit.
 ---
 
 # Checks
@@ -16,7 +16,7 @@ CLAUDE.md says what to run for each part of the repo; this says how to run it he
 | Changed | Run | Then |
 |---|---|---|
 | `web/` | Web checks, then the specs the change touches | CI runs the whole suite on the push |
-| `src/vfr`, `tests/` | Python at the root | restart the planner (it mounts `src`) |
+| `src/wingtip`, `tests/` | Python at the root | restart the planner (it mounts `src`) |
 | `planning-service/` | Python in `planning-service` | restart the planner |
 | `model-service/`, `nav-log-agent/`, `crewai-agent/` | Python in that service | rebuild that service |
 | `springboot-app/` | Java | rebuild the webapp |
@@ -30,7 +30,7 @@ CLAUDE.md says what to run for each part of the repo; this says how to run it he
 docker run --rm -v "$PWD":/repo -w /repo/web node:24-slim sh -c 'npm run -s types && npx tsc --noEmit && npx eslint . && npx vitest run'
 ```
 
-**Python.** This mirrors CI: Python 3.13, the directory's `requirements-dev.txt` installed with uv, and a cache volume that brings a repeat run down to under a minute. Use `-w /repo` with `ruff check src/vfr tests`, or `-w /repo/<service>` with `ruff check app tests`. For nav-log-agent, first run `uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu`.
+**Python.** This mirrors CI: Python 3.13, the directory's `requirements-dev.txt` installed with uv, and a cache volume that brings a repeat run down to under a minute. Use `-w /repo` with `ruff check src/wingtip tests`, or `-w /repo/<service>` with `ruff check app tests`. For nav-log-agent, first run `uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu`.
 ```sh
 docker run --rm -v "$PWD":/repo -v fp-uv-cache:/root/.cache/uv -w /repo/planning-service python:3.13-slim sh -c 'pip install -q uv && uv pip install --system -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q -p no:cacheprovider'
 ```
@@ -51,7 +51,7 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compo
 - Pass all three `-f` files on every `up` that touches the webapp. Without `web-dev` it serves the bundle baked into its image, so a fix seems "not to work". Without `phone`, the iPhone loses the app. To check what the running webapp was started with: `docker inspect flight_plan-webapp-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'`.
 - **Web change:** `web-build` (vite `--watch`) rewrites `web/dist` about 2 s after a save, and the webapp serves it on the next request. Nothing needs restarting.
 - **Python change in `src/` or the planner:** run `docker compose restart planning-service`, then wait until `curl -s localhost:8084/` shows `"warm":true`.
-- **Java or dependency change:** run `up -d --build --no-deps <service>` with the same three files. Then wait until `curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app/plan` prints 200, which takes 20 to 30 s after the container starts. Read `docker compose logs --tail=30 <service>` for import errors: a container can show "running" and still fail to import its own code. To prove a service imports what it uses, run `docker compose run --rm --no-deps -T --entrypoint python3 <service> -c "from vfr import …"` with that service's real list, from `grep -rh "from vfr import" <service>/app`.
+- **Java or dependency change:** run `up -d --build --no-deps <service>` with the same three files. Then wait until `curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app/plan` prints 200, which takes 20 to 30 s after the container starts. Read `docker compose logs --tail=30 <service>` for import errors: a container can show "running" and still fail to import its own code. To prove a service imports what it uses, run `docker compose run --rm --no-deps -T --entrypoint python3 <service> -c "from wingtip import …"` with that service's real list, from `grep -rh "from wingtip import" <service>/app`.
 - **Before building images:** check `df -h /System/Volumes/Data` and run `docker builder prune` when under about 20 GB is free. Docker's VM is capped at 6 GB, so never run a second stack or a heavy job beside the suite: build through `scripts/one-at-a-time.sh` (section 4).
 
 ## 4. Playwright

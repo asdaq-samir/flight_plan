@@ -4,7 +4,7 @@ roadmap's 4-D airspace check): the briefing lists what is near the route
 at any time during the flight, and this says whether it is at the time
 the airplane gets there. The rules are the engine's
 (wingtip_engine::gonogo::pass_times), asked by name through
-vfr_native.call; the times are
+wingtip_native.call; the times are
 read here, and the time zones are Python's (zoneinfo), which the engine,
 built for the phones as well, does not carry."""
 from datetime import datetime, timedelta, timezone
@@ -60,7 +60,7 @@ def sua_when(times_of_use: str | None, at: datetime, time_zone: str | None = Non
     """Whether a special-use area's published times of use have it in use
     when the flight passes (FAA Order JO 7400.2, 21-2-4): "active",
     "not-scheduled", "by-notam" or "unknown". Local hours are read in the
-    area's own zone (vfr.sua.time_zone), daylight saving time and all;
+    area's own zone (wingtip.sua.time_zone), daylight saving time and all;
     with no zone, or one not known, they are not guessed at."""
     local = None
     if time_zone == "UTC":

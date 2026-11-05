@@ -90,7 +90,7 @@ enum Engine {
     }
 
     /// A rule of the engine by its name, as the web app's callEngine and
-    /// the planner's vfr_native.call ask it (wt_call): one way in, so a
+    /// the planner's wingtip_native.call ask it (wt_call): one way in, so a
     /// rule moved into the engine needs no new C function. call.rs lists
     /// every name with its input's keys, which are the rule's own --
     /// mostly snake case, camel case where the gateway's are -- so the

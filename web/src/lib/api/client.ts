@@ -237,7 +237,7 @@ export const errorMessage = (err: unknown, fallback: string) => (err ? describeE
 /** A route's stops as the planner takes them, "KDSM,KLNK"; none, none. */
 const stopsParam = (stops?: string[]) => (stops?.length ? stops.join(",") : undefined);
 
-/** The airport index's shape (vfr.airports.search_index), in its address
+/** The airport index's shape (wingtip.airports.search_index), in its address
  *  so a day's copy in the browser of an older shape is not read as this
  *  one: 2, each field's place after its size (2026-10-22). */
 const INDEX_VERSION = 2;
@@ -293,7 +293,7 @@ export const api = {
           class_b_clearance: classBClearance || undefined,
           altitudes: altitudes || undefined,
           checkpoints: checkpoints ? undefined : false,
-          // Under IFR (the planner's vfr.ifr); VFR, the default, unsaid.
+          // Under IFR (the planner's wingtip.ifr); VFR, the default, unsaid.
           rules: rules === "ifr" ? rules : undefined,
           // The IFR alternate filed, whose fuel is in the totals.
           alternate: rules === "ifr" && alternate ? alternate : undefined,
@@ -496,7 +496,7 @@ export const api = {
    *  and radio, and the weather there now. Ahead of the chart's tiles,
    *  as the fields in view are (`priority`). */
   /** An ATC clearance heard (lib/clearance): the places it named, found
-   *  near the route (vfr.spoken). */
+   *  near the route (wingtip.spoken). */
   clearancePlaces: (body: ClearanceAsk) => planner.POST("/api/clearance/places", { body }).then(data<ClearancePlaces>),
   /** The names a clearance near the route will likely say, for the
    *  phone's recognizer to listen for (lib/listen). */
@@ -549,7 +549,7 @@ export const api = {
       params: { path: { ident, procedure }, query: transition ? { transition } : {} },
     }).then(data<ProcedureDrawing>),
   /** An approach's plate's plan view placed on the map, where the planner
-   *  could place it (vfr.plates); 404 where it could not. */
+   *  could place it (wingtip.plates); 404 where it could not. */
   plate: (ident: string, procedure: string) =>
     planner.GET("/api/airport/{ident}/procedures/{procedure}/plate", { params: { path: { ident, procedure } } }).then(data<PlateOverlay>),
   /** The pages of one of the FAA's charts, by its address, drawn by the

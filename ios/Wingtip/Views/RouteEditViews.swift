@@ -139,7 +139,7 @@ enum PointAltitude {
     }
 
     /// A course of 000 to 360, out to 999 nm, as the planner takes a
-    /// fix/radial/distance (vfr.fixes.parse_frd): what is typed read as
+    /// fix/radial/distance (wingtip.fixes.parse_frd): what is typed read as
     /// the engine's `frd_read` reads one, and written again as its
     /// `frd_write` writes it.
     struct Frd: Decodable {

@@ -147,7 +147,7 @@ enum AirportWords {
     }
 
     /// The reported wind on the end it favours, as the planner worked it
-    /// out (vfr.runway_wind): "Favors 27: 10 kt headwind, 6 kt crosswind
+    /// out (wingtip.runway_wind): "Favors 27: 10 kt headwind, 6 kt crosswind
     /// from the right, 9 in the gusts"; a calm one only for a speed of 0
     /// (the engine's `runway_calm`).
     static func runwayWind(_ wind: RunwayWind) -> String {

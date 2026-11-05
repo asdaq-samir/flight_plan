@@ -15,7 +15,7 @@ import FullScreenViewer from "./FullScreenViewer";
 
 /** No further out than the whole first page in sight (FitFirst), and in
  *  to two of its pixels a point: past that the picture, drawn at 360 dots
- *  an inch (vfr.publications), only grows coarser. */
+ *  an inch (wingtip.publications), only grows coarser. */
 const MAX_ZOOM = 1;
 /** Between one page and the next, in the pages' own pixels. */
 const GAP = 60;

@@ -48,7 +48,7 @@ export function nextLanding(totals: Totals | null, destination: string, hop = 0)
  *  not known yet, so the estimate is never short (the audit's finding: the
  *  day's 30 minutes made it low at night and under IFR); and the start,
  *  taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal --
- *  vfr.navlog's NIGHT_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
+ *  wingtip.navlog's NIGHT_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
 const ESTIMATE_RESERVE_H = 0.75;
 const ESTIMATE_TAXI_GAL = 1.4;
 

@@ -22,7 +22,7 @@ struct CyclePackIndex: Codable, Equatable, Sendable {
     let regions: [Region]
 }
 
-/// The cycle packs kept on the phone, a region each (vfr.pack's
+/// The cycle packs kept on the phone, a region each (wingtip.pack's
 /// write_phone), so the airspace over a point is answered with no
 /// connection: kept along a route with its chart (Plan.keepForTheAir),
 /// and fetched again for the regions kept when the FAA's cycle turns.

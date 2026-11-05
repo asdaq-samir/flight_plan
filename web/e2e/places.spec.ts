@@ -795,7 +795,7 @@ test("a tap a little off an airport's mark opens its card, the route's own as an
 });
 
 test("the airport search answers from the phone's own copy, asking the planner nothing as it is typed", async ({ page }) => {
-  // The planner's index (vfr.airports.search_index), two fields of it.
+  // The planner's index (wingtip.airports.search_index), two fields of it.
   await page.route(url => url.pathname.endsWith("/api/planner/airports/index"), route => route.fulfill({ json: { airports: [
     ["KOSH", "Wittman Regional Airport", "Oshkosh", "WI", 1, "OSH"],
     ["2WN8", "Oshkosh Sky Ranch Airport", "Omro", "WI", 2],

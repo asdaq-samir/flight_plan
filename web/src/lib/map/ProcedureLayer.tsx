@@ -17,7 +17,7 @@ import { useLiveZoom } from "./useView";
  * racetrack, and each fix a mark with its name, its part (IAF, FAF, MAP)
  * and the altitudes it is crossed at as the chart sets them -- a minimum
  * underlined, a maximum overlined, a mandatory one both. From the FAA's
- * coded procedure (vfr.procedures), drawn as a sketch, the chart under it.
+ * coded procedure (wingtip.procedures), drawn as a sketch, the chart under it.
  * A fix of the procedure's own is tapped for its card (FixCard: Direct to
  * it, an altitude to cross it at), at the owner's pick; the pilot's own
  * altitude there said under the chart's in the tint, and the fix sent

@@ -77,7 +77,7 @@ function clockIn(pass: Date, zone: string): { day: number; minute: number } | nu
  * hours count all year, which can say in use, never the other way.
  *
  * Local hours are read in the area's own zone (`timeZone`, the planner's
- * from the FAA's GMTOFFSET and DST_CODE: vfr.sua.time_zone) -- not this
+ * from the FAA's GMTOFFSET and DST_CODE: wingtip.sua.time_zone) -- not this
  * device's, which put a pilot elsewhere, or Arizona's areas in summer, an
  * hour or three off -- and "Z" or "UTC" ones in UTC. With no zone, local
  * hours are not guessed at: "unknown", for the pilot to read. "Not

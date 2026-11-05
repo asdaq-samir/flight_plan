@@ -11,7 +11,7 @@ from app import planning
 def test_an_aeroplanes_own_override_does_not_leak_into_the_stock_profile():
     """aircraft_profile() writes cruise_tas_kt/fuel_burn_gph/usable_fuel_gal
     onto the dict load_aircraft_profile() gives it, in place -- so if that
-    dict were the cached object itself (vfr.aircraft.load_aircraft_profile
+    dict were the cached object itself (wingtip.aircraft.load_aircraft_profile
     is lru_cache'd), one pilot's own aeroplane numbers would still be
     sitting on "c172" the next time someone asked for the stock profile
     with no override at all. Two different pilots, two different answers,
@@ -285,7 +285,7 @@ def test_the_checkpoints_are_the_charts_own_within_a_mile_of_the_course_scored_b
     """No route to collect first: whatever the chart reader finds within a
     mile of the course, named for what it is, scored by the chart model,
     in flight order."""
-    from vfr import chartvision
+    from wingtip import chartvision
 
     from app import chart_model, scoring
 
@@ -308,7 +308,7 @@ def test_the_checkpoints_are_the_charts_own_within_a_mile_of_the_course_scored_b
 
 
 def test_with_no_chart_model_the_palettes_constants_score_them(monkeypatch):
-    from vfr import chartvision
+    from wingtip import chartvision
 
     from app import chart_model, scoring
 

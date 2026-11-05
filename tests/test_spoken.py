@@ -1,7 +1,7 @@
-"""vfr.spoken finds the places a clearance said aloud: navaids by name,
+"""wingtip.spoken finds the places a clearance said aloud: navaids by name,
 fixes by their five letters said as a word, airports by name, SIDs and
 STARs by name and number."""
-from vfr import spoken
+from wingtip import spoken
 
 # Round KMSP and KDLH, as NASR and the CIFP name them.
 PLACES = [

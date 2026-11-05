@@ -1,6 +1,6 @@
-# src/vfr/pipeline.py's retrain stage -- the SageMaker-Training-Job-shaped
+# src/wingtip/pipeline.py's retrain stage -- the SageMaker-Training-Job-shaped
 # half of what was one "pipeline" image.
--r ../src/requirements.txt   # vfr's own list, numpy and pandas among it
+-r ../src/requirements.txt   # wingtip's own list, numpy and pandas among it
 # The model this image writes is a pickle of scikit-learn's objects, and
 # model-service loads it: these, numpy and pandas are pinned exactly as
 # model-service/requirements.txt pins them (tests/test_requirements.py

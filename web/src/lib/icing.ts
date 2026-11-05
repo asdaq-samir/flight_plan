@@ -5,7 +5,7 @@ import { callEngine } from "./engine/engine";
  * Under IFR, whether the flight is planned into icing: a leg flown at or
  * above the freezing level, where the moisture icing needs is forecast --
  * cloud along the route, or an icing AIRMET or SIGMET over it (the
- * planner's `icing_possible`, vfr.altitude) -- with the pilot reports of
+ * planner's `icing_possible`, wingtip.altitude) -- with the pilot reports of
  * icing near the route. Under VFR the flight stays clear of cloud (14 CFR
  * 91.155), and the freezing level is the altitude reasoning's line alone.
  * The rule and its line are the shared engine's

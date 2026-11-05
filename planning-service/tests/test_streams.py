@@ -5,9 +5,9 @@ import threading
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
-from vfr import altitude as altitude_module
-from vfr import chartlabels, navlog
-from vfr.weather import WeatherServiceError
+from wingtip import altitude as altitude_module
+from wingtip import chartlabels, navlog
+from wingtip.weather import WeatherServiceError
 
 from app import scoring
 from app.main import app

@@ -78,7 +78,7 @@ unblocks nobody.
 
 **The model's own libraries are pinned here and nowhere else.**
 `docker/requirements-training.txt` deliberately leaves scikit-learn and
-joblib unpinned (numpy and pandas come pinned from vfr's own list,
+joblib unpinned (numpy and pandas come pinned from wingtip's own list,
 `src/requirements.txt`, at the same versions as here);
 `model-service/requirements.txt` is pinned to what training currently
 resolves to. The asymmetry is the point — the serving image must not

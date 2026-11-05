@@ -139,7 +139,7 @@ def test_the_fields_below_vfr_are_met_where_the_flight_is_there():
     """The destination reporting IFR is met at the end of the last leg; a
     TAF station forecast under 1,000 ft for then on the way, abeam; one
     forecast VFR then is not said."""
-    from vfr.weather import below_vfr_minimums
+    from wingtip.weather import below_vfr_minimums
 
     metars = {"KAAA": {"flight_category": "VFR"}, "KCCC": {"flight_category": "IFR", "ceiling_ft": 700.0, "visibility_sm": 2.0,
                                                           "observed_at": "2026-10-04T13:53:00Z"}}
@@ -153,7 +153,7 @@ def test_the_fields_below_vfr_are_met_where_the_flight_is_there():
 
 def test_the_maps_layers_say_when_their_data_was_fetched(monkeypatch):
     from fastapi.testclient import TestClient
-    from vfr import tfr, weather
+    from wingtip import tfr, weather
 
     from app.main import app
 
@@ -180,7 +180,7 @@ def test_the_briefing_places_its_hazards_on_the_nav_logs_legs(monkeypatch):
     -- its leg numbers the nav log's rows' -- and a TFR on the second leg
     says so, with when the airplane is there against its NOTAM's times."""
     from fastapi.testclient import TestClient
-    from vfr import airports, tfr, weather
+    from wingtip import airports, tfr, weather
 
     from app.main import app
 

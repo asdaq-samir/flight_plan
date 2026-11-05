@@ -106,7 +106,7 @@ function WaypointMarks({ waypoints }: { waypoints: Waypoint[] }) {
  *  To, Add to Route and Copy of its ident, as a VOR's card (PointActions),
  *  at the owner's ask for cards that say what a pilot does there
  *  (2026-10-30). No name of its own: what it is beside its ident, and where
- *  it is on a line of its own (the planner's vfr.places) -- on one line the
+ *  it is on a line of its own (the planner's wingtip.places) -- on one line the
  *  card ran the screen's width. */
 function WaypointCard({ waypoint: w }: { waypoint: Waypoint }) {
   const stations = usePointActions(s => s.stations);

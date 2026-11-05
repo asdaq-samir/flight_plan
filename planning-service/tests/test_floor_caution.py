@@ -8,7 +8,7 @@ area (91.119(b)), 500 ft above the surface or any structure elsewhere
 from app.planning import floor_caution, own_altitude_caution
 
 # A leg over a town with a 1,500 ft tower; one over fields with ground at
-# 1,200 ft. Floors as vfr.terrain rounds them.
+# 1,200 ft. Floors as wingtip.terrain rounds them.
 TOWN = {"floor_ft": 2500.0, "highest_ft": 1500.0, "highest_is_obstacle": True, "obstacle_type": "TOWER",
         "obstacle_clearance_ft": 1000.0, "congested": True, "hemispheric_rule_from_ft": 4000.0, "eastbound": True}
 FIELDS = {"floor_ft": 1700.0, "highest_ft": 1200.0, "highest_is_obstacle": False, "obstacle_type": None,

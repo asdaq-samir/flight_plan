@@ -33,7 +33,7 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
     /// position is being read.
     private var aheadEvery: Ticker.Registration?
     /// How often what is ahead is asked while moving, s; the planner looks
-    /// five minutes along the track (vfr.alerts), so twice this with the
+    /// five minutes along the track (wingtip.alerts), so twice this with the
     /// app put away still leaves minutes.
     static let aheadEveryS: TimeInterval = 10
 
@@ -97,7 +97,7 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
 
     /// What is ahead, asked of the latest fix every ten seconds while
     /// moving (the clock's, Ticker): the planner looks five minutes along
-    /// the track (vfr.alerts). The asking is a task of its own, so the
+    /// the track (wingtip.alerts). The asking is a task of its own, so the
     /// next question cancels one still unanswered.
     private func askAhead() {
         guard let fix, let track = fix.trackDeg, let gs = fix.groundspeedKt, gs > 20 else { return }

@@ -8,9 +8,9 @@ from itertools import pairwise
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from vfr import airports, airways, fixes, geo, places, weather
-from vfr.config import PROCESSED_DIR  # noqa: F401  (re-exported for the routers)
-from vfr.config import corridor_paths as paths  # noqa: F401  (the routers' name for it)
+from wingtip import airports, airways, fixes, geo, places, weather
+from wingtip.config import PROCESSED_DIR  # noqa: F401  (re-exported for the routers)
+from wingtip.config import corridor_paths as paths  # noqa: F401  (the routers' name for it)
 
 from .planning import StillComputing
 
@@ -20,7 +20,7 @@ DEFAULT_AIRCRAFT = "c172"
 
 #: How many stops a route may make between its ends: each is a flight of
 #: its own to read the chart along and plan. Sixteen, where it was eight:
-#: a way round high ground (vfr.terrain_detour) takes several points and a
+#: a way round high ground (wingtip.terrain_detour) takes several points and a
 #: long trip its fuel stops besides (Los Angeles to Hartford in a PA-28-140,
 #: eight round the Rockies and the fuel stops after them, 2026-10-23).
 MAX_STOPS = 16
@@ -43,7 +43,7 @@ SHARED_CACHE = "public, max-age=300, s-maxage=3600"
 
 #: The chart the map draws, for every pilot: its cycle changes once in
 #: 56 days, and the planner itself holds the published one for a minute
-#: (vfr.charts.serving_cycle), so a minute here, in the browser and at
+#: (wingtip.charts.serving_cycle), so a minute here, in the browser and at
 #: the CDN. The old cycle's tiles stay published for months, so a page a
 #: minute behind a new cycle still draws a whole chart.
 CHART_CACHE = "public, max-age=60"
@@ -106,7 +106,7 @@ def resolve(*idents: str) -> tuple:
 
 def resolve_stop(ident: str, near: tuple = ()) -> dict:
     """A stop: an airport, landed at, or a named fix -- a VFR waypoint
-    (VPBNG), a GPS waypoint, a navaid (RFD) -- flown through (vfr.fixes);
+    (VPBNG), a GPS waypoint, a navaid (RFD) -- flown through (wingtip.fixes);
     a 404 where it is neither. A fix is in the shape an airport is, with
     no elevation, and `fix` set. A present position (position_of) too.
     `near`, the route's other points as (lat, lon): which of the navaids
@@ -135,7 +135,7 @@ def resolve_stop(ident: str, near: tuple = ()) -> dict:
         if fix is None:
             raise HTTPException(404, f"No airport or waypoint goes by {ident!r}.") from err
         # Its kind and where it is: "VFR waypoint by Bangs Lake" -- a
-        # stand-alone waypoint has no name of its own (vfr.places).
+        # stand-alone waypoint has no name of its own (wingtip.places).
         where = places.describe(fix["lat"], fix["lon"])
         return _fix_stop(fix, f"{fix['kind']} {where}" if where else fix["kind"])
 

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "./api/client";
 import type { AirportSearchRow } from "./useAirportSearch";
 
-/** One airport of the planner's index (vfr.airports.search_index): the
+/** One airport of the planner's index (wingtip.airports.search_index): the
  *  ident pilots use, its name, town and state, its size rank (0 large to
  *  3 other), where it is, and the idents it is also found by. An index
  *  kept from before it said where (a day's, in the browser's cache) has

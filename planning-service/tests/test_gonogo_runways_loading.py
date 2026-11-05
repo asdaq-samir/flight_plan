@@ -3,7 +3,7 @@ web/src/lib/weightBalance.test.ts's, runwayCheck.test.ts's and
 runwayFlown.test.ts's cases, on the stock profile itself
 (data/aircraft/c172.json, the 172S's POH figures)."""
 import pytest
-from vfr.aircraft import load_aircraft_profile
+from wingtip.aircraft import load_aircraft_profile
 
 from app.gonogo.runways import (
     density_altitude_ft, field_air, picked_end, runway_checks, runway_flown, short_field, soft_surface,

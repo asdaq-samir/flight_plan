@@ -1,6 +1,6 @@
 //! TAFs as sent -- what a phone gets from FIS-B with no internet -- read
 //! into the periods the planner reads from the AWC's decoded feed
-//! (vfr.weather's `_parse_tafs`): each period's start and end, its change
+//! (wingtip.weather's `_parse_tafs`): each period's start and end, its change
 //! group (FM, TEMPO, BECMG, PROB), wind, visibility, ceiling and weather.
 //! The groups are AC 00-45H's TAF and WMO No. 306's (INTER, used outside
 //! the US, is a TEMPO). tests/test_parsers.py holds the reader to the
@@ -216,7 +216,7 @@ pub fn parse(raw: &str, near: i64) -> Option<Taf> {
     Some(Taf { station: station.to_string(), issued, valid_from, valid_to, periods })
 }
 
-/// The periods as vfr.weather's `fcsts`, JSON.
+/// The periods as wingtip.weather's `fcsts`, JSON.
 pub fn to_json(t: &Taf) -> String {
     let mut out = String::from("{\"station\":");
     json::string(&mut out, &t.station);

@@ -1,21 +1,21 @@
 """The FAA's SWIM feeds, read as they come (the owner's SCDS subscriptions,
 2026-10-19). STDDS's terminal radar tracks -- TAIS, every STARS facility's
 tracks with each airplane's Mode S address, its beacon code, its reported
-altitude and, where it has one, its flight plan -- given to vfr.traffic as
+altitude and, where it has one, its flight plan -- given to wingtip.traffic as
 reports heard elsewhere. That puts on the map the airplanes no ADS-B
 network hears (N3429J, a UAT airplane adsb.lol never had), and records
 the flights of the airplanes a pilot follows from takeoff, card open or
 not, since adsb.lol's history closed behind a browser check. FNS's
 NOTAMs -- each as the NOTAM System issues, replaces or cancels it --
-given to vfr.notams to keep. TFMS's flight data -- the NAS's flight plans
+given to wingtip.notams to keep. TFMS's flight data -- the NAS's flight plans
 and their amendments, each flight's route of flight -- given to
-vfr.filed_routes, which counts the routes pilots file between two fields.
+wingtip.filed_routes, which counts the routes pilots file between two fields.
 
 The reading is done in a process of its own (app.swim_reader): one
 connection a feed to its subscription's durable queue, each message read,
 the radar's tracks picked out, then acknowledged. Here a thread of the
 planner's sends that process what the map looks at and who is followed,
-hands what comes back to vfr, and starts the process again after a pause
+hands what comes back to wingtip, and starts the process again after a pause
 where it ends. A feed is off where its SWIM_* settings are not all set;
 a dropped connection is made again after a pause, growing to a few
 minutes.
@@ -26,7 +26,7 @@ import queue
 import threading
 import time
 
-from vfr import filed_routes, notams, traffic
+from wingtip import filed_routes, notams, traffic
 
 from . import swim_reader
 # The reading's pure parts, here as well for the planner's own use and its tests.
@@ -46,7 +46,7 @@ WANTED_EVERY_S = 1.0
 
 
 def _radar(text: str) -> int:
-    """A radar message's tracks handed to vfr.traffic, in this process: the
+    """A radar message's tracks handed to wingtip.traffic, in this process: the
     airplanes round the places the map shows traffic, and the followed ones
     wherever they are (swim_reader.select)."""
     found = swim_reader.select(text, *traffic.radar_wanted())
@@ -61,7 +61,7 @@ HANDLERS = {"STDDS": _radar, "FNS": notams.heard, "TFMS": filed_routes.heard}
 
 def dispatch(kind: str, feed: str, value) -> None:
     """One thing the reading process sent, handed on: a radar message's
-    kept tracks to vfr.traffic, a NOTAM or flight plan message to its
+    kept tracks to wingtip.traffic, a NOTAM or flight plan message to its
     feed's handler, and a feed's connection and counts into STATE."""
     state = STATE[feed]
     if kind == "radar":

@@ -104,7 +104,7 @@ services:
       ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
       # adsb.fi's open data is for personal, non-commercial use only
       # (github.com/adsbfi/opendata): off for the public app until adsb.fi
-      # agrees to it (vfr.traffic).
+      # agrees to it (wingtip.traffic).
       ADSBFI_OPEN_DATA: "0"
       # The FAA's SWIM feeds (app.swim): STDDS's terminal radar tracks; off
       # without them. The owner's SCDS subscription's login and queue.

@@ -1,7 +1,7 @@
 """Scored checkpoints for a route, read off the chart: whatever the chart
 reader finds along it (app.chart_model.corridor, the training page's own
 read, shared and kept on disk), scored by the chart model the training
-page's ratings trained (vfr.chartmodel, served by model-service) -- or,
+page's ratings trained (wingtip.chartmodel, served by model-service) -- or,
 while none is promoted, by the palette's constant for each kind of
 thing. Remembered per route until the chart or the model changes.
 
@@ -15,8 +15,8 @@ import threading
 
 from cachetools import LRUCache
 from fastapi import HTTPException
-from vfr import chartlabels, charts, model_registry, places
-from vfr import checkpoints as checkpoint_selection
+from wingtip import chartlabels, charts, model_registry, places
+from wingtip import checkpoints as checkpoint_selection
 
 from . import chart_model
 
@@ -90,7 +90,7 @@ def score(dep: str, dest: str) -> list:
 def scored_and_selected(dep: str, dest: str, length_nm: float | None = None) -> tuple:
     """Every scored candidate, each flagged "selected" or not, and the
     subset worth flying, in along-track order. Each named as the chart
-    labels the place where the place names know it (vfr.places
+    labels the place where the place names know it (wingtip.places
     checkpoint_name: "Lake Zurich", "River near Springfield") -- here, not
     in the cached scores, as the names load after the service starts.
 

@@ -96,7 +96,7 @@ test("the field left from is drawn off its runway and out of the pattern, not ro
   await expect.poll(() => asked.some(u => u.searchParams.get("runways") === "C81:24" && u.searchParams.get("patterns") === "KDLH:27"), { timeout: slow(20000) }).toBe(true);
 });
 
-// KDLH's ILS as the planner would send it (vfr.procedures), stubbed: the
+// KDLH's ILS as the planner would send it (wingtip.procedures), stubbed: the
 // FAA's file is not read on CI's runner.
 const LIST = {
   airport: "KDLH", cycle: "261001",

@@ -1,8 +1,8 @@
-"""vfr.notams: the FAA NOTAM System's FNS messages kept, from messages in
+"""wingtip.notams: the FAA NOTAM System's FNS messages kept, from messages in
 the feed's own shape (AIXM 5.1 AIXMBasicMessage, one Event's NOTAM each)."""
 import pytest
 
-from vfr import notams
+from wingtip import notams
 
 #: 2026-10-20 02:05Z, a few minutes after the messages below.
 NOW = 1792461900

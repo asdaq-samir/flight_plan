@@ -30,7 +30,7 @@ private val Context.settings: DataStore<Preferences> by preferencesDataStore(nam
 
 /**
  * The airplanes ADS-B receivers hear about the map, from the planner
- * (/api/traffic, vfr.traffic, adsb.lol's open data), as the web app's
+ * (/api/traffic, wingtip.traffic, adsb.lol's open data), as the web app's
  * TrafficLayer and the iOS app's Traffic ask for them: every five
  * seconds, about own ship where there is a fix, else the middle of the
  * map, out to the map's corners (10 to 60 nm). For knowing what is
@@ -160,7 +160,7 @@ class Traffic private constructor(private val context: Context, private val tick
 
     companion object {
         /** The planner asks adsb.lol about a region at most every five
-         *  seconds (vfr.traffic), so no sooner than that; twice that with
+         *  seconds (wingtip.traffic), so no sooner than that; twice that with
          *  the app put away (Ticker). */
         const val EVERY_MS = 5_000L
         /** No newer report than this, s, and the airplane is not drawn:

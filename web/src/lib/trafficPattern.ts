@@ -24,7 +24,7 @@
  *
  * Drawn by the shared engine (native/engine/src/runway/circuit.rs,
  * through lib/engine), from the very corners the planner flies the
- * pattern by (vfr.pattern) and the phones draw it from: the legs and
+ * pattern by (wingtip.pattern) and the phones draw it from: the legs and
  * their sources live there. Only the shapes the map reads are made here.
  */
 import type { Runway } from "./api/types";
@@ -89,7 +89,7 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
  * its end, then out of the pattern straight on or with a 45° turn to the
  * pattern's side -- the two AIM 4-3-3 gives -- whichever is the nearer the
  * way on to `toward`, the flight's next field. The planner flies the same
- * (vfr.pattern.departure_circuit). It drew the landing's whole pattern and
+ * (wingtip.pattern.departure_circuit). It drew the landing's whole pattern and
  * its 45° entry at the field left from (the owner, 2026-10-27: "why is c81
  * also drawing a visual pattern?").
  */

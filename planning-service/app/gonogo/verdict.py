@@ -8,7 +8,7 @@ with adverse conditions and whether VFR is recommended (AIM 7-1-5(b)(1),
 command's (14 CFR 91.3), and the line says so.
 
 The rules are the engine's (wingtip_engine::gonogo::verdict), asked by
-name through vfr_native.call, the one copy the planner, the web app
+name through wingtip_native.call, the one copy the planner, the web app
 (web/src/lib/verdict.ts) and the phones share.
 
 A finding (lib/status) is "ok", "caution", "stop", "unknown" or

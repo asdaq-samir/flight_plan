@@ -1,5 +1,5 @@
 //! NOTAMs: the FAA NOTAM System's FNS messages (AIXM 5.1, one Event's
-//! NOTAM each), read as vfr.notams' `notams` reads them, and a NOTAM's
+//! NOTAM each), read as wingtip.notams' `notams` reads them, and a NOTAM's
 //! text as sent -- the domestic form ("!ORD 10/709 ORD RWY ... 2610191016-
 //! 2610201100") and the ICAO one ("A1234/26 NOTAMN ... B) ... C) ...") --
 //! for its number, place and times, which is what a phone gets over
@@ -213,7 +213,7 @@ pub fn from_text(raw: &str) -> Option<Notam> {
     Some(Notam { id: id.clone(), icao_id: Some(id), names, location, starts, ends, estimated, raw: raw.to_string(), ..Default::default() })
 }
 
-/// The NOTAMs as vfr.notams' dicts, JSON.
+/// The NOTAMs as wingtip.notams' dicts, JSON.
 pub fn to_json(list: &[Notam]) -> String {
     let mut out = String::from("[");
     for (k, n) in list.iter().enumerate() {

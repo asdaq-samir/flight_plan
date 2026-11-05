@@ -1,4 +1,4 @@
-"""The planner's side of the chart model (vfr.chartmodel): the table it
+"""The planner's side of the chart model (wingtip.chartmodel): the table it
 trains on, whether the ratings are enough for it, and its scores for the
 training page's points, from model-service, which serves it.
 
@@ -15,8 +15,8 @@ from concurrent.futures.process import BrokenProcessPool
 from contextvars import ContextVar
 
 import pandas as pd
-from vfr import chartfeatures, chartlabels, chartmodel, model_client
-from vfr.pipeline import _publish
+from wingtip import chartfeatures, chartlabels, chartmodel, model_client
+from wingtip.pipeline import _publish
 
 from . import chart_reader, detection
 from .common import load_hop
@@ -262,7 +262,7 @@ def _rated_by_route() -> dict[str, list]:
 
 def readiness() -> dict:
     """Whether the ratings are enough to train the chart model on
-    (vfr.chartmodel.readiness): asked by the console's status and before
+    (wingtip.chartmodel.readiness): asked by the console's status and before
     a retrain is started. A route whose chart is still being read is
     named rather than counted."""
     usable = rated = off_detection = 0
@@ -280,7 +280,7 @@ def readiness() -> dict:
 
 
 def write_training_table():
-    """Every rated route's rows (vfr.chartmodel.labeled_rows) into the one
+    """Every rated route's rows (wingtip.chartmodel.labeled_rows) into the one
     table the training image reads, written whole or not at all."""
     frames = [chartmodel.labeled_rows(route, corridor(route, wait=True), picks)
               for route, picks in _rated_by_route().items()]

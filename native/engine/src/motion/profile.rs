@@ -15,7 +15,7 @@ use super::{num, opt, present};
 use crate::json::{self, Value};
 
 /// Feet lost for every nautical mile of a descent: three to one, 333
-/// ft/nm, as the nav log descends (vfr.navlog.with_descents) -- a little
+/// ft/nm, as the nav log descends (wingtip.navlog.with_descents) -- a little
 /// steeper than a 3° path's 318 ft/nm (6,076 × tan 3°), the angle a VASI is
 /// normally set at (AIM 2-1-2). The web's lib/geo DESCENT_FT_PER_NM.
 pub const DESCENT_FT_PER_NM: f64 = 1000.0 / 3.0;

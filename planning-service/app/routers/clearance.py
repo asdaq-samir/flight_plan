@@ -1,14 +1,14 @@
 """An ATC clearance heard by the phone, its places found: the web's
 lib/clearance and the app's Clearance read the words the recognizer
 wrote into the clearance's items (AIM 4-4-3), and ask here for the
-idents of the places it named (vfr.spoken), near the route. Before
+idents of the places it named (wingtip.spoken), near the route. Before
 listening, the names the recognizer is told to expect."""
 import functools
 import math
 import re
 
 from fastapi import APIRouter, Query, Response
-from vfr import airports, fixes, procedures, spoken
+from wingtip import airports, fixes, procedures, spoken
 
 from ..schemas import ClearanceAsk, ClearancePlaces, ClearanceWords
 from .devml import _near
@@ -39,7 +39,7 @@ def _corridor(near: tuple) -> list[tuple[float, float, float, float]]:
 
 def _places(near: tuple) -> list[dict]:
     """The navaids, fixes and airports along the route, each with `what`
-    it is, for vfr.spoken."""
+    it is, for wingtip.spoken."""
     if not near:
         return []
     lats = [p[0] for p in near]
@@ -56,7 +56,7 @@ def _places(near: tuple) -> list[dict]:
                 found.append({**a, "what": "airport"})
     # The nearest to the route's points first: of two fixes that sound the
     # same, PYKLA by Duluth and PICLE in Iowa, the one by the route
-    # (vfr.spoken keeps this order between equals).
+    # (wingtip.spoken keeps this order between equals).
     # Flat-earth distances do for an order, at a thousandth of the cost.
     squeeze = math.cos(math.radians(sum(lats) / len(lats)))
     return sorted(found, key=lambda p: min((p["lat"] - lat) ** 2 + ((p["lon"] - lon) * squeeze) ** 2 for lat, lon in near))

@@ -30,7 +30,7 @@ interface Held {
 
 /** The inbound leg's time at an altitude, minutes: "At or below 14,000
  *  feet MSL: 1 minute. Above 14,000 feet MSL: 1 1/2 minutes" (AIM 5-3-8
- *  j.4(a)), as the planner's vfr.holds times a hold with none given. */
+ *  j.4(a)), as the planner's wingtip.holds times a hold with none given. */
 export function legMinutes(altitudeFt: number): number {
   return callEngine<number>("holding_leg_minutes", { altitude_ft: altitudeFt });
 }

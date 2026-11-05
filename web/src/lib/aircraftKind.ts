@@ -7,7 +7,7 @@ import type { AircraftRegistration } from "./api/types";
  * 2026-11-04; the map's traffic keeps its one arrow). Read from what is
  * known of it, the surest first: the FAA registry's aircraft type, engine
  * type and engine count (the Releasable Aircraft Database's ACFTREF, in
- * vfr.registry's words); its transponder's emitter category (DO-260B:
+ * wingtip.registry's words); its transponder's emitter category (DO-260B:
  * A3 to A6 large, heavy and high-performance, A7 rotorcraft, B1 glider,
  * B2 lighter than air); then its ICAO type designator (ICAO Doc 8643).
  * Neither the registry nor ADS-B says where the wing is, so a single's

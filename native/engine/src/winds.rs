@@ -1,5 +1,5 @@
 //! The FB winds and temperatures aloft as sent (the NWS's "FD" text), as
-//! vfr.weather's `parse_fd_text` reads it: each station's wind and
+//! wingtip.weather's `parse_fd_text` reads it: each station's wind and
 //! temperature at each altitude, and the window the product is for use
 //! in. The coding is AC 00-45H's Winds and Temperatures Aloft Forecast:
 //! DDFF wind (tens of degrees true, knots; 50 added to the direction for
@@ -162,7 +162,7 @@ pub fn parse(text: &str, now: i64) -> Option<Product> {
     Some(product)
 }
 
-/// The product as vfr.weather's FdStations, JSON: {"period": {...},
+/// The product as wingtip.weather's FdStations, JSON: {"period": {...},
 /// "stations": {"ABI": {"6000": {...}}}}.
 pub fn to_json(p: &Product) -> String {
     let mut out = String::from("{\"period\":");

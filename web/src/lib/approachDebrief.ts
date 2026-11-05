@@ -10,7 +10,7 @@
  * and when the missed approach began or where it landed.
  *
  * The procedure is the FAA's CIFP as the planner draws it
- * (vfr.procedures.procedure_drawing): its lines, its fixes with their
+ * (wingtip.procedures.procedure_drawing): its lines, its fixes with their
  * roles and crossing altitudes, and its placed glidepath (runway_path). The track is GPS's
  * (lib/track, or a followed airplane's ADS-B reports), so its altitude is
  * not the altimeter's and its course is a ground track: what is measured

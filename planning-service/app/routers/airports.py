@@ -4,11 +4,11 @@ one field's card -- its name, the airspace over it, its runways and
 radio, and the weather there now.
 
 Everything here is already in memory on this side: the OurAirports
-tables are read once per process (vfr.airports), the airspace polygons
-are parsed once at startup (vfr.airspace), and the METARs are the
-national cache vfr.weather keeps for minutes at a time; a field with
+tables are read once per process (wingtip.airports), the airspace polygons
+are parsed once at startup (wingtip.airspace), and the METARs are the
+national cache wingtip.weather keeps for minutes at a time; a field with
 no report of its own has the weather modelled there for the hour, from
-the gridded LAMP vfr.glmp holds an hour at a time. A card costs a few
+the gridded LAMP wingtip.glmp holds an hour at a time. A card costs a few
 table lookups and a point-in-polygon test.
 """
 import functools
@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 from fastapi import APIRouter, HTTPException, Query, Response
 from fastapi.responses import FileResponse
-from vfr import (
+from wingtip import (
     airport_photos, airports, airspace, altitude, faa_data, fixes, fuelstops, geo, geocode, glmp, nearby, pattern, places, plates,
     procedures,
     publications, remarks, runway_wind, weather,
@@ -40,7 +40,7 @@ router = APIRouter()
 
 def _owners(places: list[dict]) -> list[tuple]:
     """Each field's (military, private) from the FAA's airport file
-    (vfr.faa_data), by either ident (KDLH, C81, KC81). The file's sets are
+    (wingtip.faa_data), by either ident (KDLH, C81, KC81). The file's sets are
     fetched once for all the fields, not once each: with the file missing
     each fetch retries the download, and a zoomed-out map has hundreds."""
     owned = faa_data.military_fields(altitude.DEFAULT_FAA_CACHE_DIR)
@@ -119,7 +119,7 @@ def _primaries_of(shp_path: str, _mtime: float) -> dict[str, str]:
 
 def _surface_classes(places: list[dict]) -> list:
     """Each field's class of airspace at its surface, for its mark on the
-    map (vfr.airspace.surface_classes, all of them at once); None for each
+    map (wingtip.airspace.surface_classes, all of them at once); None for each
     where the FAA's airspace cannot be had, the marks drawn without it."""
     try:
         shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
@@ -134,7 +134,7 @@ def places_search(q: str = "") -> PlacesFound:
     rather than near own ship: the airports whose ident or name starts
     with it, the towns that do (the Census gazetteer), and a street
     address where it starts with a house number (the Census geocoder) --
-    each with where it is (vfr.geocode)."""
+    each with where it is (wingtip.geocode)."""
     q = q.strip()
     if len(q) < 2:
         return {"places": []}
@@ -150,7 +150,7 @@ def places_search(q: str = "") -> PlacesFound:
 
 #: The one of a field's listed frequencies to show on its row: its
 #: tower's where it has one, else its CTAF, else UNICOM -- OurAirports'
-#: frequencies, as the card's Freq. tab lists them (vfr.airports). It is
+#: frequencies, as the card's Freq. tab lists them (wingtip.airports). It is
 #: a listing, not advice on whom to call: a tower open part of the day
 #: hands the field to its CTAF when closed (AIM 4-1-9), and inbound to a
 #: Class B or C field a pilot calls approach control first (14 CFR
@@ -207,7 +207,7 @@ STOP_FIELDS = 150
 def _places_of(field: dict) -> dict | None:
     """A field's places to eat and flight schools at the airport, None
     while they are still to be read (read on the pool): food inside its
-    outline (vfr.nearby's), as Pilot Pete's is at Schaumburg (the owner's
+    outline (wingtip.nearby's), as Pilot Pete's is at Schaumburg (the owner's
     "food at the airport itself", 2026-10-25), not a walk across the road;
     a school on the field or a walk from it (WALK_M, 15 minutes), as a
     school's office can be across the field's own road."""
@@ -228,7 +228,7 @@ def _stop(field: dict, places: dict | None) -> dict | None:
     and engine repair are its Chart Supplement entry's (NASR's APT_BASE:
     FUEL_TYPES, AIRFRAME_REPAIR_SER_CODE and PWR_PLANT_REPAIR_SER, MAJOR or
     MINOR), its phone the manager's, else the owner's (NASR's APT_CON:
-    PHONE_NO), each by its FAA or ICAO identifier (vfr.faa_data)."""
+    PHONE_NO), each by its FAA or ICAO identifier (wingtip.faa_data)."""
     services = faa_data.airport_services(field["ident"], altitude.DEFAULT_FAA_CACHE_DIR)
     food = (places or {}).get("food") or []
     training = (places or {}).get("training") or []
@@ -252,7 +252,7 @@ def stops_near(
     flight school, nearest first, for the map's Stops (the owner's one
     sheet for them near the pilot and along a route, 2026-10-27), within
     `nm` (the sheet's 10, 25, 50 or 100). A field's places are Overture's
-    (vfr.nearby), read on the planner's pool where they have not been and
+    (wingtip.nearby), read on the planner's pool where they have not been and
     counted in `pending`; a field selling fuel or with a repair shop is
     listed at once, its places to come (`places_known`), and the page
     asks again until none is pending."""
@@ -283,7 +283,7 @@ def _off_course_nm(start: tuple, end: tuple, lat: float, lon: float) -> float:
 
 #: How far off the course a field is offered along a route, nm: a short
 #: turn off the way for lunch, the owner's pick (2026-10-26, "10-15 nm off
-#: course"), where vfr.fuelstops' corridor reached 30.
+#: course"), where wingtip.fuelstops' corridor reached 30.
 STOP_OFF_COURSE_NM = 15.0
 
 
@@ -325,7 +325,7 @@ def waypoints_in_view(
     north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
     limit: int = Query(default=500, ge=1, le=1000),
 ) -> WaypointsInView:
-    """The VFR waypoints inside the map's view (vfr.fixes), at most
+    """The VFR waypoints inside the map's view (wingtip.fixes), at most
     `limit`: the magenta flags the sectional prints round busy airspace,
     for the map to mark each with a diamond a pilot can tap and route
     through. GPS waypoints and the rest of NASR's fixes are left out:
@@ -351,7 +351,7 @@ def navaids_in_view(
     limit: int = Query(default=500, ge=1, le=2000),
 ) -> NavaidsInView:
     """The VORs inside the map's view, and with `fixes` the fixes of the
-    low-altitude enroute chart there too (vfr.fixes), at most `limit` of
+    low-altitude enroute chart there too (wingtip.fixes), at most `limit` of
     each: the hexagons and the triangles the map draws over the chart.
     The map asks for the fixes only close in, where they do not scatter
     over the whole chart."""
@@ -370,7 +370,7 @@ def navaids_in_view(
 
 
 def _notes(ident: str) -> dict:
-    """The lighting and mic-click remarks (vfr.remarks), by the FAA's own
+    """The lighting and mic-click remarks (wingtip.remarks), by the FAA's own
     identifier: KRFD's are RFD's, as are Alaska's and Hawaii's P-idents'.
     None where the remarks file cannot be had: a card without them."""
     candidates = [ident[1:], ident] if len(ident) == 4 and ident[0] in "KP" else [ident]
@@ -389,7 +389,7 @@ def _notes(ident: str) -> dict:
 
 def _with_turf(runways: list[dict], ident: str) -> list[dict]:
     """Each runway with the part of it that is turf where the FAA's
-    remarks say which (vfr.remarks.runway_turf), by the FAA's own
+    remarks say which (wingtip.remarks.runway_turf), by the FAA's own
     identifier as `_notes` takes it, each part's end named as the runway's
     own are: C81's 06/24 the 1,000 ft from its south-west end, 06. None
     where the remarks file cannot be had."""
@@ -413,7 +413,7 @@ def airport_place(ident: str) -> AirportPlace:
 
     `airspace_class` is the class of the airspace at the surface at the
     field: B, C or D, E in a Class E surface area, G where the ground is
-    uncontrolled (vfr.airspace.surface_class_at).
+    uncontrolled (wingtip.airspace.surface_class_at).
     `towered` is whether it lists a tower frequency. A field with no
     reporting station has no `metar`; `weather_unavailable` is set only
     when the weather service could not be asked."""
@@ -438,14 +438,14 @@ def airport_place(ident: str) -> AirportPlace:
             taf = None
     military, private = _owners([place])[0]
     # No report of its own: the nearest station's, close enough to say
-    # its weather approximately (vfr.weather.nearest_report).
+    # its weather approximately (wingtip.weather.nearest_report).
     nearby = None
     if metar is None and not unavailable:
         try:
             nearby = weather.nearest_report(place["lat"], place["lon"], exclude=source)
         except weather.WeatherServiceError:
             nearby = None
-    # And the weather modelled at the field itself for the hour (vfr.glmp),
+    # And the weather modelled at the field itself for the hour (wingtip.glmp),
     # whatever the reports' service said: its own source.
     modelled = None
     if metar is None:
@@ -485,9 +485,9 @@ def airport_place(ident: str) -> AirportPlace:
 def airport_services(ident: str, response: Response) -> dict:
     """What a field offers a pilot who lands there, for a stop's card: its
     fuel, fees, parking, repair and oxygen and its courtesy car from the
-    FAA's airport file and remarks (vfr.faa_data.airport_services,
-    vfr.remarks.service_notes), and the places to eat, sleep and hire a
-    car near it (vfr.nearby). Its own request, not the card's: Overture's
+    FAA's airport file and remarks (wingtip.faa_data.airport_services,
+    wingtip.remarks.service_notes), and the places to eat, sleep and hire a
+    car near it (wingtip.nearby). Its own request, not the card's: Overture's
     first read of a field is a second or two, which the card's weather
     and runways do not wait on."""
     place = airports.find_place(ident)
@@ -529,7 +529,7 @@ def airport_photos_of(ident: str, response: Response) -> dict:
     the owner's ask ("airport photos swipe behind the airport diagram
     thumbnail", 2026-10-23): its aerial (/api/airport-aerial, every US
     field's, from the USGS) and its Wikipedia article's photo where there
-    is a free one (vfr.airport_photos)."""
+    is a free one (wingtip.airport_photos)."""
     place = airports.find_place(ident)
     if place is None:
         raise HTTPException(404, f"No US airport goes by {ident.strip().upper()!r}.")
@@ -575,7 +575,7 @@ def airport_photo(ident: str) -> FileResponse:
                        503: {"description": "The USGS imagery could not be had"}})
 def airport_aerial(ident: str) -> FileResponse:
     """The field's aerial photo from the USGS National Map's imagery
-    (public domain), framed on its runways (vfr.airport_photos.aerial):
+    (public domain), framed on its runways (wingtip.airport_photos.aerial):
     asked of the USGS once and kept, a week in the browser."""
     place = airports.find_place(ident)
     if place is None:
@@ -609,7 +609,7 @@ def airport_forecast_wind(ident: str, at: datetime = Query(..., description="Whe
 def airport_procedures(ident: str) -> ProcedureList:
     """The field's instrument procedures -- its approaches, arrivals and
     departures, with the transitions of each -- from the FAA's CIFP for
-    the AIRAC cycle in force (vfr.procedures), for the route's Procedures
+    the AIRAC cycle in force (wingtip.procedures), for the route's Procedures
     to offer. None for a field the CIFP has none for, as most small ones."""
     try:
         found = procedures.procedures_at(ident)
@@ -629,7 +629,7 @@ def airport_procedure(ident: str, procedure: str, transition: str | None = None)
     """One of the field's procedures drawn for the map, with the
     transition picked (`transition`, one of its `transitions`; none for an
     approach from vectors): its lines, holds and fixes, each fix with the
-    altitudes and speed it is crossed at (vfr.procedures.procedure_drawing)."""
+    altitudes and speed it is crossed at (wingtip.procedures.procedure_drawing)."""
     try:
         drawn = procedures.procedure_drawing(ident, procedure, transition)
     except RuntimeError as err:
@@ -644,7 +644,7 @@ def airport_procedure(ident: str, procedure: str, transition: str | None = None)
                        503: {"description": "The FAA's procedure file could not be had"}})
 def airport_procedure_plate(ident: str, procedure: str) -> PlateOverlay:
     """An approach's plate's plan view placed on the map for the approach
-    picked (vfr.plates): where its picture goes, made once a cycle from the
+    picked (wingtip.plates): where its picture goes, made once a cycle from the
     FAA's d-TPP plate and its own georeference, and whether it publishes
     circling minimums. 404 where the field has no plate for it, the plate
     has no georeference, or the FAA cannot be reached."""
@@ -677,7 +677,7 @@ def airport_diagram(cycle: str, ident: str) -> FileResponse:
     """The FAA's airport diagram for the field, from the d-TPP cycle in
     force (`airport_diagram_cycle` on its card), as a picture for the card
     to show and a finger to pinch in on: its PDF drawn once and kept for
-    the cycle (vfr.publications). 404 for a field with none -- most small
+    the cycle (wingtip.publications). 404 for a field with none -- most small
     ones -- for any cycle but the one in force, and while the FAA cannot
     be reached."""
     path = publications.airport_diagram_png(ident, cycle)
@@ -690,9 +690,9 @@ def airport_diagram(cycle: str, ident: str) -> FileResponse:
             responses={200: {"content": {"image/png": {}}}, 404: {"description": "No diagram, or its runways not found on it"}})
 def airport_diagram_runways(cycle: str, ident: str) -> FileResponse:
     """The airport diagram cropped to its runways, for the card's
-    thumbnail: where the field's runway ends are (vfr.pattern's, NASR's
+    thumbnail: where the field's runway ends are (wingtip.pattern's, NASR's
     surveyed thresholds) placed on the diagram by its own latitude and
-    longitude labels, else its runway-thick strokes (vfr.publications).
+    longitude labels, else its runway-thick strokes (wingtip.publications).
     404 where it has none, or its runways cannot be found on it -- the
     card draws its own sketch then."""
     place = airports.find_place(ident)

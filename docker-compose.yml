@@ -98,7 +98,7 @@ services:
       - airflow_home_v3:/opt/airflow
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      # Where the DAG and vfr are is the image's to say (it put them there).
+      # Where the DAG and wingtip are is the image's to say (it put them there).
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       # DockerOperator launches sibling containers via the mounted host
       # socket -- their -v mounts are resolved by the HOST's Docker daemon,
@@ -203,7 +203,7 @@ services:
       # Google's Map Tiles API, none by default.
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       # ADS-B Exchange through RapidAPI, the traffic's fallback where
-      # adsb.lol turns the planner away (vfr.traffic): off without it.
+      # adsb.lol turns the planner away (wingtip.traffic): off without it.
       ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
       # The FAA's SWIM feeds (app.swim): STDDS's terminal radar tracks; off
       # without them. The owner's SCDS subscription's login and queue.
@@ -239,7 +239,7 @@ services:
     build: ./model-service
     ports:
       - "127.0.0.1:8000:8000"
-    # The chart reader's scorer (vfr.chartmodel), as a retrain promotes
+    # The chart reader's scorer (wingtip.chartmodel), as a retrain promotes
     # it. Read-only -- serving never writes to it.
     volumes:
       - ./data/models/chart/current:/opt/ml/chart-model:ro
@@ -280,7 +280,7 @@ services:
       # still happens loudly, one step later -- and now only for the
       # people actually starting this service.
       NAV_LOG_AGENT_API_KEY: ${NAV_LOG_AGENT_API_KEY:-}
-      # The nav log is the planner's own (vfr.planner_client), not one
+      # The nav log is the planner's own (wingtip.planner_client), not one
       # this agent assembles, so the one a pilot sees is the one it briefs.
       PLANNING_SERVICE_URL: http://planning-service:8000
       # The db's own password, as the webapp's datasource has it.
@@ -307,7 +307,7 @@ services:
     environment:
       PYTHONPATH: /workspace/src
       ANTHROPIC_API_KEY: *anthropic-api-key
-      # The same planner nav log nav-log-agent briefs (vfr.planner_client).
+      # The same planner nav log nav-log-agent briefs (wingtip.planner_client).
       PLANNING_SERVICE_URL: http://planning-service:8000
     healthcheck:
       <<: *python-healthcheck

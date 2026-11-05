@@ -3,7 +3,7 @@
  * a speech recognizer wrote (lib/listen) or the pilot typed, as AIM 4-4-3
  * lists what a clearance holds -- its limit, its departure procedure, the
  * route, the altitudes, the frequency and the beacon code. The places it
- * names are found by the planner (/api/clearance/places, vfr.spoken),
+ * names are found by the planner (/api/clearance/places, wingtip.spoken),
  * and the route is put in only from the card, the pilot having read it
  * (ClearanceCard): nothing heard goes into the plan on its own.
  *

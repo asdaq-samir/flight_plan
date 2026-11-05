@@ -3,7 +3,7 @@ import Foundation
 
 /// A hold the pilot put on a point of the route, as Garmin's and
 /// ForeFlight's pilot-defined holds are, written as the planner reads it
-/// (vfr.holds, the web app's lib/holds): the point, its inbound course
+/// (wingtip.holds, the web app's lib/holds): the point, its inbound course
 /// (magnetic), R or L, its legs by minutes ("1M") or nm ("4N"), and how
 /// long, turns ("2T") or minutes ("10M"): "VPBNG/090/30:270:R:1M:2T". The
 /// engine reads and writes it (crate::route::holds); the planner works
@@ -54,7 +54,7 @@ struct Hold: Codable, Hashable, Sendable, Identifiable {
     }
 
     /// One read back from its text, or nil for one that is not, as the
-    /// planner reads it (the engine's `hold_read`; vfr.holds, the web
+    /// planner reads it (the engine's `hold_read`; wingtip.holds, the web
     /// app's lib/holds, web/src/lib/fixtures/holds.json).
     static func parse(_ text: String) -> Hold? {
         do { return try Engine.call("hold_read", ["text": text], decoder: Planner.snakeCase) } catch { return nil }
@@ -116,7 +116,7 @@ struct RouteExtras: Equatable, Sendable {
 
     /// A point off a fix, as a flight plan writes a fix/radial/distance
     /// (FAA Form 7233-4, item 10; AIM 5-1-8) and the planner reads it
-    /// (vfr.fixes.frd_ident): "VPBNG/090/30", the engine's `frd_write` --
+    /// (wingtip.fixes.frd_ident): "VPBNG/090/30", the engine's `frd_write` --
     /// the course to the degree, 000 for north, the distance to a tenth of
     /// a mile.
     static func frd(_ base: String, courseDeg: Int, nm: Double) -> String {

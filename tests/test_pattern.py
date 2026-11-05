@@ -1,6 +1,6 @@
 import pytest
 
-from vfr import faa_data, pattern
+from wingtip import faa_data, pattern
 
 RWY_END = (
     '"ARPT_ID","RWY_ID","RWY_END_ID","RIGHT_HAND_TRAFFIC_PAT_FLAG","LAT_DECIMAL","LONG_DECIMAL"\n'
@@ -75,14 +75,14 @@ UGN_5_23 = {"runway_ends": [
 def _side_of(runway_end: tuple, along: float, p: tuple) -> float:
     """Which side of the runway's line a point is: positive to the right
     of the direction landed in."""
-    from vfr import geo
+    from wingtip import geo
     return ((geo.bearing_deg(*runway_end, *p) - along) % 360 + 540) % 360 - 180
 
 
 def test_the_arrival_comes_in_at_45_to_the_downwind_and_lands_on_the_threshold():
     """AIM 4-3-3: in at 45° abeam midfield, downwind, base, final; level
     at the pattern altitude to the base, down to the field at the end."""
-    from vfr import geo
+    from wingtip import geo
     flown = pattern.arrival_circuit(UGN_5_23, "5", 1700, 727)
     entry, midfield, downwind_end, final_start, threshold = flown["points"]
     assert threshold == (42.4176, -87.8742)
@@ -97,7 +97,7 @@ def test_the_arrival_comes_in_at_45_to_the_downwind_and_lands_on_the_threshold()
 
 
 def test_right_traffic_puts_the_downwind_to_the_right():
-    from vfr import geo
+    from wingtip import geo
     flown = pattern.arrival_circuit(UGN_5_23, "23", 1700, 727)
     threshold, midfield = flown["points"][-1], flown["points"][1]
     along = geo.bearing_deg(42.4268, -87.8593, 42.4176, -87.8742)
@@ -106,7 +106,7 @@ def test_right_traffic_puts_the_downwind_to_the_right():
 
 def test_the_departure_leaves_straight_out_or_at_45_toward_the_way_on():
     """AIM 4-3-3: straight out, or a 45° turn to the pattern's side."""
-    from vfr import geo
+    from wingtip import geo
     along = geo.bearing_deg(42.4176, -87.8742, 42.4268, -87.8593)
     ahead = geo.destination_point(42.4268, -87.8593, along, 30)
     left = geo.destination_point(42.4268, -87.8593, (along - 60) % 360, 30)

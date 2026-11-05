@@ -1,9 +1,9 @@
-"""vfr.airspace_at: the airspace over a point, from the ground up --
+"""wingtip.airspace_at: the airspace over a point, from the ground up --
 the classes in bands, 91.155's minimums, what it takes to go in."""
 import pytest
 import shapefile
 
-from vfr import airspace_at
+from wingtip import airspace_at
 
 
 def _volume(klass, floor_ft, floor_ref, ceiling_ft=18000.0, name=""):

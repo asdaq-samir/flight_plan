@@ -62,7 +62,7 @@ export type Brand = "cockpit" | "ink";
 export type NarrativeFramework = "langgraph" | "crewai";
 /** The flight rules a route is planned under (the altitude's popover):
  *  VFR, or IFR -- its minimum altitudes, its thousands by direction of
- *  flight and its 45-minute reserve (the planner's vfr.ifr). */
+ *  flight and its 45-minute reserve (the planner's wingtip.ifr). */
 export type FlightRules = "vfr" | "ifr";
 /** The planner's layout (PlanWorkspace): the tab bar with FPL, Airport
  *  and Aircraft, or the strip -- one field at the foot of the chart that

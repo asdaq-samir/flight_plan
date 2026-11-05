@@ -3,7 +3,7 @@ import Foundation
 import Observation
 
 /// The airplanes ADS-B receivers hear about the map, from the planner
-/// (/api/traffic, vfr.traffic, adsb.lol's open data), as the web app's
+/// (/api/traffic, wingtip.traffic, adsb.lol's open data), as the web app's
 /// TrafficLayer asks for them: every five seconds, about own ship where
 /// there is a fix, else the middle of the map, out to the map's corners
 /// (10 to 60 nm). For knowing what is about, never for avoiding it.
@@ -11,7 +11,7 @@ import Observation
 @Observable
 final class Traffic {
     /// The planner asks adsb.lol about a region at most every five
-    /// seconds (vfr.traffic), so no sooner than that; twice that with the
+    /// seconds (wingtip.traffic), so no sooner than that; twice that with the
     /// app put away (Ticker).
     static let everyS: TimeInterval = 5
     /// No newer report than this, s, and the airplane is not drawn: the

@@ -4,7 +4,7 @@ from app import graph
 
 
 def test_the_prompt_is_the_shared_one_with_this_agents_memory_added():
-    """The wording is vfr.narrative's, the same crewai-agent writes from;
+    """The wording is wingtip.narrative's, the same crewai-agent writes from;
     what this agent adds is its own memory of similar routes."""
     state = {
         "departure_ident": "C81", "destination_ident": "KDLH", "altitude_ft": 4500.0, "altitude_selection": None,

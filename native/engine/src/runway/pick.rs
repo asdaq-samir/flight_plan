@@ -1,5 +1,5 @@
 //! Which runway end is flown at a field, and its traffic pattern's rules
-//! (web/src/lib/pattern.ts, vfr.pattern): the pilot's pick, else the end
+//! (web/src/lib/pattern.ts, wingtip.pattern): the pilot's pick, else the end
 //! most nearly into the wind (AC 90-66C 11.5), else the runway used most;
 //! which side of the runway its pattern is flown (left unless the FAA says
 //! right, 14 CFR 91.126(b)(1)); how to join it from the way the route
@@ -135,7 +135,7 @@ pub fn picked_end<'a>(picks: Option<&'a Picks>, ident: &str, takeoff: bool, depa
 
 
 /// A runway end as both the FAA's and OurAirports' tables can be matched
-/// on (vfr.pattern end_key): trimmed, in capitals, as painted -- NASR
+/// on (wingtip.pattern end_key): trimmed, in capitals, as painted -- NASR
 /// writes "09" where OurAirports may write "9", and either may write
 /// "09L".
 pub fn end_key(ident: &str) -> String {
@@ -144,7 +144,7 @@ pub fn end_key(ident: &str) -> String {
 
 /// The FAA identifiers an airport may go by in NASR, which keys its
 /// runways by its own (RFD, not KRFD): a K or P ICAO ident's last three
-/// letters first, then the ident as given (vfr.pattern faa_ids).
+/// letters first, then the ident as given (wingtip.pattern faa_ids).
 pub fn faa_ids(ident: &str) -> Vec<String> {
     let ident = ident.trim().to_uppercase();
     let chars: Vec<char> = ident.chars().collect();
@@ -224,10 +224,10 @@ pub fn exit_for(traffic: &str) -> String {
 
 /// A field's traffic pattern above it where the FAA publishes none: AC
 /// 90-66C's 1,000 ft for a propeller airplane (1,500 for a large or
-/// turbine one, which no profile here is), as vfr.faa_data has it.
+/// turbine one, which no profile here is), as wingtip.faa_data has it.
 pub const PATTERN_AGL_FT: f64 = 1000.0;
 
-/// How high the pattern is flown (vfr.pattern pattern_at): above the
+/// How high the pattern is flown (wingtip.pattern pattern_at): above the
 /// field, the FAA's own where it publishes one (APT_BASE's TPA, which the
 /// host reads), else PATTERN_AGL_FT; above sea level, to the foot, where
 /// the field's elevation is known; and whether it is the FAA's.
@@ -237,7 +237,7 @@ pub fn pattern_altitude(elevation_ft: Option<f64>, published_agl_ft: Option<f64>
     (agl, elevation_ft.map(|e| (e + agl).round_ties_even()), published_agl_ft.is_some())
 }
 
-/// A runway end as the map and the card take it (vfr.pattern with_traffic):
+/// A runway end as the map and the card take it (wingtip.pattern with_traffic):
 /// its ident, its true heading (super::wind::end_heading_true_deg) and
 /// which way its pattern is flown -- right where the FAA flags it (NASR's
 /// RIGHT_HAND_TRAFFIC_PAT_FLAG, `right` the flagged ends as end_key gives

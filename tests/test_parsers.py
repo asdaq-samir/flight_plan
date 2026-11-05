@@ -6,13 +6,13 @@ comparison over every current report -- 5,227 METARs, 2,997 TAFs, 21,553
 NOTAMs -- and where the two differ is in the commit that brought these."""
 import json
 
-import vfr_native
+import wingtip_native
 
 NEAR = 1793628000  # 2026-11-02 14:00Z
 
 
 def metar(raw):
-    return json.loads(vfr_native.metar_json(raw))
+    return json.loads(wingtip_native.metar_json(raw))
 
 
 def test_a_us_metar_with_its_tenths():
@@ -37,7 +37,7 @@ def test_no_category_without_the_sky_and_the_visibility():
 
 def test_a_taf_s_becmg_lasts_and_keeps_what_it_does_not_change():
     raw = "TAF VAJL 021400Z 0215/0224 09006KT 3000 BR HZ SCT020 SCT100 TEMPO 0215/0218 2000 -RA SHRA BECMG 0221/0223 VRB03KT 2000 BR"
-    t = json.loads(vfr_native.taf_json(raw, NEAR))
+    t = json.loads(wingtip_native.taf_json(raw, NEAR))
     first, tempo, becmg = sorted(t["fcsts"], key=lambda p: (p["timeFrom"], p["change"]))
     assert first["timeTo"] == becmg["timeFrom"]
     assert (becmg["change"], becmg["timeTo"], becmg["wind_dir_true_deg"], becmg["wx"]) == ("BECMG", t["valid_to"], None, "BR")
@@ -45,19 +45,19 @@ def test_a_taf_s_becmg_lasts_and_keeps_what_it_does_not_change():
 
 
 def test_notams_as_sent():
-    (n,) = json.loads(vfr_native.notam_text_json("!ORD 10/709 ORD RWY 04L/22R CLSD EXC TAX 2610191016-2610201100EST"))
+    (n,) = json.loads(wingtip_native.notam_text_json("!ORD 10/709 ORD RWY 04L/22R CLSD EXC TAX 2610191016-2610201100EST"))
     assert (n["id"], n["location"], n["starts"], n["ends"], n["estimated"]) == (
         "ORD 10/709", "ORD", "2026-10-19T10:16:00Z", "2026-10-20T11:00:00Z", True)
     # A military NOTAM is named by its own number, which is not unique
     # across fields: the planner's store kept one KEDG's under KAPG's.
-    (m,) = json.loads(vfr_native.notam_text_json("!KEDG M0061/26 EDG RWY 01/19 REDL U/S 2610222101-2701122359"))
+    (m,) = json.loads(wingtip_native.notam_text_json("!KEDG M0061/26 EDG RWY 01/19 REDL U/S 2610222101-2701122359"))
     assert (m["id"], m["location"], m["ends"]) == ("M0061/26", "EDG", "2027-01-12T23:59:00Z")
     # A NOTAM in parts: its times are before "END PART".
-    (p,) = json.loads(vfr_native.notam_text_json("!FDC 5/1234 ZZZ PART 2 OF 2 TEXT 2509081619-2709081619EST\nEND PART 2 OF 2"))
+    (p,) = json.loads(wingtip_native.notam_text_json("!FDC 5/1234 ZZZ PART 2 OF 2 TEXT 2509081619-2709081619EST\nEND PART 2 OF 2"))
     assert p["starts"] == "2025-09-08T16:19:00Z"
 
 
 def test_nothing_from_what_is_no_report():
     for bad in ["", "METAR", "NOT AVAILABLE", "ééé 021355Z"]:
-        assert vfr_native.metar_json(bad) is None
-        assert vfr_native.notam_text_json(bad) is None
+        assert wingtip_native.metar_json(bad) is None
+        assert wingtip_native.notam_text_json(bad) is None

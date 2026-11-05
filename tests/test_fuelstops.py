@@ -1,11 +1,11 @@
-"""vfr.fuelstops: where a flight too long for its tanks lands for fuel."""
+"""wingtip.fuelstops: where a flight too long for its tanks lands for fuel."""
 
 from collections import defaultdict
 
 import pandas as pd
 import pytest
 
-from vfr import fuelstops
+from wingtip import fuelstops
 
 # On the equator a degree of longitude is about 60 nm, so the fields below
 # are where their longitudes say along a course due east from 0,0.

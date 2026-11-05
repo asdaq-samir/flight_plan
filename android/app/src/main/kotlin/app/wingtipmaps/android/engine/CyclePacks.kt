@@ -18,7 +18,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 
 /**
- * The cycle packs kept on the phone, a region each (vfr.pack's
+ * The cycle packs kept on the phone, a region each (wingtip.pack's
  * write_phone), so the airspace over a point, what is ahead and the
  * map's fields are answered with no connection: kept along a route with
  * its chart, and fetched again for the regions kept when the FAA's cycle

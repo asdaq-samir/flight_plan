@@ -79,7 +79,7 @@ function Plate({ url, south, west, north, east }: { url: string; south: number; 
  * view on the chart under its coded lines (ProcedureLayer), at the owner's
  * ask ("Also show the approach plate on the map when selected"): the
  * planner places the plate by the FAA's own georeference in it
- * (vfr.plates) and draws it black on clear. Where it cannot -- a plate
+ * (wingtip.plates) and draws it black on clear. Where it cannot -- a plate
  * without one -- nothing is drawn, the coded lines alone. A sketch to fly
  * the dry run against, not the chart to navigate by.
  */

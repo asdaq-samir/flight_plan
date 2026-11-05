@@ -8,7 +8,7 @@
 # it package by package. The native `.venv` (see top-level requirements.txt)
 # still works if pinned to the last Intel-Mac-compatible versions, but this
 # container is now the primary, low-maintenance way to run notebooks 01-03.
--r ../src/requirements.txt   # vfr's own list, so the notebooks import it the way the services do
+-r ../src/requirements.txt   # wingtip's own list, so the notebooks import it the way the services do
 scikit-learn
 matplotlib
 pillow

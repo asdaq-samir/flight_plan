@@ -312,7 +312,7 @@ struct Briefing: Codable, Equatable, Sendable {
     var legsFrom: String?
 }
 
-/// One thing ahead of the airplane (AheadAlert, vfr.alerts): airspace, a
+/// One thing ahead of the airplane (AheadAlert, wingtip.alerts): airspace, a
 /// special-use area or a TFR its track goes into in the next five
 /// minutes, or the ground or an obstacle it comes within 500 ft of in the
 /// next minute. The planner's judgment; the app says it.
@@ -340,7 +340,7 @@ struct AheadAlert: Codable, Equatable, Sendable, Identifiable {
 }
 
 /// The ways to fly a route, as Maps offers its routes (RouteOptions,
-/// vfr.route_options): the direct line and the ways round what it meets
+/// wingtip.route_options): the direct line and the ways round what it meets
 /// -- storms, weather under minimums, terrain over the ceiling, TFRs --
 /// each with its stops, its time, its fuel and what it still crosses.
 /// Every judgment in it is the planner's.
@@ -401,7 +401,7 @@ struct RouteOptions: Codable, Equatable, Sendable {
 }
 
 /// A field's instrument procedures from the FAA's CIFP (ProcedureList,
-/// vfr.procedures): departures, arrivals and approaches, each with its
+/// wingtip.procedures): departures, arrivals and approaches, each with its
 /// transitions, for the pull-downs the route's fields get.
 struct ProcedureSummary: Codable, Equatable, Sendable, Identifiable {
     let id: String

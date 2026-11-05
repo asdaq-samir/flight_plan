@@ -1,5 +1,5 @@
 """Which winds-aloft forecast period a departure gets."""
-from vfr.weather import forecast_hour
+from wingtip.weather import forecast_hour
 
 
 def test_now_and_the_next_few_hours_use_the_six_hour_product():

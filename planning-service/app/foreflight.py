@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from html import escape
 
-from vfr import places
+from wingtip import places
 
 from .scoring import KIND_NAMES
 

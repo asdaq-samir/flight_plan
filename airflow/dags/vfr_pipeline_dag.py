@@ -6,7 +6,7 @@ Collect/Feature-Engineer/Retrain each run in a separate sibling container
 (launched via DockerOperator over the host Docker socket mounted into this
 `airflow` container) rather than in-process here -- the local mirror of
 "Airflow orchestrates, SageMaker does the compute" (see the AWS-mapping
-table in docs/README.md). Evaluate/Promote stay in-process: vfr.model_registry has zero
+table in docs/README.md). Evaluate/Promote stay in-process: wingtip.model_registry has zero
 third-party dependencies, so there's no real compute to hand off -- on AWS
 these are just Model Registry API calls, not a job at all.
 
@@ -16,7 +16,7 @@ time, it doesn't generate labels.
 
 Two models, side by side. The landmark model's branch starts with
 whether its ratings are enough (landmarks_ready) and skips, rather than
-fails, when they are not. The chart reader's scorer (vfr.chartmodel)
+fails, when they are not. The chart reader's scorer (wingtip.chartmodel)
 trains from the table the planner writes when it starts the run, and
 goes through the same gate into data/models/chart/current.
 """
@@ -54,9 +54,9 @@ PROJECT_MOUNT = Mount(source=PROJECT_HOST_PATH, target="/workspace", type="bind"
 IMAGE_PREFIX = os.environ["PIPELINE_IMAGE_PREFIX"]
 
 
-# vfr.pipeline.SKIPPED_EXIT_CODE, written again rather than imported: the
+# wingtip.pipeline.SKIPPED_EXIT_CODE, written again rather than imported: the
 # DAG file is parsed in Airflow's own image, which has no pandas for
-# vfr.pipeline to import.
+# wingtip.pipeline to import.
 SKIPPED_EXIT_CODE = 99
 
 
@@ -95,7 +95,7 @@ def vfr_pipeline():
     retrain = _docker_task("retrain", f"{IMAGE_PREFIX}-pipeline-training", ["retrain"])
 
     def _metrics_pass() -> bool:
-        from vfr import model_registry
+        from wingtip import model_registry
 
         return model_registry.evaluate()
 
@@ -103,7 +103,7 @@ def vfr_pipeline():
 
     @task
     def promote() -> str:
-        from vfr import model_registry
+        from wingtip import model_registry
 
         return str(model_registry.promote())
 
@@ -112,7 +112,7 @@ def vfr_pipeline():
     chart_retrain = _docker_task("chart_retrain", f"{IMAGE_PREFIX}-pipeline-training", ["chart-retrain"])
 
     def _chart_metrics_pass() -> bool:
-        from vfr import model_registry
+        from wingtip import model_registry
 
         return model_registry.evaluate(model_registry.CHART_CANDIDATE_DIR, model_registry.CHART_CURRENT_DIR)
 
@@ -120,7 +120,7 @@ def vfr_pipeline():
 
     @task
     def chart_promote() -> str:
-        from vfr import model_registry
+        from wingtip import model_registry
 
         return str(model_registry.promote(model_registry.CHART_CANDIDATE_DIR, model_registry.CHART_CURRENT_DIR))
 

@@ -1,0 +1,198 @@
+package com.northflyers.wingtip.security;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.oidcLogin;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import com.northflyers.wingtip.controller.AppSiteAssociationController;
+import com.northflyers.wingtip.controller.AssetLinksController;
+import com.northflyers.wingtip.controller.DeviceSignInController;
+import com.northflyers.wingtip.controller.PilotController;
+import com.northflyers.wingtip.controller.SignInCapabilitiesController;
+import com.northflyers.wingtip.domain.Pilot;
+import com.northflyers.wingtip.service.AccountService;
+import com.northflyers.wingtip.service.PilotService;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+/**
+ * The access rules, tested as rules.
+ *
+ * <p>Worth its own test because "which endpoints need a session" is a
+ * decision that is easy to state and easy to get silently wrong -- a
+ * matcher in the wrong order, or a path added later that falls through to
+ * {@code permitAll}. Each case here fails loudly if the split between
+ * shared and pilot-scoped data moves.
+ */
+@WebMvcTest({PilotController.class, SignInCapabilitiesController.class, AppSiteAssociationController.class,
+        AssetLinksController.class, DeviceSignInController.class})
+@Import(SecurityConfig.class)
+class SecurityRulesTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockitoBean
+    private PilotService pilotService;
+
+    @MockitoBean
+    private AccountService accountService;
+
+    /** The map's overlay draws the USGS's and Google's tiles and asks
+     *  Google for a session from the browser, and an airplane's card asks
+     *  Planespotters for its photo and shows it from their server: the
+     *  policy must let them, and nothing wider. */
+    @Test
+    void thePolicyLetsTheOverlayAndThePhotosReachTheirHostsOnly() throws Exception {
+        String policy = mockMvc.perform(get("/api/me")).andReturn().getResponse().getHeader("Content-Security-Policy");
+        assertThat(policy).containsPattern(
+                "img-src 'self' data:[^;]* https://basemap\\.nationalmap\\.gov https://tile\\.googleapis\\.com https://t\\.plnspttrs\\.net;");
+        assertThat(policy).contains("connect-src 'self' https://tile.googleapis.com https://api.planespotters.net;");
+        assertThat(policy).doesNotContain("*");
+    }
+
+    @Test
+    void anAnonymousCallerIsRefusedWith401RatherThanRedirected() throws Exception {
+        // A redirect here is the trap: fetch() follows it and reports a
+        // 200 carrying a login page.
+        mockMvc.perform(get("/api/flights"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /** Who is signed in, asked by every page: signed out is an empty
+     *  answer, not a 401 the browser logs as an error on every visit. */
+    @Test
+    void signedOutTheSignInCheckAnswersNoOne() throws Exception {
+        mockMvc.perform(get("/api/me"))
+                .andExpect(status().isNoContent())
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString()).isEmpty());
+    }
+
+    @Test
+    void aSignedInPilotSeesThemselves() throws Exception {
+        given(pilotService.current(any()))
+                .willReturn(Optional.of(new Pilot("pilot@example.com", "A. Pilot", "sub-1")));
+
+        mockMvc.perform(get("/api/me").with(oidcLogin()
+                        .idToken(token -> token.claim("sub", "sub-1").claim("email", "pilot@example.com"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("pilot@example.com"));
+    }
+
+    /** The Google subject is an authentication detail and must not be
+     *  serialised out, which is why the endpoint returns a DTO. */
+    @Test
+    void theResponseDoesNotLeakTheGoogleSubject() throws Exception {
+        given(pilotService.current(any()))
+                .willReturn(Optional.of(new Pilot("pilot@example.com", "A. Pilot", "sub-secret")));
+
+        mockMvc.perform(get("/api/me").with(oidcLogin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.googleSubject").doesNotExist());
+    }
+
+    /** This slice has neither OIDC credentials nor a mail host, so no
+     *  session can exist -- and it does not set app.open-writes, so the
+     *  planner's writes and the billed narrative are refused rather than
+     *  left open to every caller. The local stack opts in; see
+     *  {@link SecurityRulesOpenWritesTest}. */
+    @Test
+    void plannerWritesAreRefusedWhereNobodyCanSignInUnlessTheDeploymentOptsIn() throws Exception {
+        mockMvc.perform(post("/api/planner/picks").with(csrf())).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/planner/retrain").with(csrf())).andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/comparison").with(csrf())).andExpect(status().isUnauthorized());
+    }
+
+    /** Planning a route stays open to anyone: reads are not refused. */
+    @Test
+    void plannerReadsStayOpen() throws Exception {
+        mockMvc.perform(get("/api/planner/course"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotIn(401, 403));
+    }
+
+    /** Aircraft and flights are private to whoever owns them, so a
+     *  caller with no session is refused before AircraftController --
+     *  not in this slice -- ever runs. */
+    @Test
+    void aircraftAndFlightsRequireASession() throws Exception {
+        mockMvc.perform(get("/api/aircraft")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/flights")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void healthAndDocsStayReachableWithoutASession() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(401));
+    }
+
+    /** Session cookies are attached by the browser automatically, which is
+     *  the condition CSRF exploits, so a state-changing call without a
+     *  token is refused even when the caller is signed in. */
+    @Test
+    void aStateChangingCallWithoutACsrfTokenIsRefused() throws Exception {
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void theSameCallWithACsrfTokenIsNotRefusedByCsrf() throws Exception {
+        mockMvc.perform(post("/api/aircraft").with(oidcLogin()).with(csrf()))
+                .andExpect(result -> assertThat(result.getResponse().getStatus()).isNotEqualTo(403));
+    }
+
+    @Test
+    void theCapabilitiesSayHowThisDeploymentIsReached() throws Exception {
+        mockMvc.perform(get("/api/auth/capabilities"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.access").value("CLOSED"))
+                .andExpect(jsonPath("$.providers").isEmpty());
+    }
+
+    /** What iOS and Android fetch to open this site's links in the apps,
+     *  read signed out as they read it: here, with no app named, the
+     *  controllers' own 404, not the 401 of a pilot-scoped path. */
+    @Test
+    void theAppsLinkFilesAreReadSignedOut() throws Exception {
+        for (String path : new String[] {"/.well-known/apple-app-site-association", "/.well-known/assetlinks.json"}) {
+            mockMvc.perform(get(path)).andExpect(status().isNotFound());
+        }
+    }
+
+    /** A TV asks for its code and whether it has been typed in before it
+     *  has a session; only a signed-in pilot types one in; and /tv, the
+     *  address it shows, opens the planner's box for the code. */
+    @Test
+    void aTvSignsInWithoutASessionAndOnlyAPilotApprovesIt() throws Exception {
+        mockMvc.perform(post("/api/auth/device").with(csrf())).andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/device/token").with(csrf()).contentType("application/json")
+                .content("{\"deviceCode\":\"unknown\"}")).andExpect(status().isGone());
+        mockMvc.perform(post("/api/auth/device/approve").with(csrf()).contentType("application/json")
+                .content("{\"userCode\":\"BCDF-GHJK\"}")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/tv")).andExpect(status().is3xxRedirection())
+                .andExpect(result -> assertThat(result.getResponse().getRedirectedUrl()).isEqualTo("/app/plan?tv-link=1"));
+    }
+
+    /** Nobody can sign in and nothing opened it: the developer's
+     *  workspace is nobody's. The stack's status fell through to the
+     *  public read rule, and the page offered the workspace anyway. */
+    @Test
+    void theDevelopersReadsAreRefusedTooInAClosedDeployment() throws Exception {
+        for (String path : new String[] {"/api/planner/status", "/api/planner/dev/services"}) {
+            mockMvc.perform(get(path))
+                    .andExpect(result -> assertThat(result.getResponse().getStatus()).isIn(401, 403));
+        }
+    }
+}

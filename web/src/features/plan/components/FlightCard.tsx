@@ -495,7 +495,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
  * A US airplane's FAA registration, at the pilot's ask: who it is
  * registered to and where, whether the registration is in effect and
  * till when, what it is and its engine, and its airworthiness
- * certificate -- the registry's own record (vfr.registry), as the FAA's
+ * certificate -- the registry's own record (wingtip.registry), as the FAA's
  * N-number inquiry shows it, the owner's town and never the street.
  */
 function FaaRegistration({ faa }: { faa: AircraftRegistration }) {

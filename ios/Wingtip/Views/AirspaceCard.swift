@@ -29,7 +29,7 @@ struct AirspaceCard: View {
                     }
                 }
                 // The point into the route, named off its nearest fix
-                // (vfr.fixes.frd_near), as Maps' dropped pin offers its
+                // (wingtip.fixes.frd_near), as Maps' dropped pin offers its
                 // directions.
                 // Added where it bends the route least, flown to direct from
                 // where the airplane is, or held at (the web app's

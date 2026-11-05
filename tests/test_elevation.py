@@ -1,4 +1,4 @@
-"""vfr.elevation's on-disk cache: what two lookups at once each fetched
+"""wingtip.elevation's on-disk cache: what two lookups at once each fetched
 is kept, and the file is never seen half-written."""
 import threading
 
@@ -6,7 +6,7 @@ import numpy as np
 
 import pytest
 
-from vfr import elevation
+from wingtip import elevation
 
 
 REAL_FROM_TERRAIN_TILES = elevation._from_terrain_tiles
@@ -66,7 +66,7 @@ def test_the_ground_at_a_point_is_read_from_its_terrain_tile(tmp_path, monkeypat
     import numpy as np
     from PIL import Image
 
-    from vfr import elevation
+    from wingtip import elevation
 
     monkeypatch.setattr(elevation, "TERRAIN_TILE_DIR", tmp_path)
     monkeypatch.setattr(elevation, "_TERRAIN_TILES", {})

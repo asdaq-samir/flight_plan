@@ -1,6 +1,6 @@
 /**
  * The holds the pilot put on the route's points, as the address keeps
- * them (`holds`) and the planner reads them (vfr.holds): the point, its
+ * them (`holds`) and the planner reads them (wingtip.holds): the point, its
  * inbound course (magnetic), R or L, its legs by minutes ("1M") or nm
  * ("4N"), and how long, turns ("2T") or minutes ("10M") --
  * "VPBNG/090/30:270:R:1M:2T", several joined by commas.
@@ -20,7 +20,7 @@ import { callEngine } from "./engine/engine";
 import { bearing } from "./units";
 
 /** A hold as the engine reads and writes it (native/engine/src/route,
- *  the planner's vfr.holds too): flat, the legs and the length each one
+ *  the planner's wingtip.holds too): flat, the legs and the length each one
  *  of two, the other null. */
 interface EngineHold {
   fix: string;
@@ -69,7 +69,7 @@ export function lengthWords(length: Hold["length"]): string {
 }
 
 /** A hold as the address writes it: the inbound course in three figures,
- *  000 for north, as the planner reads it (vfr.holds). */
+ *  000 for north, as the planner reads it (wingtip.holds). */
 export function holdText(hold: Hold): string {
   return callEngine<string>("hold_write", { hold: toEngine(hold) });
 }

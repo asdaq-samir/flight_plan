@@ -9,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from vfr.magnetic import _decimal_year, magnetic_variation_deg
+from wingtip.magnetic import _decimal_year, magnetic_variation_deg
 
 # Real rows from the CSV this project cached NOAA's calculator into:
 # (lat, lon, declination NOAA returned).
@@ -29,7 +29,7 @@ def test_it_agrees_with_what_noaa_returned(lat, lon, noaa):
 
 
 def test_the_sign_is_east_positive_west_negative():
-    # vfr.navlog's magnetic = true - declination depends on this. The
+    # wingtip.navlog's magnetic = true - declination depends on this. The
     # agonic line runs up the middle of the United States: east of it
     # (Chicago, and this project's own routes) declination is westerly
     # and negative, west of it (Seattle) easterly and positive.

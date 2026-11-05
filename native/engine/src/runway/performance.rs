@@ -228,7 +228,7 @@ pub struct FieldReport {
 /// the reported wind.
 pub fn end_fit(table: Option<&ShortField>, demonstrated_kt: Option<f64>, runway: &Runway, heading_true_deg: Option<f64>,
                wind: Option<&FitWind>, field: &FieldReport, weight_lb: Option<f64>) -> EndFit {
-    // Along and across the end (vfr.runway_wind.components_kt): none with
+    // Along and across the end (wingtip.runway_wind.components_kt): none with
     // no wind. A variable one (VRB, reported with no direction, AIM 7-1-28)
     // may blow straight across, so all of it, gusts included, is
     // crosswind, as the minimums' best crosswind takes it: a VRB15G25

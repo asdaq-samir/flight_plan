@@ -12,7 +12,7 @@ export interface PickedProcedure {
   transition: string | null;
   /** A fix of it ATC sent the airplane direct to, at the owner's ask ("the
    *  ability to go direct to a fix as told by ATC"): the procedure flown
-   *  from there (vfr.procedure_paths). */
+   *  from there (wingtip.procedure_paths). */
   direct?: string | null;
 }
 

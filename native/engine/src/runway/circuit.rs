@@ -1,5 +1,5 @@
 //! A runway's traffic pattern drawn and flown (web/src/lib/trafficPattern.ts,
-//! vfr.pattern's circuits): the rectangle flown round the runway for the
+//! wingtip.pattern's circuits): the rectangle flown round the runway for the
 //! end landed on, the side its traffic is flown on, and the 45° entry to
 //! the downwind abeam midfield -- as the FAA's Airplane Flying Handbook
 //! (FAA-H-8083-3, "Airport Traffic Patterns") and AC 90-66C draw it:
@@ -25,7 +25,7 @@
 //!
 //! A sketch of the pattern to fly by, not a procedure: the size of a
 //! pattern is the pilot's, flown as the field and its traffic need. The
-//! map draws it and the planner flies it (vfr.procedure_paths) from these
+//! map draws it and the planner flies it (wingtip.procedure_paths) from these
 //! same corners.
 
 use super::pick::{end_key, pattern_side_deg, runway_number};
@@ -191,7 +191,7 @@ pub fn departure(runway: &CircuitRunway, end_ident: &str, toward: Option<Point>)
 }
 
 /// The pattern flown to land on `end_ident`, as the points of a leg the
-/// planner flies (vfr.pattern arrival_circuit, vfr.procedure_paths): in at
+/// planner flies (wingtip.pattern arrival_circuit, wingtip.procedure_paths): in at
 /// 45° to the downwind abeam midfield, along the downwind, then base and
 /// final to the threshold.
 pub fn arrival_points(runway: &CircuitRunway, end_ident: &str) -> Option<Vec<Point>> {
@@ -201,7 +201,7 @@ pub fn arrival_points(runway: &CircuitRunway, end_ident: &str) -> Option<Vec<Poi
 }
 
 /// The way out by `end_ident`, as the points of a leg the planner flies
-/// (vfr.pattern departure_circuit): the threshold, the far end, the
+/// (wingtip.pattern departure_circuit): the threshold, the far end, the
 /// upwind's end and the exit, with the exit's true bearing.
 pub fn departure_points(runway: &CircuitRunway, end_ident: &str, toward: Point) -> Option<(Vec<Point>, f64)> {
     let c = corners(runway, end_ident)?;

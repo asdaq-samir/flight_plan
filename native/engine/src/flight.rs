@@ -1,7 +1,7 @@
 //! The flight's own figures, one copy for the planner and the phones:
 //! the wind triangle, VFR cruising altitudes, the fuel reserve and the
-//! atmosphere. Each is the planner's (vfr.navlog, vfr.altitude,
-//! vfr.performance) written again here, and tests/test_flight_rules.py
+//! atmosphere. Each is the planner's (wingtip.navlog, wingtip.altitude,
+//! wingtip.performance) written again here, and tests/test_flight_rules.py
 //! holds the two to the same answer; the web's TypeScript copy of the
 //! wind triangle (lib/diversion) is held to the same fixture
 //! (web/src/lib/fixtures/flightRules.json).
@@ -10,7 +10,7 @@
 /// triangle (FAA-H-8083-25C, Pilot's Handbook of Aeronautical Knowledge,
 /// ch. 16, "Wind triangle"). The wind is the direction it blows FROM.
 /// A crosswind past the airplane's speed holds no heading; its sine is
-/// held at one, as vfr.navlog's is, and the groundspeed says the rest.
+/// held at one, as wingtip.navlog's is, and the groundspeed says the rest.
 pub fn wind_correction_deg(true_course_deg: f64, wind_from_deg: f64, wind_kt: f64, tas_kt: f64) -> f64 {
     let relative = (wind_from_deg - true_course_deg).to_radians();
     let ratio = (wind_kt / tas_kt * relative.sin()).clamp(-1.0, 1.0);
@@ -86,7 +86,7 @@ pub fn reserve_min(ifr: bool, night: bool) -> f64 {
 // The International Standard Atmosphere below the tropopause (ICAO Doc
 // 7488): sea level 15 C (288.15 K), a lapse of 6.5 K a kilometre
 // (0.0019812 C a foot), and the exponent pressure falls off by, g/(R L);
-// density's is one less. vfr.performance's constants, the same digits.
+// density's is one less. wingtip.performance's constants, the same digits.
 pub const ISA_SEA_LEVEL_C: f64 = 15.0;
 pub const ISA_LAPSE_C_PER_FT: f64 = 0.0019812;
 const SEA_LEVEL_K: f64 = 288.15;

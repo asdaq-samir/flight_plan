@@ -1,10 +1,10 @@
-"""Every image that imports vfr builds vfr's Rust extension with the same
-vfr-native stage, word for word, as docker/Dockerfile.native has it.
+"""Every image that imports wingtip builds wingtip's Rust extension with the same
+wingtip-native stage, word for word, as docker/Dockerfile.native has it.
 
-vfr imports vfr_native at module level since the shared engine
+wingtip imports wingtip_native at module level since the shared engine
 (2026-11-03), so each image that copies src/ needs the wheel; in CI's
 build of 2026-11-05 every image but the planner's failed on "No module
-named 'vfr_native'". The stage is repeated rather than shared because a
+named 'wingtip_native'". The stage is repeated rather than shared because a
 Dockerfile cannot include another and a named build context did not work
 under compose (a `service:` context on a service scaled to zero is not
 found). Kept the same text, BuildKit's cache key is the same, so one bake
@@ -18,10 +18,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
 CANONICAL = ROOT / "docker" / "Dockerfile.native"
-START = "# >>> vfr-native"
-END = "# <<< vfr-native"
+START = "# >>> wingtip-native"
+END = "# <<< wingtip-native"
 
-# Every image whose Dockerfile copies src/ (vfr) in, and so needs the wheel.
+# Every image whose Dockerfile copies src/ (wingtip) in, and so needs the wheel.
 IMAGES = [
     "planning-service/Dockerfile",
     "docker/Dockerfile.ml",

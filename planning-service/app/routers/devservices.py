@@ -19,7 +19,7 @@ import os
 import requests
 from fastapi import APIRouter, HTTPException
 
-from vfr import retry
+from wingtip import retry
 
 from ..schemas import DevService, DevServices, DevServiceStarted
 

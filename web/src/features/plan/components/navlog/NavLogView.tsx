@@ -337,7 +337,7 @@ function Heading({ name, unit, spoken }: { name: string; unit?: string; spoken: 
 
 
 /** The leg's true airspeed, in its own air (the planner's
- *  vfr.performance): it varies with the altitude and the forecast
+ *  wingtip.performance): it varies with the altitude and the forecast
  *  temperature, so each leg has its own. A dash from a planner that did
  *  not say. */
 function tas(leg: Leg): string {
@@ -837,7 +837,7 @@ export default function NavLogView({
           <ListRow
             title={<span className="text-destructive">Too low for VFR under the clouds near {nav.altitude_selection.cloud_station}</span>}
             // 91.155(a): 1,000 ft below at or above 10,000 ft MSL, as the
-            // planner keeps it (vfr.altitude) and the reasoning says it.
+            // planner keeps it (wingtip.altitude) and the reasoning says it.
             description={`No altitude keeps ${(nav.altitude_selection.cloud_ceiling_ft ?? 0) >= 10_000 ? "1,000" : "500"} ft below the forecast clouds there`}
           />
         )}

@@ -9,7 +9,7 @@
  *
  * Worked out by the shared engine (native/engine/src/runway/pick.rs and
  * wind.rs, through lib/engine), the very code behind the planner's
- * vfr.pattern and vfr.runway_wind and the phones' wt_call: the rules and
+ * wingtip.pattern and wingtip.runway_wind and the phones' wt_call: the rules and
  * their AC 90-66C and 14 CFR sources live there. Only the shapes the
  * pages read are made here.
  */
@@ -41,7 +41,7 @@ const inUse = (runways: Runway[], f: Flown | null): InUse | null => {
 };
 
 /** The runway end a pilot would take off from and land on: of the ends
- *  the reported wind favours on each runway (vfr.runway_wind), the one
+ *  the reported wind favours on each runway (wingtip.runway_wind), the one
  *  with the most headwind -- AC 90-66C 11.5's runway most nearly into the
  *  wind -- or, with no wind reported, the runway most used's (paved, then
  *  the longest) first end. Only ends with a heading: a helipad has no
@@ -81,7 +81,7 @@ export function runwayFlown(runways: Runway[], picked: string | null | undefined
 
 /** The wind a field's runways are chosen by: the end it favours as
  *  painted ("27"), its head- and crosswind and the gust's crosswind to the
- *  knot (vfr.runway_wind), whether it is calm, and where it was reported
+ *  knot (wingtip.runway_wind), whether it is calm, and where it was reported
  *  when not at the field itself -- the nearest report's station and how
  *  far, for a field with no report of its own. */
 export interface WindPick {
@@ -114,7 +114,7 @@ export interface ReportedWind {
 /**
  * The runway end the wind favours, for a pattern and a takeoff alike
  * (AC 90-66C 11.5, the runway most nearly into the wind): the field's
- * own report's, worked out by the planner on each runway (vfr.runway_wind,
+ * own report's, worked out by the planner on each runway (wingtip.runway_wind,
  * runwayInUse); else, for a field that reports none, the nearest report's
  * wind (`nearby`), said as that station's, the same sums done here -- the
  * most headwind, the longer runway on a tie. Calm is said as calm, and

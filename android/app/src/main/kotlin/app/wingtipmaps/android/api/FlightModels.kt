@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 // keeps -- as the planner and the gateway give them (Models.swift,
 // FlightExtras.swift on iOS), by hand as Models.kt has the rest.
 
-/** An airplane ADS-B receivers hear (TrafficAircraft, vfr.traffic). */
+/** An airplane ADS-B receivers hear (TrafficAircraft, wingtip.traffic). */
 @Serializable
 data class TrafficAircraft(
     val hex: String,

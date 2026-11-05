@@ -9,8 +9,8 @@ import threading
 import time
 from pathlib import Path
 
-from vfr import charts, chartvision, faa_data, geo
-from vfr.config import CHART_TILE_CACHE_DIR, DATA_DIR
+from wingtip import charts, chartvision, faa_data, geo
+from wingtip.config import CHART_TILE_CACHE_DIR, DATA_DIR
 
 log = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ _DETECT_JOBS_GUARD = threading.Lock()
 # reading it again: a minute of the processors on a busy four-core
 # runner, which set the length of a CI run. Named for everything the
 # read depends on besides the corridor: the cycle and revision of the
-# tiles, and the reader's own code (this file and vfr.chartvision). A
+# tiles, and the reader's own code (this file and wingtip.chartvision). A
 # change to any of them reads the corridor afresh.
 _READER = hashlib.sha256(Path(chartvision.__file__).read_bytes() + Path(__file__).read_bytes()).hexdigest()[:12]
 

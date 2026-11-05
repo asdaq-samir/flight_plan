@@ -37,7 +37,7 @@ export default function FixFromDialog({ from, onClose, onCreate }: {
   const deg = course.length === 3 ? Number(course) : NaN;
   const nm = Number(distance);
   // A course of 001 to 360 (000 is 360), out to 999 nm, as the planner
-  // takes one (vfr.fixes.parse_frd).
+  // takes one (wingtip.fixes.parse_frd).
   const valid = deg >= 0 && deg <= 360 && nm > 0 && nm <= 999;
   const ident = valid ? frdIdent(at, deg, nm) : null;
   return (

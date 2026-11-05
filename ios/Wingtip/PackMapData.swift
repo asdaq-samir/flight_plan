@@ -3,7 +3,7 @@ import Foundation
 /// What the map draws, from the phone's own cycle packs where the engine
 /// can answer from them and from the planner otherwise. The packs hold
 /// the airports, navaids and airspace of the regions the pilot keeps
-/// (vfr.pack's write_phone; the engine's phone module), and the engine's
+/// (wingtip.pack's write_phone; the engine's phone module), and the engine's
 /// in-view rules read them with no network, as the airspace at a point
 /// is read today. Asked first, so a pan in flight with no signal still
 /// has its fields; the planner's answer is the fallback, and the one

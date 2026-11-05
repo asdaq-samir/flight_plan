@@ -7,7 +7,7 @@ length -- the runway lengths and takeoff and landing distances 14 CFR
 91.103(b) asks a pilot to know.
 
 The rules are the engine's (wingtip_engine::gonogo::runways), asked by
-name through vfr_native.call, as the web app asks them; the runways and
+name through wingtip_native.call, as the web app asks them; the runways and
 fields it answers by index are put back here as the dicts they were."""
 from . import ask
 

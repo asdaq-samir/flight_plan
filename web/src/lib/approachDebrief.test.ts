@@ -8,7 +8,7 @@ import type { TrackPoint } from "./track";
 import KBUR from "./fixtures/approachKbur.json";
 
 // KBUR's ILS Y RWY 08 and RNAV (GPS) Z RWY 08 as the planner draws them
-// from the CIFP of 1 Oct 2026 (tests/cifp, vfr.procedures.procedure_drawing).
+// from the CIFP of 1 Oct 2026 (tests/cifp, wingtip.procedures.procedure_drawing).
 const drawings = KBUR as unknown as Record<string, ProcedureDrawing>;
 const ILS = drawings["I08-Y"]!;
 const ILS_LAX = drawings["I08-Y:LAX"]!;

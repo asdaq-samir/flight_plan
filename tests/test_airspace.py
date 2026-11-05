@@ -5,8 +5,8 @@ import pytest
 import shapefile
 from shapely.geometry import Point, Polygon
 
-from vfr import airspace
-from vfr.airspace import _shapefile_is_complete, is_own_surface_area
+from wingtip import airspace
+from wingtip.airspace import _shapefile_is_complete, is_own_surface_area
 
 DEPARTURE = Point(-93.65, 41.53)
 DESTINATION = Point(-95.89, 41.30)
@@ -97,8 +97,8 @@ def test_absent_file_is_rejected(tmp_path):
 
 # --- the hemispheric cruising-altitude rule ---
 
-from vfr.airspace import CLEARANCE_CLASSES  # noqa: E402
-from vfr.altitude import lowest_vfr_cruising_altitude  # noqa: E402
+from wingtip.airspace import CLEARANCE_CLASSES  # noqa: E402
+from wingtip.altitude import lowest_vfr_cruising_altitude  # noqa: E402
 
 EAST, WEST = 90.0, 270.0
 
@@ -234,7 +234,7 @@ def test_an_airports_own_class_is_the_most_restrictive_reaching_the_surface_ther
 # reaches the ground. The detour is the named fix whose two legs keep
 # out of it, adding the least distance, a VFR waypoint before a GPS fix.
 
-from vfr.airspace import DETOUR_CHOICES, _detour_through  # noqa: E402
+from wingtip.airspace import DETOUR_CHOICES, _detour_through  # noqa: E402
 
 # A square of Class B, a tenth of a degree across, on the line from
 # (0, 0) north to (1, 0) -- lon/lat, as the shapefile's.

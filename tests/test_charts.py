@@ -1,4 +1,4 @@
-"""vfr.charts: the FAA chart cycle, the tile grid, finding the chart
+"""wingtip.charts: the FAA chart cycle, the tile grid, finding the chart
 face in a raster, and rendering tiles from more than one sheet."""
 import dataclasses
 import datetime as dt
@@ -14,7 +14,7 @@ from PIL import Image
 from rasterio.transform import from_bounds
 from rasterio.warp import transform_bounds
 
-from vfr import chart_faces, charts
+from wingtip import chart_faces, charts
 
 C81 = (42.3225, -88.0742)  # Campbell, Grayslake IL
 
@@ -432,7 +432,7 @@ def test_detect_face_reads_neatlines_and_where_the_chart_runs_out(tmp_path):
     assert -88.35 <= east <= -88.0                            # the sheet's own edge, less the margin
     assert 43.3 <= north <= 43.55                             # under the boxes, less the margin
 
-    # `python -m vfr.charts` runs vfr.charts as __main__, whose SECTIONAL
+    # `python -m wingtip.charts` runs wingtip.charts as __main__, whose SECTIONAL
     # is an equal but different object from the one chart_faces sees:
     # the sheet must still be read as a sectional (snapped edges).
     same_kind = dataclasses.replace(charts.SECTIONAL)
@@ -1027,7 +1027,7 @@ def test_two_threads_writing_one_tile_use_two_temp_files(tmp_path, monkeypatch):
     shared one temp file."""
     import threading
 
-    from vfr import charts
+    from wingtip import charts
 
     names = []
     real_write = type(tmp_path).write_bytes
@@ -1053,7 +1053,7 @@ def test_two_threads_writing_one_tile_use_two_temp_files(tmp_path, monkeypatch):
 _HOLD = """
 import sys, time
 from pathlib import Path
-from vfr import charts
+from wingtip import charts
 charts.CHART_TILE_CACHE_DIR = Path(sys.argv[1])
 with charts.refresh_lock() as got:
     print("held" if got else "busy", flush=True)

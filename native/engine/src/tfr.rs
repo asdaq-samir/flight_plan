@@ -1,5 +1,5 @@
 //! A TFR's XNOTAM detail file from tfr.faa.gov (detail_X_NNNN.xml), read
-//! for what a pilot needs, as vfr.tfr's `parse_detail` reads it: when it
+//! for what a pilot needs, as wingtip.tfr's `parse_detail` reads it: when it
 //! is in effect, the rule it is issued under, its purpose, and its lowest
 //! floor and highest ceiling over its areas. tests/test_parsers.py holds
 //! the two to the same answer on every TFR the FAA lists.
@@ -7,7 +7,7 @@
 use crate::{json, xml};
 
 /// The rules a TFR is issued under (14 CFR part 91 and 99, and 49 USC
-/// 44812 for drones), as vfr.tfr names them.
+/// 44812 for drones), as wingtip.tfr names them.
 const RULES: [(&str, &str); 11] = [
     ("91.137(a)(1)", "disaster or hazard (91.137(a)(1))"),
     ("91.137(a)(2)", "relief aircraft operations (91.137(a)(2))"),
@@ -123,7 +123,7 @@ fn reference(r: Option<(f64, Reference)>) -> Option<&'static str> {
     r.map(|(_, r)| if r == Reference::Agl { "AGL" } else { "MSL" })
 }
 
-/// The detail as vfr.tfr's dict, JSON.
+/// The detail as wingtip.tfr's dict, JSON.
 pub fn to_json(d: &Detail) -> String {
     let mut out = String::from("{\"effective\":");
     json::opt_string(&mut out, d.effective.as_deref());

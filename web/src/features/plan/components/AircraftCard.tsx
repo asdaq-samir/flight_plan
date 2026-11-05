@@ -19,12 +19,12 @@ import { TEXT } from "../../../lib/text";
 import { aircraftKind, keptKind } from "../../../lib/aircraftKind";
 
 /** What is typed waits this long for the next letter before it is asked
- *  about: each search is a request adsb.lol paces (vfr.traffic). */
+ *  about: each search is a request adsb.lol paces (wingtip.traffic). */
 const TYPING_MS = 500;
 /** A search adsb.lol could not be asked for, asked again this many times… */
 const SEARCH_RETRIES = 3;
 /** …this long apart: past the planner's fifteen-second wait after adsb.lol
- *  turns it away (vfr.traffic BACKOFF_S), in three tries. */
+ *  turns it away (wingtip.traffic BACKOFF_S), in three tries. */
 const SEARCH_RETRY_MS = 6_000;
 
 /** Whether an airplane's callsign, registration or ICAO address begins
@@ -65,7 +65,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
     // address and turns the rest away; the planner then answers with what
     // it can show without it (`checked` false: the airplanes the map has
     // heard, the FAA's record of the one named), and this asks again, past
-    // the planner's fifteen-second wait (vfr.traffic BACKOFF_S), three
+    // the planner's fifteen-second wait (wingtip.traffic BACKOFF_S), three
     // times at most. It was a 503 and "Couldn't search" for N654FL, which
     // the registry knew (seen on 2026-10-11).
     refetchInterval: query => (query.state.data?.checked === false && query.state.dataUpdateCount <= SEARCH_RETRIES ? SEARCH_RETRY_MS : false),
@@ -141,7 +141,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
     <TabPage testId="aircraft-card">
       {(searching || heard.length > 0) && (
         // Credited where ADS-B Exchange answered the search, as the
-        // map credits whose traffic it draws (vfr.traffic find_credited).
+        // map credits whose traffic it draws (wingtip.traffic find_credited).
         <PillSection title="Found" testId="aircraft-found-section">
           <ListGroup footer={answer?.length && found?.source === "ADS-B Exchange" ? "Found by ADS-B Exchange." : undefined}>
             {listed.map(plane => (

@@ -26,7 +26,7 @@ const pointKind = (ident: string) => callEngine<"fix" | "own" | null>("point_kin
 /** A stop's ident: an airport's, or a named fix's -- a VFR waypoint
  *  (VPBNG), a GPS waypoint -- two to five letters and digits; or the
  *  pilot's own point off a fix, its magnetic course or radial and its
- *  distance, nm, "VPBNG/090/30" (the planner's vfr.fixes.parse_frd), or
+ *  distance, nm, "VPBNG/090/30" (the planner's wingtip.fixes.parse_frd), or
  *  packed as a flight plan writes it, "DLH090030"; or "". */
 export function stopOf(value: string | null | undefined): string {
   const ident = (value ?? "").trim().toUpperCase();
@@ -39,7 +39,7 @@ export const isFixIdent = (ident: string) => pointKind(ident) === "fix";
 
 /** A stop that is the pilot's own point off a fix (stopOf): its fix,
  *  course (0 to 359, north 0) and distance, as the planner places it
- *  (vfr.fixes.parse_frd); null for any other, or one whose course is past
+ *  (wingtip.fixes.parse_frd); null for any other, or one whose course is past
  *  360 or whose distance is nothing or past 999 nm. */
 export function frdOf(ident: string): { base: string; course: number; distanceNm: number } | null {
   const frd = callEngine<{ base: string; course: number; distance_nm: number } | null>("frd_read", { text: ident });
@@ -187,7 +187,7 @@ export const altitudesParam = (altitudes: Record<string, number>) =>
   Object.entries(altitudes).map(([ident, ft]) => `${ident}:${ft}`).join(",");
 
 /** An airway as a route's stop, "V100" or "T254" (the planner's
- *  vfr.airways): flown fix by fix between the stops either side of it. By
+ *  wingtip.airways): flown fix by fix between the stops either side of it. By
  *  its form, as the planner first reads it -- an airport whose identifier
  *  has the same form the course names as one. */
 export const isAirwayToken = (ident: string) => /^[VTJQ]\d{1,4}$/.test(ident);

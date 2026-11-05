@@ -1,20 +1,20 @@
-# vfr's own runtime dependencies: the one place they are listed, and the
-# one place each is pinned. Every image that runs vfr installs this file
+# wingtip's own runtime dependencies: the one place they are listed, and the
+# one place each is pinned. Every image that runs wingtip installs this file
 # (planning-service, pipeline-processing, pipeline-training, ml), and so
 # does the test suite, each through a `-r` line in its own requirements
 # file -- which then lists only what that image needs on top.
 #
-# It used to be the other way round: each image repeated vfr's imports,
-# with a comment tracing the import chain, and a new import in vfr was a
-# new line in six files. On 2026-09-22 vfr.geo moved to PROJ and only
+# It used to be the other way round: each image repeated wingtip's imports,
+# with a comment tracing the import chain, and a new import in wingtip was a
+# new line in six files. On 2026-09-22 wingtip.geo moved to PROJ and only
 # planning-service's file was updated; both agents and both pipeline
 # stages then failed on import, and nothing showed it until they were
 # restarted.
 #
-# A new third-party import in src/vfr belongs here -- or in
-# requirements-charts.txt if only vfr.charts/vfr.chartvision need it.
+# A new third-party import in src/wingtip belongs here -- or in
+# requirements-charts.txt if only wingtip.charts/wingtip.chartvision need it.
 # The two agents are the one kind of caller that doesn't install it:
-# they run only vfr.planner_client and vfr.narrative, and take what
+# they run only wingtip.planner_client and wingtip.narrative, and take what
 # those need (requests; pydantic, through their frameworks) in their
 # own files.
 # The CI build job imports what each service imports inside its built
@@ -22,15 +22,15 @@
 #
 # Pinned to what python:3.13-slim resolves; Dependabot keeps the pins
 # moving (.github/dependabot.yml watches /src).
-numpy==2.5.3        # vfr.geo, vfr.features, vfr.osm, vfr.weather
-pandas==3.0.6       # vfr.airports, vfr.faa_data, vfr.features, vfr.pipeline
-requests==2.34.2    # every external source (vfr.retry), vfr.model_client, vfr.planner_client
-cachetools==7.2.1   # vfr.sua's day cache of special-use airspace; planning-service's own caches
-pyarrow==25.0.1     # vfr.faa_data's Parquet cache of the obstacle table; the pipeline's feature store
-shapely==2.1.2      # vfr.airspace polygons, vfr.weather's hazards, vfr.osm's representative points
-pyshp==3.1.6        # vfr.airspace reads the FAA Class Airspace shapefile
-pyproj==3.8.0       # vfr.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
-pydantic==2.13.5    # vfr.narrative -- the agents' request model; what planning-service's FastAPI resolves too
-scipy==1.18.1       # vfr.geo's cluster_points KD-tree (imported at vfr.geo's module level)
-pygeomag==1.1.0     # the oracle tests/test_flight_rules.py holds the engine's WMM-2025 (vfr.magnetic) to
-astral==3.2         # vfr.sun -- civil twilight, which sets the night fuel reserve
+numpy==2.5.3        # wingtip.geo, wingtip.features, wingtip.osm, wingtip.weather
+pandas==3.0.6       # wingtip.airports, wingtip.faa_data, wingtip.features, wingtip.pipeline
+requests==2.34.2    # every external source (wingtip.retry), wingtip.model_client, wingtip.planner_client
+cachetools==7.2.1   # wingtip.sua's day cache of special-use airspace; planning-service's own caches
+pyarrow==25.0.1     # wingtip.faa_data's Parquet cache of the obstacle table; the pipeline's feature store
+shapely==2.1.2      # wingtip.airspace polygons, wingtip.weather's hazards, wingtip.osm's representative points
+pyshp==3.1.6        # wingtip.airspace reads the FAA Class Airspace shapefile
+pyproj==3.8.0       # wingtip.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
+pydantic==2.13.5    # wingtip.narrative -- the agents' request model; what planning-service's FastAPI resolves too
+scipy==1.18.1       # wingtip.geo's cluster_points KD-tree (imported at wingtip.geo's module level)
+pygeomag==1.1.0     # the oracle tests/test_flight_rules.py holds the engine's WMM-2025 (wingtip.magnetic) to
+astral==3.2         # wingtip.sun -- civil twilight, which sets the night fuel reserve

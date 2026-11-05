@@ -121,7 +121,7 @@ to `docker run <image> <args>` (or Compose's `command:`) gets appended as
 arguments to it. `CMD` is the *whole* default command, fully overridable.
 This repo uses `ENTRYPOINT` for the pipeline images specifically so
 `docker compose run --rm pipeline-training retrain` can pass `retrain` as
-an argument to a fixed `python3 -m vfr.pipeline` — see
+an argument to a fixed `python3 -m wingtip.pipeline` — see
 [`docker/Dockerfile.training`](../docker/Dockerfile.training).
 
 ### Multi-stage builds
@@ -167,9 +167,9 @@ from its cache.
 | [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:3.3.1-python3.13` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
 | [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:3.3.1-python3.13` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
 | [`model-service/Dockerfile`](../model-service/Dockerfile) | `python:3.13-slim` | A plain FastAPI service: install deps, copy `app/`, run `uvicorn`. |
-| [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.13-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely). Bind-mounts the repo, so a `src/vfr` edit needs a restart, not a rebuild. |
+| [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.13-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely). Bind-mounts the repo, so a `src/wingtip` edit needs a restart, not a rebuild. |
 | [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:24-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
-| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.13-slim` | Both set `PYTHONPATH=/workspace/src` so `import vfr...` resolves inside the container without installing `vfr` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does (see [the disk lesson](#the-disk-lesson)). |
+| [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.13-slim` | Both set `PYTHONPATH=/workspace/src` so `import wingtip...` resolves inside the container without installing `wingtip` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does (see [the disk lesson](#the-disk-lesson)). |
 
 ### The images those Dockerfiles produce
 
@@ -250,9 +250,9 @@ Per service, four keys matter most:
 
 This is the automatable subset of what a data scientist does by hand,
 turned into three plain functions in
-[`src/vfr/pipeline.py`](../src/vfr/pipeline.py): `collect`,
+[`src/wingtip/pipeline.py`](../src/wingtip/pipeline.py): `collect`,
 `engineer_features`, `retrain`. Plus two more in
-[`src/vfr/model_registry.py`](../src/vfr/model_registry.py): `evaluate`,
+[`src/wingtip/model_registry.py`](../src/wingtip/model_registry.py): `evaluate`,
 `promote`. Five functions, five pipeline stages, one per notebook (01, 02,
 03, 03, 03).
 
@@ -283,7 +283,7 @@ dropped, unnamed lakes dropped because one blue shape among identical
 blue shapes cannot be confirmed as the right one. Each was a real
 discovery, and each was a patch over the same mismatch.
 
-[`src/vfr/chartvision.py`](../src/vfr/chartvision.py) removes the
+[`src/wingtip/chartvision.py`](../src/wingtip/chartvision.py) removes the
 mismatch by reading the chart. A sectional is a cartographic product with
 a fixed palette, so the tiles can be segmented directly: pale blue is
 water, a saturated dark blue line is a watercourse, yellow is a town,
@@ -293,7 +293,7 @@ none of those exclusion rules needs to exist.
 Two details in it are worth more than the colour thresholds. A linear
 feature is reported where the course **crosses** it, not at its centroid —
 the centroid of a river that wanders across a mosaic is a point in a field
-somewhere, and the same realisation is already in `vfr.osm`'s
+somewhere, and the same realisation is already in `wingtip.osm`'s
 `find_line_crossings`. And chart text is drawn in the same ink as roads,
 so "Nepco Lake" and every airport name produced crossings until the
 detector started requiring the thing under one to actually run somewhere:
@@ -316,7 +316,7 @@ and writes them to `data/processed/candidates_c81_kdlh.csv`. If you're new
 to geospatial code, the two ideas worth understanding here are
 **cross-track distance** (how far off the direct line a point is) and
 **along-track distance** (how far along the line, projected) — both live
-in [`src/vfr/geo.py`](../src/vfr/geo.py) and are standard great-circle
+in [`src/wingtip/geo.py`](../src/wingtip/geo.py) and are standard great-circle
 navigation math, not anything ML-specific.
 
 Which categories are collected is itself a data-quality decision, and the
@@ -334,7 +334,7 @@ the FAA's `APT_BASE.csv` rather than OSM or OurAirports, because being
 FAA-registered is what tracks with being drawn: two unregistered private
 strips had nothing at all at their coordinates, while a registered
 private field is drawn as a circled magenta "R". See `CANDIDATE_SPECS` in
-[`src/vfr/osm.py`](../src/vfr/osm.py), where every exclusion is recorded
+[`src/wingtip/osm.py`](../src/wingtip/osm.py), where every exclusion is recorded
 next to the ones that stayed.
 
 ### Engineer features → a model-ready table
@@ -355,7 +355,7 @@ individually). Result: `data/processed/features_c81_kdlh.parquet`.
 ### Retrain → model selection
 
 This is the part worth slowing down on if machine learning is new to you.
-`retrain()` ([`src/vfr/pipeline.py`](../src/vfr/pipeline.py))
+`retrain()` ([`src/wingtip/pipeline.py`](../src/wingtip/pipeline.py))
 does five things, in order, and each is a standard ML pattern you'll see
 in any serious project:
 
@@ -403,7 +403,7 @@ itself by quietly matching the mean.
 
 ### Evaluate/promote → a tiny model registry
 
-[`src/vfr/model_registry.py`](../src/vfr/model_registry.py) implements the
+[`src/wingtip/model_registry.py`](../src/wingtip/model_registry.py) implements the
 **champion/challenger pattern**: `evaluate()` compares the freshly-trained
 "candidate" model against whatever's currently "current" (serving), and
 returns `True` only if the candidate wins (or nothing has been promoted
@@ -522,7 +522,7 @@ constraint rather than a style choice:
   facts a DAG file shouldn't contain, so they're read via
   `Variable.get(...)` and set once after deploy.
 - **Evaluate/Promote stay in-process**, exactly as locally, for the same
-  reason: `vfr.model_registry` is pure standard library, so there's no
+  reason: `wingtip.model_registry` is pure standard library, so there's no
   compute to hand off to anything.
 
 Because the two DAGs can't coexist (the local one would fail to parse on
@@ -554,7 +554,7 @@ the chart palette's constants instead.
 ### Select → the checkpoints actually flown
 
 A scored ranking is not a flight plan.
-[`src/vfr/checkpoints.py`](../src/vfr/checkpoints.py) is the step between
+[`src/wingtip/checkpoints.py`](../src/wingtip/checkpoints.py) is the step between
 them: `select_checkpoints()` walks the model's candidates highest-score
 first and takes each one that sits at least `min_spacing_nm` from
 everything already chosen. On C81→KDLH that turns 206 scored candidates
@@ -582,14 +582,14 @@ for and fail to see.
 Standard Spring Boot layering, and worth knowing even outside this
 project since it's close to an industry-default shape:
 
-- **Controller** ([`AircraftController.java`](../springboot-app/src/main/java/com/northflyers/vfr/controller/AircraftController.java)) —
+- **Controller** ([`AircraftController.java`](../springboot-app/src/main/java/com/northflyers/wingtip/controller/AircraftController.java)) —
   the HTTP boundary. `@RestController` + `@RequestMapping("/api/aircraft")`;
   each method maps to one route+verb (`@GetMapping`, `@PostMapping`,
   `@PutMapping("/{id}")`, `@DeleteMapping("/{id}")`). Controllers should
   stay thin — this one resolves the signed-in pilot, calls into
   `AircraftService` and wraps the result in a `ResponseEntity`, no
   business logic.
-- **Service** ([`AircraftService.java`](../springboot-app/src/main/java/com/northflyers/vfr/service/AircraftService.java)) —
+- **Service** ([`AircraftService.java`](../springboot-app/src/main/java/com/northflyers/wingtip/service/AircraftService.java)) —
   the actual logic, and where pilot-scoping lives: every lookup goes
   through `findByIdAndPilotId`, so one pilot can never read or edit
   another's aeroplane by guessing an id.
@@ -652,10 +652,10 @@ Where the model gets called is worth noticing by its absence: nowhere in
 this service. Scoring a route belongs to `planning-service`, which
 `webapp` only proxies (`PlannerProxyController`, `/api/planner/*`), and
 planning-service reaches the model through one shared module,
-[`vfr.model_client`](../src/vfr/model_client.py): an HTTP call to
+[`wingtip.model_client`](../src/wingtip/model_client.py): an HTTP call to
 `model-service`'s `/score-detections`. Only planning-service imports it: the Gen AI agents
 ask planning-service itself for the nav log (through
-[`vfr.planner_client`](../src/vfr/planner_client.py)), so there is one
+[`wingtip.planner_client`](../src/wingtip/planner_client.py)), so there is one
 client to get right and one place a nav log is built.
 
 **Schema ownership**: this app does *not* let Hibernate auto-generate or
@@ -721,7 +721,7 @@ This is the right choice whenever you actually know the steps your task
 needs; you're using LangGraph here for state management and
 observability, not because you need an LLM to decide what to do next.
 
-It used to be seven. The first four assembled the nav log from `vfr`'s
+It used to be seven. The first four assembled the nav log from `wingtip`'s
 pieces -- checkpoints, selection, one altitude, legs -- and so briefed a
 nav log nobody else saw: no legs to or from the airports, one altitude
 for the whole route, no climbs. `fetch_nav_log` asks planning-service
@@ -801,7 +801,7 @@ full ORM/migration framework — see [Section 6](#6-database-migrations).
 
 [`crewai-agent/app/tools.py`](../crewai-agent/app/tools.py) wraps the
 *exact same* planner answers nav-log-agent uses (planning-service's
-checkpoints, altitude breakdown and plan, through `vfr.planner_client`)
+checkpoints, altitude breakdown and plan, through `wingtip.planner_client`)
 as three `@tool`-decorated functions, each with a
 docstring the LLM reads to decide when/whether to call it. The structural
 difference from LangGraph: instead of you wiring a fixed sequence of
@@ -956,9 +956,9 @@ mocked" or "there are no tests." This one draws the line by asking what a
 given test would actually prove.
 
 **Pure logic gets unit tests.** `tests/` (pytest) covers the
-parts of `src/vfr` that are functions of their inputs and nothing else:
-great-circle math in `vfr.geo`, engineered features, the
-wind-correction-angle math in `vfr.navlog`, `model_registry`'s
+parts of `src/wingtip` that are functions of their inputs and nothing else:
+great-circle math in `wingtip.geo`, engineered features, the
+wind-correction-angle math in `wingtip.navlog`, `model_registry`'s
 evaluate/promote decision, and the remote-URI guards. These are fast,
 deterministic, and worth having because the math is genuinely easy to get
 subtly wrong.
@@ -990,7 +990,7 @@ method produce a 405 rather than a leaky 500. Booting a database to
 answer those questions would only slow them down.
 
 **Integration points get real infrastructure.**
-[`FlightPersistenceTest`](../springboot-app/src/test/java/com/northflyers/vfr/FlightPersistenceTest.java)
+[`FlightPersistenceTest`](../springboot-app/src/test/java/com/northflyers/wingtip/FlightPersistenceTest.java)
 starts an actual Postgres via Testcontainers, because the things it
 verifies can only be verified against a real database: that Flyway's
 migrations apply in order, that `ddl-auto: validate` agrees the JPA
@@ -1007,7 +1007,7 @@ migrated schema *in CI* turns that into a failing build instead.
 
 **Some things are left to manual verification, on purpose.** Anything
 requiring live network calls or a trained model — `collect`,
-`engineer_features`, `retrain`, `vfr.altitude`, `vfr.airspace` — isn't
+`engineer_features`, `retrain`, `wingtip.altitude`, `wingtip.airspace` — isn't
 unit-tested. Mocking the Overpass API or the FAA's data format would test
 the mock, not the integration, and the real value in those paths is
 whether live upstream data still parses. Those get exercised by running

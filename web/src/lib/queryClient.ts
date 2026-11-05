@@ -251,7 +251,7 @@ export const nearestQuery = (lat: number, lon: number) => {
 };
 
 /** A tracked flight's airplane, where it took off and its path today
- *  (vfr.traffic.flight): read again every minute while it is tracked, by
+ *  (wingtip.traffic.flight): read again every minute while it is tracked, by
  *  its card and the map's path alike. Quiet: the card says what it has. */
 export const flightQuery = (hex: string) => queryOptions({
   queryKey: ["flight", hex], queryFn: () => api.trafficFlight(hex), staleTime: 60_000, refetchInterval: 60_000,
@@ -269,7 +269,7 @@ export const flightStatusQuery = (hex: string) => queryOptions({
 });
 
 /** The route a tracked flight's number is scheduled to fly, asked once a
- *  callsign (vfr.traffic.route; the planner keeps it six hours): where the
+ *  callsign (wingtip.traffic.route; the planner keeps it six hours): where the
  *  airplane is says whether it is on it, so the position, to a degree, is
  *  in the key and a diversion or a reused callsign is asked again. Quiet,
  *  as the flight's. */
@@ -301,7 +301,7 @@ export const airportQuery = (ident: string) => queryOptions({
   queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000, meta: { silent: true },
 });
 
-/** A procedure picked, drawn as the planner draws it (vfr.procedures):
+/** A procedure picked, drawn as the planner draws it (wingtip.procedures):
  *  one query for the map's drawing, the planner's descent and the approach
  *  lesson (ApproachLesson) alike. */
 export const procedureQuery = (p: { ident: string; id: string; transition: string | null }) => ({
@@ -354,7 +354,7 @@ export const routeOptionsQuery = (...args: Parameters<typeof api.routeOptions>) 
 });
 
 /** An approach's plate placed on the map, and whether it publishes
- *  circling minimums (vfr.plates): the map's (PlateLayer) and the route's
+ *  circling minimums (wingtip.plates): the map's (PlateLayer) and the route's
  *  runway chips' (ProceduresRoute). A plate placed stays good for its
  *  cycle's 28 days; none placed is said by none drawn, not a retry. */
 export const plateQuery = (airport: string, id: string) => queryOptions({

@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-# >>> vfr-native: the same in every image that imports vfr, kept so by
-# tests/test_dockerfiles.py against docker/Dockerfile.native. vfr's Rust
-# extension (native/py, over wingtip-engine in native/engine), which vfr
+# >>> wingtip-native: the same in every image that imports wingtip, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. wingtip's Rust
+# extension (native/py, over wingtip-engine in native/engine), which wingtip
 # imports at module level since the shared engine (2026-11-03): built
 # here, with Rust copied in from its own image, so the image carries the
 # wheel and none of the toolchain. The stage is the same text in each
@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
 COPY native /native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
-# <<< vfr-native
+# <<< wingtip-native
 
 FROM python:3.13-slim
 
@@ -42,7 +42,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # Fargate mounts nothing and writes the cycle's sheets and tiles there.
 RUN useradd -m appuser && mkdir -p /workspace/data && chown appuser:appuser /workspace/data
 
-# The service's own list includes vfr's (-r ../src/requirements-charts.txt),
+# The service's own list includes wingtip's (-r ../src/requirements-charts.txt),
 # so both are copied to where that relative path points.
 COPY src/requirements.txt src/requirements-charts.txt /workspace/src/
 COPY planning-service/requirements.txt .
@@ -60,10 +60,10 @@ USER appuser
 ENV PYTHONPATH=/workspace/src
 # The build fails here if a package this image's code imports is
 # missing, rather than the container on its next start: on 2026-09-22 a
-# new import in vfr left both agents and both pipeline stages unable to
+# new import in wingtip left both agents and both pipeline stages unable to
 # start, and every build passed. The lazy imports are named too, as
 # importing the entry module does not reach them.
-RUN python -B -c "import app.main, vfr_native, rasterio.vrt, rasterio.warp, rasterio.features, affine, scipy.ndimage, boto3, pyarrow.parquet, shapely.ops"
+RUN python -B -c "import app.main, wingtip_native, rasterio.vrt, rasterio.warp, rasterio.features, affine, scipy.ndimage, boto3, pyarrow.parquet, shapely.ops"
 # GDAL's block cache defaults to 5% of the machine's RAM and holds
 # decoded chart raster blocks across tile renders; bounded, so that
 # rendering a screenful of zoomed-out tiles (each reading a wide window

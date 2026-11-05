@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from vfr.model_registry import PROMOTION_METRIC, _reject_remote_uri, evaluate, promote
+from wingtip.model_registry import PROMOTION_METRIC, _reject_remote_uri, evaluate, promote
 
 
 def _write_metrics(directory, mae):

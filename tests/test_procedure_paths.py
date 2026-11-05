@@ -1,9 +1,9 @@
-"""The way the procedures picked are flown (vfr.procedure_paths): the path
+"""The way the procedures picked are flown (wingtip.procedure_paths): the path
 the planner lengthens a leg by and the web app's dry run flies."""
 import pytest
 
-from vfr import geo
-from vfr.procedure_paths import approach_path, flown, length_nm, missed_path, procedure_path, vectors_join
+from wingtip import geo
+from wingtip.procedure_paths import approach_path, flown, length_nm, missed_path, procedure_path, vectors_join
 
 
 def fix(ident, lat, lon, roles=(), min_ft=None, missed=False):
@@ -14,7 +14,7 @@ def near(a, b, nm=0.05):
     return geo.distance_nm(a[0], a[1], b[0], b[1]) < nm
 
 
-# Duluth's ILS RWY 27 via DLH, as vfr.procedures draws it (2026-10 cycle):
+# Duluth's ILS RWY 27 via DLH, as wingtip.procedures draws it (2026-10 cycle):
 # the transition DLH to ANDOE, the final from WIRSA through ANDOE to the
 # runway.
 ILS27_DLH = {
@@ -169,7 +169,7 @@ def test_sent_direct_to_a_fix_the_procedure_is_flown_from_it_straight_there():
 
 # A final westbound from its IAF to the runway, a hold in lieu of a
 # procedure turn at the IAF on the final's course, right turns, two-mile
-# legs (as vfr.procedures draws a coded HF).
+# legs (as wingtip.procedures draws a coded HF).
 IAF, FAF, RWY = (43.0, -88.0), (43.0, -88.2), (43.0, -88.4)
 
 
@@ -207,7 +207,7 @@ def test_from_the_near_side_the_first_fixs_hold_is_not_flown():
 
 
 def test_a_hold_is_entered_as_the_aim_says_by_the_course_it_is_come_to_on():
-    from vfr.procedure_paths import _entered
+    from wingtip.procedure_paths import _entered
     hold = hilpt_approach()["holds"][0]
     inbound = hold["inbound_deg"]
     # Arriving on the outbound course, 180° off the inbound (right turns):
@@ -291,7 +291,7 @@ def test_a_transition_that_is_its_fix_alone_is_flown_from_that_fix_round_its_pro
 def test_a_leg_with_runways_picked_is_flown_out_by_its_upwind_and_in_by_the_pattern():
     """C81 to UGN with 24 and 5 picked: off the runway's threshold, round
     UGN's pattern and down onto 5's threshold, not to the field's middle."""
-    from vfr import pattern
+    from wingtip import pattern
     ugn = {"runway_ends": [
         {"ident": "05", "heading_true_deg": 49.0, "traffic": "left", "lat": 42.4176, "lon": -87.8742},
         {"ident": "23", "heading_true_deg": 229.0, "traffic": "right", "lat": 42.4268, "lon": -87.8593},
@@ -312,7 +312,7 @@ def test_a_leg_with_runways_picked_is_flown_out_by_its_upwind_and_in_by_the_patt
 
 
 def test_the_pattern_alone_is_a_landing_and_nothing_picked_is_the_route():
-    from vfr import pattern
+    from wingtip import pattern
     ugn = {"runway_ends": [
         {"ident": "05", "heading_true_deg": 49.0, "traffic": "left", "lat": 42.4176, "lon": -87.8742},
         {"ident": "23", "heading_true_deg": 229.0, "traffic": "right", "lat": 42.4268, "lon": -87.8593},

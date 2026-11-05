@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
-from vfr.aircraft import load_aircraft_profile
+from wingtip.aircraft import load_aircraft_profile
 
 from app.main import app
 from app.routers import gonogo

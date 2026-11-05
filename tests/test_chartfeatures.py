@@ -1,9 +1,9 @@
 """The chart-vision feature table.
 
-What vfr.chartmodel learns from: the reproducible basis, too, for a
+What wingtip.chartmodel learns from: the reproducible basis, too, for a
 measurement the docs record -- on the 77 bootstrap labels available, no
 model beat predicting the mean. It had no tests at all while its two
-clutter measures were rewritten from nested Python loops onto vfr.geo's
+clutter measures were rewritten from nested Python loops onto wingtip.geo's
 KD-tree.
 
 These pin what those two measure, so the model is learning the
@@ -13,8 +13,8 @@ import math
 
 import pytest
 
-from vfr.chartfeatures import CHART_CATEGORIES, FEATURE_COLS, build
-from vfr.geo import destination_point
+from wingtip.chartfeatures import CHART_CATEGORIES, FEATURE_COLS, build
+from wingtip.geo import destination_point
 
 
 def _detection(lat, lon, category="water", area_m2=10_000.0, pixels=500.0, cross_track_nm=0.0):

@@ -11,8 +11,8 @@ from pathlib import Path
 
 import requests
 from fastapi import APIRouter, HTTPException
-from vfr import chartlabels, charts, checkpoint_notes, model_registry, weather
-from vfr.terrain import DEFAULT_FAA_CACHE_DIR
+from wingtip import chartlabels, charts, checkpoint_notes, model_registry, weather
+from wingtip.terrain import DEFAULT_FAA_CACHE_DIR
 
 from .. import chart_model, chart_refresh, errors
 from ..common import PROCESSED_DIR, paths
@@ -54,7 +54,7 @@ AIRFLOW_DAG_ID = os.environ.get("AIRFLOW_DAG_ID", "vfr_pipeline")
 AIRFLOW_PASSWORDS_FILE = os.environ.get("AIRFLOW_PASSWORDS_FILE")
 PROBE_TIMEOUT_S = 3.0
 
-# The FAA downloads a nav log depends on, wherever vfr keeps them.
+# The FAA downloads a nav log depends on, wherever wingtip keeps them.
 FAA_FILES = ("DOF.DAT", "NAV_BASE.csv", "APT_BASE.csv", "Shape_Files/Class_Airspace.shp")
 CANDIDATE_FRAMEWORKS = ("pytorch", "tensorflow", "spark")
 
@@ -154,7 +154,7 @@ def _versions() -> list[ModelVersion]:
 
 
 def _candidates() -> list[CandidateModel]:
-    """The other frameworks' own models (vfr.model_candidates), which the
+    """The other frameworks' own models (wingtip.model_candidates), which the
     registry compares against but never promotes."""
     out = []
     for name in CANDIDATE_FRAMEWORKS:

@@ -68,7 +68,7 @@ def ceiling_and_visibility(ceiling_ft: float | None, visibility_sm: float | None
 
 
 #: An altitude plan's name (features/plan/format PLAN_NAME): the planner's
-#: four (vfr.navlog.altitude_profiles).
+#: four (wingtip.navlog.altitude_profiles).
 PLAN_NAME = {"lowest": "Lowest", "highest": "Highest", "fastest": "Fastest", "economical": "Economical"}
 
 #: What each weather source is called when a pilot is told it could not
@@ -84,7 +84,7 @@ WEATHER_SOURCE_LABEL = {
 
 # The FAA's own words in the app's -- its capitals in sentence case, the
 # advisories' intensities and hazards -- are the shared engine's
-# (wingtip_engine::wording, through vfr_native.call), the web's and the
+# (wingtip_engine::wording, through wingtip_native.call), the web's and the
 # phones' very rules: the verdict's lines are compared word for word.
 
 

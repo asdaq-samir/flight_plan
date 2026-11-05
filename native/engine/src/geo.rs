@@ -1,11 +1,11 @@
-//! Distances as vfr.geo has them: great circles on a sphere of 3,440.065
-//! nm, the approximation flight computers use (vfr.geo's own docstring),
+//! Distances as wingtip.geo has them: great circles on a sphere of 3,440.065
+//! nm, the approximation flight computers use (wingtip.geo's own docstring),
 //! which PROJ works out for the planner and this for the phones. The
 //! central angle by the atan2 form of Vincenty's formula for a sphere,
 //! well-conditioned at every distance, so the two agree to a few
 //! micrometres.
 
-/// vfr.geo's EARTH_RADIUS_NM.
+/// wingtip.geo's EARTH_RADIUS_NM.
 pub const EARTH_RADIUS_NM: f64 = 3440.065;
 
 /// The great-circle distance in nautical miles between two points in degrees.
@@ -21,8 +21,8 @@ pub fn distance_nm(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 }
 
 /// The initial great-circle bearing from point one to point two, degrees
-/// 0 to 360 true (vfr.geo.bearing_deg, PROJ's forward azimuth on the same
-/// sphere). Zero for two points that coincide, as vfr.geo answers: PROJ's
+/// 0 to 360 true (wingtip.geo.bearing_deg, PROJ's forward azimuth on the same
+/// sphere). Zero for two points that coincide, as wingtip.geo answers: PROJ's
 /// own 180 would give a zero-length leg a due-south course.
 pub fn bearing_deg(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     if distance_nm(lat1, lon1, lat2, lon2) == 0.0 {
@@ -49,7 +49,7 @@ pub fn destination(lat: f64, lon: f64, bearing: f64, nm: f64) -> (f64, f64) {
 }
 
 /// How far apart two directions are, degrees 0 to 180, either way round
-/// the compass (358 is 4 from 002): vfr.geo.angle_between.
+/// the compass (358 is 4 from 002): wingtip.geo.angle_between.
 pub fn angle_between(a: f64, b: f64) -> f64 {
     (py_mod(a - b + 180.0, 360.0) - 180.0).abs()
 }
@@ -74,7 +74,7 @@ mod tests {
 
     #[test]
     fn distances_are_vfr_geos() {
-        // pyproj.Geod(a=3440.065, f=0).inv, as vfr.geo.distance_nm: O'Hare
+        // pyproj.Geod(a=3440.065, f=0).inv, as wingtip.geo.distance_nm: O'Hare
         // to Midway, Duluth to St Louis.
         let ord_mdw = distance_nm(41.9786, -87.9048, 41.7868, -87.7522);
         assert!((ord_mdw - 13.384_450_662_612_632).abs() < 1e-9, "{ord_mdw}");

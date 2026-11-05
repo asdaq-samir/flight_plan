@@ -1,5 +1,5 @@
 //! The Aircraft tab's filters, for an FBO's desk as much as a pilot's:
-//! each a plain test on an airplane the planner gives (vfr.traffic), so
+//! each a plain test on an airplane the planner gives (wingtip.traffic), so
 //! the list and its tests agree.
 
 use crate::geo::{angle_between, bearing_deg, distance_nm};

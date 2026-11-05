@@ -170,7 +170,7 @@ class OwnShip private constructor(private val context: Context) {
 
     /** What is ahead, asked of the latest fix every ten seconds while
      *  moving (the clock's, Ticker): the planner looks five minutes along
-     *  the track (vfr.alerts). The asking is a job of its own, so the
+     *  the track (wingtip.alerts). The asking is a job of its own, so the
      *  next question cancels one still unanswered. */
     private fun askAhead() {
         val fix = _fix.value ?: return

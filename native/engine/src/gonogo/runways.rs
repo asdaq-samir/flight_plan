@@ -129,7 +129,7 @@ pub fn runway_checks(airplane: &Airplane, briefed: bool, fields: &[Field], takeo
                 None => 0.0,
             };
             // A variable wind (VRB, AIM 7-1-28) gives the planner no runway
-            // components (vfr.runway_wind): all of it may be across, gusts
+            // components (wingtip.runway_wind): all of it may be across, gusts
             // included, as the minimums take it.
             let crosswind = match (w, metar) {
                 (Some(w), _) => runway_crosswind_kt(w),

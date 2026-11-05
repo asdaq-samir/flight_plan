@@ -1,11 +1,11 @@
-"""vfr.alternates: 14 CFR 91.169 read from a TAF and the d-TPP's charts --
+"""wingtip.alternates: 14 CFR 91.169 read from a TAF and the d-TPP's charts --
 the destination's "1-2-3" an hour either side of the ETA (2,000 ft and 3
 sm, an instrument approach published), and an alternate's minimums at
 its ETA (600-2 with an ILS, 800-2 without, its own where it publishes
 them). The TAFs and charts are made here; the figures are the rule's."""
 import pytest
 
-from vfr import alternates, publications, weather
+from wingtip import alternates, publications, weather
 
 ETA = 1_800_000_000.0   # an hour boundary
 HOUR = 3600.0

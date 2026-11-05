@@ -102,7 +102,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   asked?: { ft: number; nearest: boolean } | null;
   /** No legal altitude on the route: the group red, its card saying why. */
   problem?: boolean;
-  /** A leg where no 500 ft step fits (vfr.altitude's tight altitude). */
+  /** A leg where no 500 ft step fits (wingtip.altitude's tight altitude). */
   tight?: string | null;
   /** Flies the whole route at an altitude of the pilot's own, feet. */
   onFlyAltitude: (feet: number) => void;
@@ -431,7 +431,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           strip under its profile does: the highest ground along the route,
           the room over it, and where the route first meets ground at or
           over the altitude; live as the graph is dragged (data-live). The
-          planner's ground samples along the route's line (vfr.profile),
+          planner's ground samples along the route's line (wingtip.profile),
           not a corridor round it, and no obstacles: the planner's legal
           altitudes keep the 14 CFR 91.119 and 91.177 margins over those. */}
       {shownAt !== null && check(shownAt) && (

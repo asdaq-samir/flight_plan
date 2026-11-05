@@ -2,7 +2,7 @@
 import datetime as dt
 
 from fastapi.testclient import TestClient
-from vfr import traffic
+from wingtip import traffic
 
 from app.main import app
 

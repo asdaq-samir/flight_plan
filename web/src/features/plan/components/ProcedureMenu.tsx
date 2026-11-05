@@ -216,7 +216,7 @@ export default function ProcedureMenu({ ident, kind, list, loading, picked, labe
         ) : page && "direct" in page && picked ? (
           // A fix ATC sent the airplane to, at the owner's ask ("the ability
           // to go direct to a fix as told by ATC"): the procedure flown from
-          // there, straight to it (vfr.procedure_paths), or as charted.
+          // there, straight to it (wingtip.procedure_paths), or as charted.
           choices(picked.direct ?? NO_CHOICE, "Direct to", (
             <ListGroup>
               {[null, ...fixes].map(f => (

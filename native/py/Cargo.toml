@@ -1,11 +1,11 @@
 [package]
-name = "vfr_native"
+name = "wingtip_native"
 version = "0.1.0"
 edition = "2021"
 publish = false
 
 [lib]
-name = "vfr_native"
+name = "wingtip_native"
 crate-type = ["cdylib"]
 
 [dependencies]

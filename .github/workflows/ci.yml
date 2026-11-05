@@ -91,8 +91,8 @@ jobs:
           python-version: "3.13"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
-      # vfr's Rust extension (native/), which vfr.route_options and
-      # vfr.airspace_at import: built with the runner's own Rust, in the
+      # wingtip's Rust extension (native/), which wingtip.route_options and
+      # wingtip.airspace_at import: built with the runner's own Rust, in the
       # light `ci` profile (the image's is the release one; the sums are
       # the same either way, as nothing here is built for fast maths).
       - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
@@ -109,23 +109,23 @@ jobs:
             echo "::error title=Engine wasm out of date::web/src/lib/engine/wingtip-engine.wasm is not what native/ builds: run scripts/build-engine-wasm.sh and commit the file."
             exit 1
           }
-      - run: ruff check src/vfr tests
+      - run: ruff check src/wingtip tests
       - run: pytest tests/ -v
-      # vfr's API documentation, from its docstrings. pdoc imports every
+      # wingtip's API documentation, from its docstrings. pdoc imports every
       # module, so one that stops importing fails the job here. It needs
-      # vfr's own list, installed above, and the CPU torch wheel for
-      # vfr.torch_model -- the one module that imports a framework at its
+      # wingtip's own list, installed above, and the CPU torch wheel for
+      # wingtip.torch_model -- the one module that imports a framework at its
       # top; the rest import theirs inside the functions that use them.
       # After the tests, so they run with the packages they always had.
-      - name: pdoc (src/vfr)
+      - name: pdoc (src/wingtip)
         run: |
           uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
           uv pip install --system pdoc
-          PYTHONPATH=src python -m pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source
+          PYTHONPATH=src python -m pdoc src/wingtip -o /tmp/pdoc-wingtip --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
-          name: pdoc-vfr
-          path: /tmp/pdoc-vfr
+          name: pdoc-wingtip
+          path: /tmp/pdoc-wingtip
           retention-days: 30
 
   # The web front end. Its own job because it needs Node rather than
@@ -218,7 +218,7 @@ jobs:
   # planning-service's own FastAPI-layer suite. Separate job for the same
   # reason as test-webapp: its own dependency set (requirements-dev.txt,
   # on top of the service's own requirements.txt), and no reason to gate
-  # it on the root `test` job's unrelated src/vfr dependencies.
+  # it on the root `test` job's unrelated src/wingtip dependencies.
   test-planning-service:
     runs-on: ubuntu-26.04
     needs: [changes]
@@ -233,7 +233,7 @@ jobs:
           python-version: "3.13"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
-      # The planner imports vfr's Rust extension (native/), as in the test job.
+      # The planner imports wingtip's Rust extension (native/), as in the test job.
       - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
       - run: ruff check app tests
       - run: pytest tests/ -v
@@ -420,7 +420,7 @@ jobs:
               - springboot-app/**
               - infra/lambda-retrain-trigger/**
             # The images, each by what its Dockerfile reads: native/** for
-            # every one with the vfr-native stage (docker/Dockerfile.native).
+            # every one with the wingtip-native stage (docker/Dockerfile.native).
             ml:
               - docker/Dockerfile.ml
               - docker/requirements-ml*.txt
@@ -820,7 +820,7 @@ jobs:
             data/raw/*
             !data/raw/charts.nosync
             !data/raw/chart_tiles.nosync
-          key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
+          key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/wingtip/faa_data.py', 'src/wingtip/airports.py', 'src/wingtip/elevation.py', 'src/wingtip/charts.py') }}
           restore-keys: planner-data-v1-
       # v4: the charts cache with the corridor's detections in it as well
       # -- the planner keeps a finished read of the corridor beside the
@@ -943,7 +943,7 @@ jobs:
         id: cycle
         if: matrix.shard == 1
         env:
-          READER: ${{ hashFiles('src/vfr/chartvision.py', 'planning-service/app/detection.py') }}
+          READER: ${{ hashFiles('src/wingtip/chartvision.py', 'planning-service/app/detection.py') }}
         run: |
           cycle=$(curl -sf http://localhost:8084/api/status | python3 -c 'import json, sys; print(json.load(sys.stdin)["charts"]["cycle"])')
           echo "cycle=$cycle" >> "$GITHUB_OUTPUT"
@@ -1439,7 +1439,7 @@ jobs:
   #
   # The Python documentation (pdoc) is made by the test, test-nav-log-agent
   # and test-crewai-agent jobs, each from the packages its tests have just
-  # installed, and uploaded as pdoc-vfr, pdoc-nav-log-agent and
+  # installed, and uploaded as pdoc-wingtip, pdoc-nav-log-agent and
   # pdoc-crewai-agent. This job used to build the ML, nav-log-agent and
   # crewai-agent images for pdoc's sake: the image builds' work a second
   # time, 3.6 to 9.8 minutes and the longest job of a run, and so on

@@ -32,7 +32,7 @@ const DR_CORRIDOR_NM = 0.5;
 
 /**
  * The categories a point has actually been seen carrying, from
- * `CANDIDATE_SPECS` in `src/vfr/osm.py` (`lake_or_pond`, `reservoir`,
+ * `CANDIDATE_SPECS` in `src/wingtip/osm.py` (`lake_or_pond`, `reservoir`,
  * `stadium`, `town`), the FAA-sourced and synthetic ones assigned
  * elsewhere in that pipeline (`airport`, `tower`, `vor`, `wind_farm`,
  * `intersection`), and what a manual add or a chart reading has produced
@@ -89,7 +89,7 @@ export function hasRating(point: Point): boolean {
   return rating !== null && rating !== undefined;
 }
 
-/** The chart model's rating for a detection (vfr.chartmodel) as words,
+/** The chart model's rating for a detection (wingtip.chartmodel) as words,
  *  "model 3.4"; null where there is none -- no model promoted yet, a
  *  point added by hand, or a corridor read for the first time, whose
  *  points are scored once it has been read whole. */

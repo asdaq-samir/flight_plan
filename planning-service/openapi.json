@@ -2,7 +2,7 @@
   "components": {
     "schemas": {
       "AheadAlert": {
-        "description": "One thing ahead of the airplane (vfr.alerts): airspace, a special-\nuse area or a TFR its track goes into in the next five minutes, or the\nground or an obstacle it comes within 500 ft of in the next minute.\n`seconds` and `distance_nm` are how long and how far until it at the\nground speed, 0 where it is now; `lat`/`lon` where the track meets it\n(the obstacle itself, the ground's highest point).",
+        "description": "One thing ahead of the airplane (wingtip.alerts): airspace, a special-\nuse area or a TFR its track goes into in the next five minutes, or the\nground or an obstacle it comes within 500 ft of in the next minute.\n`seconds` and `distance_nm` are how long and how far until it at the\nground speed, 0 where it is now; `lat`/`lon` where the track meets it\n(the obstacle itself, the ground's highest point).",
         "properties": {
           "ceiling_ft": {
             "anyOf": [
@@ -149,7 +149,7 @@
         "type": "object"
       },
       "AircraftBases": {
-        "description": "Where airplanes are based (vfr.traffic.based): the field their last\nflights keep to, or None where none; those still being looked up are\npending, given on a later ask.",
+        "description": "Where airplanes are based (wingtip.traffic.based): the field their last\nflights keep to, or None where none; those still being looked up are\npending, given on a later ask.",
         "properties": {
           "based": {
             "additionalProperties": {
@@ -182,7 +182,7 @@
       },
       "AircraftProfile": {
         "additionalProperties": true,
-        "description": "The aircraft's name plus its performance profile -- every field a\ndata/aircraft/*.json file carries, declared, so a page reads them as\nfields rather than guessing at a dict. The three figures after the\nname are required when a profile is loaded (REQUIRED_FIELDS in\nvfr.aircraft); the rest fall back to defaults in vfr.navlog when a\nprofile leaves them out. `extra=\"allow\"` keeps a field a newer\nprofile adds on its way through.",
+        "description": "The aircraft's name plus its performance profile -- every field a\ndata/aircraft/*.json file carries, declared, so a page reads them as\nfields rather than guessing at a dict. The three figures after the\nname are required when a profile is loaded (REQUIRED_FIELDS in\nwingtip.aircraft); the rest fall back to defaults in wingtip.navlog when a\nprofile leaves them out. `extra=\"allow\"` keeps a field a newer\nprofile adds on its way through.",
         "properties": {
           "climb_fuel_burn_gph": {
             "anyOf": [
@@ -413,7 +413,7 @@
         "type": "object"
       },
       "AircraftRegistration": {
-        "description": "A US airplane's record in the FAA's aircraft registry (vfr.registry,\nthe Releasable Aircraft Database): who it is registered to and where,\nwhat it is, its engine, and its registration's and airworthiness\ncertificates. The owner's town, never the street; an owner who asked\nthe FAA to withhold their name (49 U.S.C. 44114(b)) is not in it.",
+        "description": "A US airplane's record in the FAA's aircraft registry (wingtip.registry,\nthe Releasable Aircraft Database): who it is registered to and where,\nwhat it is, its engine, and its registration's and airworthiness\ncertificates. The owner's town, never the street; an owner who asked\nthe FAA to withhold their name (49 U.S.C. 44114(b)) is not in it.",
         "properties": {
           "aircraft_type": {
             "anyOf": [
@@ -1027,7 +1027,7 @@
         "type": "object"
       },
       "AirportPin": {
-        "description": "A landing field the map can open a card for: the ident pilots use,\nwhere it is, and its size -- the bigger ones are kept when a wide\nview holds more than the map asks for. `flight_category` is the\nfield's METAR's (VFR, MVFR, IFR, LIFR), for the map's weather chip:\nNone where it has no reporting station, or the weather could not be\nasked. `military` is a field the armed services own (the FAA's\nairport file, vfr.faa_data.military_fields): \"military\" where a civil\nairplane lands only with the service's permission, \"joint\" where a\ncivil airport shares it; None for every other field.",
+        "description": "A landing field the map can open a card for: the ident pilots use,\nwhere it is, and its size -- the bigger ones are kept when a wide\nview holds more than the map asks for. `flight_category` is the\nfield's METAR's (VFR, MVFR, IFR, LIFR), for the map's weather chip:\nNone where it has no reporting station, or the weather could not be\nasked. `military` is a field the armed services own (the FAA's\nairport file, wingtip.faa_data.military_fields): \"military\" where a civil\nairplane lands only with the service's permission, \"joint\" where a\ncivil airport shares it; None for every other field.",
         "properties": {
           "airspace_class": {
             "anyOf": [
@@ -1420,7 +1420,7 @@
         "type": "object"
       },
       "AirportServices": {
-        "description": "What a field offers a pilot who lands there: from its Chart\nSupplement entry (NASR's APT_BASE and its remarks) the fuel, fees,\nparking, repair and oxygen, and from Overture Maps (vfr.nearby) the\nplaces to eat, sleep and hire a car within five miles.\n`nearby_unavailable` where Overture could not be read: not the same\nas nothing near.",
+        "description": "What a field offers a pilot who lands there: from its Chart\nSupplement entry (NASR's APT_BASE and its remarks) the fuel, fees,\nparking, repair and oxygen, and from Overture Maps (wingtip.nearby) the\nplaces to eat, sleep and hire a car within five miles.\n`nearby_unavailable` where Overture could not be read: not the same\nas nothing near.",
         "properties": {
           "airframe_repair": {
             "anyOf": [
@@ -1699,7 +1699,7 @@
         "type": "object"
       },
       "AirspaceBand": {
-        "description": "One class of airspace over a point, from `floor_ft` to\n`ceiling_ft` MSL (vfr.airspace_at): its name where it is a B, C or\nD; the VFR minimums in it (None in A); what it takes to go in; the\nequipment it asks for; and the 91.117 speed limit there.",
+        "description": "One class of airspace over a point, from `floor_ft` to\n`ceiling_ft` MSL (wingtip.airspace_at): its name where it is a B, C or\nD; the VFR minimums in it (None in A); what it takes to go in; the\nequipment it asks for; and the 91.117 speed limit there.",
         "properties": {
           "ceiling_ft": {
             "title": "Ceiling Ft",
@@ -1836,7 +1836,7 @@
         "type": "object"
       },
       "AirspaceVolume": {
-        "description": "One Class B, C or D volume in the map's view (vfr.airspace_map):\none shelf of a Class B, the surface area or a shelf of a Class C, or\na Class D, with its altitudes as the FAA's Class Airspace file has\nthem and its boundary as lines of [lat, lon] clipped to the box.",
+        "description": "One Class B, C or D volume in the map's view (wingtip.airspace_map):\none shelf of a Class B, the surface area or a shelf of a Class C, or\na Class D, with its altitudes as the FAA's Class Airspace file has\nthem and its boundary as lines of [lat, lon] clipped to the box.",
         "properties": {
           "airspace_class": {
             "enum": [
@@ -3410,7 +3410,7 @@
         "type": "object"
       },
       "ChartModelSnapshot": {
-        "description": "The promoted chart model (vfr.chartmodel), against what it has to\nbeat on the ratings it held out: the palette's constants\n(`palette_held_out_mae`) and the training ratings' mean. The\nplanner's checkpoints move onto the chart once it beats the\npalette.",
+        "description": "The promoted chart model (wingtip.chartmodel), against what it has to\nbeat on the ratings it held out: the palette's constants\n(`palette_held_out_mae`) and the training ratings' mean. The\nplanner's checkpoints move onto the chart once it beats the\npalette.",
         "properties": {
           "dummy_held_out_mae": {
             "anyOf": [
@@ -3503,7 +3503,7 @@
         "type": "object"
       },
       "ChartPage": {
-        "description": "One page of one of the FAA's charts, to show in the app: its\npicture is /api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png,\n`width` by `height` pixels (vfr.publications.chart_page_png).",
+        "description": "One page of one of the FAA's charts, to show in the app: its\npicture is /api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png,\n`width` by `height` pixels (wingtip.publications.chart_page_png).",
         "properties": {
           "edition": {
             "title": "Edition",
@@ -3546,7 +3546,7 @@
         "type": "object"
       },
       "ChartPages": {
-        "description": "The pages of an FAA chart the app shows, in order: every page of a\nchart of its own, a booklet's pages for the field, a Chart Supplement\nentry's pages (vfr.publications.chart_pages).",
+        "description": "The pages of an FAA chart the app shows, in order: every page of a\nchart of its own, a booklet's pages for the field, a Chart Supplement\nentry's pages (wingtip.publications.chart_pages).",
         "properties": {
           "pages": {
             "items": {
@@ -4488,7 +4488,7 @@
         "type": "object"
       },
       "CyclePackRegion": {
-        "description": "One region's phone pack (vfr.pack's write_phone): its bounds in\ndegrees, its size in bytes and its CRC-32 (zlib's), for the phone to\ncheck it whole.",
+        "description": "One region's phone pack (wingtip.pack's write_phone): its bounds in\ndegrees, its size in bytes and its CRC-32 (zlib's), for the phone to\ncheck it whole.",
         "properties": {
           "bytes": {
             "title": "Bytes",
@@ -5041,7 +5041,7 @@
         "type": "object"
       },
       "DestinationCheck": {
-        "description": "The destination against 14 CFR 91.169(b)'s \"1-2-3\": an instrument\napproach published, and its TAF an hour either side of the ETA a\nceiling of 2,000 ft or more and 3 sm or more -- else an alternate is\n`required`, `reasons` saying why (vfr.alternates).",
+        "description": "The destination against 14 CFR 91.169(b)'s \"1-2-3\": an instrument\napproach published, and its TAF an hour either side of the ETA a\nceiling of 2,000 ft or more and 3 sm or more -- else an alternate is\n`required`, `reasons` saying why (wingtip.alternates).",
         "properties": {
           "approach": {
             "title": "Approach",
@@ -5243,7 +5243,7 @@
         "type": "object"
       },
       "Detection": {
-        "description": "A point the chart-vision detector found. `rating`/`role` are None\nuntil a pick claims it; `rated` is derived from the rating, as a\nPick's is, rather than set beside it. `score` is the palette's\nconstant for its kind; `predicted_score` the chart model's rating\nfor it (vfr.chartmodel), None while none is promoted or the corridor\nis still being read for the first time.",
+        "description": "A point the chart-vision detector found. `rating`/`role` are None\nuntil a pick claims it; `rated` is derived from the rating, as a\nPick's is, rather than set beside it. `score` is the palette's\nconstant for its kind; `predicted_score` the chart model's rating\nfor it (wingtip.chartmodel), None while none is promoted or the corridor\nis still being read for the first time.",
         "properties": {
           "along_track_nm": {
             "title": "Along Track Nm",
@@ -5341,7 +5341,7 @@
         "type": "object"
       },
       "Detour": {
-        "description": "A named fix that keeps a route out of the Class B airspace it is\nstopped by (vfr.airspace.detour_waypoint), and where it goes in the\nstops: before the stop at `stop_index`, so on the hop it is for.",
+        "description": "A named fix that keeps a route out of the Class B airspace it is\nstopped by (wingtip.airspace.detour_waypoint), and where it goes in the\nstops: before the stop at `stop_index`, so on the hop it is for.",
         "properties": {
           "added_nm": {
             "title": "Added Nm",
@@ -5460,7 +5460,7 @@
         "type": "object"
       },
       "DisplacedPick": {
-        "description": "A pick on another point that a save took the place of: the store\nkeeps one pick per place (vfr.routecsv.SAME_PLACE_NM), whatever each\npoint is.",
+        "description": "A pick on another point that a save took the place of: the store\nkeeps one pick per place (wingtip.routecsv.SAME_PLACE_NM), whatever each\npoint is.",
         "properties": {
           "category": {
             "title": "Category",
@@ -5902,7 +5902,7 @@
         "type": "object"
       },
       "FlightDetail": {
-        "description": "An airplane and its flight today (vfr.traffic.flight): what it is,\nwho flies it, where it took off from where its track shows that, and\nits track since, from adsb.lol's open data (ODbL 1.0); and a US\nairplane's FAA registration.",
+        "description": "An airplane and its flight today (wingtip.traffic.flight): what it is,\nwho flies it, where it took off from where its track shows that, and\nits track since, from adsb.lol's open data (ODbL 1.0); and a US\nairplane's FAA registration.",
         "properties": {
           "departed": {
             "anyOf": [
@@ -5999,7 +5999,7 @@
         "type": "object"
       },
       "FlightRoute": {
-        "description": "The route a flight number is scheduled to fly (vfr.traffic.route),\nfrom Virtual Radar Server's route database (CC0): the airports in\norder, and whether the airplane is on or near it now. Not the flight\nplan filed for today's flight.",
+        "description": "The route a flight number is scheduled to fly (wingtip.traffic.route),\nfrom Virtual Radar Server's route database (CC0): the airports in\norder, and whether the airplane is on or near it now. Not the flight\nplan filed for today's flight.",
         "properties": {
           "airports": {
             "items": {
@@ -6027,7 +6027,7 @@
         "type": "object"
       },
       "FlightStatus": {
-        "description": "An airplane's state now, for the alerts a pilot sets on it\n(vfr.traffic.status): how long since it was heard, whether it is in\nthe air -- and where, as the map draws it -- the field it took off\nfrom, and, not in the air, the field it has landed at; from adsb.lol's\nopen data (ODbL 1.0).",
+        "description": "An airplane's state now, for the alerts a pilot sets on it\n(wingtip.traffic.status): how long since it was heard, whether it is in\nthe air -- and where, as the map draws it -- the field it took off\nfrom, and, not in the air, the field it has landed at; from adsb.lol's\nopen data (ODbL 1.0).",
         "properties": {
           "airborne": {
             "default": false,
@@ -6289,7 +6289,7 @@
         "type": "object"
       },
       "ForecastWind": {
-        "description": "The wind a TAF forecasts at a field for a time (vfr.weather.\nforecast_wind): its own TAF's, else the nearest station's within 30\nnm (`ident`, `distance_nm`). From true north; `dir_true_deg` None for\na variable wind. `valid_from` and `valid_to`, the period's, s since\n1970.",
+        "description": "The wind a TAF forecasts at a field for a time (wingtip.weather.\nforecast_wind): its own TAF's, else the nearest station's within 30\nnm (`ident`, `distance_nm`). From true north; `dir_true_deg` None for\na variable wind. `valid_from` and `valid_to`, the period's, s since\n1970.",
         "properties": {
           "dir_true_deg": {
             "anyOf": [
@@ -6385,7 +6385,7 @@
         "type": "object"
       },
       "FuelStop": {
-        "description": "A field with the airplane's fuel a flight can land at for it, with\nits reserve left (vfr.fuelstops).",
+        "description": "A field with the airplane's fuel a flight can land at for it, with\nits reserve left (wingtip.fuelstops).",
         "properties": {
           "added_nm": {
             "title": "Added Nm",
@@ -6975,7 +6975,7 @@
         "type": "object"
       },
       "GroundPhoto": {
-        "description": "A field's photo from the ground, from its Wikipedia article's lead\nimage on Wikimedia Commons (vfr.airport_photos), with its credit.",
+        "description": "A field's photo from the ground, from its Wikipedia article's lead\nimage on Wikimedia Commons (wingtip.airport_photos), with its credit.",
         "properties": {
           "credit": {
             "title": "Credit",
@@ -7337,7 +7337,7 @@
         "type": "object"
       },
       "Leg": {
-        "description": "One dead-reckoning leg. `wind` is None when no winds-aloft station\nis near enough, which is not the same as calm: groundspeed then falls\nback to true airspeed. groundspeed/ETE/fuel are None when the wind\nexceeds true airspeed, i.e. the leg cannot be flown.\n\nThe true airspeed and fuel flow are the aeroplane's in the leg's own\nair (vfr.performance): its cruise figures are at a reference\naltitude on a standard day, and the forecast temperature at this\naltitude gives the density altitude they are flown at, at the power\nit allows -- the cruise power, or less where full throttle cannot\nmake it. `oat_c` is None where no forecast temperature was near: a\nstandard day is assumed there.",
+        "description": "One dead-reckoning leg. `wind` is None when no winds-aloft station\nis near enough, which is not the same as calm: groundspeed then falls\nback to true airspeed. groundspeed/ETE/fuel are None when the wind\nexceeds true airspeed, i.e. the leg cannot be flown.\n\nThe true airspeed and fuel flow are the aeroplane's in the leg's own\nair (wingtip.performance): its cruise figures are at a reference\naltitude on a standard day, and the forecast temperature at this\naltitude gives the density altitude they are flown at, at the power\nit allows -- the cruise power, or less where full throttle cannot\nmake it. `oat_c` is None where no forecast temperature was near: a\nstandard day is assumed there.",
         "properties": {
           "airway": {
             "anyOf": [
@@ -7631,7 +7631,7 @@
         "type": "object"
       },
       "LegHold": {
-        "description": "A hold the pilot put at a point of the route (vfr.holds), on the\nleg that leaves it -- `at_end`, the leg into the destination it is\nheld at: its inbound course (magnetic), its turns, its legs by time or\ndistance, how long (turns, or minutes), the minutes and fuel it takes,\nalready in the leg's `ete_min` and `fuel_gal` (plan.with_holds), one\nturn round its racetrack's minutes, the entry from the course flown to\nit (AIM 5-3-8), and that one turn as [lat, lon] pairs from the point.",
+        "description": "A hold the pilot put at a point of the route (wingtip.holds), on the\nleg that leaves it -- `at_end`, the leg into the destination it is\nheld at: its inbound course (magnetic), its turns, its legs by time or\ndistance, how long (turns, or minutes), the minutes and fuel it takes,\nalready in the leg's `ete_min` and `fuel_gal` (plan.with_holds), one\nturn round its racetrack's minutes, the entry from the course flown to\nit (AIM 5-3-8), and that one turn as [lat, lon] pairs from the point.",
         "properties": {
           "at_end": {
             "default": false,
@@ -7732,7 +7732,7 @@
         "type": "object"
       },
       "LegProcedure": {
-        "description": "A leg flown by the procedures picked -- out by a departure, in by an\narrival and an approach (vfr.procedure_paths.flown) -- rather than as\nthe route goes: its path from the leg's start, [lat, lon] pairs; the\naltitude the chart sets at each point (None where it sets none); its\nlength; whether it comes down to a runway; where its final starts, the\nindex in `path` of its final approach fix; where its missed approach\npoint is, the index in `path` the missed approach is flown from (short\nof the runway's threshold, where the path ends, on a VOR's or a LOC's\napproach); and the approach's missed approach. The miles it is more than the leg's own, and the time and\nfuel they take at the leg's ground speed and cruise burn, are in the\nleg's `ete_min` and `fuel_gal` (plan.with_procedures).",
+        "description": "A leg flown by the procedures picked -- out by a departure, in by an\narrival and an approach (wingtip.procedure_paths.flown) -- rather than as\nthe route goes: its path from the leg's start, [lat, lon] pairs; the\naltitude the chart sets at each point (None where it sets none); its\nlength; whether it comes down to a runway; where its final starts, the\nindex in `path` of its final approach fix; where its missed approach\npoint is, the index in `path` the missed approach is flown from (short\nof the runway's threshold, where the path ends, on a VOR's or a LOC's\napproach); and the approach's missed approach. The miles it is more than the leg's own, and the time and\nfuel they take at the leg's ground speed and cruise burn, are in the\nleg's `ete_min` and `fuel_gal` (plan.with_procedures).",
         "properties": {
           "final_at": {
             "anyOf": [
@@ -8333,7 +8333,7 @@
         "type": "object"
       },
       "MissedApproachPath": {
-        "description": "An approach's missed approach as it is flown, from its missed\napproach point and round its hold once (vfr.procedure_paths.missed_path),\nand the altitude it climbs to: the highest its fixes set.",
+        "description": "An approach's missed approach as it is flown, from its missed\napproach point and round its hold once (wingtip.procedure_paths.missed_path),\nand the altitude it climbs to: the highest its fixes set.",
         "properties": {
           "ft": {
             "anyOf": [
@@ -8677,7 +8677,7 @@
         "type": "object"
       },
       "ModelledWeather": {
-        "description": "The weather at a field as the NWS's Gridded LAMP models it for the\nhour (vfr.glmp), for one with no report of its own: the ceiling above\nthe ground (None with none), the visibility (10 sm and more is \"10\"),\ntheir flight category (AIM 7-1-7), and the hour it is for. Planning\nguidance, not an observation.",
+        "description": "The weather at a field as the NWS's Gridded LAMP models it for the\nhour (wingtip.glmp), for one with no report of its own: the ceiling above\nthe ground (None with none), the visibility (10 sm and more is \"10\"),\ntheir flight category (AIM 7-1-7), and the hour it is for. Planning\nguidance, not an observation.",
         "properties": {
           "ceiling_ft": {
             "anyOf": [
@@ -9178,7 +9178,7 @@
         "type": "object"
       },
       "NearbyMetar": {
-        "description": "A field's nearest report within 30 nm, for one with none of its\nown: the station, how far and which way from the field (true), its\nMETAR, and `near` where it is within 10 statute miles, close enough to\nsay the field's weather by it, approximately (vfr.weather).",
+        "description": "A field's nearest report within 30 nm, for one with none of its\nown: the station, how far and which way from the field (true), its\nMETAR, and `near` where it is within 10 statute miles, close enough to\nsay the field's weather by it, approximately (wingtip.weather).",
         "properties": {
           "bearing_deg": {
             "title": "Bearing Deg",
@@ -9211,7 +9211,7 @@
         "type": "object"
       },
       "NearbyPlace": {
-        "description": "A place near a field from Overture Maps' places (vfr.nearby).",
+        "description": "A place near a field from Overture Maps' places (wingtip.nearby).",
         "properties": {
           "distance_m": {
             "title": "Distance M",
@@ -10271,7 +10271,7 @@
         "type": "object"
       },
       "PastFlightSummary": {
-        "description": "One of an airplane's flights of the last days (vfr.traffic.history):\nwhere it went from and to, where the receivers heard that, and when.",
+        "description": "One of an airplane's flights of the last days (wingtip.traffic.history):\nwhere it went from and to, where the receivers heard that, and when.",
         "properties": {
           "destination": {
             "anyOf": [
@@ -10974,7 +10974,7 @@
         "type": "object"
       },
       "Pirep": {
-        "description": "A pilot report near the route (vfr.weather.pireps_along_route):\nwhen, how high, in what, the turbulence and icing it reports (the\nintensity, as reported: \"LGT\", \"MOD\", \"NEG\"), and its own words.",
+        "description": "A pilot report near the route (wingtip.weather.pireps_along_route):\nwhen, how high, in what, the turbulence and icing it reports (the\nintensity, as reported: \"LGT\", \"MOD\", \"NEG\"), and its own words.",
         "properties": {
           "aircraft": {
             "anyOf": [
@@ -11069,7 +11069,7 @@
         "type": "object"
       },
       "PlaceFound": {
-        "description": "A place a pilot typed for Nearest to find the fields near: an\nairport, a town, a street address (vfr.geocode), and where it is.",
+        "description": "A place a pilot typed for Nearest to find the fields near: an\nairport, a town, a street address (wingtip.geocode), and where it is.",
         "properties": {
           "kind": {
             "enum": [
@@ -11332,7 +11332,7 @@
         "type": "object"
       },
       "PlateOverlay": {
-        "description": "An approach's plate's plan view placed on the map (vfr.plates): the\nFAA's plate of `name` in d-TPP cycle `cycle`, its picture at\n/api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,\nnorth up between these latitudes and longitudes, as the plate's own\ngeoreference places it; `fixes` the approach's fixes inside it;\n`circling` whether the plate publishes circling minimums, so a pilot\nflying the approach may circle to land on another runway.",
+        "description": "An approach's plate's plan view placed on the map (wingtip.plates): the\nFAA's plate of `name` in d-TPP cycle `cycle`, its picture at\n/api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,\nnorth up between these latitudes and longitudes, as the plate's own\ngeoreference places it; `fixes` the approach's fixes inside it;\n`circling` whether the plate publishes circling minimums, so a pilot\nflying the approach may circle to land on another runway.",
         "properties": {
           "circling": {
             "title": "Circling",
@@ -11384,7 +11384,7 @@
         "type": "object"
       },
       "PointOffFix": {
-        "description": "A point named as the pilot's own point off the nearest fix a pilot\nknows (vfr.fixes.frd_near): \"VPBNG/095/14.2\", its fix, its magnetic\ncourse from it (a VOR's radial where `radial`), its distance, and its\nname, \"14.2 nm on 095\u00b0 from VPBNG\".",
+        "description": "A point named as the pilot's own point off the nearest fix a pilot\nknows (wingtip.fixes.frd_near): \"VPBNG/095/14.2\", its fix, its magnetic\ncourse from it (a VOR's radial where `radial`), its distance, and its\nname, \"14.2 nm on 095\u00b0 from VPBNG\".",
         "properties": {
           "base": {
             "title": "Base",
@@ -11423,7 +11423,7 @@
         "type": "object"
       },
       "ProcedureDrawing": {
-        "description": "One procedure drawn with the transition picked (vfr.procedures):\nits lines, holds and fixes, from the CIFP of `cycle`.",
+        "description": "One procedure drawn with the transition picked (wingtip.procedures):\nits lines, holds and fixes, from the CIFP of `cycle`.",
         "properties": {
           "airport": {
             "title": "Airport",
@@ -11639,7 +11639,7 @@
         "type": "object"
       },
       "ProcedureHold": {
-        "description": "A holding pattern of a drawn procedure, or its procedure turn: at `fix`, its inbound\ncourse `inbound_deg` true, its turns right or left (`turn`), drawn to\na light airplane's size (vfr.procedures.HOLD_SPEED_KT).",
+        "description": "A holding pattern of a drawn procedure, or its procedure turn: at `fix`, its inbound\ncourse `inbound_deg` true, its turns right or left (`turn`), drawn to\na light airplane's size (wingtip.procedures.HOLD_SPEED_KT).",
         "properties": {
           "fix": {
             "title": "Fix",
@@ -11854,7 +11854,7 @@
         "type": "object"
       },
       "ProcedureRunwayPath": {
-        "description": "The path an approach's final comes down, placed (vfr.procedures):\n`deg` below level, into `fix`, its runway's threshold at `lat`/`lon`,\ncrossed at `ft` MSL -- the threshold's elevation and its crossing\nheight (ARINC 424-18 5.70).",
+        "description": "The path an approach's final comes down, placed (wingtip.procedures):\n`deg` below level, into `fix`, its runway's threshold at `lat`/`lon`,\ncrossed at `ft` MSL -- the threshold's elevation and its crossing\nheight (ARINC 424-18 5.70).",
         "properties": {
           "deg": {
             "title": "Deg",
@@ -11888,7 +11888,7 @@
         "type": "object"
       },
       "ProcedureSummary": {
-        "description": "One of a field's instrument procedures in the FAA's CIFP\n(vfr.procedures): `id` its coded identifier (\"I08-Y\"), `name` its\nchart's title (\"ILS Y RWY 08\"), `runway` an approach's, and the\ntransitions a pilot picks from -- an approach's, an arrival's or a\ndeparture's enroute ones -- and an arrival's or departure's runway\ntransitions, which are drawn with it.",
+        "description": "One of a field's instrument procedures in the FAA's CIFP\n(wingtip.procedures): `id` its coded identifier (\"I08-Y\"), `name` its\nchart's title (\"ILS Y RWY 08\"), `runway` an approach's, and the\ntransitions a pilot picks from -- an approach's, an arrival's or a\ndeparture's enroute ones -- and an arrival's or departure's runway\ntransitions, which are drawn with it.",
         "properties": {
           "id": {
             "title": "Id",
@@ -12030,7 +12030,7 @@
         "type": "object"
       },
       "PyramidPass": {
-        "description": "A pass of `python -m vfr.charts pyramid` under way: sheets done of\nthe sheets it set out to render, and the one it is on.",
+        "description": "A pass of `python -m wingtip.charts pyramid` under way: sheets done of\nthe sheets it set out to render, and the one it is on.",
         "properties": {
           "current": {
             "anyOf": [
@@ -12558,7 +12558,7 @@
         "type": "object"
       },
       "RouteBand": {
-        "description": "A run of the weather a way meets (vfr.route_options._along): VFR,\nmarginal (MVFR), IFR or a thunderstorm, and how many minutes of the\nflight it lasts, in the order flown.",
+        "description": "A run of the weather a way meets (wingtip.route_options._along): VFR,\nmarginal (MVFR), IFR or a thunderstorm, and how many minutes of the\nflight it lasts, in the order flown.",
         "properties": {
           "kind": {
             "enum": [
@@ -12626,7 +12626,7 @@
         "type": "object"
       },
       "RouteHazard": {
-        "description": "What a way keeps clear of (vfr.route_options): its kind -- storm,\nweather, marginal, sigmet, tfr, prohibited, terrain -- and its words.",
+        "description": "What a way keeps clear of (wingtip.route_options): its kind -- storm,\nweather, marginal, sigmet, tfr, prohibited, terrain -- and its words.",
         "properties": {
           "kind": {
             "title": "Kind",
@@ -12645,7 +12645,7 @@
         "type": "object"
       },
       "RouteOption": {
-        "description": "One way to fly the route (vfr.route_options): the points between\nits ends in order, as the address's `stops` takes them -- turns as the\npilot's own points off a fix, fuel stops as fields (`fuel`) -- and the\nkinds of way it is the best of, with its estimate of the flight. The\nhazards it still crosses and the marginal weather it passes, by their\nindex in RouteOptions.hazards.",
+        "description": "One way to fly the route (wingtip.route_options): the points between\nits ends in order, as the address's `stops` takes them -- turns as the\npilot's own points off a fix, fuel stops as fields (`fuel`) -- and the\nkinds of way it is the best of, with its estimate of the flight. The\nhazards it still crosses and the marginal weather it passes, by their\nindex in RouteOptions.hazards.",
         "properties": {
           "air_min": {
             "title": "Air Min",
@@ -12907,7 +12907,7 @@
         "type": "object"
       },
       "RouteProfile": {
-        "description": "The route's side view (vfr.profile): its length, the ground under\nit, and the controlled airspace it passes through.",
+        "description": "The route's side view (wingtip.profile): its length, the ground under\nit, and the controlled airspace it passes through.",
         "properties": {
           "airspace": {
             "items": {
@@ -13197,7 +13197,7 @@
         "type": "object"
       },
       "RunwayEnd": {
-        "description": "One end of a runway (vfr.pattern): its true heading, None for a\nhelipad, which way its traffic pattern is flown -- left unless the FAA\nflags it right (14 CFR 91.126(b)(1)) -- and where it is.",
+        "description": "One end of a runway (wingtip.pattern): its true heading, None for a\nhelipad, which way its traffic pattern is flown -- left unless the FAA\nflags it right (14 CFR 91.126(b)(1)) -- and where it is.",
         "properties": {
           "heading_true_deg": {
             "anyOf": [
@@ -13276,7 +13276,7 @@
         "type": "object"
       },
       "RunwayTurf": {
-        "description": "A length of a runway of two surfaces that is turf, where the FAA's\nremarks say which (vfr.remarks.runway_turf): from `from_ft` to `to_ft`\nfeet along it from its `end`, `to_ft` None for the rest of it.",
+        "description": "A length of a runway of two surfaces that is turf, where the FAA's\nremarks say which (wingtip.remarks.runway_turf): from `from_ft` to `to_ft`\nfeet along it from its `end`, `to_ft` None for the rest of it.",
         "properties": {
           "end": {
             "title": "End",
@@ -13306,7 +13306,7 @@
         "type": "object"
       },
       "RunwayWind": {
-        "description": "The reported wind on the end of a runway it favours, the one with\nthe most headwind (vfr.runway_wind): the headwind negative for a\ntailwind, the crosswind positive from the right, and the crosswind\nin the gusts where the report has them.",
+        "description": "The reported wind on the end of a runway it favours, the one with\nthe most headwind (wingtip.runway_wind): the headwind negative for a\ntailwind, the crosswind positive from the right, and the crosswind\nin the gusts where the report has them.",
         "properties": {
           "crosswind_kt": {
             "title": "Crosswind Kt",
@@ -13751,7 +13751,7 @@
         "type": "object"
       },
       "SpokenPlace": {
-        "description": "A place a clearance said, as found (vfr.spoken): `ident` None where\nnothing near was like it, `sure` false where it was found by its sound\nalone, for the pilot to check.",
+        "description": "A place a clearance said, as found (wingtip.spoken): `ident` None where\nnothing near was like it, `sure` false where it was found by its sound\nalone, for the pilot to check.",
         "properties": {
           "ident": {
             "anyOf": [
@@ -13969,7 +13969,7 @@
         "type": "object"
       },
       "StopField": {
-        "description": "A field for the map's Stops, near the pilot or along a route: what\nit has of the four kinds -- the fuel it sells and its airframe and\nengine repair from its Chart Supplement entry (NASR's APT_BASE), its\nplaces to eat on the field and its flight schools from Overture\n(vfr.nearby) -- and its phone (NASR's APT_CON).",
+        "description": "A field for the map's Stops, near the pilot or along a route: what\nit has of the four kinds -- the fuel it sells and its airframe and\nengine repair from its Chart Supplement entry (NASR's APT_BASE), its\nplaces to eat on the field and its flight schools from Overture\n(wingtip.nearby) -- and its phone (NASR's APT_CON).",
         "properties": {
           "added_nm": {
             "anyOf": [
@@ -14144,7 +14144,7 @@
         "type": "object"
       },
       "TerminalChart": {
-        "description": "One of a field's charts in the d-TPP (vfr.publications): `kind` the\nFAA's chart code -- APD the airport diagram, HOT its hot spots, LAH\nland and hold short, IAP an approach, DP and ODP a departure, STR an\narrival, MIN the takeoff or alternate minimums -- `name` its title as\nthe FAA prints it, `url` its PDF.",
+        "description": "One of a field's charts in the d-TPP (wingtip.publications): `kind` the\nFAA's chart code -- APD the airport diagram, HOT its hot spots, LAH\nland and hold short, IAP an approach, DP and ODP a departure, STR an\narrival, MIN the takeoff or alternate minimums -- `name` its title as\nthe FAA prints it, `url` its PDF.",
         "properties": {
           "kind": {
             "title": "Kind",
@@ -14481,7 +14481,7 @@
         "type": "object"
       },
       "TopOfClimb": {
-        "description": "Where a climb tops out (TOC), and the climb's true airspeed and\nground speed on the way up to it (vfr.navlog.with_climbs).",
+        "description": "Where a climb tops out (TOC), and the climb's true airspeed and\nground speed on the way up to it (wingtip.navlog.with_climbs).",
         "properties": {
           "along_nm": {
             "title": "Along Nm",
@@ -14537,7 +14537,7 @@
         "type": "object"
       },
       "TopOfDescent": {
-        "description": "Where a descent starts (TOD): down from `altitude_ft` to `to_ft` --\nthe pattern altitude of the field landed at, the altitude an\napproach's first fix is crossed at, or the next leg's lower level --\nat `fpm`, three to one at the leg's ground speed, or steeper where\nthe climb before it left less room (vfr.navlog.with_descents).",
+        "description": "Where a descent starts (TOD): down from `altitude_ft` to `to_ft` --\nthe pattern altitude of the field landed at, the altitude an\napproach's first fix is crossed at, or the next leg's lower level --\nat `fpm`, three to one at the leg's ground speed, or steeper where\nthe climb before it left less room (wingtip.navlog.with_descents).",
         "properties": {
           "along_nm": {
             "title": "Along Nm",
@@ -14843,7 +14843,7 @@
         "type": "object"
       },
       "TrafficAircraft": {
-        "description": "One airplane in the air near the point (vfr.traffic): who, where,\nhow high -- the GNSS height where it sends one, else its pressure\naltitude set on the nearest METAR's altimeter (vfr.traffic.on_altimeter),\nor as sent where none is near (`pressure_altitude`) -- its track, speed\nand climb, and how many seconds old its position is.",
+        "description": "One airplane in the air near the point (wingtip.traffic): who, where,\nhow high -- the GNSS height where it sends one, else its pressure\naltitude set on the nearest METAR's altimeter (wingtip.traffic.on_altimeter),\nor as sent where none is near (`pressure_altitude`) -- its track, speed\nand climb, and how many seconds old its position is.",
         "properties": {
           "altitude_ft": {
             "anyOf": [
@@ -14993,7 +14993,7 @@
         "type": "object"
       },
       "TrafficFound": {
-        "description": "The airplanes in the air a pilot named by callsign, registration\nor ICAO address (vfr.traffic.find); and, where none is in the air or\nheard now, the FAA's record of the one named (vfr.traffic.registered),\nto open its card all the same.",
+        "description": "The airplanes in the air a pilot named by callsign, registration\nor ICAO address (wingtip.traffic.find); and, where none is in the air or\nheard now, the FAA's record of the one named (wingtip.traffic.registered),\nto open its card all the same.",
         "properties": {
           "aircraft": {
             "items": {
@@ -15035,7 +15035,7 @@
         "type": "object"
       },
       "TrafficPattern": {
-        "description": "How high a field's traffic pattern is flown (vfr.pattern):\n`agl_ft` above the field, the FAA's own where `published`, else AC\n90-66C's 1,000 ft for a propeller aeroplane; `altitude_ft` above sea\nlevel where the field's elevation is known.",
+        "description": "How high a field's traffic pattern is flown (wingtip.pattern):\n`agl_ft` above the field, the FAA's own where `published`, else AC\n90-66C's 1,000 ft for a propeller aeroplane; `altitude_ft` above sea\nlevel where the field's elevation is known.",
         "properties": {
           "agl_ft": {
             "title": "Agl Ft",
@@ -15698,7 +15698,7 @@
         "type": "object"
       },
       "WindsPeriod": {
-        "description": "A winds and temperatures aloft forecast's period (AC 00-45H, the\nWinds and Temperatures Aloft Forecast (FB)):\nvalid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC;\n`modelled` where the FB could not be had and the GFS's winds stand in\nfor it (vfr.modelwinds).",
+        "description": "A winds and temperatures aloft forecast's period (AC 00-45H, the\nWinds and Temperatures Aloft Forecast (FB)):\nvalid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC;\n`modelled` where the FB could not be had and the GFS's winds stand in\nfor it (wingtip.modelwinds).",
         "properties": {
           "modelled": {
             "default": false,
@@ -15815,7 +15815,7 @@
     },
     "/api/airport-aerial/{ident}.jpg": {
       "get": {
-        "description": "The field's aerial photo from the USGS National Map's imagery\n(public domain), framed on its runways (vfr.airport_photos.aerial):\nasked of the USGS once and kept, a week in the browser.",
+        "description": "The field's aerial photo from the USGS National Map's imagery\n(public domain), framed on its runways (wingtip.airport_photos.aerial):\nasked of the USGS once and kept, a week in the browser.",
         "operationId": "airport_aerial_api_airport_aerial__ident__jpg_get",
         "parameters": [
           {
@@ -15857,7 +15857,7 @@
     },
     "/api/airport-diagram/{cycle}/runways/{ident}.png": {
       "get": {
-        "description": "The airport diagram cropped to its runways, for the card's\nthumbnail: where the field's runway ends are (vfr.pattern's, NASR's\nsurveyed thresholds) placed on the diagram by its own latitude and\nlongitude labels, else its runway-thick strokes (vfr.publications).\n404 where it has none, or its runways cannot be found on it -- the\ncard draws its own sketch then.",
+        "description": "The airport diagram cropped to its runways, for the card's\nthumbnail: where the field's runway ends are (wingtip.pattern's, NASR's\nsurveyed thresholds) placed on the diagram by its own latitude and\nlongitude labels, else its runway-thick strokes (wingtip.publications).\n404 where it has none, or its runways cannot be found on it -- the\ncard draws its own sketch then.",
         "operationId": "airport_diagram_runways_api_airport_diagram__cycle__runways__ident__png_get",
         "parameters": [
           {
@@ -15905,7 +15905,7 @@
     },
     "/api/airport-diagram/{cycle}/{ident}.png": {
       "get": {
-        "description": "The FAA's airport diagram for the field, from the d-TPP cycle in\nforce (`airport_diagram_cycle` on its card), as a picture for the card\nto show and a finger to pinch in on: its PDF drawn once and kept for\nthe cycle (vfr.publications). 404 for a field with none -- most small\nones -- for any cycle but the one in force, and while the FAA cannot\nbe reached.",
+        "description": "The FAA's airport diagram for the field, from the d-TPP cycle in\nforce (`airport_diagram_cycle` on its card), as a picture for the card\nto show and a finger to pinch in on: its PDF drawn once and kept for\nthe cycle (wingtip.publications). 404 for a field with none -- most small\nones -- for any cycle but the one in force, and while the FAA cannot\nbe reached.",
         "operationId": "airport_diagram_api_airport_diagram__cycle___ident__png_get",
         "parameters": [
           {
@@ -15995,7 +15995,7 @@
     },
     "/api/airport/{ident}": {
       "get": {
-        "description": "One US airport's card, by any ident it goes by (C81, KC81, KDLH).\n\n`airspace_class` is the class of the airspace at the surface at the\nfield: B, C or D, E in a Class E surface area, G where the ground is\nuncontrolled (vfr.airspace.surface_class_at).\n`towered` is whether it lists a tower frequency. A field with no\nreporting station has no `metar`; `weather_unavailable` is set only\nwhen the weather service could not be asked.",
+        "description": "One US airport's card, by any ident it goes by (C81, KC81, KDLH).\n\n`airspace_class` is the class of the airspace at the surface at the\nfield: B, C or D, E in a Class E surface area, G where the ground is\nuncontrolled (wingtip.airspace.surface_class_at).\n`towered` is whether it lists a tower frequency. A field with no\nreporting station has no `metar`; `weather_unavailable` is set only\nwhen the weather service could not be asked.",
         "operationId": "airport_place_api_airport__ident__get",
         "parameters": [
           {
@@ -16095,7 +16095,7 @@
     },
     "/api/airport/{ident}/photos": {
       "get": {
-        "description": "The pictures an airport's card swipes through behind its diagram, at\nthe owner's ask (\"airport photos swipe behind the airport diagram\nthumbnail\", 2026-10-23): its aerial (/api/airport-aerial, every US\nfield's, from the USGS) and its Wikipedia article's photo where there\nis a free one (vfr.airport_photos).",
+        "description": "The pictures an airport's card swipes through behind its diagram, at\nthe owner's ask (\"airport photos swipe behind the airport diagram\nthumbnail\", 2026-10-23): its aerial (/api/airport-aerial, every US\nfield's, from the USGS) and its Wikipedia article's photo where there\nis a free one (wingtip.airport_photos).",
         "operationId": "airport_photos_of_api_airport__ident__photos_get",
         "parameters": [
           {
@@ -16135,7 +16135,7 @@
     },
     "/api/airport/{ident}/procedures": {
       "get": {
-        "description": "The field's instrument procedures -- its approaches, arrivals and\ndepartures, with the transitions of each -- from the FAA's CIFP for\nthe AIRAC cycle in force (vfr.procedures), for the route's Procedures\nto offer. None for a field the CIFP has none for, as most small ones.",
+        "description": "The field's instrument procedures -- its approaches, arrivals and\ndepartures, with the transitions of each -- from the FAA's CIFP for\nthe AIRAC cycle in force (wingtip.procedures), for the route's Procedures\nto offer. None for a field the CIFP has none for, as most small ones.",
         "operationId": "airport_procedures_api_airport__ident__procedures_get",
         "parameters": [
           {
@@ -16178,7 +16178,7 @@
     },
     "/api/airport/{ident}/procedures/{procedure}": {
       "get": {
-        "description": "One of the field's procedures drawn for the map, with the\ntransition picked (`transition`, one of its `transitions`; none for an\napproach from vectors): its lines, holds and fixes, each fix with the\naltitudes and speed it is crossed at (vfr.procedures.procedure_drawing).",
+        "description": "One of the field's procedures drawn for the map, with the\ntransition picked (`transition`, one of its `transitions`; none for an\napproach from vectors): its lines, holds and fixes, each fix with the\naltitudes and speed it is crossed at (wingtip.procedures.procedure_drawing).",
         "operationId": "airport_procedure_api_airport__ident__procedures__procedure__get",
         "parameters": [
           {
@@ -16249,7 +16249,7 @@
     },
     "/api/airport/{ident}/procedures/{procedure}/plate": {
       "get": {
-        "description": "An approach's plate's plan view placed on the map for the approach\npicked (vfr.plates): where its picture goes, made once a cycle from the\nFAA's d-TPP plate and its own georeference, and whether it publishes\ncircling minimums. 404 where the field has no plate for it, the plate\nhas no georeference, or the FAA cannot be reached.",
+        "description": "An approach's plate's plan view placed on the map for the approach\npicked (wingtip.plates): where its picture goes, made once a cycle from the\nFAA's d-TPP plate and its own georeference, and whether it publishes\ncircling minimums. 404 where the field has no plate for it, the plate\nhas no georeference, or the FAA cannot be reached.",
         "operationId": "airport_procedure_plate_api_airport__ident__procedures__procedure__plate_get",
         "parameters": [
           {
@@ -16304,7 +16304,7 @@
     },
     "/api/airport/{ident}/services": {
       "get": {
-        "description": "What a field offers a pilot who lands there, for a stop's card: its\nfuel, fees, parking, repair and oxygen and its courtesy car from the\nFAA's airport file and remarks (vfr.faa_data.airport_services,\nvfr.remarks.service_notes), and the places to eat, sleep and hire a\ncar near it (vfr.nearby). Its own request, not the card's: Overture's\nfirst read of a field is a second or two, which the card's weather\nand runways do not wait on.",
+        "description": "What a field offers a pilot who lands there, for a stop's card: its\nfuel, fees, parking, repair and oxygen and its courtesy car from the\nFAA's airport file and remarks (wingtip.faa_data.airport_services,\nwingtip.remarks.service_notes), and the places to eat, sleep and hire a\ncar near it (wingtip.nearby). Its own request, not the card's: Overture's\nfirst read of a field is a second or two, which the card's weather\nand runways do not wait on.",
         "operationId": "airport_services_api_airport__ident__services_get",
         "parameters": [
           {
@@ -16441,7 +16441,7 @@
     },
     "/api/airports/index": {
       "get": {
-        "description": "Every US airport the search answers with, for the app to search on\nthe phone itself as a pilot types (vfr.airports.search_index): its\nanswers there at once, where each letter's question waited on this\nplanner, a second and more while it planned a route. Gzipped as it is\nkept -- about 530 KB, from 1.8 MB -- and the same for every pilot until\nOurAirports' table changes, so kept a day by the browser and the CDN\n(PlannerProxyController passes both headers on). `v`, the shape the app\nreads, unused here: in the address, so a day's copy of an older shape\nis not taken for this one.",
+        "description": "Every US airport the search answers with, for the app to search on\nthe phone itself as a pilot types (wingtip.airports.search_index): its\nanswers there at once, where each letter's question waited on this\nplanner, a second and more while it planned a route. Gzipped as it is\nkept -- about 530 KB, from 1.8 MB -- and the same for every pilot until\nOurAirports' table changes, so kept a day by the browser and the CDN\n(PlannerProxyController passes both headers on). `v`, the shape the app\nreads, unused here: in the address, so a day's copy of an older shape\nis not taken for this one.",
         "operationId": "airport_index_api_airports_index_get",
         "parameters": [
           {
@@ -16545,7 +16545,7 @@
     },
     "/api/airports/search": {
       "get": {
-        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes and navaids whose ident starts with\nit too, after the airports -- VFR waypoints first (vfr.fixes). `near`,\nthe route's points as \"lat,lon;lat,lon\": of an ident's navaids in two\nplaces, the one the route would fly over (fixes.find_navaid), as the\nstop typed will be -- the row named the other where they differed.\nKept for an hour at most (SHARED_CACHE): these are suggestions, and\nthe stop picked is looked up afresh when the route is planned.",
+        "description": "DEP/DEST's own autocomplete -- every airport whose ident or name\nstarts with `q`, for the route inputs to suggest as a pilot types.\nRuns against the same in-memory OurAirports table the real lookup\nuses, not a second data source that could drift from it. With\n`fixes`, a stop's: the named fixes and navaids whose ident starts with\nit too, after the airports -- VFR waypoints first (wingtip.fixes). `near`,\nthe route's points as \"lat,lon;lat,lon\": of an ident's navaids in two\nplaces, the one the route would fly over (fixes.find_navaid), as the\nstop typed will be -- the row named the other where they differed.\nKept for an hour at most (SHARED_CACHE): these are suggestions, and\nthe stop picked is looked up afresh when the route is planned.",
         "operationId": "airport_search_api_airports_search_get",
         "parameters": [
           {
@@ -16606,7 +16606,7 @@
     },
     "/api/airspace/ahead": {
       "get": {
-        "description": "What is ahead of own ship in the air (vfr.alerts): the Class B, C\nand D, special-use areas and TFRs its track goes into in the next five\nminutes, and the ground or an obstacle it comes within 500 ft of in\nthe next minute. Nothing under 40 kt, on the ground. Advisory, from\nthe phone's GPS: not a TAWS.",
+        "description": "What is ahead of own ship in the air (wingtip.alerts): the Class B, C\nand D, special-use areas and TFRs its track goes into in the next five\nminutes, and the ground or an obstacle it comes within 500 ft of in\nthe next minute. Nothing under 40 kt, on the ground. Advisory, from\nthe phone's GPS: not a TAWS.",
         "operationId": "airspace_ahead_api_airspace_ahead_get",
         "parameters": [
           {
@@ -16719,7 +16719,7 @@
     },
     "/api/airspace/at": {
       "get": {
-        "description": "The airspace over a point, from the ground to FL600, in bands\n(vfr.airspace_at): each class's floor and ceiling in feet MSL, its\nVFR weather minimums by day and by night (91.155), what it takes to\nenter and what the aeroplane must carry -- with the Class B Mode C\nveil the point is in, and the special-use areas and TFRs over it;\nand the point named off the nearest fix (vfr.fixes.frd_near), for the\nroute. The ground, the shapefile and the two feeds are read at once.",
+        "description": "The airspace over a point, from the ground to FL600, in bands\n(wingtip.airspace_at): each class's floor and ceiling in feet MSL, its\nVFR weather minimums by day and by night (91.155), what it takes to\nenter and what the aeroplane must carry -- with the Class B Mode C\nveil the point is in, and the special-use areas and TFRs over it;\nand the point named off the nearest fix (wingtip.fixes.frd_near), for the\nroute. The ground, the shapefile and the two feeds are read at once.",
         "operationId": "airspace_at_point_api_airspace_at_get",
         "parameters": [
           {
@@ -16772,7 +16772,7 @@
     },
     "/api/airspace/in-view": {
       "get": {
-        "description": "The Class B, C and D inside the map's view (vfr.airspace_map), for\nthe map to draw over the chart: each volume's lines from the FAA's own\nshapefile, so they lie on the chart's printed ones, with its floor and\ntop for the label the chart prints. None where the FAA's airspace\ncannot be had: the chart's own lines are still under the map.",
+        "description": "The Class B, C and D inside the map's view (wingtip.airspace_map), for\nthe map to draw over the chart: each volume's lines from the FAA's own\nshapefile, so they lie on the chart's printed ones, with its floor and\ntop for the label the chart prints. None where the FAA's airspace\ncannot be had: the chart's own lines are still under the map.",
         "operationId": "airspace_in_view_api_airspace_in_view_get",
         "parameters": [
           {
@@ -16860,7 +16860,7 @@
     },
     "/api/alternate": {
       "get": {
-        "description": "The IFR alternate for a flight arriving at `dest` at `eta` (UTC when\nnaive): whether the destination needs one (14 CFR 91.169(b), the\n\"1-2-3\" rule, from its TAF an hour either side of the ETA), the\npilot's `alternate` checked against its minimums at the ETA there\n(91.169(c)), and the nearest fields with a TAF that will do, each\nreached at `tas_kt` from the destination (vfr.alternates).",
+        "description": "The IFR alternate for a flight arriving at `dest` at `eta` (UTC when\nnaive): whether the destination needs one (14 CFR 91.169(b), the\n\"1-2-3\" rule, from its TAF an hour either side of the ETA), the\npilot's `alternate` checked against its minimums at the ETA there\n(91.169(c)), and the nearest fields with a TAF that will do, each\nreached at `tas_kt` from the destination (wingtip.alternates).",
         "operationId": "alternate_api_alternate_get",
         "parameters": [
           {
@@ -17025,7 +17025,7 @@
     },
     "/api/briefing": {
       "get": {
-        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies, its traffic pattern\n(vfr.pattern) and the class of the airspace over it, for its\npattern card and the radio calls.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.\n\nEach hazard says where and when the flight meets it (`on_route`,\napp.exposure): on the nav log's legs where the page sends them --\n`fixes`, its points \"lat,lon;lat,lon\", `leg_min` each leg's ETE and\n`ground_min` each leg's minutes on the ground after it -- else on\nthe route's own legs, the flight's time shared out by distance.",
+        "description": "Everything the nav log's own leg math doesn't cover: adverse\nconditions (SIGMET/AIRMET), current conditions (METAR) and\nforecast (TAF-derived ceiling/visibility) along the route, and\neach airport's runways and radio frequencies, its traffic pattern\n(wingtip.pattern) and the class of the airspace over it, for its\npattern card and the radio calls.\n\nThe forecast is for the flight: from `depart` (now when not given;\nUTC when naive) to an hour past arrival, `ete_min` after it (two\nhours when not given). It used to be read at the moment of asking,\nwhatever time the pilot was planning to go. With stops (`stops`,\n\"KDSM,KLNK\"), along every hop and for every airport landed at.\n\nEach hazard says where and when the flight meets it (`on_route`,\napp.exposure): on the nav log's legs where the page sends them --\n`fixes`, its points \"lat,lon;lat,lon\", `leg_min` each leg's ETE and\n`ground_min` each leg's minutes on the ground after it -- else on\nthe route's own legs, the flight's time shared out by distance.",
         "operationId": "briefing_api_briefing_get",
         "parameters": [
           {
@@ -17166,7 +17166,7 @@
     },
     "/api/chart-tile/{kind}/{z}/{x}/{y}.png": {
       "get": {
-        "description": "Any kind of chart by its key (`chart_layers` on the course lists\nthem): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the\nmap's layers draw from.\n\nThe FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile\npyramid (vfr.charts -- downloaded once per 56-day chart cycle) and\ncached on disk; the same tiles the detector reads. A tile pyramid is\nwhat makes each chart a plain Leaflet tile layer: edge-only fetches\non a pan, the previous zoom's tiles scaled under the zoom animation,\na prefetch ring. 204 where no sheet covers the tile, which the layer\nleaves blank. The sectional and the TAC had routes of their own\nunder older names, which nothing called any more.",
+        "description": "Any kind of chart by its key (`chart_layers` on the course lists\nthem): `sec`, `tac`, `ifr_low`, `ifr_high`, `ifr_area`. What the\nmap's layers draw from.\n\nThe FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile\npyramid (wingtip.charts -- downloaded once per 56-day chart cycle) and\ncached on disk; the same tiles the detector reads. A tile pyramid is\nwhat makes each chart a plain Leaflet tile layer: edge-only fetches\non a pan, the previous zoom's tiles scaled under the zoom animation,\na prefetch ring. 204 where no sheet covers the tile, which the layer\nleaves blank. The sectional and the TAC had routes of their own\nunder older names, which nothing called any more.",
         "operationId": "chart_tile_api_chart_tile__kind___z___x___y__png_get",
         "parameters": [
           {
@@ -17923,7 +17923,7 @@
     },
     "/api/diversion": {
       "get": {
-        "description": "The diversion drill (web/src/lib/diversion, ACS PA.VI.C): from a point\nto a field, in the planner's air on the way there at `altitude_ft` --\nthe winds and temperature aloft for the hour (vfr.weather, the FD\nperiod for `depart`, now by default), the airplane's true airspeed and\nburn in that air (vfr.performance) and the variation (vfr.magnetic,\nthe WMM) -- the true course and distance, the wind triangle, the\nmagnetic heading, ground speed, time and fuel, each step in words;\nand the student's estimates (`mh`, `gs`, `ete`, `fuel`) checked\nagainst it, each within the drill's allowance or not.",
+        "description": "The diversion drill (web/src/lib/diversion, ACS PA.VI.C): from a point\nto a field, in the planner's air on the way there at `altitude_ft` --\nthe winds and temperature aloft for the hour (wingtip.weather, the FD\nperiod for `depart`, now by default), the airplane's true airspeed and\nburn in that air (wingtip.performance) and the variation (wingtip.magnetic,\nthe WMM) -- the true course and distance, the wind triangle, the\nmagnetic heading, ground speed, time and fuel, each step in words;\nand the student's estimates (`mh`, `gs`, `ete`, `fuel`) checked\nagainst it, each within the drill's allowance or not.",
         "operationId": "diversion_api_diversion_get",
         "parameters": [
           {
@@ -18914,7 +18914,7 @@
     },
     "/api/map/ages": {
       "get": {
-        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by vfr.weather)\nand the TFRs (tfr.faa.gov); and each source the planner keeps\nthrough an outage, for the pilot's Status page.",
+        "description": "When the planner fetched what the map's weather layers are drawn\nfrom, for the map's settings to say how old each is: the METARs\n(aviationweather.gov's METAR file, held and refreshed by wingtip.weather)\nand the TFRs (tfr.faa.gov); and each source the planner keeps\nthrough an outage, for the pilot's Status page.",
         "operationId": "map_layer_ages_api_map_ages_get",
         "responses": {
           "200": {
@@ -18952,7 +18952,7 @@
     },
     "/api/model-comparison": {
       "get": {
-        "description": "Every algorithm anyone has actually trained for this problem,\nnot just the sklearn family retrain() grid-searches: the promoted\nmodel's own comparison against Ridge/GradientBoosting/a dummy\n\"predict the mean\" baseline, plus PyTorch/TensorFlow/Spark's own\ncandidates (vfr.model_candidates), when they exist.\n\nEach entry names its own metric rather than pretending they are\nall the same number: the sklearn family's own selection already\nruns 5-fold CV (cv_mae), while the new candidates report a single\nheld-out split's MAE (held_out_mae) -- except Spark, whose own\nCrossValidator gives it a real cv_mae too. Blending these into one\nunlabeled column would overstate how comparable they actually are.",
+        "description": "Every algorithm anyone has actually trained for this problem,\nnot just the sklearn family retrain() grid-searches: the promoted\nmodel's own comparison against Ridge/GradientBoosting/a dummy\n\"predict the mean\" baseline, plus PyTorch/TensorFlow/Spark's own\ncandidates (wingtip.model_candidates), when they exist.\n\nEach entry names its own metric rather than pretending they are\nall the same number: the sklearn family's own selection already\nruns 5-fold CV (cv_mae), while the new candidates report a single\nheld-out split's MAE (held_out_mae) -- except Spark, whose own\nCrossValidator gives it a real cv_mae too. Blending these into one\nunlabeled column would overstate how comparable they actually are.",
         "operationId": "model_comparison_api_model_comparison_get",
         "responses": {
           "200": {
@@ -18971,7 +18971,7 @@
     },
     "/api/navaids/in-view": {
       "get": {
-        "description": "The VORs inside the map's view, and with `fixes` the fixes of the\nlow-altitude enroute chart there too (vfr.fixes), at most `limit` of\neach: the hexagons and the triangles the map draws over the chart.\nThe map asks for the fixes only close in, where they do not scatter\nover the whole chart.",
+        "description": "The VORs inside the map's view, and with `fixes` the fixes of the\nlow-altitude enroute chart there too (wingtip.fixes), at most `limit` of\neach: the hexagons and the triangles the map draws over the chart.\nThe map asks for the fixes only close in, where they do not scatter\nover the whole chart.",
         "operationId": "navaids_in_view_api_navaids_in_view_get",
         "parameters": [
           {
@@ -19068,7 +19068,7 @@
     },
     "/api/navlog": {
       "get": {
-        "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, the altitude plans), an\n\"altitude\" line the moment those are decided -- the four plans and\nthe one chosen (altitude_choice, see /api/plan) with it -- one \"leg\"\nline per leg, then one \"done\" line with the totals, which need\nevery leg in before they mean anything. Its own implementation, not\na wrapper over /api/plan: that one commits to a single synchronous\nJSON response, and mixing a streaming and a non-streaming contract\ninto one function would compromise both. The overlap is the same\nhandful of calls into app.planning and vfr.navlog either way.\n\nAn unflyable route (some leg with no legal cruising altitude at all)\nis reported as an \"error\" line, not an HTTP error status -- by the\ntime that's known, a 200 and a stream of NDJSON have already gone\nout, and an HTTP status can't change after that.",
+        "description": "Altitude and the dead-reckoning legs, as newline-delimited JSON --\nthe slow half, because it reads terrain, the obstacle file, the\nairspace shapefile and live winds; asked for separately so none of\nthat delays the chart. Each line is one app.schemas.NavLogMessage.\n\nStreamed rather than a single blocking response so a pilot sees the\ntable fill in as it goes rather than a blank screen: a \"stage\" line\nbefore each real piece of work (scoring, the altitude plans), an\n\"altitude\" line the moment those are decided -- the four plans and\nthe one chosen (altitude_choice, see /api/plan) with it -- one \"leg\"\nline per leg, then one \"done\" line with the totals, which need\nevery leg in before they mean anything. Its own implementation, not\na wrapper over /api/plan: that one commits to a single synchronous\nJSON response, and mixing a streaming and a non-streaming contract\ninto one function would compromise both. The overlap is the same\nhandful of calls into app.planning and wingtip.navlog either way.\n\nAn unflyable route (some leg with no legal cruising altitude at all)\nis reported as an \"error\" line, not an HTTP error status -- by the\ntime that's known, a 200 and a stream of NDJSON have already gone\nout, and an HTTP status can't change after that.",
         "operationId": "navlog_stream_api_navlog_get",
         "parameters": [
           {
@@ -19630,7 +19630,7 @@
     },
     "/api/places/search": {
       "get": {
-        "description": "Where a place typed is, for Nearest to find the fields near it\nrather than near own ship: the airports whose ident or name starts\nwith it, the towns that do (the Census gazetteer), and a street\naddress where it starts with a house number (the Census geocoder) --\neach with where it is (vfr.geocode).",
+        "description": "Where a place typed is, for Nearest to find the fields near it\nrather than near own ship: the airports whose ident or name starts\nwith it, the towns that do (the Census gazetteer), and a street\naddress where it starts with a house number (the Census geocoder) --\neach with where it is (wingtip.geocode).",
         "operationId": "places_search_api_places_search_get",
         "parameters": [
           {
@@ -19671,7 +19671,7 @@
     },
     "/api/plan": {
       "get": {
-        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, vfr.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone and the aircraft's service\nceiling, on the hemispheric rule for that leg's own course\n-- and vfr.navlog makes four plans of them: the lowest, the\nhighest, the fastest for the winds aloft, and the one that burns the\nleast fuel, climb and cruise. altitude_choice picks\nwhich one the legs fly -- the fastest unless asked otherwise, the\nplan a pilot with the winds in hand picks (it was the lowest, as the\npredictable one) -- and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph,\nusable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph and\ncruise_power_pct (the power the cruise figures are at), when given,\nare a pilot's own aeroplane's numbers laid over it. Each leg flies\nthem in its own air: the cruise figures are the aeroplane's at a\nreference altitude on a standard day, and the forecast temperature\nat the leg's altitude gives the density altitude they are flown at\n(vfr.performance). depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
+        "description": "The whole plan: course line, every scored candidate, the selected\ncheckpoints, and a nav log leg between each consecutive pair.\n\naltitude_ft is optional. Omitted, wingtip.altitude works out each leg's\nown legal altitudes -- clear of terrain and obstacles, under the\nClass B shelf over that leg alone and the aircraft's service\nceiling, on the hemispheric rule for that leg's own course\n-- and wingtip.navlog makes four plans of them: the lowest, the\nhighest, the fastest for the winds aloft, and the one that burns the\nleast fuel, climb and cruise. altitude_choice picks\nwhich one the legs fly -- the fastest unless asked otherwise, the\nplan a pilot with the winds in hand picks (it was the lowest, as the\npredictable one) -- and the reasoning comes back with it, since\n\"why am I at 6,500\" is a question a pilot will actually ask.\n\naircraft names a stock profile; cruise_tas_kt, fuel_burn_gph,\nusable_fuel_gal, climb_tas_kt, climb_fuel_burn_gph and\ncruise_power_pct (the power the cruise figures are at), when given,\nare a pilot's own aeroplane's numbers laid over it. Each leg flies\nthem in its own air: the cruise figures are the aeroplane's at a\nreference altitude on a standard day, and the forecast temperature\nat the leg's altitude gives the density altitude they are flown at\n(wingtip.performance). depart, an ISO time (UTC when naive), picks the\nwinds-aloft forecast period the legs are flown on -- the 6-, 12- or\n24-hour product, whichever is valid closest to the departure;\nwithout it, the 6-hour product, i.e. about now -- and whether the\nfuel reserve is the day or the night one.",
         "operationId": "plan_api_plan_get",
         "parameters": [
           {
@@ -20256,7 +20256,7 @@
     },
     "/api/route-profile": {
       "get": {
-        "description": "The route's side view: the ground under it every 2 nm and the\nClass B, C and D airspace it passes through, floor and ceiling, along\nthe whole route through its stops (vfr.profile) -- for the page to\ndraw the plan's altitudes, climbs and descents over.",
+        "description": "The route's side view: the ground under it every 2 nm and the\nClass B, C and D airspace it passes through, floor and ceiling, along\nthe whole route through its stops (wingtip.profile) -- for the page to\ndraw the plan's altitudes, climbs and descents over.",
         "operationId": "route_profile_api_route_profile_get",
         "parameters": [
           {
@@ -20393,7 +20393,7 @@
     },
     "/api/stops/near": {
       "get": {
-        "description": "The public fields round a position with fuel, food, repair or a\nflight school, nearest first, for the map's Stops (the owner's one\nsheet for them near the pilot and along a route, 2026-10-27), within\n`nm` (the sheet's 10, 25, 50 or 100). A field's places are Overture's\n(vfr.nearby), read on the planner's pool where they have not been and\ncounted in `pending`; a field selling fuel or with a repair shop is\nlisted at once, its places to come (`places_known`), and the page\nasks again until none is pending.",
+        "description": "The public fields round a position with fuel, food, repair or a\nflight school, nearest first, for the map's Stops (the owner's one\nsheet for them near the pilot and along a route, 2026-10-27), within\n`nm` (the sheet's 10, 25, 50 or 100). A field's places are Overture's\n(wingtip.nearby), read on the planner's pool where they have not been and\ncounted in `pending`; a field selling fuel or with a repair shop is\nlisted at once, its places to come (`places_known`), and the page\nasks again until none is pending.",
         "operationId": "stops_near_api_stops_near_get",
         "parameters": [
           {
@@ -20458,7 +20458,7 @@
     },
     "/api/tfrs": {
       "get": {
-        "description": "Every temporary flight restriction in force or to come, for the\nmap: each NOTAM's areas, when, how high and why (vfr.tfr). A 502 when\ntfr.faa.gov does not answer, for the map to say so rather than draw\na sky with none.",
+        "description": "Every temporary flight restriction in force or to come, for the\nmap: each NOTAM's areas, when, how high and why (wingtip.tfr). A 502 when\ntfr.faa.gov does not answer, for the map to say so rather than draw\na sky with none.",
         "operationId": "tfrs_api_tfrs_get",
         "responses": {
           "200": {
@@ -20544,7 +20544,7 @@
     },
     "/api/traffic/based": {
       "get": {
-        "description": "Where each airplane is based, for the Aircraft tab's \"based at\"\nfilter (vfr.traffic.based): the field its last flights begin and end at\nmost; the ones not known yet looked up in the background, pending.",
+        "description": "Where each airplane is based, for the Aircraft tab's \"based at\"\nfilter (wingtip.traffic.based): the field its last flights begin and end at\nmost; the ones not known yet looked up in the background, pending.",
         "operationId": "traffic_based_api_traffic_based_get",
         "parameters": [
           {
@@ -20632,7 +20632,7 @@
     },
     "/api/traffic/flight/{hex_id}": {
       "get": {
-        "description": "An airplane being tracked: what it is, the field it took off from\nand its track today (vfr.traffic.flight); no track where its trace\ncannot be had.",
+        "description": "An airplane being tracked: what it is, the field it took off from\nand its track today (wingtip.traffic.flight); no track where its trace\ncannot be had.",
         "operationId": "traffic_flight_api_traffic_flight__hex_id__get",
         "parameters": [
           {
@@ -20673,7 +20673,7 @@
     },
     "/api/traffic/flight/{hex_id}/history": {
       "get": {
-        "description": "An airplane's last ten flights found, newest first, as FlightAware\nlists them (vfr.traffic.history): from adsb.lol's recent trace and its\narchive of past days', about six weeks, a fortnight at a time. With\n`until` and `before`, the ones before those listed; with `until` alone,\nthose on and before a day picked. A day that cannot be had now is left\nout and counted.",
+        "description": "An airplane's last ten flights found, newest first, as FlightAware\nlists them (wingtip.traffic.history): from adsb.lol's recent trace and its\narchive of past days', about six weeks, a fortnight at a time. With\n`until` and `before`, the ones before those listed; with `until` alone,\nthose on and before a day picked. A day that cannot be had now is left\nout and counted.",
         "operationId": "traffic_history_api_traffic_flight__hex_id__history_get",
         "parameters": [
           {
@@ -20752,7 +20752,7 @@
     },
     "/api/traffic/flight/{hex_id}/history/{flight_id}": {
       "get": {
-        "description": "One of those flights' reports, for its track log and its replay\n(vfr.traffic.past_flight); 404 where it is not one of them.",
+        "description": "One of those flights' reports, for its track log and its replay\n(wingtip.traffic.past_flight); 404 where it is not one of them.",
         "operationId": "traffic_past_flight_api_traffic_flight__hex_id__history__flight_id__get",
         "parameters": [
           {
@@ -20803,7 +20803,7 @@
     },
     "/api/traffic/flight/{hex_id}/status": {
       "get": {
-        "description": "An airplane's state now, for the alerts a pilot sets on it -- takes\noff, lands, comes near (vfr.traffic.status): from adsb.lol's recent\ntrace, seconds old, which costs none of its API's turns. A 503 where\nthat trace cannot be read now.",
+        "description": "An airplane's state now, for the alerts a pilot sets on it -- takes\noff, lands, comes near (wingtip.traffic.status): from adsb.lol's recent\ntrace, seconds old, which costs none of its API's turns. A 503 where\nthat trace cannot be read now.",
         "operationId": "traffic_status_api_traffic_flight__hex_id__status_get",
         "parameters": [
           {
@@ -20930,7 +20930,7 @@
     },
     "/api/waypoints/in-view": {
       "get": {
-        "description": "The VFR waypoints inside the map's view (vfr.fixes), at most\n`limit`: the magenta flags the sectional prints round busy airspace,\nfor the map to mark each with a diamond a pilot can tap and route\nthrough. GPS waypoints and the rest of NASR's fixes are left out:\nthey are not on a VFR chart.",
+        "description": "The VFR waypoints inside the map's view (wingtip.fixes), at most\n`limit`: the magenta flags the sectional prints round busy airspace,\nfor the map to mark each with a diamond a pilot can tap and route\nthrough. GPS waypoints and the rest of NASR's fixes are left out:\nthey are not on a VFR chart.",
         "operationId": "waypoints_in_view_api_waypoints_in_view_get",
         "parameters": [
           {
@@ -21095,7 +21095,7 @@
     },
     "/api/words/notams": {
       "post": {
-        "description": "The NOTAMs that matter for a flight, in a few sentences. The figures\nare the planner's: the NOTAMs in force or to come at every field the\nroute lands at, as the FAA's NOTAM feed gave them (vfr.notams, SWIM's\nFNS), and the TFRs near the route over the briefing's hours\n(vfr.tfr.along_route, as GET /api/briefing asks them: two hours of\nflight and an hour past, the route's own time not being known here).\nThe words are the model's; the sources are the pilot's to read raw.\nWith no NOTAM and no TFR there is nothing to say and no call.",
+        "description": "The NOTAMs that matter for a flight, in a few sentences. The figures\nare the planner's: the NOTAMs in force or to come at every field the\nroute lands at, as the FAA's NOTAM feed gave them (wingtip.notams, SWIM's\nFNS), and the TFRs near the route over the briefing's hours\n(wingtip.tfr.along_route, as GET /api/briefing asks them: two hours of\nflight and an hour past, the route's own time not being known here).\nThe words are the model's; the sources are the pilot's to read raw.\nWith no NOTAM and no TFR there is nothing to say and no call.",
         "operationId": "notam_words_api_words_notams_post",
         "requestBody": {
           "content": {

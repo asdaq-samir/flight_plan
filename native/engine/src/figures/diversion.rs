@@ -71,7 +71,7 @@ impl Diverted {
 /// heading and the ground speed; None where the crosswind is more than the
 /// airplane's speed and no heading holds the course. The nav log's own
 /// correction and ground speed (flight::wind_correction_deg and
-/// groundspeed_kt, vfr.navlog's), so the drill's figures are the nav
+/// groundspeed_kt, wingtip.navlog's), so the drill's figures are the nav
 /// log's to the last bit; the hold's legs are worked by it too.
 pub fn wind_triangle(tc: f64, tas: f64, wind_from_deg: f64, wind_kt: f64) -> Option<(f64, f64, f64)> {
     if (wind_kt * (wind_from_deg - tc).to_radians().sin()).abs() > tas {

@@ -44,7 +44,7 @@ export const LIVE_TILES = { updateWhenIdle: false } as const;
 
 /** The cycle and revision a kind's tiles are drawn from: its layer's own,
  *  each kind going over to a new cycle as its pyramid is finished
- *  (vfr.charts.serving_cycle_of), else the chart's, the sectional's. */
+ *  (wingtip.charts.serving_cycle_of), else the chart's, the sectional's. */
 export function kindCycle(chart: Pick<ChartInfo, "chart_cycle" | "chart_revision" | "chart_layers">, kind: string): { cycle: string; revision: number } {
   const layer = chart.chart_layers?.find(l => l.kind === kind);
   // A course cached offline from before the planner reported one has none.

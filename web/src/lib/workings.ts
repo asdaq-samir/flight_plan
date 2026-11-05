@@ -3,7 +3,7 @@
  * examiner's nav log (PA.I.D, cross-country flight planning): the wind
  * triangle from the true course to the magnetic heading, the ground
  * speed, the time and the fuel, each with its sum. The planner has
- * already done every step (vfr.navlog); this lays them out, and checks a
+ * already done every step (wingtip.navlog); this lays them out, and checks a
  * student's own figures against them within an E6B's accuracy.
  */
 import type { Leg } from "./api/types";
@@ -55,7 +55,7 @@ export function workingsOf(leg: Leg): Workings | null {
   const windDir = leg.wind?.wind_dir_true_deg ?? 0;
   const windKt = leg.wind?.wind_speed_kt ?? 0;
   const tas = leg.tas_kt;
-  // The planner's own figures (vfr.navlog), which the log's rows show:
+  // The planner's own figures (wingtip.navlog), which the log's rows show:
   // the sums below are how they are reached.
   const wca = leg.wca_deg;
   const th = leg.true_heading_deg;

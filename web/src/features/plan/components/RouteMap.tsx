@@ -564,7 +564,7 @@ function useRestZoom(): number {
 
 /** A checkpoint's name as its label shows it, in sentence case (the
  *  design review, 2026-10-28): the chart's name for the place as the
- *  places know it, "River near Lenroot", "Lake Zurich" (vfr.places
+ *  places know it, "River near Lenroot", "Lake Zurich" (wingtip.places
  *  checkpoint_name), where its ForeFlight waypoint's capitals (RIVER
  *  LENROOT) were shouted over the chart; else that waypoint's words,
  *  spaced, spelt as a place's are, a code (a figure in it) as written --

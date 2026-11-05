@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from app import foreflight
 from app.main import app
-from vfr import places
+from wingtip import places
 
 client = TestClient(app)
 

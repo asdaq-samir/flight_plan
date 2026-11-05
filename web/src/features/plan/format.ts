@@ -50,7 +50,7 @@ export function plannedWords(t: Totals | null): string {
   if (!t?.planned_at) return "";
   const planned = `Planned ${zuluTime(new Date(t.planned_at))}`;
   if (!t.winds) return planned;
-  // The GFS's winds where the FB could not be had (vfr.modelwinds), said so.
+  // The GFS's winds where the FB could not be had (wingtip.modelwinds), said so.
   const which = t.winds.modelled ? "modelled winds (GFS)" : "winds";
   return `${planned} · ${which} for use ${zuluTime(new Date(t.winds.use_from)).slice(0, 4)}–${zuluTime(new Date(t.winds.use_to))}`;
 }
@@ -69,7 +69,7 @@ export function windsOutOfDate(t: Totals | null, now: number, depart = ""): bool
 }
 
 /** An altitude plan's name, as the Brief and the Go / No-Go say it
- *  ("Fastest plan"): the planner's four (vfr.navlog.altitude_profiles). */
+ *  ("Fastest plan"): the planner's four (wingtip.navlog.altitude_profiles). */
 export const PLAN_NAME: Record<AltitudeOption["kind"], string> = {
   lowest: "Lowest", highest: "Highest", fastest: "Fastest", economical: "Economical",
 };
@@ -145,7 +145,7 @@ export function surfaceName(surface: string | null | undefined): string | null {
   return SURFACE_NAMES[code] ?? surface.toLowerCase();
 }
 
-/** A runway's wind in its parts, signed as vfr.runway_wind's are (a
+/** A runway's wind in its parts, signed as wingtip.runway_wind's are (a
  *  tailwind negative, a crosswind from the right positive): the planner's
  *  Runway["wind"] and lib/pattern's WindPick alike. */
 export interface WindParts {

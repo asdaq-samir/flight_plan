@@ -1,5 +1,5 @@
 """The crew's tools answer with the planner's own nav log, fetched
-through vfr.planner_client; the planner is mocked here."""
+through wingtip.planner_client; the planner is mocked here."""
 import json
 
 import pytest

@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pytest
 
-from vfr.geo import (
+from wingtip.geo import (
     EARTH_RADIUS_NM,
     along_path_nm,
     along_track_distance_nm,
@@ -66,7 +66,7 @@ def test_cross_track_distance_off_route_is_nonzero_and_signed():
 
 def test_cross_track_sign_is_positive_right_of_course():
     # Flying due east along the equator, a point to the south is off the
-    # right wing. vfr.pipeline's corridor filter and the nav log both
+    # right wing. wingtip.pipeline's corridor filter and the nav log both
     # read this sign.
     route_start, route_end = (0, 0), (0, 10)
     assert cross_track_distance_nm(-1, 5, route_start, route_end) > 0
@@ -82,7 +82,7 @@ def test_along_track_distance_at_route_midpoint():
 
 
 def test_along_track_distance_behind_the_start_is_negative():
-    # The signed convention vfr.pipeline's corridor filter is written
+    # The signed convention wingtip.pipeline's corridor filter is written
     # for: it bounds along-track between -MARGIN_NM and the route length
     # plus MARGIN_NM, which only excludes anything if a candidate behind
     # the departure point reads negative.
@@ -146,7 +146,7 @@ def test_corridor_bbox_padding():
 
 # --- The library check ---------------------------------------------------
 #
-# vfr.geo's distances and azimuths are PROJ's, and the two track
+# wingtip.geo's distances and azimuths are PROJ's, and the two track
 # distances are written there from the standard spherical identities.
 # pygeodesy has its own independent implementation of all four, so it is
 # the oracle they are pinned against. It is a test dependency only

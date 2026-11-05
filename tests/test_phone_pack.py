@@ -1,8 +1,8 @@
-"""The phones' cycle packs (vfr.pack's write_phone) and the engine's answer
+"""The phones' cycle packs (wingtip.pack's write_phone) and the engine's answer
 from them with no network (wingtip-engine's phone and rules modules,
-through vfr_native), held to the planner's own code: vfr.airspace_at's
+through wingtip_native), held to the planner's own code: wingtip.airspace_at's
 volumes, column and Mode C veil on the NASR shapefile itself, and
-vfr.sua's areas.
+wingtip.sua's areas.
 
 - At Chicago's real taps the answer is the planner's, band for band.
 - At random points round Chicago it is too, but where a point is within
@@ -25,9 +25,9 @@ import pytest
 import shapely
 from shapely.geometry import Point, Polygon
 
-import vfr_native
-from vfr import airspace_at, geo, sua
-from vfr import pack as cycle_pack
+import wingtip_native
+from wingtip import airspace_at, geo, sua
+from wingtip import pack as cycle_pack
 
 FIXTURES = Path(__file__).parent / "fixtures" / "native"
 PHONE = FIXTURES / "phone"
@@ -71,17 +71,17 @@ def phone(chicago, tmp_path):
 
 
 def _pack_at(folder: Path, lat: float, lon: float):
-    path = folder / f"{vfr_native.region_of(lat, lon)}.pack"
+    path = folder / f"{wingtip_native.region_of(lat, lon)}.pack"
     return cycle_pack.Pack(path).mapped if path.exists() else None
 
 
 def _engine(folder: Path, lat: float, lon: float, ground_ft=None) -> dict:
-    return json.loads(vfr_native.airspace_at_json(_pack_at(folder, lat, lon), lat, lon, ground_ft))
+    return json.loads(wingtip_native.airspace_at_json(_pack_at(folder, lat, lon), lat, lon, ground_ft))
 
 
 def _planner(chicago: Path, lat: float, lon: float, ground_ft=None, areas=()) -> dict:
     """What /api/airspace/at answers from the same files, but for what a
-    pack does not hold: vfr.airspace_at's own code on the shapefile."""
+    pack does not hold: wingtip.airspace_at's own code on the shapefile."""
     volumes = airspace_at.volumes_at(lat, lon, chicago)
     veil = airspace_at.mode_c_veil(lat, lon, VEIL)
     found = {}
@@ -104,7 +104,7 @@ def test_the_regions_are_named_alike_in_python_and_rust():
     points += list(zip(rng.uniform(-89, 89, 2000), rng.uniform(-180, 180, 2000)))
     for lat, lon in points:
         name = cycle_pack.region_of(lat, lon)
-        assert vfr_native.region_of(lat, lon) == name, (lat, lon)
+        assert wingtip_native.region_of(lat, lon) == name, (lat, lon)
         west, south, east, north = cycle_pack.region_bounds(name)
         assert south <= lat < north and west <= lon < east, (lat, lon, name)
 
@@ -113,7 +113,7 @@ def test_the_engines_distance_is_vfr_geos():
     rng = np.random.default_rng(11)
     for lat, lon in zip(rng.uniform(20, 65, 500), rng.uniform(-160, -65, 500)):
         lat2, lon2 = lat + rng.uniform(-3, 3), lon + rng.uniform(-4, 4)
-        assert abs(vfr_native.distance_nm(lat, lon, lat2, lon2) - geo.distance_nm(lat, lon, lat2, lon2)) < 1e-9
+        assert abs(wingtip_native.distance_nm(lat, lon, lat2, lon2) - geo.distance_nm(lat, lon, lat2, lon2)) < 1e-9
 
 
 def test_the_real_taps_answer_as_the_planner_at_any_ground(chicago, phone):
@@ -161,9 +161,9 @@ def test_a_special_use_area_is_the_planners_and_its_hole_is_not_held(chicago, ph
 
 def test_a_region_with_no_pack_has_the_rules_alone():
     """Nothing drawn: Class G to 14,500 ft, E above it, A from 18,000 ft
-    (vfr.airspace_at's column with no volumes)."""
+    (wingtip.airspace_at's column with no volumes)."""
     for ground in (None, 3000.0):
-        answer = json.loads(vfr_native.airspace_at_json(None, 30.0, -140.0, ground))
+        answer = json.loads(wingtip_native.airspace_at_json(None, 30.0, -140.0, ground))
         assert answer["bands"] == airspace_at.column(30.0, -140.0, ground or 0.0, [], in_veil=False)
         assert answer["mode_c_veil"] is None and answer["special_use"] == [] and answer["tfrs_unavailable"]
 
@@ -199,10 +199,10 @@ def test_the_ios_apps_fixture_packs_answer_as_the_planner(chicago):
 # --- The alerts ahead with no network (wingtip_engine::ahead) -------------
 
 def _ground_pack(tmp_path, monkeypatch, heights) -> bytes:
-    """A region's pack holding only its ground, written by vfr.pack's own
+    """A region's pack holding only its ground, written by wingtip.pack's own
     `_terrain` from a ground grid of two cells a degree over n40w088
     (`heights`, 8 by 8 feet, row 0 the south), and a special-use area."""
-    from vfr import ground_grid
+    from wingtip import ground_grid
 
     grid = np.asarray(heights, dtype="<i2")
     monkeypatch.setattr(ground_grid, "SOUTH", 40.0)
@@ -246,14 +246,14 @@ def test_the_ground_is_pooled_by_its_highest_and_a_misread_cell_is_none(tmp_path
     assert cells[0, 0] == 1500 and cells[2, 2] == np.iinfo(np.int16).min and cells[3, 3] == 1000
     # Over the 1,500 ft cell at 1,700 ft: the grid's margin makes it 1,650,
     # 50 ft under the airplane, a warning; well over it, nothing.
-    low = json.loads(vfr_native.ahead_json([pack], 40.2, -87.7, 90.0, 100.0, 1700.0, 0.0, 0))
+    low = json.loads(wingtip_native.ahead_json([pack], 40.2, -87.7, 90.0, 100.0, 1700.0, 0.0, 0))
     terrain = [a for a in low["alerts"] if a["kind"] == "terrain"]
     assert terrain and terrain[0]["level"] == "warning" and terrain[0]["top_ft"] == 1650.0
     assert "obstacles" in low["unavailable"] and "TFRs" in low["unavailable"]
-    high = json.loads(vfr_native.ahead_json([pack], 40.2, -87.7, 90.0, 100.0, 4000.0, 0.0, 0))
+    high = json.loads(wingtip_native.ahead_json([pack], 40.2, -87.7, 90.0, 100.0, 4000.0, 0.0, 0))
     assert not [a for a in high["alerts"] if a["kind"] == "terrain"]
     # Over the misread cell the ground is not known: said, not alerted.
-    unknown = json.loads(vfr_native.ahead_json([pack], 42.2, -85.5, 0.0, 100.0, 3000.0, 0.0, 0))
+    unknown = json.loads(wingtip_native.ahead_json([pack], 42.2, -85.5, 0.0, 100.0, 3000.0, 0.0, 0))
     assert "terrain" in unknown["unavailable"]
 
 
@@ -263,7 +263,7 @@ def test_a_restricted_area_and_a_tfr_ahead(tmp_path, monkeypatch):
     lat, lon = 42.5, -87.0 - 4.0 / (60.0 * math.cos(math.radians(42.5)))
     ring = "-86.95 42.45,-86.9 42.45,-86.9 42.55,-86.95 42.55,-86.95 42.45"
     tfr = f"6/1234\tA stadium\tspecial security instructions (99.7)\t0\tAGL\t3000\tAGL\t\t\t{ring}"
-    found = json.loads(vfr_native.ahead_json([pack], lat, lon, 90.0, 120.0, 3500.0, 0.0, 1_793_628_000, tfr, 1_793_620_000))
+    found = json.loads(wingtip_native.ahead_json([pack], lat, lon, 90.0, 120.0, 3500.0, 0.0, 1_793_628_000, tfr, 1_793_620_000))
     by_id = {a["id"]: a for a in found["alerts"]}
     restricted = by_id["special_use:R-9999"]
     assert (restricted["level"], restricted["class"], restricted["times_of_use"]) == ("caution", "R", "0800-1700 MON-FRI")

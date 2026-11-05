@@ -4,7 +4,7 @@ from pydantic import BaseModel
 
 class DetectionRows(BaseModel):
     """The chart reader's detections as feature rows, one per detection:
-    vfr.chartfeatures' columns by name, worked out by the planner, which
+    wingtip.chartfeatures' columns by name, worked out by the planner, which
     has the corridor's other detections to count as neighbours."""
 
     rows: list[dict[str, float]]

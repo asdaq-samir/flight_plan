@@ -1,5 +1,5 @@
 //! Instrument approaches taught and debriefed, one copy for the web app
-//! (callEngine), the planner (vfr_native.call) and the phones (wt_call),
+//! (callEngine), the planner (wingtip_native.call) and the phones (wt_call),
 //! so the iPhone can teach an approach and debrief one flown with no
 //! signal, from the same rules:
 //!
@@ -18,7 +18,7 @@
 //! - `calls`: the rules by name, as crate::call lists them.
 //!
 //! Both read the procedure as the planner draws it from the FAA's CIFP
-//! (vfr.procedures.procedure_drawing, /api/procedure's answer), `Drawing`
+//! (wingtip.procedures.procedure_drawing, /api/procedure's answer), `Drawing`
 //! below. What runs every frame -- the lesson's airplane moved along its
 //! line on the map -- stays in each app; these are worked out once a
 //! procedure, a flight or a step.

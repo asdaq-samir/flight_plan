@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 // with the document's snake-case names carried by @SerialName. The
 // iOS app's AirportExtras.swift and Models.swift have the same.
 
-/** One region's phone pack (CyclePackRegion, vfr.pack's write_phone):
+/** One region's phone pack (CyclePackRegion, wingtip.pack's write_phone):
  *  its bounds in degrees, its size and its CRC-32, for the phone to check
  *  it whole. */
 @Serializable
@@ -110,7 +110,7 @@ data class AirspaceAt(
     @SerialName("tfrs_unavailable") val tfrsUnavailable: Boolean? = null,
 )
 
-/** One thing ahead of the airplane (AheadAlert, vfr.alerts): airspace, a
+/** One thing ahead of the airplane (AheadAlert, wingtip.alerts): airspace, a
  *  special-use area or a TFR its track goes into in the next five
  *  minutes, or the ground or an obstacle it comes within 500 ft of in the
  *  next minute. The planner's judgment (or the engine's, from the packs);

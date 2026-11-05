@@ -4,7 +4,7 @@
 //! how long it is held, written as the address has it --
 //! "VPBNG/090/30:270:R:1M:2T" -- and the minutes flying it takes, which
 //! the planner adds to the flight's time and fuel. The web app's lib/holds,
-//! vfr.holds' parse and figures, and the iPhone's Hold; the entry and the
+//! wingtip.holds' parse and figures, and the iPhone's Hold; the entry and the
 //! legs' minutes by altitude are crate::figures::holding's.
 //!
 //! A no-wind racetrack, at the leg's true airspeed: a pilot corrects for
@@ -167,7 +167,7 @@ pub fn lap_minutes(leg: Leg, tas_kt: f64) -> f64 {
 }
 
 /// How long the hold is flown, minutes: the minutes given, or its turns
-/// round the racetrack (one where neither is given, as vfr.holds had it).
+/// round the racetrack (one where neither is given, as wingtip.holds had it).
 pub fn held_minutes(leg: Leg, turns: Option<f64>, minutes: Option<f64>, tas_kt: f64) -> f64 {
     match minutes {
         Some(m) => m,

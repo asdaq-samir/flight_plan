@@ -2,13 +2,13 @@
 fastest, economical -- over a small route with hand-set winds, no
 network anywhere:
 the per-leg wind lookup is stubbed, and the segments come in the shape
-vfr.altitude.select_cruise_altitude produces."""
+wingtip.altitude.select_cruise_altitude produces."""
 import math
 
 import pytest
 
-from vfr import navlog, performance
-from vfr.altitude import is_eastbound, legal_cruising_altitudes, lowest_vfr_cruising_altitude
+from wingtip import navlog, performance
+from wingtip.altitude import is_eastbound, legal_cruising_altitudes, lowest_vfr_cruising_altitude
 
 PROFILE = {"cruise_tas_kt": 100.0, "fuel_burn_gph": 8.0, "climb_rate_fpm_sea_level": 800.0, "climb_tas_kt": 70.0,
            "service_ceiling_ft": 14000.0}

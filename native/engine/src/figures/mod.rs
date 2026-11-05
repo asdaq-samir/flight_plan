@@ -1,5 +1,5 @@
 //! The figures four of the pilot's pages work out, one copy for the
-//! planner (app.figures, through vfr_native) and the phones (native/ffi),
+//! planner (app.figures, through wingtip_native) and the phones (native/ffi),
 //! so neither states an aviation figure of its own (docs/NATIVE.md): a
 //! flight debriefed against its flown track (ACS PA.VI.A), the diversion
 //! drill's wind triangle (ACS PA.VI.C), a hold's entry and its legs in the

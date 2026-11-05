@@ -8,7 +8,7 @@
 //! MSL), the outbound heading and time worked to make it so in the wind.
 //!
 //! app.figures.holding (itself web/src/lib/holding.ts and the words of
-//! features/pilot/HoldingPage.tsx) with vfr.holds' entry and leg time:
+//! features/pilot/HoldingPage.tsx) with wingtip.holds' entry and leg time:
 //! the web's copy holds the same rules and changes with this.
 
 use super::words::{bearing, js_round, norm360, wind_correction};
@@ -17,7 +17,7 @@ use crate::geo::{angle_between, py_mod};
 use crate::json;
 
 /// AIM 5-3-8 j.4(a): the inbound leg is a minute at or below 14,000 ft
-/// MSL and a minute and a half above it (vfr.holds' LEG_MIN_LOW,
+/// MSL and a minute and a half above it (wingtip.holds' LEG_MIN_LOW,
 /// LEG_MIN_HIGH, LEG_MIN_CEILING_FT).
 pub const LEG_MIN_LOW: f64 = 1.0;
 pub const LEG_MIN_HIGH: f64 = 1.5;
@@ -60,7 +60,7 @@ impl Entry {
 }
 
 /// The inbound leg's minutes where the pilot gave none (AIM 5-3-8 j.4(a);
-/// vfr.holds.default_leg_min): no altitude is taken as at or below 14,000.
+/// wingtip.holds.default_leg_min): no altitude is taken as at or below 14,000.
 pub fn leg_minutes(altitude_ft: Option<f64>) -> f64 {
     match altitude_ft {
         Some(alt) if alt > LEG_MIN_CEILING_FT => LEG_MIN_HIGH,
@@ -70,7 +70,7 @@ pub fn leg_minutes(altitude_ft: Option<f64>) -> f64 {
 
 /// The entry an airplane arriving on `arrival_deg` (its magnetic course to
 /// the fix) makes into a hold whose inbound course is `inbound_deg`
-/// (vfr.holds.entry). AIM 5-3-8 j.3 (and its figure) places the sectors
+/// (wingtip.holds.entry). AIM 5-3-8 j.3 (and its figure) places the sectors
 /// round the fix by where the airplane comes from, cut by a line 70
 /// degrees to the holding course; arriving on a course is coming from its
 /// reciprocal, so the same sectors read by the course flown, the way an
@@ -151,7 +151,7 @@ pub fn holding_wind(inbound_deg: f64, tas_kt: f64, wind_from_deg: f64, wind_kt: 
     let (in_wca, _, in_gs) = wind_triangle(inbound_deg, tas_kt, wind_from_deg, wind_kt)?;
     let (_, _, out_gs) = wind_triangle(outbound_deg, tas_kt, wind_from_deg, wind_kt)?;
     let out_wca = -3.0 * in_wca;
-    // The headwind along the inbound course (vfr.runway_wind.components_kt).
+    // The headwind along the inbound course (wingtip.runway_wind.components_kt).
     let headwind_in = wind_kt * (wind_from_deg - inbound_deg).to_radians().cos();
     Some(HoldWind {
         leg_min,

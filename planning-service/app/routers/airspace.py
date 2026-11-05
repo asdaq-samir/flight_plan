@@ -7,8 +7,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 from fastapi import APIRouter, HTTPException, Query
-from vfr import airports, airspace, airspace_at, airspace_map, alerts, altitude, elevation, fixes, sua, tfr
-from vfr.units import M_TO_FT
+from wingtip import airports, airspace, airspace_at, airspace_map, alerts, altitude, elevation, fixes, sua, tfr
+from wingtip.units import M_TO_FT
 
 from ..schemas import AirspaceAt, AirspaceInView, AlertsAhead, PointOffFix
 
@@ -37,11 +37,11 @@ def airspace_at_point(
     lat: float = Query(ge=-90, le=90), lon: float = Query(ge=-180, le=180),
 ) -> AirspaceAt:
     """The airspace over a point, from the ground to FL600, in bands
-    (vfr.airspace_at): each class's floor and ceiling in feet MSL, its
+    (wingtip.airspace_at): each class's floor and ceiling in feet MSL, its
     VFR weather minimums by day and by night (91.155), what it takes to
     enter and what the aeroplane must carry -- with the Class B Mode C
     veil the point is in, and the special-use areas and TFRs over it;
-    and the point named off the nearest fix (vfr.fixes.frd_near), for the
+    and the point named off the nearest fix (wingtip.fixes.frd_near), for the
     route. The ground, the shapefile and the two feeds are read at once."""
     shp_path = airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR)
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -83,7 +83,7 @@ def airspace_ahead(
     alt: float | None = Query(default=None, ge=-2000, le=60000, description="GPS altitude, feet MSL"),
     vs: float = Query(default=0.0, ge=-10000, le=10000, description="Vertical speed, feet a minute"),
 ) -> AlertsAhead:
-    """What is ahead of own ship in the air (vfr.alerts): the Class B, C
+    """What is ahead of own ship in the air (wingtip.alerts): the Class B, C
     and D, special-use areas and TFRs its track goes into in the next five
     minutes, and the ground or an obstacle it comes within 500 ft of in
     the next minute. Nothing under 40 kt, on the ground. Advisory, from
@@ -102,7 +102,7 @@ def airspace_in_view(
     north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
     classes: str = Query(default="BCD", pattern="^[BCD]{1,3}$", description="Which classes: the Class B alone further out"),
 ) -> AirspaceInView:
-    """The Class B, C and D inside the map's view (vfr.airspace_map), for
+    """The Class B, C and D inside the map's view (wingtip.airspace_map), for
     the map to draw over the chart: each volume's lines from the FAA's own
     shapefile, so they lie on the chart's printed ones, with its floor and
     top for the label the chart prints. None where the FAA's airspace

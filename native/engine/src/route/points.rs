@@ -1,6 +1,6 @@
 //! A route's point as the address names it, and the pilot's own point off
 //! a fix: the web app's lib/identSchema (stopOf, isFixIdent, frdOf,
-//! frdIdent), the planner's POINT and vfr.fixes' parse_frd and
+//! frdIdent), the planner's POINT and wingtip.fixes' parse_frd and
 //! frd_ident, and the iPhone's RouteExtras.frd.
 //!
 //! The pilot's own point is a fix, the magnetic course or radial from it
@@ -76,7 +76,7 @@ pub fn kind(ident: &str) -> Option<Kind> {
     }
 }
 
-/// The pilot's own point off a fix (vfr.fixes.parse_frd), trimmed and
+/// The pilot's own point off a fix (wingtip.fixes.parse_frd), trimmed and
 /// uppercased: its fix, its course 0 to 359 (360 is north, 0) and its
 /// distance, nm; None where `text` is not one, or its course is past 360
 /// or its distance nothing or past 999 nm.

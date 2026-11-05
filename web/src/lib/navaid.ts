@@ -28,7 +28,7 @@ export function threeFigures(deg: number): string {
  * bearing from the station as its radials are laid out, to the station's
  * own declination (NASR NAV_BASE MAG_VARN), not today's variation at the
  * airplane -- as the planner turns a pilot's "JOT/045/12"
- * (vfr.fixes.frd_point). The course to fly to it is the radial's
+ * (wingtip.fixes.frd_point). The course to fly to it is the radial's
  * reciprocal. Null where the station has no declination filed.
  */
 export function radialOf(station: Station, at: LatLon): { radial: number; toCourse: number; nm: number } | null {

@@ -9,7 +9,7 @@
 //! and when the missed approach began or where it landed.
 //!
 //! The procedure is the FAA's CIFP as the planner draws it
-//! (vfr.procedures.procedure_drawing): its lines, its fixes with their
+//! (wingtip.procedures.procedure_drawing): its lines, its fixes with their
 //! roles and crossing altitudes, and its placed glidepath (runway_path).
 //! The track is GPS's (a GPX or KML file, or a followed airplane's ADS-B
 //! reports), so its altitude is not the altimeter's and its course is a
@@ -90,7 +90,7 @@ const TRANSITION_MS: f64 = 120_000.0;
 const AS_GOOD_NM: f64 = 0.05;
 
 /// How the course is flown, by the approach's coded identifier (ARINC
-/// 424-18 5.10, vfr.procedures APPROACH_TYPES): a localizer's ("I", "L"),
+/// 424-18 5.10, wingtip.procedures APPROACH_TYPES): a localizer's ("I", "L"),
 /// a GPS's ("R", "P", and the circling "RNV-", "GPS-"), or another (VOR,
 /// NDB, LDA, back course), whose course is measured and marked nowhere:
 /// a VOR's and an NDB's full scale is an angle from a station the

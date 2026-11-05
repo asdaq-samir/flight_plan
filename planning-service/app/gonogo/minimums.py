@@ -2,7 +2,7 @@
 not take off or land in, stricter than the rules -- and where the
 briefing's weather is under them (web/src/lib/minimums.ts). Each off
 (None) until set. The rules are the engine's
-(wingtip_engine::gonogo::minimums), asked by name through vfr_native.call,
+(wingtip_engine::gonogo::minimums), asked by name through wingtip_native.call,
 as the web app asks them."""
 from . import ask
 
@@ -31,7 +31,7 @@ def steady_or_gust_kt(steady_kt: float, gust_kt: float | None) -> float:
 
 
 def runway_crosswind_kt(wind: dict) -> float:
-    """A runway's wind as the planner works it out (vfr.runway_wind),
+    """A runway's wind as the planner works it out (wingtip.runway_wind),
     judged by steady_or_gust_kt."""
     return ask("runway_crosswind", wind={"crosswind_kt": wind["crosswind_kt"], "gust_crosswind_kt": wind.get("gust_crosswind_kt")})
 

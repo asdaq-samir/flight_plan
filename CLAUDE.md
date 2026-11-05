@@ -17,7 +17,7 @@ shell per app round it (the owner, 2026-11-03).
 - **Each app is a shell that gets data, keeps state and draws**, and asks
   the engine the rest by name: the web through `callEngine`
   (web/src/lib/engine, the engine built to WebAssembly), the planner
-  through `vfr_native.call`, the iPhone through `wt_call`. A rule found in
+  through `wingtip_native.call`, the iPhone through `wt_call`. A rule found in
   a component, a hook, a Swift view or a route handler is a bug: move it
   into the engine and delete the copy.
 - **Screens are view and view model** (MVVM): the view draws, one hook (web)
@@ -73,8 +73,8 @@ shell per app round it (the owner, 2026-11-03).
 |---|---|
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
 | `planning-service/` | `ruff check app tests && pytest tests/` |
-| `src/vfr`, `tests/` | `ruff check src/vfr tests && pytest tests/` (repo root) |
-| `native/` (Rust, `vfr_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same vfr-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
+| `src/wingtip`, `tests/` | `ruff check src/wingtip tests && pytest tests/` (repo root) |
+| `native/` (Rust, `wingtip_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same wingtip-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
 | `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |

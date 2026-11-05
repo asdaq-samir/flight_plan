@@ -14,8 +14,8 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from vfr import weather
-from vfr.weather import (
+from wingtip import weather
+from wingtip.weather import (
     WeatherServiceError,
     ceiling_visibility_along_route,
     hazards_along_route,
@@ -145,7 +145,7 @@ def _fresh_datasets(monkeypatch):
     monkeypatch.setattr(weather, "_DATASET_FETCHING", {})
 
 
-@patch("vfr.weather.requests.get", return_value=METARS)
+@patch("wingtip.weather.requests.get", return_value=METARS)
 def test_metar_for_idents_reads_the_newest_report_per_station_from_the_cache_file(mock_get):
     result = metar_for_idents(["KDLH", "KORD", "C81"])
 
@@ -164,7 +164,7 @@ def test_metar_for_idents_reads_the_newest_report_per_station_from_the_cache_fil
     assert result["C81"] is None
 
 
-@patch("vfr.weather.requests.get", return_value=METARS)
+@patch("wingtip.weather.requests.get", return_value=METARS)
 def test_one_download_serves_every_call_within_the_ttl(mock_get):
     metar_for_idents(["KDLH"])
     metar_for_idents(["KORD"])
@@ -172,8 +172,8 @@ def test_one_download_serves_every_call_within_the_ttl(mock_get):
     assert mock_get.call_count == 1
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_a_failed_refresh_serves_the_held_metars_however_old(mock_get, mock_sleep):
     """Each METAR carries its own observation time, which the pilot sees,
     so the held copy is served through an outage of any length (AC
@@ -181,18 +181,18 @@ def test_a_failed_refresh_serves_the_held_metars_however_old(mock_get, mock_slee
     time). The products with a validity of their own run out: the TAF and
     SIGMET tests below."""
     mock_get.return_value = METARS
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"
 
     mock_get.side_effect = requests.ConnectionError("no route to host")
-    with patch("vfr.weather.time.time", return_value=T0200Z + 10 * 60):
+    with patch("wingtip.weather.time.time", return_value=T0200Z + 10 * 60):
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"   # ten minutes old: served
-    with patch("vfr.weather.time.time", return_value=T0200Z + 4 * 3600):
+    with patch("wingtip.weather.time.time", return_value=T0200Z + 4 * 3600):
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"   # four hours old: still served
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_a_certificate_failure_is_not_retried(mock_get, mock_sleep):
     """An expired or untrusted certificate fails the same way every time;
     the back-off would only delay the same answer by six seconds."""
@@ -207,8 +207,8 @@ def test_a_certificate_failure_is_not_retried(mock_get, mock_sleep):
     mock_sleep.assert_not_called()
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_metar_for_idents_wraps_a_network_failure(mock_get, mock_sleep):
     mock_get.side_effect = requests.ConnectionError("no route to host")
 
@@ -216,8 +216,8 @@ def test_metar_for_idents_wraps_a_network_failure(mock_get, mock_sleep):
         metar_for_idents(["C81"])
 
 
-@patch("vfr.weather.time.time", return_value=T0200Z)
-@patch("vfr.weather.requests.get", return_value=TAFS)
+@patch("wingtip.weather.time.time", return_value=T0200Z)
+@patch("wingtip.weather.requests.get", return_value=TAFS)
 def test_the_forecast_along_the_route_reads_the_held_taf_set_not_a_fresh_download(mock_get, mock_time):
     # Twice: one download. It downloaded and parsed the whole set on every
     # call, its parser passed where `force` goes -- 0.9 s of each briefing.
@@ -226,21 +226,21 @@ def test_the_forecast_along_the_route_reads_the_held_taf_set_not_a_fresh_downloa
     assert mock_get.call_count == 1
 
 
-@patch("vfr.weather.time.time", return_value=T0200Z)
-@patch("vfr.weather.requests.get", return_value=TAFS)
+@patch("wingtip.weather.time.time", return_value=T0200Z)
+@patch("wingtip.weather.requests.get", return_value=TAFS)
 def test_forecast_along_the_route_reads_each_nearby_stations_current_period(mock_get, mock_time):
     forecast = ceiling_visibility_along_route(C81, KDLH)
 
     # Where each station is and how high its field: a ceiling is above
-    # the field, and vfr.altitude keeps a leg under the clouds in MSL.
+    # the field, and wingtip.altitude keeps a leg under the clouds in MSL.
     assert forecast["stations"] == [{
         "icaoId": "KDLH", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1424, "ceiling_ft": 1500, "visibility_sm": 3.0,
     }]
     assert forecast["min_ceiling_ft"] == 1500 and forecast["min_visibility_sm"] == 3.0
 
 
-@patch("vfr.weather.time.time", return_value=T0200Z)
-@patch("vfr.weather.requests.get", return_value=AIRSIGMETS)
+@patch("wingtip.weather.time.time", return_value=T0200Z)
+@patch("wingtip.weather.requests.get", return_value=AIRSIGMETS)
 def test_hazards_along_the_route_are_the_current_sigmets_the_line_crosses(mock_get, mock_time):
     hazards = hazards_along_route(C81, KDLH)
 
@@ -323,7 +323,7 @@ FOG_IN_A_TEMPO = _taf(
 )
 
 
-@patch("vfr.weather.requests.get", return_value=FOG_IN_A_TEMPO)
+@patch("wingtip.weather.requests.get", return_value=FOG_IN_A_TEMPO)
 def test_a_tempo_group_counts_toward_the_worst_the_forecast_allows(mock_get):
     """TEMPO 1/2SM FG VV002 inside an otherwise VFR period: a go/no-go read
     is the worst the forecast allows, and vertical visibility is a ceiling."""
@@ -334,7 +334,7 @@ def test_a_tempo_group_counts_toward_the_worst_the_forecast_allows(mock_get):
     assert before["min_ceiling_ft"] is None and before["min_visibility_sm"] == 6.0
 
 
-@patch("vfr.weather.requests.get", return_value=_taf(_fcst("00", "06", vis="3")))
+@patch("wingtip.weather.requests.get", return_value=_taf(_fcst("00", "06", vis="3")))
 def test_a_forecast_that_does_not_cover_the_flight_says_nothing_about_it(mock_get):
     """It used to fall back to the TAF's first period -- an expired
     forecast read as current."""
@@ -342,7 +342,7 @@ def test_a_forecast_that_does_not_cover_the_flight_says_nothing_about_it(mock_ge
     assert later == {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
 
 
-@patch("vfr.weather.requests.get", return_value=_taf(
+@patch("wingtip.weather.requests.get", return_value=_taf(
     _fcst("00", "12", vis="6+")
     + _fcst("02", "03", change="BECMG", vis="2", sky='<sky_condition sky_cover="BKN" cloud_base_ft_agl="800"/>')))
 def test_a_becmg_change_lasts_past_its_own_window(mock_get):
@@ -355,7 +355,7 @@ def test_a_becmg_change_lasts_past_its_own_window(mock_get):
 def test_a_freezing_level_below_the_lowest_reading_says_so(monkeypatch):
     """Below 0 degC already at 6,000 ft, the winds-aloft product's lowest
     temperature: the freezing level is there or lower, not at 6,000."""
-    from vfr import airports, weather
+    from wingtip import airports, weather
     monkeypatch.setattr(weather, "_fd_stations", lambda fcst_hr: {"DLH": {6000: {"temp_c": -2}, 9000: {"temp_c": -8}}})
     monkeypatch.setattr(weather, "_nearest_station", lambda lat, lon, ids, df: "DLH")
     monkeypatch.setattr(airports, "load_airports", lambda: None)
@@ -364,7 +364,7 @@ def test_a_freezing_level_below_the_lowest_reading_says_so(monkeypatch):
 
 
 def test_a_freezing_level_between_readings_is_interpolated(monkeypatch):
-    from vfr import airports, weather
+    from wingtip import airports, weather
     monkeypatch.setattr(weather, "_fd_stations", lambda fcst_hr: {"DLH": {6000: {"temp_c": 4}, 9000: {"temp_c": -2}}})
     monkeypatch.setattr(weather, "_nearest_station", lambda lat, lon, ids, df: "DLH")
     monkeypatch.setattr(airports, "load_airports", lambda: None)
@@ -375,7 +375,7 @@ def test_a_freezing_level_between_readings_is_interpolated(monkeypatch):
 def test_the_temperature_between_two_reports_is_interpolated_and_below_them_lapsed(monkeypatch):
     """6,000 ft is the lowest temperature the product gives; under it the
     standard lapse rate (about 2 degC per 1,000 ft) is all there is."""
-    from vfr import airports, weather
+    from wingtip import airports, weather
     monkeypatch.setattr(weather, "_fd_stations", lambda fcst_hr: {"DLH": {
         3000: {"temp_c": None}, 6000: {"temp_c": 4}, 9000: {"temp_c": -2}}})
     monkeypatch.setattr(weather, "_nearest_station", lambda lat, lon, ids, df: "DLH")
@@ -393,7 +393,7 @@ def test_a_reader_during_a_refresh_is_served_the_held_copy_at_once(monkeypatch):
     so every reader waited behind it -- up to a minute and a half."""
     import threading
     import time as clock
-    from vfr import weather
+    from wingtip import weather
 
     release, started = threading.Event(), threading.Event()
 
@@ -402,7 +402,7 @@ def test_a_reader_during_a_refresh_is_served_the_held_copy_at_once(monkeypatch):
         release.wait(5)
         return METARS
 
-    with patch("vfr.weather.requests.get", return_value=METARS):
+    with patch("wingtip.weather.requests.get", return_value=METARS):
         metar_for_idents(["KDLH"])                      # a held copy
     monkeypatch.setattr(weather.requests, "get", slow_get)
     refresher = threading.Thread(target=lambda: weather._dataset("metars", force=True))
@@ -418,7 +418,7 @@ def test_a_reader_during_a_refresh_is_served_the_held_copy_at_once(monkeypatch):
 
 def test_callers_with_nothing_held_share_one_download(monkeypatch):
     import threading
-    from vfr import weather
+    from wingtip import weather
 
     calls = []
     release = threading.Event()
@@ -457,25 +457,25 @@ FD = _text(
 )
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_a_failure_with_nothing_held_is_the_answer_for_a_minute(mock_get, mock_sleep):
     """Every caller used to run a retry cycle of its own, one behind the
     other, while there was nothing to serve."""
     mock_get.side_effect = requests.ConnectionError("no route to host")
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         with pytest.raises(WeatherServiceError, match="METARs unavailable") as raised:
             metar_for_idents(["KORD"])
     assert "no route to host" in str(raised.value.__cause__)
     attempts = mock_get.call_count
 
-    with patch("vfr.weather.time.time", return_value=T0200Z + 30):
+    with patch("wingtip.weather.time.time", return_value=T0200Z + 30):
         with pytest.raises(WeatherServiceError, match="METARs unavailable"):
             metar_for_idents(["KORD"])
     assert mock_get.call_count == attempts
 
     mock_get.side_effect, mock_get.return_value = None, METARS
-    with patch("vfr.weather.time.time", return_value=T0200Z + 61):
+    with patch("wingtip.weather.time.time", return_value=T0200Z + 61):
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"
 
 
@@ -483,26 +483,26 @@ def test_a_failure_with_nothing_held_is_the_answer_for_a_minute(mock_get, mock_s
 T0900Z = datetime(2026, 9, 20, 9, 0, tzinfo=timezone.utc).timestamp()
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_a_copy_too_old_to_serve_is_not_fetched_again_within_the_minute(mock_get, mock_sleep):
     mock_get.return_value = FD
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         weather._fd_stations("06")
     mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
     # The source itself: _fd_stations would go on to the GFS's winds
-    # (vfr.modelwinds), a fetch of its own.
-    with patch("vfr.weather.time.time", return_value=T0900Z + 60):
+    # (wingtip.modelwinds), a fetch of its own.
+    with patch("wingtip.weather.time.time", return_value=T0900Z + 60):
         with pytest.raises(WeatherServiceError):
             weather._dataset("winds-06")
     attempts = mock_get.call_count
-    with patch("vfr.weather.time.time", return_value=T0900Z + 90):
+    with patch("wingtip.weather.time.time", return_value=T0900Z + 90):
         with pytest.raises(WeatherServiceError):
             weather._dataset("winds-06")
     assert mock_get.call_count == attempts
 
 
-@patch("vfr.weather.requests.get", return_value=FD)
+@patch("wingtip.weather.requests.get", return_value=FD)
 def test_the_winds_are_parsed_once_and_held(mock_get):
     assert weather._fd_stations("06")["DLH"][9000]["temp_c"] == -8.0
     weather._fd_stations("06")
@@ -510,87 +510,87 @@ def test_the_winds_are_parsed_once_and_held(mock_get):
     assert mock_get.call_args.kwargs["params"]["fcst"] == "06"
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_a_winds_body_with_no_header_is_a_failed_fetch_not_a_crash(mock_get, mock_sleep):
     """It raised StopIteration, which no caller catches -- and the text
     was cached before it was parsed, so it stayed "valid" for 15 min."""
     mock_get.return_value = FD
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         weather._fd_stations("06")
     mock_get.return_value = _text("<html>Service Unavailable</html>")
-    with patch("vfr.weather.time.time", return_value=T0200Z + 5 * 60):
+    with patch("wingtip.weather.time.time", return_value=T0200Z + 5 * 60):
         assert weather._dataset("winds-06", force=True)["DLH"][9000]["temp_c"] == -8.0   # the held copy
-    with patch("vfr.weather.time.time", return_value=T0900Z + 60):
+    with patch("wingtip.weather.time.time", return_value=T0900Z + 60):
         with pytest.raises(WeatherServiceError, match="Winds aloft") as raised:
             weather._dataset("winds-06")                                   # past its for-use window: not
     assert "no altitude header" in str(raised.value.__cause__)
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_winds_answering_204_serve_the_held_product_to_the_end_of_its_for_use_window(mock_get, mock_sleep):
     """2026-11-04: the windtemp API answered 204 with no body all
     afternoon, and a copy held only 15 minutes left no winds at all. A
     product is for use in its FOR USE window (AC 00-45H), so it is served
     to the end of that, and its fetch time says how old it is."""
     mock_get.return_value = FD
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         weather._fd_stations("06")
     mock_get.return_value = _text("")
     mock_get.return_value.status_code = 204
-    with patch("vfr.weather.time.time", return_value=T0200Z + 5 * 3600):
+    with patch("wingtip.weather.time.time", return_value=T0200Z + 5 * 3600):
         assert weather._fd_stations("06")["DLH"][9000]["temp_c"] == -8.0
         assert weather.dataset_status()["winds-06"] == T0200Z
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_metars_are_served_through_an_outage_with_their_own_times(mock_get, mock_sleep):
     """A METAR has no period of validity, only the time it was made, which
     each report carries: the last set heard is served, its age said."""
     mock_get.return_value = METARS
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         metar_for_idents(["KORD"])
     mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
-    with patch("vfr.weather.time.time", return_value=T0200Z + 6 * 3600):
+    with patch("wingtip.weather.time.time", return_value=T0200Z + 6 * 3600):
         report = metar_for_idents(["KORD"])["KORD"]
     assert report["observed_at"] == "2026-09-20T01:51:00.000Z"
     assert weather.dataset_status()["metars"] == T0200Z
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_a_taf_set_is_served_to_the_end_of_its_latest_period_and_no_further(mock_get, mock_sleep):
     mock_get.return_value = TAFS
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         weather._dataset("tafs")
     ends = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc).timestamp()   # the latest period above
     mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
-    with patch("vfr.weather.time.time", return_value=ends - 60):
+    with patch("wingtip.weather.time.time", return_value=ends - 60):
         assert weather._dataset("tafs")[0]["icaoId"] == "KDLH"
-    with patch("vfr.weather.time.time", return_value=ends + 120):
+    with patch("wingtip.weather.time.time", return_value=ends + 120):
         with pytest.raises(WeatherServiceError):
             weather._dataset("tafs")
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_sigmets_are_served_until_the_last_of_them_ends(mock_get, mock_sleep):
     mock_get.return_value = AIRSIGMETS
-    with patch("vfr.weather.time.time", return_value=T0200Z):
+    with patch("wingtip.weather.time.time", return_value=T0200Z):
         weather._dataset("airsigmets")
     ends = datetime(2026, 9, 20, 2, 55, tzinfo=timezone.utc).timestamp()   # the latest valid_to above
     mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
-    with patch("vfr.weather.time.time", return_value=ends - 60):
+    with patch("wingtip.weather.time.time", return_value=ends - 60):
         assert len(weather._dataset("airsigmets")) == 3
-    with patch("vfr.weather.time.time", return_value=ends + 120):
+    with patch("wingtip.weather.time.time", return_value=ends + 120):
         with pytest.raises(WeatherServiceError):
             weather._dataset("airsigmets")
 
 
-@patch("vfr.weather.time.sleep")
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.time.sleep")
+@patch("wingtip.weather.requests.get")
 def test_a_refresh_tries_every_source_and_raises_the_first_failure(mock_get, mock_sleep):
     def answer(url, params=None, headers=None, timeout=None):
         if "metars" in url:
@@ -605,7 +605,7 @@ def test_a_refresh_tries_every_source_and_raises_the_first_failure(mock_get, moc
     assert fetched == {"tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24"}
 
 
-@patch("vfr.weather.requests.get")
+@patch("wingtip.weather.requests.get")
 def test_preload_and_refresh_hold_every_winds_period(mock_get):
     # A plan for later in the day reads the 12- or 24-hour winds: held
     # from the start and refreshed with the rest, never fetched under it.
@@ -640,7 +640,7 @@ PIREP_XML = b"""<response><data>
 def test_the_pilot_reports_near_the_route_are_a_light_aeroplanes_not_the_airliners(monkeypatch):
     from datetime import datetime, timezone
 
-    from vfr import weather
+    from wingtip import weather
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z").encode()
     reports = weather._parse_pireps(PIREP_XML.replace(b"{now}", now))
     assert [r["aircraft"] for r in reports] == ["C172", "B738", None]   # the AIREP left out
@@ -666,7 +666,7 @@ GAIRMET_XML = b"""<response><data>
 
 
 def test_the_g_airmets_the_route_crosses_are_every_snapshot_with_its_time_and_area(monkeypatch):
-    from vfr import weather
+    from wingtip import weather
     advisories = weather._parse_gairmets(GAIRMET_XML)
     assert len(advisories) == 2                                 # high-level turbulence left out
     monkeypatch.setattr(weather, "_dataset", lambda name: advisories)
@@ -682,7 +682,7 @@ def test_the_g_airmets_the_route_crosses_are_every_snapshot_with_its_time_and_ar
     }
 
 
-@patch("vfr.weather.requests.get", return_value=FOG_IN_A_TEMPO)
+@patch("wingtip.weather.requests.get", return_value=FOG_IN_A_TEMPO)
 def test_a_station_is_read_for_when_the_flight_is_there(mock_get):
     """The fog in the TEMPO at 04-06Z is what a pilot arriving at 05Z is
     told, and not one arriving at 01Z: each place over its own hour."""
@@ -799,8 +799,8 @@ WINDY_TAFS = _cache_file(
     '<change_indicator>BECMG</change_indicator><wind_dir_degrees>VRB</wind_dir_degrees><wind_speed_kt>4</wind_speed_kt></forecast></TAF>'
 )
 
-@patch("vfr.weather.time.time", return_value=T0200Z)
-@patch("vfr.weather.requests.get", return_value=WINDY_TAFS)
+@patch("wingtip.weather.time.time", return_value=T0200Z)
+@patch("wingtip.weather.requests.get", return_value=WINDY_TAFS)
 def test_the_wind_forecast_at_a_field_is_the_prevailing_one_then_never_a_tempo(mock_get, mock_time):
     """For the runway a flight will find in use when it gets there (the
     owner's pick, 2026-10-20), the TAF's prevailing wind at that time."""
@@ -817,8 +817,8 @@ def test_the_wind_forecast_at_a_field_is_the_prevailing_one_then_never_a_tempo(m
     assert weather.forecast_wind(*KDLH, at(13), "KDLH") is None
 
 
-@patch("vfr.weather.time.time", return_value=T0200Z)
-@patch("vfr.weather.requests.get", return_value=WINDY_TAFS)
+@patch("wingtip.weather.time.time", return_value=T0200Z)
+@patch("wingtip.weather.requests.get", return_value=WINDY_TAFS)
 def test_a_field_without_a_taf_has_the_nearest_ones_within_thirty_miles(mock_get, mock_time):
     at = datetime(2026, 9, 20, 7, 0, tzinfo=timezone.utc).timestamp()
     near = weather.forecast_wind(46.70, -92.20, at, "KSUW")

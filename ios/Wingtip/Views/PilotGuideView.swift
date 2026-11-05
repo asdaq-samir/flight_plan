@@ -53,7 +53,7 @@ struct PilotGuideView: View {
 struct AirplaneInTheAirView: View {
     var body: some View {
         ScrollView {
-            // The reference is the planner's (vfr.performance,
+            // The reference is the planner's (wingtip.performance,
             // CRUISE_REFERENCE_FT, 6,000 ft).
             VStack(alignment: .leading, spacing: 12) {
                 Text("Your airplane's cruise speed and fuel burn are taken as its figures at its cruise power at 6,000 ft on a standard day, a row of its handbook's cruise table.")

@@ -1,12 +1,12 @@
 """Under IFR, whether the flight is planned into icing
 (web/src/lib/icing.ts): a leg flown at or above the freezing level, where
 the moisture icing needs is forecast -- cloud along the route, or an icing
-AIRMET or SIGMET over it (the planner's `icing_possible`, vfr.altitude) --
+AIRMET or SIGMET over it (the planner's `icing_possible`, wingtip.altitude) --
 with the pilot reports of icing near the route (structural icing needs
 visible moisture at or below 0 °C, the Aviation Weather Handbook,
 FAA-H-8083-28A, Icing). Under VFR the flight stays clear of cloud (14 CFR
 91.155). The rule is the engine's (wingtip_engine::gonogo::icing), asked
-by name through vfr_native.call."""
+by name through wingtip_native.call."""
 from . import ask
 
 

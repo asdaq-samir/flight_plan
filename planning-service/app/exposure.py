@@ -21,7 +21,7 @@ from itertools import pairwise
 import shapely
 from shapely.geometry import LineString, Point, Polygon, shape
 from shapely.ops import nearest_points
-from vfr import geo
+from wingtip import geo
 
 from .gonogo.pass_times import PASS_MARGIN_MIN, instant
 
@@ -291,7 +291,7 @@ def fields_below_vfr(legs: Legs, idents: list[str], destination: str, where: dic
     flight category: AIM 7-1-7, IFR a ceiling under 1,000 ft or
     visibility under 3 miles, LIFR under 500 ft or 1 mile), and each TAF station along the
     route forecast under 14 CFR 91.155's basic minimums for when the
-    airplane is there (`below`, vfr.weather.below_vfr_minimums). The
+    airplane is there (`below`, wingtip.weather.below_vfr_minimums). The
     departure is met at the start of the first leg, the destination at
     the end of the last, a stop at the end of the leg landing there."""
     out = []

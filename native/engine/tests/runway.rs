@@ -3,7 +3,7 @@
 //! lib/runwayFit, lib/takeoffLanding and lib/trafficPattern to
 //! (wind.test.ts, windPick.test.ts, runwayFlown.test.ts,
 //! runwayFit.test.ts, trafficPattern.test.ts, weightBalance.test.ts), and
-//! the planner's tests hold vfr.runway_wind and vfr.pattern to
+//! the planner's tests hold wingtip.runway_wind and wingtip.pattern to
 //! (tests/test_runway_wind*.py, test_pattern.py), asked as the hosts ask
 //! them: by name, JSON in and out.
 
@@ -260,7 +260,7 @@ fn a_forecasts_wind_is_picked_into_on_its_own_the_report_now_set_aside() {
 fn ends_square_across_the_wind_are_a_tie_the_longer_runway_taking_it() {
     // A wind from 360 straight across 09/27 and its parallel: the sums leave
     // a tailwind of a few 1e-16 on one end, which is no reason to pick it
-    // over the longer runway (vfr.runway_wind rounds them to 9 places).
+    // over the longer runway (wingtip.runway_wind rounds them to 9 places).
     let runways = json!([runway(&[("09", 90.0), ("27", 270.0)], 3000.0, Value::Null), runway(&[("09", 90.0), ("27", 270.0)], 5000.0, Value::Null)]);
     let mut runways = runways;
     runways[1]["runway_ends"] = json!([{"ident": "27", "heading_true_deg": 270.0}, {"ident": "09", "heading_true_deg": 90.0}]);
@@ -463,7 +463,7 @@ fn the_way_out_is_straight_or_a_45_to_the_patterns_side_whichever_is_nearer_the_
     assert_eq!(bearing(pt(&north["entry"]["from"]), pt(&north["entry"]["to"])).round(), 45.0);
 }
 
-/// UGN's runway 5/23 as vfr.pattern with_traffic gives it: 23 right, 5 left.
+/// UGN's runway 5/23 as wingtip.pattern with_traffic gives it: 23 right, 5 left.
 fn ugn() -> Value {
     json!({"runway_ends": [
         {"ident": "05", "heading_true_deg": 49.0, "traffic": "left", "lat": 42.4176, "lon": -87.8742},

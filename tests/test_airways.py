@@ -1,11 +1,11 @@
-"""vfr.airways: an airway flown from one of its fixes to another, either
+"""wingtip.airways: an airway flown from one of its fixes to another, either
 way along it, each segment with the published altitudes for the way
 flown -- a directional MEA's own -- and an airway that cannot be flown
 as written refused in a pilot's words. A NASR AWY_SEG_ALT.csv of a few
 rows, its header the FAA's own."""
 import pytest
 
-from vfr import airways, faa_data
+from wingtip import airways, faa_data
 
 HEADER = (
     '"EFF_DATE","REGULATORY","AWY_LOCATION","AWY_ID","POINT_SEQ","FROM_POINT","FROM_PT_TYPE","NAV_NAME","NAV_CITY",'

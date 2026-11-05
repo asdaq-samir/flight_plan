@@ -8,7 +8,7 @@ pilot hovers one to see whether they could get in today, so the
 alternative would be a request per airport on hover -- thirty round
 trips for a map that has not moved. Everything here is already in
 memory on this side: the airspace shapefile is parsed once at startup,
-and the METAR and TAF national caches are held by vfr.weather for
+and the METAR and TAF national caches are held by wingtip.weather for
 minutes at a time. Assembling all thirty costs about as much as
 assembling one.
 """
@@ -16,7 +16,7 @@ import logging
 import time
 
 from fastapi import APIRouter
-from vfr import airspace, altitude, classb, weather
+from wingtip import airspace, altitude, classb, weather
 
 from ..schemas import ClassBAirport, ClassBResponse
 
@@ -36,7 +36,7 @@ def class_b_airports() -> ClassBResponse:
     field has no current report.
     """
     # Timed per stage rather than as one total: class_b_airports() has its
-    # own on-disk pickle cache (vfr.classb), warm in well under a second
+    # own on-disk pickle cache (wingtip.classb), warm in well under a second
     # and a genuine ~15s shapefile reparse when that cache is missing or
     # stale -- exactly what happened 2026-09-23, when an iCloud sync
     # conflict silently renamed the pickle out from under it and this

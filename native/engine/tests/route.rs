@@ -216,7 +216,7 @@ fn a_points_form() {
 
 #[test]
 fn the_pilots_own_point_off_a_fix() {
-    // vfr.fixes.parse_frd, and lib/identSchema's frdOf and frdIdent.
+    // wingtip.fixes.parse_frd, and lib/identSchema's frdOf and frdIdent.
     assert_eq!(points::frd("VPBNG/090/30"), Some(("VPBNG".into(), 90, 30.0)));
     assert_eq!(points::frd("DLH090030"), Some(("DLH".into(), 90, 30.0)));
     assert_eq!(points::frd(" vpbng/360/4.5 "), Some(("VPBNG".into(), 0, 4.5)));

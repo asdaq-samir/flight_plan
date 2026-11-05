@@ -4,7 +4,7 @@
  *  console's About links adsb.lol with its licence. */
 const ATTRIBUTION = "Traffic adsb.lol, ODbL";
 
-/** Each source the planner names (vfr.traffic: "adsb.lol and adsb.fi"),
+/** Each source the planner names (wingtip.traffic: "adsb.lol and adsb.fi"),
  *  credited as its terms ask: adsb.fi's by its name, linked in the
  *  console's About. */
 const CREDITS: Record<string, string> = {

@@ -7,15 +7,15 @@ It serves no pages. The front end is in [`web/`](../web) and ships inside
 `webapp`'s jar; the browser reaches this service only through `webapp`'s
 `/api/planner/*` proxy. On AWS it has no load-balancer route at all.
 
-Almost all of the thinking lives in [`src/vfr`](../src). This is a thin
+Almost all of the thinking lives in [`src/wingtip`](../src). This is a thin
 HTTP layer over it: `app/main.py` builds the app, `app/routers/` holds
 the endpoints one module per concern (plan, chart, classb, build,
 briefing, notes, devml, devservices, system), and the work they share -- resolving a route
 (`common.py`), scoring and selecting its checkpoints (`scoring.py`), the
 cruise altitude and course line (`planning.py`), the corridor read
 (`detection.py`) -- sits beside them. The legs themselves are
-`vfr.navlog`'s; both agents take theirs from this service's `/api/plan`
-(`vfr.planner_client`) rather than building their own.
+`wingtip.navlog`'s; both agents take theirs from this service's `/api/plan`
+(`wingtip.planner_client`) rather than building their own.
 Every response, streamed lines included, is a model in `app/schemas.py`:
 FastAPI validates against it and publishes it in `openapi.json`,
 committed here and checked by `tests/test_openapi.py`. After changing a
@@ -74,7 +74,7 @@ documentation and an editor hint.
    bearing: change `dep: str` to `dep: int` and send a word, and you get
    a 422 with a useful message you did not write.
 
-2. **Call your own library.** `from vfr import geo` and return a real
+2. **Call your own library.** `from wingtip import geo` and return a real
    distance. Nothing about the web layer changes — which is the point of
    keeping the domain code in `src/`.
 
@@ -114,16 +114,16 @@ once in ten.
 | `GET /` | Says the service is up and where the UI went. |
 | `GET /api/course` | The leg itself. Sub-second, so the map draws immediately. |
 | `GET /api/checkpoints` | Scored candidates and the subset worth flying. |
-| `GET /api/navlog` | The four altitude plans (lowest, highest, fastest for the winds, and the least fuel, climb and cruise; each stepping under a Class B shelf and up past it), the one chosen (`altitude_choice`), and the dead-reckoning legs, streamed as NDJSON. `depart`, an ISO time, picks the winds forecast period (6, 12 or 24 hours out) and whether the fuel reserve is the day or the night one; the totals carry the fuel check against the aeroplane's usable fuel (`usable_fuel_gal` overrides the profile's). Each leg flies the aeroplane's cruise figures -- the profile's, or a pilot's own (`cruise_tas_kt`, `fuel_burn_gph`, and `cruise_power_pct`, the power they are at) -- in its own air: they are its figures at 6,000 ft on a standard day, and the forecast temperature at the leg's altitude gives the density altitude, the TAS and the burn it flies at (`vfr.performance`). Each leg carries its climb -- from the field on the first, up to a new level where a plan steps -- at the best rate for the density altitude, falling to 100 fpm at the service ceiling. The slow one. |
+| `GET /api/navlog` | The four altitude plans (lowest, highest, fastest for the winds, and the least fuel, climb and cruise; each stepping under a Class B shelf and up past it), the one chosen (`altitude_choice`), and the dead-reckoning legs, streamed as NDJSON. `depart`, an ISO time, picks the winds forecast period (6, 12 or 24 hours out) and whether the fuel reserve is the day or the night one; the totals carry the fuel check against the aeroplane's usable fuel (`usable_fuel_gal` overrides the profile's). Each leg flies the aeroplane's cruise figures -- the profile's, or a pilot's own (`cruise_tas_kt`, `fuel_burn_gph`, and `cruise_power_pct`, the power they are at) -- in its own air: they are its figures at 6,000 ft on a standard day, and the forecast temperature at the leg's altitude gives the density altitude, the TAS and the burn it flies at (`wingtip.performance`). Each leg carries its climb -- from the field on the first, up to a new level where a plan steps -- at the best rate for the density altitude, falling to 100 fpm at the service ceiling. The slow one. |
 | `GET /api/plan` | All three at once, for non-browser callers. |
 | `GET /api/briefing` | The FAA-sequence weather briefing behind Plan's briefing (the nav log drawer opened wide). |
 | `GET /api/detect/stream` | Chart-vision detections, streamed as NDJSON. |
 | `GET /api/classify` | What the chart draws at one point. |
-| `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | The map's tiles, rendered from the FAA's own GeoTIFF of each sheet (`vfr.charts`), collar clipped away so sheets butt together; 404 where no sheet of that kind covers the tile. Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
-| `GET /api/class-b` | Every Class B airport: where it is, and what its METAR/TAF are doing now and forecast. One call for all thirty rather than one per marker -- the airspace shapefile is parsed once and pickled (`vfr.classb`, `data/raw/faa_nasr/Shape_Files/Class_Airspace.controlled.v5.pkl`), and the METAR/TAF national caches are already held in memory by `vfr.weather`, so assembling all thirty costs about as much as assembling one. |
+| `GET /api/chart-tile/{kind}/{z}/{x}/{y}.png` | The map's tiles, rendered from the FAA's own GeoTIFF of each sheet (`wingtip.charts`), collar clipped away so sheets butt together; 404 where no sheet of that kind covers the tile. Any chart kind by key -- `sec`, `tac`, `ifr_low`, `ifr_high` (the IFR enroute charts, base layers the map's info popover can switch to), `ifr_area` (the enroute charts' terminal-area sheets, an overlay over the IFR bases the way the TAC is over the sectional). `chart_layers` on the course lists the kinds, their zooms and which base each overlay belongs over. On AWS the course also carries `chart_tiles_base`, the CloudFront URL the browser fetches tiles from instead (docs/README-AWS.md). |
+| `GET /api/class-b` | Every Class B airport: where it is, and what its METAR/TAF are doing now and forecast. One call for all thirty rather than one per marker -- the airspace shapefile is parsed once and pickled (`wingtip.classb`, `data/raw/faa_nasr/Shape_Files/Class_Airspace.controlled.v5.pkl`), and the METAR/TAF national caches are already held in memory by `wingtip.weather`, so assembling all thirty costs about as much as assembling one. |
 | `POST/DELETE /api/picks` | Hand-marked checkpoints. |
 | `POST /api/checkpoint-notes/generate`, `POST /api/checkpoint-notes` | A "how to spot it" note per checkpoint: streamed, generating (one Claude call each) only the checkpoints with no note yet; and a pilot's own edit. An edit is that pilot's alone (webapp's proxy sends `X-Pilot-Id` from the session) and is appended, so the note it replaced stays in `checkpoint_notes.csv`; everyone else keeps the shared note. |
-| `POST /api/oral/question`, `POST /api/oral/grade` | The mock oral (`app.oral`, the developer's until a CFI has reviewed it): an examiner's question about the flight the page describes, on an ACS element, and the student's answer graded -- each grounded in 14 CFR Parts 61 and 91 and the AIM (`vfr.references`, fetched from the eCFR and the FAA into `data/raw/references` and searched by BM25), every quote checked word for word against its source and dropped where it is not. One Claude call each (`ORAL_MODEL`). `python -m app.oral_review --count 12 --out …` writes a sheet of questions and answers for a CFI to mark. |
+| `POST /api/oral/question`, `POST /api/oral/grade` | The mock oral (`app.oral`, the developer's until a CFI has reviewed it): an examiner's question about the flight the page describes, on an ACS element, and the student's answer graded -- each grounded in 14 CFR Parts 61 and 91 and the AIM (`wingtip.references`, fetched from the eCFR and the FAA into `data/raw/references` and searched by BM25), every quote checked word for word against its source and dropped where it is not. One Claude call each (`ORAL_MODEL`). `python -m app.oral_review --count 12 --out …` writes a sheet of questions and answers for a CFI to mark. |
 | `GET /api/airports/search` | Identifier and name lookup for the route form. |
 | `GET /api/model-comparison` | Every trained algorithm's accuracy side by side, and which one is promoted. |
 | `GET /api/aircraft-profiles` | The stock performance profiles the nav log can be computed for. `/api/plan` and `/api/navlog` take `aircraft` plus optional `cruise_tas_kt`/`fuel_burn_gph` for a pilot's own aeroplane. |
@@ -137,8 +137,8 @@ For the whole country ahead of time (the sectional is the map's only
 base layer, so this is the normal state of a running stack):
 
 ```sh
-docker compose run --rm --no-deps planning-service python -m vfr.charts prepare   # every sheet: sectionals (the lower 48, Alaska, Hawaii, the Caribbean), TACs, IFR low and high; ~7 GB
-docker compose run --rm --no-deps planning-service python -m vfr.charts pyramid   # every tile of every kind; about two hours with --workers 3
+docker compose run --rm --no-deps planning-service python -m wingtip.charts prepare   # every sheet: sectionals (the lower 48, Alaska, Hawaii, the Caribbean), TACs, IFR low and high; ~7 GB
+docker compose run --rm --no-deps planning-service python -m wingtip.charts pyramid   # every tile of every kind; about two hours with --workers 3
 ```
 
 `run --rm`, not `exec`: a render inside the serving planner's own
@@ -154,14 +154,14 @@ finished or the pass ends. The Dev console's System tab shows the
 sheets prepared and the pyramid's progress.
 
 A change to how a tile is drawn goes with a bump of
-`vfr.charts.RENDERER_VERSION`. The next refresh then counts the cycle
+`wingtip.charts.RENDERER_VERSION`. The next refresh then counts the cycle
 as due, draws every tile again (serving the old ones meanwhile), and
 bumps the tile revision at the end, as `unmask` does below.
 
 The planner keeps up with the 56-day cycle by itself: at start-up and
 once an hour it asks the FAA's products page which cycle is current
 and, if that cycle's pyramid is not complete on disk, runs `python -m
-vfr.charts refresh` in a subprocess (prepare, render, then delete the
+wingtip.charts refresh` in a subprocess (prepare, render, then delete the
 previous cycle). The map switches to the new cycle only once every
 tile of it is there, so a refresh in progress changes nothing on
 screen. The render is hours of every core it is given, so it starts
@@ -174,8 +174,8 @@ workers, and `CHARTS_AUTO_REFRESH=0` turns the check off. (The FAA aircraft
 registry has its own switch: `REGISTRY_REFRESH=0` turns off its daily
 download, which is on otherwise, whatever the charts do.) All of that
 policy -- the window, the due check, the worker counts -- is
-`app/chart_refresh.py`; `vfr.charts` does the work it asks for. `python -m
-vfr.charts check` looks for daylight between adjacent sheets, which is
+`app/chart_refresh.py`; `wingtip.charts` does the work it asks for. `python -m
+wingtip.charts check` looks for daylight between adjacent sheets, which is
 what a mis-detected sheet edge would show up as; the one it always
 reports, between the Caribbean 1 chart and Jacksonville west of 83W,
 is the open Gulf, where the FAA charts no sectional.
@@ -186,12 +186,12 @@ which on this map -- where the TAC is a layer of its own -- read as a
 white box round every Class B whether the TAC was drawn or not. Only
 the band's paper changes, to the tint either side of it; everything
 printed over it, the "TAC" lettering included, stays
-(`vfr.chart_faces.remove_masked_lines` says how a band is told from a label
+(`wingtip.chart_faces.remove_masked_lines` says how a band is told from a label
 box or a dry lake). Sheets prepared before that step existed are
 cleaned, and their tiles rendered again, by
 
 ```sh
-docker compose run --rm -T --no-deps planning-service python -m vfr.charts unmask --workers 2   # half an hour; re-runnable
+docker compose run --rm -T --no-deps planning-service python -m wingtip.charts unmask --workers 2   # half an hour; re-runnable
 ```
 
 which also bumps the cycle's tile revision (`chart_revision` on the
@@ -244,7 +244,7 @@ waiting on it -- they get their own attempt instead of the leader's
 exception.
 
 **Nothing was watching how long any of this actually took, and the gap
-was invisible until something went looking.** `vfr.altitude.
+was invisible until something went looking.** `wingtip.altitude.
 select_cruise_altitude` times each of its seven concurrent calls
 (terrain, both airspace queries, transits, magnetic variation, and the
 three weather calls) plus its own total; this router's own
@@ -254,14 +254,14 @@ found to produce *no output at all* -- Python's root logger defaults
 to `WARNING`, uvicorn's own `--log-level` only reaches its own
 `uvicorn.access`/`uvicorn.error` loggers, and nothing in this process
 had ever called `logging.basicConfig`. Every `log.info()` already
-written elsewhere in this codebase (`vfr.weather`, `vfr.charts`, both
+written elsewhere in this codebase (`wingtip.weather`, `wingtip.charts`, both
 older than the timing lines) had been going nowhere since it was
 written. `app/main.py` now calls `logging.basicConfig(level=os.environ
 .get("LOG_LEVEL", "INFO"))` once, at import time, which is what makes
 all of it -- old and new -- actually appear.
 
 **A pilot's own aeroplane numbers must never overwrite the stock
-profile.** `vfr.aircraft.load_aircraft_profile` is `lru_cache`d (it
+profile.** `wingtip.aircraft.load_aircraft_profile` is `lru_cache`d (it
 used to reopen and reparse the same JSON file on every plan and
 altitude request), and `planning.py`'s `aircraft_profile()` writes a
 pilot's `cruise_tas_kt`/`fuel_burn_gph`/`usable_fuel_gal` overrides

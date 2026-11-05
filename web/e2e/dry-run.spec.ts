@@ -306,7 +306,7 @@ test("the dry run is the Profile card's: closed, the run is put away and FPL's f
 });
 
 // Duluth's RNAV (GPS) RWY 27 via PLANE as the planner draws it
-// (vfr.procedures, the 2026-10 cycle), stubbed: the FAA's file is not read
+// (wingtip.procedures, the 2026-10 cycle), stubbed: the FAA's file is not read
 // on CI's runner. From PLANE, south-east of the field, north to HOMUV, and
 // west down its final through CIRUS to the runway.
 const R27 = {

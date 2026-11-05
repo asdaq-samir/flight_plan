@@ -10,7 +10,7 @@ https://cdn:9443, https://localhost:9443 {
 	tls internal
 
 	# /tiles/* is the S3 bucket: the cycle's pyramid, laid out as
-	# vfr.charts.publish uploads it.
+	# wingtip.charts.publish uploads it.
 	handle_path /tiles/* {
 		root * /srv/tiles
 		header Cache-Control "public, max-age=2419200, immutable"

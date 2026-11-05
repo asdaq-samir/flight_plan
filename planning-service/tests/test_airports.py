@@ -5,7 +5,7 @@ import gzip
 import json
 
 from fastapi.testclient import TestClient
-from vfr import airport_photos, airports, airspace, faa_data, geocode, glmp, nearby, pattern, publications, remarks, weather
+from wingtip import airport_photos, airports, airspace, faa_data, geocode, glmp, nearby, pattern, publications, remarks, weather
 
 from app.main import app
 
@@ -238,7 +238,7 @@ def test_the_search_may_be_kept_and_the_fields_in_view_with_their_weather_may_no
 
 
 def test_the_search_index_goes_gzipped_and_kept_a_day(monkeypatch):
-    # The phone's own copy of the search (vfr.airports.search_index), as
+    # The phone's own copy of the search (wingtip.airports.search_index), as
     # the planner keeps it, and the same for every pilot.
     body = gzip.compress(json.dumps({"airports": [["KDLH", "Duluth Intl", "Duluth", "MN", 1, "DLH"]]}).encode())
     monkeypatch.setattr(airports, "search_index", lambda: body)
@@ -249,7 +249,7 @@ def test_the_search_index_goes_gzipped_and_kept_a_day(monkeypatch):
 
 
 def test_a_field_the_armed_services_own_is_marked_military_or_joint_use(monkeypatch):
-    # From the FAA's airport file (vfr.faa_data.military_fields), by the
+    # From the FAA's airport file (wingtip.faa_data.military_fields), by the
     # FAA's ident or the ICAO one: most pilots may not land at the first
     # without permission, and may at the second.
     base = {**DULUTH, "kind": "medium"}
@@ -263,7 +263,7 @@ def test_a_field_the_armed_services_own_is_marked_military_or_joint_use(monkeypa
 
 
 def test_a_field_closed_to_the_public_is_marked_private(monkeypatch):
-    # From the FAA's airport file (vfr.faa_data.private_fields), by either ident.
+    # From the FAA's airport file (wingtip.faa_data.private_fields), by either ident.
     base = {**DULUTH, "kind": "small"}
     fields = [{**base, "ident": "IL22", "source_ident": "IL22"}, {**base}]
     monkeypatch.setattr(airports, "places_in", lambda *args, **kwargs: fields)
@@ -310,7 +310,7 @@ def test_a_box_turned_inside_out_is_refused(monkeypatch):
 
 
 def test_the_vfr_waypoints_in_view_are_the_sectionals_magenta_flags_only(monkeypatch):
-    from vfr import fixes
+    from wingtip import fixes
 
     monkeypatch.setattr(fixes, "_TABLE", fixes._Table({
         "VPBNG": {"ident": "VPBNG", "lat": 42.0, "lon": -88.0, "vfr": True, "kind": "VFR waypoint"},
@@ -326,7 +326,7 @@ def test_the_vfr_waypoints_in_view_are_the_sectionals_magenta_flags_only(monkeyp
 
 
 def test_the_navaids_in_view_are_the_vors_and_close_in_the_enroute_fixes(monkeypatch):
-    from vfr import fixes
+    from wingtip import fixes
 
     monkeypatch.setattr(fixes, "navaid_remarks", lambda ident, kind: ["VOR unusable 345-060 beyond 40 nm."] if ident == "OBK" else [])
     monkeypatch.setattr(fixes, "_TABLE", fixes._Table({
@@ -550,7 +550,7 @@ def test_turf_is_found_under_the_faa_identifier_of_a_k_ident(monkeypatch):
 
 
 def test_a_fields_procedures_are_listed_and_one_drawn_from_the_cifp(monkeypatch):
-    from vfr import procedures
+    from wingtip import procedures
 
     listed = {"airport": "KBUR", "cycle": "261001", "stale": False, "procedures": [{
         "kind": "approach", "id": "I08-Y", "name": "ILS Y RWY 08", "runway": "08",
@@ -583,7 +583,7 @@ def test_a_fields_procedures_are_listed_and_one_drawn_from_the_cifp(monkeypatch)
 
 
 def test_the_procedures_say_when_the_faas_file_cannot_be_had(monkeypatch):
-    from vfr import procedures
+    from wingtip import procedures
 
     def unreachable(ident):
         raise RuntimeError("Download of the CIFP failed")
@@ -593,7 +593,7 @@ def test_the_procedures_say_when_the_faas_file_cannot_be_had(monkeypatch):
 
 
 def test_an_approachs_plate_is_placed_on_the_map_and_its_picture_served(monkeypatch, tmp_path):
-    from vfr import plates, publications
+    from wingtip import plates, publications
 
     picture = tmp_path / "plate.png"
     picture.write_bytes(b"\x89PNG\r\n\x1a\n")

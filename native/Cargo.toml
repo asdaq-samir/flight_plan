@@ -1,6 +1,6 @@
 # Wingtip's Rust: the engine (engine/, wingtip-engine), the same answers
 # on the planner and, later, the phone, and its Python face (py/,
-# vfr_native), which the planner imports, and its C face for the
+# wingtip_native), which the planner imports, and its C face for the
 # phones (ffi/, wingtip-ffi), and its WebAssembly for the web app (wasm/,
 # wingtip-wasm).
 [workspace]

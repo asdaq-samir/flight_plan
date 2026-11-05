@@ -9,7 +9,7 @@ The points and where they turn the assessment amber and red are the
 planner's own guide, not the FAA's and not a rule: the decision is the
 pilot in command's (91.3, 91.103). The rules, their points and their
 sources are the engine's (wingtip_engine::gonogo::frat), asked by name
-through vfr_native.call, as the web app asks them.
+through wingtip_native.call, as the web app asks them.
 
 Dates are the pilot's days, "yyyy-mm-dd", compared as strings as the web
 compares them."""

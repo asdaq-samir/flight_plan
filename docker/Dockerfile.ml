@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
-# >>> vfr-native: the same in every image that imports vfr, kept so by
-# tests/test_dockerfiles.py against docker/Dockerfile.native. vfr's Rust
-# extension (native/py, over wingtip-engine in native/engine), which vfr
+# >>> wingtip-native: the same in every image that imports wingtip, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. wingtip's Rust
+# extension (native/py, over wingtip-engine in native/engine), which wingtip
 # imports at module level since the shared engine (2026-11-03): built
 # here, with Rust copied in from its own image, so the image carries the
 # wheel and none of the toolchain. The stage is the same text in each
@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
 COPY native /native
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
-# <<< vfr-native
+# <<< wingtip-native
 
 FROM python:3.13-slim
 
@@ -33,7 +33,7 @@ ENV JAVA_HOME=/usr/lib/jvm/default-java
 
 # The heaviest and least-changing first, each layer ahead of the file
 # the next one reads: torch (reads nothing), the frameworks (their own
-# list), then vfr's list and the notebooks' -- which change most, a
+# list), then wingtip's list and the notebooks' -- which change most, a
 # pinned bump in src/requirements.txt being the usual reason this image
 # rebuilds. Copied in before torch, as they were, one such bump
 # downloaded, built (pyspark is a 450 MB source archive) and compressed
@@ -42,8 +42,8 @@ ENV JAVA_HOME=/usr/lib/jvm/default-java
 # framework is resolved when its layer is built and stays at that
 # version until requirements-ml-frameworks.txt (or the base image)
 # changes, rather than moving to the latest release with each bump of
-# vfr's; and a package vfr pins that a framework pulled in at another
-# version is installed again, in the last layer, at vfr's.
+# wingtip's; and a package wingtip pins that a framework pulled in at another
+# version is installed again, in the last layer, at wingtip's.
 #
 # CPU-only wheel -- this container has no GPU to use, and the default
 # torch wheel pulls several GB of unused CUDA/cuDNN dependencies.
@@ -51,7 +51,7 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install torch --index-url htt
 COPY docker/requirements-ml-frameworks.txt docker/
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirements-ml-frameworks.txt
 # Copied at the paths they have in the repo, so the image's list finds
-# vfr's own through its -r ../src/requirements.txt. This install is the
+# wingtip's own through its -r ../src/requirements.txt. This install is the
 # whole list resolved together, as it always was; the frameworks are
 # already satisfied, so it adds and adjusts only what the layers above
 # do not have.
@@ -62,11 +62,11 @@ RUN --mount=type=cache,target=/root/.cache/pip pip install -r docker/requirement
 # copied, so no layer keeps it.
 RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
     pip install --no-cache-dir --no-deps /tmp/wheels/*.whl
-# The build fails here if a package the notebooks and vfr import is
+# The build fails here if a package the notebooks and wingtip import is
 # missing, rather than a notebook cell later. This image carries no
 # source (compose mounts the checkout), so it is the packages alone:
-# vfr's own list, then the notebooks'.
-RUN python -B -c "import vfr_native, numpy, pandas, requests, pyarrow.parquet, shapely.ops, shapefile, pyproj, scipy.spatial, pygeomag, astral, sklearn, joblib, matplotlib, PIL, folium, notebook, transformers, sentence_transformers, torch, tensorflow, pyspark.ml"
+# wingtip's own list, then the notebooks'.
+RUN python -B -c "import wingtip_native, numpy, pandas, requests, pyarrow.parquet, shapely.ops, shapefile, pyproj, scipy.spatial, pygeomag, astral, sklearn, joblib, matplotlib, PIL, folium, notebook, transformers, sentence_transformers, torch, tensorflow, pyspark.ml"
 
 # Non-root, matching every other image built from this same
 # python:3.13-slim base (Dockerfile.processing, Dockerfile.training,

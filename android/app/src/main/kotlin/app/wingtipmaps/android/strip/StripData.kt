@@ -72,7 +72,7 @@ object StripData {
     /**
      * The flight as rows: the departure, each leg's end as a checkpoint or
      * a field -- a leg's "to" is the ident where it ends at an airport
-     * (vfr.navlog names a field by its ident) and the checkpoint's own
+     * (wingtip.navlog names a field by its ident) and the checkpoint's own
      * name otherwise -- and the destination. The minutes flown to each are
      * the planner's ETEs added up, with the ground time at a stop, as the
      * web's nav log rows carry them; null once any leg cannot be flown.

@@ -9,7 +9,7 @@ import { openPanel, settle, sideDrawer, slow } from "./helpers";
  * on it the planner's ways as chips, a tap on one the route at once,
  * planned, and "None" the route as typed again. No Routes button.
  *
- * The ways are the planner's (vfr.route_options, its chips app.routers.
+ * The ways are the planner's (wingtip.route_options, its chips app.routers.
  * route_options, tested there); here /api/route-options is answered, so
  * the page is tried without the day's weather.
  */

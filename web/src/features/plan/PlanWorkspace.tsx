@@ -494,7 +494,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   const holdsText = holdsParam(holds);
   // The runway each departure picked is left from ("KSTL:30R"): the
   // departure field's runway picked, a stop's to leave from -- flown by its
-  // runway transition for it (vfr.procedure_paths), where St. Louis's
+  // runway transition for it (wingtip.procedure_paths), where St. Louis's
   // BERYY6 went out by its first, runway 11's, off 30R (the audit of
   // 2026-10-21). A runway picked into the wind as the route comes in asks
   // for the log again, which the planner answers from its cache: the legs
@@ -912,7 +912,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         : draw(a, pickedPatterns.get(a.ident), true);
     });
   }, [procedureAirports, pickedPatterns, pickedTakeoffs, towardLat, towardLon]);
-  // Theirs as the planner draws them (vfr.procedures), for the route's
+  // Theirs as the planner draws them (wingtip.procedures), for the route's
   // fields alone: a pick kept from a route since changed is not drawn.
   const procedureDrawings = useQueries({
     queries: pickedProcedures.filter(p => procedureAirports.some(a => a.ident === p.ident)).map(procedureQuery),
@@ -2069,7 +2069,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
   // A leg where no 500 ft step fits and the planner flies the highest
-  // whole hundred under its ceiling (vfr.altitude's tight altitude):
+  // whole hundred under its ceiling (wingtip.altitude's tight altitude):
   // where, at what, and how little room there is either side.
   const tight = s.nav?.altitude_selection.segments?.find(seg => seg.tight);
   const tightLeg = tight && tight.candidates_ft[0] !== undefined && tight.band_ceiling_ft != null ? (() => {
@@ -2155,7 +2155,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // the owner's ask ("why is there grey color for airport button metar? We
   // should get the modeled one in like the airport card has"): the weather
   // the National Weather Service's Gridded LAMP models at it for the hour
-  // (vfr.glmp), else the nearest station's report within ten miles
+  // (wingtip.glmp), else the nearest station's report within ten miles
   // (PlaceCard's "≈"); grey only where neither is had. The route's fields'
   // cards, asked once and shared with their rows (airportQuery).
   const weatherFields = [planned.dep, ...planned.stops.filter(stop => !waypointStops.has(stop)), planned.dest].filter(ident => !!identOf(ident));

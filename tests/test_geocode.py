@@ -5,7 +5,7 @@ import zipfile
 
 import requests
 
-from vfr import geocode
+from wingtip import geocode
 
 GAZETTEER = (
     "USPS|GEOID|GEOIDFQ|ANSICODE|NAME|LSAD|FUNCSTAT|ALAND|AWATER|ALAND_SQMI|AWATER_SQMI|INTPTLAT|INTPTLONG\n"
