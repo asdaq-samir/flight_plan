@@ -34,6 +34,13 @@ export const followingSheet = (map: L.Map) => following.has(map);
  *  every frame is the compositor's own value, under a finger the frame's
  *  own write. The laid-out top changes only as the column is laid out
  *  again, never within a settle. */
+/** How far the sheet is moved by its transform this frame, from its
+ *  computed style: a style read, no layout. */
+function shiftOf(el: HTMLElement): number {
+  const transform = getComputedStyle(el).transform;
+  return !transform || transform === "none" ? 0 : new DOMMatrix(transform).m42;
+}
+
 export function sheetEdge(el: HTMLElement): number {
   const transform = getComputedStyle(el).transform;
   if (!transform || transform === "none") return el.getBoundingClientRect().top;
@@ -74,6 +81,11 @@ export function followSheet(map: L.Map, sheet: {
   // take the card to bottom, it readjusts the map"). Started mid-settle
   // by a key, it goes the rest of the way and no more.
   const base = sheetEdge(sheet.el);
+  // Its laid-out top, read once: the popup's height holds through a drag
+  // and a settle, and a read of it each frame made the browser lay the
+  // page out again there, after the map's buttons had moved with the
+  // sheet (the owner, 2026-11-04: "the sheet is still not very smooth").
+  const laidTop = sheet.el.offsetTop;
   const offsetAt = (edge: number) => (Math.max(edge, sheet.halfEdge) - Math.max(base, sheet.halfEdge)) / 2;
   if (sheet.to !== undefined) preload(map, L.point(0, -offsetAt(sheet.to)));
   const running = following.get(map);
@@ -108,7 +120,7 @@ export function followSheet(map: L.Map, sheet: {
   };
   const step = () => {
     if (!sheet.free() || !sheet.el.isConnected) return stop();
-    const edge = sheetEdge(sheet.el);
+    const edge = laidTop + shiftOf(sheet.el);
     still = Math.abs(edge - lastEdge) < 0.25 ? still + 1 : 0;
     lastEdge = edge;
     const pressed = sheet.pressed();

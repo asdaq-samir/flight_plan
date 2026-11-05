@@ -324,15 +324,23 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     const write = (el: HTMLElement | null, px: number) => {
       if (!el) return;
       // The figures' growth (--sheet-progress) eased with the sheet too.
-      el.style.transition = !ease ? "" : el === foot ? `transform ${ease}, --sheet-progress ${ease}` : `transform ${ease}`;
-      el.style.transform = shift(px);
+      const transition = !ease ? "" : el === foot ? `transform ${ease}, --sheet-progress ${ease}` : `transform ${ease}`;
+      const transform = shift(px);
+      // Written only where it changes: each write is a restyle.
+      if (el.style.transition !== transition) el.style.transition = transition;
+      if (el.style.transform !== transform) el.style.transform = transform;
+      // Its own layer while it is moved off its place, so a frame of a
+      // drag or a settle moves it rather than painting it again; none
+      // where it rests in place (all the way up), the layers cost memory.
+      const layer = px || ease ? "transform" : "";
+      if (el.style.willChange !== layer) el.style.willChange = layer;
     };
     const up = bottom && figures ? off : 0;
     write(foot, bottom ? -up : 0);
     write(body, bottom ? -up : off);
     write(inner, up);
     write(head, bottom ? 0 : off);
-    if (body) body.style.overflow = up ? "clip" : "";
+    if (body && body.style.overflow !== (up ? "clip" : "")) body.style.overflow = up ? "clip" : "";
   }, []);
   // How far in the popup's free edge is this frame, from its transform.
   const offNow = useCallback(() => {
@@ -373,8 +381,10 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       }
       swiped = swiping;
       const h = Math.max(0, Math.round(fullRef.current - off));
-      if (onPhone && pinState.current.fromBottom) coverRule().setProperty("--sheet-cover", `${h}px`);
-      else coverRule().removeProperty("--sheet-cover");
+      if (h !== last) {
+        if (onPhone && pinState.current.fromBottom) coverRule().setProperty("--sheet-cover", `${h}px`);
+        else coverRule().removeProperty("--sheet-cover");
+      }
       still = h === last ? still + 1 : 0;
       last = h;
       if (pressed || movingRef.current || still < 6) followFrame.current = requestAnimationFrame(step);
