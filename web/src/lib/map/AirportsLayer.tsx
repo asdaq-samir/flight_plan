@@ -16,14 +16,15 @@ import { PANNING_MS, levelOf, useAhead, useLiveZoom, type FlightStart } from "./
 
 /** The panes' places among the map's own (as `style`, constants so a
  *  render does not restyle them). The fields in Class B, C or D airspace
- *  just over the airspace's rings (350, AirspaceLayer), under its
- *  altitudes (355), the VORs (360) and the course line (400), at the
- *  owner's ask (2026-11-05: "move the order of class B,C,D airports to
- *  right after airspace rings", then "split the airports layer"); every
- *  other field over all of those, as all of them were. Each selected
- *  field's ring just under its own marks. */
-const TOWERED_PANE = { zIndex: 352 };
-const TOWERED_SELECTED_PANE = { zIndex: 351 };
+ *  over the airspace's rings (350, AirspaceLayer), its altitudes (355)
+ *  and the VORs (360), under the course line (400), at the owner's ask
+ *  (2026-11-05: "move the order of class B,C,D airports to right after
+ *  airspace rings", "split the airports layer", then "I thought we ...
+ *  prioritized them before vor?"); every other field over all of those,
+ *  as all of them were. Each selected field's ring just under its own
+ *  marks. */
+const TOWERED_PANE = { zIndex: 365 };
+const TOWERED_SELECTED_PANE = { zIndex: 364 };
 const AIRPORTS_PANE = { zIndex: 450 };
 const SELECTED_PANE = { zIndex: 445 };
 
