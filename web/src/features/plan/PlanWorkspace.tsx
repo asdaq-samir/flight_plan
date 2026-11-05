@@ -2300,13 +2300,14 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       chartsDisabled={!planned.dest || noApproaches} routeLine={routeLine}
       // The list changes the route too where the box is folded away once
       // the route is whole (RouteEdit, both of the owner's picks).
-      edit={planned.dep && planned.dest ? listEdit : undefined}
+      // Not with the box as it was, whose pills do it.
+      edit={routeEdit !== "box" && planned.dep && planned.dest ? listEdit : undefined}
     />
     </>
   ), [routeLine, procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length,
-    tankFigures, listEdit]);
+    tankFigures, listEdit, routeEdit]);
   // Its head: the route by name, and its plan under it -- where from and
   // to, the airplane, the altitude, when -- as an airport's card has its
   // name and where it is.
@@ -2812,7 +2813,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // Half a route or none, the box is the box: opened again from its line
   // before, it folds again with the next whole route.
   if (routeOpen && !(planned.dep && planned.dest)) setRouteOpen(false);
-  const routeFolded = !!planned.dep && !!planned.dest && !routeOpen && !addingStop;
+  const routeFolded = routeEdit !== "box" && !!planned.dep && !!planned.dest && !routeOpen && !addingStop;
   const routeControls = (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
       {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row

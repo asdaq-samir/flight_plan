@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ChevronsUpDown, ListOrdered, Monitor, Moon, Palette, PanelBottom, PanelTop, Route, Sun } from "lucide-react";
+import { ChevronsUpDown, ListOrdered, Rows2, Monitor, Moon, Palette, PanelBottom, PanelTop, Route, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "cn";
 import PullDown, { type PullDownOption } from "./PullDown";
@@ -41,11 +41,13 @@ export default function QuickControls() {
       {/* How FPL's route is changed once it is whole (lib/preferences
           RouteEdit), at the owner's asks ("I want to have a toggle between
           A and B in settings"; "Instead of alerts we can have fpl",
-          2026-11-05): its box folded to one line, or the plan's own rows. */}
+          2026-11-05): its box as it was, folded to one line, or the
+          plan's own rows. */}
       <MenuTile<RouteEdit>
         label="FPL" value={routeEdit} onChange={setRouteEdit} on={false} testId="route-edit-select"
-        icon={routeEdit === "plan" ? <ListOrdered /> : <Route />}
+        icon={routeEdit === "plan" ? <ListOrdered /> : routeEdit === "folded" ? <Rows2 /> : <Route />}
         options={[
+          { value: "box", label: "Route Box", testId: "route-edit-box" },
           { value: "folded", label: "One Line", testId: "route-edit-folded" },
           { value: "plan", label: "In the Plan", testId: "route-edit-plan" },
         ]}

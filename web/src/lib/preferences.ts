@@ -74,11 +74,13 @@ export type FlightRules = "vfr" | "ifr";
 export type Layout = "tabs" | "strip" | "field-tabs";
 /** How FPL's route is changed once it has a destination, the owner's
  *  two picks of the FPL canvas (2026-11-05, artifact W9FwhatzHhe2hV9qroiYzv:
- *  "I want to have a toggle between A and B in settings"): `folded`, the
+ *  "I want to have a toggle between A and B in settings") and the box as
+ *  it was ("Fpl have 3 options? One for the current one?"): `box`, the
+ *  route's box over the plan as before; `folded`, the
  *  route's box folded to one line, a tap opening it again (A); `plan`, no
  *  box, the route's name over the plan, whose rows are dragged and added
  *  to (B). Before a destination either way the box. In Setup's Controls. */
-export type RouteEdit = "folded" | "plan";
+export type RouteEdit = "box" | "folded" | "plan";
 
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
@@ -338,7 +340,8 @@ export const usePreferences = create<Preferences>()(
       narrative: "langgraph",
       flightRules: "vfr",
       layout: "tabs",
-      routeEdit: "folded",
+      // The box as it was, till the pilot picks another.
+      routeEdit: "box",
       listenInput: null,
       recentAirports: [],
       homeAirport: null,
