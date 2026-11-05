@@ -687,15 +687,14 @@ export interface DrawnAirport {
   ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string;
 }
 
-/** Every chart airport drawn now, on the page's own pixels. */
+/** Every chart airport drawn now, on the page's own pixels: the Class B,
+ *  C and D fields' canvas and the others' (AirportsLayer). */
 export async function airportMarks(page: Page): Promise<DrawnAirport[]> {
-  const canvas = page.locator("canvas[data-airport-marks]");
-  if (!(await canvas.count())) return [];
-  return canvas.first().evaluate(c => {
+  return page.evaluate(() => [...document.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")].flatMap(c => {
     const r = c.closest(".leaflet-container")!.getBoundingClientRect();
-    const drawn = JSON.parse((c as HTMLCanvasElement).dataset.airportMarks ?? "[]") as { x: number; y: number }[];
-    return drawn.map(m => ({ ...m, x: m.x + r.left, y: m.y + r.top })) as DrawnAirport[];
-  });
+    const drawn = JSON.parse(c.dataset.airportMarks ?? "[]") as { x: number; y: number }[];
+    return drawn.map(m => ({ ...m, x: m.x + r.left, y: m.y + r.top }));
+  })) as Promise<DrawnAirport[]>;
 }
 
 /** The VFR waypoints drawn on the map (WaypointsLayer, on a navaids
