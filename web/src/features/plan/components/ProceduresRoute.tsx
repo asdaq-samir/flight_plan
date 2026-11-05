@@ -121,9 +121,12 @@ const CARD_GAP = "mb-[1.375rem]";
 /**
  * The course's line through the cards, from each card's mark to the
  * next's, at the owner's ask (2026-11-05: "magenta connecting line can go
- * through the card to airport icons"): down the marks' column (the card's
- * 12 and half its 28), behind all the card holds (the card isolated, the
- * line under its content), and across the gap to the next card's top. The
+ * through the card to airport icons"): down the card's left edge, 8 in,
+ * meeting each mark's 36 at its left side (its 12 less the face's 4
+ * outset), clear of the runway's capsule 12 in, at the owner's next ask
+ * ("can the airport icons connect from the left side so it doesn't go
+ * over runway capsule"); behind all the card holds (the card isolated,
+ * the line under its content), and across the gap to the next card. The
  * first card's starts, and the last's ends, 32 down, under its mark: the
  * mark's 36 round its middle covers it at any size the head's type takes,
  * on a disc of the card's own fill (CardMark), as the mark's grey is see-
@@ -134,7 +137,7 @@ function CardThread({ first, last }: { first: boolean; last: boolean }) {
   return (
     <span
       aria-hidden="true" style={ROUTE_LINE}
-      className={cn("absolute left-[calc(1.625rem-1px)] -z-10 w-0.5", first ? "top-8" : "top-0", last ? "h-8" : "-bottom-[1.375rem]")}
+      className={cn("absolute left-[calc(0.5rem-1px)] -z-10 w-0.5", first ? "top-8" : "top-0", last ? "h-8" : "-bottom-[1.375rem]")}
     />
   );
 }
@@ -151,7 +154,8 @@ function NewStopCard({ via, onCommit, onCancel }: { via: Detour[] | null; onComm
       <CardThread first={false} last={false} />
       <div className="flex items-center gap-2.5">
         <span className="grid w-7 shrink-0 place-items-center" aria-hidden="true">
-          <span className="size-4 rounded-full border-[3px] border-dashed bg-card" style={{ borderColor: "var(--course)" }} />
+          {/* The marks' size, so the line meets it at its left as theirs. */}
+          <span className="-mx-1 size-9 rounded-full border-2 border-dashed bg-card" style={{ borderColor: "var(--course)" }} />
         </span>
         <div className="flex min-w-0 flex-1 pr-1.5">
           <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" autoFocus wide onCommit={onCommit} onEmpty={onCancel} />
