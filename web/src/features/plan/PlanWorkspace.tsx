@@ -1081,15 +1081,18 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
     // A point held on the chart: its card half way.
     setPanel("half");
   }, [setSearchParams, setPanel]);
-  // Landed on nothing at all -- the planner opened fresh -- the map goes
-  // to the pilot's position, as Maps opens on yours (locateOnOpen); once,
-  // on landing. A card in the address opens at the pill's size (MapPage).
+  // The map opens on the pilot's position, as Maps opens on yours
+  // (locateOnOpen), a route planned or not, at the owner's ask
+  // (2026-11-04: "By default load the sheet on current location"); once,
+  // on landing. Not where the address names a field or a point, which is
+  // what was opened; a card in the address opens at the pill's size
+  // (MapPage).
   const landed = useRef(false);
   useEffect(() => {
     if (landed.current) return;
     landed.current = true;
-    if (!place && !heldPoint && !planned.dep && !planned.dest) void locateOnOpen();
-  }, [place, heldPoint, planned.dep, planned.dest]);
+    if (!place && !heldPoint) void locateOnOpen();
+  }, [place, heldPoint]);
   const { data: placeData } = useQuery({ ...airportQuery(place ?? ""), enabled: !!place });
   // Where it is, from the card's answer -- or at once, where this browser
   // keeps where it is (Home, a Favorite, one picked lately): the map and

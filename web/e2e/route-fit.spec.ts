@@ -200,18 +200,15 @@ async function countAsks(page: Page) {
   return () => page.evaluate(() => (window as unknown as { __asks: number }).__asks);
 }
 
-test("opened fresh with no position to have, the map stays on the country, nothing is asked as it opens and nothing complains; the location arrow asks", async ({ page }) => {
+test("opened fresh on a first visit, the position is asked for as the page opens, and nothing complains", async ({ page }) => {
   const asks = await countAsks(page);
   await page.goto("/app/plan");
   await settle(page);
-  await expect(page.getByTestId("my-position-button")).toHaveAttribute("aria-pressed", "false", { timeout: slow(10_000) });
+  // The map opens on the pilot's position by default (ownShip's
+  // locateOnOpen, the owner's ask, 2026-11-04), so a first visit is asked
+  // as it opens; a refusal leaves no error over the map.
+  await expect.poll(asks, { timeout: slow(10_000) }).toBe(1);
   await expect(page.getByTestId("error-alert")).toHaveCount(0);
-  // A first visit is asked nothing as the page opens (ownShip's
-  // locateOnOpen): Apple's guidelines ask for location when it is needed,
-  // and Lighthouse marks a prompt on load.
-  expect(await asks()).toBe(0);
-  await page.locator("[data-map-controls]").getByTestId("my-position-button").click();
-  await expect.poll(asks).toBe(1);
 });
 
 test("opened on the whole country, land and water lie under the charts where they end, not the page's grey", async ({ page }) => {
