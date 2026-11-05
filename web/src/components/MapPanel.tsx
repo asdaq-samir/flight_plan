@@ -100,13 +100,22 @@ const rootPx = () => (rootFont ??= parseFloat(getComputedStyle(document.document
  *  Set on <body>, an inherited property, every change of it restyled the
  *  whole page (177 to 260 ms of a phone's at 4x, 2026-10-28). */
 let coverDeclaration: CSSStyleDeclaration | null = null;
+let rideDeclaration: CSSStyleDeclaration | null = null;
 const coverRule = () => {
   if (!coverDeclaration) {
     const sheet = document.head.appendChild(document.createElement("style")).sheet!;
     sheet.insertRule("[data-map-controls], [data-map-food], .leaflet-bottom {}", 0);
+    // The translate they ride the sheet's top by: only those at the foot
+    // of the map (the mic's circle is at its top but in flight).
+    sheet.insertRule("[data-map-controls], [data-map-food][data-rides], .leaflet-bottom {}", 1);
     coverDeclaration = (sheet.cssRules[0] as CSSStyleRule).style;
+    rideDeclaration = (sheet.cssRules[1] as CSSStyleRule).style;
   }
   return coverDeclaration;
+};
+const rideRule = () => {
+  coverRule();
+  return rideDeclaration!;
 };
 
 /** Under the head, the body and the foot a shade darker than the glass
@@ -369,6 +378,41 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     return Math.max(0, pinState.current.fromBottom ? y : -y);
   }, [panel]);
 
+  // The map's buttons ride on a phone's bottom sheet's top: placed at the
+  // height it rests at (--sheet-cover, their `bottom`, set once a move)
+  // and moved from there by a translate on the compositor, on the sheet's
+  // own curve and time in a settle and a frame at a time under a finger.
+  // Their `bottom` written each frame from the main thread lagged the
+  // sheet and stepped (the owner, 2026-11-04: "The buttons on top of tabs
+  // stutter").
+  const coverAt = useRef<number | null>(null);
+  const ride = useCallback((h: number, ease: string, from?: number) => {
+    const cover = coverRule();
+    const rule = rideRule();
+    if (!onPhone || !pinState.current.fromBottom) {
+      cover.removeProperty("--sheet-cover");
+      rule.removeProperty("translate");
+      rule.removeProperty("transition");
+      coverAt.current = null;
+      return;
+    }
+    if (from !== undefined || coverAt.current === null) {
+      // Placed where it is going, shown where it is, then let go to it.
+      coverAt.current = Math.round(h);
+      rule.setProperty("transition", "opacity 0.2s");
+      cover.setProperty("--sheet-cover", `${coverAt.current}px`);
+      rule.setProperty("translate", `0 ${Math.round((from ?? h) - h) * -1}px`);
+      if (!ease) return;
+      const one = document.querySelector<HTMLElement>("[data-map-controls]");
+      if (one) void getComputedStyle(one).translate;
+      rule.setProperty("transition", `translate ${ease}, opacity 0.2s`);
+      rule.setProperty("translate", "0 0px");
+      return;
+    }
+    rule.setProperty("transition", ease ? `translate ${ease}, opacity 0.2s` : "opacity 0.2s");
+    rule.setProperty("translate", `0 ${coverAt.current - Math.round(h)}px`);
+  }, [onPhone]);
+
   // A frame at a time while a finger is on it or it is on its way, until
   // it has been still a few frames: under a finger (the Drawer's
   // data-swiping) the parts held in sight, and on a phone's bottom sheet
@@ -393,7 +437,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       // What the workspace draws for a sheet on the move (FPL's strips),
       // from the finger's first move too, not only once it lets go.
       if (swiping && !swiped) usePanelDragging.setState({ dragging: true });
-      if (swiping) pin(off, "");
+      const h = Math.max(0, Math.round(fullRef.current - off));
+      if (swiping) {
+        pin(off, "");
+        ride(h, "");
+      }
       else if (swiped && !movingRef.current) {
         usePanelDragging.setState({ dragging: false });
         // Let go where it was (or past the pill, the close refused): no
@@ -401,13 +449,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // here, on the shortest settle's time.
         panel.style.setProperty("--sheet-seconds", `${SETTLE_LEAST}s`);
         pin(restRef.current, `${SETTLE_LEAST}s cubic-bezier(0, 0, 0.58, 1)`);
+        ride(fullRef.current - restRef.current, `${SETTLE_LEAST}s cubic-bezier(0, 0, 0.58, 1)`);
       }
       swiped = swiping;
-      const h = Math.max(0, Math.round(fullRef.current - off));
-      if (h !== last) {
-        if (onPhone && pinState.current.fromBottom) coverRule().setProperty("--sheet-cover", `${h}px`);
-        else coverRule().removeProperty("--sheet-cover");
-      }
       still = h === last ? still + 1 : 0;
       last = h;
       if (pressed || movingRef.current || still < 6) followFrame.current = requestAnimationFrame(step);
@@ -417,10 +461,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       }
     };
     step();
-  }, [panel, onPhone, offNow, pin]);
+  }, [panel, offNow, pin, ride]);
   useEffect(() => () => {
     cancelAnimationFrame(followFrame.current);
     coverRule().removeProperty("--sheet-cover");
+    for (const name of ["translate", "transition"]) rideRule().removeProperty(name);
   }, []);
   useLayoutEffect(() => {
     if (!moving) follow(false);
@@ -429,8 +474,11 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // that sets its snap point, on its curve and time; at rest, put there.
   useLayoutEffect(() => {
     const off = Math.max(0, detents.full - detents[snap]);
-    pin(off, moving && seconds > 0 ? `${seconds}s cubic-bezier(0, 0, 0.58, 1)` : "");
-  }, [pin, moving, seconds, detents, snap, footShown, fromBottom]);
+    const ease = moving && seconds > 0 ? `${seconds}s cubic-bezier(0, 0, 0.58, 1)` : "";
+    pin(off, ease);
+    // The map's buttons from where the sheet's top is now to where it goes.
+    ride(detents[snap], ease, ease ? Math.max(0, fullRef.current - offNow()) : detents[snap]);
+  }, [pin, ride, offNow, moving, seconds, detents, snap, footShown, fromBottom]);
 
   // Off to `target`: the popup's snap point first, the map told as it
   // sets off, the sheet laid out for the size after, the page once it has

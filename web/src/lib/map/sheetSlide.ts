@@ -93,6 +93,7 @@ export function followSheet(map: L.Map, sheet: {
     if (sheet.to !== undefined) running.going(sheet.to);
     return;
   }
+  const curve = "cubic-bezier(0, 0, 0.58, 1)";
   const pane = map.getPane("mapPane")!;
   const start = L.DomUtil.getPosition(pane);
   let to = sheet.to;
@@ -102,8 +103,11 @@ export function followSheet(map: L.Map, sheet: {
   let lastEdge = NaN;
   let still = 0;
   let released = 0;
+  let glideTimer = 0;
   const stop = () => {
     cancelAnimationFrame(frame);
+    window.clearTimeout(glideTimer);
+    pane.style.transition = "";
     following.delete(map);
     map.off("dragstart zoomstart", stop);
     if (moved) map.fire("moveend");
@@ -118,8 +122,28 @@ export function followSheet(map: L.Map, sheet: {
     }
     L.DomUtil.setPosition(pane, at);
   };
+  // Where the sheet has said it is going and no finger is on it: the rest
+  // of the way on the compositor, as the sheet goes -- one transition of
+  // the map's pane on the sheet's curve and for what is left of its time
+  // (MapPanel's --sheet-seconds), not a frame at a time from the main
+  // thread, which stepped whenever the page had work of its own as the
+  // sheet landed (the owner, 2026-11-04: "And map stutters").
+  const glide = (toEdge: number) => {
+    cancelAnimationFrame(frame);
+    window.clearTimeout(glideTimer);
+    const total = parseFloat(getComputedStyle(sheet.el).getPropertyValue("--sheet-seconds")) || SHEET_SECONDS;
+    const seconds = prefersReducedMotion() ? 0 : Math.max(0, total - 1 / 60);
+    if (!moved) {
+      moved = true;
+      map.fire("movestart");
+    }
+    pane.style.transition = seconds ? `transform ${seconds}s ${curve}` : "";
+    put(offsetAt(toEdge), true);
+    glideTimer = window.setTimeout(stop, seconds * 1000 + 40);
+  };
   const step = () => {
     if (!sheet.free() || !sheet.el.isConnected) return stop();
+    if (to !== undefined && !sheet.pressed()) return glide(to);
     const edge = laidTop + shiftOf(sheet.el);
     still = Math.abs(edge - lastEdge) < 0.25 ? still + 1 : 0;
     lastEdge = edge;
@@ -137,7 +161,7 @@ export function followSheet(map: L.Map, sheet: {
     if (!prefersReducedMotion()) put(offsetAt(edge), false);
     frame = requestAnimationFrame(step);
   };
-  following.set(map, { stop, going: edge => { to = edge; } });
+  following.set(map, { stop, going: edge => { to = edge; if (!sheet.pressed()) glide(edge); } });
   // The pilot's own move of the map takes over: it stops where it is.
   map.on("dragstart zoomstart", stop);
   frame = requestAnimationFrame(step);

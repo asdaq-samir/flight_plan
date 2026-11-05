@@ -139,6 +139,9 @@ export default function MapControls() {
         GLASS,
       )}
       data-testid="mic-circle" data-listening={pill || undefined}
+      // At the foot of the map in flight, riding the sheet's top there
+      // (MapPanel's ride rule); at its top on the ground.
+      data-rides={flying || undefined}
     >
       {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
           the pill's chips. */}
