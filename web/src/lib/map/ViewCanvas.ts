@@ -156,6 +156,8 @@ export abstract class ViewCanvasLayer extends L.Layer {
     map.off("zoomend", this.animated, this);
     cancelAnimationFrame(this.frame);
     this.frame = 0;
+    // A zoom running as the layer leaves ends without it hearing.
+    this.zoomingTo = null;
     const canvas = this.canvas;
     this.canvas = null;
     if (canvas) {
@@ -342,9 +344,23 @@ export abstract class ViewCanvasLayer extends L.Layer {
    *  stylesheet eases it, applied to where the point is and not to the
    *  mark's size. */
   private warpOf(origin: L.Point, pad: L.Point): (at: L.Point) => L.Point {
-    const map = this._map as L.Map & { _latLngToNewLayerPoint: (latlng: L.LatLng, zoom: number, center: L.LatLng) => L.Point };
+    const map = this._map as L.Map & { _animatingZoom?: boolean; _latLngToNewLayerPoint: (latlng: L.LatLng, zoom: number, center: L.LatLng) => L.Point };
     const zooming = this.zoomingTo;
     if (!zooming || !this.topLeft) return SAME;
+    // A zoom whose time has run out with the map no longer animating it
+    // is over, whether or not its zoomend reached this layer. One kept
+    // drew every later drawing shifted by the new layer point's pane
+    // offset, nothing at rest but the pane's whole offset once a sheet
+    // had moved the map: the airspace's lines held the route fit's zoom
+    // from the page's load (probed in Chromium and WebKit, 2026-11-05),
+    // so at the half sheet Chicago's Class B was drawn 153 points below
+    // KORD, the rings went twice as far as the chart through the sheet's
+    // glide and jumped back as its moveend drew them at the pill (the
+    // owner's recording: "the airspace rings are moving up").
+    if (!map._animatingZoom && performance.now() - zooming.start >= ZOOM_MS) {
+      this.zoomingTo = null;
+      return SAME;
+    }
     const p = zoomEase(Math.min(1, (performance.now() - zooming.start) / ZOOM_MS));
     const scale = 1 + (map.getZoomScale(zooming.zoom, map.getZoom()) - 1) * p;
     const shift = map._latLngToNewLayerPoint(this.topLeft, zooming.zoom, zooming.center).subtract(origin).multiplyBy(p);
