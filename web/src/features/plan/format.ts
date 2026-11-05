@@ -49,7 +49,10 @@ export function legsWithoutWind(t: Totals): string | null {
 export function plannedWords(t: Totals | null): string {
   if (!t?.planned_at) return "";
   const planned = `Planned ${zuluTime(new Date(t.planned_at))}`;
-  return t.winds ? `${planned} · winds for use ${zuluTime(new Date(t.winds.use_from)).slice(0, 4)}–${zuluTime(new Date(t.winds.use_to))}` : planned;
+  if (!t.winds) return planned;
+  // The GFS's winds where the FB could not be had (vfr.modelwinds), said so.
+  const which = t.winds.modelled ? "modelled winds (GFS)" : "winds";
+  return `${planned} · ${which} for use ${zuluTime(new Date(t.winds.use_from)).slice(0, 4)}–${zuluTime(new Date(t.winds.use_to))}`;
 }
 
 /** Whether the winds a plan flies are not for its flight: the departure

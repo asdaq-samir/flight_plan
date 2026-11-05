@@ -383,11 +383,14 @@ class Totals(BaseModel):
 class WindsPeriod(BaseModel):
     """A winds and temperatures aloft forecast's period (AC 00-45H, the
     Winds and Temperatures Aloft Forecast (FB)):
-    valid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC."""
+    valid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC;
+    `modelled` where the FB could not be had and the GFS's winds stand in
+    for it (vfr.modelwinds)."""
 
     valid_at: str
     use_from: str
     use_to: str
+    modelled: bool = False
 
 
 class FuelStop(BaseModel):

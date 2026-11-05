@@ -15698,8 +15698,13 @@
         "type": "object"
       },
       "WindsPeriod": {
-        "description": "A winds and temperatures aloft forecast's period (AC 00-45H, the\nWinds and Temperatures Aloft Forecast (FB)):\nvalid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC.",
+        "description": "A winds and temperatures aloft forecast's period (AC 00-45H, the\nWinds and Temperatures Aloft Forecast (FB)):\nvalid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC;\n`modelled` where the FB could not be had and the GFS's winds stand in\nfor it (vfr.modelwinds).",
         "properties": {
+          "modelled": {
+            "default": false,
+            "title": "Modelled",
+            "type": "boolean"
+          },
           "use_from": {
             "title": "Use From",
             "type": "string"

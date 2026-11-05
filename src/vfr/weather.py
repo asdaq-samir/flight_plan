@@ -87,8 +87,20 @@ def _fd_stations(fcst_hr: str = "06") -> dict:
     """The winds/temps product for one forecast period, parsed: the three
     altitude plans look the winds up at every legal altitude of every leg
     -- well over a hundred lookups for one route -- so it is fetched and
-    parsed once and held (the "winds-NN" sources below), not per lookup."""
-    return _dataset(f"winds-{fcst_hr}")
+    parsed once and held (the "winds-NN" sources below), not per lookup.
+    Where the FB cannot be had and no copy of it is held, the GFS's winds
+    at the FB's stations (vfr.modelwinds), marked `modelled`, rather than
+    a plan in still air."""
+    try:
+        return _dataset(f"winds-{fcst_hr}")
+    except WeatherServiceError as err:
+        from . import modelwinds
+
+        try:
+            return modelwinds.stations(fcst_hr)
+        except modelwinds.ModelWindsUnavailable as model_err:
+            log.warning("no modelled winds either: %s", model_err)
+            raise err from None
 
 
 class FdStations(dict):
@@ -98,6 +110,8 @@ class FdStations(dict):
     header does not say."""
 
     period: dict | None = None
+    #: The GFS's winds standing in for the FB (vfr.modelwinds).
+    modelled: bool = False
 
 
 def parse_fd_text(text: str, now: datetime | None = None) -> FdStations:
@@ -248,9 +262,11 @@ def winds_period(fcst_hr: str = "06") -> dict | None:
     """The period the winds a plan flies are for (FdStations.period): None
     where the product cannot be had or does not say."""
     try:
-        return getattr(_fd_stations(fcst_hr), "period", None)
+        stations = _fd_stations(fcst_hr)
     except WeatherServiceError:
         return None
+    period = getattr(stations, "period", None)
+    return {**period, "modelled": stations.modelled} if period else None
 
 
 def wind_at_altitude(lat: float, lon: float, altitude_ft: float, fcst_hr: str = "06") -> dict | None:
@@ -627,6 +643,11 @@ def sources_status() -> list[dict]:
             "kept_until": record.until if record and record.until != float("inf") else None,
             "failing": bool(record and record.error is not None),
         })
+    from . import modelwinds
+
+    # The GFS's winds, where they have stood in for the FB.
+    if (at := modelwinds.held_at()) is not None:
+        out.append({"name": "Winds aloft, modelled (GFS)", "fetched_at": at, "kept_until": None, "failing": False})
     return out
 
 
