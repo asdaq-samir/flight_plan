@@ -95,9 +95,9 @@ struct StripDataTests {
     /// Three legs of a route with a stop: C81 to KJVL (a checkpoint on
     /// the way), KJVL to KDLH, the figures the planner's leg lines carry.
     private static let legLines = [
-        #"{"type":"leg","from":"C81","to":"ROCKFORD","distance_nm":30.0,"altitude_ft":4500.0,"true_course_deg":330.0,"magnetic_heading_deg":329.0,"groundspeed_kt":104.0,"ete_min":17.3,"fuel_gal":2.4,"tas_kt":110.0}"#,
-        #"{"type":"leg","from":"ROCKFORD","to":"KJVL","distance_nm":20.0,"altitude_ft":4500.0,"true_course_deg":330.0,"magnetic_heading_deg":329.0,"groundspeed_kt":104.0,"ete_min":11.5,"fuel_gal":1.6,"tas_kt":110.0,"ground_min":45.0}"#,
-        #"{"type":"leg","from":"KJVL","to":"KDLH","distance_nm":273.5,"altitude_ft":6500.0,"true_course_deg":330.0,"magnetic_heading_deg":331.0,"groundspeed_kt":100.0,"ete_min":164.1,"fuel_gal":22.9,"tas_kt":110.0}"#,
+        #"{"type":"leg","from":"C81","to":"ROCKFORD","distance_nm":30.0,"altitude_ft":4500.0,"true_course_deg":330.0,"wca_deg":0.0,"true_heading_deg":330.0,"magnetic_variation_deg":1.0,"magnetic_heading_deg":329.0,"groundspeed_kt":104.0,"ete_min":17.3,"fuel_gal":2.4,"tas_kt":110.0}"#,
+        #"{"type":"leg","from":"ROCKFORD","to":"KJVL","distance_nm":20.0,"altitude_ft":4500.0,"true_course_deg":330.0,"wca_deg":0.0,"true_heading_deg":330.0,"magnetic_variation_deg":1.0,"magnetic_heading_deg":329.0,"groundspeed_kt":104.0,"ete_min":11.5,"fuel_gal":1.6,"tas_kt":110.0,"ground_min":45.0}"#,
+        #"{"type":"leg","from":"KJVL","to":"KDLH","distance_nm":273.5,"altitude_ft":6500.0,"true_course_deg":330.0,"wca_deg":0.0,"true_heading_deg":330.0,"magnetic_variation_deg":-1.0,"magnetic_heading_deg":331.0,"groundspeed_kt":100.0,"ete_min":164.1,"fuel_gal":22.9,"tas_kt":110.0}"#,
     ]
 
     private static func legs() throws -> [Leg] {
@@ -182,7 +182,7 @@ struct StripDataTests {
     @Test func theVerdictsTagAndTheHeadsLinesComeFromThePlannersAnswer() throws {
         #expect(StripData.tag("ok") == "Go" && StripData.tag("caution") == "Caution" && StripData.tag("stop") == "No-go")
         #expect(StripData.tag("pending") == nil && StripData.tag("unknown") == nil)
-        let answer = try decoder.decode(GoNoGoAnswer.self, from: Data(GoNoGoTests.answer.utf8))
+        let answer = try Self.decoder.decode(GoNoGoAnswer.self, from: Data(GoNoGoTests.answer.utf8))
         // The head wears the planner's line and at most three findings.
         #expect(StripData.tag(answer.line.finding) == "No-go")
         let lines = Glance.lines(answer)

@@ -144,12 +144,12 @@ extension Planner {
 /// /api/planner proxy): the planner assembles the figures itself from
 /// the same ask the briefing and the Go / No-Go took, and answers with
 /// Claude's sentences checked against them. Its "unavailable" (the
-/// planner reached, its model not) is thrown here, so the facade asks
-/// the device instead.
+/// planner reached, its model not) is passed on as it came, and the
+/// facade asks the device instead (WordsFor.said).
 struct PlannerWords: WordsProvider {
     func words(_ ask: WordsAsk) async throws -> Words {
         let words = try await Planner.postRead(Words.self, "/api/words/\(ask.kind.rawValue)", body: ask.body)
-        if words.sentences.isEmpty, let why = words.unavailable { throw WordsUnavailable(why: why) }
+        if words.sentences.isEmpty, words.unavailable != nil { return words }
         // Checked again on the phone: the planner checks its own, but the
         // chips open only what the answer carries.
         return Words.checked(words.sentences, sources: words.sources, model: words.model)
@@ -273,7 +273,15 @@ struct WordsFor: Sendable {
 
     func said(_ ask: WordsAsk) async -> SaidWords {
         do {
-            return SaidWords(words: try await planner.words(ask), origin: .planner)
+            let words = try await planner.words(ask)
+            // The planner reached but its model not ("The briefer could not
+            // be reached."): no sentences, and a reason to ask this iPhone,
+            // not an answer of no words. Here, not in PlannerWords, so a
+            // provider's own "unavailable" is read in one place.
+            if !(words.sentences.isEmpty && words.unavailable != nil) {
+                return SaidWords(words: words, origin: .planner)
+            }
+            Log.words.notice("the planner's \(ask.kind.rawValue, privacy: .public) words were unavailable")
         } catch {
             Log.words.notice("the planner's \(ask.kind.rawValue, privacy: .public) words failed: \(error.localizedDescription, privacy: .public)")
         }

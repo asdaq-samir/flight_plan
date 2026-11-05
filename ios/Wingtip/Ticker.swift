@@ -138,7 +138,7 @@ final class Ticker {
             }
             guard let next = items.filter(\.live).map(\.due).min() else { break }
             let wait = max(0.01, next.timeIntervalSinceNow)
-            let waiting = Task { try? await Task.sleep(for: .seconds(wait)) }
+            let waiting = Task { _ = try? await Task.sleep(for: .seconds(wait)) }
             self.waiting = waiting
             await waiting.value
         }
