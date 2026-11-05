@@ -174,7 +174,12 @@ def test_one_download_serves_every_call_within_the_ttl(mock_get):
 
 @patch("vfr.weather.time.sleep")
 @patch("vfr.weather.requests.get")
-def test_a_failed_refresh_serves_the_previous_copy_until_it_is_too_old(mock_get, mock_sleep):
+def test_a_failed_refresh_serves_the_held_metars_however_old(mock_get, mock_sleep):
+    """Each METAR carries its own observation time, which the pilot sees,
+    so the held copy is served through an outage of any length (AC
+    00-45H; since 2026-11-04, when the copy was dropped after a fixed
+    time). The products with a validity of their own run out: the TAF and
+    SIGMET tests below."""
     mock_get.return_value = METARS
     with patch("vfr.weather.time.time", return_value=T0200Z):
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"
@@ -183,8 +188,7 @@ def test_a_failed_refresh_serves_the_previous_copy_until_it_is_too_old(mock_get,
     with patch("vfr.weather.time.time", return_value=T0200Z + 10 * 60):
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"   # ten minutes old: served
     with patch("vfr.weather.time.time", return_value=T0200Z + 4 * 3600):
-        with pytest.raises(WeatherServiceError):
-            metar_for_idents(["KORD"])                                          # four hours old: not
+        assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"   # four hours old: still served
 
 
 @patch("vfr.weather.time.sleep")
@@ -194,8 +198,10 @@ def test_a_certificate_failure_is_not_retried(mock_get, mock_sleep):
     the back-off would only delay the same answer by six seconds."""
     mock_get.side_effect = requests.exceptions.SSLError("certificate has expired")
 
-    with pytest.raises(WeatherServiceError, match="certificate has expired"):
+    # The pilot reads the product's name; the cause is the developer's.
+    with pytest.raises(WeatherServiceError, match="METARs unavailable") as raised:
         metar_for_idents(["C81"])
+    assert "certificate has expired" in str(raised.value.__cause__)
 
     assert mock_get.call_count == 1
     mock_sleep.assert_not_called()
@@ -458,12 +464,13 @@ def test_a_failure_with_nothing_held_is_the_answer_for_a_minute(mock_get, mock_s
     other, while there was nothing to serve."""
     mock_get.side_effect = requests.ConnectionError("no route to host")
     with patch("vfr.weather.time.time", return_value=T0200Z):
-        with pytest.raises(WeatherServiceError, match="no route to host"):
+        with pytest.raises(WeatherServiceError, match="METARs unavailable") as raised:
             metar_for_idents(["KORD"])
+    assert "no route to host" in str(raised.value.__cause__)
     attempts = mock_get.call_count
 
     with patch("vfr.weather.time.time", return_value=T0200Z + 30):
-        with pytest.raises(WeatherServiceError, match="no route to host"):
+        with pytest.raises(WeatherServiceError, match="METARs unavailable"):
             metar_for_idents(["KORD"])
     assert mock_get.call_count == attempts
 
@@ -483,13 +490,15 @@ def test_a_copy_too_old_to_serve_is_not_fetched_again_within_the_minute(mock_get
     with patch("vfr.weather.time.time", return_value=T0200Z):
         weather._fd_stations("06")
     mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
+    # The source itself: _fd_stations would go on to the GFS's winds
+    # (vfr.modelwinds), a fetch of its own.
     with patch("vfr.weather.time.time", return_value=T0900Z + 60):
         with pytest.raises(WeatherServiceError):
-            weather._fd_stations("06")
+            weather._dataset("winds-06")
     attempts = mock_get.call_count
     with patch("vfr.weather.time.time", return_value=T0900Z + 90):
         with pytest.raises(WeatherServiceError):
-            weather._fd_stations("06")
+            weather._dataset("winds-06")
     assert mock_get.call_count == attempts
 
 
@@ -513,8 +522,9 @@ def test_a_winds_body_with_no_header_is_a_failed_fetch_not_a_crash(mock_get, moc
     with patch("vfr.weather.time.time", return_value=T0200Z + 5 * 60):
         assert weather._dataset("winds-06", force=True)["DLH"][9000]["temp_c"] == -8.0   # the held copy
     with patch("vfr.weather.time.time", return_value=T0900Z + 60):
-        with pytest.raises(WeatherServiceError, match="no altitude header"):
-            weather._fd_stations("06")                                     # past its for-use window: not
+        with pytest.raises(WeatherServiceError, match="Winds aloft") as raised:
+            weather._dataset("winds-06")                                   # past its for-use window: not
+    assert "no altitude header" in str(raised.value.__cause__)
 
 
 @patch("vfr.weather.time.sleep")
@@ -588,8 +598,9 @@ def test_a_refresh_tries_every_source_and_raises_the_first_failure(mock_get, moc
         return FD if url == weather.WINDTEMP_URL else (TAFS if "tafs" in url else AIRSIGMETS)
 
     mock_get.side_effect = answer
-    with pytest.raises(WeatherServiceError, match="metars down"):
+    with pytest.raises(WeatherServiceError, match="METARs unavailable") as raised:
         weather.refresh()
+    assert "metars down" in str(raised.value.__cause__)
     fetched = {name for name, at in weather.dataset_status().items() if at is not None}
     assert fetched == {"tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24"}
 

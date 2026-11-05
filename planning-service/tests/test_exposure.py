@@ -158,8 +158,21 @@ def test_the_maps_layers_say_when_their_data_was_fetched(monkeypatch):
     from app.main import app
 
     monkeypatch.setattr(weather, "dataset_status", lambda: {"metars": T0, "tafs": None})
+    monkeypatch.setattr(weather, "sources_status", lambda: [
+        {"name": "METARs", "fetched_at": T0, "kept_until": None, "failing": False},
+        {"name": "TAFs", "fetched_at": None, "kept_until": None, "failing": True},
+    ])
     monkeypatch.setattr(tfr, "fetched_at", lambda: None)
-    assert TestClient(app).get("/api/map/ages").json() == {"metars_at": "2026-10-04T14:00:00Z", "tfrs_at": None}
+    monkeypatch.setattr(tfr, "failing", lambda: False)
+    # And each source kept through an outage, for the pilot's Status page.
+    assert TestClient(app).get("/api/map/ages").json() == {
+        "metars_at": "2026-10-04T14:00:00Z", "tfrs_at": None,
+        "sources": [
+            {"name": "METARs", "fetched_at": "2026-10-04T14:00:00Z", "kept_until": None, "failing": False},
+            {"name": "TAFs", "fetched_at": None, "kept_until": None, "failing": True},
+            {"name": "TFRs", "fetched_at": None, "kept_until": None, "failing": False},
+        ],
+    }
 
 
 def test_the_briefing_places_its_hazards_on_the_nav_logs_legs(monkeypatch):

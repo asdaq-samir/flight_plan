@@ -90,13 +90,15 @@ describe("ViewCanvasLayer's frames", () => {
     const first = canvasOf(layer)!;
     first.dataset.marks = "[1]";
     layer.remove();
-    expect(first.isConnected).toBe(false);
+    // The map's container is not in the document here, so whether the
+    // canvas is in the map's pane is read off its parent.
+    expect(first.parentElement).toBeNull();
     expect(first.dataset.marks).toBeUndefined();
     expect(ctx.clearRect).toHaveBeenLastCalledWith(0, 0, first.width, first.height);
     const again = new Fading("overlayPane");
     again.addTo(map);
     expect(canvasOf(again)).toBe(first);
-    expect(first.isConnected).toBe(true);
+    expect(first.parentElement).toBe(map.getPane("overlayPane"));
     // Another while that one is in use has its own; and one in another
     // pane never takes it.
     const beside = new Fading("overlayPane");
