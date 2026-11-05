@@ -1,3 +1,4 @@
+import type { AircraftKind } from "./aircraftKind";
 import { NO_FILTER, type AircraftFilter } from "./fbo";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -498,11 +499,14 @@ export function recentRouteKey(route: Pick<RecentRoute, "dep" | "dest" | "stops"
 
 /** What this browser keeps of an airplane picked or starred: its ICAO
  *  address, what it is called (its registration, else its callsign) and
- *  its type, for its tile and row before anything is asked. */
+ *  its type, for its tile and row before anything is asked; and the shape
+ *  it is drawn as (lib/aircraftKind), worked out from all that was known
+ *  when it was kept. */
 export interface KeptAircraft {
   hex: string;
   name: string;
   type: string | null;
+  kind?: AircraftKind;
 }
 
 /** What this browser keeps of a field -- Home, a Favorite, one picked

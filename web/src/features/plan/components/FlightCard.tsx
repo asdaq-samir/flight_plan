@@ -34,6 +34,7 @@ import { pastFlightQuery, pastFlightsQuery } from "./pastFlightsQuery";
 import { CardAction } from "../../../components/CardAction";
 import { AirplaneFigures } from "./AirplaneFigures";
 import { shareOrCopy } from "../../../lib/share";
+import { aircraftKind } from "../../../lib/aircraftKind";
 
 /** A link to the airplane on the planner, shared where the phone can,
  *  copied where it cannot. */
@@ -259,7 +260,16 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
   const keptBefore = usePreferences(p => [p.myAircraft, ...p.favoriteAircraft, ...p.recentAircraft].find(a => a?.hex === hex) ?? null);
   const keptName = detail?.registration ?? plane?.registration ?? detail?.faa?.n_number ?? plane?.callsign ?? keptBefore?.name ?? null;
   const keptType = detail?.type ?? plane?.type ?? keptBefore?.type ?? null;
-  const kept = useMemo(() => (keptName ? { hex, name: keptName, type: keptType } : null), [hex, keptName, keptType]);
+  // Its shape from all that is known of it now, the registry's record and
+  // its transponder's category with its type (lib/aircraftKind); a string,
+  // so the kept airplane is new only when the shape is.
+  const keptShape = detail?.faa || plane?.category || keptType
+    ? aircraftKind({ type: keptType, category: plane?.category, faa: detail?.faa })
+    : keptBefore?.kind;
+  const kept = useMemo(
+    () => (keptName ? { hex, name: keptName, type: keptType, kind: keptShape } : null),
+    [hex, keptName, keptType, keptShape],
+  );
   useEffect(() => {
     if (kept) usePreferences.getState().addRecentAircraft(kept);
   }, [kept]);
