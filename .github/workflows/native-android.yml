@@ -62,11 +62,30 @@ jobs:
       # licences are taken.
       - name: The SDK's licences
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+      # The engine's libraries as the last run that built this engine left
+      # them: built here for three ABIs in 90 s, and again in the device
+      # job in 81 s (run 42110144706), though the engine changes far less
+      # often than the app. Keyed on the engine's own files; the device job
+      # finds what the build job kept a minute before.
+      - name: The engine, as last built
+        id: engine
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: android/app/engine
+          key: engine-android-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
         # wingtip-engine through its C functions (native/ffi), for each
-        # ABI, with the runner's own rustup and NDK; no Actions cache, as
-        # the engine has no crates to fetch.
+        # ABI, with the runner's own rustup and NDK, where the engine changed.
+        if: steps.engine.outputs.cache-hit != 'true'
         run: native/ffi/build-android.sh
+      # Kept at once, not at the job's end, so the device job has it
+      # whatever the unit tests and lint say.
+      - name: The engine, kept
+        if: steps.engine.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: android/app/engine
+          key: engine-android-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The site's host
         id: site
         run: echo "host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")" >> "$GITHUB_OUTPUT"
@@ -101,7 +120,21 @@ jobs:
           java-version: "21"
       - name: The SDK's licences
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+      # The engine's libraries as the last run that built this engine left
+      # them: built here for three ABIs in 90 s, and again in the device
+      # job in 81 s (run 42110144706), though the engine changes far less
+      # often than the app. Keyed on the engine's own files; the device job
+      # finds what the build job kept a minute before.
+      - name: The engine, as last built
+        id: engine
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: android/app/engine
+          key: engine-android-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
+        # wingtip-engine through its C functions (native/ffi), for each
+        # ABI, with the runner's own rustup and NDK, where the engine changed.
+        if: steps.engine.outputs.cache-hit != 'true'
         run: native/ffi/build-android.sh
       - name: The site's host
         id: site
