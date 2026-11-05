@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { ArrowRight, Coffee, Fuel, PlaneLanding, PlaneTakeoff, Plus, Route, Trash2, TriangleAlert } from "lucide-react";
 import {
@@ -86,7 +86,7 @@ const RUNS_ON_PX = 8;
 export default function RouteBox({
   dep, stops, dest, waypoints, airspaceOf, metarColourOf, altitudeAt, onAltitudeChange, onChange, onTypedProcedures, adding, onAddingChange, via,
   procedures = NO_PROCEDURES, onProcedures, onOpenAirport, onClear, directTo = null, onDirectTo, fuelStops = NO_FUEL_STOPS, onKeepFuelStops, onHideFuelStop,
-  footer,
+  footer, addAt = null, onDone,
 }: RouteParts & {
   /** Which points are waypoints, flown through: in the sectional's magenta. */
   waypoints: Set<string>;
@@ -139,6 +139,15 @@ export default function RouteBox({
    *  own under what is typed, at the owner's ask ("I want the route box
    *  with the buttons below it like this", 2026-10-21). */
   footer?: ReactNode;
+  /** Where a stop asked for (`adding`) is typed in, before the point at
+   *  this place: FPL's list's Add a Stop and Add a Stop After, where the
+   *  list changes the route (lib/preferences RouteEdit). None, before the
+   *  destination, or where Fly via goes round the Class B. */
+  addAt?: number | null;
+  /** The box folded again, at its Done, where a whole route's box is
+   *  folded away (RouteEdit's "folded"): opened from its line, the box
+   *  takes the typing at once. */
+  onDone?: () => void;
 }) {
   const hasDep = !!dep, hasDest = !!dest;
   const points = [...(hasDep ? [dep] : []), ...stops, ...(hasDest ? [dest] : [])];
@@ -158,7 +167,7 @@ export default function RouteBox({
   const [editing, setEditing] = useState<EditedPoint | null>(null);
   // Asked for from a problem: the field where the stop goes -- on the
   // flight the Class B stops, or before the destination.
-  const asked = via?.length ? via[0]!.stop_index + 1 : Math.max(points.length - 1, 0);
+  const asked = addAt !== null ? addAt : via?.length ? via[0]!.stop_index + 1 : Math.max(points.length - 1, 0);
   // With no departure yet, the field is there first: half a route reads
   // "Departure -> KDLH", the departure still to be typed.
   const at = chosen ?? (adding ? asked : !hasDep && points.length ? 0 : null);
@@ -331,6 +340,19 @@ export default function RouteBox({
   const open = offering && dismissed !== typed;
   // Asked for, the field takes the typing.
   useEffect(() => { if (adding) field.current?.focus(); }, [adding]);
+  // Opened from its folded line, the same: in the tap's own commit, so iOS
+  // brings the keyboard up (it does for no focus after the tap).
+  const opened = !!onDone;
+  useLayoutEffect(() => { if (opened) field.current?.focus(); }, [opened]);
+  // Folded again: what is typed put in first, as leaving the box does,
+  // and not again as the field's blur comes after the box has gone.
+  const done = () => {
+    if (typedNow.current.trim()) commitTyped();
+    typedNow.current = "";
+    atNow.current = null;
+    onAddingChange(false);
+    onDone?.();
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
@@ -561,6 +583,16 @@ export default function RouteBox({
                 as one too many. */}
             {points.length > 0 && onClear && !typed && (
               <ClearButton label="Clear the route" testId="route-box-clear" onClear={onClear} className="mt-2" />
+            )}
+            {/* Folded again, as iOS's Done ends an edit: the box's first line
+                at its end. Pressed, the field keeps the focus till it goes. */}
+            {onDone && (
+              <button
+                type="button" onMouseDown={e => e.preventDefault()} onClick={done} data-testid="route-box-done"
+                className={cn("relative mt-1 ml-1 h-7 shrink-0 rounded-full px-1.5 font-semibold text-tint outline-none after:absolute after:-inset-2 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring", TEXT.row)}
+              >
+                Done
+              </button>
             )}
             {/* Its own taps, not the box's room (isRoom), which types at the
                 route's end; ten under the lines, the clear's 44-point area

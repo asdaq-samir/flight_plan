@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ArrowUp, Crosshair, Ellipsis, Info, Mountain, MoveUpRight, MoveVertical, Pencil, Repeat2, Trash2 } from "lucide-react";
+import { ArrowUp, Crosshair, Ellipsis, Info, Mountain, MoveUpRight, MoveVertical, Pencil, Plus, Repeat2, Trash2 } from "lucide-react";
 import { cn } from "cn";
 import { GLASS_BUTTON } from "../../../components/mapChrome";
 import RoundButton from "../../../components/RoundButton";
@@ -78,6 +78,9 @@ export interface PointActions {
   onHold?: () => void;
   held?: boolean;
   onInfo?: () => void;
+  /** The route's box opened to type a stop in after it (FPL with the route
+   *  in the plan, lib/preferences RouteEdit). */
+  onAddAfter?: () => void;
   onRemove?: () => void;
 }
 
@@ -108,6 +111,7 @@ export function PointMenuItems({ actions: a, kit, later, testId }: {
         </Item>
       )}
       {a.onInfo && <Item onSelect={later(a.onInfo)} data-testid={`${testId}-info`}><Info aria-hidden="true" />More Info</Item>}
+      {a.onAddAfter && <Item onSelect={later(a.onAddAfter, true)} data-testid={`${testId}-add-after`}><Plus aria-hidden="true" />Add a Stop After</Item>}
       {a.onRemove && (
         <>
           <Separator />

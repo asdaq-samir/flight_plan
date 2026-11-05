@@ -2,7 +2,11 @@ import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState,
 import { create } from "zustand";
 import { useWindPicks } from "../../../lib/windPicks";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Fuel, GripVertical, PlaneLanding, PlaneTakeoff, Plus, Route, Wind } from "lucide-react";
+import {
+  DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDraggable, useDroppable, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
@@ -79,6 +83,15 @@ const PROCEDURE_STALE_MS = 6 * 60 * 60_000;
 const FORECAST_AFTER_MS = 60 * 60_000;
 const TEN_MIN_MS = 10 * 60_000;
 
+/** The route changed in FPL's list rather than its box (lib/preferences
+ *  RouteEdit), by the points' places in `routePoints`. */
+export interface RouteListEdit {
+  /** A point dragged by its grip onto another's place. */
+  onMove: (from: number, to: number) => void;
+  /** The route's box opened to type a stop in at this place. */
+  onAddAt: (index: number) => void;
+}
+
 export interface ProcedureAirport {
   ident: string;
   role: "Departure" | "Stop" | "Destination";
@@ -133,7 +146,7 @@ export default function ProceduresRoute({
   airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked, fit, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
   crossings, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
   onCreateFix, holds, onHoldSet, askHold = null, routePoints, stopsFull = false,
-  fuel = null, routeLine = null,
+  fuel = null, routeLine = null, edit,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -228,6 +241,10 @@ export default function ProceduresRoute({
   /** The route line under the departure (RouteLine): the planner's ways as
    *  chips, the one picked, and the way to pick one; none, no line. */
   routeLine?: RouteLineChoices | null;
+  /** The route changed in the list itself (RouteListEdit): each typed
+   *  point's grip, Add a Stop After in its menu, and Add a Stop at the
+   *  list's end. None, the list as before. */
+  edit?: RouteListEdit;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -482,7 +499,17 @@ export default function ProceduresRoute({
   // `altitudes`), else a waypoint's cruise to it, a field's elevation --
   // and its menu. `to`, a point flown to: Direct to it and its altitude
   // set there; `stop`, one the route's points can lose.
-  const pointEnd = (ident: string, at: { time: ReactNode; waypoint: boolean; elevationFt: number | null; to: boolean; stop: boolean; holdable?: boolean; row?: NavLogRow }) => {
+  // A field's place among the typed points, for its grip and Add a Stop
+  // After: the departure first, the destination last (a round trip's
+  // field is both, by its role), a stop its own place between them.
+  const pointIndex = (ident: string, role: ProcedureAirport["role"]) => {
+    if (!routePoints.length) return undefined;
+    if (role === "Departure") return 0;
+    if (role === "Destination") return routePoints.length - 1;
+    const found = routePoints.findIndex((p, j) => j > 0 && j < routePoints.length - 1 && sameField(p, ident));
+    return found >= 0 ? found : undefined;
+  };
+  const pointEnd = (ident: string, at: { time: ReactNode; waypoint: boolean; elevationFt: number | null; to: boolean; stop: boolean; holdable?: boolean; row?: NavLogRow; index?: number }) => {
     const altitude = at.to ? pointAltitude(ident, at.waypoint) : undefined;
     const own = altitude?.own ? altitude.feet : null;
     const shown = own ?? (at.waypoint ? altitude?.feet ?? null : at.elevationFt);
@@ -522,9 +549,15 @@ export default function ProceduresRoute({
               arrivalDeg: leg ? normalizeDeg(leg.true_course_deg - leg.magnetic_variation_deg) : null,
             });
           } : undefined}
+          // Not after the destination: what follows it is a new
+          // destination, the route box's own (its end).
+          onAddAfter={edit && at.index !== undefined && at.index < routePoints.length - 1 && !stopsFull ? () => edit.onAddAt(at.index! + 1) : undefined}
           onRemove={at.stop && typed ? () => onRemove(ident) : undefined}
         />
       ),
+      // Its grip, where the list changes the route: by its place among the
+      // typed points.
+      grip: edit && at.index !== undefined ? <PointGrip ident={ident} index={at.index} /> : null,
     };
   };
 
@@ -655,7 +688,7 @@ export default function ProceduresRoute({
       const first = parts[0]!;
       const end = pointEnd(a.ident, {
         time: headTime, waypoint: false, elevationFt: a.elevationFt ?? cards[i]?.data?.elevation_ft ?? null, to: a.role !== "Departure", stop: a.role === "Stop",
-        holdable: a.role === "Destination", row,
+        holdable: a.role === "Destination", row, index: pointIndex(a.ident, a.role),
       });
       const reported = reportedOf(a.ident);
       // Without the "T" after its direction, at the owner's ask ("No need
@@ -704,7 +737,7 @@ export default function ProceduresRoute({
                     at the owner's ask ("line up the time with airport id and
                     elevation with wind like before"): the ident and the time,
                     then the wind and the elevation. */}
-                <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+                <div className={cn("grid min-w-0 flex-1 items-center gap-x-2", end.grip ? "grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]")}>
                   <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
                     {/* The disclosure, iOS's small chevron by the symbol, not
                         an icon button (data-disclosure): the Collapsible's
@@ -744,6 +777,7 @@ export default function ProceduresRoute({
                     )}
                   </p>
                   <div className="col-start-2 row-start-2 justify-self-end">{end.elevation}</div>
+                  {end.grip && <div className="relative z-10 col-start-3 row-span-2 row-start-1 self-center">{end.grip}</div>}
                 </div>
               </div>
               <CollapsibleContent className="pl-[2.375rem]">{partBody(first)}</CollapsibleContent>
@@ -880,7 +914,8 @@ export default function ProceduresRoute({
     // and Direct to, as a field's landing has. Not where it starts.
     const time = etaAt(depart || new Date().toISOString(), row.minutesFlown);
     const to = row.kind !== "departure" && "airport" in row && !isPosition(row.airport.ident);
-    const end = to ? pointEnd(row.airport.ident, { time, waypoint: true, elevationFt: null, to: true, stop: row.kind === "stop", holdable: true, row }) : null;
+    const typedAt = to ? routePoints.findIndex(p => sameField(p, row.airport.ident)) : -1;
+    const end = to ? pointEnd(row.airport.ident, { time, waypoint: true, elevationFt: null, to: true, stop: row.kind === "stop", holdable: true, row, index: typedAt >= 0 ? typedAt : undefined }) : null;
     steps.push(
       <Step
         key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
@@ -891,7 +926,7 @@ export default function ProceduresRoute({
         // Direct to in the line's own colour: it says how the leg is
         // flown, and only what is tapped is in the tint.
         sub={end?.direct ? <span className="font-semibold">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "airport" in row && isPosition(row.airport.ident) ? placeOfPoint(row.airport.ident) : "Departure"}${along(row)}`}
-        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu}
+        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu} grip={end?.grip}
       />,
     );
     if (to) steps.push(holdRow(row.airport.ident));
@@ -927,10 +962,27 @@ export default function ProceduresRoute({
       </Suspense>
     )}
     {lineRow}
+    {/* The grips' drag round the list where it changes the route
+        (RouteListDrag): its own element, not the anchor's child. */}
+    <RouteListDrag on={edit?.onMove}>
     <ResponsivePopover open={!!at} onOpenChange={open => { if (!open) close(); }}>
       <ResponsivePopoverAnchor asChild>
         <ol className="pt-2 pb-1" aria-label="The route" data-testid="procedures">{fieldsAlone ?? steps}</ol>
       </ResponsivePopoverAnchor>
+      {/* A stop before the destination, as Maps' Add Stop is, at the
+          list's end where the list changes the route (the FPL canvas's A
+          and B, 2026-11-05). */}
+      {edit && routePoints.length > 1 && (
+        <button
+          type="button" disabled={stopsFull} onClick={() => edit.onAddAt(routePoints.length - 1)} data-testid="route-add-stop"
+          className={cn("flex h-11 w-full items-center gap-2.5 text-left text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40", TEXT.row)}
+        >
+          <span className="grid w-7 shrink-0 place-items-center">
+            <span className="grid size-6 place-items-center rounded-full bg-tint text-white"><Plus className="size-4" strokeWidth={2.6} aria-hidden /></span>
+          </span>
+          Add a Stop
+        </button>
+      )}
       {editingUsed && (
         <Suspense fallback={null}>
           <PointAltitudeDialog
@@ -977,6 +1029,7 @@ export default function ProceduresRoute({
         ))}
       </ResponsivePopoverContent>
     </ResponsivePopover>
+    </RouteListDrag>
     </>
   );
 }
@@ -1096,7 +1149,67 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
   );
 }
 
-function Step({ mark, title, sub, figures, menu, last, field = false, testId, icon, children }: {
+/**
+ * The list's drag, by the points' grips (PointGrip): a grip let go over
+ * another point's moves its point there, as the route box's pills are
+ * dragged. dnd-kit's DndContext, as the box's; only the grips are dragged
+ * and dropped on, as the list between them holds the legs' rows, the
+ * holds and the runways, none of them points to move. A finger starts it
+ * at once on the grip, which is there to be dragged; the ident lifted off
+ * the list follows it (DragOverlay).
+ */
+function RouteListDrag({ on, children }: { on?: (from: number, to: number) => void; children: ReactNode }) {
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor),
+  );
+  const [lifted, setLifted] = useState<string | null>(null);
+  const placeOf = (id: string | number) => Number(String(id).split(":")[0]);
+  const onDragStart = ({ active }: DragStartEvent) => setLifted(String(active.id).split(":").slice(1).join(":"));
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setLifted(null);
+    if (over && over.id !== active.id) on?.(placeOf(active.id), placeOf(over.id));
+  };
+  // Nothing to drag: the list as it was, no context round it.
+  if (!on) return <>{children}</>;
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setLifted(null)}>
+      {children}
+      <DragOverlay dropAnimation={null}>
+        {lifted && (
+          <span className={cn("inline-flex h-9 items-center gap-1.5 rounded-full bg-card px-3 font-semibold shadow-lg ring-1 ring-black/10", TEXT.row)}>
+            <GripVertical className="size-4 text-tint" aria-hidden />{pointName(lifted)}
+          </span>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+/** A typed point's grip, at its row's end, as iOS's reorder control is:
+ *  dragged, and dropped on. Its own presses, not the sheet's drag; a
+ *  32-point glyph button with its 44-point area (index.css). */
+function PointGrip({ ident, index }: { ident: string; index: number }) {
+  const id = `${index}:${ident}`;
+  const drag = useDraggable({ id });
+  const drop = useDroppable({ id });
+  return (
+    <button
+      type="button" ref={node => { drag.setNodeRef(node); drop.setNodeRef(node); }} {...drag.attributes} {...drag.listeners}
+      aria-label={`Move ${pointName(ident)}`} data-testid="route-grip" data-ident={ident}
+      onPointerDown={e => e.stopPropagation()}
+      className={cn(
+        "relative grid size-8 shrink-0 touch-none place-items-center rounded-full text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        drag.isDragging && "opacity-30", drop.isOver && !drag.isDragging && "bg-tint/12 text-tint",
+      )}
+    >
+      <GripVertical className="size-5" aria-hidden />
+    </button>
+  );
+}
+
+function Step({ mark, title, sub, figures, menu, grip, last, field = false, testId, icon, children }: {
   /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
   /** After its name: the fuel in the tanks there (FuelGauge). */
@@ -1108,6 +1221,8 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
   /** Its time over its altitude (PointFigures). */
   figures: ReactNode;
   menu?: (face: ReactNode) => ReactNode;
+  /** Its grip, where the list changes the route (PointGrip). */
+  grip?: ReactNode;
   last: boolean;
   field?: boolean;
   testId?: string;
@@ -1128,6 +1243,7 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
             {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
           </div>
           {figures}
+          {grip}
         </div>
         {children}
       </section>

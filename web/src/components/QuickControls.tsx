@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
-import { Bell, BellOff, BellRing, ChevronsUpDown, Monitor, Moon, Palette, PanelBottom, PanelTop, Sun } from "lucide-react";
+import { Bell, BellOff, BellRing, ChevronsUpDown, ListOrdered, Monitor, Moon, Palette, PanelBottom, PanelTop, Route, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "cn";
 import PullDown, { type PullDownOption } from "./PullDown";
-import { usePreferences, type Brand, type NavEdge } from "../lib/preferences";
+import { usePreferences, type Brand, type NavEdge, type RouteEdit } from "../lib/preferences";
 import { BRANDS } from "../lib/brand";
 import { useNavEdge } from "../hooks/use-nav-edge";
 import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
@@ -21,12 +21,16 @@ import { TEXT } from "../lib/text";
  * is -- not a cycle a pilot cannot foresee; Offline is on or off.
  *
  * Traffic went to the map's menu, a layer of the map's, and Dark became
- * Theme, keeping System, which a Dark switch could not say.
+ * Theme, keeping System, which a Dark switch could not say. Route, a
+ * fifth, how FPL's route is changed once it is whole (the owner,
+ * 2026-11-05).
  */
 export default function QuickControls() {
   const brand = usePreferences(s => s.brand);
   const setBrand = usePreferences(s => s.setBrand);
   const setNavBar = usePreferences(s => s.setNavBar);
+  const routeEdit = usePreferences(s => s.routeEdit);
+  const setRouteEdit = usePreferences(s => s.setRouteEdit);
   const edge = useNavEdge();
   const [alertMode, setAlertMode] = useAlertMode();
   const { theme, setTheme } = useTheme();
@@ -67,6 +71,18 @@ export default function QuickControls() {
           { value: "system", label: "System", testId: "theme-system" },
           { value: "light", label: "Light", testId: "theme-light" },
           { value: "dark", label: "Dark", testId: "theme-dark" },
+        ]}
+      />
+      {/* How FPL's route is changed once it has a destination
+          (lib/preferences RouteEdit), at the owner's ask ("I want to have a
+          toggle between A and B in settings", 2026-11-05): its box folded
+          to one line, or the plan's own rows. */}
+      <MenuTile<RouteEdit>
+        label="Route" value={routeEdit} onChange={setRouteEdit} on={false} testId="route-edit-select"
+        icon={routeEdit === "plan" ? <ListOrdered /> : <Route />}
+        options={[
+          { value: "folded", label: "One Line", testId: "route-edit-folded" },
+          { value: "plan", label: "In the Plan", testId: "route-edit-plan" },
         ]}
       />
     </div>
