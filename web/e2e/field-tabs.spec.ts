@@ -86,6 +86,9 @@ test("the field is the assistant's by default, one mic and no Ask button, its an
 });
 
 test("the tabs are docked: nothing of the map under the sheet at the pill", async ({ page }) => {
+  // A phone's sheet is on the screen's bottom edge; a desktop's at the top
+  // unless Setup says otherwise (useNavEdge), so there is no foot to dock.
+  test.skip((page.viewportSize()?.width ?? 0) >= 768, "a phone's bottom sheet");
   await page.goto(fieldTabsPlan());
   await settle(page);
   const panel = sideDrawer(page);
