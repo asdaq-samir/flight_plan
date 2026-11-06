@@ -379,7 +379,6 @@ public class PlannerProxyController {
         });
     }
 
-    /** {@code /api/planner/course} upstream is {@code /api/course}. */
     /** Whether the raw path means at the planner what it matched here: one
      *  absolute path, no scheme-relative "//" to name another host, no
      *  backslash, no "." or ".." segment, and no encoded slash, backslash
@@ -403,6 +402,7 @@ public class PlannerProxyController {
         return true;
     }
 
+    /** {@code /api/planner/course} upstream is {@code /api/course}. */
     private static String upstreamPath(HttpServletRequest request) {
         return "/api" + request.getRequestURI().substring("/api/planner".length());
     }

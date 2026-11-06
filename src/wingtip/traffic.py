@@ -901,12 +901,13 @@ def _recorded_file(hex_id: str) -> Path | None:
 def _load_recorded(hex_id: str) -> None:
     """An airplane's recorded track read from its file the first time it is
     wanted; nothing where there is none or it cannot be read. Called with
-    the lock held."""
+    the lock held. An address that names no file is not kept at all, so
+    junk ids from requests cannot grow the map; readers take a missing key
+    as an empty track."""
     if hex_id in _RECORDED:
         return
     path = _recorded_file(hex_id)
     if path is None:
-        _RECORDED[hex_id] = []
         return
     try:
         kept = json.loads(path.read_text())
@@ -969,7 +970,7 @@ def follow(hex_id: str) -> None:
         _FOLLOWED.add(hex_id)
         if new:
             _load_recorded(hex_id)
-            kept = list(_RECORDED[hex_id])
+            kept = list(_RECORDED.get(hex_id, []))
     if new and not kept:
         _save_recorded(hex_id, kept)
 
@@ -1111,6 +1112,8 @@ def _record(hex_id: str, plane: dict) -> None:
     }
     with _LOCK:
         _load_recorded(hex_id)
+        if hex_id not in _RECORDED:
+            return
         track = _RECORDED[hex_id]
         if track and track[-1]["t"] >= at:
             return
