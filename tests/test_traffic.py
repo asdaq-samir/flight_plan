@@ -1200,12 +1200,12 @@ def test_the_globe_turning_the_planner_away_is_not_asked_again_for_a_while(clock
         assert get.call_count == 2
 
 
-def test_an_address_that_is_not_six_hex_digits_names_no_file():
+def test_an_address_that_is_not_six_hex_digits_names_no_file(monkeypatch, tmp_path):
     """A track's file is named by the airplane's ICAO address alone: one
-    that is not six hex digits (from a feed or a request) is neither read
-    nor written, so nothing reaches out of the directory."""
-    escaped = traffic.RECORDED_DIR.parent.parent / "escaped.json"
+    that is not six hex digits (from a feed or a request) names no file, so
+    nothing is written or read outside the directory."""
+    monkeypatch.setattr(traffic, "RECORDED_DIR", tmp_path / "data" / "watched_tracks")
+    assert traffic._recorded_file("../../escaped") is None
+    assert traffic._recorded_file("~a1b2c3") == tmp_path / "data" / "watched_tracks" / "a1b2c3.json"
     traffic._save_recorded("../../escaped", [{"t": 1.0}])
-    assert not escaped.exists()
-    traffic._load_recorded("../../escaped")
-    assert traffic._RECORDED["../../escaped"] == []
+    assert not any(tmp_path.rglob("escaped*"))
