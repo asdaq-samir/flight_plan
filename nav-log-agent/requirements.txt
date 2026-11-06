@@ -9,12 +9,12 @@
 # plain rebuild could silently pull a newer langgraph/anthropic/mcp
 # between one build and the next. Pinned to what python:3.14-slim
 # currently resolves.
-langgraph==1.2.14
-anthropic==1.11.0
+langgraph==1.2.19
+anthropic==1.17.0
 mcp==2.3.0
-psycopg[binary]==3.3.6
-pgvector==0.5.0
-sentence-transformers==6.1.0
+psycopg[binary]==3.3.7
+pgvector==0.5.1
+sentence-transformers==6.2.0
 requests==2.34.2   # wingtip.planner_client -- the nav log comes from planning-service's /api/plan
 # Nothing else from vfr: planner_client is the only vfr module this agent
 # imports, and it needs requests alone. The geometry, raster and FAA data
