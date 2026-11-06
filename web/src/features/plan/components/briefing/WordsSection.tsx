@@ -43,7 +43,11 @@ export default function WordsSection({ title, onMore, testId, state, children }:
           <p className={cn("tabular-nums", TEXT.prose)} data-testid={`${testId}-words`}>
             {answer.sentences.map((s, i) => <span key={i} data-sources={s.sources.join(" ")}>{i > 0 ? " " : ""}{s.text}</span>)}
           </p>
-          <SourceChips sources={answer.sources} testId={`${testId}-source`} />
+          {/* Eight under the chips: the next section's title reaches 8 up
+              for its 44 points (PillSection), and a chip's 6 down, where
+              the NOTAMs' chip lost its area's foot to the weather's title
+              on CI's iPad (the iOS audit's P1, 2026-11-05). */}
+          <div className="pb-2"><SourceChips sources={answer.sources} testId={`${testId}-source`} /></div>
           {children}
         </>
       )}
