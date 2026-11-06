@@ -66,7 +66,10 @@ import org.springframework.security.web.savedrequest.NullRequestCache;
 public class SecurityConfig {
 
     /** The overlay's tile hosts (see the headers below). */
-    private static final String OVERLAY_IMAGES = "https://basemap.nationalmap.gov https://tile.googleapis.com";
+    // And the weather the map draws as tiles (web/src/lib/map/WeatherLayers):
+    // the Iowa Environmental Mesonet's NEXRAD radar and GOES satellite
+    // mosaics, drawn by the browser straight from IEM's tile cache.
+    private static final String OVERLAY_IMAGES = "https://basemap.nationalmap.gov https://tile.googleapis.com https://mesonet.agron.iastate.edu";
     private static final String OVERLAY_CONNECT = "https://tile.googleapis.com";
     // An airplane's photo on its card (web/src/lib/planePhoto.ts): asked of
     // Planespotters.net's API by the browser, as its terms have an app's
