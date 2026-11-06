@@ -118,7 +118,7 @@ test("where Flight Service is connected, the form is filed from here in the pilo
   expect(filed[0]).toMatchObject({ rules: "VFR", aircraftId: "N12345", aircraftType: "C172/L", departure: "KMSN", destination: "KOSH" });
 });
 
-test("the pilot's number and home base are set in Setup's Pilot details, and a wrong one is said under its label", async ({ page }) => {
+test("the pilot's number and home base are set in Setup's Pilot details, and a wrong one is said under its label", { tag: "@smoke" }, async ({ page }) => {
   const sent: Record<string, unknown>[] = [];
   await page.route(url => url.pathname === "/api/me/contact", async route => {
     const body = route.request().postDataJSON() as { phone: string; homeBase: string };

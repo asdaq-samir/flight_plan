@@ -69,7 +69,7 @@ test("plan page: every popup the map opens dismisses the same way", async ({ pag
   await expect(page.getByTestId("place-card")).toHaveCount(0);
 });
 
-test("plan page: a checkpoint picked on the map brings the map in to it, so there is no zoom button", async ({ page }) => {
+test("plan page: a checkpoint picked on the map brings the map in to it, so there is no zoom button", { tag: "@smoke" }, async ({ page }) => {
   // The map's buttons had a zoom toggle between the whole route and the
   // selected point; picking a point already does the one, and the wheel
   // or a pinch the other.

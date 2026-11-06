@@ -83,7 +83,7 @@ test("a runway line opened stays open until folded, and folds with its field", a
   await expect(destination.locator("[data-folded]")).toHaveCount(1);
 });
 
-test("the field left from is drawn off its runway and out of the pattern, not round it, and both runways are sent to the planner", async ({ page }) => {
+test("the field left from is drawn off its runway and out of the pattern, not round it, and both runways are sent to the planner", { tag: "@smoke" }, async ({ page }) => {
   // The owner, 2026-10-27: "why is c81 also drawing a visual pattern?" and
   // "is it not flying that and landing?".
   const asked: URL[] = [];

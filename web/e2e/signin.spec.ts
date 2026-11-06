@@ -42,7 +42,7 @@ test("signed out, the planner opens on the map, and the sign-in is in the pilot 
   await expect(consoleSheet(page).getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
-test("signed out, Personal says once what signing in keeps, its minimums need none, and the dialog offers only the providers registered", async ({ page }) => {
+test("signed out, Personal says once what signing in keeps, its minimums need none, and the dialog offers only the providers registered", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan");
   await showTabs(page);
   await openConsole(page);

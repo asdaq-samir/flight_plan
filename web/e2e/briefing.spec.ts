@@ -232,7 +232,7 @@ test("plan page: the drawer closes the way the stock components close, and nothi
   await expect(page).not.toHaveURL(/[?&]view=briefing/);
 });
 
-test("plan page: a pasted briefing link opens the panel, and its grabber closes and reopens it", async ({ page }) => {
+test("plan page: a pasted briefing link opens the panel, and its grabber closes and reopens it", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await settle(page);
   const drawer = sideDrawer(page);

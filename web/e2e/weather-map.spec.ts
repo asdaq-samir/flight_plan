@@ -20,7 +20,7 @@ const AREA = {
 const PIREP = { lat: 43.5, lon: -89.6, altitude_ft: 6500, aircraft: "C172", urgent: false, turbulence: "MOD", icing: null, observed_at: "2026-10-20T14:12:00Z", raw: "UA /OV MSN310012/TM 1412/FL065/TP C172/TB MOD" };
 const WIND = { ident: "MSN", lat: 43.14, lon: -89.34, dir_true_deg: 265, speed_kt: 34, temp_c: -6 };
 
-test("the map's button turns the weather on and off, and an area's card says how the route crosses it", async ({ page }) => {
+test("the map's button turns the weather on and off, and an area's card says how the route crosses it", { tag: "@smoke" }, async ({ page }) => {
   await page.route(url => url.hostname === "mesonet.agron.iastate.edu", route => route.abort());
   const asked: URL[] = [];
   await page.route(url => url.pathname.endsWith("/weather/map"), route => {

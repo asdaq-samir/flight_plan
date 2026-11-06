@@ -93,7 +93,7 @@ test("the microphone listens once into a pill, and its chip flies the altitude s
   await expect(pill).toHaveCount(0);
 });
 
-test("the pilot's own words are chips: the nearest airports and a timer", async ({ page }) => {
+test("the pilot's own words are chips: the nearest airports and a timer", { tag: "@smoke" }, async ({ page }) => {
   await page.addInitScript(() => {
     class Heard {
       lang = ""; continuous = false; interimResults = false;

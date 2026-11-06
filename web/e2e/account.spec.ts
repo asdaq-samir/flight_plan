@@ -74,7 +74,7 @@ test.describe("the email sign-in link", () => {
     await page.route("**/api/me", route => route.fulfill({ status: 401, body: "" }));
   });
 
-  test("says which address it went to, whatever was typed after", async ({ page }) => {
+  test("says which address it went to, whatever was typed after", { tag: "@smoke" }, async ({ page }) => {
     const hold = held();
     await page.route("**/api/auth/magic-link", async route => {
       await hold.gate;

@@ -100,7 +100,7 @@ test("a field the armed services keep to themselves is off the map until Militar
 });
 
 
-test("Nearest is from a place typed -- a town, an address, an airport -- and back from the position at its clear", async ({ page }) => {
+test("Nearest is from a place typed -- a town, an address, an airport -- and back from the position at its clear", { tag: "@smoke" }, async ({ page }) => {
   const asked: string[] = [];
   await page.route(url => url.pathname.endsWith("/api/planner/airports/nearest"), route => {
     const at = new URL(route.request().url()).searchParams;

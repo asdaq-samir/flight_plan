@@ -36,7 +36,7 @@ jobs:
   # failed: the next CI run builds only what changed after this commit
   # (its last green one), so re-run this one.
   promote:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     permissions:
       contents: read
@@ -90,7 +90,7 @@ jobs:
   # policy sees this workflow on main (`workflow_run` runs on the default
   # branch).
   push-ecr:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: promote
     if: vars.AWS_ROLE_ARN != ''
     permissions:
@@ -161,7 +161,7 @@ jobs:
   # AWS_SERVER_NAME is set as a repo variable (the stack's ServerName
   # output).
   deploy:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: push-ecr
     if: vars.AWS_SERVER_NAME != ''
     permissions:

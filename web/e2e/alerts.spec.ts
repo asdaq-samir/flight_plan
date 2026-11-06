@@ -91,7 +91,7 @@ test("in the air, what is ahead is said over the map, a warning first, and drawn
   await expect(page.locator(".leaflet-overlay-pane path.ahead-warning")).toHaveCount(0);
 });
 
-test("a planner that does not answer is said, not shown as a clear sky", async ({ page }) => {
+test("a planner that does not answer is said, not shown as a clear sky", { tag: "@smoke" }, async ({ page }) => {
   await flying(page);
   await ahead(page, route => route.fulfill({ status: 502, json: { detail: "planner service unreachable" } }));
   await page.goto("/app/plan");

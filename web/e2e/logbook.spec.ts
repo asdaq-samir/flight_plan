@@ -45,7 +45,7 @@ test("the logbook says where the pilot stands, and a flight logged is posted as 
   expect(posted[0]).toMatchObject({ totalHours: 3.4, dayLandings: 1 });
 });
 
-test("a logbook that could not be fetched says so in place, and Try again fetches it", async ({ page }) => {
+test("a logbook that could not be fetched says so in place, and Try again fetches it", { tag: "@smoke" }, async ({ page }) => {
   // The commonality audit's N-12: a failure read "No flights logged yet".
   await page.route("**/api/me", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(A_PILOT) }));
   let failing = true;

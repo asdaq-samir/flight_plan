@@ -172,7 +172,7 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   await expect(detail).toContainText("30 min day reserve");
 });
 
-test("plan page: the nav log is computed for an airplane the pilot picks in its own header", async ({ page }) => {
+test("plan page: the nav log is computed for an airplane the pilot picks in its own header", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   // All the way up, which the address keeps (`view`), for the reload below.

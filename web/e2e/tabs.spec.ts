@@ -149,7 +149,7 @@ test("Depart has the takeoff's runway check: a runway too short is red, on the t
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("each field is a section of its phase's tab, its pattern and calls first, each frequency said once", async ({ page }) => {
+test("each field is a section of its phase's tab, its pattern and calls first, each frequency said once", { tag: "@smoke" }, async ({ page }) => {
   await planned(page);
   const drawer = sideDrawer(page);
   // The departure's on Depart, the destination's on Arrive.

@@ -230,7 +230,7 @@ test("half way a dry run started from the profile's card plays in the card, in o
   await expect.poll(level, { timeout: slow(10_000) }).toBe(10);
 });
 
-test("the side view is a skeleton of the ground and the climb while its ground is fetched, not an empty box", async ({ page }) => {
+test("the side view is a skeleton of the ground and the climb while its ground is fetched, not an empty box", { tag: "@smoke" }, async ({ page }) => {
   // The design review, 2026-10-28: a blank white box under the Dry run.
   let answer: (() => void) | null = null;
   await page.route(url => url.pathname.endsWith("/route-profile"), async route => {

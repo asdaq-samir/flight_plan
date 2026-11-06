@@ -543,7 +543,7 @@ test("a Favorite's card names it and the map goes to it before the card's answer
 // A planner out of reach for a moment (restarted, say) is not an airport
 // that does not exist: the card says it could not look it up, and asks
 // again where it is.
-test("an airport's card that could not be had says so, and Try again brings it", async ({ page }) => {
+test("an airport's card that could not be had says so, and Try again brings it", { tag: "@smoke" }, async ({ page }) => {
   let down = true;
   await page.route(url => url.pathname.endsWith("/api/planner/airport/KDLH"), route =>
     (down ? route.fulfill({ status: 502, body: "" }) : route.fallback()));

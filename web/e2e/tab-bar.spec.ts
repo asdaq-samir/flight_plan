@@ -104,7 +104,7 @@ test("a route rests as its figures in the tabs' place, the pill's own height, an
   await expect(panel.getByTestId("flight-line")).toBeVisible();
 });
 
-test("FPL with no route rests as the tabs alone, its route's box half way", async ({ page }) => {
+test("FPL with no route rests as the tabs alone, its route's box half way", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan");
   await settle(page);
   // The pill: the tabs alone, no figures.
