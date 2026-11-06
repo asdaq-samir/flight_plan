@@ -20,7 +20,7 @@ const NO_ROWS: AirportSearchRow[] = [];
  * (ProceduresRoute), there being no route box there ("I want to
  * completely get rid of the route box for in the plan").
  */
-export default function CardIdent({ value, label, onCommit, testId, bold = true, placeholder, focused = false, wide = false, onEmpty }: {
+export default function CardIdent({ value, label, onCommit, testId, bold = true, placeholder, focused = false, wide = false, onEmpty, suggest = true, fixes = false }: {
   value: string;
   label: string;
   onCommit: (ident: string) => void;
@@ -36,6 +36,12 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
   wide?: boolean;
   /** Left empty: a stop being added, given up. */
   onEmpty?: () => void;
+  /** Offers airports as it is typed; off where the ident is a name, not a
+   *  place (a procedure step's rename). */
+  suggest?: boolean;
+  /** Offers the VFR and GPS waypoints too, as the route box does for a
+   *  stop only; the ends and the fields' idents take airports. */
+  fixes?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
   const input = useRef<HTMLInputElement | null>(null);
@@ -47,8 +53,8 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
   // same search and list, cmdk's arrows and Enter on the field.
   const [typing, setTyping] = useState(false);
   const [dismissed, setDismissed] = useState<string | null>(null);
-  const searching = typing && draft.trim() !== "" && draft !== value;
-  const { rows, answered } = useAirportSearch(draft, searching, true);
+  const searching = suggest && typing && draft.trim() !== "" && draft !== value;
+  const { rows, answered } = useAirportSearch(draft, searching, fixes);
   const open = searching && rows.length > 0 && dismissed !== draft;
   // Its ident again where the route changed it from elsewhere.
   const [was, setWas] = useState(value);
@@ -59,6 +65,9 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
   // Set as a suggestion is taken, so the blur after it puts in nothing
   // more: its draft, read in that blur, is still what was half typed.
   const picked = useRef(false);
+  // Set once an arrow has moved the highlight since the last typing: cmdk
+  // lights the first row by itself, which Return must not take for the pilot.
+  const arrowed = useRef(false);
   const commit = () => {
     setTyping(false);
     if (picked.current) {
@@ -88,14 +97,17 @@ export default function CardIdent({ value, label, onCommit, testId, bold = true,
       value={draft} aria-label={label} data-testid={testId} placeholder={placeholder} ref={focused ? focusIn : keep}
       autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} enterKeyHint="done"
       size={1}
-      onChange={e => { setDraft(e.target.value.toUpperCase()); setTyping(true); }}
+      onChange={e => { picked.current = false; arrowed.current = false; setDraft(e.target.value.toUpperCase()); setTyping(true); }}
+      onFocus={() => { picked.current = false; }}
       onBlur={commit}
       onKeyDown={e => {
-        // Return takes the highlighted suggestion where they answer what is
-        // typed (cmdk's own Enter on the root, after this); else the typing.
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") arrowed.current = true;
+        // Return takes a suggestion only once an arrow has chosen it (cmdk's
+        // own Enter on the root, after this); else the typing, and cmdk is
+        // not let to take the row it lit by default.
         if (e.key === "Enter") {
-          const exact = rows.some(r => r.ident === draft.trim());
-          if (open && (answered || !exact)) return;
+          if (open && arrowed.current) return;
+          e.stopPropagation();
           e.currentTarget.blur();
         }
         if (e.key === "Escape") { setDraft(value); setTyping(false); e.currentTarget.blur(); }

@@ -131,7 +131,7 @@ function NewStopCard({ via, onCommit, onCancel }: { via: Detour[] | null; onComm
           <CardMark><EmptyMark /></CardMark>
         </span>
         <div className="flex min-w-0 flex-1 pr-1.5">
-          <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" focused wide onCommit={onCommit} onEmpty={onCancel} />
+          <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" focused wide fixes onCommit={onCommit} onEmpty={onCancel} />
         </div>
       </div>
       {/* Fly via's ways round, on the card between the points they go
@@ -1369,7 +1369,7 @@ function Step({ mark, title, sub, figures, menu, grip, card = false, first = fal
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="flex min-w-0 items-center gap-1">
               {rename ? (
-                <Name className="min-w-0"><CardIdent value={title} label={`${title}, change`} testId="step-ident" onCommit={rename} bold={field} /></Name>
+                <Name className="min-w-0"><CardIdent value={title} label={`${title}, change`} testId="step-ident" suggest={false} onCommit={rename} bold={field} /></Name>
               ) : <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>}
               {icon}
             </span>
