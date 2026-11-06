@@ -267,6 +267,10 @@ schemes:
     test:
       config: Debug
       targets: [WingtipTests, WingtipUITests]
+      # The planner's host, for FlowTests to see whether it answers before
+      # driving flows that need it; Xcode fills the build setting in.
+      environmentVariables:
+        WINGTIP_HOST: $(WINGTIP_HOST)
     archive:
       config: Release
   # The watch app on its own, for a watch simulator paired with an iPhone

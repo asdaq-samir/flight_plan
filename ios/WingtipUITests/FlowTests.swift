@@ -19,6 +19,34 @@ final class FlowTests: XCTestCase {
     /// How long a planner answer may take on the runner, s.
     private static let planner: TimeInterval = 120
 
+    /// Every flow here needs the planner, so with the host the build was
+    /// made for (WINGTIP_HOST, passed in by the scheme) having no address,
+    /// each is skipped and says why, where it would otherwise wait minutes
+    /// and fail: until the site is deployed, wingtipmaps.app has no
+    /// address and every run on main went red on these alone. Only that
+    /// failure skips; a timeout, a TLS error or a planner that is down
+    /// once the site exists falls through, so the flows fail as they
+    /// should.
+    /// LaunchTests still runs, so a build that cannot show its first
+    /// screen fails as before.
+    override func setUp() async throws {
+        try await super.setUp()
+        let given = ProcessInfo.processInfo.environment["WINGTIP_HOST"]
+        let host = given.flatMap { $0.isEmpty ? nil : $0 } ?? "wingtipmaps.app"
+        guard let url = URL(string: "https://\(host)/") else {
+            throw XCTSkip("no planner host to ask")
+        }
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "HEAD"
+        do {
+            _ = try await URLSession.shared.data(for: request)
+        } catch let error as URLError where error.code == .cannotFindHost || error.code == .dnsLookupFailed {
+            throw XCTSkip("\(host) has no address yet (\(error.localizedDescription)), so the flows that need the planner are skipped")
+        } catch {
+            // Any other answer, or none, is the flows' to judge.
+        }
+    }
+
     @MainActor
     private func launch(tab: String) -> XCUIApplication {
         let app = XCUIApplication()
