@@ -125,10 +125,10 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                       {/* Short said by a mark too, not the red alone (WCAG 1.4.1). */}
                       {f.alert && <TriangleAlert className="mr-0.5 size-[0.8em] self-center" aria-hidden data-testid="fuel-short-mark" />}
                       <span style={sized("value")} data-fitted={fitted}>{f.value}</span>
-                      {/* Its space a margin: a flex item's leading space is
-                          dropped, and it read "16.6gal" (the owner's
-                          screenshot, 2026-11-06). */}
-                      {f.unit && <span className={cn(unitType, "ml-[0.25em] font-normal")} style={sized("unit")} data-fitted={fitted}>{f.unit}</span>}
+                      {/* Its space a no-break one: a flex item drops a
+                          leading plain one, and it read "16.6gal" (the
+                          owner's screenshot, 2026-11-06). */}
+                      {f.unit && <span className={cn(unitType, "font-normal")} style={sized("unit")} data-fitted={fitted}>{"\u00a0"}{f.unit}</span>}
                     </button>
                   </ResponsivePopoverTrigger>
                   <ResponsivePopoverContent title={`Fuel to ${breakdown.to}`} className="w-72 p-3" side="top" align="end">
