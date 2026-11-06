@@ -78,6 +78,10 @@ services:
       # Nor the cycle pack (wingtip.pack): the suite's planner reads the FAA
       # files themselves, and the pack is 400 MB written a run.
       CYCLE_PACK: "0"
+      # Nor the chart's lakes and towns once a cycle (app.landmarks): a
+      # build reads every sectional on disk, minutes of the runner's
+      # processors, and a corridor read whole is the same read.
+      LANDMARKS_BUILD: "0"
       # And a tile never sends for a sheet: the warm-up's are all it
       # draws on (wingtip.charts.FETCH_FOR_TILES). A zoomed-out view used to
       # send for 29 sheets past the corridor's 10 -- minutes of downloads
