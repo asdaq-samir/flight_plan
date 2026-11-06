@@ -159,8 +159,7 @@ test("a drag from half down past the pill lands on the pill: not closed, not bac
   // taken for it put in a 236-point pill the sheet stopped at, then
   // dropped from.
   await settled(panel);
-  await page.waitForTimeout(500);
-  expect((await detents(page)).peek).toBe(pill);
+  await expect.poll(async () => (await detents(page)).peek).toBe(pill);
   const box = (await panel.boundingBox())!;
   expect(Math.abs(page.viewportSize()!.height - box.y - pill)).toBeLessThanOrEqual(2);
 });

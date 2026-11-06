@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, type Page } from "@playwright/test";
-import { openConsole, openTab, settle, settled, showTabs, slow, consolePage } from "./helpers";
+import { openConsole, openTab, settle, settled, showTabs, slow, consolePage, mapStill } from "./helpers";
 
 /**
  * Accessibility by axe-core, beside the iOS audit's measured rules
@@ -16,7 +16,7 @@ import { openConsole, openTab, settle, settled, showTabs, slow, consolePage } fr
  *  words were read against that. */
 async function atRest(page: Page) {
   await settled(page.locator("body"));
-  await page.waitForTimeout(300);
+  await mapStill(page);
 }
 
 async function violations(page: Page, within?: string) {
@@ -48,7 +48,7 @@ test("a route's panel out, each of its tabs", async ({ page }) => {
   await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(120000) });
   for (const tab of ["Nav Log", "Weather", "Brief", "Performance"] as const) {
     await openTab(page, tab);
-    await page.waitForTimeout(600);
+    await atRest(page);
     expect(await violations(page), tab).toEqual([]);
   }
 });
@@ -63,7 +63,7 @@ test("the console's Guide", async ({ page }) => {
   // words were read against that.
   await page.getByTestId("console-sheet").evaluate(el => Promise.all(el.getAnimations({ subtree: true })
     .filter(a => a.effect?.getTiming().iterations !== Infinity).map(a => a.finished)));
-  await page.waitForTimeout(800);
+  await mapStill(page);
   expect(await violations(page, '[data-testid="console-sheet"]')).toEqual([]);
 });
 
