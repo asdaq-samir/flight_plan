@@ -33,7 +33,8 @@ test("the map's button turns the weather on and off, and an area's card says how
   const area = page.locator('path.leaflet-interactive[stroke="#c2410c"]');
   await expect(area).toHaveCount(1, { timeout: slow(30000) });
   // A tap on it: what it is, and the route through it at the plan's altitude.
-  await area.click();
+  // Near its corner: a cluster of airports sits on the middle of the area.
+  await area.click({ position: { x: 12, y: 12 } });
   const card = page.getByTestId("weather-area-card");
   await expect(card).toBeVisible();
   await expect(card.getByTestId("weather-area-route")).toContainText(/Your route crosses it for \d+ nm/);
