@@ -10,8 +10,8 @@ springboot-app/target/
 # than of this project: they set a permission mode and an allowlist, and
 # a copy of them in a public repository is a copy that runs on whoever
 # clones it. The skills are the exception: they say how this project is
-# checked, shipped and audited, and the agents in CI (claude.yml, the
-# review, the audits, the autofix) read them from the checkout.
+# checked and shipped, and the agents in CI (the review and the autofix)
+# read them from the checkout.
 .claude/*
 !.claude/skills/
 

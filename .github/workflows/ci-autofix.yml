@@ -18,7 +18,7 @@ name: CI autofix
 # start CI as a person's would. It runs the branch's code with write
 # access, as CI does: fine on a repository only its owner pushes to,
 # which this one is (forks' pull requests are left out). Needs what
-# claude.yml needs; without a key it still runs a runner's failure again.
+# claude-review.yml needs; without a key it still runs a runner's failure again.
 
 on:
   workflow_run:

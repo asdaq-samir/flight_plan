@@ -1,8 +1,7 @@
 name: Auto-merge agents
 
 # Pull requests merge into main by themselves once CI passes: every
-# claude/ branch's (each Claude session's, and claude.yml's and
-# ci-autofix.yml's), and
+# claude/ branch's (each Claude session's, and ci-autofix.yml's), and
 # Dependabot's for a minor or a patch version -- a major one waits for
 # someone to read its notes. Main's ruleset requires the "CI passed" check
 # (ci.yml), so nothing merges red.
