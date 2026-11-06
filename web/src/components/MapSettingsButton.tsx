@@ -3,6 +3,7 @@ import { Map as MapIcon } from "lucide-react";
 import IconButton from "./IconButton";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "./ResponsivePopover";
 import MapSettings from "./MapSettings";
+import WeatherSettings from "./WeatherSettings";
 
 /**
  * The map's own button, first among the map's buttons as Maps' is: its
@@ -21,7 +22,12 @@ export default function MapSettingsButton() {
         </IconButton>
       </ResponsivePopoverTrigger>
       <ResponsivePopoverContent title="Map" className="w-96 max-w-[calc(100vw-2rem)] p-3" align="end" side="left" data-testid="map-settings">
-        <MapSettings />
+        {/* The weather first, at the owner's pick: the map's own button is
+            its layers button (the canvas's map weather, A). */}
+        <div className="flex flex-col gap-4">
+          <WeatherSettings />
+          <MapSettings />
+        </div>
       </ResponsivePopoverContent>
     </ResponsivePopover>
   );

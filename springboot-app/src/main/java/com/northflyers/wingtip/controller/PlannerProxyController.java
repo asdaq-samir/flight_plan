@@ -151,6 +151,7 @@ public class PlannerProxyController {
             route("GET", "/api/airspace/ahead"),
             // The map's Class B, C and D lines and labels, over the chart.
             route("GET", "/api/airspace/in-view"),
+            route("GET", "/api/weather/map"),
             route("GET", "/api/traffic"),
             route("GET", "/api/traffic/find"),
             route("GET", "/api/traffic/based"),
