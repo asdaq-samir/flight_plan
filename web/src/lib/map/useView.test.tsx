@@ -199,11 +199,11 @@ describe("a layer's question, sent from the map's event", () => {
     spies.navaids.mockImplementation(() => Promise.reject(new Error("The planner is down")));
     try {
       const map = await mount(<NavaidsLayer />, 9);
-      // The view's alone as the layer opens, then the ring round it, which
-      // the layer's own query asks once more as it mounts on the ring the
-      // prefetch failed (no answer, so nothing fresh to show).
+      // The view's alone as the layer opens, then the ring round it -- once:
+      // the ring is prefetched, not also set, so the layer's own query does
+      // not ask a failed ring again as it mounts on it (useAhead's ringAfter).
       const atMount = spies.navaids.mock.calls.length;
-      expect(atMount).toBe(3);
+      expect(atMount).toBe(2);
       for (let i = 0; i < 4; i++) {
         act(() => { map.panBy([4, 0], { animate: false }); });
         await settle();
