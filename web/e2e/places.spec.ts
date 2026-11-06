@@ -454,7 +454,7 @@ async function airportToTap(page: Page) {
   await page.mouse.down();
   await page.mouse.move(middle.x, middle.y, { steps: 10 });
   await page.mouse.up();
-  await page.waitForTimeout(800);
+  await mapStill(page);
   box = (await departure.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   for (let i = 0; i < 4; i++) {

@@ -219,7 +219,6 @@ test("Setup's Appearance control is system, light or dark, a menu of all three, 
   await pickControl(page, "theme-select", "theme-dark");
   await expect(theme).toHaveAccessibleName("Appearance: Dark");
   await page.reload();
-  await page.waitForTimeout(300);
   await expect(html).toHaveClass(/dark/);
   await openSetup(page);
   await pickControl(page, "theme-select", "theme-light");

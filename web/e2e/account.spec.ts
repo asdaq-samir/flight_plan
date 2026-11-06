@@ -114,8 +114,9 @@ test.describe("the email sign-in link", () => {
     // console under it open.
     await expect(page.getByLabel("Email address")).toHaveCount(0);
     await expect(console).toBeVisible();
+    const answered = page.waitForResponse(r => r.url().includes("/api/auth/magic-link"));
     hold.release();
-    await page.waitForTimeout(500);
+    await answered;
 
     await console.getByRole("button", { name: "Sign in" }).click();
     await expect(page.getByLabel("Email address")).toBeVisible();

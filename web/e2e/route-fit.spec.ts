@@ -393,11 +393,11 @@ test("from half way to all the way up and back, the map stays exactly where it i
   await mapStill(page);
   const before = await courseBox(page);
   await grabberTo(page, "full");
-  await page.waitForTimeout(800);
+  await settled(sideDrawer(page));
   await mapStill(page);
   expect(await courseBox(page)).toEqual(before);
   await grabberTo(page, "half");
-  await page.waitForTimeout(800);
+  await settled(sideDrawer(page));
   await mapStill(page);
   expect(await courseBox(page)).toEqual(before);
 });

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { clearTheRoute, closeNavLog, controlsInSight, grabberTo, inSheet, navLogSheet, openNavLog, openPanel, settle, showTabs, sideDrawer, slow, waypointMarks } from "./helpers";
+import { clearTheRoute, closeNavLog, controlsInSight, grabberTo, inSheet, navLogSheet, openNavLog, openPanel, settle, showTabs, sideDrawer, slow, waypointMarks, mapStill } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -768,7 +768,7 @@ test("a VFR waypoint on the chart is a magenta triangle with its ident, and its 
   await page.mouse.down();
   await page.mouse.move(middle.x, middle.y, { steps: 12 });
   await page.mouse.up();
-  await page.waitForTimeout(500);
+  await mapStill(page);
   // A level at a time until it is drawn, from 10 as the GPS waypoints
   // are, and on the screen: further in, 4 nm off C81 is off the map.
   const inSight = async () => (await waypointMarks(page)).filter(w => w.x > map.x + 20 && w.x < map.x + map.width - 20 && w.y > map.y + 20 && w.y < map.y + map.height - 20);
@@ -806,7 +806,7 @@ test("a VFR waypoint on the chart is a magenta triangle with its ident, and its 
   await expect(popup.getByText("3 nm SW of Campbell", { exact: true })).toBeVisible();
   // And the map holds still under the open card, once it has panned it
   // into sight: it crept a point a second as the card was drawn again.
-  await page.waitForTimeout(1000);
+  await mapStill(page);
   const pane = () => page.evaluate(() => document.querySelector<HTMLElement>(".leaflet-map-pane")!.style.transform);
   const before = await pane();
   await page.waitForTimeout(2000);
