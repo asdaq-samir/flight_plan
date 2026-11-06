@@ -20,12 +20,15 @@ import { z } from "../../lib/formSchema";
 import type { CrossCountryReview, EndorsementKind, Instructor, InstructorRequest, StudentRow } from "../../lib/api/types";
 import { planHrefOf } from "../../lib/flightLink";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
-import { FINDING_TONE } from "../../lib/status";
+import { FINDING_TONE, type Finding } from "../../lib/status";
+import { studentLines, type StudentLine } from "../../lib/students";
 import { TEXT } from "../../lib/text";
+import { localDay } from "../../lib/clock";
 import { feet, gal, nm } from "../../lib/units";
 import { ExperienceGroup, KnowledgeCodes } from "./CheckridePage";
 import { acDay, inForce, reviewRoute, said } from "../../lib/endorsements";
 import { GoodTo, SignedRow, SignForm } from "./Endorsements";
+import StudentLessons from "./LessonAssign";
 
 /** Minutes as a nav log writes them: "1:35". */
 
@@ -189,7 +192,8 @@ function ReviewSection({ review, kind, studentId, studentName, instructor }: {
 
 /**
  * One student, as their instructor reads them: the solo cross-countries
- * waiting on them, 61.109's experience from the student's logbook, their
+ * waiting on them, the approaches set them as lessons (LessonAssign),
+ * 61.109's experience from the student's logbook, their
  * knowledge test codes, and each AC 61-65K endorsement -- signed here,
  * recorded from paper, or not yet, with a tap to sign one.
  */
@@ -234,9 +238,25 @@ function StudentPage({ row, instructor }: { row: StudentRow; instructor: Instruc
           })}
         </ListGroup>
       )}
+      <StudentLessons studentId={row.studentId} training={training} />
       <ExperienceGroup training={training} />
       <KnowledgeCodes codes={training.knowledgeTestCodes} />
     </div>
+  );
+}
+
+/** A finding as a dot, for a row's two: the solo endorsement's standing
+ *  and the next flight's Go / No-Go (lib/students). */
+const DOT_FILL: Record<Finding, string> = {
+  ok: "bg-go-ink", caution: "bg-caution", stop: "bg-destructive-ink", unknown: "bg-muted-foreground/40", pending: "bg-muted-foreground/40",
+};
+const DOT_WORDS: Record<Finding, string> = { ok: "good", caution: "look", stop: "no", unknown: "none", pending: "pending" };
+function Dots({ line }: { line: StudentLine }) {
+  return (
+    <span className="flex gap-1.5" data-testid="student-dots" data-currency={line.currency} data-go={line.goNoGo}>
+      <span className={cn("size-2.5 rounded-full", DOT_FILL[line.currency])} role="img" aria-label={`Solo endorsement: ${DOT_WORDS[line.currency]}`} />
+      <span className={cn("size-2.5 rounded-full", DOT_FILL[line.goNoGo])} role="img" aria-label={`Next flight: ${DOT_WORDS[line.goNoGo]}`} />
+    </span>
   );
 }
 
@@ -260,6 +280,7 @@ export default function InstructorPage() {
   if (error) return <p role="alert" className={cn("px-1", FINDING_TONE.stop, TEXT.prose)}>Could not fetch it ({error.message}).</p>;
   if (!instructor) return <p role="status" className={cn("px-1 text-muted-foreground", TEXT.note)}>Fetching…</p>;
   const problem = (accept.error ?? leave.error ?? voidOne.error ?? stop.error)?.message;
+  const students = studentLines(instructor, localDay());
   const pages = Object.fromEntries(instructor.students.map(s => [`student-${s.studentId}`, {
     title: s.name, content: <StudentPage row={s} instructor={instructor} />,
   }]));
@@ -290,17 +311,26 @@ export default function InstructorPage() {
           </ListGroup>
         )}
 
-        <ListGroup title="Students">
+        {students.needs.length > 0 && (
+          // Who needs the instructor today (lib/students): a solo
+          // cross-country flown today or before still waiting on its
+          // sign-off, a solo endorsement lapsing within the week.
+          <ListGroup title="Needs you today">
+            {students.needs.map(l => (
+              <PageRow
+                key={l.row.linkId} page={`student-${l.row.studentId}`} title={l.row.name} testId="student-needs"
+                description={l.needs!.words} value={<span className="font-medium text-tint">{l.needs!.action}</span>}
+              />
+            ))}
+          </ListGroup>
+        )}
+        <ListGroup title="Everyone" footer={instructor.students.length ? "Dots: their solo endorsement, and the next flight's Go / No-Go. Tap a student for their flights, lessons and endorsements." : undefined}>
           {instructor.students.length === 0 ? (
             <ListRow muted title="None yet" />
-          ) : instructor.students.map(s => (
+          ) : students.everyone.map(l => (
             <PageRow
-              key={s.linkId} page={`student-${s.studentId}`} title={s.name}
-              description={[
-                `${s.experienceMet} of ${s.experienceOf} of 61.109`,
-                s.soloUntil ? `solo to ${said(s.soloUntil)}` : null,
-                s.reviewsWaiting ? `${s.reviewsWaiting} waiting on you` : null,
-              ].filter(Boolean).join(" · ")}
+              key={l.row.linkId} page={`student-${l.row.studentId}`} title={l.row.name} testId="student-row"
+              description={l.status} value={<Dots line={l} />}
             />
           ))}
         </ListGroup>

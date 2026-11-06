@@ -332,9 +332,22 @@ struct FlownTrackView: View {
                     }
                 } else if loaded {
                     ContentUnavailableView("No track kept", systemImage: "point.topleft.down.to.point.bottomright.curvepath",
-                                           description: Text("Put in the flight's track from a GPX file."))
+                                           description: Text(OwnTrail.shared.points.count > 1
+                                                             ? "Keep the path this iPhone flew, or put in a GPX file."
+                                                             : "Put in the flight's track from a GPX file."))
                 }
                 Section {
+                    // The path the phone flew (OwnTrail), kept as the flight's
+                    // track with no file to find: the debrief from the
+                    // airplane's own GPS, as ForeFlight's track logs are.
+                    if OwnTrail.shared.points.count > 1 {
+                        Button("Keep the Path This iPhone Flew") {
+                            let saved = OwnTrail.shared.asSavedTrack
+                            Task {
+                                do { try await Gateway.saveTrack(flight, saved); track = saved; problem = nil } catch { problem = error.localizedDescription }
+                            }
+                        }
+                    }
                     Button("Put In a GPX File…") { importing = true }
                     ProblemLine(problem)
                 }
@@ -368,48 +381,27 @@ struct FlownTrackView: View {
     }
 }
 
-/// A GPX file's track points with their times (GPX 1.1's trkpt, its ele
-/// in metres, as feet), as the web app's lib/track reads one.
-final class GPXTrack: NSObject, XMLParserDelegate {
-    private var points: [SavedTrackPoint] = []
-    private var lat: Double?
-    private var lon: Double?
-    private var ele: Double?
-    private var time: Date?
-    private var text = ""
+/// A track file's points with their times, as the web app's lib/track
+/// reads one (the engine's `read_track`: GPX 1.1's trkpt, its ele in
+/// metres, as feet, or KML's gx:Track; in time order, one a moment, the
+/// unreadable dropped), then thinned to the most a saved track keeps
+/// (`thin_track`). Nil where the file has no track to use.
+enum GPXTrack {
+    /// The engine's points: t in ms since 1970, which it writes as a
+    /// fraction ("1792940400000.0"), so read as one.
+    private struct Point: Codable { let t: Double; let lat: Double; let lon: Double; let altFt: Double? }
+
+    private struct Read: Decodable {
+        let points: [Point]?
+        let error: String?
+    }
 
     static func points(_ data: Data) -> [SavedTrackPoint]? {
-        let reader = GPXTrack()
-        let parser = XMLParser(data: data)
-        parser.delegate = reader
-        guard parser.parse() else { return nil }
-        return reader.points
-    }
-
-    func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
-        text = ""
-        if name == "trkpt" {
-            lat = attributes["lat"].flatMap(Double.init)
-            lon = attributes["lon"].flatMap(Double.init)
-            ele = nil
-            time = nil
-        }
-    }
-
-    func parser(_ parser: XMLParser, foundCharacters string: String) { text += string }
-
-    func parser(_ parser: XMLParser, didEndElement name: String, namespaceURI: String?, qualifiedName: String?) {
-        let value = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        switch name {
-        case "ele": ele = Double(value)
-        case "time": time = AirportWords.date(value)
-        case "trkpt":
-            if let lat, let lon, let time, abs(lat) <= 90, abs(lon) <= 180, !(lat == 0 && lon == 0) {
-                points.append(SavedTrackPoint(t: Int64(time.timeIntervalSince1970 * 1000), lat: lat, lon: lon, altFt: ele.map { $0 * 3.28084 }))
-            }
-        default: break
-        }
-        text = ""
+        let text = String(decoding: data, as: UTF8.self)
+        let read: Read? = try? Engine.call("read_track", ["text": text], decoder: Planner.snakeCase)
+        guard let read, read.error == nil, let points = read.points else { return nil }
+        let thinned: [Point]? = try? Engine.call("thin_track", ["points": points], encoder: Planner.snakeEncoder, decoder: Planner.snakeCase)
+        return (thinned ?? points).map { SavedTrackPoint(t: Int64($0.t.rounded()), lat: $0.lat, lon: $0.lon, altFt: $0.altFt) }
     }
 }
 
@@ -432,7 +424,9 @@ struct ShareMenu: View {
             ShareLink(item: RouteShare.link(plan)) { Label("Share Link", systemImage: "link") }
             ShareLink(item: RouteShare.navLogText(plan)) { Label("Nav Log as Text", systemImage: "list.number") }
             Button { pdf() } label: { Label("Nav Log as PDF", systemImage: "doc.richtext") }
-            Button { gpx() } label: { Label("GPX Route (.gpx)", systemImage: "square.and.arrow.down") }
+            // ForeFlight sends the route on to the panel wirelessly (Garmin's
+            // Connext, Avidyne, Dynon): the owner's pick (2026-11-02), as most
+            // pilots have ForeFlight and not Garmin Pilot.
             Button { foreflight() } label: { Label("Open in ForeFlight", systemImage: "paperplane") }
         } label: {
             Image(systemName: "square.and.arrow.up")
@@ -444,12 +438,6 @@ struct ShareMenu: View {
 
     private func pdf() {
         guard let url = Kneeboard.pdf(plan) else { return }
-        sharing = ShareItems(items: [url])
-    }
-
-    private func gpx() {
-        let url = FileManager.default.temporaryDirectory.appending(path: "\(RouteShare.fileName(plan)).gpx")
-        guard (try? RouteShare.gpx(plan).write(to: url, atomically: true, encoding: .utf8)) != nil else { return }
         sharing = ShareItems(items: [url])
     }
 
@@ -515,23 +503,6 @@ enum RouteShare {
         return out
     }
 
-    private static func xml(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;").replacingOccurrences(of: "\"", with: "&quot;")
-    }
-
-    /// A GPX 1.1 route through the points.
-    static func gpx(_ plan: Plan) -> String {
-        let name = plan.idents.joined(separator: " → ")
-        var lines = ["<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
-                     "<gpx version=\"1.1\" creator=\"Wingtip Maps\" xmlns=\"http://www.topografix.com/GPX/1/1\">",
-                     "  <rte>", "    <name>\(xml(name))</name>"]
-        for point in points(plan) {
-            lines.append(String(format: "    <rtept lat=\"%.6f\" lon=\"%.6f\"><name>%@</name></rtept>", point.lat, point.lon, xml(point.name)))
-        }
-        lines += ["  </rte>", "</gpx>", ""]
-        return lines.joined(separator: "\n")
-    }
-
     /// The checkpoints' pack on the planner (app.foreflight), at a short
     /// address ending in its file's name, which ForeFlight names it by.
     static func packURL(_ plan: Plan) -> URL {
@@ -573,7 +544,9 @@ enum RouteShare {
 /// the route, the airplane and the totals; the legs' altitude, heading,
 /// distance, ground speed, time and fuel, with ETA, ATA and fuel left to
 /// fill in; and the lines for the squawk and the clearance. Black on
-/// white whatever the theme (the web app's Kneeboard).
+/// white whatever the theme (the web app's Kneeboard). A printed page at
+/// a fixed size, rendered to PDF and never shown on screen, so its type
+/// is in points and does not follow Dynamic Type.
 struct Kneeboard: View {
     let route: String
     let aircraft: String
@@ -590,7 +563,7 @@ struct Kneeboard: View {
             Rectangle().frame(height: 1.5)
             Text([aircraft, totals?.distanceNm.map(AirportWords.nm), totals?.eteMin.map(hoursMinutes),
                   totals?.fuelGal.map(AirportWords.gal),
-                  totals?.fuelRequiredGal.map { String(format: "(%.1f with reserve)", $0) }].compactMap { $0 }.joined(separator: " · "))
+                  totals?.fuelRequiredGal.map { "(\(Formats.number($0, decimals: 1)) with reserve)" }].compactMap { $0 }.joined(separator: " · "))
                 .font(.system(size: 9))
             Grid(alignment: .leading, horizontalSpacing: 6, verticalSpacing: 3) {
                 GridRow {
@@ -601,13 +574,13 @@ struct Kneeboard: View {
                     GridRow {
                         Text(leg.to).lineLimit(1)
                         Text(Int(leg.altitudeFt).formatted())
-                        Text(String(format: "%03.0f", leg.magneticHeadingDeg))
-                        Text(String(format: "%.1f", leg.distanceNm))
-                        Text(leg.groundspeedKt.map { String(format: "%.0f", $0) } ?? "")
-                        Text(leg.eteMin.map { String(format: "%.1f", $0) } ?? "")
+                        Text(Formats.number(leg.magneticHeadingDeg, decimals: 0).leftPadded(to: 3))
+                        Text(Formats.number(leg.distanceNm, decimals: 1))
+                        Text(leg.groundspeedKt.map { Formats.number($0, decimals: 0) } ?? "")
+                        Text(leg.eteMin.map { Formats.number($0, decimals: 1) } ?? "")
                         Text("")
                         Text("")
-                        Text(leg.fuelGal.map { String(format: "%.1f", $0) } ?? "")
+                        Text(leg.fuelGal.map { Formats.number($0, decimals: 1) } ?? "")
                         Text("")
                     }
                     Divider().gridCellUnsizedAxes(.horizontal)
@@ -687,12 +660,70 @@ struct WatchBanner: View {
     var body: some View {
         if let words = Tracking.shared.fired {
             HStack(spacing: 8) {
-                Image(systemName: "bell.fill")
+                Image(systemName: "bell.fill").accessibilityHidden(true)
                 Text(words).font(.subheadline.weight(.semibold)).lineLimit(2)
-                Button { Tracking.shared.fired = nil } label: { Image(systemName: "xmark") }.accessibilityLabel("Dismiss")
+                Button { Tracking.shared.fired = nil } label: {
+                    // The 44-point hit area round the glyph, which does not grow.
+                    Image(systemName: "xmark").contentShape(Rectangle().inset(by: -12))
+                }
+                .accessibilityLabel("Dismiss")
             }
             .padding(.horizontal, 12).padding(.vertical, 8)
             .background(.regularMaterial, in: Capsule())
         }
     }
+}
+
+private enum PreviewData {
+    static let legs = [
+        Leg(from: "KDLH", to: "KHIB", distanceNm: 62.4, altitudeFt: 4500, trueCourseDeg: 318, magneticHeadingDeg: 315, wcaDeg: -4,
+            trueHeadingDeg: 314, magneticVariationDeg: -1, climbMin: 6, groundspeedKt: 104, eteMin: 36, fuelGal: 5.1, tasKt: 112),
+        Leg(from: "KHIB", to: "KGPZ", distanceNm: 31.8, altitudeFt: 4500, trueCourseDeg: 296, magneticHeadingDeg: 293, wcaDeg: -4,
+            trueHeadingDeg: 292, magneticVariationDeg: -1, climbMin: 6, groundspeedKt: 106, eteMin: 18, fuelGal: 3.3, tasKt: 112),
+    ]
+    static let totals = Totals(distanceNm: 94.2, eteMin: 54, fuelGal: 8.4, fuelRequiredGal: 12.4, fuelMarginGal: 35.6, usableFuelGal: 48)
+}
+
+#Preview("DiversionView") {
+    NavigationStack { DiversionView() }
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+}
+
+#Preview("CheckpointNotesView") {
+    NavigationStack { CheckpointNotesView() }
+        .environment(Plan())
+}
+
+#Preview("FlightServiceView") {
+    let plan = Plan()
+    plan.dep = "KDLH"
+    plan.dest = "KHIB"
+    return NavigationStack { FlightServiceView() }
+        .environment(plan)
+        .environment(Session())
+}
+
+#Preview("ShareMenu") {
+    ShareMenu()
+        .environment(Plan())
+}
+
+#Preview("Kneeboard") {
+    Kneeboard(route: "KDLH → KHIB → KGPZ", aircraft: "N3429J", totals: PreviewData.totals, legs: PreviewData.legs)
+}
+
+#Preview("SpokenAlertsToggle") {
+    Form { SpokenAlertsToggle() }
+}
+
+#Preview("ForgetNotesButton") {
+    Form { ForgetNotesButton() }
+}
+
+#Preview("WatchBanner") {
+    Tracking.shared.fired = "N3429J is in the air from KDLH"
+    return WatchBanner()
+        .padding()
 }

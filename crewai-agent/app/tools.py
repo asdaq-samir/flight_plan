@@ -3,8 +3,8 @@ nav-log-agent's LangGraph build fetches, and the one a pilot sees on the
 page: the point of this build is comparing frameworks on the same task,
 not a different task.
 
-Each tool asks planning-service through vfr.planner_client. They used to
-assemble the pieces from vfr themselves, and got a different nav log from
+Each tool asks planning-service through wingtip.planner_client. They used to
+assemble the pieces from wingtip themselves, and got a different nav log from
 the planner's: no legs to or from the airports, no climbs. Each tool is
 still self-contained rather than relying on the agent passing complex
 structured data between calls, since that tends to be less reliable than
@@ -14,7 +14,7 @@ import json
 
 from crewai.tools import tool
 
-from vfr import planner_client
+from wingtip import planner_client
 
 
 @tool("get_route_checkpoints")

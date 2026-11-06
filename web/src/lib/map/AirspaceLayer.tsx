@@ -1,25 +1,30 @@
 import L from "leaflet";
-import { memo, useCallback, useLayoutEffect, useMemo, useRef } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Pane, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, QueryObserver, useQuery } from "@tanstack/react-query";
+import { Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import type { AirspaceVolume } from "../api/types";
 import { usePreferences } from "../preferences";
 import { cn } from "cn";
 import { TEXT } from "../text";
 import { airspaceFacts, airspaceLabel } from "./airspaceLabel";
-import { AIRSPACE_LINE, AIRSPACE_TAP } from "./airspaceMarks";
-import { airportBox, overlaps, useDrawnAirports, type Box } from "./declutter";
-import { edgeSpots, spotBox } from "./edgeLabels";
+import { AIRSPACE_LINE } from "./airspaceMarks";
+import { useDrawnAirports } from "./declutter";
+import { edgeAnchors } from "./edgeLabels";
+import { AirspaceLabelsLayer, type CanvasEdgeLabel } from "./AirspaceLabelsCanvas";
+import { AirspaceLinesLayer } from "./AirspaceLinesCanvas";
+import { navaidAt } from "./NavaidCanvas";
+import { zoomZeroX, zoomZeroY } from "./mercator";
 import { MapCard } from "./MapCard";
 import { Button } from "../../components/ui/button";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { callTypes, entryRules } from "../airspaceRules";
 import { mhzText } from "../frequencies";
-import { airportQuery } from "../queryClient";
+import { airportQuery, queryClient } from "../queryClient";
 import { usePointActions } from "./pointActions";
 import { MapPopup } from "./MapPopup";
 import { useAhead, useLiveZoom } from "./useView";
+import type { Box } from "./view";
 
 /** From this zoom in, as the airports' and the VFR waypoints', the Class
  *  C and D and every label: further out they are a scatter of small rings
@@ -40,21 +45,35 @@ const CLASS_C_FROM_ZOOM = 7;
 const LINES_Z = 350;
 const LABELS_Z = 355;
 
-/** The lines' tap targets over Leaflet's overlay pane (400), whose SVG
- *  covers the map and would take a tap meant for a pane under it, and
- *  under the VFR waypoints (440) and the airports' marks, which keep
- *  theirs. The pane itself takes none (pointer-events none, which its
- *  SVG inherits), only the targets on it (Leaflet's .leaflet-interactive):
- *  so a TFR or the course line under it is still tapped off the rings. */
-const TAPS_Z = 430;
-
 // The panes' styles, constants as react-leaflet's are (measure-speed's
 // known costs).
 const LINES_PANE = { zIndex: LINES_Z };
 const LABELS_PANE = { zIndex: LABELS_Z };
-const TAPS_PANE = { zIndex: TAPS_Z, pointerEvents: "none" } as const;
 
 const NONE: AirspaceVolume[] = [];
+
+/** The volumes already drawn, by their id and the box's height their
+ *  lines were simplified for (the planner's tolerance_for): a pan into a
+ *  new box answers with the same rings, and each kept as the same object
+ *  is not projected again (AirspaceLinesLayer, by the object) nor its tap
+ *  made again (VolumeTap is memo). New objects, every ring on the map was
+ *  taken off its line and put back, its tap too, at each box a pan or a
+ *  pinch asked for. */
+const drawn = new Map<string, AirspaceVolume>();
+/** The most kept, a few states' worth, before they are let go. */
+const MOST_KEPT = 3000;
+
+function kept(volumes: AirspaceVolume[], box: { south: number; north: number }): AirspaceVolume[] {
+  if (drawn.size > MOST_KEPT) drawn.clear();
+  const height = box.north - box.south;
+  return volumes.map(v => {
+    const key = `${v.id}|${height}`;
+    const was = drawn.get(key);
+    if (was) return was;
+    drawn.set(key, v);
+    return v;
+  });
+}
 
 /**
  * The Class B, C and D over the chart, the owner's pick of the map's
@@ -70,67 +89,136 @@ const NONE: AirspaceVolume[] = [];
 export function AirspaceLayer() {
   const show = usePreferences(s => s.airspace);
   // Asked for as the airports' marks are (useAhead, useLiveZoom): the view
-  // and a screen round it, again under a finger's pan or pinch.
+  // and a screen round it, again under a finger's pan or pinch, the
+  // question sent from the map's own event.
   const zoom = useLiveZoom();
-  const asked = useAhead();
-  const on = show && zoom >= CLASS_B_FROM_ZOOM;
+  const asked = useAhead((box, level) => airspaceQuery(box, level, show));
   const near = zoom >= FROM_ZOOM;
-  const classes = near ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
-  const { data } = useQuery({
-    queryKey: ["airspaceInView", asked.key, classes],
-    queryFn: () => api.airspaceInView({ ...asked.box, classes }),
-    enabled: on,
-    staleTime: Infinity,
-    placeholderData: keepPreviousData,
-    meta: { silent: true },
-  });
+  const query = useMemo(() => airspaceQuery(asked, zoom, show), [asked, zoom, show]);
+  const { data } = useQuery({ ...query, placeholderData: keepPreviousData });
   const volumes = data ?? NONE;
-  if (!on) return null;
+  if (!query.enabled) return null;
   return (
     <>
       <Pane name="airspace" style={LINES_PANE}>
-        {volumes.map(v => <VolumeLines key={v.id} volume={v} />)}
+        <Lines query={query} />
       </Pane>
       <Pane name="airspace-labels" style={LABELS_PANE}>
-        {near && <EdgeLabels volumes={volumes} zoom={zoom} />}
-      </Pane>
-      <Pane name="airspace-taps" style={TAPS_PANE}>
-        {volumes.map(v => <VolumeTap key={v.id} volume={v} />)}
+        {near && <EdgeLabels volumes={volumes} />}
       </Pane>
     </>
   );
 }
 
-/** One volume's lines, drawn again only when its answer changes. */
-const VolumeLines = memo(function VolumeLines({ volume }: { volume: AirspaceVolume }) {
-  return <Polyline positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_LINE[volume.airspace_class]} interactive={false} />;
-});
+/** How near a tap must be to a ring's line to open its card, px each
+ *  side: the unseen 20 px line that took it before. */
+const TAP_PX = 10;
+/** Within this of a field's mark a tap is the field's (AirportsLayer's
+ *  own reach, a finger's half-width). */
+const MARK_PX = 22;
 
-/** The words along the lines: 11 px bold, the map's smallest type, each
- *  letter guessed a little wide (declutter's), and the room they take
- *  across with their halo. */
-const EDGE_TEXT_PX = 11;
+/**
+ * The volumes' lines on a canvas kept on the chart (AirspaceLinesLayer),
+ * as the airports' marks and the altitudes are: whole however the map
+ * is moved, where Leaflet's SVG cut a ring straight at its renderer's
+ * box (the owner's screenshots, 2026-11-02 and 2026-11-03).
+ */
+function Lines({ query }: { query: AirspaceQuery }) {
+  const map = useMap();
+  const [layer] = useState(() => new AirspaceLinesLayer("airspace"));
+  useEffect(() => {
+    layer.addTo(map);
+    return () => { layer.remove(); };
+  }, [map, layer]);
+  // A tap on a ring is the map's own click, given to the volume whose
+  // line is nearest within a finger's reach (AirspaceLinesLayer.volumeAt),
+  // as a tap on a field's mark is (AirportsLayer): the field's catches the
+  // click first and keeps it where a mark is near, so a mark on a ring
+  // opens the field. A tap on a marker or a line with a tap of its own
+  // (a checkpoint, a TFR) is theirs. Each volume had an unseen 20 px line
+  // of Leaflet's SVG over its own for this: fifty of them projected and
+  // written out again at every zoom's end, and made anew with each box's
+  // answer, a tenth of the main thread's work after a zoom (a profile on
+  // the phone viewport at CPU 4x, 2026-11-03).
+  const [picked, setPicked] = useState<{ volume: AirspaceVolume; at: L.LatLng } | null>(null);
+  useMapEvents(useMemo(() => ({
+    click: (e: L.LeafletMouseEvent) => {
+      const target = e.originalEvent.target as Element | null;
+      if (target?.closest(".leaflet-marker-icon, .leaflet-popup, path.leaflet-interactive")) return;
+      // Near a field's mark the tap is the field's: the fields' layer
+      // takes it first, but on the map's container itself (a tap on the
+      // chart, under which every pane lets the pointer through) its
+      // stopPropagation does not keep the click from Leaflet, which
+      // listens on the same element.
+      const near = useDrawnAirports.getState().fields.some(f => map.latLngToContainerPoint([f.lat, f.lon]).distanceTo(e.containerPoint) <= MARK_PX);
+      if (near) return;
+      // Nor near a VOR or a fix, whose own card the tap opens
+      // (NavaidsLayer): their targets lay over the rings' before, drawn
+      // on a canvas now (NavaidCanvas).
+      if (navaidAt(e.containerPoint, MARK_PX)) return;
+      const volume = layer.volumeAt(e.containerPoint, TAP_PX);
+      // The same ring tapped again keeps its card where it was.
+      setPicked(was => (volume ? (was?.volume === volume ? was : { volume, at: e.latlng }) : null));
+    },
+  }), [layer, map]));
+  const closed = useMemo<L.LeafletEventHandlerFnMap>(() => ({ remove: () => setPicked(null) }), []);
+  // The box's answer goes straight to the layer as it comes, through an
+  // observer of the same cached query, not after React has rendered all
+  // else the zoom changed -- the airports' answer merged into its marks,
+  // the lists, the altitudes and the taps below. Set from an effect, the
+  // rings for the new view came 0.4 to 1.2 s after the zoom's animation
+  // had ended on a busy main thread (a probe on the phone viewport at CPU
+  // 4x, 2026-11-03, Chicago from 7 to 9: the planner's answer back at
+  // 0.6 s, mid-animation; the Class D rings drawn at 1.9 s), at the
+  // owner's "why do the rings take a while to redraw?". The layer keeps
+  // the last box's rings until the next box's come.
+  useEffect(() => {
+    const observer = new QueryObserver(queryClient, query);
+    const apply = ({ data }: { data?: AirspaceVolume[] }) => { if (data) layer.set(data); };
+    apply(observer.getCurrentResult());
+    return observer.subscribe(apply);
+  }, [layer, query]);
+  if (!picked) return null;
+  return (
+    /* In Leaflet's own pane, over the marks, as the waypoints' card; a
+       line's, so no ring at the point tapped. Put away by a tap on the
+       chart or the card's close (MapPopup), which is heard here. */
+    <MapPopup key={picked.volume.id} position={picked.at} pane="popupPane" panOnce ring={false} eventHandlers={closed}>
+      <AirspaceCard volume={picked.volume} />
+    </MapPopup>
+  );
+}
+
+/** The planner asked for a box's volumes, once per box and classes (the
+ *  query cache): the lines' layer, the altitudes and the taps share it,
+ *  and the map's own events ask it as they happen (useAhead). The Class B
+ *  from CLASS_B_FROM_ZOOM, the C too from CLASS_C_FROM_ZOOM and the D from
+ *  FROM_ZOOM; none where the settings' Airspace is off. */
+export function airspaceQuery(asked: Box, zoom: number, show: boolean) {
+  const classes = zoom >= FROM_ZOOM ? "BCD" : zoom >= CLASS_C_FROM_ZOOM ? "BC" : "B";
+  return {
+    queryKey: ["airspaceInView", asked.key, classes],
+    queryFn: () => api.airspaceInView({ ...asked.box, classes }).then(volumes => kept(volumes, asked.box)),
+    enabled: show && zoom >= CLASS_B_FROM_ZOOM,
+    staleTime: Infinity,
+    meta: { silent: true },
+  };
+}
+type AirspaceQuery = ReturnType<typeof airspaceQuery>;
+
+/** The words' width on the screen, each letter guessed a little wide
+ *  (declutter's), for where they fit along a line. */
 const EDGE_LETTER_PX = 7;
-const EDGE_HEIGHT_PX = 14;
-/** No altitudes this close to an airport's mark or its ident, px: the
- *  field is what a pilot reads there. */
-const AIRPORT_CLEAR_PX = 20;
+/** The zoom the labels' places are worked out at: finer than the chart's
+ *  own, so a label is on its line at every zoom it is drawn at. */
+const EDGE_ZOOM = 13;
 
 /** The words' ink, the line's own hue a shade darker by day and as it is
  *  or lighter at night (index.css), 5.1:1 or more on their halo either
  *  way: over WCAG's 4.5:1 for small type. */
 const INK: Record<AirspaceVolume["airspace_class"], string> = {
-  B: "var(--airspace-edge-blue)", C: "var(--airspace-edge-magenta)", D: "var(--airspace-edge-blue)",
+  B: "--airspace-edge-blue", C: "--airspace-edge-magenta", D: "--airspace-edge-blue",
 };
-/** A halo of the map's own ground round each letter, white by day and
- *  the sheet's dark at night, so the words read over the chart's own
- *  print without a plate of their own (the owner, 2026-10-29). */
-const EDGE_STYLE = {
-  // iOS's Caption 2, 11 on 13 (TEXT.caption): set here, the SVG took the
-  // map's own 1.5 leading, 16.5, off the iOS scale (the audit's P3).
-  fontSize: EDGE_TEXT_PX, lineHeight: "13px", fontWeight: 700, fontVariantNumeric: "tabular-nums",
-  stroke: "var(--airspace-halo)", strokeWidth: 3, strokeLinejoin: "round", paintOrder: "stroke",
-} as const;
 
 /** A volume's altitudes on one line, as ForeFlight writes them: a Class B
  *  or C shelf's "100/30", a Class D's ceiling alone ("-30" under a Class
@@ -141,110 +229,58 @@ function edgeText(volume: AirspaceVolume): string | null {
   return label.kind === "shelf" ? `${label.top}/${label.floor}` : label.ceiling;
 }
 
-interface EdgeWords { key: string; x: number; y: number; angle: number; text: string; ink: string }
+/** A volume's labels where they lie on its lines, worked out once for
+ *  each answer: the same at every zoom (edgeAnchors). */
+const anchorsOf = new WeakMap<AirspaceVolume, CanvasEdgeLabel[]>();
+function volumeLabels(map: L.Map, volume: AirspaceVolume): CanvasEdgeLabel[] {
+  let labels = anchorsOf.get(volume);
+  if (labels) return labels;
+  labels = [];
+  const text = edgeText(volume);
+  if (text) {
+    // Projected by arithmetic (mercator), not a LatLng and two Points made
+    // for each point by map.project.
+    const scale = 2 ** EDGE_ZOOM;
+    volume.lines.forEach((line, n) => {
+      const points = line.map(p => ({ x: zoomZeroX(p[1]!) * scale, y: zoomZeroY(p[0]!) * scale }));
+      edgeAnchors(points, text.length * EDGE_LETTER_PX, EDGE_ZOOM).forEach((a, i) => {
+        const at = map.unproject([a.x, a.y], EDGE_ZOOM);
+        labels!.push({
+          key: `${volume.id}-${n}-${i}`, lat: at.lat, lon: at.lng, dx: a.dx, dy: a.dy, angle: Math.round(a.angle * 10) / 10,
+          from: a.from, text, ink: INK[volume.airspace_class],
+        });
+      });
+    });
+  }
+  anchorsOf.set(volume, labels);
+  return labels;
+}
 
 /**
  * Every volume's altitudes written along its own lines, just inside it
- * and a few times round a long one (lib/map/edgeLabels), as ForeFlight's
- * Chicago map writes them (the owner's ask, 2026-10-30), clear of the
- * airports' marks. One SVG for all of them, in the map's pixels at this
- * zoom: a pan moves it with the pane and costs nothing, and the words are
- * worked out again only when the zoom, the volumes or the airports drawn
- * change. Hidden while a zoom or pinch is under way, when its pixels are
- * the zoom's before, and shown again at the new zoom's once it ends.
+ * and a few times round a long one, as ForeFlight's Chicago map writes
+ * them (the owner's ask, 2026-10-30), clear of the airports' marks: on a
+ * canvas that keeps each where it is on its line and its size through a
+ * zoom (AirspaceLabelsLayer), more coming in between them going in.
  */
-const EdgeLabels = memo(function EdgeLabels({ volumes, zoom }: { volumes: AirspaceVolume[]; zoom: number }) {
+function EdgeLabels({ volumes }: { volumes: AirspaceVolume[] }) {
   const map = useMap();
   const fields = useDrawnAirports(s => s.fields);
-  const holder = useRef<HTMLDivElement>(null);
-  const zooming = useRef(false);
-  const words = useMemo(() => {
-    const at = (lat: number, lon: number) => map.project([lat, lon], zoom);
-    const clear: Box[] = fields.map(f => {
-      const b = airportBox(at(f.lat, f.lon), f.ident);
-      return { x0: b.x0 - AIRPORT_CLEAR_PX, y0: b.y0 - AIRPORT_CLEAR_PX, x1: b.x1 + AIRPORT_CLEAR_PX, y1: b.y1 + AIRPORT_CLEAR_PX };
-    });
-    const out: EdgeWords[] = [];
-    for (const volume of volumes) {
-      const text = edgeText(volume);
-      if (!text) continue;
-      const width = text.length * EDGE_LETTER_PX;
-      volume.lines.forEach((line, n) => {
-        const points = line.map(p => at(p[0]!, p[1]!));
-        edgeSpots(points, width).forEach((spot, i) => {
-          if (clear.some(b => overlaps(b, spotBox(spot, width, EDGE_HEIGHT_PX)))) return;
-          out.push({
-            key: `${volume.id}-${n}-${i}`, x: Math.round(spot.x * 10) / 10, y: Math.round(spot.y * 10) / 10,
-            angle: Math.round(spot.angle * 10) / 10, text, ink: INK[volume.airspace_class],
-          });
-        });
-      });
-    }
-    return { zoom, out };
-  }, [map, volumes, zoom, fields]);
-
-  // The SVG's corner at the world's pixel origin, so the words' world
-  // pixels land where the pane's own do; shown only once they are this
-  // zoom's.
-  const place = useCallback(() => {
-    const el = holder.current;
-    if (!el || zooming.current || words.zoom !== map.getZoom()) return;
-    L.DomUtil.setPosition(el, map.getPixelOrigin().multiplyBy(-1));
-    el.style.visibility = "";
-  }, [map, words]);
-  useMapEvents(useMemo(() => ({
-    zoomstart: () => {
-      zooming.current = true;
-      if (holder.current) holder.current.style.visibility = "hidden";
-    },
-    zoomend: () => {
-      zooming.current = false;
-      place();
-    },
-    viewreset: place,
-  }), [place]));
-  useLayoutEffect(place, [place]);
-
-  return (
-    <div ref={holder} className="pointer-events-none absolute left-0 top-0" style={HOLDER_STYLE}>
-      <svg width="1" height="1" overflow="visible" aria-hidden="true" style={EDGE_STYLE}>
-        {words.out.map(w => (
-          <text
-            key={w.key} data-airspace-edge-label="" x={w.x} y={w.y} transform={`rotate(${w.angle} ${w.x} ${w.y})`}
-            fill={w.ink} textAnchor="middle" dominantBaseline="central"
-          >{w.text}</text>
-        ))}
-      </svg>
-    </div>
-  );
-});
-
-/** Hidden until it is placed at this zoom (EdgeLabels' place). */
-const HOLDER_STYLE = { visibility: "hidden" } as const;
-/** A tap on a ring kept off the map under it, whose own tap is the
- *  chart's Airspace card. A constant: react-leaflet binds a path's
- *  handlers again whenever they are a new object. */
-const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagation(e) };
-
-/** One volume's tap target, unseen over its line, and its card, made
- *  only once it is opened (MapPopup); drawn again only when its answer
- *  changes. */
-const VolumeTap = memo(function VolumeTap({ volume }: { volume: AirspaceVolume }) {
-  return (
-    <Polyline
-      positions={volume.lines as [number, number][][]} pathOptions={AIRSPACE_TAP[volume.airspace_class]} eventHandlers={STOP_CLICK}
-      // Its class as an option of its own: react-leaflet gives pathOptions
-      // to setStyle, which sets no class, so the browser tests found none.
-      className={AIRSPACE_TAP[volume.airspace_class].className}
-    >
-      {/* In Leaflet's own pane, over the marks, as the waypoints' card;
-          a line's, so no ring at the point tapped. */}
-      <MapPopup pane="popupPane" panOnce ring={false}>
-        <AirspaceCard volume={volume} />
-      </MapPopup>
-    </Polyline>
-  );
-});
+  const [layer] = useState(() => new AirspaceLabelsLayer("airspace-labels"));
+  useEffect(() => {
+    layer.addTo(map);
+    return () => { layer.remove(); };
+  }, [map, layer]);
+  // One list for each answer, kept as the airports' marks change: the
+  // canvas projects a list once (AirspaceLabelsCanvas' projectedOf), and a
+  // new one at each change of the fields drawn was every label projected
+  // again.
+  const labels = useMemo(() => volumes.flatMap(v => volumeLabels(map, v)), [map, volumes]);
+  useEffect(() => {
+    layer.set(labels, fields);
+  }, [layer, labels, fields]);
+  return null;
+}
 
 /** A short length of the volume's line as the map draws it, before its
  *  title: solid blue, solid magenta or dashed blue. */

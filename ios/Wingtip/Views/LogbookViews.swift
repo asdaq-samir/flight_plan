@@ -49,9 +49,9 @@ struct LogbookView: View {
                 instrumentSection
                 if let currency, currency.flights > 0 {
                     Section("Totals") {
-                        LabeledContent("Total", value: String(format: "%.1f h", currency.totalHours))
-                        LabeledContent("Night", value: String(format: "%.1f h", currency.nightHours))
-                        LabeledContent("Cross-country", value: String(format: "%.1f h", currency.crossCountryHours))
+                        LabeledContent("Total", value: Formats.hours(currency.totalHours))
+                        LabeledContent("Night", value: Formats.hours(currency.nightHours))
+                        LabeledContent("Cross-country", value: Formats.hours(currency.crossCountryHours))
                         LabeledContent("Landings", value: "\(currency.landings)")
                     }
                 }
@@ -122,7 +122,7 @@ struct LogbookView: View {
             HStack {
                 Text(Day.said(e.flownOn) + (e.route.map { " · \($0)" } ?? "")).font(.headline)
                 Spacer()
-                Text(String(format: "%.1f h", e.totalHours)).font(.subheadline.monospacedDigit())
+                Text(Formats.hours(e.totalHours)).font(.subheadline.monospacedDigit())
             }
             Text(([e.aircraft, e.aircraftType, "\(landings) landing\(landings == 1 ? "" : "s")", e.remarks].compactMap { $0 }.filter { !$0.isEmpty })
                 .joined(separator: " · "))
@@ -339,5 +339,29 @@ struct LogbookEntryForm: View {
         Stepper(value: Binding(get: { entry[keyPath: key] }, set: { entry[keyPath: key] = max(0, $0) }), in: 0...99) {
             LabeledContent(title, value: "\(entry[keyPath: key])")
         }
+    }
+}
+
+#Preview("UntilText") {
+    List {
+        UntilText(date: "2027-06-30")
+        UntilText(date: "2026-01-31")
+        UntilText(date: nil)
+    }
+}
+
+#Preview("LogbookView") {
+    // Signed out, the logbook asks for the account; its entries come
+    // from the gateway once signed in.
+    NavigationStack { LogbookView() }
+        .environment(Session())
+        .environment(Plan())
+}
+
+#Preview("LogbookEntryForm") {
+    NavigationStack {
+        LogbookEntryForm(entry: LogbookEntryRequest(flownOn: "2026-10-28", aircraft: "N3429J", aircraftType: "P28A", route: "KDLH KHIB",
+                                                    totalHours: 1.2, crossCountryHours: 1.2, dayLandings: 2, distanceNm: 62.4, longestLegNm: 62.4),
+                         isNew: false) { _ in }
     }
 }

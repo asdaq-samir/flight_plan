@@ -15,7 +15,7 @@ import { pastFlightsQuery } from "./pastFlightsQuery";
 // its own chunk, asked for once a day is to be picked.
 const Calendar = lazy(() => import("../../../components/ui/calendar").then(m => ({ default: m.Calendar })));
 
-/** How far back a day may be picked: adsb.lol's archive (vfr.traffic
+/** How far back a day may be picked: adsb.lol's archive (wingtip.traffic
  *  ARCHIVE_DAYS), today among them. */
 const ARCHIVE_DAYS = 42;
 
@@ -101,7 +101,7 @@ export default function PastFlights({ hex, onOpen, nowShown = false, untitled = 
               {/* A week or more unread is adsb.lol's history closed to the
                   app (behind a browser check since 19 Oct 2026), not a
                   moment's refusal: said so, and that the flights listed
-                  are those watched here (vfr.traffic's recorded tracks). */}
+                  are those watched here (wingtip.traffic's recorded tracks). */}
               {unread >= 7
                 ? "adsb.lol's flight history can't be read now, so only flights followed in this app are listed."
                 : `${unread === 1 ? "One day" : `${unread} days`} could not be read from adsb.lol just now, so their flights are missing; asking again.`}

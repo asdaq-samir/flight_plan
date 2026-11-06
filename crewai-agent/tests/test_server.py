@@ -1,6 +1,6 @@
 """The HTTP wrapper, with the crew itself left out: nothing here calls
-Claude. The prompt it hands the crew is vfr.narrative's, tested with
-vfr (tests/test_narrative.py)."""
+Claude. The prompt it hands the crew is wingtip.narrative's, tested with
+wingtip (tests/test_narrative.py)."""
 from fastapi.testclient import TestClient
 
 from app import server

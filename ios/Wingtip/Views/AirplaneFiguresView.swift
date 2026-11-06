@@ -13,6 +13,10 @@ struct AirplaneFiguresView: View {
     @State private var reading = false
     @State private var words: [String] = []
     @State private var problem: String?
+    /// The field and its unit grow with the type, so "gal/h" and a
+    /// four-figure ceiling still fit.
+    @ScaledMetric(relativeTo: .body) private var fieldWidth = 80.0
+    @ScaledMetric(relativeTo: .body) private var unitWidth = 44.0
 
     private static let rows: [(key: String, label: String, unit: String, min: Double, max: Double)] = [
         ("cruiseTasKt", "Cruise speed (TAS)", "kt", 30, 400),
@@ -31,8 +35,8 @@ struct AirplaneFiguresView: View {
                     LabeledContent(row.label) {
                         HStack(spacing: 6) {
                             TextField("—", text: Binding(get: { fields[row.key] ?? "" }, set: { fields[row.key] = $0.filter { $0.isNumber || $0 == "." } }))
-                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: 80)
-                            Text(row.unit).foregroundStyle(.secondary).frame(width: 44, alignment: .leading)
+                                .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(width: fieldWidth)
+                            Text(row.unit).foregroundStyle(.secondary).frame(width: unitWidth, alignment: .leading)
                         }
                     }
                 }
@@ -134,4 +138,11 @@ extension Figures {
         for (k, v) in pairs { if let v { out[k] = AirportWords.tenths(v) } }
         return out
     }
+}
+
+#Preview("AirplaneFiguresView") {
+    let plan = Plan()
+    plan.tail = "N3429J"
+    return NavigationStack { AirplaneFiguresView() }
+        .environment(plan)
 }

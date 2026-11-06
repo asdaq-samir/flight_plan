@@ -139,11 +139,21 @@ enum PointAltitude {
     }
 
     /// A course of 000 to 360, out to 999 nm, as the planner takes a
-    /// fix/radial/distance (vfr.fixes.parse_frd).
+    /// fix/radial/distance (wingtip.fixes.parse_frd): what is typed read as
+    /// the engine's `frd_read` reads one, and written again as its
+    /// `frd_write` writes it.
+    struct Frd: Decodable {
+        let base: String
+        let course: Double
+        let distanceNm: Double
+    }
+
     static func frd(from: String, course: String, distance: String) -> String? {
-        let digits = course.filter(\.isNumber)
-        guard digits.count == 3, let deg = Int(digits), deg <= 360, let nm = Double(distance), nm > 0, nm <= 999 else { return nil }
-        return RouteExtras.frd(from, courseDeg: deg, nm: nm)
+        let typed = "\(from)/\(course.filter(\.isNumber))/\(distance.trimmingCharacters(in: .whitespaces))"
+        let read: Frd?
+        do { read = try Engine.call("frd_read", json: ["text": typed], decoder: Planner.snakeCase) } catch { read = nil }
+        guard let read else { return nil }
+        return RouteExtras.frd(read.base, courseDeg: Int(read.course), nm: read.distanceNm)
     }
 
     /// Whether a point of the route is a waypoint rather than a field: a
@@ -220,7 +230,17 @@ struct RoutePointMenu: View {
                 Image(systemName: "ellipsis.circle").foregroundStyle(.tint)
             }
         }
-        .accessibilityLabel("\(ident): more")
+        .accessibilityLabel(spoken)
+    }
+
+    /// The row's glyphs in words: "KHIB, four thousand five hundred feet,
+    /// hold set, flown direct: more".
+    private var spoken: String {
+        var parts = [ident]
+        if let feet = plan.extras.altitudes[ident.uppercased()] { parts.append(SpokenFigures.feet(Double(feet))) }
+        if plan.hold(at: ident) != nil { parts.append("hold set") }
+        if plan.extras.direct == ident { parts.append("flown direct") }
+        return parts.joined(separator: ", ") + ": more"
     }
 }
 

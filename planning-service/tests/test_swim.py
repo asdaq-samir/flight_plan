@@ -1,4 +1,4 @@
-"""app.swim: SWIM's STDDS terminal radar messages read into vfr.traffic's
+"""app.swim: SWIM's STDDS terminal radar messages read into wingtip.traffic's
 airplanes, from a message in the feed's own shape (TATrackAndFlightPlan)."""
 from app import swim
 
@@ -142,7 +142,7 @@ def test_what_the_reader_sends_is_handed_on_by_kind(monkeypatch):
 
 
 def test_the_reader_imports_nothing_of_the_planners():
-    # A spawned process starts by importing it: none of vfr or pandas.
+    # A spawned process starts by importing it: none of wingtip or pandas.
     import subprocess
     import sys
     code = "import sys, app.swim_reader; print(sorted(m for m in sys.modules if m.split('.')[0] in ('vfr', 'pandas', 'numpy')))"

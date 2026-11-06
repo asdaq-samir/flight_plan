@@ -3,6 +3,7 @@ import L from "leaflet";
 import { Marker, Pane, Polyline } from "react-leaflet";
 import type { ProcedureDrawing, ProcedureFix } from "../api/types";
 import { altitudeLines, decorationOf, speedWords } from "../procedures";
+import { altFt } from "../units";
 import { BADGE } from "../rowBadges";
 import { LINE_CASING, MAP_BLUE } from "./chartColors";
 import { made } from "./icons";
@@ -16,7 +17,7 @@ import { useLiveZoom } from "./useView";
  * racetrack, and each fix a mark with its name, its part (IAF, FAF, MAP)
  * and the altitudes it is crossed at as the chart sets them -- a minimum
  * underlined, a maximum overlined, a mandatory one both. From the FAA's
- * coded procedure (vfr.procedures), drawn as a sketch, the chart under it.
+ * coded procedure (wingtip.procedures), drawn as a sketch, the chart under it.
  * A fix of the procedure's own is tapped for its card (FixCard: Direct to
  * it, an altitude to cross it at), at the owner's pick; the pilot's own
  * altitude there said under the chart's in the tint, and the fix sent
@@ -53,7 +54,7 @@ const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, stale: 
       `<span>${esc(fix.ident)}${roles.length ? ` <span class="font-semibold opacity-80">${esc(roles.join(" "))}</span>` : ""}</span>` +
       `${alt ? `<span class="flex flex-col text-[#1c1a17]">${alt}</span>` : ""}` +
       `${speed ? `<span class="text-[#1c1a17]">${esc(speed)}</span>` : ""}` +
-      `${own != null ? `<span style="color:${MAP_BLUE}">Cross ${own.toLocaleString("en-US")}</span>` : ""}` +
+      `${own != null ? `<span style="color:${MAP_BLUE}">Cross ${altFt(own)}</span>` : ""}` +
       `${direct ? `<span style="color:${MAP_BLUE}">Direct to</span>` : ""}` +
       `${stale ? `<span class="text-[#1c1a17]">OUT OF DATE</span>` : ""}</span>`
     : "";

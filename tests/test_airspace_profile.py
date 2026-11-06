@@ -3,7 +3,7 @@ over the first leg only, so that leg is capped and the next is free --
 the geometry the stepped altitude plans rest on."""
 from shapely.geometry import Polygon
 
-from vfr import airspace
+from wingtip import airspace
 
 # A straight north-east route with one checkpoint half way.
 START, MID, END = (40.0, -90.0), (40.7, -89.1), (41.4, -88.2)

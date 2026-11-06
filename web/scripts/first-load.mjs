@@ -9,7 +9,7 @@
 // 1.30 MB in two weeks before anyone measured it (2026-10-06).
 //
 //   node scripts/first-load.mjs [dist] [--budget <bytes>]
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const args = process.argv.slice(2);
@@ -47,6 +47,14 @@ for (const [file, bytes] of [...seen].sort((a, b) => b[1] - a[1])) {
 console.log(`first load: ${mb(total)} of JavaScript in ${seen.size} chunks` + (budget ? `, budget ${mb(budget)}` : ""));
 // The exact count, for the nightly speed trend (ci.yml, Speed lab).
 console.log(`first load bytes: ${total}`);
+// The shared engine's WebAssembly (lib/engine), which index.html preloads
+// and main.tsx waits for before the first render: said, but not in the
+// budget, which is JavaScript's -- the parse and run that held the first
+// draw up on a phone. A module is compiled as it streams in, off the main
+// thread, and its 143 KB were 66 KB gzipped on 2026-11-03.
+const wasm = [...html.matchAll(/<link[^>]*rel="preload"[^>]*href="[^"]*\/assets\/([^"/]+\.wasm)"/g)].map(m => m[1]);
+const wasmBytes = wasm.reduce((sum, file) => sum + statSync(join(assets, file)).size, 0);
+if (wasm.length) console.log(`plus ${mb(wasmBytes)} of WebAssembly the first render waits for (${wasm.join(", ")}), not in the budget`);
 if (budget && total > budget) {
   console.error(`::error title=First load over budget::${mb(total)} of JavaScript, over the ${mb(budget)} budget. Find what grew with this script's list against main's, and see the measure-speed skill.`);
   process.exit(1);

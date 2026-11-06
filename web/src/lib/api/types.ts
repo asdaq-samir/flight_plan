@@ -47,7 +47,7 @@ export type TopOfClimb = Schemas["TopOfClimb"];
 export type TopOfDescent = Schemas["TopOfDescent"];
 export type Totals = Schemas["Totals"];
 /** A field with the airplane's fuel a flight short of it can land at, and
- *  the stops one such flight is offered (vfr.fuelstops). */
+ *  the stops one such flight is offered (wingtip.fuelstops). */
 export type FuelStop = Schemas["FuelStop"];
 export type FuelStopSuggestion = Schemas["FuelStopSuggestion"];
 export type AltitudeBreakdown = Schemas["AltitudeBreakdown"];
@@ -56,7 +56,7 @@ export type AltitudeSegment = Schemas["AltitudeSegment"];
  *  economical, the least fuel, climb and cruise. */
 export type AltitudeOption = Schemas["AltitudeOption"];
 export type AltitudeChoice = AltitudeOption["kind"];
-/** An airplane's flights of the last seven days (vfr.traffic.history). */
+/** An airplane's flights of the last seven days (wingtip.traffic.history). */
 export type PastFlights = Schemas["PastFlights"];
 export type PastFlightSummary = Schemas["PastFlightSummary"];
 /** One past flight's reports, for its track log and replay. */
@@ -87,16 +87,14 @@ export type AirportSearch = Schemas["AirportSearch"];
 export type AirportPlace = Schemas["AirportPlace"];
 /** What a field offers a pilot who lands there: the FAA's fuel, fees,
  *  parking and repair, and Overture Maps' places to eat, sleep and hire a
- *  car near it (vfr.nearby). */
+ *  car near it (wingtip.nearby). */
 export type AirportServices = Schemas["AirportServices"];
 export type NearbyPlace = Schemas["NearbyPlace"];
 /** The pictures an airport's card swipes through behind its diagram: its
  *  aerial from the USGS and a photo from the ground from Wikipedia. */
 export type AirportPhotos = Schemas["AirportPhotos"];
-/** The fields along a route to stop at, for the map's Stops (vfr.fuelstops.along). */
-export type RouteStops = Schemas["RouteStops"];
-export type RouteStopField = Schemas["RouteStopField"];
-/** The ways to fly a route, for FPL's Routes (vfr.route_options), and one of them. */
+/** The fields along a route to stop at, for the map's Stops (wingtip.fuelstops.along). */
+/** The ways to fly a route, for FPL's Routes (wingtip.route_options), and one of them. */
 export type RouteOptions = Schemas["RouteOptions"];
 export type RouteChip = Schemas["RouteChip"];
 export type RouteOption = Schemas["RouteOption"];
@@ -104,7 +102,7 @@ export type ForecastWind = Schemas["ForecastWind"];
 export type Metar = Schemas["Metar"];
 export type TerminalChart = Schemas["TerminalChart"];
 /** A field's instrument procedures from the FAA's CIFP, and one drawn
- *  with the transition picked (the planner's vfr.procedures). */
+ *  with the transition picked (the planner's wingtip.procedures). */
 export type ProcedureList = Schemas["ProcedureList"];
 export type ProcedureSummary = Schemas["ProcedureSummary"];
 export type ProcedureDrawing = Schemas["ProcedureDrawing"];
@@ -115,6 +113,9 @@ export type ChartPages = Schemas["ChartPages"];
 /** The mock oral's question, its answer graded, and what each is asked with. */
 export type OralQuestion = Schemas["OralQuestion"];
 export type OralQuestionRequest = Schemas["OralQuestionRequest"];
+export type ClearanceAsk = Schemas["ClearanceAsk"];
+export type ClearancePlaces = Schemas["ClearancePlaces"];
+export type ClearanceWords = Schemas["ClearanceWords"];
 export type OralGrade = Schemas["OralGrade"];
 export type OralGradeRequest = Schemas["OralGradeRequest"];
 export type OralCitation = Schemas["OralCitation"];
@@ -149,28 +150,27 @@ export type NearestAirports = Schemas["NearestAirports"];
 /** The map's Stops: the fields with fuel, food, repair or a flight school. */
 export type StopFields = Schemas["StopFields"];
 export type StopField = Schemas["StopField"];
-export type FoodDetails = Schemas["FoodDetails"];
 export type NearestAirport = Schemas["NearestAirport"];
 export type PlaceFound = Schemas["PlaceFound"];
 export type PlacesFound = Schemas["PlacesFound"];
 /** The route from the side: the ground and the controlled airspace. */
 export type RouteProfile = Schemas["RouteProfile"];
 export type AirspaceAt = Schemas["AirspaceAt"];
-/** What is ahead of own ship (vfr.alerts). */
+/** What is ahead of own ship (wingtip.alerts). */
 export type AlertsAhead = Schemas["AlertsAhead"];
 export type AheadAlert = Schemas["AheadAlert"];
-/** The airplanes ADS-B receivers hear near a point (vfr.traffic). */
+/** The airplanes ADS-B receivers hear near a point (wingtip.traffic). */
 export type Traffic = Schemas["Traffic"];
 export type AircraftBases = Schemas["AircraftBases"];
 export type TrafficAircraft = Schemas["TrafficAircraft"];
 export type TrafficFound = Schemas["TrafficFound"];
 /** A tracked flight: its airplane, where it took off, its path today. */
 export type FlightDetail = Schemas["FlightDetail"];
-/** An airplane's state now, for the alerts a pilot sets on it (vfr.traffic.status). */
+/** An airplane's state now, for the alerts a pilot sets on it (wingtip.traffic.status). */
 export type FlightStatus = Schemas["FlightStatus"];
-/** A US airplane's record in the FAA's registry (vfr.registry). */
+/** A US airplane's record in the FAA's registry (wingtip.registry). */
 export type AircraftRegistration = Schemas["AircraftRegistration"];
-/** The route a flight number is scheduled to fly (vfr.traffic.route). */
+/** The route a flight number is scheduled to fly (wingtip.traffic.route). */
 export type FlightRoute = Schemas["FlightRoute"];
 /** The deployment's browser key for Google's map tiles (routers/basemaps). */
 export type GoogleMaps = Schemas["GoogleMaps"];
@@ -334,6 +334,11 @@ export type StudentRow = Webapp["StudentDto"];
 /** One of a student's instructors, asked or taken. */
 export type InstructorLink = Webapp["InstructorLinkDto"];
 export type SignRequest = Webapp["SignRequest"];
+/** An approach an instructor set a student to learn, and how far along they are. */
+export type ApproachLesson = Webapp["ApproachLessonDto"];
+export type AssignLessonRequest = Webapp["AssignLessonRequest"];
+export type LessonProgressRequest = Webapp["LessonProgressRequest"];
+export type QuizAnswer = Webapp["QuizAnswerDto"];
 
 // ---------------------------------------------------------------------
 // The narrative agents, reached through ComparisonProxyController, which
@@ -342,7 +347,7 @@ export type SignRequest = Webapp["SignRequest"];
 
 /** The nav log on screen, handed to an agent to write about -- what
  *  `/api/comparison` forwards to nav-log-agent or crewai-agent. Both
- *  agents check it on arrival against vfr.narrative.NarrativeRequest: a
+ *  agents check it on arrival against wingtip.narrative.NarrativeRequest: a
  *  missing field, or one it does not know, is a 422 naming it. */
 export interface NarrativeRequest {
   departure_ident: string;

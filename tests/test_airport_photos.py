@@ -1,10 +1,10 @@
-"""vfr.airport_photos: an airport's aerial from the USGS and its photo from
+"""wingtip.airport_photos: an airport's aerial from the USGS and its photo from
 the ground from Wikipedia."""
 import json
 
 import pytest
 
-from vfr import airport_photos
+from wingtip import airport_photos
 
 
 def test_the_aerial_is_framed_on_the_runways_at_three_by_two():

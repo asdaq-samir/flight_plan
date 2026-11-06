@@ -88,18 +88,23 @@ final class Plan {
     var routed: Bool { !dep.isEmpty && !dest.isEmpty }
 
     /// What is on the page, kept for the air (Kept): after the nav log
-    /// is whole, and as the briefing, checkpoints and side view come.
+    /// is whole, and as the briefing, checkpoints and side view come. And
+    /// the route itself in the plan history the pilot's devices share
+    /// (PlannedRoute).
     func keep() {
         guard routed, course != nil, totals != nil else { return }
         Kept(dep: dep, dest: dest, stops: stops, aircraft: aircraft, ownAltitudeFt: ownAltitudeFt, altitudeChoice: altitudeChoice,
              course: course, checkpoints: checkpoints, profile: profile, altitude: altitude, legs: legs, totals: totals,
              briefing: briefing, plannedAt: plannedAt ?? Date()).save()
+        PlanHistory.planned(routeState, at: plannedAt ?? Date())
     }
 
     /// The last plan kept, back on the page at launch: planned again when
     /// the planner answers, kept as it was when it does not.
     func restore() {
-        guard let kept = Kept.load() else { return }
+        // A UI test launched with -fresh starts with no route, whatever
+        // the simulator kept from the last run (WingtipUITests).
+        guard !CommandLine.arguments.contains("-fresh"), let kept = Kept.load() else { return }
         dep = kept.dep; dest = kept.dest; stops = kept.stops; aircraft = kept.aircraft
         ownAltitudeFt = kept.ownAltitudeFt; altitudeChoice = kept.altitudeChoice
         course = kept.course; checkpoints = kept.checkpoints; profile = kept.profile; altitude = kept.altitude
@@ -183,13 +188,17 @@ final class Plan {
     }
 
     /// The chart along the route kept for the air (KeepRoute), the
-    /// zooms a pilot flies at: the chart's lowest to 10.
+    /// zooms a pilot flies at: the chart's lowest to 10; and the cycle
+    /// packs of the regions it crosses (CyclePacks), so a held finger on
+    /// the map is answered with the airspace there with no connection.
     func keepForTheAir(template: TileTemplate, minZoom: Int) {
         guard let course else { return }
         keepTask?.cancel()
         let tiles = KeepRoute.tiles(along: course.coordinates, minZoom: max(minZoom, 6), maxZoom: 10)
+        let regions = CyclePacks.regions(along: course.coordinates)
         keeping = (0, tiles.count)
         keepTask = Task { [weak self] in
+            await CyclePacks.shared.keep(regions: regions)
             await KeepRoute.keep(tiles, template: template) { kept, wanted in
                 Task { @MainActor in self?.keeping = (kept, wanted) }
             }
@@ -272,6 +281,7 @@ final class Plan {
         } catch {
             guard routesAskedFor == asked, !(error is CancellationError) else { return }
             routesProblem = error.localizedDescription
+            Log.planner.notice("the route options for \(dep, privacy: .public) to \(dest, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -306,6 +316,7 @@ final class Plan {
             keep()
         } catch {
             briefingProblem = error.localizedDescription
+            Log.planner.notice("the briefing for \(dep, privacy: .public) to \(dest, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

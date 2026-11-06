@@ -21,7 +21,9 @@ struct PilotGuideView: View {
                     Label {
                         Text(b.words)
                     } icon: {
+                        // The band's colour beside its words, which say it.
                         Circle().fill(Color(uiColor: CheckpointAnnotation.colour(for: b.score))).frame(width: 12, height: 12)
+                            .accessibilityHidden(true)
                     }
                 }
             }
@@ -51,7 +53,7 @@ struct PilotGuideView: View {
 struct AirplaneInTheAirView: View {
     var body: some View {
         ScrollView {
-            // The reference is the planner's (vfr.performance,
+            // The reference is the planner's (wingtip.performance,
             // CRUISE_REFERENCE_FT, 6,000 ft).
             VStack(alignment: .leading, spacing: 12) {
                 Text("Your airplane's cruise speed and fuel burn are taken as its figures at its cruise power at 6,000 ft on a standard day, a row of its handbook's cruise table.")
@@ -244,4 +246,28 @@ struct LostCommsView: View {
         .navigationTitle("Lost Communications")
         .navigationBarTitleDisplayMode(.inline)
     }
+}
+
+#Preview("PilotGuideView") {
+    NavigationStack { PilotGuideView() }
+}
+
+#Preview("AirplaneInTheAirView") {
+    NavigationStack { AirplaneInTheAirView() }
+}
+
+#Preview("LampView") {
+    List {
+        LampView(colours: [.green], flashing: false)
+        LampView(colours: [.red], flashing: true)
+        LampView(colours: [.red, .green], flashing: true)
+    }
+}
+
+#Preview("DrillView") {
+    NavigationStack { DrillView(deck: Drills.lightGun) }
+}
+
+#Preview("LostCommsView") {
+    NavigationStack { LostCommsView() }
 }

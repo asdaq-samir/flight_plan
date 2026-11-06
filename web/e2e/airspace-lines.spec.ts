@@ -10,9 +10,28 @@ import { airportMark, openMapSettings, slow } from "./helpers";
  * and numbers are Chicago's own.
  */
 
-const lines = (page: Page) => page.locator(".leaflet-airspace-pane path");
-const labels = (page: Page) => page.locator(".leaflet-airspace-labels-pane [data-airspace-edge-label]");
-const vors = (page: Page) => page.locator(".leaflet-navaids-pane [data-vor]");
+/** How many volumes' lines are drawn in the view, as their canvas writes
+ *  what it drew (AirspaceLinesLayer): a count by class, summed. */
+const lines = async (page: Page): Promise<number> => {
+  const canvas = page.locator(".leaflet-airspace-pane canvas[data-airspace-lines]");
+  if (!(await canvas.count())) return 0;
+  const counts: Record<string, number> = JSON.parse((await canvas.getAttribute("data-airspace-lines")) ?? "{}");
+  return Object.values(counts).reduce((sum, n) => sum + n, 0);
+};
+/** The altitudes along the lines, as their canvas writes what it drew
+ *  (AirspaceLabelsLayer): each label's words and angle. */
+const labels = async (page: Page): Promise<{ text: string; angle: number }[]> => {
+  const canvas = page.locator(".leaflet-airspace-labels-pane canvas[data-airspace-edge-labels]");
+  if (!(await canvas.count())) return [];
+  return JSON.parse((await canvas.getAttribute("data-airspace-edge-labels")) ?? "[]");
+};
+/** The VORs' idents as their canvas writes what it drew (NavaidMarksLayer). */
+const vors = async (page: Page): Promise<string[]> => {
+  const canvas = page.locator(".leaflet-navaids-pane canvas[data-navaid-marks]");
+  if (!(await canvas.count())) return [];
+  const marks: { ident: string; kind: string }[] = JSON.parse((await canvas.getAttribute("data-navaid-marks")) ?? "[]");
+  return marks.filter(m => m.kind === "vor").map(m => m.ident);
+};
 
 test("Chicago's airspace is drawn over the chart with its altitudes, and the switch takes it off", async ({ page }) => {
   // The planner's own answer, through the webapp: O'Hare's Class B
@@ -27,33 +46,31 @@ test("Chicago's airspace is drawn over the chart with its altitudes, and the swi
 
   // O'Hare's card brings the map in on it, close enough for the labels.
   await page.goto("/app/plan?place=KORD");
-  await expect(lines(page).first()).toBeAttached({ timeout: slow(30000) });
-  expect(await lines(page).count()).toBeGreaterThan(5);
+  await expect.poll(() => lines(page), { timeout: slow(30000) }).toBeGreaterThan(5);
   // The altitudes along the lines, no plates (the owner, 2026-10-30):
   // O'Hare's shelves among them, and a Class D's
   // ceiling alone. In sight, and turned to read upright.
   // O'Hare's shelves' "100/…": the surface area's "100/SFC" is a small
   // ring round KORD's own mark, its label skipped where the mark is.
-  await expect(labels(page).filter({ hasText: /^100\/(SFC|\d+)$/ }).first()).toBeAttached({ timeout: slow(15000) });
-  await expect(labels(page).filter({ hasText: /^-?\d+$/ }).first()).toBeAttached();
-  await expect(labels(page).filter({ hasText: /^\d+\/\d+$/ }).first()).toBeVisible();
+  await expect.poll(async () => (await labels(page)).some(l => /^100\/(SFC|\d+)$/.test(l.text)), { timeout: slow(15000) }).toBe(true);
+  const written = await labels(page);
+  expect(written.some(l => /^-?\d+$/.test(l.text))).toBe(true);
+  expect(written.some(l => /^\d+\/\d+$/.test(l.text))).toBe(true);
   await expect(page.locator(".leaflet-airspace-labels-pane [data-airspace-label]")).toHaveCount(0);
-  const angles = await labels(page).evaluateAll(texts =>
-    texts.map(t => Number(/rotate\((-?[\d.]+)/.exec(t.getAttribute("transform") ?? "")?.[1])));
-  expect(angles.length).toBeGreaterThan(3);
+  expect(written.length).toBeGreaterThan(3);
   // Upright: a line straight up and down reads bottom to top, either
   // end of the half-turn.
-  expect(angles.every(a => a >= -90 && a <= 90)).toBe(true);
+  expect(written.every(l => l.angle >= -90 && l.angle <= 90)).toBe(true);
   // And the VORs about it: Northbrook's, north of the field.
-  await expect(vors(page).and(page.locator('[data-vor="OBK"]'))).toBeAttached({ timeout: slow(15000) });
+  await expect.poll(() => vors(page), { timeout: slow(15000) }).toContain("OBK");
 
   await openMapSettings(page);
   await page.getByTestId("airspace-toggle").click();
   await page.getByTestId("navaids-toggle").click();
   await page.keyboard.press("Escape");
-  await expect(lines(page)).toHaveCount(0);
-  await expect(labels(page)).toHaveCount(0);
-  await expect(vors(page)).toHaveCount(0);
+  await expect.poll(() => lines(page)).toBe(0);
+  await expect.poll(async () => (await labels(page)).length).toBe(0);
+  await expect.poll(() => vors(page)).toEqual([]);
 });
 
 test("a tap on a Class D ring opens its card, with its ceiling and hours", async ({ page }) => {
@@ -61,24 +78,32 @@ test("a tap on a Class D ring opens its card, with its ceiling and hours", async
   // O'Hare's card brings the map in on Chicago, Wheeling's ring in sight
   // (KPWK's own card left the map where it was).
   await page.goto("/app/plan?place=KORD");
-  const rings = page.locator(".leaflet-airspace-taps-pane path.airspace-tap-D");
-  await expect(rings.first()).toBeAttached({ timeout: slow(30000) });
-  // A point on a Class D ring in sight that the ring's own target is the
-  // top of there (not an airport's mark or a panel over it).
-  const at = await rings.evaluateAll(paths => {
-    for (const path of paths as SVGPathElement[]) {
-      const length = path.getTotalLength();
-      for (let i = 0; i < 24; i++) {
-        const point = path.getPointAtLength((length * i) / 24);
-        const screen = new DOMPoint(point.x, point.y).matrixTransform(path.getScreenCTM()!);
-        if (screen.x < 0 || screen.y < 0 || screen.x > innerWidth || screen.y > innerHeight) continue;
-        if (document.elementFromPoint(screen.x, screen.y) === path) return { x: screen.x, y: screen.y };
-      }
+  // A point on a Class D ring in sight, as the canvas writes one of each
+  // ring it drew at rest (data-airspace-rings, in the map's own points),
+  // clear of the airports' marks (which take a tap near them) and of the
+  // sheet over the lower half of a phone's screen.
+  const ringPoint = async () => page.evaluate(() => {
+    const canvas = document.querySelector<HTMLCanvasElement>(".leaflet-airspace-pane canvas[data-airspace-rings]");
+    const marks = [...document.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")];
+    if (!canvas) return null;
+    const box = document.querySelector(".leaflet-container")!.getBoundingClientRect();
+    // Only the fields wearing a mark take a tap near them; the canvas
+    // writes every field it knows, mark or not.
+    const fields: { x: number; y: number; chip: boolean }[] = marks.flatMap(m => JSON.parse(m.dataset.airportMarks || "[]"));
+    const rings: { class: string; x: number; y: number }[] = JSON.parse(canvas.dataset.airspaceRings || "[]");
+    // A Class D ring is 35 px across its radius at the card's zoom on a
+    // phone, so the clearance is the mark's own reach (22 px) and a little;
+    // and clear of the map's buttons down the right edge (BUTTONS_CLEAR).
+    for (const ring of rings) {
+      if (ring.class !== "D" || ring.y < 80 || ring.y > box.height * 0.48 || ring.x < 20 || ring.x > box.width - 64) continue;
+      if (fields.some(f => f.chip && Math.hypot(f.x - ring.x, f.y - ring.y) < 26)) continue;
+      return { x: box.left + ring.x, y: box.top + ring.y };
     }
     return null;
   });
-  expect(at).not.toBeNull();
-  await page.mouse.click(at!.x, at!.y);
+  await expect.poll(ringPoint, { timeout: slow(30000) }).not.toBeNull();
+  const at = (await ringPoint())!;
+  await page.mouse.click(at.x, at.y);
   const card = page.getByTestId("airspace-card");
   await expect(card).toBeVisible({ timeout: slow(10000) });
   // Named "Class D": on a phone in the card's head, or in its pill's
@@ -103,7 +128,7 @@ test("a tap on a field's mark opens the field, over an airspace ring or a VOR be
   // KDPA: its Class D ring through its mark and the DPA VOR on the field
   // (the owner, 2026-10-30: the airspace or the VOR took the tap).
   await page.goto("/app/plan?place=KORD");
-  await expect(page.locator(".leaflet-airspace-taps-pane path").first()).toBeAttached({ timeout: slow(30000) });
+  await expect.poll(() => lines(page), { timeout: slow(30000) }).toBeGreaterThan(0);
   await expect.poll(async () => (await airportMark(page, "KDPA")) != null, { timeout: slow(15000) }).toBe(true);
   const mark = (await airportMark(page, "KDPA"))!;
   await page.mouse.click(mark.x, mark.y);

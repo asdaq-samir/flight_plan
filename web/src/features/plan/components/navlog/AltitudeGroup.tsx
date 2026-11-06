@@ -6,7 +6,6 @@ import { Button } from "../../../../components/ui/button";
 import PullDown from "../../../../components/PullDown";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { InlineField } from "../../../../components/InlineField";
-import { useDryRunButton } from "../../../../lib/dryRunButton";
 import Segmented from "../../../../components/Segmented";
 import { faaWords } from "../../../../lib/advisories";
 import type { AltitudeChoice, Detour, Leg, NavLogAltitude } from "../../../../lib/api/types";
@@ -20,11 +19,10 @@ import AltitudeReasoning from "../AltitudeReasoning";
 import type { RouteEnds } from "./rows";
 
 const RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
-const feet = (ft: number) => ft.toLocaleString("en-US");
 /** An altitude as said: feet under 18,000 ft, a flight level from there
  *  up, where altimeters are set to 29.92 (14 CFR 91.121, AIM 7-2-2). */
 /** The room over the highest ground, or how far under it. */
-const clearanceWords = (ft: number) => (ft >= 0 ? `${feet(ft)} ft` : `${feet(-ft)} ft under`);
+const clearanceWords = (ft: number) => (ft >= 0 ? `${altFt(ft)} ft` : `${altFt(-ft)} ft under`);
 /** Where the route first meets ground at or over the altitude. */
 const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round(nm)} nm`);
 
@@ -33,8 +31,10 @@ const strikeWords = (nm: number | null) => (nm === null ? "None" : `${Math.round
 // Dashes, not an example figure: grey "080" after FL- read as an
 // altitude planned (the owner's screenshot, 2026-10-27, while the
 // altitudes were still being planned).
-const PLACEHOLDER = flightLevel(null);
-const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${feet(ft)} feet`);
+/** With no altitude, "FL-" kept in the field as the airplane's "N-" is,
+ *  and its three blanks after it in grey (flightLevel(null), "FL-___"). */
+const HINT = { start: "FL-", words: flightLevel(null).slice(3) };
+const said = (ft: number) => (ft >= 18_000 ? `FL${Math.round(ft / 100)}` : `${altFt(ft)} feet`);
 
 /** The cruising altitude the log flies: the highest of its legs once they
  *  are in, a point's own altitude among them (RouteBox), else of the
@@ -102,7 +102,7 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   asked?: { ft: number; nearest: boolean } | null;
   /** No legal altitude on the route: the group red, its card saying why. */
   problem?: boolean;
-  /** A leg where no 500 ft step fits (vfr.altitude's tight altitude). */
+  /** A leg where no 500 ft step fits (wingtip.altitude's tight altitude). */
   tight?: string | null;
   /** Flies the whole route at an altitude of the pilot's own, feet. */
   onFlyAltitude: (feet: number) => void;
@@ -149,7 +149,6 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
   // is in, at the owner's ask ("make the profile button appear right after
   // entry but just make it disabled").
   const entered = shown !== "";
-  const dotShown = profiled && !problem && (cautions.length > 0 || !!tight);
   const why = problem ? "no legal altitude" : flying !== null ? said(flying)
     : nav?.flown === null ? "no altitude: no winds" : "not yet planned";
   return (
@@ -160,42 +159,30 @@ export default function AltitudeGroup({ nav, legs, commanded = null, asked = nul
     // owner's ask ("when altitude is entered ... a profile button shows
     // up"), or why there is none to show.
     <InlineField
-      label="Cruise altitude" testId="altitude-group" tip="altitude" widest="FL-000" tabular placeholder={PLACEHOLDER}
+      label="Cruise altitude" testId="altitude-group" tip="altitude" widest="FL-000" tabular placeholder="" hint={HINT}
       input={{
         // "FL-" in the field's own text, not a label beside it: iOS keeps
         // a few points inside an input's edge, which set the figures apart
-        // from it ("FL- 125" on the owner's phone, 2026-10-27).
-        inputMode: "numeric", value: shown ? `FL-${shown}` : "", "aria-label": "Cruise altitude, a flight level or feet",
+        // from it ("FL- 125" on the owner's phone, 2026-10-27). Kept
+        // there while empty too, in the text's colour as the airplane's
+        // "N-" is, the blanks after it grey (the owner, 2026-11-04: "FL
+        // should be black like N").
+        inputMode: "numeric", value: `FL-${shown}`, "aria-label": "Cruise altitude, a flight level or feet",
         onChange: e => setTyped(e.target.value.toUpperCase().replace(/^FL-?/, "").replace(/\D/g, "").slice(0, 5)),
         onKeyDown: e => { if (e.key === "Enter") { e.preventDefault(); fly(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") setTyped(null); },
         onBlur: fly, "data-testid": "altitude-input",
       }}
       inputClassName={problem ? "text-destructive-ink" : "text-foreground"}
-      // Room for the caution's dot only while there is one: the field as
-      // narrow as its figures otherwise (the owner's "why is there so much
-      // space ... after altitude").
-      endRoom={dotShown ? "w-[1.125rem]" : "w-0"}
+      endRoom="w-0"
       // No button of its own at its end, at the owner's ask (2026-10-27: "No
-      // need for a separate profile button"): the profile opens with its
-      // dry run from the map's Play (DryRunButton). Its amber dot stays, at
-      // the field's end, on a caution on the pilot's own altitude or a tight
-      // one -- a warning is never dropped -- and what the altitude is and
-      // why, in its name for VoiceOver.
+      // need for a separate profile button"), and no caution's dot there
+      // either: that is on the route's Profile button now, as the AI
+      // brief's is on its own (the owner, 2026-11-05: "The red dot can be
+      // on profile (like brief) instead of the altitude"; PlanWorkspace's
+      // altitudeMark). What the altitude is and why stays in its name for
+      // VoiceOver.
       button={(profiled || entered) && (
-        <span className={dotShown ? "relative mr-2.5 flex size-2 shrink-0" : "relative flex size-0 shrink-0"}>
-          <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" className="absolute inset-0" />
-          {/* The dot opens the profile where the caution is said, as the
-              map's Play does (the owner, 2026-10-27: "just open the same
-              profile view as the play button"); 44 points round it. */}
-          {dotShown && (
-            <button
-              type="button" onClick={() => useDryRunButton.getState().play?.()}
-              aria-label={cautions.length > 0 ? "Your altitude has a caution: open the profile" : "Your altitude is tight: open the profile"}
-              className="relative size-2 rounded-full bg-caution outline-none after:absolute after:-inset-[18px] after:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
-              data-testid={cautions.length > 0 ? "own-altitude-flag" : "tight-altitude-flag"}
-            />
-          )}
-        </span>
+        <span role="img" aria-label={`Cruising altitude${rules === "ifr" ? " under IFR" : ""}, ${why}${!problem && tight ? ", tight" : ""}${!problem && cautions.length ? ", your altitude has a caution" : ""}`} data-testid="altitude-why" className="relative flex size-0 shrink-0" />
       )}
     />
   );
@@ -358,7 +345,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
     }
     const slider = el.querySelector<HTMLElement>("[role=slider]");
     slider?.setAttribute("aria-valuenow", String(altitude));
-    slider?.setAttribute("aria-valuetext", `${feet(altitude)} feet${names[altitude] ? `, ${names[altitude]}` : ""}`);
+    slider?.setAttribute("aria-valuetext", `${altFt(altitude)} feet${names[altitude] ? `, ${names[altitude]}` : ""}`);
   };
   // The altitude at a point on the graph, the legal one nearest it; the
   // scale zoomed out past four fifths of the way up, in under a third, to
@@ -432,7 +419,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           <div
             role="slider" tabIndex={0} aria-label="Cruise altitude" aria-orientation="vertical"
             aria-valuemin={altitudes.at(-1)} aria-valuemax={altitudes[0]} aria-valuenow={shownAt}
-            aria-valuetext={`${feet(shownAt)} feet${names[shownAt] ? `, ${names[shownAt]}` : ""}`}
+            aria-valuetext={`${altFt(shownAt)} feet${names[shownAt] ? `, ${names[shownAt]}` : ""}`}
             onPointerDown={grab} onPointerMove={move} onPointerUp={letGo} onPointerCancel={letGo} onKeyDown={stepKey}
             className="absolute inset-0 cursor-ns-resize touch-none rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
             data-testid="altitude-wheel"
@@ -444,12 +431,12 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
           strip under its profile does: the highest ground along the route,
           the room over it, and where the route first meets ground at or
           over the altitude; live as the graph is dragged (data-live). The
-          planner's ground samples along the route's line (vfr.profile),
+          planner's ground samples along the route's line (wingtip.profile),
           not a corridor round it, and no obstacles: the planner's legal
           altitudes keep the 14 CFR 91.119 and 91.177 margins over those. */}
       {shownAt !== null && check(shownAt) && (
         <div className={cn("grid grid-cols-3 gap-2 tabular-nums", TEXT.note)} data-testid="ground-strip">
-          <div><div className="text-muted-foreground">Highest ground</div><div className="font-semibold" data-live="highest">{feet(check(shownAt)!.highest)} ft</div></div>
+          <div><div className="text-muted-foreground">Highest ground</div><div className="font-semibold" data-live="highest">{altFt(check(shownAt)!.highest)} ft</div></div>
           <div><div className="text-muted-foreground">Clearance</div><div className="font-semibold" data-live="clearance">{clearanceWords(check(shownAt)!.clearance)}</div></div>
           <div><div className="text-muted-foreground">First strike</div><div className="font-semibold" data-live="strike">{strikeWords(check(shownAt)!.strikeNm)}</div></div>
         </div>
@@ -502,7 +489,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
             placeholder="Your altitude" testId="altitude-plan" onChange={onAltitudeChoiceChange}
             options={[...nav.options].filter(o => o.steps.length).sort((a, b) => PREFERRED.indexOf(a.kind) - PREFERRED.indexOf(b.kind)).map(o => ({
               value: o.kind, testId: "altitude-plan-option",
-              label: `${PLAN_NAME[o.kind]} · ${feet(Math.max(...o.steps.map(st => st.altitude_ft)))} ft`,
+              label: `${PLAN_NAME[o.kind]} · ${altFt(Math.max(...o.steps.map(st => st.altitude_ft)))} ft`,
             }))}
           />
         </div>
@@ -517,7 +504,7 @@ export function AltitudeProfile({ nav: navNow, legs: legsNow, ends, chart, corne
         <div className={cn("space-y-1.5 rounded-lg bg-caution-wash p-2.5 text-caution-ink", TEXT.detail)} data-testid="own-altitude-cautions">
           {cautions.map(c => (
             <div key={`${c.from_ident}-${c.to_ident}`}>
-              <p className="font-semibold">{feet(c.altitude_ft)} ft {c.from_ident} → {c.to_ident}</p>
+              <p className="font-semibold">{altFt(c.altitude_ft)} ft {c.from_ident} → {c.to_ident}</p>
               <ul className="list-disc pl-4">{c.reasons.map(r => <li key={r}>{r}</li>)}</ul>
             </div>
           ))}

@@ -29,22 +29,42 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
 
     private let manager = CLLocationManager()
     private var asking: Task<Void, Never>?
-    private var lastAsked: Date = .distantPast
+    /// The ahead question's place on the app's clock (Ticker), while the
+    /// position is being read.
+    private var aheadEvery: Ticker.Registration?
+    /// How often what is ahead is asked while moving, s; the planner looks
+    /// five minutes along the track (wingtip.alerts), so twice this with the
+    /// app put away still leaves minutes.
+    static let aheadEveryS: TimeInterval = 10
 
     override init() {
         super.init()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.activityType = .airborne
+        // Kept going with the phone locked or the app put away while the
+        // airplane is at flying speed (took): the alerts ahead and the
+        // path flown (OwnTrail) went on only with the screen on, where a
+        // pilot's phone in a mount locks itself. Never paused by the
+        // system for a still airplane, which is a slow one. Apple's blue
+        // bar says the position is being read (the HIG asks for it).
+        manager.pausesLocationUpdatesAutomatically = false
+        manager.showsBackgroundLocationIndicator = true
     }
 
     func start() {
         manager.requestWhenInUseAuthorization()
         manager.startUpdatingLocation()
+        if aheadEvery == nil {
+            aheadEvery = Ticker.shared.every(Self.aheadEveryS) { [weak self] in self?.askAhead() }
+        }
     }
 
     func stop() {
         manager.stopUpdatingLocation()
+        aheadEvery?.cancel()
+        aheadEvery = nil
+        asking?.cancel()
     }
 
     nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
@@ -68,14 +88,33 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
 
     private func took(_ fix: Fix) {
         self.fix = fix
-        // What is ahead, asked every ten seconds while moving: the planner
-        // looks five minutes along the track (vfr.alerts).
-        guard let track = fix.trackDeg, let gs = fix.groundspeedKt, gs > 20, Date().timeIntervalSince(lastAsked) > 10 else { return }
-        lastAsked = Date()
+        // The path flown, and the phone's position kept in the background
+        // only while flying (the location background mode, project.yml):
+        // on the ground the reading stops with the app, as any map's does.
+        let flying = OwnTrail.shared.took(fix)
+        if manager.allowsBackgroundLocationUpdates != flying { manager.allowsBackgroundLocationUpdates = flying }
+    }
+
+    /// What is ahead, asked of the latest fix every ten seconds while
+    /// moving (the clock's, Ticker): the planner looks five minutes along
+    /// the track (wingtip.alerts). The asking is a task of its own, so the
+    /// next question cancels one still unanswered.
+    private func askAhead() {
+        guard let fix, let track = fix.trackDeg, let gs = fix.groundspeedKt, gs > 20 else { return }
         asking?.cancel()
         asking = Task { [weak self] in
-            guard let alerts = try? await Planner.ahead(lat: fix.coordinate.latitude, lon: fix.coordinate.longitude, trackDeg: track, groundspeedKt: gs, altitudeFt: fix.altitudeFt),
-                  !Task.isCancelled else { return }
+            let (lat, lon) = (fix.coordinate.latitude, fix.coordinate.longitude)
+            let alerts: [AheadAlert]
+            if let online = try? await Planner.ahead(lat: lat, lon: lon, trackDeg: track, groundspeedKt: gs, altitudeFt: fix.altitudeFt) {
+                alerts = online
+            } else if let offline = CyclePacks.shared.ahead(lat: lat, lon: lon, trackDeg: track, groundspeedKt: gs, altitudeFt: fix.altitudeFt) {
+                // No planner in the air: the same alerts from the packs kept
+                // for the route (CyclePacks.ahead).
+                alerts = offline.alerts
+            } else {
+                return
+            }
+            guard !Task.isCancelled else { return }
             self?.ahead = alerts
         }
     }

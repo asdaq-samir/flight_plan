@@ -17,6 +17,10 @@ import { TEXT } from "../../lib/text";
 import { FINDING_TONE } from "../../lib/status";
 import { inForce, reviewRoute, reviewState, said } from "../../lib/endorsements";
 import { GoodTo, SignedRow } from "./Endorsements";
+import ConsoleClose from "../../components/ConsoleClose";
+import { dueWords, lessonStatus } from "../../lib/assignedLessons";
+import { lessonHref } from "../../lib/lessonLink";
+import { localDay } from "../../lib/clock";
 
 function amount(item: ExperienceItem): string {
   if (item.unit === "h") return `${item.have.toFixed(1)} of ${item.need} h`;
@@ -182,6 +186,27 @@ function Instructors({ training }: { training: Training }) {
   );
 }
 
+/** The approaches their instructors set them to learn, newest first: each
+ *  opens its lesson over the map -- brief, fly, quiz -- with the
+ *  instructor's notes on its cards. */
+function Lessons({ training }: { training: Training }) {
+  if (training.lessons.length === 0) return null;
+  const today = localDay();
+  return (
+    <ListGroup title="Approach lessons">
+      {training.lessons.map(l => (
+        <ConsoleClose key={l.id}>
+          <ListRow
+            title={`${l.procedureName} · ${l.airportIdent}`}
+            description={[`From ${l.instructorName}`, dueWords(l, today), lessonStatus(l)].filter(Boolean).join(" · ")}
+            to={lessonHref(l.id)} data-testid="lesson-row"
+          />
+        </ConsoleClose>
+      ))}
+    </ListGroup>
+  );
+}
+
 /**
  * The Logbook's Checkride page, for a student on the way to the private
  * pilot practical test: 61.109(a)'s aeronautical experience as the
@@ -243,6 +268,8 @@ export default function CheckridePage() {
           {voided.map(e => <SignedRow key={e.id} kind={training.kinds.find(k => k.code === e.code)} e={e} />)}
         </ListGroup>
       )}
+
+      <Lessons training={training} />
 
       <Instructors training={training} />
     </div>

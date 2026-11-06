@@ -29,7 +29,7 @@ struct OwnAircraftListView: View {
                                 Text(OwnAircraftPage.figuresLine(airplane)).font(.footnote).foregroundStyle(.secondary)
                             }
                             Spacer()
-                            if plan.tail == airplane.tailNumber.uppercased() { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                            if plan.tail == airplane.tailNumber.uppercased() { Image(systemName: "checkmark").foregroundStyle(.tint).accessibilityLabel("Flying now") }
                         }
                     }
                 }
@@ -87,7 +87,7 @@ struct AircraftFormView: View {
             }
             // The cruise figures are the airplane's at this power at the
             // planner's reference altitude on a standard day, a row of its
-            // handbook's cruise table (vfr.performance, CRUISE_REFERENCE_FT).
+            // handbook's cruise table (wingtip.performance, CRUISE_REFERENCE_FT).
             Section("Cruise figures at 6,000 ft, standard day") {
                 number("Cruise power", unit: "%", text: $form.cruisePowerPct, placeholder: "65", key: "cruisePowerPct", problems: problems)
             }
@@ -228,7 +228,11 @@ struct OptionalDayRow: View {
             HStack {
                 DatePicker(title, selection: Binding(get: { date }, set: { day = Day.string($0) }),
                            in: ...(upTo ?? .distantFuture), displayedComponents: .date)
-                Button { day = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                Button { day = nil } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                        // The 44-point hit area round the glyph, which does not grow.
+                        .contentShape(Rectangle().inset(by: -12))
+                }
                     .buttonStyle(.borderless)
                     .accessibilityLabel("Clear \(title.lowercased())")
             }
@@ -330,8 +334,8 @@ struct InspectionsSection: View {
     /// The gateway's due hours, and how many are left by the hours recorded.
     private var hundredHourLine: String {
         guard let due = record.inspections?.hundredHourDueAtHours else { return "Time in service, at the last annual or 100-hour" }
-        var line = String(format: "Due at %.1f h", due)
-        if let now = record.inspections?.hoursNow { line += now < due ? String(format: ", %.1f h to go", due - now) : ", due now" }
+        var line = "Due at \(Formats.hours(due))"
+        if let now = record.inspections?.hoursNow { line += now < due ? ", \(Formats.hours(due - now)) to go" : ", due now" }
         return line
     }
 
@@ -604,4 +608,51 @@ struct SquawksView: View {
             onChange()
         } catch { problem = error.localizedDescription }
     }
+}
+
+private enum PreviewData {
+    static let airplane = OwnAircraftRecord(
+        id: 4, tailNumber: "N3429J", typeDesignator: "P28A", cruiseTasKt: 112, fuelBurnGph: 8.5, usableFuelGal: 48, cruisePowerPct: 65,
+        climbTasKt: 76, climbFuelBurnGph: 11, equipment: "SDFGRY", surveillance: "B1", colour: "White, blue stripe",
+        inspections: Inspections(annualOn: "2026-06-14", annualGoodThrough: "2027-06-30", staticCheckOn: "2025-03-02", staticCheckGoodThrough: "2027-03-31",
+                                 transponderCheckOn: "2025-03-02", transponderCheckGoodThrough: "2027-03-31", eltInspectedOn: "2026-06-14",
+                                 eltInspectionGoodThrough: "2027-06-30", eltBatteryDueOn: "2028-02-01", hoursNow: 4312.4, hundredHourAtHours: 4280,
+                                 hundredHourDueAtHours: 4380),
+        openSquawks: [Squawk(id: 9, reportedOn: "2026-10-30", text: "Left landing light out", inoperative: true, deferredFor: "VFR_DAY")],
+        vorCheck: VorCheck(checkedOn: "2026-10-25", errorDeg: 2, goodThrough: "2026-11-24", kind: "VOT", limitDeg: 4, place: "KDLH VOT", withinLimit: true))
+}
+
+#Preview("AircraftFormView") {
+    NavigationStack { AircraftFormView(record: nil) { _ in } }
+}
+
+#Preview("OwnAircraftPage") {
+    NavigationStack { OwnAircraftPage(record: PreviewData.airplane) {} }
+}
+
+#Preview("OptionalDayRow") {
+    @Previewable @State var day: String? = "2026-06-14"
+    @Previewable @State var none: String? = nil
+    List {
+        OptionalDayRow(title: "Flight review", day: $day, upTo: Date())
+        OptionalDayRow(title: "Medical expires", day: $none)
+    }
+}
+
+#Preview("StandingText") {
+    List {
+        StandingText(through: "2027-06-30")
+        StandingText(through: "2026-01-31")
+        StandingText(through: "2028-02-01", good: "By", past: "Due since")
+    }
+}
+
+#Preview("InspectionsSection") {
+    @Previewable @State var record = PreviewData.airplane
+    List { InspectionsSection(record: $record) {} }
+}
+
+#Preview("VorCheckSection") {
+    @Previewable @State var record = PreviewData.airplane
+    List { VorCheckSection(record: $record) {} }
 }

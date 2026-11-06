@@ -1,0 +1,493 @@
+{
+ "_note": "Written by the planner's Python (scratch make_fixture.py, 2026-11-02): the wind triangle (web lib/diversion), 14 CFR 91.159's cruising altitudes (wingtip.altitude), 91.151/91.167's reserves, density altitude (wingtip.performance), pressure altitude (PHAK ch. 4), WMM-2025 variation (pygeomag) and offline weather expiry. The engine (native/engine/tests/flight_rules.rs), the planner (tests/test_flight_rules.py), the web (lib/flightRules.test.ts) and the iOS app (FlightRulesTests) are held to it.",
+ "windTriangle": [
+  {
+   "tc": 90,
+   "tas": 100,
+   "windFrom": 0,
+   "windKt": 0,
+   "expected": {
+    "wca": 0.0,
+    "th": 90.0,
+    "gs": 100.0
+   }
+  },
+  {
+   "tc": 360,
+   "tas": 110,
+   "windFrom": 270,
+   "windKt": 20,
+   "expected": {
+    "wca": -10.4756816963899,
+    "th": 349.5243183036101,
+    "gs": 108.16653826391968
+   }
+  },
+  {
+   "tc": 45,
+   "tas": 95,
+   "windFrom": 225,
+   "windKt": 30,
+   "expected": {
+    "wca": 2.215802936379435e-15,
+    "th": 45.0,
+    "gs": 125.0
+   }
+  },
+  {
+   "tc": 180,
+   "tas": 60,
+   "windFrom": 90,
+   "windKt": 70,
+   "expected": null
+  },
+  {
+   "tc": 270,
+   "tas": 50,
+   "windFrom": 90,
+   "windKt": 60,
+   "expected": {
+    "wca": -8.420051158241852e-15,
+    "th": 270.0,
+    "gs": 110.0
+   }
+  },
+  {
+   "tc": 10,
+   "tas": 120,
+   "windFrom": 350,
+   "windKt": 35,
+   "expected": {
+    "wca": -5.725112860547552,
+    "th": 4.274887139452448,
+    "gs": 86.5121913518762
+   }
+  },
+  {
+   "tc": 203.947,
+   "tas": 178.2,
+   "windFrom": 136.0,
+   "windKt": 38.0,
+   "expected": {
+    "wca": -11.39910312076083,
+    "th": 192.54789687923918,
+    "gs": 160.4172388213143
+   }
+  },
+  {
+   "tc": 43.785,
+   "tas": 65.4,
+   "windFrom": 302.0,
+   "windKt": 12.0,
+   "expected": {
+    "wca": -10.347540022216043,
+    "th": 33.43745997778395,
+    "gs": 66.7872340842788
+   }
+  },
+  {
+   "tc": 337.13,
+   "tas": 179.5,
+   "windFrom": 222.0,
+   "windKt": 59.0,
+   "expected": {
+    "wca": -17.31225574998621,
+    "th": 319.8177442500138,
+    "gs": 196.42387933482217
+   }
+  },
+  {
+   "tc": 286.453,
+   "tas": 167.9,
+   "windFrom": 215.0,
+   "windKt": 42.0,
+   "expected": {
+    "wca": -13.718800436353435,
+    "th": 272.73419956364654,
+    "gs": 149.75057686885145
+   }
+  },
+  {
+   "tc": 146.689,
+   "tas": 155.9,
+   "windFrom": 213.0,
+   "windKt": 48.0,
+   "expected": {
+    "wca": 16.376430863022183,
+    "th": 163.0654308630222,
+    "gs": 130.29008799785677
+   }
+  },
+  {
+   "tc": 196.673,
+   "tas": 179.6,
+   "windFrom": 20.0,
+   "windKt": 5.0,
+   "expected": {
+    "wca": -0.09257049290186468,
+    "th": 196.58042950709813,
+    "gs": 184.5913384867901
+   }
+  },
+  {
+   "tc": 315.133,
+   "tas": 68.8,
+   "windFrom": 278.0,
+   "windKt": 33.0,
+   "expected": {
+    "wca": -16.8309994220688,
+    "th": 298.30200057793115,
+    "gs": 39.54401262931353
+   }
+  },
+  {
+   "tc": 356.692,
+   "tas": 62.4,
+   "windFrom": 129.0,
+   "windKt": 34.0,
+   "expected": {
+    "wca": 23.762909820427446,
+    "th": 20.454909820427474,
+    "gs": 79.99570875372116
+   }
+  },
+  {
+   "tc": 25.123,
+   "tas": 161.6,
+   "windFrom": 260.0,
+   "windKt": 36.0,
+   "expected": {
+    "wca": -10.498491631269975,
+    "th": 14.624508368730027,
+    "gs": 179.60677904238784
+   }
+  },
+  {
+   "tc": 42.983,
+   "tas": 86.8,
+   "windFrom": 181.0,
+   "windKt": 48.0,
+   "expected": {
+    "wca": 21.70970870819925,
+    "th": 64.69270870819925,
+    "gs": 116.32374748935814
+   }
+  },
+  {
+   "tc": 35.659,
+   "tas": 166.2,
+   "windFrom": 188.0,
+   "windKt": 26.0,
+   "expected": {
+    "wca": 4.164476065381466,
+    "th": 39.82347606538146,
+    "gs": 188.79005798807037
+   }
+  },
+  {
+   "tc": 44.759,
+   "tas": 137.4,
+   "windFrom": 205.0,
+   "windKt": 9.0,
+   "expected": {
+    "wca": 1.2688595283763828,
+    "th": 46.02785952837638,
+    "gs": 145.8364147781158
+   }
+  },
+  {
+   "tc": 260.018,
+   "tas": 98.7,
+   "windFrom": 43.0,
+   "windKt": 42.0,
+   "expected": {
+    "wca": 14.844598809553622,
+    "th": 274.8625988095536,
+    "gs": 128.94056324475432
+   }
+  },
+  {
+   "tc": 8.304,
+   "tas": 119.1,
+   "windFrom": 349.0,
+   "windKt": 43.0,
+   "expected": {
+    "wca": -6.854768607322754,
+    "th": 1.4492313926772464,
+    "gs": 77.66620944869135
+   }
+  }
+ ],
+ "cruisingAltitude": [
+  {
+   "floorFt": 0,
+   "courseDeg": 0,
+   "altitudeFt": 1500.0,
+   "eastbound": true
+  },
+  {
+   "floorFt": 0,
+   "courseDeg": 180,
+   "altitudeFt": 500.0,
+   "eastbound": false
+  },
+  {
+   "floorFt": 2500,
+   "courseDeg": 90,
+   "altitudeFt": 3500.0,
+   "eastbound": true
+  },
+  {
+   "floorFt": 3500,
+   "courseDeg": 90,
+   "altitudeFt": 3500.0,
+   "eastbound": true
+  },
+  {
+   "floorFt": 3501,
+   "courseDeg": 90,
+   "altitudeFt": 5500.0,
+   "eastbound": true
+  },
+  {
+   "floorFt": 3500,
+   "courseDeg": 270,
+   "altitudeFt": 4500.0,
+   "eastbound": false
+  },
+  {
+   "floorFt": 4400,
+   "courseDeg": 359.9,
+   "altitudeFt": 4500.0,
+   "eastbound": false
+  },
+  {
+   "floorFt": 4400,
+   "courseDeg": 179.9,
+   "altitudeFt": 5500.0,
+   "eastbound": true
+  },
+  {
+   "floorFt": 8999,
+   "courseDeg": 10,
+   "altitudeFt": 9500.0,
+   "eastbound": true
+  },
+  {
+   "floorFt": 12000,
+   "courseDeg": 200,
+   "altitudeFt": 12500.0,
+   "eastbound": false
+  },
+  {
+   "floorFt": -100,
+   "courseDeg": 45,
+   "altitudeFt": 1500.0,
+   "eastbound": true
+  }
+ ],
+ "reserve": [
+  {
+   "ifr": false,
+   "night": false,
+   "minutes": 30.0
+  },
+  {
+   "ifr": false,
+   "night": true,
+   "minutes": 45.0
+  },
+  {
+   "ifr": true,
+   "night": false,
+   "minutes": 45.0
+  },
+  {
+   "ifr": true,
+   "night": true,
+   "minutes": 45.0
+  }
+ ],
+ "densityAltitude": [
+  {
+   "pressureAltitudeFt": 0,
+   "oatC": 15,
+   "densityAltitudeFt": 0.0
+  },
+  {
+   "pressureAltitudeFt": 5000,
+   "oatC": 5.1,
+   "densityAltitudeFt": 5000.71158112481
+  },
+  {
+   "pressureAltitudeFt": 5000,
+   "oatC": 30,
+   "densityAltitudeFt": 7800.726114682843
+  },
+  {
+   "pressureAltitudeFt": 8000,
+   "oatC": -10,
+   "densityAltitudeFt": 6891.670363998896
+  },
+  {
+   "pressureAltitudeFt": 2000,
+   "oatC": 35,
+   "densityAltitudeFt": 4702.661707569533
+  },
+  {
+   "pressureAltitudeFt": 10000,
+   "oatC": 0,
+   "densityAltitudeFt": 10564.46389671783
+  }
+ ],
+ "pressureAltitude": [
+  {
+   "elevationFt": 0,
+   "altimeterInHg": 29.92,
+   "pressureAltitudeFt": 0.0
+  },
+  {
+   "elevationFt": 1428,
+   "altimeterInHg": 30.12,
+   "pressureAltitudeFt": 1228.0000000000007
+  },
+  {
+   "elevationFt": 5430,
+   "altimeterInHg": 29.71,
+   "pressureAltitudeFt": 5640.000000000001
+  },
+  {
+   "elevationFt": 643,
+   "altimeterInHg": 28.95,
+   "pressureAltitudeFt": 1613.0000000000023
+  }
+ ],
+ "declination": [
+  {
+   "lat": 47.6205,
+   "lon": -122.3493,
+   "year": 2025.25,
+   "deg": 15.065629638512593
+  },
+  {
+   "lat": 46.8421,
+   "lon": -92.1936,
+   "year": 2026.84,
+   "deg": -1.1432681176328128
+  },
+  {
+   "lat": 41.9786,
+   "lon": -87.9048,
+   "year": 2026.5,
+   "deg": -3.983817512816823
+  },
+  {
+   "lat": 33.9425,
+   "lon": -118.4081,
+   "year": 2027.0,
+   "deg": 11.33514597294061
+  },
+  {
+   "lat": 61.1743,
+   "lon": -149.9962,
+   "year": 2026.0,
+   "deg": 14.166614203498513
+  },
+  {
+   "lat": 25.7959,
+   "lon": -80.287,
+   "year": 2029.99,
+   "deg": -7.610002058892504
+  },
+  {
+   "lat": 40.6413,
+   "lon": -73.7781,
+   "year": 2024.0,
+   "deg": -12.624853700803238
+  },
+  {
+   "lat": 21.3245,
+   "lon": -157.9251,
+   "year": 2031.0,
+   "deg": 9.124783712265915
+  }
+ ],
+ "weatherInForce": [
+  {
+   "why": "a METAR an hour old has expired",
+   "product": "metar",
+   "now": 13600,
+   "observed": 10000,
+   "inForce": false
+  },
+  {
+   "why": "a METAR 59 minutes old counts",
+   "product": "metar",
+   "now": 13540,
+   "observed": 10000,
+   "inForce": true
+  },
+  {
+   "why": "a SPECI lasts only until the routine report is due",
+   "product": "speci",
+   "now": 13600,
+   "observed": 11200,
+   "lastRoutine": 10000,
+   "inForce": false
+  },
+  {
+   "why": "a SPECI before the routine report is due counts",
+   "product": "speci",
+   "now": 13599,
+   "observed": 11200,
+   "lastRoutine": 10000,
+   "inForce": true
+  },
+  {
+   "why": "a TAF before its valid period starts is not yet weather",
+   "product": "taf",
+   "now": 99,
+   "validFrom": 100,
+   "validTo": 200,
+   "inForce": false
+  },
+  {
+   "why": "a TAF inside its valid period counts",
+   "product": "taf",
+   "now": 150,
+   "validFrom": 100,
+   "validTo": 200,
+   "inForce": true
+  },
+  {
+   "why": "a TAF at the end of its valid period has expired",
+   "product": "taf",
+   "now": 200,
+   "validFrom": 100,
+   "validTo": 200,
+   "inForce": false
+  },
+  {
+   "why": "winds aloft inside their FOR USE window count",
+   "product": "winds",
+   "now": 150,
+   "validFrom": 100,
+   "validTo": 200,
+   "inForce": true
+  },
+  {
+   "why": "winds aloft with no window are not planned on",
+   "product": "winds",
+   "now": 150,
+   "inForce": false
+  },
+  {
+   "why": "an AIRMET past its valid time has expired",
+   "product": "advisory",
+   "now": 201,
+   "validFrom": 100,
+   "validTo": 200,
+   "inForce": false
+  }
+ ]
+}

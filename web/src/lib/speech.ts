@@ -9,6 +9,17 @@ export function say(words: string) {
   voice.speak(line);
 }
 
+/** Reads an answer aloud in place of whatever was being read: the
+ *  assistant's answer to a question asked by voice (RadioLayer's Ask
+ *  chip, useAsk). A new answer cuts the one before off, so two questions
+ *  asked in a row are not read one after the other. */
+export function speak(words: string) {
+  const voice = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+  if (!voice || typeof SpeechSynthesisUtterance === "undefined") return;
+  voice.cancel();
+  if (words.trim()) say(words);
+}
+
 /** Lets the page speak later, said nothing: on an iPhone a page may speak
  *  only once a tap has let it, so a tap that sets up something to be said
  *  later (an airplane's alert) says an empty line in its own handler. */

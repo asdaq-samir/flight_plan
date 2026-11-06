@@ -1,4 +1,4 @@
-"""vfr.ifr: the minimum IFR altitude over each leg (14 CFR 91.177(a)(2)),
+"""wingtip.ifr: the minimum IFR altitude over each leg (14 CFR 91.177(a)(2)),
 the cruising altitudes the direction of flight allows (91.179(b), FAA
 Order JO 7110.65 TBL 4-5-1), and the designated mountainous areas (Part
 95 subpart B). The terrain tiles are made flat here, with what peaks a
@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from tests.test_terrain import _dof_line
-from vfr import elevation, faa_data, geo, ifr
+from wingtip import elevation, faa_data, geo, ifr
 
 GROUND_M = 300.0   # 984.25 ft
 START = (45.0, -90.0)   # Wisconsin: no mountainous area

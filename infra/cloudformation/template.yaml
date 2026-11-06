@@ -725,6 +725,17 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref SharedAnswersCachePolicy
+          # The phones' packs of the FAA cycle (the planner's /api/cycle-packs
+          # and /api/cycle-pack/{cycle}/{region}.pack), the same for every
+          # pilot: the list for the hour it says, each pack for a day at the
+          # edge (the policy's most) and its whole cycle on the phone.
+          - PathPattern: api/planner/cycle-pack*
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !Ref SharedAnswersCachePolicy
         # A server error is passed on, never kept: CloudFront would hold
         # one for ten seconds by default, and a planner restarting would
         # then outlast itself at the edge.
@@ -735,7 +746,7 @@ Resources:
           - { ErrorCode: 504, ErrorCachingMinTTL: 0 }
 
   # ---------------------------------------------------------------------
-  # Chart tiles, once per cycle: a Fargate Spot task runs vfr.charts'
+  # Chart tiles, once per cycle: a Fargate Spot task runs wingtip.charts'
   # refresh every day -- a no-op until the FAA publishes a new cycle, then
   # it fetches the country's sheets, draws the pyramid and publishes it to
   # the tiles bucket (charts.publish), serving.json last, so every planner
@@ -819,7 +830,7 @@ Resources:
       ContainerDefinitions:
         - Name: chart-refresh
           Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vfr-route/planning-service:${ImageTag}"
-          Command: ["python", "-m", "vfr.charts", "refresh", "--workers", "2"]
+          Command: ["python", "-m", "wingtip.charts", "refresh", "--workers", "2"]
           Environment:
             - { Name: CHART_TILES_BUCKET, Value: !Ref ChartTilesBucket }
             - { Name: CHART_TILES_URL, Value: !Sub "https://${PublicHost}/tiles" }

@@ -4,7 +4,7 @@ import { legMinutes } from "./holding";
 import holdsFixture from "./fixtures/holds.json";
 
 describe("the pilot's holds in the address", () => {
-  test("are read and written as the planner's vfr.holds reads them", () => {
+  test("are read and written as the planner's wingtip.holds reads them", () => {
     const hold = holdOf("vpbng/090/30:270:R:1M:2T")!;
     expect(hold).toEqual({ fix: "VPBNG/090/30", inbound: 270, right: true, leg: { min: 1 }, length: { turns: 2 } });
     expect(holdText(hold)).toBe("VPBNG/090/30:270:R:1M:2T");

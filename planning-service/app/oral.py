@@ -1,7 +1,7 @@
 """A mock oral exam (the roadmap's AI mock oral, the Private Pilot ACS's
 knowledge and risk management elements): an examiner's question about
 the student's own planned flight, and their answer checked -- each
-grounded only in the regulations and the AIM (vfr.references), the
+grounded only in the regulations and the AIM (wingtip.references), the
 sources quoted word for word.
 
 Two calls to Claude, each made to fill in one tool's fields so what comes
@@ -27,7 +27,7 @@ import os
 
 import anthropic
 
-from vfr import references
+from wingtip import references
 
 #: The model, as CHECKPOINT_NOTE_MODEL names the notes': the most capable,
 #: since a wrong answer about a regulation is worse than a slow one.

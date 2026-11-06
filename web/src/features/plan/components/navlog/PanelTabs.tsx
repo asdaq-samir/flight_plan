@@ -38,7 +38,7 @@ const PRINTED: PanelTab[] = TABS.map(t => t.value);
  * for among them -- the Go / No-Go's fuel, under the legs -- is
  * `onLegs`'s.
  */
-export default function PanelTabs({ rootRef, before, contents, notice, footer, children, printing, marks, onTap, onLegs, route, overview: Overview }: {
+export default function PanelTabs({ before, contents, notice, printing, marks, onTap, onLegs, route, overview: Overview }: {
   /** What shows before any page, its cards each opening one (`open`):
    *  the Brief's glance (BriefGlance), at the owner's pick of the redesign
    *  (D′). A page opened from it goes back to it by the close, a swipe to
@@ -46,13 +46,10 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
    *  for going from page to page. Without one, Preflight is up to begin
    *  with. */
   overview?: ComponentType<{ onOpen: (tab: PanelTab) => void }>;
-  rootRef?: (el: HTMLDivElement | null) => void;
   /** Over the tabs: the printed title. */
   before: ReactNode;
   contents: Record<PanelTab, ReactNode>;
   notice?: ReactNode;
-  footer?: ReactNode;
-  children?: ReactNode;
   printing: boolean;
   /** A tab whose findings (lib/verdict) have something to fix, or to
    *  look at. */
@@ -177,7 +174,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
     // visible.
     // Not clipped: its scroller runs on up under the heads over it
     // (under-head), and clips what it holds itself.
-    <Tabs ref={rootRef} value={tab ?? ""} onValueChange={choose} className="flex min-h-0 flex-1 flex-col gap-0 print:h-auto">
+    <Tabs value={tab ?? ""} onValueChange={choose} className="flex min-h-0 flex-1 flex-col gap-0 print:h-auto">
       <div ref={setLocalHead} data-under-band="" className="relative z-10 flex shrink-0 flex-col">
       {before}
       {/* The stock line tabs, as the consoles' (ConsoleTabs), over the
@@ -247,9 +244,7 @@ export default function PanelTabs({ rootRef, before, contents, notice, footer, c
             })}
           </GoToTab.Provider>
         </SectionsOpen.Provider>
-        {footer}
       </div>
-      {children}
     </Tabs>
   );
 }

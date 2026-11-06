@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's name as the launcher shows it. The screens' own words are
+     in the Kotlin beside the screens for now; they move here when a
+     second language is a column rather than a rewrite. -->
+<resources>
+    <string name="app_name">Wingtip Maps</string>
+</resources>

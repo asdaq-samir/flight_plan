@@ -6,7 +6,7 @@ import Foundation
 // the document may leave out or send as null is optional.
 
 /// The nearest station's report, for a field with none of its own
-/// (NearbyMetar, vfr.weather.nearest_report): within 30 nm, `near` where
+/// (NearbyMetar, wingtip.weather.nearest_report): within 30 nm, `near` where
 /// within the ten statute miles a report is said of.
 struct NearbyMetar: Codable, Equatable, Sendable {
     let ident: String
@@ -16,7 +16,7 @@ struct NearbyMetar: Codable, Equatable, Sendable {
     let metar: Metar
 }
 
-/// One of a field's charts in the d-TPP (TerminalChart, vfr.publications):
+/// One of a field's charts in the d-TPP (TerminalChart, wingtip.publications):
 /// `kind` the FAA's chart code -- APD the airport diagram, HOT its hot
 /// spots, LAH land and hold short, IAP an approach, DP and ODP a
 /// departure, STR an arrival, MIN the takeoff or alternate minimums --
@@ -56,7 +56,7 @@ struct AirportPhotos: Codable, Equatable, Sendable {
 }
 
 /// A place to eat, sleep or hire a car near a field (NearbyPlace,
-/// Overture Maps via vfr.nearby).
+/// Overture Maps via wingtip.nearby).
 struct NearbyPlace: Codable, Equatable, Sendable, Identifiable {
     let name: String
     let kind: String
@@ -136,7 +136,7 @@ struct ModeCVeil: Codable, Equatable, Sendable {
 }
 
 /// The point named off its nearest fix, "VPBNG/095/14.2" (PointOffFix,
-/// vfr.fixes.frd_near).
+/// wingtip.fixes.frd_near).
 struct PointOffFix: Codable, Equatable, Sendable {
     let ident: String
     let name: String
@@ -220,7 +220,7 @@ struct ClassBAirport: Codable, Equatable, Sendable {
 }
 
 /// Where the planner places an approach plate's plan view on the chart,
-/// by the FAA's own georeference in it (PlateOverlay, vfr.plates).
+/// by the FAA's own georeference in it (PlateOverlay, wingtip.plates).
 struct PlateOverlay: Codable, Equatable, Sendable {
     let cycle: String
     let name: String

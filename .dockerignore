@@ -44,3 +44,4 @@ springboot-app/src/test/
 # build context: a copy of a Java class compiled as a duplicate and
 # broke the webapp image on 2026-09-24. Never wanted in an image.
 **/* [0-9].*
+native/target/

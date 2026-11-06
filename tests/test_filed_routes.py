@@ -1,10 +1,10 @@
-"""vfr.filed_routes: the routes pilots file between two fields, from
+"""wingtip.filed_routes: the routes pilots file between two fields, from
 TFMS's flight data messages in the shape TFMData sends them (a NASA RACE
 test message, race-air-test tfmdata.xml, of 2016-01-28)."""
 
 import pytest
 
-from vfr import filed_routes
+from wingtip import filed_routes
 
 NS = ('xmlns:ds="urn:us:gov:dot:faa:atm:tfm:tfmdataservice" xmlns:fdm="urn:us:gov:dot:faa:atm:tfm:flightdata" '
       'xmlns:nxce="urn:us:gov:dot:faa:atm:tfm:tfmdatacoreelements" '

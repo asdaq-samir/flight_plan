@@ -1,9 +1,9 @@
-"""vfr.terrain_detour: a way round high ground by fields with fuel."""
+"""wingtip.terrain_detour: a way round high ground by fields with fuel."""
 
 import numpy as np
 import pandas as pd
 
-from vfr import terrain_detour
+from wingtip import terrain_detour
 
 
 def test_the_highest_cruise_either_way_under_the_ceiling():

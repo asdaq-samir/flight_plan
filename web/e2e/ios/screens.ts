@@ -458,4 +458,30 @@ export const SCREENS: Screen[] = [
       await expect(page.getByTestId("navlog-fuel")).toBeVisible({ timeout: slow(30000) });
     },
   },
+  {
+    // The Brief's assistant (AskCard) with a question answered -- the
+    // conversation, its source chip, the words sections and the watch's
+    // switch -- the planner's AI routes answered here, so no billed call.
+    name: "brief ask",
+    ready: async page => {
+      const words = { sentences: [{ text: "Nothing in the NOTAMs bears on this flight.", sources: ["notam:none"] }], sources: [{ id: "notam:none", label: "NOTAMs C81, KDLH", text: "No NOTAMs." }], model: "claude-haiku-5-5", unavailable: null };
+      await page.route(url => url.pathname.startsWith("/api/planner/words/"), route => route.fulfill({ json: words }));
+      await page.route(url => url.pathname === "/api/planner/assistant", route => route.fulfill({
+        status: 200, contentType: "application/x-ndjson",
+        body: [
+          { type: "text", text: "Yes: Duluth is reporting wind 270 at 12 gusting 18, and the ceiling is 4,500 feet." },
+          { type: "sources", sources: [{ id: "metar:KDLH", label: "METAR KDLH 1753Z", text: "KDLH 031753Z 27012G18KT 10SM BKN045" }] },
+          { type: "done" },
+        ].map(l => JSON.stringify(l)).join("\n") + "\n",
+      }));
+      await page.goto(`/app/plan?${ROUTE}&brief=1`);
+      await settle(page);
+      await grabberTo(page, "full");
+      const field = sideDrawer(page).getByTestId("ask-field");
+      await expect(field).toBeVisible({ timeout: slow(30000) });
+      await field.fill("Can I make Duluth before dark?");
+      await field.press("Enter");
+      await expect(sideDrawer(page).getByTestId("ask-source")).toBeVisible({ timeout: slow(15000) });
+    },
+  },
 ];

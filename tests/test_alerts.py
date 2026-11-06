@@ -1,4 +1,4 @@
-"""vfr.alerts: what is ahead of own ship, with the airspace, special-use
+"""wingtip.alerts: what is ahead of own ship, with the airspace, special-use
 areas, TFRs, ground and obstacles stubbed. Own ship is at 42 N 88 W
 going east at 120 kt -- two miles a minute, 0.0224 degrees of longitude
 a mile there."""
@@ -9,7 +9,7 @@ import pytest
 import requests
 from shapely.geometry import box
 
-from vfr import airports, airspace, alerts, elevation, faa_data, sua, tfr
+from wingtip import airports, airspace, alerts, elevation, faa_data, sua, tfr
 
 LAT, LON = 42.0, -88.0
 NOW = datetime(2026, 10, 10, 18, 0, tzinfo=timezone.utc)

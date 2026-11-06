@@ -118,6 +118,29 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   await settled(panel);
 }
 
+/** A row of the sheet's in sight before it is tapped. Half way the sheet's
+ *  body is cut off at its edge, as Apple Maps' is, and a row under that
+ *  edge is reached by pulling the sheet up, not by scrolling (the owner,
+ *  2026-11-05); a click there landed on the map. All the way up when it
+ *  is under the edge, then scrolled to, as a pilot's finger would. */
+export async function inSheet(page: Page, locator: Locator) {
+  const panel = sideDrawer(page);
+  await locator.waitFor();
+  const under = await locator.evaluate(el => {
+    const sheet = el.closest("[data-slot=map-panel]");
+    if (!sheet || sheet.getAttribute("data-panel") === "full") return false;
+    const box = sheet.getBoundingClientRect();
+    // A bottom sheet's edge is the screen's foot; a top sheet's, its own;
+    // either way above the route's figures pinned at its foot.
+    const foot = sheet.querySelector("[data-testid=panel-foot]")?.getBoundingClientRect();
+    const edge = Math.min(box.top < 0 ? box.bottom : window.innerHeight, foot && foot.height > 0 ? foot.top : Infinity);
+    return el.getBoundingClientRect().bottom > edge + 1;
+  });
+  if (under) await grabberTo(page, "full");
+  await settled(panel);
+  await locator.scrollIntoViewIfNeeded();
+}
+
 /** The route's controls in sight -- its box, the airplane, the time,
  *  Share -- all the way up, where the pill has them too (MapPanel), with
  *  room for what a chip opens. */
@@ -161,24 +184,8 @@ async function panelFull(page: Page) {
   const panel = sideDrawer(page);
   await panel.waitFor();
   if ((await panel.getAttribute("data-panel")) === "full") return;
-  if ((await panel.getAttribute("data-panel")) === "peek") {
-    await grabberTo(page, "full");
-    return;
-  }
-  await settled(panel);
-  const box = (await panel.boundingBox())!;
-  const grab = (await page.getByTestId("sidebar-trigger-button").boundingBox())!;
-  const x = grab.x + grab.width / 2, y = grab.y + grab.height / 2;
-  // From the bottom of a phone the grabber is the sheet's top: up. From
-  // the top, its foot: down.
-  const up = Math.abs(y - box.y) < Math.abs(y - (box.y + box.height));
-  const viewport = page.viewportSize()!;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x, up ? y - 40 : y + 40, { steps: 4 });
-  await page.mouse.move(x, up ? 8 : viewport.height - 8, { steps: 10 });
-  await page.mouse.up();
-  await expect(panel).toHaveAttribute("data-panel", "full");
+  // By the grabber, as a keyboard and VoiceOver take it.
+  await grabberTo(page, "full");
   await settled(panel);
 }
 
@@ -206,7 +213,7 @@ export async function openSetup(page: Page) {
 }
 
 /** One of Setup's Controls set from its menu: its tile, then the item. */
-export async function pickControl(page: Page, control: "alerts-mode" | "nav-bar-select" | "theme-select", item: string) {
+export async function pickControl(page: Page, control: "nav-bar-select" | "theme-select", item: string) {
   await page.getByTestId("setup-page").getByTestId(control).click();
   await page.getByTestId(item).click();
 }
@@ -439,36 +446,29 @@ export async function openTab(page: Page, name: keyof typeof PHASE_OF | PhaseTab
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/** The nav log, in its own sheet from the route's box's Nav log button
- *  (NavLogView), FPL all the way up under it: FPL lists the route in
- *  order in its place (ProceduresRoute), at the owner's ask. */
+/** The nav log, in its own sheet from the route's ••• menu (NavLogView),
+ *  FPL all the way up under it: FPL lists the route in order in its place
+ *  (ProceduresRoute), at the owner's ask. */
 export async function openNavLog(page: Page) {
   await openTab(page, "Nav Log");
   const sheet = navLogSheet(page);
-  // Its button beside the Brief's (the owner, 2026-10-27).
-  if (!(await sheet.isVisible())) await sideDrawer(page).getByTestId("route-navlog").click();
+  // In the route's menu since the Profile took its button (the owner,
+  // 2026-11-04).
+  if (!(await sheet.isVisible())) {
+    await sideDrawer(page).getByTestId("share-route").click({ timeout: slow(60_000) });
+    await page.getByTestId("route-navlog").click();
+  }
   await expect(sheet).toBeVisible();
   return sheet;
 }
 
 /** The side view, a card over FPL, with the altitude's wheel in its
- *  corner: opened by the map's Play, its dry run stopped where it would
- *  fly, so the side view is at rest (the owner, 2026-10-27: the profile's
- *  button "would be the profile demo button"). */
+ *  corner: opened at rest from the route's Profile button, beside the AI
+ *  brief's (the owner, 2026-11-04). */
 export async function openProfile(page: Page) {
   await openPanel(page);
   const card = page.getByTestId("profile-card");
-  if (!(await card.isVisible())) {
-    // The map's buttons ride over the sheet up to half: all the way up,
-    // down to half for them.
-    if ((page.viewportSize()?.width ?? 0) < 768 && await sideDrawer(page).getAttribute("data-panel") === "full") await grabberTo(page, "half");
-    const play = page.locator("[data-map-food]").getByTestId("dry-run-button");
-    await play.click({ timeout: slow(60_000) });
-    await expect(card).toBeVisible();
-    // Stopped once it flies (a route with no legal altitude opens the
-    // profile with no run): the wheel is put away while a run plays.
-    if (await expect(play).toHaveAttribute("aria-pressed", "true", { timeout: 3000 }).then(() => true, () => false)) await play.click();
-  }
+  if (!(await card.isVisible())) await sideDrawer(page).getByTestId("route-profile").click({ timeout: slow(60_000) });
   await expect(card).toBeVisible();
   return card;
 }
@@ -579,6 +579,13 @@ export async function tapTheChart(page: Page) {
     // mark's 26 across round where it is.
     for (const c of map.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")) {
       for (const m of JSON.parse(c.dataset.airportMarks ?? "[]") as { x: number; y: number }[]) {
+        marks.push(new DOMRect(r.left + m.x - 13, r.top + m.y - 13, 26, 26));
+      }
+    }
+    // And the VORs and fixes, on a canvas too (NavaidCanvas): a tap within
+    // 22 of one opens its card.
+    for (const c of map.querySelectorAll<HTMLCanvasElement>("canvas[data-navaid-marks]")) {
+      for (const m of JSON.parse(c.dataset.navaidMarks ?? "[]") as { x: number; y: number }[]) {
         marks.push(new DOMRect(r.left + m.x - 13, r.top + m.y - 13, 26, 26));
       }
     }
@@ -703,14 +710,28 @@ export interface DrawnAirport {
   ident: string; x: number; y: number; chip: boolean; space: string; use: string; weather: string;
 }
 
-/** Every chart airport drawn now, on the page's own pixels. */
+/** Every chart airport drawn now, on the page's own pixels: the Class B,
+ *  C and D fields' canvas and the others' (AirportsLayer). */
 export async function airportMarks(page: Page): Promise<DrawnAirport[]> {
-  const canvas = page.locator("canvas[data-airport-marks]");
-  if (!(await canvas.count())) return [];
-  return canvas.first().evaluate(c => {
+  return page.evaluate(() => [...document.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")].flatMap(c => {
     const r = c.closest(".leaflet-container")!.getBoundingClientRect();
-    const drawn = JSON.parse((c as HTMLCanvasElement).dataset.airportMarks ?? "[]") as { x: number; y: number }[];
-    return drawn.map(m => ({ ...m, x: m.x + r.left, y: m.y + r.top })) as DrawnAirport[];
+    const drawn = JSON.parse(c.dataset.airportMarks ?? "[]") as { x: number; y: number }[];
+    return drawn.map(m => ({ ...m, x: m.x + r.left, y: m.y + r.top }));
+  })) as Promise<DrawnAirport[]>;
+}
+
+/** The VFR waypoints drawn on the map (WaypointsLayer, on a navaids
+ *  canvas of their own), in the page's own points. */
+export async function waypointMarks(page: Page): Promise<{ ident: string; x: number; y: number }[]> {
+  return page.evaluate(() => {
+    const out: { ident: string; x: number; y: number }[] = [];
+    for (const c of document.querySelectorAll<HTMLCanvasElement>("canvas[data-navaid-marks]")) {
+      const r = c.closest(".leaflet-container")!.getBoundingClientRect();
+      for (const m of JSON.parse(c.dataset.navaidMarks ?? "[]") as { ident: string; kind: string; x: number; y: number }[]) {
+        if (m.kind === "vfr") out.push({ ident: m.ident, x: m.x + r.left, y: m.y + r.top });
+      }
+    }
+    return out;
   });
 }
 

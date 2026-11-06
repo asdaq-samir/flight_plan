@@ -27,7 +27,7 @@ struct FlightsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(([flight.departureIdent] + flight.stops + [flight.destinationIdent]).joined(separator: " → ")).font(.headline.monospaced())
                         HStack(spacing: 10) {
-                            if let nm = flight.totalDistanceNm { Text(String(format: "%.0f nm", nm)) }
+                            if let nm = flight.totalDistanceNm { Text(Formats.nm(nm, decimals: 0)) }
                             if let min = flight.totalEteMin { Text(hoursMinutes(min)) }
                             if let gal = flight.totalFuelGal { Text(AirportWords.gal(gal)) }
                             if let tail = flight.aircraftTailNumber { Text(tail) }
@@ -70,4 +70,10 @@ struct FlightsView: View {
             do { flights = try await Gateway.flights() } catch { problem = error.localizedDescription }
         }
     }
+}
+
+#Preview("FlightsView") {
+    NavigationStack { FlightsView() }
+        .environment(Plan())
+        .environment(Session())
 }

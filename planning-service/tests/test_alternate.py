@@ -1,11 +1,11 @@
-"""GET /api/alternate through its response model, vfr.alternates stubbed:
+"""GET /api/alternate through its response model, wingtip.alternates stubbed:
 the destination's check, the pilot's alternate checked at its own ETA --
 the destination's plus the way there at the cruise speed -- and the
 fields offered."""
 from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
-from vfr import alternates
+from wingtip import alternates
 
 from app.main import app
 
@@ -40,7 +40,7 @@ def test_the_destination_the_pilots_alternate_and_the_fields_offered(monkeypatch
 
 
 def test_an_unknown_alternate_is_a_404(monkeypatch):
-    from vfr import airports
+    from wingtip import airports
 
     from .conftest import airport
 

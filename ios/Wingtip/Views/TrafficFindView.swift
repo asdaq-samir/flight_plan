@@ -150,11 +150,24 @@ struct KeptRow: View {
 
     var body: some View {
         HStack {
-            Image(systemName: "airplane").foregroundStyle(.tint)
+            Image(systemName: "airplane").foregroundStyle(.tint).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(kept.name).font(.headline)
                 if let type = kept.type { Text(type).font(.footnote).foregroundStyle(.secondary) }
             }
         }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+#Preview("TrafficFindView") {
+    NavigationStack { TrafficFindView() }
+        .environment(Traffic())
+}
+
+#Preview("KeptRow") {
+    List {
+        KeptRow(kept: KeptAirplane(hex: "a1b2c3", name: "N174HA", type: "C172"))
+        KeptRow(kept: KeptAirplane(hex: "a93f1e", name: "UAL2088"))
     }
 }

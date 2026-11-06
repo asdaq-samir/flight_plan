@@ -1,4 +1,4 @@
-"""Recorded routes, replayed: what the nav log engine (vfr.navlog) made of
+"""Recorded routes, replayed: what the nav log engine (wingtip.navlog) made of
 a real route -- its four plans, and the flown one's legs with their
 climbs, tops of climb and descent -- from the winds, temperatures and
 magnetic variation it was given then (tests/golden/record.py). The unit

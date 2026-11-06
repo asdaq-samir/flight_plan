@@ -1,6 +1,6 @@
-# VFR Nav Log Platform
+# Wingtip Maps Nav Log Platform
 
-![Python](https://img.shields.io/badge/Python%203.13-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
@@ -21,8 +21,8 @@
 
 ## Overview
 
-An end-to-end system that generates VFR (Visual Flight Rules) flight nav
-logs: a trained model selects visually identifiable ground checkpoints
+An end-to-end system that generates VFR (Visual Flight Rules) and IFR (Instrument
+Flight Rules) flight nav logs: a trained model selects visually identifiable ground checkpoints
 along a route, a dead-reckoning engine computes headings, groundspeed, ETE,
 and fuel burn from live weather, a rules engine recommends a legal cruising
 altitude from terrain/airspace/weather constraints, and a Gen AI agent
@@ -176,7 +176,7 @@ service discovery at `planning-service.vfr-route.internal`.
 - `/api/course`, `/api/checkpoints`, `/api/navlog`, `/api/detect/stream`,
   `/api/picks`, `/api/chart-tile/{kind}` — reached by the
   browser as `/api/planner/*` on `webapp`, never directly. The tile
-  endpoint renders the FAA's own chart GeoTIFFs (`vfr.charts`, one
+  endpoint renders the FAA's own chart GeoTIFFs (`wingtip.charts`, one
   download per sheet per 56-day cycle into `data/raw/charts/`), so the
   map depends on no hosted chart service. Its own OpenAPI page is at
   [`localhost:8084/docs`](http://localhost:8084/docs); the full endpoint
@@ -185,6 +185,20 @@ service discovery at `planning-service.vfr-route.internal`.
   briefing on `/app/plan`, the flight planning drawer (the
   narrative itself comes through `webapp`'s own `/api/comparison`,
   below)
+- `/api/assistant` — the pilot's assistant (`app/assistant.py`): a
+  question about the flight in the pilot's own words, answered by Claude
+  with the planner's own functions as its tools (the plan, the weather at
+  a field, the briefing, the Go / No-Go, a field's card, the nearest
+  fields, a hold's entry, a diversion), so every figure is the planner's
+  and the model only chooses the tools and writes the words; streamed as
+  newline-delimited JSON with the raw sources the answer rests on
+- `/api/words/{notams,weather,risk,debrief,changes}` — short readings in
+  words (`app/words.py`): each sentence cites the raw source it rests on
+  by id (a METAR, a NOTAM, a finding), and a sentence with none is
+  dropped; `changes` diffs two briefings first and asks the model only
+  where something moved, for `webapp`'s flight watch
+  (`/api/flights/{id}/watch`: a saved flight re-briefed every half hour
+  up to departure, what changed mailed to the pilot)
 - `/api/model-comparison` — every trained algorithm's accuracy side by
   side: the dev console charts it, and Plan's info popover names the
   promoted one from it
@@ -201,7 +215,7 @@ service discovery at `planning-service.vfr-route.internal`.
   the leg that makes it, none above 12,500 ft without oxygen -- and
   the nav log header's own "why" popover and the briefing's "Cruise
   Altitude" section walk the pilot through it, step by step. Every leg
-  and climb is flown in the day's air (`vfr.performance`): the
+  and climb is flown in the day's air (`wingtip.performance`): the
   aeroplane's cruise figures are its own at 6,000 ft on a standard day,
   and the forecast temperature at each leg's altitude gives the density
   altitude its true airspeed, fuel flow and climb rate follow, and
@@ -209,9 +223,9 @@ service discovery at `planning-service.vfr-route.internal`.
   departure time picks the winds forecast period, gives every row an
   ETA, and sets the fuel reserve (day or night, by civil twilight at
   either end) the totals hold the aeroplane's usable fuel against
-- `vfr.chartvision` reads the corridor's tiles and segments them by the
+- `wingtip.chartvision` reads the corridor's tiles and segments them by the
   chart's own palette, streaming results block by block from the departure
-  end. `vfr.chartlabels` stores what a pilot decides about them, keyed by
+  end. `wingtip.chartlabels` stores what a pilot decides about them, keyed by
   route and position rather than by an OSM id
 - Collection for an uncollected corridor runs here, in-process on a
   background thread, rather than by launching a pipeline container — that
@@ -260,13 +274,13 @@ service discovery at `planning-service.vfr-route.internal`.
 **`nav-log-agent`** — a LangGraph agent wrapped as an MCP server.
 
 - Three MCP tools: `assemble_nav_log` and `remember_briefing` (no Anthropic key needed) and `generate_nav_log_briefing`, each taking `departure_ident`, `destination_ident`, and optionally `altitude_ft` and `aircraft_name` (the planner's own choice and default aeroplane when omitted)
-- Graph: `fetch_nav_log` (planning-service's `/api/plan`, through `vfr.planner_client`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`, baked into the image) → `generate_briefing` (Claude API, streamed) → `store_memory`. The briefing on Plan, which already has the nav log, POSTs it to `/compare` and the graph starts at `retrieve_memory`
+- Graph: `fetch_nav_log` (planning-service's `/api/plan`, through `wingtip.planner_client`) → `retrieve_memory` (pgvector, embedded locally with `sentence-transformers/all-MiniLM-L6-v2`, baked into the image) → `generate_briefing` (Claude API, streamed) → `store_memory`. The briefing on Plan, which already has the nav log, POSTs it to `/compare` and the graph starts at `retrieve_memory`
 - Served over SSE at `/mcp/sse`
 - The nav log it briefs is the planner's own -- the checkpoints, per-leg altitudes, climbs and fuel check a pilot sees -- rather than one it assembles, so the two cannot drift apart
 
 **`crewai-agent`** — the identical task (checkpoints → altitude → legs → briefing), built in CrewAI instead of LangGraph, for framework comparison.
 
-- The same planner answers as `nav-log-agent` (`vfr.planner_client`); different control-flow model — an `Agent` reasoning over `tools` rather than an explicit function sequence
+- The same planner answers as `nav-log-agent` (`wingtip.planner_client`); different control-flow model — an `Agent` reasoning over `tools` rather than an explicit function sequence
 - Run by hand as a one-shot CLI (`python -m app.main`); `docker compose up` runs a thin HTTP wrapper around the same crew so the briefing on Plan can call it
 - No pgvector memory store of its own
 
@@ -379,7 +393,7 @@ an engineering gap:
 - **More ratings for the chart model.** The planner's checkpoints come
   off the chart now, for any route, with no collection step: whatever
   the chart reader finds within a mile of the course, ranked by the
-  chart model (`vfr.chartmodel`) the training page's ratings train --
+  chart model (`wingtip.chartmodel`) the training page's ratings train --
   0 to 5, a 0 for a detection that is no feature at all (a power line
   read as a road). The first one, on 32 ratings, beats the palette's
   constants on the ratings it held out (MAE 1.89 against 2.00) but not
@@ -451,16 +465,16 @@ Nothing else to install natively; every service builds its own image.
 ```
 data/             raw/processed/labels/aircraft/models — see Appendix for detail
 notebooks/        numbered, run-in-order exploratory notebooks (01-08)
-src/vfr/          shared Python package — pipeline.py, model_registry.py, navlog.py, altitude.py, etc.
+src/wingtip/          shared Python package — pipeline.py, model_registry.py, navlog.py, altitude.py, etc.
 airflow/dags/     the vfr_pipeline DAG (local) and vfr_pipeline_aws_dag.py (AWS, see README-AWS.md)
 docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training / airflow
-                  (each including vfr's own list, src/requirements.txt)
+                  (each including wingtip's own list, src/requirements.txt)
 model-service/    FastAPI app serving the chart model (/score-detections)
 springboot-app/   Spring Boot API (webapp) — routes, DB, calls model-service
 nav-log-agent/    LangGraph agent (MCP server) — assembles the full nav log + briefing
 crewai-agent/     the same task, built in CrewAI, for framework comparison
 infra/            CloudFormation template + Go Lambda for the AWS target architecture
-tests/            pytest suite for src/vfr
+tests/            pytest suite for src/wingtip
 docs/             this file, README-AWS.md, LEARNING-GUIDE.md, architecture diagrams
 ```
 
@@ -558,7 +572,7 @@ Notebooks 01-03 walk through what `pipeline.py` automates, and call it:
 so a notebook and the DAG can never write two different data files; 03-05
 take their labelled table and holdout from `pipeline.labeled_split`, the
 one every trainer uses. 06-08 are standalone comparison/domain exercises;
-08 walks the altitude selection one step at a time with `vfr.altitude`'s
+08 walks the altitude selection one step at a time with `wingtip.altitude`'s
 own pieces and checks its answer against the planner's. Run them via `docker
 compose up ml`. Full per-notebook breakdown is in the
 [Appendix](#appendix).
@@ -566,28 +580,28 @@ compose up ml`. Full per-notebook breakdown is in the
 ### Testing & CI
 
 ```bash
-# Python (src/vfr). The pipeline images carry no test tooling -- this
+# Python (src/wingtip). The pipeline images carry no test tooling -- this
 # runs what CI runs, from requirements-dev.txt.
 # libexpat1 is the one system library rasterio's wheel needs that the
 # slim image leaves out.
-docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
-  sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
+docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.14-slim \
+  sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/wingtip tests && pytest tests/ -q"
 
 # planning-service (its own FastAPI-layer suite, separate from the one
 # above since it needs the service's own requirements on top of pytest)
-docker run --rm -v "$PWD":/w -w /w/planning-service python:3.13-slim \
+docker run --rm -v "$PWD":/w -w /w/planning-service python:3.14-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
 # model-service, nav-log-agent and crewai-agent: the same shape, each
 # from its own directory and requirements-dev.txt. nav-log-agent wants
 # the CPU torch wheel first (`pip install torch --index-url
 # https://download.pytorch.org/whl/cpu`), as its Dockerfile does.
-docker run --rm -v "$PWD":/w -w /w/model-service python:3.13-slim \
+docker run --rm -v "$PWD":/w -w /w/model-service python:3.14-slim \
   sh -c "pip install -q -r requirements-dev.txt && ruff check app tests && pytest tests/ -q"
 
 # Web front end (web/): typecheck plus unit tests. No browser needed:
 # the filters, ordering, rating and nav-log rules are pure functions.
-docker run --rm -v "$PWD":/w -w /w/web node:24-slim \
+docker run --rm -v "$PWD":/w -w /w/web node:26-slim \
   sh -c "npm ci && npm run types && npx tsc --noEmit && npx vitest run"
 
 # Java (webapp). No native Maven needed, matching the rest of this
@@ -605,10 +619,10 @@ local Docker daemon, so it needs none of the socket/host plumbing above.)
 
 Six suites, split by what each can actually prove:
 
-- **`tests/`** (pytest) — the pure-logic parts of `src/vfr`: geo math,
+- **`tests/`** (pytest) — the pure-logic parts of `src/wingtip`: geo math,
   engineered features, dead-reckoning, the model registry, the
-  remote-URI guards, plus (mocked, no live network) `vfr.weather`'s
-  METAR parsing and `vfr.airports`' runway/frequency lookups.
+  remote-URI guards, plus (mocked, no live network) `wingtip.weather`'s
+  METAR parsing and `wingtip.airports`' runway/frequency lookups.
 - **`planning-service/tests/`** (pytest, its own suite) — the HTTP
   contract for the endpoints with no coverage anywhere else
   (`/api/model-comparison`, `/api/checkpoints`' error translation):
@@ -639,7 +653,7 @@ Six suites, split by what each can actually prove:
 
 Deliberately left to manual verification: anything needing live network
 calls or a trained model (`collect`, `engineer_features`, `retrain`,
-`vfr.altitude`, `vfr.airspace`) — mocking those would test the mock, not
+`wingtip.altitude`, `wingtip.airspace`) — mocking those would test the mock, not
 the upstream data contract that actually breaks.
 
 `.github/workflows/ci.yml` runs every suite on every push/PR. Full
@@ -658,7 +672,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()`: downloads a corridor's candidates once, and again only with `--refresh` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |
-| `docker compose run --rm pipeline-training python -m vfr.model_registry evaluate` | Runs `evaluate`/`promote` | — |
+| `docker compose run --rm pipeline-training python -m wingtip.model_registry evaluate` | Runs `evaluate`/`promote` | — |
 | `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent python -m app.main --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
@@ -712,7 +726,7 @@ data/
 | 04 | `pytorch_tensorflow` | PyTorch + Keras MLP vs. the sklearn baseline | Comparison only |
 | 05 | `huggingface_embeddings` | Sentence-transformer embeddings as engineered features | Comparison only |
 | 06 | `spark_mllib` | Spark MLlib GBTRegressor, same comparison | Comparison only |
-| 08 | `altitude_selection` | Terrain/obstacle floor, Class B/C/D airspace, weather, aircraft ceiling → recommended cruise altitude | `vfr.altitude` |
+| 08 | `altitude_selection` | Terrain/obstacle floor, Class B/C/D airspace, weather, aircraft ceiling → recommended cruise altitude | `wingtip.altitude` |
 
 (There is no 07.)
 
@@ -727,16 +741,16 @@ empty commit:
 
 | Job | What it does |
 |---|---|
-| `test` | ruff + pytest over `src/vfr` |
+| `test` | ruff + pytest over `src/wingtip` |
 | `changes` | A path filter (`dorny/paths-filter`) telling both `build-images` and `docs` which service images a change could have touched. Runs on pull requests (where `build-images` uses it to build only the touched images) and on pushes to `main` (where `build-images` ignores it on purpose — main's images stay fully in sync with every dependency bump — but `docs` uses it to skip the three heavy `pdoc` steps below when nothing they document changed). |
 | `test-web` | `tsc --noEmit`, `vitest` and a production build over `web/` — filters, ordering, what counts as rated, and which leg leaves a checkpoint, all pure functions needing no browser |
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
-| `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp, the planner and the model service built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from |
-| `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/vfr` ones |
+| `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp, the planner and the model service built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from. Its images and the page are built once for each content key by `build (e2e)` and pulled by all eight shards, on a push and on a pull request from one of this repository's branches; only a fork's or Dependabot's pull request, whose token cannot push, has each shard build its own. |
+| `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/wingtip` ones |
 | `test-model-service` | ruff + pytest over `model-service/tests/`, on the service's own requirements |
 | `test-nav-log-agent` / `test-crewai-agent` | ruff + pytest over each agent's `tests/`, on that agent's own requirements; the database, planning-service and Claude are mocked, so nothing is billed |
-| `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only for whichever of `src/vfr`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
-| `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import vfr.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
+| `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only for whichever of `src/wingtip`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
+| `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
 | `push-ecr` | Pushes the six images the CloudFormation stack deploys (`webapp`, `planning-service`, `model-service`, `nav-log-agent`, `crewai-agent`, `airflow`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
 `build-images` gates on the test jobs, so a failing test never produces a
@@ -751,7 +765,7 @@ Non-obvious things worth knowing up front:
 - **`Path("s3://bucket/x")` silently collapses to `"s3:/bucket/x"`**
   under `pathlib` normalization. Code rejecting a remote URI must check
   the raw string for `"://"` *before* wrapping it in `Path(...)`. See
-  `_reject_remote_uri()` in `src/vfr/model_registry.py`, which `src/vfr/pipeline.py` uses too.
+  `_reject_remote_uri()` in `src/wingtip/model_registry.py`, which `src/wingtip/pipeline.py` uses too.
 - **`docker compose up <service>` reuses a stale container** if the image
   was rebuilt but the container wasn't recreated. Use
   `docker compose up -d --force-recreate <service>`.

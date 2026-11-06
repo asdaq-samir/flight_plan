@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { clearTheRoute, openPanel, settle, sideDrawer, slow, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
+import { clearTheRoute, closeNavLog, controlsInSight, grabberTo, inSheet, navLogSheet, openNavLog, openPanel, settle, showTabs, sideDrawer, slow, waypointMarks } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -293,6 +293,7 @@ test("a stop is left again at the time picked on its Depart step, 30 minutes aft
   const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   const planned = await at();
   // A quarter of an hour later: 45 minutes on the ground in the address.
+  await inSheet(page, leaves);
   await leaves.click();
   await expect(page.getByTestId("depart-clear")).toHaveCount(0);
   await page.getByTestId("depart-time").fill(hhmm(planned + 15));
@@ -338,6 +339,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   // One menu an airport now, at its ident (boards 4 and 5): Madison's is
   // its landing's, flown to.
   for (const name of ["C81 · Depart"]) {
+    await inSheet(page, route.getByRole("region", { name }).getByTestId("point-menu"));
     await route.getByRole("region", { name }).getByTestId("point-menu").click();
     await expect(page.getByTestId("point-menu-direct")).toHaveCount(0);
     await page.keyboard.press("Escape");
@@ -345,6 +347,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
 
   // Set from its menu, as the route box's menu sets it: the address's
   // `altitudes`.
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-altitude").click();
   await page.getByTestId("point-altitude-input").fill("2600");
@@ -356,6 +359,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   // Direct to Duluth with no position: from the departure, Madison
   // skipped; the route as it was kept for Cancel.
   const duluth = route.getByRole("region", { name: "KDLH · Arrive" });
+  await inSheet(page, duluth.getByTestId("point-menu"));
   await duluth.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-direct").click();
   await expect(page).toHaveURL(/[?&]direct=KDLH(&|$)/);
@@ -369,6 +373,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await expect(sideDrawer(page).getByTestId("direct-strip")).toHaveCount(0);
 
   // Taken out from its menu: the route without it.
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-remove").click();
   await expect(page).not.toHaveURL(/[?&]stops=/);
@@ -383,6 +388,7 @@ test("on a phone a point's altitude is asked in the floating sheet from the bott
   await openPanel(page);
   const madison = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Arrive" });
   await expect(madison.getByTestId("point-altitude-figure")).toHaveAttribute("data-kind", "elev", { timeout: slow(30_000) });
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-altitude").click();
 
@@ -415,6 +421,7 @@ test("on a phone a point's altitude is asked in the floating sheet from the bott
   await expect(sheet).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]altitudes=/);
   // Set, from the title row, once a figure is typed.
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-altitude").click();
   await field.fill("");
@@ -438,6 +445,7 @@ test("the pilot's own point off a fix is made from a point's menu or typed as a 
   const route = sideDrawer(page).getByTestId("procedures");
   const madison = route.getByRole("region", { name: "KMSN · Arrive" });
   await expect(madison.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(30_000) });
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-fix").click();
   await page.getByTestId("fix-from-course").fill("090");
@@ -467,6 +475,7 @@ test("a hold is set from a point's menu, course, turns, legs and how long, and i
   const route = sideDrawer(page).getByTestId("procedures");
   const duluth = route.getByRole("region", { name: "KDLH · Arrive" });
   await expect(duluth.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(60_000) });
+  await inSheet(page, duluth.getByTestId("point-menu"));
   await duluth.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-hold").click();
   const sheet = page.getByTestId("hold-sheet");
@@ -615,7 +624,9 @@ test("a short town's name (four letters) takes the first airport shown at Enter,
   await expect(page).toHaveURL(new RegExp(`[?&]stops=${ident}(&|$)`));
 });
 
-test("a long route's box wraps its points onto lines and scrolls down to the rest, never sideways", async ({ page }) => {
+test("a long route's box is one row that slides sideways to the rest, faded where it runs on", async ({ page }) => {
+  // The owner (2026-11-04): "FPL can be fixed as one row, in which ids can
+  // slide etc. even when routes have more fixes than the space in the row".
   // Nothing past the course asked of the planner: the box is the claim.
   await page.route(url => /\/(checkpoints|navlog|briefing)$/.test(url.pathname), route => route.abort());
   // The most stops a route takes (MAX_STOPS): ten points.
@@ -627,34 +638,18 @@ test("a long route's box wraps its points onto lines and scrolls down to the res
   const box = await lines.evaluate(el => ({
     clientHeight: el.clientHeight, scrollHeight: el.scrollHeight, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth,
     tops: [...new Set([...el.querySelectorAll("[role=group]")].map(g => Math.round(g.getBoundingClientRect().top)))].length,
+    mask: getComputedStyle(el).maskImage || getComputedStyle(el).webkitMaskImage,
   }));
-  expect(box.scrollWidth).toBeLessThanOrEqual(box.clientWidth + 1);
-  expect(box.tops).toBeGreaterThanOrEqual(2);
-  // The box grown to two lines in sight, as the route needs them, where a
-  // short route's is one; where there are more (the box the panel's width
-  // since the pilot asked, ten points take two lines on most screens), the
-  // top of a third and the rest a scroll down, the destination not whole
-  // in sight until then.
-  expect(box.clientHeight).toBeGreaterThanOrEqual(72);
-  expect(box.clientHeight).toBeLessThanOrEqual(100);
+  // One line, its height a line's, the rest past its end.
+  expect(box.tops).toBe(1);
+  expect(box.clientHeight).toBeLessThanOrEqual(48);
+  expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight + 1);
+  expect(box.scrollWidth).toBeGreaterThan(box.clientWidth + 40);
+  expect(box.mask).toContain("gradient");
+  // Slid to its end: the destination whole in sight.
   const destination = sideDrawer(page).getByTestId("route-dest");
-  await lines.evaluate(el => el.scrollTo(0, el.scrollHeight));
+  await lines.evaluate(el => el.scrollTo(el.scrollWidth, 0));
   await expect(destination).toBeInViewport({ ratio: 1 });
-
-  // A pill dragged from the first line onto the second: the route flown in
-  // the new order (a reorder that broke would fly it in the wrong one).
-  await lines.evaluate(el => el.scrollTo(0, 0));
-  const from = (await lines.getByRole("group", { name: "Stop 1 KRYV" }).boundingBox())!;
-  const to = (await lines.getByRole("group", { name: "Stop 6 KSTE" }).boundingBox())!;
-  expect(to.y).toBeGreaterThan(from.y + from.height / 2);
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 12, from.y + from.height / 2, { steps: 4 });
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
-  // Held there a moment, as a finger is, for the pills to make room.
-  await page.waitForTimeout(300);
-  await page.mouse.up();
-  await expect(page).toHaveURL(/[?&]stops=KMSN%2CKEAU%2CKOSH%2CKCWA%2CKSTE%2CKRYV%2CKATW%2CKGRB(&|$)|[?&]stops=KMSN,KEAU,KOSH,KCWA,KSTE,KRYV,KATW,KGRB(&|$)/);
 });
 
 test("a stop may be a VFR waypoint, offered after the airports as it is typed and flown through", async ({ page }) => {
@@ -750,45 +745,58 @@ test("an airport's card adds it as the route's next stop; a card of the route's 
   await expect(sideDrawer(page).getByTestId("route-type")).toHaveAttribute("placeholder", "Destination");
 });
 
-test("a VFR waypoint on the chart is a diamond, and its card adds it as a stop", async ({ page }) => {
+test("a VFR waypoint on the chart is a magenta triangle with its ident, and its card adds it as a stop", async ({ page }) => {
   // The planner's own, through the webapp: Chicago's VFR waypoints.
   const answer = await page.request.get("/api/planner/waypoints/in-view?south=41.5&west=-88.5&north=42.5&east=-87.5");
   expect(answer.ok()).toBe(true);
   expect((await answer.json()).waypoints.map((w: { ident: string }) => w.ident)).toContain("VPBNG");
 
   // One waypoint, where it is: VPBNG, by Campbell. In close enough for
-  // the diamonds -- the wheel over C81, a level at a time.
+  // the waypoints' marks -- the wheel over C81, a level at a time.
   await page.route(url => url.pathname.endsWith("/waypoints/in-view"), route =>
     route.fulfill({ json: { waypoints: [{ ident: "VPBNG", lat: 42.2673, lon: -88.1311, description: "3 nm SW of Campbell" }] } }));
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
   await expect(departure).toBeVisible({ timeout: slow(30000) });
   const box = (await departure.boundingBox())!;
+  // C81 dragged to the middle of the map first: the route's fit leaves it
+  // near the screen's foot, and VPBNG, 4 nm south-west, was zoomed in to
+  // past it, under the bottom edge (2026-11-03).
+  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const middle = { x: map.x + map.width / 2, y: map.y + map.height / 2 };
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  for (let i = 0; i < 4; i++) {
+  await page.mouse.down();
+  await page.mouse.move(middle.x, middle.y, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  // A level at a time until it is drawn, from 10 as the GPS waypoints
+  // are, and on the screen: further in, 4 nm off C81 is off the map.
+  const inSight = async () => (await waypointMarks(page)).filter(w => w.x > map.x + 20 && w.x < map.x + map.width - 20 && w.y > map.y + 20 && w.y < map.y + map.height - 20);
+  for (let i = 0; i < 8 && !(await inSight()).length; i++) {
     await page.mouse.wheel(0, -60);
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(600);
   }
-  const diamond = page.locator(".leaflet-waypoints-pane .leaflet-marker-icon");
-  await expect(diamond).toHaveCount(1, { timeout: slow(20000) });
+  // The waypoint drawn, its magenta triangle and ident (WaypointsLayer).
+  await expect.poll(async () => (await inSight()).map(w => w.ident), { timeout: slow(20000) }).toEqual(["VPBNG"]);
   // Once the map has stopped: a tap as the zoom eases in landed where the
-  // diamond had been.
+  // mark had been.
   let was = "";
   await expect(async () => {
-    const now = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-map-pane, .leaflet-tile-container, .leaflet-waypoints-pane .leaflet-marker-icon")]
-      .map(el => el.style.transform).join("|"));
+    const now = JSON.stringify(await waypointMarks(page));
     const still = now === was;
     was = now;
     await page.waitForTimeout(300);
     expect(still).toBe(true);
   }).toPass({ timeout: slow(10_000) });
   // Tapped again until its card is up: on CI's runner the plan's stream
-  // finishing could move the map under the first tap (its card never
-  // came, now and then, on the phone's shard).
+  // finishing could move the map under the first tap.
   const add = page.getByTestId("waypoint-add-stop");
   await expect(async () => {
-    await diamond.click({ timeout: 2000 });
-    await expect(add).toBeVisible({ timeout: 2000 });
+    if (!(await add.isVisible())) {
+      const [mark] = await waypointMarks(page);
+      await page.mouse.click(mark!.x, mark!.y);
+    }
+    await expect(add).toBeVisible({ timeout: 3000 });
   }).toPass({ timeout: slow(15000) });
   // What it is beside its ident, where it is on a line of its own: in its
   // popup over the chart, or on a phone its card in the map's sheet

@@ -1,4 +1,4 @@
-"""vfr.route_options: the ways round storms, weather under the pilot's
+"""wingtip.route_options: the ways round storms, weather under the pilot's
 minimums, prohibited airspace and high ground, with the fuel stops."""
 
 import time
@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import Polygon
 
-from vfr import fixes, fuelstops, geo, route_options, sua, sun, terrain_detour, tfr, water, weather
+from wingtip import fixes, fuelstops, geo, route_options, sua, sun, terrain_detour, tfr, water, weather
 
 # On the equator a degree is about 60 nm either way.
 DEP = {"ident": "AAA", "lat": 0.0, "lon": 0.0}

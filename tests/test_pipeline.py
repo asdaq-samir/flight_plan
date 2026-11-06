@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from vfr.pipeline import _ensure_local_dir, _ensure_local_output_dir, _find_one, _publish, _reject_remote_uri
+from wingtip.pipeline import _ensure_local_dir, _ensure_local_output_dir, _find_one, _publish, _reject_remote_uri
 
 
 def test_reject_remote_uri_rejects_uri_style_paths():
@@ -82,8 +82,8 @@ def test_engineer_features_on_the_command_line_defaults_to_the_corridor_named(mo
     # command model-service suggests for another route rebuilt that one.
     import sys
 
-    from vfr import pipeline
-    from vfr.config import PROCESSED_DIR
+    from wingtip import pipeline
+    from wingtip.config import PROCESSED_DIR
 
     calls = []
     monkeypatch.setattr(pipeline, "engineer_features", lambda **kw: calls.append(kw))
@@ -99,7 +99,7 @@ def test_a_collected_corridor_is_kept_not_downloaded_again(tmp_path, monkeypatch
     """The retrain DAG collects first, and Overpass -- free and shared --
     answers 504s for minutes at a time: a retrain failed on one for a
     corridor that had not moved. Only a refresh downloads it again."""
-    from vfr import airports, osm, pipeline
+    from wingtip import airports, osm, pipeline
 
     out = tmp_path / "candidates.csv"
     out.write_text("osm_id\n1\n")
@@ -121,7 +121,7 @@ def test_a_collected_corridor_is_kept_not_downloaded_again(tmp_path, monkeypatch
 def test_collect_on_the_command_line_refreshes_only_when_asked(monkeypatch):
     import sys
 
-    from vfr import pipeline
+    from wingtip import pipeline
 
     calls = []
     monkeypatch.setattr(pipeline, "collect", lambda **kw: calls.append(kw))
@@ -147,7 +147,7 @@ def test_chart_picks_are_training_labels_and_win_over_older_ratings(tmp_path):
     within SAME_PLACE_NM; before this, training never read chart_picks."""
     import pandas as pd
 
-    from vfr import pipeline
+    from wingtip import pipeline
 
     features = tmp_path / "features_c81_kdlh.parquet"
     pd.DataFrame([
@@ -175,7 +175,7 @@ def test_chart_picks_are_training_labels_and_win_over_older_ratings(tmp_path):
 def test_the_holdout_is_the_same_landmarks_every_run():
     import pandas as pd
 
-    from vfr import pipeline
+    from wingtip import pipeline
 
     df = pd.DataFrame({"osm_id": [str(i) for i in range(200)], "osm_type": ["node"] * 200})
     first, again = pipeline.holdout_split(df), pipeline.holdout_split(df.sample(frac=1, random_state=1))
@@ -186,7 +186,7 @@ def test_the_holdout_is_the_same_landmarks_every_run():
 def _labelled(tmp_path, n: int):
     import pandas as pd
 
-    from vfr import pipeline
+    from wingtip import pipeline
 
     features = tmp_path / "features.parquet"   # no route in the name: no chart picks join
     pd.DataFrame([
@@ -203,7 +203,7 @@ def test_every_trainer_splits_the_labelled_table_one_way(tmp_path):
     """Four trainers each built this themselves, and Spark drew its own
     random split: the comparison set scores on different landmarks side by
     side."""
-    from vfr import pipeline
+    from wingtip import pipeline
 
     features, labels = _labelled(tmp_path, 60)
     split = pipeline.labeled_split(features, labels, min_labeled_rows=30)
@@ -216,7 +216,7 @@ def test_every_trainer_splits_the_labelled_table_one_way(tmp_path):
 
 
 def test_too_few_labels_is_refused_before_any_trainer_runs(tmp_path):
-    from vfr import pipeline
+    from wingtip import pipeline
 
     features, labels = _labelled(tmp_path, 10)
     with pytest.raises(pipeline.InsufficientLabelsError, match="10 of the 30 ratings training needs"):
@@ -228,7 +228,7 @@ def test_the_readiness_says_what_became_of_each_rating(tmp_path):
     their ratings the trainer can use and why the rest cannot."""
     import pandas as pd
 
-    from vfr import pipeline
+    from wingtip import pipeline
 
     features = tmp_path / "features_c81_kdlh.parquet"
     pd.DataFrame([

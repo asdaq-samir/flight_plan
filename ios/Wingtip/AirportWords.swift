@@ -3,22 +3,16 @@ import Foundation
 /// How an airport's card and the airspace card write what the planner
 /// sends, in the web app's words (lib/frequencies, lib/advisories,
 /// lib/airspace, lib/stopServices, features/plan/format): no figure is
-/// worked out here, only written.
+/// worked out here, only written. The FAA's wording and the runway rules
+/// are the shared engine's (crate::wording, crate::runway), one copy with
+/// the web app; the formatting is the app's.
 enum AirportWords {
     /// A whole number grouped as pilots read it: "10,162", whatever the
-    /// phone's region, as the web app writes it.
-    static func grouped(_ n: Double) -> String {
-        let magnitude = Int(abs(n).rounded())
-        var digits = String(magnitude)
-        var at = digits.count - 3
-        while at > 0 {
-            digits.insert(",", at: digits.index(digits.startIndex, offsetBy: at))
-            at -= 3
-        }
-        return n < 0 && magnitude > 0 ? "-" + digits : digits
-    }
+    /// phone's region, as the web app writes it (Formats, whose locale
+    /// is fixed for that).
+    static func grouped(_ n: Double) -> String { Formats.grouped(n) }
 
-    static func feet(_ ft: Double?) -> String { ft.map { "\(grouped($0)) ft" } ?? "—" }
+    static func feet(_ ft: Double?) -> String { Formats.feet(ft) }
 
     /// A figure as sent, without a ".0" it does not have: 3 and 1.5.
     static func plain(_ x: Double) -> String {
@@ -27,9 +21,7 @@ enum AirportWords {
 
     /// A figure to a tenth, without a ".0" it does not have: "3", "1.5"
     /// -- a tolerance, a handbook figure in its field.
-    static func tenths(_ x: Double) -> String {
-        x == x.rounded() && abs(x) < 1e9 ? String(Int(x)) : String(format: "%.1f", x)
-    }
+    static func tenths(_ x: Double) -> String { Formats.tenths(x) }
 
     /// A wind's direction as a pilot writes it: three figures, north 360.
     static func bearing(_ deg: Double) -> String {
@@ -60,16 +52,16 @@ enum AirportWords {
     // MARK: The nav log's figures
 
     /// A distance to a tenth, "12.3 nm", as the nav log gives it.
-    static func nm(_ x: Double) -> String { String(format: "%.1f nm", x) }
+    static func nm(_ x: Double) -> String { Formats.nm(x) }
 
     /// Fuel to a tenth, "8.4 gal".
-    static func gal(_ x: Double) -> String { String(format: "%.1f gal", x) }
+    static func gal(_ x: Double) -> String { Formats.gal(x) }
 
     /// A speed in whole knots, "112 kt".
-    static func kt(_ x: Double) -> String { String(format: "%.0f kt", x) }
+    static func kt(_ x: Double) -> String { Formats.kt(x) }
 
     /// A course or heading as the nav log prints it, three figures, "093°".
-    static func degrees(_ x: Double) -> String { String(format: "%03.0f°", x) }
+    static func degrees(_ x: Double) -> String { Formats.degrees(x) }
 
     /// A point as the planner, the app's links and Maps take one,
     /// "46.84211,-92.19358": five places, about a metre.
@@ -82,7 +74,10 @@ enum AirportWords {
     /// reads them), "Not reported" with no speed.
     static func windLine(dirTrueDeg: Double?, speedKt: Double?, gustKt: Double?) -> String {
         guard let speedKt else { return "Not reported" }
-        if speedKt == 0 { return "Calm" }
+        // A speed of nothing is calm, as 00000KT codes it (AIM 7-1-28): the
+        // engine's `wind_calm`.
+        let calm: Bool? = try? Engine.call("wind_calm", json: ["speed_kt": speedKt])
+        if calm == true { return "Calm" }
         let from = dirTrueDeg.map(bearing) ?? "Variable"
         let gust = gustKt.map { $0 > 0 ? ", gusts \(Int($0.rounded()))" : "" } ?? ""
         return "\(from) at \(Int(speedKt.rounded())) kt\(gust)"
@@ -132,11 +127,11 @@ enum AirportWords {
         return names[code] ?? surface.lowercased()
     }
 
-    /// The runway's number as the sectional prints it: "05" is 5.
+    /// The runway's number as the sectional prints it: "05" is 5 (the
+    /// engine's `gonogo_runway_number`).
     static func runwayNumber(_ ident: String) -> String {
-        var s = Substring(ident)
-        while s.count > 1, s.first == "0", s.dropFirst().first?.isNumber == true { s = s.dropFirst() }
-        return String(s)
+        let number: String? = try? Engine.call("gonogo_runway_number", ["ident": ident])
+        return number ?? ident
     }
 
     /// A runway's line under its name: surface, lights, closed, and any
@@ -152,10 +147,12 @@ enum AirportWords {
     }
 
     /// The reported wind on the end it favours, as the planner worked it
-    /// out (vfr.runway_wind): "Favors 27: 10 kt headwind, 6 kt crosswind
-    /// from the right, 9 in the gusts"; a calm one only for a speed of 0.
+    /// out (wingtip.runway_wind): "Favors 27: 10 kt headwind, 6 kt crosswind
+    /// from the right, 9 in the gusts"; a calm one only for a speed of 0
+    /// (the engine's `runway_calm`).
     static func runwayWind(_ wind: RunwayWind) -> String {
-        if wind.headwindKt == 0, wind.crosswindKt == 0, wind.gustCrosswindKt == nil { return "Calm on \(wind.end)" }
+        let calm: Bool? = try? Engine.call("runway_calm", ["wind": wind], encoder: Planner.snakeEncoder)
+        if calm == true { return "Calm on \(wind.end)" }
         let along = wind.headwindKt >= 0 ? "\(plain(wind.headwindKt)) kt headwind" : "\(plain(-wind.headwindKt)) kt tailwind"
         let kt = abs(wind.crosswindKt)
         let gust = wind.gustCrosswindKt.map(abs)
@@ -166,37 +163,18 @@ enum AirportWords {
 
     // MARK: Radio
 
-    enum FrequencyKind: String { case tower, ground, weather, approach, traffic, other }
-
-    static let frequencyKinds: [String: FrequencyKind] = [
-        "TWR": .tower,
-        "GND": .ground, "CLD": .ground, "CLNC": .ground, "CD": .ground, "GCCD": .ground, "GND/CD": .ground,
-        "ATIS": .weather, "AWOS": .weather, "ASOS": .weather,
-        "APP": .approach, "APCH": .approach, "DEP": .approach, "A/D": .approach, "APP/DEP": .approach,
-        "CTAF": .traffic, "UNIC": .traffic, "UNICOM": .traffic, "MULT": .traffic, "MULTICOM": .traffic,
-    ]
-
-    static let frequencyNames: [String: String] = [
-        "TWR": "Tower", "GND": "Ground", "CLD": "Clearance delivery", "CLNC": "Clearance delivery", "CD": "Clearance delivery",
-        "GCCD": "Ground and clearance", "GND/CD": "Ground and clearance",
-        "ATIS": "ATIS", "AWOS": "AWOS", "ASOS": "ASOS",
-        "APP": "Approach", "APCH": "Approach", "DEP": "Departure", "A/D": "Approach and departure", "APP/DEP": "Approach and departure",
-        "CTAF": "CTAF", "UNIC": "UNICOM", "UNICOM": "UNICOM", "MULT": "MULTICOM", "MULTICOM": "MULTICOM",
-        "RDO": "Radio", "FSS": "Flight service", "RCO": "Remote outlet",
-        "PTD": "Pilot to dispatch", "OPS": "Operations", "EMR": "Emergency", "AFIS": "Flight information",
-    ]
+    enum FrequencyKind: String, Decodable { case tower, ground, weather, approach, traffic, other }
 
     /// A frequency named in words (TWR is "Tower"), its kind for the
     /// row's glyph, and what OurAirports says of it in sentence case where
-    /// that adds to the name ("Minneapolis APP/DEP").
+    /// that adds to the name ("Minneapolis APP/DEP"): the engine's
+    /// `frequency_line`. The type as it came where the engine cannot
+    /// answer.
     static func frequencyLine(type: String?, description: String?) -> (name: String, kind: FrequencyKind, detail: String?) {
-        let code = (type ?? "").trimmingCharacters(in: .whitespaces).uppercased()
-        let words = description.map { faaWords($0.trimmingCharacters(in: .whitespaces)) } ?? ""
-        let named = frequencyNames[code]
-        let name = named ?? (words.isEmpty ? (code.isEmpty ? "Frequency" : code) : words)
-        func said(_ text: String) -> String { text.uppercased().filter { $0.isLetter || $0.isNumber } }
-        let adds = !words.isEmpty && named != nil && said(words) != said(code) && said(words) != said(named ?? "")
-        return (name, frequencyKinds[code] ?? .other, adds ? words : nil)
+        struct Line: Decodable { let name: String; let kind: FrequencyKind; let detail: String? }
+        let line: Line? = try? Engine.call("frequency_line", json: ["type": type, "description": description])
+        guard let line else { return (type ?? "Frequency", .other, nil) }
+        return (line.name, line.kind, line.detail)
     }
 
     /// A frequency as pilots write it: 120.7, 122.95, 124.475.
@@ -208,63 +186,32 @@ enum AirportWords {
 
     // MARK: The FAA's words
 
-    static let codes: Set<String> = [
-        "NOTAM", "TFR", "MOA", "ATC", "ATCAA", "ARTCC", "FAA", "FSS", "DOD", "US", "USA",
-        "VFR", "IFR", "MVFR", "LIFR", "AGL", "MSL", "SFC", "UTC", "FL", "NM", "SM",
-        "AIRMET", "SIGMET", "PIREP", "METAR", "TAF", "LLWS", "ICG", "TURB",
-        "CIG", "BLW", "VIS", "BR", "FG", "HZ", "FU", "DU", "SA", "RA", "SN", "DZ", "TS", "PCPN", "MTN", "MTNS", "OBSC", "OBSCN",
-        "CLDS", "BKN", "OVC", "SCT", "FEW", "N", "S", "E", "W", "NE", "NW", "SE", "SW",
-        "APP", "DEP", "TWR", "GND", "CTAF", "UNICOM", "ATIS", "AWOS", "ASOS", "CLNC", "DEL", "RDO", "ANG",
-    ]
-    static let days = ["MON": "Mon", "TUE": "Tue", "WED": "Wed", "THU": "Thu", "FRI": "Fri", "SAT": "Sat", "SUN": "Sun"]
-
     /// The FAA's capitalised text in sentence case, its codes kept:
     /// "INTERMITTENT BY NOTAM 4 HOURS IN ADVANCE" reads "Intermittent by
     /// NOTAM 4 hours in advance"; a class as the AIM writes it, "Class B"
     /// (AIM 3-2-1). Text with any lower case is someone's own writing and
-    /// is left as it is; raw reports never come here.
+    /// is left as it is; raw reports never come here. The engine's
+    /// `faa_words`; the text as it came where the engine cannot answer.
     static func faaWords(_ text: String?) -> String {
         guard let text, !text.isEmpty else { return "" }
-        if text.range(of: "[a-z]", options: .regularExpression) != nil { return text }
-        let ns = text as NSString
-        let words = try! NSRegularExpression(pattern: #"\bCLASS ([A-G])\b|[A-Z]+-\d[A-Z0-9]*|[A-Z0-9]+"#)
-        var out = ""
-        var last = 0
-        for match in words.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
-            out += ns.substring(with: NSRange(location: last, length: match.range.location - last))
-            let word = ns.substring(with: match.range)
-            if match.range(at: 1).location != NSNotFound {
-                out += "Class " + ns.substring(with: match.range(at: 1))
-            } else if word.rangeOfCharacter(from: .decimalDigits) != nil || codes.contains(word) {
-                out += word
-            } else if word == "NOTAMS" {
-                out += "NOTAMs"
-            } else {
-                out += days[word] ?? word.lowercased()
-            }
-            last = match.range.location + match.range.length
-        }
-        out += ns.substring(from: last)
-        // A sentence's first letter, and after a full stop.
-        let sentence = NSMutableString(string: out)
-        let starts = try! NSRegularExpression(pattern: #"(^|[.!?]\s+)([a-z])"#)
-        for match in starts.matches(in: out, range: NSRange(location: 0, length: sentence.length)).reversed() {
-            let letter = match.range(at: 2)
-            sentence.replaceCharacters(in: letter, with: sentence.substring(with: letter).uppercased())
-        }
-        return sentence as String
+        let words: String? = try? Engine.call("faa_words", ["text": text])
+        return words ?? text
     }
 
-    /// A name the FAA writes in capitals, written as a name is.
+    /// A name the FAA writes in capitals, written as a name is ("O'Hare"):
+    /// the engine's `title_case`.
     static func titleCase(_ text: String) -> String {
-        text.lowercased().capitalized
+        let words: String? = try? Engine.call("title_case", ["text": text])
+        return words ?? text
     }
 
     // MARK: Airspace
 
-    /// "CHICAGO, DUPAGE AIRPORT CLASS D" as "Chicago, Dupage Airport".
+    /// "CHICAGO, DUPAGE AIRPORT CLASS D" as "Chicago, Dupage Airport":
+    /// the engine's `short_airspace_name`.
     static func shortAirspaceName(_ name: String) -> String {
-        titleCase(name.replacingOccurrences(of: #"\s+CLASS\s+[A-G]\d?$"#, with: "", options: [.regularExpression, .caseInsensitive]))
+        let short: String? = try? Engine.call("short_airspace_name", ["name": name])
+        return short ?? name
     }
 
     /// 91.155's minimums in a line, as the planner gives them: "3 sm, 500
@@ -285,36 +232,31 @@ enum AirportWords {
     }
 
     /// A special-use area's floor and ceiling as the FAA's file gives
-    /// them: SFC, a flight level (STD), feet AGL or MSL.
-    static func suaAltitudes(_ area: SpecialUse) -> String {
-        func height(_ ft: Double?, _ ref: String?, bottom: Bool) -> String {
-            if ref == "SFC" || (bottom && ft == 0) { return "Surface" }
-            guard let ft else { return "unstated" }
-            if ref == "STD" { return "FL\(Int((ft / 100).rounded()))" }
-            return "\(grouped(ft)) ft\(ref == "AGL" ? " AGL" : "")"
-        }
-        return "\(height(area.floorFt, area.floorRef, bottom: true)) to \(height(area.ceilingFt, area.ceilingRef, bottom: false))"
+    /// them: SFC, a flight level (STD, 14 CFR 1.1), feet AGL or MSL --
+    /// "Surface to 18,000 ft", or "the surface" in a sentence's middle.
+    /// The engine's `sua_altitudes`.
+    static func suaAltitudes(_ area: SpecialUse, midSentence: Bool = false) -> String {
+        let words: String? = try? Engine.call("sua_altitudes", json: [
+            "floor_ft": area.floorFt, "floor_ref": area.floorRef, "ceiling_ft": area.ceilingFt, "ceiling_ref": area.ceilingRef,
+            "mid_sentence": midSentence,
+        ])
+        return words ?? ""
     }
 
     // MARK: Services
 
     /// NASR's fuel codes as the pump is labelled: the jet fuels by name,
-    /// the rest (100LL, UL94, MOGAS) as the codes they are.
+    /// the rest (100LL, UL94, MOGAS) as the codes they are (the engine's
+    /// `fuel_names`).
     static func fuelNames(_ types: [String]) -> String {
-        let names = ["A": "Jet A", "A+": "Jet A+", "A1": "Jet A-1", "A1+": "Jet A-1+"]
-        return types.map { names[$0] ?? $0 }.joined(separator: ", ")
+        let names: String? = try? Engine.call("fuel_names", ["types": types])
+        return names ?? types.joined(separator: ", ")
     }
 
     /// How far a place is from the field: the minutes' walk where it is a
     /// walk, else statute miles.
     static func away(_ place: NearbyPlace) -> String {
         if let walk = place.walkMin { return "\(walk) min walk" }
-        return String(format: "%.1f mi", Double(place.distanceM) / 1609.344)
-    }
-}
-
-private extension String {
-    func leftPadded(to width: Int) -> String {
-        count >= width ? self : String(repeating: "0", count: width - count) + self
+        return "\(Formats.number(Double(place.distanceM) / 1609.344, decimals: 1)) mi"
     }
 }

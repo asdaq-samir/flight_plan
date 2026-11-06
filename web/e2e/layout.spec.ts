@@ -84,7 +84,9 @@ test.describe("/app/plan", () => {
     // Share among the route's chips half way.
     await openPanel(page);
     await sideDrawer(page).getByTestId("share-route").click();
-    await expect(page.getByTestId("export-gpx")).toBeVisible();
+    // The route's own link: the GPX file this read went with the SD-card
+    // and USB files (the owner, 2026-11-02, "No need for sd card or usb").
+    await expect(page.getByTestId("share-link")).toBeVisible();
     await page.keyboard.press("Escape");
 
     await page.reload();

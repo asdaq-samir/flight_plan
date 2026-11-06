@@ -14,7 +14,7 @@ import { useOwnShip, type Fix } from "./ownShip";
  * What is ahead of own ship in the air, as an EFB says it over the map:
  * the Class B, C and D, special-use areas and TFRs the track goes into in
  * the next five minutes, and the ground or an obstacle it comes within
- * 500 ft of in the next minute -- the planner's (vfr.alerts), asked from
+ * 500 ft of in the next minute -- the planner's (wingtip.alerts), asked from
  * the GPS's position, track, ground speed, altitude and the vertical
  * speed seen over the last fixes. Advisory, from a phone: not a TAWS.
  */

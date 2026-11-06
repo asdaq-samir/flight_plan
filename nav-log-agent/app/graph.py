@@ -3,9 +3,9 @@
 that briefing back into memory for next time.
 
 The nav log is the planner's own, fetched from /api/plan through
-vfr.planner_client: the same checkpoints, per-leg altitudes, climbs and
+wingtip.planner_client: the same checkpoints, per-leg altitudes, climbs and
 fuel check a pilot sees on the page. This graph used to assemble its
-own from vfr's pieces -- checkpoints, then one altitude for the whole
+own from wingtip's pieces -- checkpoints, then one altitude for the whole
 route, then legs between the checkpoints alone -- and briefed a nav log
 nobody else saw: 20 legs where the planner flew 22, no legs to or from
 the airports, no climbs.
@@ -21,7 +21,7 @@ import anthropic
 from langgraph.config import get_stream_writer
 from langgraph.graph import END, START, StateGraph
 
-from vfr import narrative, planner_client
+from wingtip import narrative, planner_client
 
 from . import db
 
@@ -29,7 +29,7 @@ from . import db
 # briefing, three times out of three, for about $0.001 each, where
 # claude-sonnet-5 spent $0.009 and wrote nothing (below).
 CLAUDE_MODEL = os.environ.get("NAV_LOG_AGENT_MODEL", "claude-haiku-5-5")
-# A briefing a pilot reads in a minute (vfr.narrative asks for under 200
+# A briefing a pilot reads in a minute (wingtip.narrative asks for under 200
 # words). The model thinks before it writes, and the thinking counts
 # toward this cap: at 512, claude-sonnet-5 thought until the cap and
 # returned no text at all (stop reason max_tokens), so the briefing fell
@@ -51,7 +51,7 @@ class NavLogState(TypedDict, total=False):
     destination_ident: str
     altitude_ft: float  # optional input override; the planner's own choice if omitted
     aircraft_name: str  # optional; the planner's default airplane if omitted
-    # Optional, what the pilot planned with (see vfr.planner_client.plan):
+    # Optional, what the pilot planned with (see wingtip.planner_client.plan):
     # the departure time, the plan flown, and their own airplane's numbers.
     depart: str
     altitude_choice: str
@@ -63,7 +63,7 @@ class NavLogState(TypedDict, total=False):
     cruise_power_pct: float
     selected_checkpoints: list[dict]  # the checkpoints the legs fly between
     altitude_selection: dict
-    flown: str  # whose altitudes: a plan's name, or "custom" (vfr.narrative.NarrativeRequest)
+    flown: str  # whose altitudes: a plan's name, or "custom" (wingtip.narrative.NarrativeRequest)
     legs: list[dict]
     totals: dict
     similar_briefings: list[dict]
@@ -82,7 +82,7 @@ def fetch_nav_log(state: NavLogState) -> dict:
     """Graph entry node: the route's nav log from planning-service. A
     route the planner cannot plan -- an unknown ident, a corridor nobody
     has collected, no legal altitude without a typed one -- raises
-    vfr.planner_client.PlannerError carrying the planner's own reason.
+    wingtip.planner_client.PlannerError carrying the planner's own reason.
     """
     plan = planner_client.plan(
         state["departure_ident"], state["destination_ident"], state.get("altitude_ft"), state.get("aircraft_name"),
@@ -107,7 +107,7 @@ def retrieve_memory(state: NavLogState) -> dict:
 
 
 def briefing_prompt(state: NavLogState) -> str:
-    """The prompt both agents write from (vfr.narrative), with this
+    """The prompt both agents write from (wingtip.narrative), with this
     agent's own memory of similar past routes as precedent."""
     return narrative.briefing_prompt(
         state["departure_ident"], state["destination_ident"], state["altitude_ft"],

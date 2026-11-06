@@ -145,6 +145,87 @@
         "required" : [ "identityToken" ],
         "type" : "object"
       },
+      "ApproachLessonDto" : {
+        "properties" : {
+          "airportIdent" : {
+            "type" : "string"
+          },
+          "briefedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "cycle" : {
+            "type" : [ "string", "null" ]
+          },
+          "dueOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "fixNotes" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
+          },
+          "flights" : {
+            "items" : {
+              "$ref" : "#/components/schemas/FlightSummaryDto"
+            },
+            "type" : "array"
+          },
+          "flownAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "id" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "instructorName" : {
+            "type" : "string"
+          },
+          "procedureId" : {
+            "type" : "string"
+          },
+          "procedureName" : {
+            "type" : "string"
+          },
+          "quizAnswers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/QuizAnswerDto"
+            },
+            "type" : "array"
+          },
+          "quizAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "quizOf" : {
+            "format" : "int32",
+            "type" : [ "integer", "null" ]
+          },
+          "status" : {
+            "type" : "string"
+          },
+          "studentId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "studentName" : {
+            "type" : "string"
+          },
+          "updatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "airportIdent", "briefedAt", "createdAt", "cycle", "dueOn", "fixNotes", "flights", "flownAt", "id", "instructorName", "procedureId", "procedureName", "quizAnswers", "quizAt", "quizOf", "status", "studentId", "studentName", "updatedAt" ],
+        "type" : "object"
+      },
       "Approval" : {
         "properties" : {
           "userCode" : {
@@ -193,6 +274,71 @@
           }
         },
         "required" : [ "flightId", "flightOn", "instructorId", "makeModel", "note" ],
+        "type" : "object"
+      },
+      "AssignLessonRequest" : {
+        "properties" : {
+          "airportIdent" : {
+            "minLength" : 1,
+            "pattern" : "^[A-Za-z0-9]{2,5}$",
+            "type" : "string"
+          },
+          "cycle" : {
+            "pattern" : "^[0-9]{4,8}$",
+            "type" : [ "string", "null" ]
+          },
+          "dueOn" : {
+            "format" : "date",
+            "type" : [ "string", "null" ]
+          },
+          "fixNotes" : {
+            "additionalProperties" : {
+              "type" : "string"
+            },
+            "type" : "object"
+          },
+          "procedureId" : {
+            "minLength" : 1,
+            "pattern" : "^[A-Za-z0-9-]{1,6}$",
+            "type" : "string"
+          },
+          "procedureName" : {
+            "maxLength" : 80,
+            "minLength" : 0,
+            "type" : "string"
+          }
+        },
+        "required" : [ "airportIdent", "cycle", "dueOn", "fixNotes", "procedureId", "procedureName" ],
+        "type" : "object"
+      },
+      "BriefingChangeDto" : {
+        "properties" : {
+          "sources" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "sources", "text" ],
+        "type" : "object"
+      },
+      "BriefingSourceDto" : {
+        "properties" : {
+          "id" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          },
+          "text" : {
+            "type" : "string"
+          }
+        },
+        "required" : [ "id", "label", "text" ],
         "type" : "object"
       },
       "Capabilities" : {
@@ -928,6 +1074,40 @@
         "required" : [ "aircraftTailNumber", "altitudes", "createdAt", "cruiseAltitudeFt", "departureIdent", "destinationIdent", "id", "picks", "plannedFor", "risk", "stops", "totalDistanceNm", "totalEteMin", "totalFuelGal" ],
         "type" : "object"
       },
+      "FlightWatchDto" : {
+        "properties" : {
+          "changedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "changes" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BriefingChangeDto"
+            },
+            "type" : "array"
+          },
+          "checkedAt" : {
+            "format" : "date-time",
+            "type" : [ "string", "null" ]
+          },
+          "departAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "flightId" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "sources" : {
+            "items" : {
+              "$ref" : "#/components/schemas/BriefingSourceDto"
+            },
+            "type" : "array"
+          }
+        },
+        "required" : [ "changedAt", "changes", "checkedAt", "departAt", "flightId", "sources" ],
+        "type" : "object"
+      },
       "FullNameRequest" : {
         "properties" : {
           "fullName" : {
@@ -1167,6 +1347,25 @@
           }
         },
         "required" : [ "commit", "device", "metrics", "page" ],
+        "type" : "object"
+      },
+      "LessonProgressRequest" : {
+        "properties" : {
+          "briefed" : {
+            "type" : "boolean"
+          },
+          "flown" : {
+            "type" : "boolean"
+          },
+          "quiz" : {
+            "anyOf" : [ {
+              "$ref" : "#/components/schemas/Quiz"
+            }, {
+              "type" : "null"
+            } ]
+          }
+        },
+        "required" : [ "briefed", "flown", "quiz" ],
         "type" : "object"
       },
       "LogbookEntryDto" : {
@@ -1430,6 +1629,45 @@
           }
         },
         "required" : [ "developer", "displayName", "email", "fullName", "homeBase", "id", "phone" ],
+        "type" : "object"
+      },
+      "Quiz" : {
+        "properties" : {
+          "answers" : {
+            "items" : {
+              "$ref" : "#/components/schemas/QuizAnswerDto"
+            },
+            "maxItems" : 40,
+            "minItems" : 0,
+            "type" : "array"
+          },
+          "of" : {
+            "format" : "int32",
+            "maximum" : 40,
+            "minimum" : 1,
+            "type" : "integer"
+          }
+        },
+        "required" : [ "answers", "of" ],
+        "type" : "object"
+      },
+      "QuizAnswerDto" : {
+        "properties" : {
+          "chosen" : {
+            "maxLength" : 200,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "question" : {
+            "maxLength" : 300,
+            "minLength" : 0,
+            "type" : "string"
+          },
+          "right" : {
+            "type" : "boolean"
+          }
+        },
+        "required" : [ "chosen", "question", "right" ],
         "type" : "object"
       },
       "RemindersDto" : {
@@ -1981,6 +2219,12 @@
             },
             "type" : "array"
           },
+          "lessons" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ApproachLessonDto"
+            },
+            "type" : "array"
+          },
           "reviews" : {
             "items" : {
               "$ref" : "#/components/schemas/CrossCountryReviewDto"
@@ -1994,7 +2238,7 @@
             "type" : "array"
           }
         },
-        "required" : [ "endorsements", "experience", "fullName", "instructors", "kinds", "knowledgeTestCodes", "reviews", "signed" ],
+        "required" : [ "endorsements", "experience", "fullName", "instructors", "kinds", "knowledgeTestCodes", "lessons", "reviews", "signed" ],
         "type" : "object"
       },
       "VorCheckDto" : {
@@ -2069,6 +2313,16 @@
           }
         },
         "required" : [ "interval", "status" ],
+        "type" : "object"
+      },
+      "WatchFlightRequest" : {
+        "properties" : {
+          "departAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        },
+        "required" : [ "departAt" ],
         "type" : "object"
       }
     }
@@ -2939,7 +3193,7 @@
         "tags" : [ "flight-controller" ]
       },
       "get" : {
-        "operationId" : "get_4",
+        "operationId" : "get_5",
         "parameters" : [ {
           "in" : "path",
           "name" : "id",
@@ -3035,6 +3289,86 @@
           }
         },
         "tags" : [ "flight-controller" ]
+      }
+    },
+    "/api/flights/{id}/watch" : {
+      "delete" : {
+        "operationId" : "unwatch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-watch-controller" ]
+      },
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightWatchDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-watch-controller" ]
+      },
+      "post" : {
+        "operationId" : "watch",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/WatchFlightRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FlightWatchDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "flight-watch-controller" ]
       }
     },
     "/api/instructor" : {
@@ -3237,6 +3571,113 @@
           },
           "required" : true
         },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/students/{studentId}/flights/{flightId}/track" : {
+      "get" : {
+        "operationId" : "reviewedTrack",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "studentId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "flightId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrackDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/students/{studentId}/lessons" : {
+      "post" : {
+        "operationId" : "assignLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "studentId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AssignLessonRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "instructor-controller" ]
+      }
+    },
+    "/api/instructor/students/{studentId}/lessons/{id}" : {
+      "delete" : {
+        "operationId" : "removeLesson",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "studentId",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        }, {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
         "responses" : {
           "200" : {
             "content" : {
@@ -3778,7 +4219,7 @@
     },
     "/api/subscription" : {
       "get" : {
-        "operationId" : "get_3",
+        "operationId" : "get_4",
         "responses" : {
           "200" : {
             "content" : {
@@ -3817,7 +4258,7 @@
     },
     "/api/training" : {
       "get" : {
-        "operationId" : "get_2",
+        "operationId" : "get_3",
         "responses" : {
           "200" : {
             "content" : {
@@ -3957,6 +4398,43 @@
             "application/json" : {
               "schema" : {
                 "$ref" : "#/components/schemas/KnowledgeTestRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/TrainingDto"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "training-controller" ]
+      }
+    },
+    "/api/training/lessons/{id}/progress" : {
+      "post" : {
+        "operationId" : "lessonProgress",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "id",
+          "required" : true,
+          "schema" : {
+            "format" : "int64",
+            "type" : "integer"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/LessonProgressRequest"
               }
             }
           },

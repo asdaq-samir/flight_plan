@@ -1,8 +1,8 @@
-"""vfr.notams: the FAA NOTAM System's FNS messages kept, from messages in
+"""wingtip.notams: the FAA NOTAM System's FNS messages kept, from messages in
 the feed's own shape (AIXM 5.1 AIXMBasicMessage, one Event's NOTAM each)."""
 import pytest
 
-from vfr import notams
+from wingtip import notams
 
 #: 2026-10-20 02:05Z, a few minutes after the messages below.
 NOW = 1792461900
@@ -92,7 +92,7 @@ def test_an_icao_notam_is_ended_by_the_one_that_cancels_or_replaces_it():
     lights = dict(location="BJC", classification="INTL", icao_location="KBJC", series="A", start="202610200202")
     notams.heard(message(**lights, number="1643", text="SVC PCL ALL U/S EXC LOW INTST ON CONS", end="202610230202",
                          icao="A1643/26 NOTAMN\nQ) KZDV/QLGXX\nA) KBJC\nE) SVC PCL ALL U/S EXC LOW INTST ON CONS"), now=NOW)
-    assert [n["id"] for n in notams.at_fields(["KBJC"], now=NOW)] == ["A1643/26"]
+    assert [n["id"] for n in notams.at_fields(["KBJC"], now=NOW)] == ["KBJC A1643/26"]
     notams.heard(message(**lights, number="1644", kind="C", text="A1644/26 NOTAMC A1643/26\nE) CANCELED",
                          end="202610230202", icao="A1644/26 NOTAMC A1643/26\nE) CANCELED"), now=NOW)
     # Cancelled, and the cancellation is no NOTAM of its own.
@@ -102,7 +102,7 @@ def test_an_icao_notam_is_ended_by_the_one_that_cancels_or_replaces_it():
     notams.heard(message(**lights, number="1646", kind="R", text="SVC PCL ALL U/S", end="202610211500",
                          icao="A1646/26 NOTAMR A1645/26\nA) KBJC\nE) SVC PCL ALL U/S"), now=NOW)
     [kept] = notams.at_fields(["KBJC"], now=NOW)
-    assert (kept["id"], kept["raw"]) == ("A1646/26", "A1646/26 NOTAMR A1645/26\nA) KBJC\nE) SVC PCL ALL U/S")
+    assert (kept["id"], kept["raw"]) == ("KBJC A1646/26", "A1646/26 NOTAMR A1645/26\nA) KBJC\nE) SVC PCL ALL U/S")
 
 
 def test_one_notam_sent_in_both_forms_is_given_once_in_the_domestic_words():
@@ -124,10 +124,65 @@ def test_the_worlds_international_notams_are_left_out_and_the_us_ones_kept():
                      series="A", number="2001", classification="INTL", icao_location="PANC",
                      icao="A2001/26 NOTAMN\nA) PANC\nE) RWY 07L/25R CLSD")
     assert notams.heard(alaska, now=NOW) == 1
-    assert [n["id"] for n in notams.at_fields(["PANC"], now=NOW)] == ["A2001/26"]
+    assert [n["id"] for n in notams.at_fields(["PANC"], now=NOW)] == ["PANC A2001/26"]
 
 
 def test_anything_but_a_notam_message_keeps_nothing():
     assert notams.heard("<not xml", now=NOW) == 0
     assert notams.heard('<a:AIXMBasicMessage xmlns:a="http://www.aixm.aero/schema/5.1/message"/>', now=NOW) == 0
     assert notams.at_fields([], now=NOW) == []
+
+
+def military(base, location, number, words, kind="N", names=None):
+    """A military NOTAM as FNS sends one: the base's own M series, its
+    domestic form led by the base ("!KEDG M0061/26 EDG ...")."""
+    head = f"M{number}/26 NOTAM{kind}" + (f" {names}" if names else "")
+    return message(location=location, text=words, start="202610222101", end="202701122359", series="M", number=number,
+                   kind=kind, classification="MIL", icao_location=base,
+                   domestic=f"!{base} M{number}/26 {location} {words} 2610222101-2701122359",
+                   icao=f"{head}\nA) {base}\nE) {words}")
+
+
+def test_two_bases_notams_of_one_number_are_kept_apart():
+    # The real pair (2026-11-02): Edgewood's M0061/26 was written over
+    # Phillips Army Airfield's, one row with Phillips's place and Edgewood's words.
+    notams.heard(military("KAPG", "APG", "0061", "RWY 04/22 CLSD"), now=NOW)
+    notams.heard(military("KEDG", "EDG", "0061", "RWY 01/19 REDL U/S AND INTERMITTENT"), now=NOW)
+    [apg] = notams.at_fields(["KAPG"], now=NOW)
+    [edg] = notams.at_fields(["KEDG"], now=NOW)
+    assert (apg["id"], apg["text"]) == ("KAPG M0061/26", "RWY 04/22 CLSD")
+    assert (edg["id"], edg["text"]) == ("KEDG M0061/26", "RWY 01/19 REDL U/S AND INTERMITTENT")
+    # A replacement at one base ends its own, not the other's.
+    notams.heard(military("KEDG", "EDG", "0070", "RWY 01/19 REDL U/S", kind="R", names="M0061/26"), now=NOW)
+    assert [n["id"] for n in notams.at_fields(["KEDG"], now=NOW)] == ["KEDG M0070/26"]
+    assert [n["id"] for n in notams.at_fields(["KAPG"], now=NOW)] == ["KAPG M0061/26"]
+
+
+def test_a_store_kept_by_number_alone_is_kept_by_place_and_number(tmp_path):
+    import sqlite3
+
+    notams.reset()
+    old = sqlite3.connect(notams.STORE)
+    old.executescript("""
+        CREATE TABLE notams (
+            id TEXT PRIMARY KEY, icao_id TEXT, location TEXT, icao_location TEXT,
+            classification TEXT, issued TEXT, starts TEXT, ends TEXT, estimated INTEGER,
+            schedule TEXT, text TEXT, raw TEXT, ended INTEGER DEFAULT 0, heard REAL);
+        CREATE TABLE heard (since REAL);
+    """)
+    rows = [
+        # Edgewood's words over Phillips's place, as the store held it.
+        ("M0061/26", "M0061/26", "APG", "KAPH", "RWY 01/19 REDL U/S", "!KEDG M0061/26 EDG RWY 01/19 REDL U/S 2610222101-2701122359"),
+        ("A1643/26", "A1643/26", "BJC", "KBJC", "SVC PCL ALL U/S", "A1643/26 NOTAMN\nA) KBJC\nE) SVC PCL ALL U/S"),
+        ("ORD 10/709", None, "ORD", "KORD", "RWY 04L/22R CLSD", "!ORD 10/709 ORD RWY 04L/22R CLSD"),
+    ]
+    for key, icao_id, location, icao_location, text, raw in rows:
+        old.execute("INSERT INTO notams (id, icao_id, location, icao_location, starts, ends, estimated, text, raw, heard)"
+                    " VALUES (?, ?, ?, ?, '2026-10-19T00:00:00Z', '2027-01-12T23:59:00Z', 0, ?, ?, ?)",
+                    (key, icao_id, location, icao_location, text, raw, NOW))
+    old.commit()
+    old.close()
+    assert [n["id"] for n in notams.at_fields(["KEDG"], now=NOW)] == ["KEDG M0061/26"]
+    assert notams.at_fields(["KAPG"], now=NOW) == []
+    assert [n["id"] for n in notams.at_fields(["KBJC"], now=NOW)] == ["KBJC A1643/26"]
+    assert [n["id"] for n in notams.at_fields(["KORD"], now=NOW)] == ["ORD 10/709"]

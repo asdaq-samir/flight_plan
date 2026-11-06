@@ -1,8 +1,8 @@
-import { memo, useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "cn";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import L from "leaflet";
-import { Marker, Pane, useMap } from "react-leaflet";
+import { Pane, useMap, useMapEvents } from "react-leaflet";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../components/ui/collapsible";
 import { declinationOf, fixRadialDistance, hoursOf, morseOf, radialOf, serviceVolume, threeFigures } from "../navaid";
@@ -14,19 +14,24 @@ import { usePointActions } from "./pointActions";
 import { api } from "../api/client";
 import type { FixPin, VorPin } from "../api/types";
 import { usePreferences } from "../preferences";
-import { enrouteFixIcon, vorIcon } from "./airspaceMarks";
-import { airportBox, ownShipBox, useDrawnAirports, vorTagSide, type TagSide } from "./declutter";
+import { airportBox, fieldTapped, overlaps, ownShipBox, useDrawnAirports, vorTagBoxes, vorTagSide, type TagSide } from "./declutter";
 import { useOwnShipNear } from "./ownShip";
 import { useAhead, useLiveZoom } from "./useView";
+import { hovers, type Box } from "./view";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
+import { NavaidMarksLayer, type NavaidMark } from "./NavaidCanvas";
 import { degreesMinutes } from "../coords";
+import { BLUE } from "../useAirspace";
 import { nmAway, useAwayWords } from "../useAway";
 import { PointWhere } from "./PointWhere";
 
 /** The VORs from a region's zoom in: a few to a state, each a station a
  *  pilot tunes, and the chart's compass roses round them. */
 const VOR_ZOOM = 8;
+/** The longest the VORs wait for the airports' first answer before they
+ *  are drawn anyway. */
+const AIRPORTS_WAIT_MS = 2000;
 /** The enroute chart's fixes only close in: further out there are dozens
  *  to a county, a scatter over the chart's own marks. */
 const FIX_ZOOM = 10;
@@ -34,29 +39,30 @@ const FIX_ZOOM = 10;
 /** Over the airspace's lines and labels (AirspaceLayer's 350 and 355),
  *  under the overlay pane's course line (400) and the airports' marks. */
 const NAVAIDS_Z = 360;
-/** Their taps over the airspace rings' (AirspaceLayer's 430), whose
- *  20 px targets otherwise took a tap on a VOR or fix inside a ring and
- *  opened the airspace's card; under the airports' and waypoints' marks
- *  (the marker pane's 600), which keep theirs. */
-const NAVAID_TAPS_Z = 440;
 const MARKS_PANE = { zIndex: NAVAIDS_Z };
-const TAPS_PANE = { zIndex: NAVAID_TAPS_Z };
 
-/** The 44 points round a station that take its tap, unseen, the mark
- *  drawn below in its own pane not grown for it. */
-const HIT_ICON = L.divIcon({
-  className: "", iconSize: [0, 0], iconAnchor: [0, 0],
-  html: `<span class="absolute -left-[22px] -top-[22px] size-11 rounded-full" data-navaid-hit=""></span>`,
-});
+/** How far off a station a tap on the chart is still the station's: half
+ *  a finger's 44 points, the reach its unseen target had. */
+export const TAP_PX = 22;
+/** How near the mouse names a station: its mark's half-width and a little. */
+export const HOVER_PX = 10;
 
 const NO_VORS: VorPin[] = [];
 const NO_FIXES: FixPin[] = [];
 
 const vorKey = (v: VorPin) => `${v.ident}-${v.lat}`;
 
-/** Which side of each VOR's hexagon its tag goes at this zoom, clear of
- *  the airports' marks and own ship's airplane where it can be (declutter):
- *  own ship is never moved for a VOR. Own ship as it moves a few hundred
+/** Each VOR's tag's side as first chosen, kept: chosen afresh at each
+ *  zoom against the airports' marks there, a tag went from right to left
+ *  to gone and back as the map zoomed (the owner's audit, 2026-11-02:
+ *  the overlay "very dynamic while zooming in"). A tag with no room on
+ *  either side is chosen again until it has some. */
+const keptSides = new Map<string, TagSide>();
+
+/** Which side of each VOR's hexagon its tag goes, clear of the airports'
+ *  marks where it can be (declutter) the first time it is drawn, and on
+ *  that side from then on -- but off own ship's airplane, which is never
+ *  moved for a VOR, as it flies past. Own ship as it moves a few hundred
  *  metres (useOwnShipNear), not at every fix. */
 function useTagSides(vors: VorPin[], zoom: number): Map<string, TagSide> {
   const map = useMap();
@@ -65,34 +71,57 @@ function useTagSides(vors: VorPin[], zoom: number): Map<string, TagSide> {
   return useMemo(() => {
     const at = (lat: number, lon: number) => map.project([lat, lon], zoom);
     const blockers = fields.map(f => airportBox(at(f.lat, f.lon), f.ident));
-    if (ship) blockers.push(ownShipBox(at(ship.lat, ship.lon)));
-    return new Map(vors.map(v => [vorKey(v), vorTagSide(at(v.lat, v.lon), v.ident, blockers)]));
+    const shipBox = ship ? ownShipBox(at(ship.lat, ship.lon)) : null;
+    return new Map(vors.map(v => {
+      const key = vorKey(v);
+      const here = at(v.lat, v.lon);
+      let side = keptSides.get(key);
+      // Chosen again where an airport's mark has come onto it since: a
+      // tag drawn before the fields' marks came in (or came into view, as
+      // a zoom in brings a Class D's) kept its side under them, DPA's
+      // under KDPA's for the rest of the session (a probe, 2026-11-03).
+      if (!side || side === "none" || blockers.some(b => overlaps(b, vorTagBoxes(here, v.ident)[side as "right" | "left"]))) {
+        side = vorTagSide(here, v.ident, blockers);
+        keptSides.set(key, side);
+      }
+      // Own ship over the kept side: the other, if it is clear of it.
+      if (shipBox && side !== "none") {
+        const boxes = vorTagBoxes(here, v.ident);
+        if (overlaps(shipBox, boxes[side])) {
+          const other = side === "right" ? "left" : "right";
+          side = overlaps(shipBox, boxes[other]) ? "none" : other;
+        }
+      }
+      return [key, side];
+    }));
   }, [map, vors, zoom, fields, ship]);
 }
+
+/** What a tap picked: the station's mark and its pin, for its card. */
+type Picked = { mark: NavaidMark; vor?: VorPin; fix?: FixPin };
 
 /**
  * The VORs over the chart as the sectional marks them, a blue hexagon
  * with its ident beside it, and from closer in the low enroute chart's
  * fixes as small triangles -- with the airspace (AirspaceLayer), the
- * owner's pick of the map's looks ("C", after ForeFlight's). A tap opens
- * its card -- what it is, a VOR's name and frequency, and where it is --
- * at the owner's ask ("the VORs or any other fix or navaid should be
- * selectable", 2026-10-29). The settings' VORs and Fixes turns them off.
+ * owner's pick of the map's looks ("C", after ForeFlight's). Drawn on one
+ * canvas (NavaidCanvas), not a marker each. A tap opens its card -- what
+ * it is, a VOR's name and frequency, and where it is -- at the owner's
+ * ask ("the VORs or any other fix or navaid should be selectable",
+ * 2026-10-29): the map's own click, given to the nearest station within a
+ * finger's half-width, as the airports' marks take theirs. The settings'
+ * VORs and Fixes turns them off.
  */
 export function NavaidsLayer() {
   const show = usePreferences(s => s.navaids);
   const zoom = useLiveZoom();
-  const asked = useAhead();
-  const on = show && zoom >= VOR_ZOOM;
+  // Asked for as the airports' marks are (useAhead), the question sent
+  // from the map's own events.
+  const asked = useAhead((box, level) => navaidsQuery(box, level, show));
+  const query = navaidsQuery(asked, zoom, show);
+  const on = query.enabled;
   const withFixes = zoom >= FIX_ZOOM;
-  const { data } = useQuery({
-    queryKey: ["navaidsInView", asked.key, withFixes],
-    queryFn: () => api.navaidsInView(asked.box, withFixes),
-    enabled: on,
-    staleTime: Infinity,
-    placeholderData: keepPreviousData,
-    meta: { silent: true },
-  });
+  const { data } = useQuery({ ...query, placeholderData: keepPreviousData });
   const vors = data?.vors ?? NO_VORS;
   // The VORs in view for the other point cards to place a point off the
   // nearest (a VFR waypoint's, WaypointsLayer).
@@ -100,30 +129,132 @@ export function NavaidsLayer() {
   // Not the fixes of an answer kept from closer in, zoomed back out.
   const fixes = withFixes ? (data?.fixes ?? NO_FIXES) : NO_FIXES;
   const sides = useTagSides(on ? vors : NO_VORS, zoom);
+  // Drawn after the airports, as the owner asked ("on the app vors show
+  // up first", 2026-11-05): asked for at once, but put on the map once
+  // the airports' first answer is in -- or after AIRPORTS_WAIT_MS where
+  // none comes (a map without the airports' layer, a planner too slow).
+  const airportsIn = useDrawnAirports(s => s.airportsIn);
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setWaited(true), AIRPORTS_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, []);
+  const drawn = on && (airportsIn || waited);
+  const marks = useMemo((): NavaidMark[] => (drawn ? [
+    ...fixes.map((f): NavaidMark => ({ key: `fix-${f.ident}`, ident: f.ident, lat: f.lat, lon: f.lon, kind: "fix", side: "right" })),
+    ...vors.map((v): NavaidMark => ({ key: vorKey(v), ident: v.ident, lat: v.lat, lon: v.lon, kind: "vor", side: sides.get(vorKey(v)) ?? "right" })),
+  ] : []), [drawn, fixes, vors, sides]);
   if (!on) return null;
   return (
+    <Pane name="navaids" style={MARKS_PANE}>
+      <NavaidMarks marks={marks} vors={vors} fixes={fixes} />
+    </Pane>
+  );
+}
+
+/** The planner asked for a box's VORs at a zoom, from VOR_ZOOM, and its
+ *  fixes with them from FIX_ZOOM; none where the settings' VORs and Fixes
+ *  is off. The layer's useQuery and the map's own events (useAhead) ask
+ *  it alike. */
+export function navaidsQuery(asked: Box, zoom: number, show: boolean) {
+  const withFixes = zoom >= FIX_ZOOM;
+  return {
+    queryKey: ["navaidsInView", asked.key, withFixes],
+    queryFn: () => api.navaidsInView(asked.box, withFixes),
+    enabled: show && zoom >= VOR_ZOOM,
+    staleTime: Infinity,
+    meta: { silent: true },
+  };
+}
+
+/** The canvas the stations are drawn on, made once and given the marks
+ *  as they change; a tap's card; and with a mouse, a station named under
+ *  the pointer. */
+function NavaidMarks({ marks, vors, fixes }: { marks: NavaidMark[]; vors: VorPin[]; fixes: FixPin[] }) {
+  const map = useMap();
+  const [layer] = useState(() => new NavaidMarksLayer("navaids"));
+  useEffect(() => {
+    layer.addTo(map);
+    return () => { layer.remove(); };
+  }, [layer, map]);
+  useEffect(() => { layer.setMarks(marks); }, [layer, marks]);
+  // The pins by their mark's key, for the card of the one tapped.
+  const pins = useRef<{ vors: Map<string, VorPin>; fixes: Map<string, FixPin> }>({ vors: new Map(), fixes: new Map() });
+  useEffect(() => {
+    pins.current = { vors: new Map(vors.map(v => [vorKey(v), v])), fixes: new Map(fixes.map(f => [`fix-${f.ident}`, f])) };
+  }, [vors, fixes]);
+  const [picked, setPicked] = useState<Picked | null>(null);
+  // A tap near a field's mark never gets here: the airports' layer takes
+  // it first (AirportsLayer's capture), as it did when each station's
+  // target lay under the field's mark. A tap on a marker, a popup or a
+  // line with a tap of its own is theirs. The airspace rings' tap yields
+  // to a station (AirspaceLayer, navaidAt).
+  useMapEvents(useMemo(() => ({
+    click: (e: L.LeafletMouseEvent) => {
+      const target = e.originalEvent.target as Element | null;
+      if (target?.closest(".leaflet-marker-icon, .leaflet-popup, path.leaflet-interactive")) return;
+      // A field's tap is the field's (declutter's fieldTapped).
+      const near = fieldTapped(map, e.containerPoint) ? null : layer.nearest(e.containerPoint, TAP_PX)?.mark ?? null;
+      setPicked(was => {
+        if (!near) return null;
+        if (was?.mark.key === near.key) return was;
+        return { mark: near, vor: pins.current.vors.get(near.key), fix: pins.current.fixes.get(near.key) };
+      });
+    },
+  }), [layer, map]));
+  const closed = useMemo<L.LeafletEventHandlerFnMap>(() => ({ remove: () => setPicked(null) }), []);
+  return (
     <>
-      <Pane name="navaids" style={MARKS_PANE}>
-        {fixes.map(f => <Mark key={f.ident} at={f} icon={enrouteFixIcon(f.ident)} />)}
-        {vors.map(v => <Mark key={vorKey(v)} at={v} icon={vorIcon(v.ident, sides.get(vorKey(v)))} />)}
-      </Pane>
-      <Pane name="navaid-taps" style={TAPS_PANE}>
-        {fixes.map(f => <FixTap key={f.ident} fix={f} vors={vors} />)}
-        {vors.map(v => <VorTap key={vorKey(v)} vor={v} />)}
-      </Pane>
+      {hovers && <NavaidHover layer={layer} />}
+      {picked && (
+        /* In Leaflet's own pane, over the marks, as a waypoint's card. Put
+           away by a tap on the chart or the card's close (MapPopup). */
+        <MapPopup key={picked.mark.key} position={[picked.mark.lat, picked.mark.lon]} pane="popupPane" panOnce eventHandlers={closed}>
+          {picked.vor ? <VorCard vor={picked.vor} /> : picked.fix ? <FixCard fix={picked.fix} vors={vors} /> : null}
+        </MapPopup>
+      )}
     </>
   );
 }
 
-/** A tap on a mark kept off the map under it. A constant: react-leaflet
- *  binds a marker's handlers again whenever they are a new object. */
-const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagation(e) };
+/** With a mouse, a station under the pointer named as the markers were
+ *  (their titles), and the pointer a hand over it (AirportHover the same). */
+export function NavaidHover({ layer }: { layer: NavaidMarksLayer }) {
+  const map = useMap();
+  const tip = useMemo(() => L.tooltip({ direction: "top", offset: [0, -10], opacity: 1 }), []);
+  const frame = useRef(0);
+  // The hand set here is taken back here, not the airports' (AirportHover
+  // sets and clears its own).
+  const hand = useRef(false);
+  useEffect(() => () => { cancelAnimationFrame(frame.current); map.closeTooltip(tip); }, [map, tip]);
+  useMapEvents(useMemo(() => {
+    const off = () => {
+      if (hand.current) { map.getContainer().style.cursor = ""; hand.current = false; }
+      map.closeTooltip(tip);
+    };
+    return {
+      mousemove: (e: L.LeafletMouseEvent) => {
+        cancelAnimationFrame(frame.current);
+        frame.current = requestAnimationFrame(() => {
+          const near = layer.nearest(e.containerPoint, HOVER_PX)?.mark ?? null;
+          if (!near) return off();
+          map.getContainer().style.cursor = "pointer";
+          hand.current = true;
+          tip.setLatLng([near.lat, near.lon]).setContent(near.kind === "vor" ? `${near.ident} VOR` : near.kind === "vfr" ? `${near.ident} VFR waypoint` : `${near.ident} fix`);
+          if (!map.hasLayer(tip)) map.openTooltip(tip);
+        });
+      },
+      mouseout: off,
+    };
+  }, [layer, map, tip]));
+  return null;
+}
 
 /** A VOR's mark on its card: the sectional's blue hexagon. */
 const HEXAGON = (
   <svg className="mx-1 shrink-0" width="18" height="18" viewBox="0 0 16 16" aria-hidden="true">
-    <polygon points="15,8 11.5,14.06 4.5,14.06 1,8 4.5,1.94 11.5,1.94" fill="#fff" stroke="#1e5bb8" strokeWidth="2" />
-    <circle cx="8" cy="8" r="1.6" fill="#1e5bb8" />
+    <polygon points="15,8 11.5,14.06 4.5,14.06 1,8 4.5,1.94 11.5,1.94" fill="#fff" stroke={BLUE} strokeWidth="2" />
+    <circle cx="8" cy="8" r="1.6" fill={BLUE} />
   </svg>
 );
 /** An enroute fix's on its card: the low chart's triangle, as the map's. */
@@ -133,26 +264,11 @@ const TRIANGLE = (
   </svg>
 );
 
-/** A VOR's or fix's mark as the chart draws it, not a target. */
-const Mark = memo(function Mark({ at, icon }: { at: { lat: number; lon: number }; icon: L.DivIcon }) {
-  const position = useMemo<[number, number]>(() => [at.lat, at.lon], [at.lat, at.lon]);
-  return <Marker position={position} icon={icon} interactive={false} keyboard={false} />;
-});
-
-/** The chart's colours of the two marks, the ground of their cards' pill. */
-const VOR_BLUE = "#1e5bb8";
+/** The chart's colours of the two marks, the ground of their cards' pill:
+ *  the VOR's the map's own blue (airspaceMarks' vorIcon), where the card's
+ *  was a shade deeper (the owner's pick, 2026-11-03). */
+const VOR_BLUE = BLUE;
 const FIX_INK = "#1c1a17";
-
-const VorTap = memo(function VorTap({ vor }: { vor: VorPin }) {
-  const position = useMemo<[number, number]>(() => [vor.lat, vor.lon], [vor.lat, vor.lon]);
-  return (
-    <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${vor.ident} ${vor.kind}`}>
-      <MapPopup pane="popupPane" panOnce>
-        <VorCard vor={vor} />
-      </MapPopup>
-    </Marker>
-  );
-});
 
 /** Made only once it is opened, so only an open card hears own ship. */
 function VorCard({ vor }: { vor: VorPin }) {
@@ -213,17 +329,6 @@ function VorCard({ vor }: { vor: VorPin }) {
     </MapCard>
   );
 }
-
-const FixTap = memo(function FixTap({ fix, vors }: { fix: FixPin; vors: readonly VorPin[] }) {
-  const position = useMemo<[number, number]>(() => [fix.lat, fix.lon], [fix.lat, fix.lon]);
-  return (
-    <Marker position={position} icon={HIT_ICON} eventHandlers={STOP_CLICK} title={`${fix.ident} fix`}>
-      <MapPopup pane="popupPane" panOnce>
-        <FixCard fix={fix} vors={vors} />
-      </MapPopup>
-    </Marker>
-  );
-});
 
 function FixCard({ fix, vors }: { fix: FixPin; vors: readonly VorPin[] }) {
   const away = useAwayWords(fix.lat, fix.lon);

@@ -9,9 +9,9 @@ import anthropic
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from vfr import checkpoint_notes
+from wingtip import checkpoint_notes
 
-from vfr import geo
+from wingtip import geo
 
 from ..common import line, load_route, ndjson
 from ..schemas import CheckpointNoteSaved, NoteCheckpoint, NoteDone, NoteError, NoteStart, PilotNotesForgotten

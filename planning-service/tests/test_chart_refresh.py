@@ -4,7 +4,7 @@ which renders at once -- the window arithmetic handles one that runs
 past midnight, and a request from the Dev console starts at once."""
 import time
 
-from vfr import charts
+from wingtip import charts
 
 from app import chart_refresh
 

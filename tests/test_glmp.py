@@ -1,4 +1,4 @@
-"""vfr.glmp: the NWS's Gridded LAMP read from GRIB2 files in GLMP's own
+"""wingtip.glmp: the NWS's Gridded LAMP read from GRIB2 files in GLMP's own
 shape (tests/glmp): the National Blend of Models' Lambert conformal grid
 (R 6,371,200 m, 2,539.703 m cells) cut to four points by three from
 42.30 N 88.10 W, round Campbell Airport (C81), packed as GLMP packs
@@ -17,7 +17,7 @@ import pytest
 import requests
 from pyproj import Proj
 
-from vfr import glmp
+from wingtip import glmp
 
 FIXTURES = Path(__file__).parent / "glmp"
 FIRST = (42.30, -88.10)
@@ -109,6 +109,21 @@ def test_with_no_recent_issue_or_no_nomads_it_says_so(nomads):
     glmp._NOT_UP.clear()
     with pytest.raises(glmp.GlmpUnavailable):
         glmp.at(*_point(1, 1), now=NOW)
+
+
+def test_with_nomads_down_the_issue_held_is_served_while_it_is_one_of_the_last_three(nomads):
+    """A momentary loss of NOMADS used to leave a field with no modelled
+    weather as soon as a newer issue was due; the held one is served on,
+    its valid time said, until it is as old as a late issue may be."""
+    glmp.at(*_point(1, 1), now=NOW)                          # the 21:30 issue, held
+    nomads["down"] = True
+    later = NOW.replace(hour=23)                             # 23:40: the 23:30 issue is due
+    assert glmp.at(*_point(1, 1), now=later)["valid_at"] == "2026-10-10T21:00:00Z"
+    asked = len(nomads["asked"])
+    assert glmp.at(*_point(1, 1), now=later)["valid_at"] == "2026-10-10T21:00:00Z"
+    assert len(nomads["asked"]) == asked                     # not asked again at every card
+    with pytest.raises(glmp.GlmpUnavailable):
+        glmp.at(*_point(1, 1), now=datetime(2026, 10, 11, 1, 40, tzinfo=timezone.utc))
 
 
 @pytest.mark.parametrize("ceiling, visibility, category", [

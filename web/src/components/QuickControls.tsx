@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
-import { Bell, BellOff, BellRing, ChevronsUpDown, Monitor, Moon, Palette, PanelBottom, PanelTop, Sun } from "lucide-react";
+import { ChevronsUpDown, ListOrdered, Rows2, Monitor, Moon, Palette, PanelBottom, PanelTop, Route, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { cn } from "cn";
 import PullDown, { type PullDownOption } from "./PullDown";
-import { usePreferences, type Brand, type NavEdge } from "../lib/preferences";
+import { usePreferences, type Brand, type NavEdge, type RouteEdit } from "../lib/preferences";
 import { BRANDS } from "../lib/brand";
 import { useNavEdge } from "../hooks/use-nav-edge";
-import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 import { TEXT } from "../lib/text";
 
 /**
@@ -21,24 +20,39 @@ import { TEXT } from "../lib/text";
  * is -- not a cycle a pilot cannot foresee; Offline is on or off.
  *
  * Traffic went to the map's menu, a layer of the map's, and Dark became
- * Theme, keeping System, which a Dark switch could not say.
+ * Theme, keeping System, which a Dark switch could not say. Since
+ * 2026-11-05 FPL in Alerts' place, how its route is changed once it is
+ * whole, and the alerts in the map's menu (MapSettings), at the owner's
+ * ask ("Instead of alerts we can have fpl, and alerts can go to overlay
+ * settings"); the section named Layout, as the owner renamed it.
  */
 export default function QuickControls() {
   const brand = usePreferences(s => s.brand);
   const setBrand = usePreferences(s => s.setBrand);
   const setNavBar = usePreferences(s => s.setNavBar);
+  const routeEdit = usePreferences(s => s.routeEdit);
+  const setRouteEdit = usePreferences(s => s.setRouteEdit);
   const edge = useNavEdge();
-  const [alertMode, setAlertMode] = useAlertMode();
   const { theme, setTheme } = useTheme();
   const picked = theme === "light" || theme === "dark" ? theme : "system";
   return (
+    <>
     <div className="grid grid-cols-2 gap-2" data-testid="quick-controls">
-      <MenuTile<AlertMode>
-        label="Alerts" value={alertMode} onChange={setAlertMode} on={alertMode !== "off"} testId="alerts-mode"
-        icon={alertMode === "off" ? <BellOff /> : alertMode === "spoken" ? <BellRing /> : <Bell />}
-        options={ALERT_MODES.map(m => ({ value: m.value, label: m.label, testId: `alerts-mode-${m.value}` }))}
+      {/* How FPL's route is changed once it is whole (lib/preferences
+          RouteEdit), at the owner's asks ("I want to have a toggle between
+          A and B in settings"; "Instead of alerts we can have fpl",
+          2026-11-05): its box as it was, folded to one line, or the
+          plan's own rows. */}
+      <MenuTile<RouteEdit>
+        label="FPL" value={routeEdit} onChange={setRouteEdit} on={false} testId="route-edit-select"
+        icon={routeEdit === "plan" ? <ListOrdered /> : routeEdit === "folded" ? <Rows2 /> : <Route />}
+        options={[
+          { value: "box", label: "Route Box", testId: "route-edit-box" },
+          { value: "folded", label: "Route Line", testId: "route-edit-folded" },
+          { value: "plan", label: "Route Cards", testId: "route-edit-plan" },
+        ]}
       />
-      {/* The app's look, the owner's four (lib/brand), its Theme, where
+      {/* The app's look, Glass Cockpit or Chart ink (lib/brand), its Theme, where
           Offline was, named so at the owner's yes (2026-10-27): what most
           apps call a theme, and System, Light and Dark iOS's Appearance.
           It was "App Look", put here at the owner's ask ("instead of
@@ -49,9 +63,10 @@ export default function QuickControls() {
         options={BRANDS.map(b => ({ value: b.value, label: b.label, testId: `brand-${b.value}` }))}
       />
       {/* The edge the route panel is on, which the sheets come from too
-          and the map's buttons keep clear of (useNavEdge). */}
+          and the map's buttons keep clear of (useNavEdge). Position, where
+          it was Layout, the section's name since (the owner, 2026-11-05). */}
       <MenuTile<NavEdge>
-        label="Layout" value={edge} onChange={setNavBar} on={false} testId="nav-bar-select"
+        label="Position" value={edge} onChange={setNavBar} on={false} testId="nav-bar-select"
         icon={edge === "top" ? <PanelTop /> : <PanelBottom />}
         options={[{ value: "top", label: "Top", testId: "nav-bar-top" }, { value: "bottom", label: "Bottom", testId: "nav-bar-bottom" }]}
       />
@@ -69,6 +84,7 @@ export default function QuickControls() {
         ]}
       />
     </div>
+    </>
   );
 }
 

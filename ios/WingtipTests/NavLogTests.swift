@@ -110,14 +110,37 @@ struct ProcedureTests {
     }
 }
 
-/// The dry run's airplane along the plan.
+/// The dry run's airplane along the plan, flown by the engine's `dry_run`.
 struct DryRunTests {
-    @MainActor @Test func theAirplaneIsPlacedByTheLegsMinutes() {
-        let run = DryRun()
-        let line = [CLLocationCoordinate2D(latitude: 42.0, longitude: -88.0), CLLocationCoordinate2D(latitude: 43.0, longitude: -88.0)]
+    @MainActor @Test func theAirplaneFliesTheLegInItsMinutes() throws {
+        let a = CourseEnd(ident: "A", name: "A", lat: 42.0, lon: -88.0, elevationFt: 700)
+        let b = CourseEnd(ident: "B", name: "B", lat: 43.0, lon: -88.0, elevationFt: 700)
+        let course = Course(departure: a, destination: b, distanceNm: 60, bearingDeg: 0, courseLine: [[42.0, -88.0], [43.0, -88.0]])
         let leg = Leg(from: "A", to: "B", distanceNm: 60, altitudeFt: 4500, trueCourseDeg: 0, magneticHeadingDeg: 0, groundspeedKt: 120, eteMin: 30, fuelGal: 4, tasKt: 110)
-        run.start(line: line, legs: [leg])
-        #expect(run.running && run.fix?.groundspeedKt == 120 && abs((run.fix?.coordinate.latitude ?? 0) - 42.0) < 0.01)
+        // Its 30 minutes, at its 120 kt, from A to B, landed there; no
+        // height where the plan has no climb in it.
+        let points = try #require(DryRun.run(course: course, checkpoints: [], legs: [leg]))
+        #expect(points.count >= 2 && abs((points.last?.t ?? 0) - 1800) < 1)
+        #expect(points.dropLast().allSatisfy { $0.gsKt == 120 } && points.last?.gsKt == 0)
+        #expect(abs((points.last?.lat ?? 0) - 43.0) < 0.01 && points.allSatisfy { $0.altFt == nil })
+        // With its top of climb and of descent, the climb at the climb's
+        // speed to 4,500 ft, cruise, and down to the pattern and the field.
+        var climbing = leg
+        climbing.climbMin = 6
+        climbing.toc = Leg.TopOfClimb(alongNm: 10, eteMin: 6, fuelGal: 1.2, altitudeFt: 4500, lat: 42.1667, lon: -88, tasKt: 80, groundspeedKt: 85)
+        climbing.tod = Leg.TopOfDescent(alongNm: 50, eteMin: 25, fuelGal: 3.4, altitudeFt: 4500, lat: 42.8333, lon: -88, toFt: 1700, pattern: true)
+        let rows = try #require(DryRun.rows(course: course, checkpoints: [], legs: [climbing]))
+        #expect(rows.map(\.kind) == ["departure", "toc", "tod", "destination"])
+        #expect(rows[1].part?.distanceNm == 10 && rows[1].part?.groundspeedKt == 85 && rows[3].part?.eteMin == 5)
+        let flown = try #require(DryRun.run(course: course, checkpoints: [], legs: [climbing]))
+        #expect(flown.first?.altFt == 700 && flown.first?.gsKt == 85)
+        #expect(flown.contains { $0.altFt == 4500 && $0.gsKt == 120 } && flown.last?.altFt == 700)
+        // A row a leg, or no run: a checkpoint with no leg to it is not one.
+        let stray = Checkpoint(id: "x", category: "lake", lat: 42.5, lon: -88.0, predictedScore: 1, alongTrackNm: 30)
+        #expect(DryRun.run(course: course, checkpoints: [stray], legs: [leg]) == nil)
+        let run = DryRun()
+        run.start(course: course, checkpoints: [], legs: [leg])
+        #expect(run.running && abs((run.fix?.coordinate.latitude ?? 0) - 42.0) < 0.01)
         run.stop()
         #expect(!run.running && run.fix == nil)
     }

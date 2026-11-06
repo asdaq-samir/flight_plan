@@ -17,6 +17,11 @@ on:
       - ios/**
       - web/src/lib/fixtures/**
       - web/src/lib/acs.json
+      # And the engine the app links, with the fixtures its tests read.
+      - native/engine/**
+      - native/ffi/**
+      - native/Cargo.*
+      - tests/fixtures/native/**
       - .github/workflows/native-ios.yml
   push:
     # And a native-app branch of Claude's: its builds run from the branch
@@ -26,6 +31,10 @@ on:
       - ios/**
       - web/src/lib/fixtures/**
       - web/src/lib/acs.json
+      - native/engine/**
+      - native/ffi/**
+      - native/Cargo.*
+      - tests/fixtures/native/**
       - .github/workflows/native-ios.yml
   workflow_dispatch:
 
@@ -46,10 +55,44 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The engine's framework as the last run that built this engine left
+      # it: the three Apple targets took 148 s of a 284 s job (run
+      # 42110145019), and the engine changes far less often than the app.
+      # Keyed on the engine's own files, 23 MB, so the full Actions cache
+      # loses little to it.
+      - name: The engine, as last built
+        id: engine
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+      - name: The engine, for the app
+        # wingtip-engine through its C functions (native/ffi), which the app
+        # answers the airspace from with no network. The runner's own
+        # rustup, where the engine changed.
+        if: steps.engine.outputs.cache-hit != 'true'
+        run: native/ffi/build-xcframework.sh
+      # Kept at once, not at the job's end: an app that fails its tests
+      # still built the engine right.
+      - name: The engine, kept
+        if: steps.engine.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The Xcode project, from project.yml
         run: |
           brew install xcodegen
           xcodegen generate --spec ios/project.yml --project ios
+      - name: The newest Xcode on the runner
+        run: |
+          # iPhone Duo's own layout (to the screen's edge, bars down the
+          # side) needs an app built with the iOS 27.1 SDK; an older one is
+          # letterboxed on the inner screen. The runner's default Xcode can
+          # lag its newest.
+          newest=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|_rc' | sort -V | tail -1)
+          sudo xcode-select -s "$newest"
+          xcodebuild -version
       - name: The simulators to test on
         id: sim
         run: |
@@ -61,15 +104,21 @@ jobs:
           import json, sys
           kind = sys.argv[1]
           devices = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith(kind)]
+          # iPhone Duo is tested on its own, beside a one-screen iPhone.
+          devices = [d for d in devices if ("Duo" in d["name"]) == (kind == "iPhone Duo")]
+          if not devices:
+              sys.exit(0)
           pros = [d for d in devices if "Pro" in d["name"]] if kind == "iPad" else []
           best = sorted(pros or devices, key=lambda d: d["name"])[-1]
           print(best["udid"] + " " + best["name"])' "$1"
           }
           read -r iphone iphone_name <<< "$(pick iPhone)"
           read -r ipad ipad_name <<< "$(pick iPad)"
+          read -r duo duo_name <<< "$(pick 'iPhone Duo')"
           echo "iphone=$iphone" >> "$GITHUB_OUTPUT"
           echo "ipad=$ipad" >> "$GITHUB_OUTPUT"
-          echo "testing on $iphone_name and $ipad_name"
+          echo "duo=$duo" >> "$GITHUB_OUTPUT"
+          echo "testing on $iphone_name, $ipad_name and ${duo_name:-no iPhone Duo (this Xcode has none)}"
       - name: Built and tested on the simulator
         run: |
           host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")
@@ -77,9 +126,10 @@ jobs:
           xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Debug \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.iphone }}" \
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.ipad }}" \
+            ${{ steps.sim.outputs.duo && format('-destination "platform=iOS Simulator,id={0}"', steps.sim.outputs.duo) || '' }} \
             -derivedDataPath "$RUNNER_TEMP/derived" \
             -resultBundlePath "$RUNNER_TEMP/Wingtip.xcresult" \
-            CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" \
+            CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" WINGTIP_BUNDLE_ID="$WINGTIP_BUNDLE_ID" \
             test > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || true
           # The lines that say what happened: each error with what follows
           # it (a resolution failure names its cause on the next line), the
@@ -89,13 +139,17 @@ jobs:
           grep -E "✔ Test|✘ Test|Test run with" "$RUNNER_TEMP/xcodebuild.log" || true
           grep -qE "\*\* TEST SUCCEEDED \*\*" "$RUNNER_TEMP/xcodebuild.log"
       - name: Each device's first screen
-        # What the app shows on launch on the iPhone and on the iPad, for
+        # What the app shows on launch on the iPhone, the iPad and iPhone
+        # Duo (where the runner's Xcode has it), for
         # the pull request's reader: a picture, not a check.
         continue-on-error: true
         run: |
           app="$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/Wingtip.app"
           mkdir -p "$RUNNER_TEMP/screens"
-          for pair in "iphone:${{ steps.sim.outputs.iphone }}" "ipad:${{ steps.sim.outputs.ipad }}"; do
+          pairs=("iphone:${{ steps.sim.outputs.iphone }}" "ipad:${{ steps.sim.outputs.ipad }}")
+          duo=${{ steps.sim.outputs.duo }}
+          [ -n "$duo" ] && pairs+=("iphone-duo:$duo")
+          for pair in "${pairs[@]}"; do
             name=${pair%%:*}; id=${pair#*:}
             xcrun simctl boot "$id" 2>/dev/null || true
             xcrun simctl bootstatus "$id" -b > /dev/null
@@ -139,10 +193,36 @@ jobs:
       KEY_P8: ${{ secrets.APP_STORE_KEY_P8 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The engine's framework as the last run that built this engine left
+      # it: the three Apple targets took 148 s of a 284 s job (run
+      # 42110145019), and the engine changes far less often than the app.
+      # Keyed on the engine's own files, 23 MB, so the full Actions cache
+      # loses little to it.
+      - name: The engine, as last built
+        id: engine
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+      - name: The engine, for the app
+        # wingtip-engine through its C functions (native/ffi), which the app
+        # answers the airspace from with no network. The runner's own
+        # rustup, where the engine changed.
+        if: steps.engine.outputs.cache-hit != 'true'
+        run: native/ffi/build-xcframework.sh
       - name: The Xcode project, from project.yml
         run: |
           brew install xcodegen
           xcodegen generate --spec ios/project.yml --project ios
+      - name: The newest Xcode on the runner
+        run: |
+          # iPhone Duo's own layout (to the screen's edge, bars down the
+          # side) needs an app built with the iOS 27.1 SDK; an older one is
+          # letterboxed on the inner screen. The runner's default Xcode can
+          # lag its newest.
+          newest=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|_rc' | sort -V | tail -1)
+          sudo xcode-select -s "$newest"
+          xcodebuild -version
       - name: Archived, signed and uploaded to TestFlight
         run: |
           key="$RUNNER_TEMP/AuthKey_$KEY_ID.p8"
@@ -152,7 +232,7 @@ jobs:
           auth=(-allowProvisioningUpdates -authenticationKeyPath "$key" -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER")
           xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Wingtip.xcarchive" "${auth[@]}" \
-            DEVELOPMENT_TEAM="$TEAM" PRODUCT_BUNDLE_IDENTIFIER="$WINGTIP_BUNDLE_ID" WINGTIP_HOST="$host" \
+            DEVELOPMENT_TEAM="$TEAM" WINGTIP_BUNDLE_ID="$WINGTIP_BUNDLE_ID" WINGTIP_HOST="$host" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" archive | tail -40
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>

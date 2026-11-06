@@ -238,3 +238,11 @@ app:
   # implementation is written.
   flight-service:
     provider: ${APP_FLIGHT_SERVICE_PROVIDER:none}
+
+# The flight watch (FlightWatchService): how often the watched flights
+# departing within the window are re-briefed and the planner asked what
+# changed, an ISO duration. Each check is a briefing and one Claude call
+# a watch, so this is also what the watch costs.
+wingtip:
+  watch:
+    every: ${WINGTIP_WATCH_EVERY:PT30M}

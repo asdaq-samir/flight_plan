@@ -1,4 +1,4 @@
-"""vfr.congested: whether a point is over a congested area or within
+"""wingtip.congested: whether a point is over a congested area or within
 14 CFR 91.119(b)'s "horizontal radius of 2,000 feet" of one, from the
 Census urban areas and gazetteer places -- here a town of a few streets
 drawn by hand."""
@@ -9,7 +9,7 @@ import pytest
 import requests
 import shapely
 
-from vfr import congested
+from wingtip import congested
 
 LAT, LON = 45.0, -90.0
 FT_LAT = 1 / congested.FT_PER_DEG_LAT                       # a foot, in degrees of latitude
@@ -88,7 +88,7 @@ def test_without_the_census_data_nothing_is_ruled_out(monkeypatch, tmp_path):
 
 
 def _one_at_a_time(tree, lats, lons) -> np.ndarray:
-    """vfr.congested.congested as it was before its 2,000 ft test took
+    """wingtip.congested.congested as it was before its 2,000 ft test took
     every pair at once: each point near a town clipped, scaled and
     measured on its own -- the oracle the vectorised one must match to
     the bit (14 CFR 91.119(b)'s 2,000 ft, RADIUS_FT)."""
@@ -148,7 +148,7 @@ def test_every_pair_at_once_matches_one_at_a_time_at_the_2000_ft_edge(monkeypatc
 @pytest.mark.skipif(not (congested.URBAN_AREAS_PATH.exists() and (congested.DIR.parents[0] / "faa_nasr" / "DOF.DAT").exists()),
                     reason="needs the Census urban areas and the FAA's DOF.DAT on disk")
 def test_every_pair_at_once_matches_one_at_a_time_on_the_real_obstacles_round_chicago_and_milwaukee():
-    from vfr import faa_data
+    from wingtip import faa_data
 
     tree = congested._tree()
     if tree is None:
@@ -159,3 +159,50 @@ def test_every_pair_at_once_matches_one_at_a_time_on_the_real_obstacles_round_ch
     got = congested.congested(lats, lons)
     assert got.tolist() == _one_at_a_time(tree, lats, lons).tolist()
     assert 0 < got.sum() < lats.size
+
+
+def test_the_urban_areas_are_read_back_from_their_wkb_as_drawn(monkeypatch, tmp_path):
+    import zipfile
+
+    import shapefile
+
+    base = tmp_path / "ua"
+    with shapefile.Writer(str(base), shapeType=shapefile.POLYGON) as w:
+        w.field("NAME", "C")
+        w.poly([[[-93.3, 44.9], [-93.2, 44.9], [-93.2, 45.0], [-93.3, 45.0], [-93.3, 44.9]]])
+        w.record("Minneapolis")
+    archive = tmp_path / "ua.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for part in ("shp", "shx", "dbf"):
+            z.write(base.with_suffix(f".{part}"), f"ua.{part}")
+    monkeypatch.setattr(congested, "URBAN_AREAS_PATH", archive)
+    drawn = congested._urban_areas()
+    monkeypatch.setattr(shapefile, "Reader", None)  # the shapefile is not read again
+    assert [a.wkt for a in congested._urban_areas()] == [a.wkt for a in drawn]
+
+
+def test_the_urban_areas_are_read_from_the_cycle_pack_made_of_their_download(monkeypatch, tmp_path):
+    import zipfile
+
+    import shapefile
+
+    from wingtip import pack as cycle_pack
+
+    base = tmp_path / "ua"
+    with shapefile.Writer(str(base), shapeType=shapefile.POLYGON) as w:
+        w.field("NAME", "C")
+        w.poly([[[-93.3, 44.9], [-93.2, 44.9], [-93.2, 45.0], [-93.3, 45.0], [-93.3, 44.9]]])
+        w.record("Minneapolis")
+    archive = tmp_path / "ua.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        for part in ("shp", "shx", "dbf"):
+            z.write(base.with_suffix(f".{part}"), f"ua.{part}")
+    monkeypatch.setattr(congested, "URBAN_AREAS_PATH", archive)
+    drawn = congested._urban_areas()
+    with shapefile.Writer(str(tmp_path / "empty"), shapeType=shapefile.POLYGON) as w:
+        w.field("CLASS", "C")
+    cycle_pack.write(cycle_pack.PACK_DIR, "2026-10-29", shp_path=tmp_path / "empty.shp", sua_held=[], sua_at=0.0,
+                     urban=drawn, urban_path=archive, tables={})
+    archive.with_suffix(".wkb.pkl").unlink()
+    monkeypatch.setattr(shapefile, "Reader", None)  # nor the shapefile, nor its WKB beside it
+    assert [a.wkt for a in congested._urban_areas()] == [a.wkt for a in drawn]

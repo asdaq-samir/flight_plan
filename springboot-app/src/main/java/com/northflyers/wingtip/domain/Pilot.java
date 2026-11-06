@@ -1,0 +1,196 @@
+package com.northflyers.wingtip.domain;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.time.Instant;
+import java.time.LocalDate;
+import lombok.Getter;
+
+/**
+ * Someone who flies. Identity for everything else in the schema.
+ *
+ * <p>{@code googleSubject}/{@code appleSubject} rather than email are
+ * what a sign-in matches on. Each provider's {@code sub} claim is stable
+ * for the life of the account; an email address is not, and matching on
+ * one would either lose a pilot their flights when they change it or
+ * hand them someone else's when it is reassigned. Both are nullable so a
+ * record can exist before a first sign-in, or be signed into by only one
+ * of the two providers (or neither, for a pilot who only ever uses the
+ * magic-link email flow, which matches on email directly and needs no
+ * subject column of its own).
+ */
+@Entity
+@Table(name = "pilots")
+@Getter
+public class Pilot {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, unique = true, length = 320)
+    private String email;
+
+    @Column(nullable = false)
+    private String displayName;
+
+    @Column(unique = true)
+    private String googleSubject;
+
+    @Column(unique = true)
+    private String appleSubject;
+
+    /** Apple's refresh token for this pilot (V18), kept only to be revoked
+     *  when the account is deleted. Never sent to a browser. */
+    @Column(length = 2000)
+    private String appleRefreshToken;
+
+    /** Defaults to PILOT for every row, including every row that
+     *  existed before the column did (V7). A developer is granted, not
+     *  inherited. */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private PilotRole role = PilotRole.PILOT;
+
+    @Column(nullable = false)
+    private Instant createdAt;
+
+    /** When the pilot last passed a flight review (14 CFR 61.56), and the
+     *  day their medical certificate runs out: the dates their currency
+     *  is reckoned from beside the logbook (V12). Null until they say. */
+    private LocalDate flightReviewOn;
+    private LocalDate medicalExpiresOn;
+
+    /** The day of their last instrument proficiency check (14 CFR
+     *  61.57(d)), as they give it (V20); null until they say. */
+    private LocalDate ipcOn;
+
+    /** Whether they have asked to be emailed before their currency runs
+     *  out (ReminderService, V23); off until they turn it on. */
+    @Column(nullable = false)
+    private boolean reminders;
+
+    /** The ACS codes on their Airman Knowledge Test Report, space
+     *  separated (V13); null until they give them. */
+    @Column(length = 2000)
+    private String knowledgeTestCodes;
+
+    /** Their name as their certificate gives it (V26), what an
+     *  endorsement names them by; null until they say. */
+    @Column(length = 120)
+    private String fullName;
+
+    /** Their telephone number and their airplane's home base (V29): the
+     *  flight plan's item 19 C/ asks for the pilot in command's name and
+     *  contact information, "including telephone number", valid at the
+     *  ETA in case search and rescue is needed (AIM Appendix 4); the home
+     *  base is the domestic form's block 14 beside them (FAA Form 7233-1).
+     *  Null until they say. */
+    @Column(length = 24)
+    private String phone;
+    @Column(length = 11)
+    private String homeBase;
+
+    /** A flight instructor's certificate number ("987654321CFI"), its
+     *  recent experience end date or expiration date, and which of the
+     *  two that is (V26): what every endorsement they sign carries (AC
+     *  61-65K, appendix A). All null for a pilot who is not one. */
+    @Column(length = 20)
+    private String instructorCertificate;
+    private LocalDate instructorUntil;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 3)
+    private InstructorUntil instructorUntilKind;
+
+    protected Pilot() {
+        // JPA
+    }
+
+    public Pilot(String email, String displayName, String googleSubject) {
+        this.email = email;
+        this.displayName = displayName;
+        this.googleSubject = googleSubject;
+        this.createdAt = Instant.now();
+    }
+
+    /** For a pilot's first sign-in via a provider other than Google
+     *  (Apple, or the email magic link, which passes {@code null}). */
+    public Pilot(String email, String displayName, String googleSubject, String appleSubject) {
+        this(email, displayName, googleSubject);
+        this.appleSubject = appleSubject;
+    }
+
+    /** Set on first Google sign-in for a pilot created before they had
+     *  signed in through it. */
+    public void linkGoogleSubject(String subject) {
+        this.googleSubject = subject;
+    }
+
+    /** Set on first Apple sign-in for a pilot created before they had
+     *  signed in through it. */
+    public void linkAppleSubject(String subject) {
+        this.appleSubject = subject;
+    }
+
+    /** What Apple handed over at the latest Sign in with Apple. */
+    public void keepAppleRefreshToken(String token) {
+        this.appleRefreshToken = token;
+    }
+
+    /** The address the provider now vouches for, when it changed there. */
+    public void changeEmail(String email) {
+        this.email = email;
+    }
+
+    /** The flight review's, the medical's and the last instrument
+     *  proficiency check's dates, as the pilot gives them. */
+    public void setCurrencyDates(LocalDate flightReviewOn, LocalDate medicalExpiresOn, LocalDate ipcOn) {
+        this.flightReviewOn = flightReviewOn;
+        this.medicalExpiresOn = medicalExpiresOn;
+        this.ipcOn = ipcOn;
+    }
+
+    public void setReminders(boolean reminders) {
+        this.reminders = reminders;
+    }
+
+    /** The knowledge test report's ACS codes, as the pilot gives them. */
+    public void setKnowledgeTestCodes(String codes) {
+        this.knowledgeTestCodes = codes;
+    }
+
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    /** Their telephone number and home base, both at once; null for one
+     *  not said. */
+    public void setContact(String phone, String homeBase) {
+        this.phone = phone;
+        this.homeBase = homeBase;
+    }
+
+    /** Their flight instructor certificate, all three at once; nulls for
+     *  a pilot who is no longer one. */
+    public void setInstructor(String certificate, LocalDate until, InstructorUntil kind) {
+        this.instructorCertificate = certificate;
+        this.instructorUntil = until;
+        this.instructorUntilKind = kind;
+    }
+
+    public boolean isInstructor() {
+        return instructorCertificate != null;
+    }
+
+    /** Made a developer: an address `app.developer-emails` lists (see
+     *  PilotService), or by hand with an UPDATE. */
+    public void grantDeveloper() {
+        this.role = PilotRole.DEVELOPER;
+    }
+}

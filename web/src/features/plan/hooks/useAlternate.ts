@@ -13,7 +13,7 @@ export interface AlternateWhere {
 }
 
 /** The alternate filed (the address's `alternate`, per route), and the
- *  planner's check of it and of the destination (vfr.alternates). */
+ *  planner's check of it and of the destination (wingtip.alternates). */
 export function useAlternate({ dest, eta, tasKt }: AlternateWhere) {
   const filed = useSearchParam("alternate") ?? "";
   const query = useQuery({

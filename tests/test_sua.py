@@ -1,10 +1,10 @@
-"""vfr.sua: the FAA's special-use airspace along a route, read from its
+"""wingtip.sua: the FAA's special-use airspace along a route, read from its
 feature service (mocked here with GeoJSON in the service's own shape)."""
 from unittest.mock import Mock, patch
 
 import pytest
 
-from vfr import sua
+from wingtip import sua
 
 
 def _feature(name, type_code, ring, lower=("0", "FT", "SFC"), upper=("18000", "FT", "MSL"), times="CONTINUOUS"):
@@ -22,8 +22,10 @@ BOX_OFF_ROUTE = [[-88.2, 45.4], [-87.8, 45.4], [-87.8, 45.6], [-88.2, 45.6], [-8
 
 
 @pytest.fixture(autouse=True)
-def _fresh_cache(monkeypatch):
+def _fresh_cache(monkeypatch, tmp_path):
     monkeypatch.setattr(sua, "_CACHE", {})
+    monkeypatch.setattr(sua, "_DISK", tmp_path / "sua.pkl")
+    monkeypatch.setattr(sua, "_RETRY_AT", 0.0)
 
 
 def _service(features):
@@ -39,7 +41,7 @@ def test_areas_the_route_crosses_are_listed_in_order_with_their_limits():
                  times="0800-2200 LOCAL MON-FRI"),
         _feature("R-OFF", "R", BOX_OFF_ROUTE),
     ]
-    with patch("vfr.sua.requests.get", return_value=_service(features)) as get:
+    with patch("wingtip.sua.requests.get", return_value=_service(features)) as get:
         areas = sua.along_route((45.0, -90.0), (46.0, -90.0))
 
     # The whole country asked for once, paged, not the route's box.
@@ -65,7 +67,8 @@ def test_an_areas_times_are_read_in_the_zone_the_faa_gives_it():
                                 (("-10", "0"), "Pacific/Honolulu"), (("10", "0"), "Pacific/Guam"), ((None, None), None),
                                 (("-7", None), None)]:
         sua._CACHE.clear()
-        with patch("vfr.sua.requests.get", return_value=_service([zoned(offset, dst)])) as get:
+        sua._DISK.unlink(missing_ok=True)
+        with patch("wingtip.sua.requests.get", return_value=_service([zoned(offset, dst)])) as get:
             (area,) = sua.along_route((45.0, -90.0), (46.0, -90.0))
         assert area["time_zone"] == zone, (offset, dst)
     assert "GMTOFFSET" in get.call_args.kwargs["params"]["outFields"]
@@ -90,7 +93,7 @@ def test_each_zone_keeps_the_offset_and_the_daylight_saving_its_fields_say():
 
 
 def test_one_answer_serves_the_day():
-    with patch("vfr.sua.requests.get", return_value=_service([])) as get:
+    with patch("wingtip.sua.requests.get", return_value=_service([])) as get:
         sua.along_route((45.0, -90.0), (46.0, -90.0))
         sua.along_route((45.0, -90.0), (46.0, -90.0))
     assert get.call_count == 1
@@ -98,9 +101,35 @@ def test_one_answer_serves_the_day():
 
 def test_a_service_that_does_not_answer_says_so():
     import requests
-    with patch("vfr.sua.requests.get", side_effect=requests.ConnectionError("down")):
+    with patch("wingtip.sua.requests.get", side_effect=requests.ConnectionError("down")):
         with pytest.raises(sua.SpecialUseUnavailable):
             sua.along_route((45.0, -90.0), (46.0, -90.0))
+
+
+def test_a_service_that_does_not_answer_serves_the_set_read_within_the_cycle(monkeypatch):
+    """The areas change only on the 28-day cycle: a day-old set is asked
+    for again, but while the service does not answer the one read is
+    served, from memory or from disk, until it is a cycle old."""
+    import requests
+    features = [_feature("R-4501", "R", BOX_ON_ROUTE)]
+    with patch("wingtip.sua.requests.get", return_value=_service(features)):
+        sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    now = sua.time.time()
+    monkeypatch.setattr(sua.time, "time", lambda: now + sua.HOLD_S + 1)
+    with patch("wingtip.sua.requests.get", side_effect=requests.ConnectionError("down")) as get:
+        assert [a["name"] for a, _ in sua.areas_in((44.0, -91.0, 47.0, -87.0))] == ["R-4501"]
+        sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    assert get.call_count == 1                       # not asked again at every route
+    sua._CACHE.clear()  # a new process, the set on disk
+    monkeypatch.setattr(sua, "_RETRY_AT", 0.0)
+    with patch("wingtip.sua.requests.get", side_effect=requests.ConnectionError("down")):
+        assert [a["name"] for a, _ in sua.areas_in((44.0, -91.0, 47.0, -87.0))] == ["R-4501"]
+    sua._CACHE.clear()
+    monkeypatch.setattr(sua, "_RETRY_AT", 0.0)
+    monkeypatch.setattr(sua.time, "time", lambda: now + sua.SERVE_HELD_S + 1)
+    with patch("wingtip.sua.requests.get", side_effect=requests.ConnectionError("down")):
+        with pytest.raises(sua.SpecialUseUnavailable):
+            sua.areas_in((44.0, -91.0, 47.0, -87.0))
 
 
 @pytest.mark.parametrize("altitude, expected", [(4500, True), (18000, True), (18500, False)])
@@ -120,7 +149,7 @@ def test_the_areas_over_a_point_are_those_that_hold_it_lowest_first():
         _feature("R-4501", "R", BOX_ON_ROUTE),
         _feature("R-OFF", "R", BOX_OFF_ROUTE),
     ]
-    with patch("vfr.sua.requests.get", return_value=_service(features)):
+    with patch("wingtip.sua.requests.get", return_value=_service(features)):
         here = sua.at_point(45.5, -90.0)
     assert [(a["name"], a["kind"], a["floor_ft"], a["floor_ref"]) for a in here] == [
         ("R-4501", "restricted area", 0.0, "SFC"), ("MOA NORTH", "military operations area", 500.0, "AGL"),
@@ -132,7 +161,45 @@ def test_the_whole_set_is_read_page_by_page():
     first = _service([_feature("R-1", "R", BOX_ON_ROUTE)])
     first.json.return_value["properties"] = {"exceededTransferLimit": True}
     second = _service([_feature("R-2", "R", BOX_OFF_ROUTE)])
-    with patch("vfr.sua.requests.get", side_effect=[first, second]) as get:
+    with patch("wingtip.sua.requests.get", side_effect=[first, second]) as get:
         names = sorted(area["name"] for area, _ in sua.areas_in((44.0, -91.0, 47.0, -87.0)))
     assert names == ["R-1", "R-2"]
     assert [c.kwargs["params"]["resultOffset"] for c in get.call_args_list] == [0, 1]
+
+
+def test_a_restart_within_the_day_reads_the_areas_kept_on_disk(monkeypatch):
+    features = [_feature("R-4501", "R", BOX_ON_ROUTE)]
+    with patch("wingtip.sua.requests.get", return_value=_service(features)):
+        first = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    sua._CACHE.clear()  # a new process
+    with patch("wingtip.sua.requests.get", side_effect=AssertionError("asked the service again")):
+        again = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    assert [(a["name"], s.wkt) for a, s in again] == [(a["name"], s.wkt) for a, s in first]
+    # A day on, the service is asked again.
+    sua._CACHE.clear()
+    now = sua.time.time()
+    monkeypatch.setattr(sua.time, "time", lambda: now + sua.HOLD_S + 1)
+    with patch("wingtip.sua.requests.get", return_value=_service([])) as get:
+        assert sua.areas_in((44.0, -91.0, 47.0, -87.0)) == []
+    assert get.called
+
+
+def test_a_restart_reads_the_areas_from_the_cycle_pack_as_downloaded(monkeypatch, tmp_path):
+    from wingtip import pack as cycle_pack
+
+    features = [_feature("R-4501", "R", BOX_ON_ROUTE)]
+    with patch("wingtip.sua.requests.get", return_value=_service(features)):
+        first = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    held = sua.everything()
+    shp = tmp_path / "empty.shp"
+    import shapefile
+
+    with shapefile.Writer(str(shp), shapeType=shapefile.POLYGON) as w:
+        w.field("CLASS", "C")
+    cycle_pack.write(cycle_pack.PACK_DIR, "2026-10-29", shp_path=shp, sua_held=held,
+                     sua_at=sua._CACHE["all"][0], urban=[], urban_path=None, tables={})
+    sua._CACHE.clear()  # a new process
+    sua._DISK.unlink()
+    with patch("wingtip.sua.requests.get", side_effect=AssertionError("asked the service again")):
+        again = sua.areas_in((44.0, -91.0, 47.0, -87.0))
+    assert [(a, s.wkt) for a, s in again] == [(a, s.wkt) for a, s in first]

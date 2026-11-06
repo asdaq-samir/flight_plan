@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 Rating = Literal[0, 1, 2, 3, 4, 5]
 Role = Literal["dr", "visual"]
 Source = Literal["detected", "added"]
-#: The flight rules a route is planned under: VFR, or IFR (vfr.ifr).
+#: The flight rules a route is planned under: VFR, or IFR (wingtip.ifr).
 FlightRules = Literal["vfr", "ifr"]
 
 
@@ -33,7 +33,7 @@ class AirportEnd(BaseModel):
     elevation_ft: float | None = None
     kind: Literal["airport", "fix"] = "airport"
     #: An airport's: the class of the airspace at its surface, as its card
-    #: has it (vfr.airspace.surface_class_at) -- for the route's points to
+    #: has it (wingtip.airspace.surface_class_at) -- for the route's points to
     #: be drawn in their airspace's look the moment the course is in,
     #: where each was a card's whole lookup (its METAR among it) behind
     #: the plan being made.
@@ -70,7 +70,7 @@ class ChartLayer(BaseModel):
     over: list[str] = []
     # For an overlay, its sheets and their extents.
     sheets: list[ChartSheet] = []
-    # The cycle this kind is drawn from (vfr.charts.serving_cycle_of) and
+    # The cycle this kind is drawn from (wingtip.charts.serving_cycle_of) and
     # its tiles' revision there: each kind goes over to a new cycle as its
     # own pyramid is finished, so the map's tile URLs carry its own.
     cycle: str | None = None
@@ -177,7 +177,7 @@ class LegPoint(BaseModel):
 
 class TopOfClimb(LegPoint):
     """Where a climb tops out (TOC), and the climb's true airspeed and
-    ground speed on the way up to it (vfr.navlog.with_climbs)."""
+    ground speed on the way up to it (wingtip.navlog.with_climbs)."""
 
     tas_kt: float
     groundspeed_kt: float
@@ -188,7 +188,7 @@ class TopOfDescent(LegPoint):
     the pattern altitude of the field landed at, the altitude an
     approach's first fix is crossed at, or the next leg's lower level --
     at `fpm`, three to one at the leg's ground speed, or steeper where
-    the climb before it left less room (vfr.navlog.with_descents)."""
+    the climb before it left less room (wingtip.navlog.with_descents)."""
 
     to_ft: float
     # Whether `to_ft` is the pattern altitude at the field the flight
@@ -202,7 +202,7 @@ class TopOfDescent(LegPoint):
 
 class MissedApproachPath(BaseModel):
     """An approach's missed approach as it is flown, from its missed
-    approach point and round its hold once (vfr.procedure_paths.missed_path),
+    approach point and round its hold once (wingtip.procedure_paths.missed_path),
     and the altitude it climbs to: the highest its fixes set."""
 
     path: list[list[float]]
@@ -211,7 +211,7 @@ class MissedApproachPath(BaseModel):
 
 class LegProcedure(BaseModel):
     """A leg flown by the procedures picked -- out by a departure, in by an
-    arrival and an approach (vfr.procedure_paths.flown) -- rather than as
+    arrival and an approach (wingtip.procedure_paths.flown) -- rather than as
     the route goes: its path from the leg's start, [lat, lon] pairs; the
     altitude the chart sets at each point (None where it sets none); its
     length; whether it comes down to a runway; where its final starts, the
@@ -235,7 +235,7 @@ class LegProcedure(BaseModel):
 
 
 class LegHold(BaseModel):
-    """A hold the pilot put at a point of the route (vfr.holds), on the
+    """A hold the pilot put at a point of the route (wingtip.holds), on the
     leg that leaves it -- `at_end`, the leg into the destination it is
     held at: its inbound course (magnetic), its turns, its legs by time or
     distance, how long (turns, or minutes), the minutes and fuel it takes,
@@ -264,7 +264,7 @@ class Leg(BaseModel):
     exceeds true airspeed, i.e. the leg cannot be flown.
 
     The true airspeed and fuel flow are the aeroplane's in the leg's own
-    air (vfr.performance): its cruise figures are at a reference
+    air (wingtip.performance): its cruise figures are at a reference
     altitude on a standard day, and the forecast temperature at this
     altitude gives the density altitude they are flown at, at the power
     it allows -- the cruise power, or less where full throttle cannot
@@ -310,7 +310,7 @@ class Leg(BaseModel):
     # planner's TURNAROUND_MIN), not in `ete_min`. None on every other
     # leg.
     ground_min: float | None = None
-    # Along an airway (vfr.airways, the route's "BAE V191 OSH"): the
+    # Along an airway (wingtip.airways, the route's "BAE V191 OSH"): the
     # segment flown and its published altitudes, the MEA the floor under
     # IFR (14 CFR 91.177(a)(1)), for the nav log's route column as a paper
     # IFR log has one. None off an airway.
@@ -365,7 +365,7 @@ class Totals(BaseModel):
     #: figures are None then (app.planning.route_totals). Empty without.
     hops: list["HopTotals"] = []
     #: Where a flight the tanks do not hold could land for fuel
-    #: (vfr.fuelstops), one entry a flight short of fuel; empty where every
+    #: (wingtip.fuelstops), one entry a flight short of fuel; empty where every
     #: flight's fuel check passes.
     fuel_stops: list["FuelStopSuggestion"] = []
     #: Minutes on the ground at the route's stops (PlanQuery.ground), not in
@@ -383,16 +383,19 @@ class Totals(BaseModel):
 class WindsPeriod(BaseModel):
     """A winds and temperatures aloft forecast's period (AC 00-45H, the
     Winds and Temperatures Aloft Forecast (FB)):
-    valid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC."""
+    valid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC;
+    `modelled` where the FB could not be had and the GFS's winds stand in
+    for it (wingtip.modelwinds)."""
 
     valid_at: str
     use_from: str
     use_to: str
+    modelled: bool = False
 
 
 class FuelStop(BaseModel):
     """A field with the airplane's fuel a flight can land at for it, with
-    its reserve left (vfr.fuelstops)."""
+    its reserve left (wingtip.fuelstops)."""
 
     ident: str
     name: str
@@ -501,7 +504,7 @@ class SpecialUse(BaseModel):
     ceiling_ft: float | None = None
     ceiling_ref: str | None = None
     times_of_use: str | None = None
-    #: The IANA zone its times of use are written in (vfr.sua.time_zone,
+    #: The IANA zone its times of use are written in (wingtip.sua.time_zone,
     #: from the FAA's GMTOFFSET and DST_CODE); None where the FAA gives none.
     time_zone: str | None = None
     controlling_agency: str | None = None
@@ -548,13 +551,13 @@ class AltitudeSegment(BaseModel):
     candidates_ft: list[float]
     #: No 500 ft step fits under this leg's ceiling, and its one altitude
     #: is the highest whole hundred under it that clears the floor (1,800
-    #: ft under a 1,900 ft shelf): legal, but tight (vfr.altitude).
+    #: ft under a 1,900 ft shelf): legal, but tight (wingtip.altitude).
     tight: bool = False
     #: What the floor is from: the ground or the DOF obstacle it rests on
-    #: and its height MSL, and the clearance over it. Under IFR (vfr.ifr,
+    #: and its height MSL, and the clearance over it. Under IFR (wingtip.ifr,
     #: 14 CFR 91.177(a)(2)) the highest within 4 nm of the leg's course,
     #: whether the leg is over a mountainous area (Part 95), and 2,000 ft
-    #: there, 1,000 elsewhere. Under VFR (vfr.terrain, 14 CFR 91.119) the
+    #: there, 1,000 elsewhere. Under VFR (wingtip.terrain, 14 CFR 91.119) the
     #: one whose top and clearance are highest: 1,000 ft over or within
     #: 2,000 ft of a congested area (91.119(b)), 500 ft elsewhere (91.119(c)):
     #: 91.119's own minimum, which a caution measures a pilot's altitude
@@ -568,10 +571,10 @@ class AltitudeSegment(BaseModel):
     #: (TOWER, BLDG ...), as the FAA writes it.
     obstacle_type: str | None = None
     #: Under VFR, whether the clearance is 91.119(b)'s for a congested area
-    #: (the Census urban areas and places, vfr.congested); None where the
+    #: (the Census urban areas and places, wingtip.congested); None where the
     #: towns could not be read and it took the 1,000 ft anyway.
     congested: bool | None = None
-    #: Under IFR along an airway (vfr.airways): the segment's published
+    #: Under IFR along an airway (wingtip.airways): the segment's published
     #: altitudes, its MEA the floor (14 CFR 91.177(a)(1)) and its MAA a
     #: ceiling.
     airway: "AirwayAltitudes | None" = None
@@ -613,7 +616,7 @@ class AltitudeBreakdown(BaseModel):
 
     #: The rules it was chosen under: "vfr", or "ifr" -- 14 CFR 91.177's
     #: minimum IFR altitudes for its floors, 91.179(b)'s thousands by
-    #: direction of flight, no Class B, cloud or Class A ceiling (vfr.ifr).
+    #: direction of flight, no Class B, cloud or Class A ceiling (wingtip.ifr).
     rules: FlightRules = "vfr"
     recommended_ft: float | None
     candidates_ft: list[float] = []
@@ -649,7 +652,7 @@ class AltitudeBreakdown(BaseModel):
     cloud_clearance_kept: bool = True
     airspace_transits: list[AirspaceTransit]
     #: Prohibited and restricted areas, MOAs and the like the legs cross
-    #: (vfr.sua); no candidate altitude enters a prohibited one.
+    #: (wingtip.sua); no candidate altitude enters a prohibited one.
     special_use: list[SpecialUseArea] = []
     freezing_level_ft: float | None
     #: The freezing level is at or below `freezing_level_ft`: it was
@@ -783,7 +786,7 @@ class AircraftProfile(BaseModel):
     data/aircraft/*.json file carries, declared, so a page reads them as
     fields rather than guessing at a dict. The three figures after the
     name are required when a profile is loaded (REQUIRED_FIELDS in
-    vfr.aircraft); the rest fall back to defaults in vfr.navlog when a
+    wingtip.aircraft); the rest fall back to defaults in wingtip.navlog when a
     profile leaves them out. `extra="allow"` keeps a field a newer
     profile adds on its way through."""
 
@@ -799,7 +802,7 @@ class AircraftProfile(BaseModel):
     #: from the -140 to the -181.
     designator: str | None = None
     #: The power `cruise_tas_kt` and `fuel_burn_gph` are at, in percent,
-    #: at vfr.performance's reference altitude on a standard day; its
+    #: at wingtip.performance's reference altitude on a standard day; its
     #: default where None.
     cruise_power_pct: float | None = None
     climb_rate_fpm_sea_level: float | None = None
@@ -892,7 +895,7 @@ class Metar(BaseModel):
 
 
 class ForecastWind(BaseModel):
-    """The wind a TAF forecasts at a field for a time (vfr.weather.
+    """The wind a TAF forecasts at a field for a time (wingtip.weather.
     forecast_wind): its own TAF's, else the nearest station's within 30
     nm (`ident`, `distance_nm`). From true north; `dir_true_deg` None for
     a variable wind. `valid_from` and `valid_to`, the period's, s since
@@ -911,7 +914,7 @@ class NearbyMetar(BaseModel):
     """A field's nearest report within 30 nm, for one with none of its
     own: the station, how far and which way from the field (true), its
     METAR, and `near` where it is within 10 statute miles, close enough to
-    say the field's weather by it, approximately (vfr.weather)."""
+    say the field's weather by it, approximately (wingtip.weather)."""
 
     ident: str
     distance_nm: float
@@ -922,7 +925,7 @@ class NearbyMetar(BaseModel):
 
 class ModelledWeather(BaseModel):
     """The weather at a field as the NWS's Gridded LAMP models it for the
-    hour (vfr.glmp), for one with no report of its own: the ceiling above
+    hour (wingtip.glmp), for one with no report of its own: the ceiling above
     the ground (None with none), the visibility (10 sm and more is "10"),
     their flight category (AIM 7-1-7), and the hour it is for. Planning
     guidance, not an observation."""
@@ -935,7 +938,7 @@ class ModelledWeather(BaseModel):
 
 class RunwayWind(BaseModel):
     """The reported wind on the end of a runway it favours, the one with
-    the most headwind (vfr.runway_wind): the headwind negative for a
+    the most headwind (wingtip.runway_wind): the headwind negative for a
     tailwind, the crosswind positive from the right, and the crosswind
     in the gusts where the report has them."""
 
@@ -944,12 +947,12 @@ class RunwayWind(BaseModel):
     crosswind_kt: float
     gust_crosswind_kt: float | None = None
     #: Calm now: True where `end` is the one the field's last wind
-    #: favoured, the runway in use (vfr.runway_wind.favoured_end).
+    #: favoured, the runway in use (wingtip.runway_wind.favoured_end).
     in_use: bool | None = None
 
 
 class RunwayEnd(BaseModel):
-    """One end of a runway (vfr.pattern): its true heading, None for a
+    """One end of a runway (wingtip.pattern): its true heading, None for a
     helipad, which way its traffic pattern is flown -- left unless the FAA
     flags it right (14 CFR 91.126(b)(1)) -- and where it is."""
 
@@ -964,7 +967,7 @@ class RunwayEnd(BaseModel):
 
 class RunwayTurf(BaseModel):
     """A length of a runway of two surfaces that is turf, where the FAA's
-    remarks say which (vfr.remarks.runway_turf): from `from_ft` to `to_ft`
+    remarks say which (wingtip.remarks.runway_turf): from `from_ft` to `to_ft`
     feet along it from its `end`, `to_ft` None for the rest of it."""
 
     end: str
@@ -990,7 +993,7 @@ class Runway(BaseModel):
 
 
 class TrafficPattern(BaseModel):
-    """How high a field's traffic pattern is flown (vfr.pattern):
+    """How high a field's traffic pattern is flown (wingtip.pattern):
     `agl_ft` above the field, the FAA's own where `published`, else AC
     90-66C's 1,000 ft for a propeller aeroplane; `altitude_ft` above sea
     level where the field's elevation is known."""
@@ -1009,13 +1012,13 @@ class Frequency(BaseModel):
 class AirportFacilities(BaseModel):
     #: The airport's name, for what a pilot calls its tower or its
     #: traffic, its elevation, and the class of the airspace at its
-    #: surface (vfr.airspace.surface_class_at).
+    #: surface (wingtip.airspace.surface_class_at).
     name: str | None = None
     elevation_ft: float | None = None
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
     pattern: TrafficPattern | None = None
     runways: list[Runway]
-    # The FAA's airport diagram and Chart Supplement page (vfr.publications),
+    # The FAA's airport diagram and Chart Supplement page (wingtip.publications),
     # and the d-TPP cycle to ask for the diagram's picture by
     # (/api/airport-diagram/{cycle}/{ident}.png).
     airport_diagram_url: str | None = None
@@ -1025,7 +1028,7 @@ class AirportFacilities(BaseModel):
 
 
 class TfrInfo(BaseModel):
-    """A temporary flight restriction (vfr.tfr): its NOTAM, the site's
+    """A temporary flight restriction (wingtip.tfr): its NOTAM, the site's
     title and kind, when it is in force (UTC; `expires` None until further
     notice), the rule it is issued under, why, and how high it reaches --
     the lowest floor and highest ceiling of its areas, MSL or AGL."""
@@ -1069,7 +1072,7 @@ class DayNightMinimums(BaseModel):
 
 class AirspaceBand(BaseModel):
     """One class of airspace over a point, from `floor_ft` to
-    `ceiling_ft` MSL (vfr.airspace_at): its name where it is a B, C or
+    `ceiling_ft` MSL (wingtip.airspace_at): its name where it is a B, C or
     D; the VFR minimums in it (None in A); what it takes to go in; the
     equipment it asks for; and the 91.117 speed limit there."""
 
@@ -1101,7 +1104,7 @@ class TfrHere(TfrInfo):
 
 class PointOffFix(BaseModel):
     """A point named as the pilot's own point off the nearest fix a pilot
-    knows (vfr.fixes.frd_near): "VPBNG/095/14.2", its fix, its magnetic
+    knows (wingtip.fixes.frd_near): "VPBNG/095/14.2", its fix, its magnetic
     course from it (a VOR's radial where `radial`), its distance, and its
     name, "14.2 nm on 095° from VPBNG"."""
 
@@ -1136,7 +1139,7 @@ class AirspaceAt(BaseModel):
 
 
 class AheadAlert(BaseModel):
-    """One thing ahead of the airplane (vfr.alerts): airspace, a special-
+    """One thing ahead of the airplane (wingtip.alerts): airspace, a special-
     use area or a TFR its track goes into in the next five minutes, or the
     ground or an obstacle it comes within 500 ft of in the next minute.
     `seconds` and `distance_nm` are how long and how far until it at the
@@ -1181,9 +1184,9 @@ class AlertsAhead(BaseModel):
 
 
 class TrafficAircraft(BaseModel):
-    """One airplane in the air near the point (vfr.traffic): who, where,
+    """One airplane in the air near the point (wingtip.traffic): who, where,
     how high -- the GNSS height where it sends one, else its pressure
-    altitude set on the nearest METAR's altimeter (vfr.traffic.on_altimeter),
+    altitude set on the nearest METAR's altimeter (wingtip.traffic.on_altimeter),
     or as sent where none is near (`pressure_altitude`) -- its track, speed
     and climb, and how many seconds old its position is."""
 
@@ -1239,7 +1242,7 @@ class TrailPoint(BaseModel):
 
 
 class AircraftRegistration(BaseModel):
-    """A US airplane's record in the FAA's aircraft registry (vfr.registry,
+    """A US airplane's record in the FAA's aircraft registry (wingtip.registry,
     the Releasable Aircraft Database): who it is registered to and where,
     what it is, its engine, and its registration's and airworthiness
     certificates. The owner's town, never the street; an owner who asked
@@ -1276,8 +1279,8 @@ class AircraftRegistration(BaseModel):
 
 class TrafficFound(BaseModel):
     """The airplanes in the air a pilot named by callsign, registration
-    or ICAO address (vfr.traffic.find); and, where none is in the air or
-    heard now, the FAA's record of the one named (vfr.traffic.registered),
+    or ICAO address (wingtip.traffic.find); and, where none is in the air or
+    heard now, the FAA's record of the one named (wingtip.traffic.registered),
     to open its card all the same."""
 
     aircraft: list[TrafficAircraft]
@@ -1289,7 +1292,7 @@ class TrafficFound(BaseModel):
     checked: bool = True
     #: Whose data `aircraft` is, to credit it where it is shown, as the
     #: map's traffic is (Traffic): ADS-B Exchange's for a search it
-    #: answered (vfr.traffic.find_credited), else adsb.lol's.
+    #: answered (wingtip.traffic.find_credited), else adsb.lol's.
     source: str = "adsb.lol"
     license: str = "ODbL 1.0"
 
@@ -1304,7 +1307,7 @@ class PastFlightField(BaseModel):
 
 
 class PastFlightSummary(BaseModel):
-    """One of an airplane's flights of the last days (vfr.traffic.history):
+    """One of an airplane's flights of the last days (wingtip.traffic.history):
     where it went from and to, where the receivers heard that, and when."""
 
     id: int
@@ -1363,7 +1366,7 @@ class FlightArrival(PastFlightField):
 
 class FlightStatus(BaseModel):
     """An airplane's state now, for the alerts a pilot sets on it
-    (vfr.traffic.status): how long since it was heard, whether it is in
+    (wingtip.traffic.status): how long since it was heard, whether it is in
     the air -- and where, as the map draws it -- the field it took off
     from, and, not in the air, the field it has landed at; from adsb.lol's
     open data (ODbL 1.0)."""
@@ -1377,7 +1380,7 @@ class FlightStatus(BaseModel):
 
 
 class FlightDetail(BaseModel):
-    """An airplane and its flight today (vfr.traffic.flight): what it is,
+    """An airplane and its flight today (wingtip.traffic.flight): what it is,
     who flies it, where it took off from where its track shows that, and
     its track since, from adsb.lol's open data (ODbL 1.0); and a US
     airplane's FAA registration."""
@@ -1400,7 +1403,7 @@ class RouteAirport(BaseModel):
 
 
 class FlightRoute(BaseModel):
-    """The route a flight number is scheduled to fly (vfr.traffic.route),
+    """The route a flight number is scheduled to fly (wingtip.traffic.route),
     from Virtual Radar Server's route database (CC0): the airports in
     order, and whether the airplane is on or near it now. Not the flight
     plan filed for today's flight."""
@@ -1432,14 +1435,14 @@ class ProfileAirspace(BaseModel):
     floor_ft: float
     ceiling_ft: float | None = None
     # The airport it is drawn round, as a route names it (KDLH); "" where
-    # the FAA's file names none that can be placed (vfr.profile).
+    # the FAA's file names none that can be placed (wingtip.profile).
     ident: str = ""
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class RouteProfile(BaseModel):
-    """The route's side view (vfr.profile): its length, the ground under
+    """The route's side view (wingtip.profile): its length, the ground under
     it, and the controlled airspace it passes through."""
 
     length_nm: float
@@ -1463,7 +1466,7 @@ class RouteTfr(TfrInfo):
 
 
 class Pirep(BaseModel):
-    """A pilot report near the route (vfr.weather.pireps_along_route):
+    """A pilot report near the route (wingtip.weather.pireps_along_route):
     when, how high, in what, the turbulence and icing it reports (the
     intensity, as reported: "LGT", "MOD", "NEG"), and its own words."""
 
@@ -1516,13 +1519,28 @@ class RoutePoint(BaseModel):
     lon: float
 
 
+class DataSource(BaseModel):
+    """One source the planner downloads and keeps, for the pilot's Status
+    page: its name in a pilot's words, when the copy it holds was fetched,
+    to when that copy may still be served by the product's own validity
+    (None: no limit, or none held), and whether the source is failing,
+    the held copy then served on (ISO 8601 UTC)."""
+
+    name: str
+    fetched_at: str | None = None
+    kept_until: str | None = None
+    failing: bool = False
+
+
 class MapLayerAges(BaseModel):
     """When the planner fetched what the map's weather layers are drawn
     from (ISO 8601 UTC; None before the first fetch): the METARs the
-    airports' flight categories come from, and the TFRs."""
+    airports' flight categories come from, and the TFRs; and every source
+    it keeps, for the Status page."""
 
     metars_at: str | None = None
     tfrs_at: str | None = None
+    sources: list[DataSource] = []
 
 
 class Briefing(BaseModel):
@@ -1535,14 +1553,14 @@ class Briefing(BaseModel):
     metars: dict[str, Metar | None]
     airports: dict[str, AirportFacilities]
     weather_unavailable: list[Literal["hazards", "forecast", "metars", "tfrs", "pireps", "gairmets"]]
-    # The TFRs near the route during the flight (vfr.tfr.along_route).
+    # The TFRs near the route during the flight (wingtip.tfr.along_route).
     tfrs: list[RouteTfr] = []
     # Pilot reports near the route, and the G-AIRMETs it crosses.
     pireps: list[Pirep] = []
     gairmets: list[GAirmet] = []
     # "VFR flight not recommended" (AIM 7-1-5), as its reasons -- either
     # end reporting IFR/LIFR, the forecast under 14 CFR 91.155's basic
-    # minimums -- worked out here (vfr.weather) rather than by the page.
+    # minimums -- worked out here (wingtip.weather) rather than by the page.
     # Empty when nothing warrants it.
     vfr_not_recommended: list[str] = []
     # The fields below VFR where the flight meets them.
@@ -1597,7 +1615,7 @@ class Pick(BaseModel):
 
 class DisplacedPick(BaseModel):
     """A pick on another point that a save took the place of: the store
-    keeps one pick per place (vfr.routecsv.SAME_PLACE_NM), whatever each
+    keeps one pick per place (wingtip.routecsv.SAME_PLACE_NM), whatever each
     point is."""
 
     lat: float
@@ -1633,7 +1651,7 @@ class Detection(BaseModel):
     until a pick claims it; `rated` is derived from the rating, as a
     Pick's is, rather than set beside it. `score` is the palette's
     constant for its kind; `predicted_score` the chart model's rating
-    for it (vfr.chartmodel), None while none is promoted or the corridor
+    for it (wingtip.chartmodel), None while none is promoted or the corridor
     is still being read for the first time."""
 
     lat: float
@@ -1695,19 +1713,19 @@ class NavLogStage(BaseModel):
 
 class Detour(BaseModel):
     """A named fix that keeps a route out of the Class B airspace it is
-    stopped by (vfr.airspace.detour_waypoint), and where it goes in the
+    stopped by (wingtip.airspace.detour_waypoint), and where it goes in the
     stops: before the stop at `stop_index`, so on the hop it is for."""
 
     ident: str
-    #: What it is to a pilot: "VFR waypoint", "GPS waypoint" (vfr.fixes).
+    #: What it is to a pilot: "VFR waypoint", "GPS waypoint" (wingtip.fixes).
     kind: str
     #: How much longer the route is through it.
     added_nm: float
     stop_index: int
-    #: Where it is: "in Downers Grove" (vfr.places).
+    #: Where it is: "in Downers Grove" (wingtip.places).
     description: str | None = None
     #: A way round high ground the airplane cannot climb over
-    #: (vfr.terrain_detour): every point to fly by, in order, the first of
+    #: (wingtip.terrain_detour): every point to fly by, in order, the first of
     #: them `ident`; empty for a Class B's one waypoint.
     via: list[str] = []
 
@@ -1857,7 +1875,7 @@ class AirportSearch(BaseModel):
 
 class PlaceFound(BaseModel):
     """A place a pilot typed for Nearest to find the fields near: an
-    airport, a town, a street address (vfr.geocode), and where it is."""
+    airport, a town, a street address (wingtip.geocode), and where it is."""
 
     label: str
     kind: Literal["airport", "town", "address"]
@@ -1876,7 +1894,7 @@ class AirportPin(BaseModel):
     field's METAR's (VFR, MVFR, IFR, LIFR), for the map's weather chip:
     None where it has no reporting station, or the weather could not be
     asked. `military` is a field the armed services own (the FAA's
-    airport file, vfr.faa_data.military_fields): "military" where a civil
+    airport file, wingtip.faa_data.military_fields): "military" where a civil
     airplane lands only with the service's permission, "joint" where a
     civil airport shares it; None for every other field."""
 
@@ -1887,13 +1905,20 @@ class AirportPin(BaseModel):
     kind: Literal["large", "medium", "small", "other"]
     flight_category: str | None = None
     military: Literal["military", "joint"] | None = None
-    #: Closed to the public (vfr.faa_data.private_fields): landed at only
+    #: Closed to the public (wingtip.faa_data.private_fields): landed at only
     #: with its owner's permission, the sectional's R in a circle.
     private: bool = False
-    #: The class of the airspace at its surface (vfr.airspace.surface_classes),
+    #: The class of the airspace at its surface (wingtip.airspace.surface_classes),
     #: for its mark on the map in that airspace's look; None where the FAA's
     #: airspace could not be had.
     airspace_class: Literal["B", "C", "D", "E", "G"] | None = None
+    #: The class of airspace this field is the primary airport of (the FAA's
+    #: airspace file names each Class B, C and D for one field), for the map
+    #: to show that field first where only one fits: zoomed out over Texas
+    #: it showed Love Field and Hobby beside Dallas's and Houston's rings,
+    #: both inside the Class B, and not DFW and Intercontinental at their
+    #: middle (the owner, 2026-11-03). None for every other field.
+    primary_of: Literal["B", "C", "D"] | None = None
 
 
 class InboundRadio(BaseModel):
@@ -1933,7 +1958,7 @@ class WaypointPin(BaseModel):
     lat: float
     lon: float
     #: Where it is, a stand-alone waypoint having no name of its own: "by
-    #: Bangs Lake", "2 nm W of Glenview" (vfr.places). None before the
+    #: Bangs Lake", "2 nm W of Glenview" (wingtip.places). None before the
     #: place names have loaded, or where nothing is near.
     description: str | None = None
 
@@ -1943,7 +1968,7 @@ class WaypointsInView(BaseModel):
 
 
 class AirspaceVolume(BaseModel):
-    """One Class B, C or D volume in the map's view (vfr.airspace_map):
+    """One Class B, C or D volume in the map's view (wingtip.airspace_map):
     one shelf of a Class B, the surface area or a shelf of a Class C, or
     a Class D, with its altitudes as the FAA's Class Airspace file has
     them and its boundary as lines of [lat, lon] clipped to the box."""
@@ -2022,7 +2047,7 @@ class NavaidsInView(BaseModel):
 
 
 class TerminalChart(BaseModel):
-    """One of a field's charts in the d-TPP (vfr.publications): `kind` the
+    """One of a field's charts in the d-TPP (wingtip.publications): `kind` the
     FAA's chart code -- APD the airport diagram, HOT its hot spots, LAH
     land and hold short, IAP an approach, DP and ODP a departure, STR an
     arrival, MIN the takeoff or alternate minimums -- `name` its title as
@@ -2035,7 +2060,7 @@ class TerminalChart(BaseModel):
 
 class ProcedureSummary(BaseModel):
     """One of a field's instrument procedures in the FAA's CIFP
-    (vfr.procedures): `id` its coded identifier ("I08-Y"), `name` its
+    (wingtip.procedures): `id` its coded identifier ("I08-Y"), `name` its
     chart's title ("ILS Y RWY 08"), `runway` an approach's, and the
     transitions a pilot picks from -- an approach's, an arrival's or a
     departure's enroute ones -- and an arrival's or departure's runway
@@ -2076,7 +2101,7 @@ class ProcedureLine(BaseModel):
 class ProcedureHold(BaseModel):
     """A holding pattern of a drawn procedure, or its procedure turn: at `fix`, its inbound
     course `inbound_deg` true, its turns right or left (`turn`), drawn to
-    a light airplane's size (vfr.procedures.HOLD_SPEED_KT)."""
+    a light airplane's size (wingtip.procedures.HOLD_SPEED_KT)."""
 
     fix: str
     turn: Literal["L", "R"]
@@ -2130,7 +2155,7 @@ class ProcedureMissedLeg(BaseModel):
 
 
 class ProcedureRunwayPath(BaseModel):
-    """The path an approach's final comes down, placed (vfr.procedures):
+    """The path an approach's final comes down, placed (wingtip.procedures):
     `deg` below level, into `fix`, its runway's threshold at `lat`/`lon`,
     crossed at `ft` MSL -- the threshold's elevation and its crossing
     height (ARINC 424-18 5.70)."""
@@ -2143,7 +2168,7 @@ class ProcedureRunwayPath(BaseModel):
 
 
 class ProcedureDrawing(BaseModel):
-    """One procedure drawn with the transition picked (vfr.procedures):
+    """One procedure drawn with the transition picked (wingtip.procedures):
     its lines, holds and fixes, from the CIFP of `cycle`."""
 
     airport: str
@@ -2172,7 +2197,7 @@ class ProcedureDrawing(BaseModel):
 
 
 class PlateOverlay(BaseModel):
-    """An approach's plate's plan view placed on the map (vfr.plates): the
+    """An approach's plate's plan view placed on the map (wingtip.plates): the
     FAA's plate of `name` in d-TPP cycle `cycle`, its picture at
     /api/approach-plate/{cycle}/{ident}/{procedure}.png, black on clear,
     north up between these latitudes and longitudes, as the plate's own
@@ -2193,7 +2218,7 @@ class PlateOverlay(BaseModel):
 class ChartPage(BaseModel):
     """One page of one of the FAA's charts, to show in the app: its
     picture is /api/faa-chart/page/{source}/{edition}/{pdf}/{page}.png,
-    `width` by `height` pixels (vfr.publications.chart_page_png)."""
+    `width` by `height` pixels (wingtip.publications.chart_page_png)."""
 
     source: Literal["dtpp", "dcs"]
     edition: str
@@ -2206,7 +2231,7 @@ class ChartPage(BaseModel):
 class ChartPages(BaseModel):
     """The pages of an FAA chart the app shows, in order: every page of a
     chart of its own, a booklet's pages for the field, a Chart Supplement
-    entry's pages (vfr.publications.chart_pages)."""
+    entry's pages (wingtip.publications.chart_pages)."""
 
     pages: list[ChartPage]
 
@@ -2234,7 +2259,7 @@ class AirportPlace(BaseModel):
     private: bool = False
     towered: bool
     # Its remarks a pilot acts on from the cockpit, in plain English
-    # (vfr.remarks): the lighting schedule -- lights turned on by keying
+    # (wingtip.remarks): the lighting schedule -- lights turned on by keying
     # the mic -- and the other remarks that count mic clicks, such as the
     # weather read out on the CTAF. `standard_keying` where the lights
     # are the pilot's and the remarks do not say how many clicks: AIM
@@ -2247,11 +2272,11 @@ class AirportPlace(BaseModel):
     frequencies: list[Frequency]
     metar: Metar | None = None
     #: Where it has none, the nearest report within 30 nm
-    #: (vfr.weather.nearest_report): its flight category the card's,
+    #: (wingtip.weather.nearest_report): its flight category the card's,
     #: marked approximate, where it is `near`.
     nearby_metar: NearbyMetar | None = None
     #: Where it has none, the weather the NWS's Gridded LAMP models at the
-    #: field for the hour (vfr.glmp): the card's category, marked
+    #: field for the hour (wingtip.glmp): the card's category, marked
     #: modelled, before a near station's.
     modelled_weather: ModelledWeather | None = None
     #: Its own TAF as issued, where it has one -- most fields have none:
@@ -2260,12 +2285,12 @@ class AirportPlace(BaseModel):
     taf: str | None = None
     weather_unavailable: bool = False
     # Its phone and one-line street address, from the FAA's airport file
-    # (vfr.faa_data.airport_contact): the manager's, else the owner's; None
+    # (wingtip.faa_data.airport_contact): the manager's, else the owner's; None
     # where the FAA lists none.
     phone: str | None = None
     address: str | None = None
     # The FAA's airport diagram and Chart Supplement page for the current
-    # editions (vfr.publications); None where the field has none. The
+    # editions (wingtip.publications); None where the field has none. The
     # diagram's picture is /api/airport-diagram/{airport_diagram_cycle}/{ident}.png.
     airport_diagram_url: str | None = None
     airport_diagram_cycle: str | None = None
@@ -2276,7 +2301,7 @@ class AirportPlace(BaseModel):
 
 
 class NearbyPlace(BaseModel):
-    """A place near a field from Overture Maps' places (vfr.nearby)."""
+    """A place near a field from Overture Maps' places (wingtip.nearby)."""
 
     name: str
     #: What it is, in words: "American restaurant", "Motel", "Car rental".
@@ -2289,13 +2314,13 @@ class NearbyPlace(BaseModel):
     website: str | None = None
     lat: float
     lon: float
-    #: A place to eat at the airport itself (vfr.nearby's outline).
+    #: A place to eat at the airport itself (wingtip.nearby's outline).
     on_field: bool = False
 
 
 class GroundPhoto(BaseModel):
     """A field's photo from the ground, from its Wikipedia article's lead
-    image on Wikimedia Commons (vfr.airport_photos), with its credit."""
+    image on Wikimedia Commons (wingtip.airport_photos), with its credit."""
 
     url: str
     #: Its size, pixels, for the full-screen viewer to fit it.
@@ -2318,7 +2343,7 @@ class AirportPhotos(BaseModel):
 class AirportServices(BaseModel):
     """What a field offers a pilot who lands there: from its Chart
     Supplement entry (NASR's APT_BASE and its remarks) the fuel, fees,
-    parking, repair and oxygen, and from Overture Maps (vfr.nearby) the
+    parking, repair and oxygen, and from Overture Maps (wingtip.nearby) the
     places to eat, sleep and hire a car within five miles.
     `nearby_unavailable` where Overture could not be read: not the same
     as nothing near."""
@@ -2342,40 +2367,12 @@ class AirportServices(BaseModel):
     nearby_unavailable: bool = False
 
 
-class RouteStopField(BaseModel):
-    """A field along the route to stop at, for the map's Stops (vfr.fuelstops.along):
-    which flight it is on, how far along it and off the line, its fuel,
-    and the nearest food, bed and car to hire from Overture (vfr.nearby),
-    once read (`nearby_known`)."""
-
-    ident: str
-    name: str
-    city: str
-    lat: float
-    lon: float
-    #: The flight it is on, by its index among the route's flights, and that
-    #: flight's departure.
-    flight: int
-    departure: str
-    #: Miles from that flight's departure, straight, and the miles it adds.
-    from_nm: float
-    added_nm: float
-    fuel_types: list[str] = []
-    runway_ft: int
-    elevation_ft: float | None = None
-    courtesy_car: bool = False
-    nearby_known: bool = False
-    food: NearbyPlace | None = None
-    lodging: NearbyPlace | None = None
-    car: NearbyPlace | None = None
-
-
 class StopField(BaseModel):
     """A field for the map's Stops, near the pilot or along a route: what
     it has of the four kinds -- the fuel it sells and its airframe and
     engine repair from its Chart Supplement entry (NASR's APT_BASE), its
     places to eat on the field and its flight schools from Overture
-    (vfr.nearby) -- and its phone (NASR's APT_CON)."""
+    (wingtip.nearby) -- and its phone (NASR's APT_CON)."""
 
     ident: str
     name: str
@@ -2404,35 +2401,6 @@ class StopField(BaseModel):
     places_known: bool = True
 
 
-class FoodPhoto(BaseModel):
-    """A restaurant's photo on Google's servers, and whom to credit."""
-
-    url: str
-    credit: str | None = None
-
-
-class FoodReview(BaseModel):
-    author: str
-    rating: float | None = None
-    text: str
-    #: Google's own words for when: "3 weeks ago".
-    when: str | None = None
-
-
-class FoodDetails(BaseModel):
-    """A restaurant's stars, reviews and photos from Google Places, for the
-    map's fly-in food (app.routers.food_details)."""
-
-    place_id: str | None = None
-    name: str
-    rating: float | None = None
-    #: How many ratings the stars are of.
-    ratings: int | None = None
-    photos: list[FoodPhoto] = []
-    reviews: list[FoodReview] = []
-    maps_url: str | None = None
-
-
 class StopFields(BaseModel):
     """The map's Stops: the fields with fuel, food, repair or a flight
     school, nearest first round the pilot or in route order along it, and
@@ -2443,17 +2411,8 @@ class StopFields(BaseModel):
     pending: int = 0
 
 
-class RouteStops(BaseModel):
-    """The fields along a route to stop at, in route order, and how many
-    of them still have their places to be read (`pending`): asked again
-    until none."""
-
-    fields: list[RouteStopField]
-    pending: int = 0
-
-
 class RouteHazard(BaseModel):
-    """What a way keeps clear of (vfr.route_options): its kind -- storm,
+    """What a way keeps clear of (wingtip.route_options): its kind -- storm,
     weather, marginal, sigmet, tfr, prohibited, terrain -- and its words."""
 
     kind: str
@@ -2461,7 +2420,7 @@ class RouteHazard(BaseModel):
 
 
 class RouteBand(BaseModel):
-    """A run of the weather a way meets (vfr.route_options._along): VFR,
+    """A run of the weather a way meets (wingtip.route_options._along): VFR,
     marginal (MVFR), IFR or a thunderstorm, and how many minutes of the
     flight it lasts, in the order flown."""
 
@@ -2477,12 +2436,12 @@ class RouteAlong(BaseModel):
     bands: list[RouteBand]
     tail_kt: float
     floor_ft: int
-    #: Its miles out of a glide's reach of dry land (vfr.water).
+    #: Its miles out of a glide's reach of dry land (wingtip.water).
     water_nm: int = 0
 
 
 class RouteOption(BaseModel):
-    """One way to fly the route (vfr.route_options): the points between
+    """One way to fly the route (wingtip.route_options): the points between
     its ends in order, as the address's `stops` takes them -- turns as the
     pilot's own points off a fix, fuel stops as fields (`fuel`) -- and the
     kinds of way it is the best of, with its estimate of the flight. The
@@ -2645,7 +2604,7 @@ class CandidateModel(BaseModel):
 
 
 class ChartModelSnapshot(BaseModel):
-    """The promoted chart model (vfr.chartmodel), against what it has to
+    """The promoted chart model (wingtip.chartmodel), against what it has to
     beat on the ratings it held out: the palette's constants
     (`palette_held_out_mae`) and the training ratings' mean. The
     planner's checkpoints move onto the chart once it beats the
@@ -2715,7 +2674,7 @@ class CorridorStatus(BaseModel):
 
 
 class PyramidPass(BaseModel):
-    """A pass of `python -m vfr.charts pyramid` under way: sheets done of
+    """A pass of `python -m wingtip.charts pyramid` under way: sheets done of
     the sheets it set out to render, and the one it is on."""
 
     started_at: str
@@ -2962,7 +2921,7 @@ class DestinationCheck(BaseModel):
     """The destination against 14 CFR 91.169(b)'s "1-2-3": an instrument
     approach published, and its TAF an hour either side of the ETA a
     ceiling of 2,000 ft or more and 3 sm or more -- else an alternate is
-    `required`, `reasons` saying why (vfr.alternates)."""
+    `required`, `reasons` saying why (wingtip.alternates)."""
 
     ident: str
     approach: bool
@@ -3010,9 +2969,103 @@ class Alternates(BaseModel):
 
 
 class AircraftBases(BaseModel):
-    """Where airplanes are based (vfr.traffic.based): the field their last
+    """Where airplanes are based (wingtip.traffic.based): the field their last
     flights keep to, or None where none; those still being looked up are
     pending, given on a later ask."""
 
     based: dict[str, PastFlightField | None]
     pending: list[str]
+
+
+class SpokenProcedureAsk(BaseModel):
+    """A SID or STAR as a clearance said it: "Bunyan" "1", its
+    transition's words where one was said ("Duluth")."""
+
+    name: str
+    number: str
+    transition: str | None = None
+
+
+class ClearanceAsk(BaseModel):
+    """POST /api/clearance/places: the places a clearance heard named, in
+    the words the recognizer wrote (web lib/clearance), for the planner to
+    find as idents near `near`, the route's points as "lat,lon;lat,lon".
+    `dep` and `dest`, the fields whose SID and STAR were said."""
+
+    near: str = ""
+    dep: str | None = None
+    dest: str | None = None
+    limit: str | None = None
+    route: list[str] = []
+    departure: SpokenProcedureAsk | None = None
+    arrival: SpokenProcedureAsk | None = None
+
+
+class SpokenPlace(BaseModel):
+    """A place a clearance said, as found (wingtip.spoken): `ident` None where
+    nothing near was like it, `sure` false where it was found by its sound
+    alone, for the pilot to check."""
+
+    said: str
+    ident: str | None = None
+    name: str | None = None
+    kind: Literal["airport", "navaid", "fix"] | None = None
+    lat: float | None = None
+    lon: float | None = None
+    sure: bool = False
+
+
+class SpokenProcedure(BaseModel):
+    """A SID or STAR said, as found among its field's: its coded
+    identifier ("BUNYN1") and the transition said, if one was."""
+
+    id: str
+    transition: str | None = None
+    sure: bool = False
+
+
+class ClearancePlaces(BaseModel):
+    """The places a clearance named, as idents: its limit, each phrase of
+    its route as the places in it in order, its SID and STAR."""
+
+    limit: SpokenPlace | None = None
+    route: list[list[SpokenPlace]] = []
+    departure: SpokenProcedure | None = None
+    arrival: SpokenProcedure | None = None
+
+
+class ClearanceWords(BaseModel):
+    """GET /api/clearance/words: the names a clearance near the route is
+    likely to say -- its navaids', its fixes' and its fields' SIDs' -- for
+    the phone's recognizer to listen for (iOS's contextualStrings,
+    Android's biasing strings)."""
+
+    words: list[str]
+
+
+class CyclePackRegion(BaseModel):
+    """One region's phone pack (wingtip.pack's write_phone): its bounds in
+    degrees, its size in bytes and its CRC-32 (zlib's), for the phone to
+    check it whole."""
+
+    name: str
+    west: float
+    south: float
+    east: float
+    north: float
+    bytes: int
+    crc32: int
+
+
+class CyclePacks(BaseModel):
+    """The phones' packs of the FAA cycle the planner holds: the regions
+    there are, each fetched at /api/cycle-pack/{cycle}/{name}.pack; how
+    far the packs' lines may stray from the FAA's (degrees, and the worst
+    in nm); and how big a region is (degrees)."""
+
+    cycle: str
+    built_at: float
+    tolerance_deg: float
+    worst_nm: float
+    region_deg: int
+    regions: list[CyclePackRegion]

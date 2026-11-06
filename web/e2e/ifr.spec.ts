@@ -8,7 +8,7 @@ import { openProfile, slow, settle, openTab, openSection, controlsInSight, openN
 test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: "ignoreErrors" }); });
 
 /**
- * Planning under IFR (the planner's vfr.ifr): the flight rules are the
+ * Planning under IFR (the planner's wingtip.ifr): the flight rules are the
  * altitude popover's first choice; under IFR the nav log is asked for
  * with them, its altitude is chosen from 14 CFR 91.177's minimum IFR
  * altitude and 91.179's thousands -- said so in its reasoning -- and the

@@ -4,8 +4,8 @@ them.
 
 This is the human-facing surface of everything else in the project. The
 chart reader finds what the sectional draws along the course, the chart
-model scores it (vfr.chartmodel, served by model-service),
-vfr.checkpoints narrows them to the handful worth flying, and vfr.navlog turns those into legs
+model scores it (wingtip.chartmodel, served by model-service),
+wingtip.checkpoints narrows them to the handful worth flying, and wingtip.navlog turns those into legs
 with real wind and magnetic variation -- but none of that is inspectable
 from a JSON response. Seeing the checkpoints on the sectional is the only
 way to judge whether they are findable in the air, which is the question
@@ -35,25 +35,28 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import TypeAdapter
-from vfr import airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, water, weather
-from vfr import airspace_at, congested
-from vfr import traffic as traffic_data
-from vfr import airports as airport_table
+from wingtip import (
+    airspace, altitude, charts, faa_data, fixes, geocode, nearby, places, publications, registry, remarks, sua, water, weather,
+)
+from wingtip import airspace_at, congested
+from wingtip import pack as cycle_pack
+from wingtip import traffic as traffic_data
+from wingtip import airports as airport_table
 
 from . import chart_model, chart_refresh, errors, swim, tracing
 from .common import PROCESSED_DIR
 from .planning import StillComputing
 from .routers import airports, airspace as airspace_router, basemaps, briefing, chart, classb, devml, devservices, notes, oral, plan
-from .routers import figures, food_details, gonogo, route_options, system, traffic
+from .routers import assistant, clearance, figures, gonogo, packs, route_options, system, traffic, words
 from .schemas import STREAM_MESSAGES, Index
 
 # Nothing else in the process configured logging, so every log.info() in
 # this codebase -- this file's own, and every one already written in
-# vfr/weather.py and vfr/charts.py before this -- was going nowhere:
+# wingtip/weather.py and wingtip/charts.py before this -- was going nowhere:
 # Python's root logger defaults to WARNING, and uvicorn's own
 # --log-level only reaches its own uvicorn.access/uvicorn.error
 # loggers, not a plain logging.getLogger(__name__) anywhere else in the
-# process. Found while adding the timing lines in vfr.altitude and
+# process. Found while adding the timing lines in wingtip.altitude and
 # app.routers.classb (2026-09-23) and running one
 # live to see it -- nothing appeared. LOG_LEVEL, not a hardcoded INFO,
 # so a noisy deploy can be turned back down without a code change.
@@ -67,8 +70,12 @@ WEATHER_REFRESH_S = 240
 # How often the FAA's files are checked for a new edition.
 EDITIONS_CHECK_EVERY_S = 6 * 3600
 #: Whether the FAA's aircraft registry is downloaded and read here
-#: (vfr.registry): on, but on a test stack (docker-compose.ci.yml).
+#: (wingtip.registry): on, but on a test stack (docker-compose.ci.yml).
 REGISTRY_REFRESH = os.environ.get("REGISTRY_REFRESH", "1") != "0"
+#: Whether the cycle pack (wingtip.pack) is built here, from the files the
+#: planner holds, once a cycle: on, but on a test stack, which reads the
+#: files themselves and need not write 400 MB a run.
+CYCLE_PACK = os.environ.get("CYCLE_PACK", "1") != "0"
 # Set once the reference data below is loaded: the health probe reports
 # it, so a test run against a fresh stack can wait for a planner that
 # answers at full speed rather than one still parsing airspace under
@@ -103,7 +110,7 @@ def _warm_reference_data() -> None:
     """Every altitude selection needs the controlled-airspace polygons
     and the obstacle table, and both are slow to load cold (about thirty
     and nine seconds from the FAA files, well under a second from the
-    caches vfr keeps beside them); every briefing needs the current
+    caches wingtip keeps beside them); every briefing needs the current
     METAR/TAF/SIGMET datasets, a few downloads; every map needs the
     charts under it. All are loaded here rather than on the first
     pilot's request after a restart. A request arriving mid-load waits
@@ -118,27 +125,27 @@ def _warm_reference_data() -> None:
         ("obstacles", lambda: faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)),
         ("weather", weather.preload),
         ("remarks", remarks.preload),
-        # The airport search's table and index (vfr.airports): the first
+        # The airport search's table and index (wingtip.airports): the first
         # search after a restart built them, three seconds before the
         # first suggestion.
         ("airport search", lambda: airport_table.search_airports("K")),
         # And the lookup of a route's airports by ident (get_airport).
         ("airport lookup", airport_table.preload_lookup),
         ("fixes", fixes.preload),
-        # Every special-use area in the country (vfr.sua): asked for round
+        # Every special-use area in the country (wingtip.sua): asked for round
         # each route, a new route's were a request of 0.3 to 2.5 s.
         ("special-use airspace", sua.preload),
-        # Each Class B to E volume's box (vfr.airspace_at), for the
+        # Each Class B to E volume's box (wingtip.airspace_at), for the
         # airspace over a point held on the chart: the shapefile walked
         # once here, not at the first tap.
         ("airspace at a point", lambda: airspace_at.preload(airspace.ensure_class_airspace_shapefile(altitude.DEFAULT_FAA_CACHE_DIR))),
-        # The land and large lakes for Routes' way over land (vfr.water).
+        # The land and large lakes for Routes' way over land (wingtip.water).
         ("water", water.preload),
-        # The towns the terrain floor's clearances are set by (vfr.congested,
+        # The towns the terrain floor's clearances are set by (wingtip.congested,
         # 14 CFR 91.119(b)): the Census urban areas' outlines read, and the
         # gazetteer's places, before the first route's floor asks.
         ("congested areas", congested.preload),
-        # The traffic pattern altitudes from the airport file (vfr.faa_data):
+        # The traffic pattern altitudes from the airport file (wingtip.faa_data):
         # its parse was 11.8 s of a cold KBOS to KSAN's plan (Session1's
         # profile, 2026-10-23).
         ("patterns", lambda: faa_data.pattern_agl_ft("KJFK", altitude.DEFAULT_FAA_CACHE_DIR)),
@@ -154,7 +161,7 @@ def _warm_reference_data() -> None:
     WARM.set()
 
     # First after warm, as every airport's card reads them: the fields'
-    # contacts (vfr.faa_data.airport_contact) and frequencies
+    # contacts (wingtip.faa_data.airport_contact) and frequencies
     # (airport_frequencies), each read once a cycle -- three and two and a
     # half seconds the first card after a restart waited on (KRFD's 4.8 s,
     # 2026-10-10), while the place names and indexes below were read first.
@@ -166,7 +173,7 @@ def _warm_reference_data() -> None:
         faa_data.airport_frequencies("KORD", altitude.DEFAULT_FAA_CACHE_DIR)
     except Exception:  # noqa: BLE001
         log.exception("airport frequencies warm-up failed")
-    # And Overture's places files' footers (vfr.nearby.warm): the map's
+    # And Overture's places files' footers (wingtip.nearby.warm): the map's
     # Stops and a card's Info read a field's places, 2.5 s cold, 0.3 s after.
     try:
         nearby.warm()
@@ -174,25 +181,25 @@ def _warm_reference_data() -> None:
         log.exception("nearby places warm-up failed")
 
     # After warm, not before it: the first start downloads the USGS's
-    # place names (vfr.places), and nothing waits on them -- a waypoint
+    # place names (wingtip.places), and nothing waits on them -- a waypoint
     # is only left undescribed until they are in.
     try:
         places.preload()
     except Exception:  # noqa: BLE001
         log.exception("places warm-up failed")
     # The same for the airport diagrams' and Chart Supplement's indexes
-    # (vfr.publications), once per edition: a card only links them.
+    # (wingtip.publications), once per edition: a card only links them.
     try:
         publications.preload()
     except Exception:  # noqa: BLE001
         log.exception("publications warm-up failed")
-    # And the towns Nearest can be asked from (vfr.geocode), a megabyte
+    # And the towns Nearest can be asked from (wingtip.geocode), a megabyte
     # from the Census Bureau the first time.
     try:
         geocode.preload()
     except Exception:  # noqa: BLE001
         log.exception("towns warm-up failed")
-    # And the FAA's aircraft registry (vfr.registry), for a tracked
+    # And the FAA's aircraft registry (wingtip.registry), for a tracked
     # airplane's card: 73 MB from the FAA and half a minute's read, once a
     # day; a card before it is in shows no registration. Its own switch
     # (REGISTRY_REFRESH), not the charts': the server draws no charts
@@ -204,6 +211,17 @@ def _warm_reference_data() -> None:
             registry.refresh()
         except Exception:  # noqa: BLE001 -- the next day's check tries again
             log.exception("aircraft registry not read")
+
+    # The cycle pack, from the files read above, where the one on disk is
+    # not of them: a new cycle's first start writes it (a minute or so),
+    # and every start after reads its airspace and towns from it. Then the
+    # phones' packs of it, by region (/api/cycle-packs).
+    if CYCLE_PACK:
+        try:
+            cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
+            cycle_pack.ensure_phone()
+        except Exception:  # noqa: BLE001 -- the files are read as they were; the next start tries again
+            log.exception("cycle pack not built")
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
@@ -219,7 +237,7 @@ def _warm_reference_data() -> None:
     # logged and the held copies go on being served. Once an hour, the
     # chart cycle is checked (app.chart_refresh decides what that starts).
     last_cycle_check = time.time()
-    # The FAA's files a new edition at a time (vfr.faa_data.refresh_editions):
+    # The FAA's files a new edition at a time (wingtip.faa_data.refresh_editions):
     # checked now, and four times a day -- a cycle starts on a known day,
     # and a check is three page reads. Off with the charts' own refresh
     # (CHARTS_AUTO_REFRESH=0: a test stack).
@@ -240,6 +258,9 @@ def _warm_reference_data() -> None:
                     faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)
                     remarks.preload()
                     fixes.preload()
+                    if CYCLE_PACK:
+                        cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
+                        cycle_pack.ensure_phone()
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
         # The aircraft registry, read again once it is a day old (each
@@ -309,7 +330,7 @@ def index() -> Index:
 
 
 for module in (plan, chart, briefing, notes, devml, system, classb, devservices, airports, airspace_router, oral, traffic, basemaps,
-               route_options, gonogo, figures, food_details):
+               route_options, gonogo, figures, clearance, packs, assistant, words):
     app.include_router(module.router)
 
 

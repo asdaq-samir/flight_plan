@@ -1,3 +1,4 @@
+import type L from "leaflet";
 import { create } from "zustand";
 import { AIRPORT_MARK } from "./airportMark";
 
@@ -31,21 +32,28 @@ export function ownShipBox(at: Point): Box {
   return { x0: at.x - 17, y0: at.y - 17, x1: at.x + 17, y1: at.y + 17 };
 }
 
-/** A VOR's tag as vorIcon draws it: 11 px off the station, 14 tall,
+/** A VOR's tag as NavaidCanvas draws it: 11 px off the station, 14 tall,
  *  its ident with 4 px either side. */
 const VOR_TAG_GAP = 11;
 const VOR_TAG_HEIGHT = 14;
 
 export type TagSide = "right" | "left" | "none";
 
+/** Where a VOR's ident tag would be on either side of its hexagon. */
+export function vorTagBoxes(at: Point, ident: string): Record<"right" | "left", Box> {
+  const width = ident.length * LETTER_PX + 8;
+  const y0 = at.y - VOR_TAG_HEIGHT / 2, y1 = at.y + VOR_TAG_HEIGHT / 2;
+  return {
+    right: { x0: at.x + VOR_TAG_GAP, y0, x1: at.x + VOR_TAG_GAP + width, y1 },
+    left: { x0: at.x - VOR_TAG_GAP - width, y0, x1: at.x - VOR_TAG_GAP, y1 },
+  };
+}
+
 /** Which side of its hexagon a VOR's ident tag goes: the right, as the
  *  chart's, unless that is on an airport's mark or own ship and the left
  *  is clear; neither where both are blocked. */
 export function vorTagSide(at: Point, ident: string, blockers: Box[]): TagSide {
-  const width = ident.length * LETTER_PX + 8;
-  const y0 = at.y - VOR_TAG_HEIGHT / 2, y1 = at.y + VOR_TAG_HEIGHT / 2;
-  const right = { x0: at.x + VOR_TAG_GAP, y0, x1: at.x + VOR_TAG_GAP + width, y1 };
-  const left = { x0: at.x - VOR_TAG_GAP - width, y0, x1: at.x - VOR_TAG_GAP, y1 };
+  const { right, left } = vorTagBoxes(at, ident);
   if (!blockers.some(b => overlaps(b, right))) return "right";
   if (!blockers.some(b => overlaps(b, left))) return "left";
   return "none";
@@ -56,5 +64,23 @@ const NO_FIELDS: DrawnField[] = [];
 
 /** The fields drawn with their marks and idents just now (AirportsLayer's
  *  and the route's), for what else is drawn on the map -- the VORs' tags
- *  -- to keep off. A new list only when what is drawn changes. */
-export const useDrawnAirports = create<{ fields: DrawnField[] }>(() => ({ fields: NO_FIELDS }));
+ *  -- to keep off. A new list only when what is drawn changes. And
+ *  whether the airports' first answer is in: the VORs are drawn after it
+ *  (NavaidsLayer), at the owner's ask ("on the app vors show up first",
+ *  2026-11-05: the rings, then the airports, then the navaids). */
+export const useDrawnAirports = create<{ fields: DrawnField[]; airportsIn: boolean }>(() => ({ fields: NO_FIELDS, airportsIn: false }));
+
+/** How near a tap is a field's, in screen px: half a finger's 44 points
+ *  (AirportsLayer's own reach). */
+export const FIELD_TAP_PX = 22;
+
+/** Whether a tap at `at` is a drawn field's. The field wins a tap near
+ *  its mark over a VOR, a fix or a waypoint by it, as its mark is drawn
+ *  over them (the owner, 2026-10-30: "When I try to select airport, it
+ *  selects the airspace or vor if they are overlapping"). AirportsLayer
+ *  stops the browser's click there, but on a touch screen Leaflet makes
+ *  its own click from the touch, which still reached the others: one tap
+ *  on O'Hare opened its card and a VFR waypoint's 0.7 nm off over it. */
+export function fieldTapped(map: L.Map, at: L.Point): boolean {
+  return useDrawnAirports.getState().fields.some(f => map.latLngToContainerPoint([f.lat, f.lon]).distanceTo(at) <= FIELD_TAP_PX);
+}

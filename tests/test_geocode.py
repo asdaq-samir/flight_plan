@@ -5,7 +5,7 @@ import zipfile
 
 import requests
 
-from vfr import geocode
+from wingtip import geocode
 
 GAZETTEER = (
     "USPS|GEOID|GEOIDFQ|ANSICODE|NAME|LSAD|FUNCSTAT|ALAND|AWATER|ALAND_SQMI|AWATER_SQMI|INTPTLAT|INTPTLONG\n"
@@ -75,6 +75,18 @@ def test_a_geocoder_that_does_not_answer_finds_nothing_and_fails_nothing(monkeyp
         raise requests.ConnectionError("down")
     monkeypatch.setattr(geocode.requests, "get", down)
     assert geocode.find_addresses("4000 International Ln") == []
+
+
+def test_an_address_kept_past_its_time_is_given_when_the_geocoder_does_not_answer(monkeypatch):
+    """An address does not move: the answer kept for it is better than
+    none while the Census geocoder is down."""
+    found = [{"label": "4000 International Ln, Madison, WI 53704", "lat": 43.134, "lon": -89.349}]
+    monkeypatch.setattr(geocode, "_ADDRESSES", {"4000 international ln": (0.0, found)})
+
+    def down(url, **kwargs):
+        raise requests.ConnectionError("down")
+    monkeypatch.setattr(geocode.requests, "get", down)
+    assert geocode.find_addresses("4000 International Ln") == found
 
 
 def _no_kept_gazetteer(monkeypatch, tmp_path):

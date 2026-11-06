@@ -1,0 +1,455 @@
+{
+  "about": "Clearances as a recognizer writes them, read into their items (lib/clearance readClearance, Clearance.read in the native app), and the route each gives once its places are found (clearedRoute). The first is AIM 5-2-6's own example; the rest are in AIM 4-2 and 4-4-3's phraseology, said in words and as recognizers write figures.",
+  "read": [
+    {
+      "heard": "National Seven Twenty cleared to Miami Airport Intercontinental one departure, Lake Charles transition then as filed, maintain Flight Level two seven zero.",
+      "clearance": {
+        "limit": "miami airport",
+        "route": [
+          {
+            "kind": "departure",
+            "name": "intercontinental",
+            "number": "1",
+            "transition": "lake charles"
+          }
+        ],
+        "asFiled": true,
+        "maintainFt": 27000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": false
+      }
+    },
+    {
+      "heard": "Cessna one two three alpha bravo cleared to the Duluth airport via radar vectors Gopher then as filed climb and maintain three thousand expect seven thousand one zero minutes after departure departure frequency one two five point three five squawk four five two one",
+      "clearance": {
+        "limit": "duluth airport",
+        "route": [
+          {
+            "kind": "vectors"
+          },
+          {
+            "kind": "places",
+            "said": "gopher"
+          }
+        ],
+        "asFiled": true,
+        "maintainFt": 3000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": 7000,
+        "expectMin": 10,
+        "frequency": "125.35",
+        "facility": "departure",
+        "squawk": "4521",
+        "classB": false
+      }
+    },
+    {
+      "heard": "N123AB, cleared to Duluth airport via the Bunyan 1 departure, Duluth transition, then as filed. Maintain 3,000, expect 7000 10 minutes after departure. Departure frequency 125.35, squawk 4521.",
+      "clearance": {
+        "limit": "duluth airport",
+        "route": [
+          {
+            "kind": "departure",
+            "name": "bunyan",
+            "number": "1",
+            "transition": "duluth"
+          }
+        ],
+        "asFiled": true,
+        "maintainFt": 3000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": 7000,
+        "expectMin": 10,
+        "frequency": "125.35",
+        "facility": "departure",
+        "squawk": "4521",
+        "classB": false
+      }
+    },
+    {
+      "heard": "cleared to kilo delta lima hotel airport via direct Gopher victor two Farmington pickla direct, maintain one zero thousand, contact departure one one niner point niner, squawk zero four two five",
+      "clearance": {
+        "limit": "KDLH airport",
+        "route": [
+          {
+            "kind": "places",
+            "said": "gopher"
+          },
+          {
+            "kind": "airway",
+            "ident": "V2"
+          },
+          {
+            "kind": "places",
+            "said": "farmington pickla"
+          }
+        ],
+        "asFiled": false,
+        "maintainFt": 10000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": "119.9",
+        "facility": "departure",
+        "squawk": "0425",
+        "classB": false
+      }
+    },
+    {
+      "heard": "Cessna three alpha bravo, cleared into the Class Bravo airspace, maintain VFR at or below four thousand five hundred",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": 4500,
+        "maintainLimit": "at or below",
+        "vfr": true,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": true
+      }
+    },
+    {
+      "heard": "squawk five two three one",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": null,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": "5231",
+        "classB": false
+      }
+    },
+    {
+      "heard": "squawk four eight two one",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": null,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": false
+      }
+    },
+    {
+      "heard": "runway three four cleared for takeoff",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": null,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": false
+      }
+    },
+    {
+      "heard": "Cessna three alpha bravo climb to five thousand",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": 5000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": false
+      }
+    },
+    {
+      "heard": "November three alpha bravo descend flight level one niner zero",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": 19000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": false
+      }
+    },
+    {
+      "heard": "Cessna three alpha bravo monitor tower one one eight point three",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": null,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": "118.3",
+        "facility": "tower",
+        "squawk": null,
+        "classB": false
+      }
+    },
+    {
+      "heard": "November three alpha bravo descend and maintain three thousand, cleared ILS runway two seven approach",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": 3000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": false
+      }
+    },
+    {
+      "heard": "runway two seven cleared for the option, after the option climb to three thousand",
+      "clearance": {
+        "limit": null,
+        "route": [],
+        "asFiled": false,
+        "maintainFt": 3000,
+        "maintainLimit": null,
+        "vfr": false,
+        "expectFt": null,
+        "expectMin": null,
+        "frequency": null,
+        "facility": null,
+        "squawk": null,
+        "classB": false
+      }
+    }
+  ],
+  "numbers": [
+    {
+      "heard": "five hundred",
+      "num": "500"
+    },
+    {
+      "heard": "four thousand five hundred",
+      "num": "4500"
+    },
+    {
+      "heard": "one zero thousand",
+      "num": "10000"
+    },
+    {
+      "heard": "one three thousand five hundred",
+      "num": "13500"
+    },
+    {
+      "heard": "one two two point one",
+      "num": "122.1"
+    },
+    {
+      "heard": "twelve",
+      "num": "12"
+    },
+    {
+      "heard": "five thirty three",
+      "num": "533"
+    },
+    {
+      "heard": "niner",
+      "num": "9"
+    },
+    {
+      "heard": "4.5",
+      "num": "4.5"
+    }
+  ],
+  "routes": [
+    {
+      "heard": "cleared to the Duluth airport via radar vectors Gopher then as filed",
+      "found": {
+        "limit": {
+          "said": "duluth airport",
+          "ident": "KDLH",
+          "kind": "airport"
+        },
+        "route": [
+          [
+            {
+              "said": "gopher",
+              "ident": "GEP",
+              "kind": "navaid"
+            }
+          ]
+        ]
+      },
+      "planned": {
+        "dep": "KMSP",
+        "stops": [
+          "GEP",
+          "V2",
+          "FAR"
+        ],
+        "dest": "KDLH"
+      },
+      "route": {
+        "dep": "KMSP",
+        "stops": [
+          "GEP",
+          "V2",
+          "FAR"
+        ],
+        "dest": "KDLH"
+      },
+      "typed": []
+    },
+    {
+      "heard": "cleared to the Duluth airport via the Bunyan one departure Duluth transition then as filed",
+      "found": {
+        "limit": {
+          "said": "duluth airport",
+          "ident": "KDLH",
+          "kind": "airport"
+        },
+        "departure": {
+          "id": "BUNYN1",
+          "transition": "DLH"
+        }
+      },
+      "planned": {
+        "dep": "KMSP",
+        "stops": [],
+        "dest": "KDLH"
+      },
+      "route": {
+        "dep": "KMSP",
+        "stops": [],
+        "dest": "KDLH"
+      },
+      "typed": [
+        {
+          "name": "BUNYN1",
+          "before": "KMSP",
+          "after": "DLH"
+        }
+      ]
+    },
+    {
+      "heard": "cleared to Hibbing airport via direct Gopher victor two Farmington pickla",
+      "found": {
+        "limit": {
+          "said": "hibbing airport",
+          "ident": "KHIB",
+          "kind": "airport"
+        },
+        "route": [
+          [
+            {
+              "said": "gopher",
+              "ident": "GEP",
+              "kind": "navaid"
+            }
+          ],
+          [
+            {
+              "said": "farmington",
+              "ident": "FGT",
+              "kind": "navaid"
+            },
+            {
+              "said": "pickla",
+              "ident": "PYKLA",
+              "kind": "fix",
+              "sure": false
+            }
+          ]
+        ]
+      },
+      "planned": {
+        "dep": "KMSP",
+        "stops": [
+          "BRD"
+        ],
+        "dest": "KDLH"
+      },
+      "route": {
+        "dep": "KMSP",
+        "stops": [
+          "GEP",
+          "V2",
+          "FGT",
+          "PYKLA"
+        ],
+        "dest": "KHIB"
+      },
+      "typed": []
+    },
+    {
+      "heard": "cleared to the Duluth airport via Gopher then as filed",
+      "found": {
+        "limit": {
+          "said": "duluth airport",
+          "ident": "KDLH",
+          "kind": "airport"
+        },
+        "route": [
+          [
+            {
+              "said": "gopher",
+              "ident": "GEP",
+              "kind": "navaid"
+            }
+          ]
+        ]
+      },
+      "planned": {
+        "dep": "KMSP",
+        "stops": [
+          "BRD"
+        ],
+        "dest": "KDLH"
+      },
+      "route": {
+        "dep": "KMSP",
+        "stops": [
+          "GEP",
+          "BRD"
+        ],
+        "dest": "KDLH"
+      },
+      "typed": []
+    }
+  ]
+}

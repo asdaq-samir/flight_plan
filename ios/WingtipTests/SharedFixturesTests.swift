@@ -59,6 +59,25 @@ private struct DrillsFixture: Decodable {
     let due: [Due]
 }
 
+private struct ClearancesFixture: Decodable {
+    struct Read: Decodable { let heard: String; let clearance: Clearance }
+    struct Route: Decodable { let dep: String; let stops: [String]; let dest: String }
+    struct Cleared: Decodable { let heard: String; let found: ClearancePlaces; let planned: Route; let route: Route; let typed: [Clearance.Typed] }
+    let read: [Read]
+    let routes: [Cleared]
+}
+
+private struct AtisFixture: Decodable {
+    struct Case: Decodable { let name: String; let heard: String; let reading: Atis }
+    let cases: [Case]
+}
+
+private struct HeardCallsFixture: Decodable {
+    struct Case: Decodable { let heard: String; let forUs: Bool; let direct: String?; let maintainFt: Int? }
+    let tail: String
+    let cases: [Case]
+}
+
 private struct LostCommsFixture: Decodable {
     struct Route: Decodable { let key, label, rule: String }
     struct Leave: Decodable { let approachFix: Bool; let efc, eta, words: String }
@@ -201,6 +220,31 @@ struct SharedFixturesTests {
             #expect(read.entries.count == c.entries.count, "\(c.name)")
             for (got, want) in zip(read.entries, c.entries) { #expect(same(got, want), "\(c.name): \(want.flownOn)") }
             #expect(read.skipped == c.skipped.map { LogbookCSV.Skipped(line: $0.line, reason: $0.reason) }, "\(c.name)")
+        }
+    }
+
+    @Test func aClearanceIsReadAsTheWebReadsIt() throws {
+        let f = try fixture("clearances", as: ClearancesFixture.self)
+        for c in f.read { #expect(Clearance.read(c.heard) == c.clearance, "\(c.heard)") }
+        for c in f.routes {
+            let got = Clearance.clearedRoute(c.heard, c.found, dep: c.planned.dep, stops: c.planned.stops, dest: c.planned.dest)
+            #expect(got.dep == c.route.dep && got.stops == c.route.stops && got.dest == c.route.dest, "\(c.heard)")
+            #expect(got.typed == c.typed, "\(c.heard)")
+        }
+    }
+
+    @Test func anAtisIsReadAsTheWebReadsIt() throws {
+        let f = try fixture("atis", as: AtisFixture.self, decoder: Atis.decoder)
+        #expect(f.cases.count >= 12)
+        for c in f.cases { #expect(Atis.read(c.heard) == c.reading, "\(c.name)") }
+    }
+
+    @Test func aCallToUsIsHeardAsTheWebHearsIt() throws {
+        let f = try fixture("heardCalls", as: HeardCallsFixture.self)
+        for c in f.cases {
+            #expect(HeardCall.ourCall(c.heard, tail: f.tail) == c.forUs, "\(c.heard)")
+            #expect(HeardCall.directOf(c.heard) == c.direct, "\(c.heard)")
+            #expect(Clearance.read(c.heard).maintainFt == c.maintainFt, "\(c.heard)")
         }
     }
 }

@@ -88,26 +88,44 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
-      - run: ruff check src/vfr tests
+      # wingtip's Rust extension (native/), which wingtip.route_options and
+      # wingtip.airspace_at import: built with the runner's own Rust, in the
+      # light `ci` profile (the image's is the release one; the sums are
+      # the same either way, as nothing here is built for fast maths).
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      # The engine's own tests, on the shared fixtures the Python reads too.
+      - run: cargo test --profile ci --manifest-path native/Cargo.toml -p wingtip-engine
+      # The web app's copy of the engine (web/src/lib/engine), committed
+      # because the web build has no Rust: built again in the script's
+      # pinned image, it must be the committed file byte for byte, or the
+      # browser runs other rules than the planner and the phones.
+      - name: The engine's WebAssembly is the committed one
+        run: |
+          scripts/build-engine-wasm.sh
+          git diff --exit-code --stat web/src/lib/engine/wingtip-engine.wasm || {
+            echo "::error title=Engine wasm out of date::web/src/lib/engine/wingtip-engine.wasm is not what native/ builds: run scripts/build-engine-wasm.sh and commit the file."
+            exit 1
+          }
+      - run: ruff check src/wingtip tests
       - run: pytest tests/ -v
-      # vfr's API documentation, from its docstrings. pdoc imports every
+      # wingtip's API documentation, from its docstrings. pdoc imports every
       # module, so one that stops importing fails the job here. It needs
-      # vfr's own list, installed above, and the CPU torch wheel for
-      # vfr.torch_model -- the one module that imports a framework at its
+      # wingtip's own list, installed above, and the CPU torch wheel for
+      # wingtip.torch_model -- the one module that imports a framework at its
       # top; the rest import theirs inside the functions that use them.
       # After the tests, so they run with the packages they always had.
-      - name: pdoc (src/vfr)
+      - name: pdoc (src/wingtip)
         run: |
           uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
           uv pip install --system pdoc
-          PYTHONPATH=src python -m pdoc src/vfr -o /tmp/pdoc-vfr --no-show-source
+          PYTHONPATH=src python -m pdoc src/wingtip -o /tmp/pdoc-wingtip --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
-          name: pdoc-vfr
-          path: /tmp/pdoc-vfr
+          name: pdoc-wingtip
+          path: /tmp/pdoc-wingtip
           retention-days: 30
 
   # The web front end. Its own job because it needs Node rather than
@@ -200,7 +218,7 @@ jobs:
   # planning-service's own FastAPI-layer suite. Separate job for the same
   # reason as test-webapp: its own dependency set (requirements-dev.txt,
   # on top of the service's own requirements.txt), and no reason to gate
-  # it on the root `test` job's unrelated src/vfr dependencies.
+  # it on the root `test` job's unrelated src/wingtip dependencies.
   test-planning-service:
     runs-on: ubuntu-26.04
     needs: [changes]
@@ -212,9 +230,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
+      # The planner imports wingtip's Rust extension (native/), as in the test job.
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
       - run: ruff check app tests
       - run: pytest tests/ -v
 
@@ -230,7 +250,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
@@ -251,7 +271,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install uv
       - run: uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
       - run: uv pip install --system -r requirements-dev.txt
@@ -280,7 +300,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.13"   # crewai requires <3.14; crewai-agent/Dockerfile matches
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       - run: ruff check app tests
@@ -363,6 +383,9 @@ jobs:
               - pyproject.toml
             test-root:
               - src/**
+              - native/**
+              - scripts/build-engine-wasm.sh
+              - web/src/lib/engine/wingtip-engine.wasm
               - tests/**
               - requirements-dev.txt
               # tests/test_requirements.py reads these
@@ -378,6 +401,7 @@ jobs:
             test-planning-service:
               - planning-service/**
               - src/**
+              - native/**
             test-model-service:
               - model-service/**
             test-nav-log-agent:
@@ -395,36 +419,45 @@ jobs:
             docs:
               - springboot-app/**
               - infra/lambda-retrain-trigger/**
-            # The images, each by what its Dockerfile reads.
+            # The images, each by what its Dockerfile reads: native/** for
+            # every one with the wingtip-native stage (docker/Dockerfile.native).
             ml:
               - docker/Dockerfile.ml
               - docker/requirements-ml*.txt
               - src/**
+              - native/**
             pipeline-processing:
               - docker/Dockerfile.processing
               - docker/requirements-processing.txt
               - src/**
+              - native/**
             pipeline-training:
               - docker/Dockerfile.training
               - docker/requirements-training.txt
               - src/**
+              - native/**
             airflow:
               - docker/Dockerfile.airflow
               - airflow/**
               - src/**
+              - native/**
             airflow-aws:
               - docker/Dockerfile.airflow.aws
               - airflow/dags/vfr_pipeline_aws_dag.py
               - src/**
+              - native/**
             nav-log-agent:
               - nav-log-agent/**
               - src/**
+              - native/**
             crewai-agent:
               - crewai-agent/**
               - src/**
+              - native/**
             planning-service:
               - planning-service/**
               - src/**
+              - native/**
             model-service:
               - model-service/**
             # web/** rather than the files the Dockerfile copies: a file
@@ -661,8 +694,9 @@ jobs:
       # on every shard, when only the dev page's training tests ask for
       # it (they start it themselves, and the planner shares it).
       #
-      # A pull request's token cannot push, so a key no image has yet is
-      # built by its shards themselves, from the registry cache main
+      # A fork's or Dependabot's pull request's token cannot push (SHARED
+      # below), so there a key no image has yet is built by the shards
+      # themselves, from the registry cache main
       # writes: with the runner's own builder, Docker's, whose image store
       # is containerd's, so it reads the registry cache and builds straight
       # into Docker (a BuildKit container of setup-buildx's took 5 to 15
@@ -672,6 +706,12 @@ jobs:
         env:
           REGISTRY: ghcr.io/${{ github.repository }}
           EVENT: ${{ github.event_name }}
+          # Whether this run's images are shared: built once by build (e2e)
+          # and pulled by every shard. A push, and a pull request from a
+          # branch of this repository, whose token can push them; not a
+          # fork's or Dependabot's, whose token cannot, and whose shards
+          # build what they cannot pull.
+          SHARED: ${{ (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
@@ -705,7 +745,7 @@ jobs:
             there "$ref:e2e-$2" || built=""
             small
             if [ -z "$built" ]; then
-              if [ "$EVENT" = pull_request ]; then
+              if [ "$SHARED" != true ]; then
                 docker buildx bake -f .github/ci-images.hcl "$1" --load || return 1
                 mark "$1 built"
                 return 0
@@ -748,7 +788,7 @@ jobs:
           while read -r name key; do
             if [ "$name" != page ]; then
               { fetch "$name" "$key" && start "$name"; } &
-            elif [ "$EVENT" != pull_request ]; then
+            elif [ "$SHARED" = true ]; then
               page "$key" &
             fi
           done <<< "$keys"
@@ -780,7 +820,7 @@ jobs:
             data/raw/*
             !data/raw/charts.nosync
             !data/raw/chart_tiles.nosync
-          key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/vfr/faa_data.py', 'src/vfr/airports.py', 'src/vfr/elevation.py', 'src/vfr/charts.py') }}
+          key: planner-data-v1-${{ hashFiles('data/processed/candidates_*.csv', 'src/wingtip/faa_data.py', 'src/wingtip/airports.py', 'src/wingtip/elevation.py', 'src/wingtip/charts.py') }}
           restore-keys: planner-data-v1-
       # v4: the charts cache with the corridor's detections in it as well
       # -- the planner keeps a finished read of the corridor beside the
@@ -840,18 +880,19 @@ jobs:
       # page, which most commits make, needs no image built: the webapp's
       # is built again only for its jar (.github/e2e-keys.sh), and build
       # (webapp) still builds the whole image, page and all, whenever web/
-      # changes. On a push, e2e-images builds the page once for its key
-      # and the stack's background piece copies it in; on a pull request,
-      # which e2e-images does not run for, it is built here, with Node as
+      # changes. On a push or a pull request from this repository,
+      # e2e-images builds the page once for its key and the stack's
+      # background piece copies it in; on a fork's or Dependabot's, which
+      # e2e-images does not run for, it is built here, with Node as
       # .nvmrc has it and the suite's packages, from the same lock file.
       # The webapp reads the page from disk when it is asked for, so it is
       # started before the page is there, and the step below waits for it.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
-        if: github.event_name == 'pull_request'
+        if: ${{ !(github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
         with:
           node-version-file: .nvmrc
       - name: The page, built from this commit
-        if: github.event_name == 'pull_request'
+        if: ${{ !(github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')) }}
         working-directory: web
         # node_modules is always there, a tmpfs mounted above, so whether
         # the packages are is told by npm's own record of an install: a
@@ -902,7 +943,7 @@ jobs:
         id: cycle
         if: matrix.shard == 1
         env:
-          READER: ${{ hashFiles('src/vfr/chartvision.py', 'planning-service/app/detection.py') }}
+          READER: ${{ hashFiles('src/wingtip/chartvision.py', 'planning-service/app/detection.py') }}
         run: |
           cycle=$(curl -sf http://localhost:8084/api/status | python3 -c 'import json, sys; print(json.load(sys.stdin)["charts"]["cycle"])')
           echo "cycle=$cycle" >> "$GITHUB_OUTPUT"
@@ -1197,17 +1238,27 @@ jobs:
   #
   # Not after `changes`, as every other job is: a shard starts ten
   # seconds into the run, and a key's image, when there is one to build,
-  # should be on its way by then. So it runs on every push, the suite due
-  # or not; with nothing to build it is a checkout and four lookups. Not
-  # on a pull request, whose token cannot push: its shards build what
-  # they cannot pull. The images with a BuildKit container of
+  # should be on its way by then. So it runs on every push and every
+  # pull request from this repository, the suite due or not; with nothing
+  # to build it is a checkout and four lookups. Not on a fork's or
+  # Dependabot's, whose token cannot push: their shards build what they
+  # cannot pull. The images with a BuildKit container of
   # setup-buildx's rather than the runner's own builder: it pushes what
   # the registry cache already holds without first pulling it. No
   # attestation: nothing verifies these.
   e2e-images:
     name: build (e2e)
     runs-on: ubuntu-26.04
-    if: github.event_name != 'pull_request'
+    # A push, and a pull request from this repository's own branches --
+    # every claude/ and maps-layout pull request, the most of CI's runs --
+    # whose token can push: their eight shards pulled nothing and each
+    # built the stack's images and the page itself, eight times over (the
+    # handover's run on 77f6b687, 2026-11-05: the page 127 s and the
+    # webapp 178 s into each shard). Not a fork's or Dependabot's, whose
+    # token is read-only. The images are pushed under their content's
+    # keys, so a branch's are the same any other commit with those keys
+    # would push.
+    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     permissions:
       contents: read
       packages: write
@@ -1388,7 +1439,7 @@ jobs:
   #
   # The Python documentation (pdoc) is made by the test, test-nav-log-agent
   # and test-crewai-agent jobs, each from the packages its tests have just
-  # installed, and uploaded as pdoc-vfr, pdoc-nav-log-agent and
+  # installed, and uploaded as pdoc-wingtip, pdoc-nav-log-agent and
   # pdoc-crewai-agent. This job used to build the ML, nav-log-agent and
   # crewai-agent images for pdoc's sake: the image builds' work a second
   # time, 3.6 to 9.8 minutes and the longest job of a run, and so on
@@ -1414,7 +1465,7 @@ jobs:
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7
         with:
-          go-version: "1.25"
+          go-version: "1.27"
       - name: godoc (lambda-retrain-trigger)
         working-directory: infra/lambda-retrain-trigger
         run: |
@@ -1444,7 +1495,7 @@ jobs:
       - uses: ./.github/actions/hub-mirror
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install cfn-lint==1.57.2
       - run: cfn-lint infra/cloudformation/template.yaml
       - run: shellcheck infra/server/*.sh

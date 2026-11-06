@@ -1,14 +1,22 @@
+/**
+ * A POH's short-field distances and the air they are read in. Worked out
+ * by the shared engine (native/engine/src/runway/performance.rs, through
+ * lib/engine), the very code behind the planner's runway check and the
+ * phones': the rules and their sources live there.
+ */
 import type { ShortField } from "./api/types";
+import { callEngine } from "./engine/engine";
+
+interface Air { pressure_alt_ft: number; temp_c: number }
 
 /** A standard day's temperature at an altitude: 15 °C at sea level, less
- *  1.98 °C a thousand feet (ICAO Doc 7488), as vfr.performance has it. */
-export const isaTempC = (altitudeFt: number) => 15 - 0.0019812 * altitudeFt;
+ *  1.98 °C a thousand feet (ICAO Doc 7488). */
+export const isaTempC = (altitudeFt: number) => callEngine<Air>("gonogo_field_air", { elevation_ft: altitudeFt }).temp_c;
 
 /** The field's pressure altitude from its elevation and the altimeter
- *  setting reported: a thousand feet for every inch under 29.92 (ICAO
- *  Doc 7488's standard atmosphere, near enough low down). */
+ *  setting reported: a thousand feet for every inch under 29.92. */
 export const pressureAltitudeFt = (elevationFt: number, altimeterInHg: number | null | undefined) =>
-  elevationFt + (altimeterInHg ? (29.92 - altimeterInHg) * 1000 : 0);
+  callEngine<Air>("gonogo_field_air", { elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg ?? null, temp_c: 15 }).pressure_alt_ft;
 
 export interface Distances {
   groundRollFt: number;
@@ -18,67 +26,16 @@ export interface Distances {
   caveats: string[];
 }
 
-/** A value between table points, its edge where it is beyond them. */
-function at(points: number[], value: number): { i: number; f: number; beyond: boolean } {
-  const n = points.length;
-  if (value <= points[0]!) return { i: 0, f: 0, beyond: value < points[0]! };
-  if (value >= points[n - 1]!) return { i: n - 2, f: 1, beyond: value > points[n - 1]! };
-  let i = 0;
-  while (points[i + 1]! < value) i++;
-  return { i, f: (value - points[i]!) / (points[i + 1]! - points[i]!), beyond: false };
-}
-
-function bilinear(grid: number[][], row: { i: number; f: number }, col: { i: number; f: number }): number {
-  const g = (r: number, c: number) => grid[r]![c]!;
-  const top = g(row.i, col.i) + (g(row.i, col.i + 1) - g(row.i, col.i)) * col.f;
-  const bottom = g(row.i + 1, col.i) + (g(row.i + 1, col.i + 1) - g(row.i + 1, col.i)) * col.f;
-  return top + (bottom - top) * row.f;
-}
-
 /**
  * A POH's short-field distances (ShortField) at a pressure altitude,
  * temperature and weight: read between the table's altitudes and
- * temperatures, and between its weights (a weight under the lightest
- * table taken at that table, which is the longer); then its notes -- a
- * tenth less for every 9 kt of headwind, a tenth more for every 2 kt of
- * tailwind up to 10 -- and on dry grass the ground roll's share more.
+ * temperatures, and between its weights; then its notes for the wind
+ * (the Cessna 172S POH's figures 5-5 and 5-11) and on dry grass the
+ * ground roll's share more.
  */
 export function shortField(table: ShortField, pressureAltFt: number, tempC: number, weightLb: number, headwindKt: number, grass: boolean): Distances {
-  const caveats: string[] = [];
-  const row = at(table.pressure_altitudes_ft, pressureAltFt);
-  const col = at(table.temperatures_c, tempC);
-  if (row.beyond) caveats.push("the field is higher than the table goes");
-  if (col.beyond) caveats.push("the temperature is beyond the table's");
-  // Weights heaviest first; read between the two either side.
-  const weights = table.weights_lb;
-  const read = (key: "ground_roll_ft" | "total_50ft_ft") => {
-    const values = table.tables.map(t => bilinear(t[key], row, col));
-    if (weights.length === 1 || weightLb >= weights[0]!) return values[0]!;
-    for (let k = 0; k < weights.length - 1; k++) {
-      if (weightLb >= weights[k + 1]!) {
-        const f = (weights[k]! - weightLb) / (weights[k]! - weights[k + 1]!);
-        return values[k]! + (values[k + 1]! - values[k]!) * f;
-      }
-    }
-    return values[values.length - 1]!;
-  };
-  let roll = read("ground_roll_ft");
-  let total = read("total_50ft_ft");
-  // The Cessna 172S POH's notes to its takeoff and landing charts (figures
-  // 5-5 and 5-11): "Decrease distances 10% for each 9 knots headwind. For
-  // operation with tail winds up to 10 knots, increase distances by 10% for
-  // each 2 knots." The one table set in data/aircraft is the 172S's; another
-  // handbook's notes differ, and are to come with its tables.
-  const factor = headwindKt >= 0 ? 1 - 0.1 * (headwindKt / 9) : 1 + 0.1 * (-headwindKt / 2);
-  if (headwindKt < -10) caveats.push("the POH gives no figures for a tailwind over 10 kt");
-  roll *= factor;
-  total *= factor;
-  if (grass) {
-    const added = (table.grass_ground_roll_pct / 100) * roll;
-    roll += added;
-    total += added;
-  }
-  // Up to the next 5 ft, never down: a distance a runway is checked
-  // against reads long rather than short.
-  return { groundRollFt: Math.ceil(roll / 5) * 5, totalFt: Math.ceil(total / 5) * 5, caveats };
+  const d = callEngine<{ ground_roll_ft: number; total_ft: number; caveats: string[] }>("gonogo_short_field", {
+    table, pressure_alt_ft: pressureAltFt, temp_c: tempC, weight_lb: weightLb, headwind_kt: headwindKt, grass,
+  });
+  return { groundRollFt: d.ground_roll_ft, totalFt: d.total_ft, caveats: d.caveats };
 }

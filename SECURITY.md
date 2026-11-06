@@ -49,7 +49,7 @@ issue for it.
 
 ## A planning aid, not a replacement
 
-Wingtip Maps is a planning aid for VFR flight. It does not replace an
+Wingtip Maps is a planning aid for VFR and IFR flight. It does not replace an
 official weather briefing (1800wxbrief.com or 1-800-WX-BRIEF), current FAA
 charts and publications, or the pilot in command's judgement and final
 authority (14 CFR 91.3, 91.103). Its checkpoints are a model's

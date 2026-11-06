@@ -7,7 +7,7 @@ of a core at STDDS's 370 messages a second (py-spy, 2026-10-28), all of
 it holding the planner's GIL against the route planning a pilot waits
 on; a process of its own has a GIL of its own.
 
-So it imports nothing of vfr's, nor pandas: a spawned process starts by
+So it imports nothing of wingtip's, nor pandas: a spawned process starts by
 importing this module, and starts in a moment and small.
 """
 import logging
@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 SETTINGS = ("SWIM_HOST", "SWIM_USERNAME", "SWIM_PASSWORD")
 FEEDS = ("STDDS", "FNS", "TFMS")
 #: The CA certificates the FAA's broker's certificate is checked against:
-#: the image's own (python:3.13-slim's ca-certificates).
+#: the image's own (python:3.14-slim's ca-certificates).
 TRUST_STORE = os.environ.get("SWIM_TRUST_STORE", "/etc/ssl/certs")
 #: How long to wait before connecting again, s, doubling to the most.
 RETRY_FIRST_S, RETRY_MOST_S = 10.0, 300.0
@@ -79,7 +79,7 @@ def body(message) -> str:
 
 
 def tracks(xml: str) -> list[tuple[dict, float]]:
-    """A TATrackAndFlightPlan message's airborne tracks, each as vfr.traffic's
+    """A TATrackAndFlightPlan message's airborne tracks, each as wingtip.traffic's
     `_aircraft` gives an airplane, and when it was where it is (s): the
     track's Mode S address (`acAddress`), its place, its altitude as the
     transponder reports it (pressure altitude, to the hundred feet), its
@@ -186,7 +186,7 @@ def select(text: str, views, followed) -> list[tuple[dict, float]]:
 
 
 #: The feeds whose messages go to the planner as their bytes
-#: (vfr.filed_routes.heard looks in them before it decodes them).
+#: (wingtip.filed_routes.heard looks in them before it decodes them).
 RAW = {"TFMS"}
 #: How often a feed's count of messages goes to the planner at most, s:
 #: the Dev console's figures, not worth a message of their own each.

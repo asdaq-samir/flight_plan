@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { SetURLSearchParams } from "react-router-dom";
 import { useConsoleOpen, type PanelState } from "../../../components/mapChrome";
 import type { TrafficAircraft } from "../../../lib/api/types";
@@ -191,7 +191,9 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
     setOpenedSeen(opened);
     if (consoleOpen && (place || heldPoint) && !flight) setTabPick("airport");
   }
-  useEffect(() => {
+  // Before the frame is drawn: after it, Setup stood a frame over the card
+  // just opened, its tab already the card's.
+  useLayoutEffect(() => {
     if ((place || heldPoint || flight) && useConsoleOpen.getState().open) useConsoleOpen.getState().setOpen(false);
     // Once per card opened, not as the console opens over one already open.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,7 +248,13 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
       if (next === "aircraft") out.set("aircraft", "1");
       for (const [key, value] of back) out.set(key, value);
       return out;
-    }, { replace: true });
+      // In the same commit as the pick and Setup put away (TabBar), not in
+      // the router's transition after them: in between, the tab bar drew
+      // the tab the address still had -- Airport for a card, a list or
+      // Nearest left open on it -- a frame on the way from Setup to FPL
+      // (the owner, 2026-11-05: "Why does the airport tab get selected
+      // momentarily when going from airport to setup to fpl?").
+    }, { replace: true, flushSync: true });
   }, [setSearchParams, searchParams, tab, flight, past]);
 
   // The tab up tapped again where the tab bar has no panel to size (the
@@ -269,5 +277,14 @@ export function usePanelTabs({ cards, route, hasRoute, panel, setPanel, searchPa
     setPanel("peek");
   }, [place, heldPoint, flight, nearOpen, savedOpen, briefOpen, list, pickTab, tab, setPanel]);
 
-  return { tab, setTabPick, pickTab, tabUp, closeSheet };
+  // The workspace's own picks (a card's button, the radio's "nearest", a
+  // route cleared) come with an address change -- a card put away, a list
+  // opened -- which the router makes in a transition. The pick in the same
+  // transition, so the two land in one commit: picked at once, the tab
+  // bar drew the new tab under the old address for a frame, the card it
+  // still had marked over it (`over`), as FPL over Airport's card did on
+  // the way from Setup (the owner, 2026-11-05). Transitions started in one
+  // event share their lane, so they commit together.
+  const pickLater = useCallback((next: PanelTab) => startTransition(() => setTabPick(next)), []);
+  return { tab, setTabPick: pickLater, pickTab, tabUp, closeSheet };
 }

@@ -3,7 +3,7 @@ what that pilot sees while everyone else keeps the shared note."""
 import json
 
 from fastapi.testclient import TestClient
-from vfr import checkpoint_notes
+from wingtip import checkpoint_notes
 
 from app.main import app
 from app.routers import notes

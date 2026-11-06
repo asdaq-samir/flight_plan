@@ -30,7 +30,7 @@ const FlightChart = memo(function FlightChart({ points, fromStart = false, along
    *  run's), where a replay's has none till then. */
   fromStart?: boolean;
   alongNm?: number[];
-  /** The route from the side (vfr.profile), for a dry run's airspace. */
+  /** The route from the side (wingtip.profile), for a dry run's airspace. */
   airspace?: RouteProfile | null;
   /** Where a fraction of the way along the route is along the run, for
    *  the airspace: a dry run's own where an approach flown has made the

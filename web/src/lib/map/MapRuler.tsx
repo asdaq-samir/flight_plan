@@ -14,6 +14,10 @@ type Ends = readonly [L.Point, L.Point];
 const FINGER_CLEAR = 36;
 /** The band's least width, for its words to fit with the fingers close. */
 const MIN_BAND = 220;
+/** How far the map may zoom under two fingers held for the ruler, in
+ *  levels: a twentieth is 3.5% of its size, more than fingers at rest on
+ *  glass wander; past it they are pinching. */
+const PINCHED_LEVELS = 0.05;
 
 /**
  * The ruler (lib/map/ruler): two fingers held still on the map for
@@ -41,7 +45,7 @@ export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
     const el = map.getContainer();
     // Held, the fingers where they came down on the page; ruling, where
     // they are on the map's container.
-    let hold: { ids: [number, number]; from: L.Point[]; timer: number } | null = null;
+    let hold: { ids: [number, number]; from: L.Point[]; zoom: number; timer: number } | null = null;
     // Where the held fingers are now, the ruler's ends as it comes.
     let held: L.Point[] = [];
     let ruling: { ids: [number, number]; at: L.Point[]; box: DOMRect; zoom: boolean; drag: boolean } | null = null;
@@ -53,6 +57,12 @@ export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
     };
     const begin = () => {
       if (!hold) return;
+      // A slow pinch is a pinch: the map zoomed under the fingers while
+      // they stayed within STILL_PX, and the ruler came instead, ending
+      // the zoom where it was (the owner, 2026-11-02, "it's not behaving
+      // as commanded for zooming"; a pinch at 8 points a step had the map
+      // at 12.14 when the ruler took it).
+      if (Math.abs(map.getZoom() - hold.zoom) > PINCHED_LEVELS) return cancelHold();
       const { ids } = hold;
       hold = null;
       const pinch = map.touchZoom as L.Handler & { _onTouchEnd?: () => void };
@@ -85,7 +95,7 @@ export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
       // setter calls a function it is given as an update.
       loadDeclination().then(at => setDeclination(() => at), () => {});
       const [a, b] = [e.touches[0]!, e.touches[1]!];
-      hold = { ids: [a.identifier, b.identifier], from: [pointOf(a), pointOf(b)], timer: window.setTimeout(begin, HOLD_MS) };
+      hold = { ids: [a.identifier, b.identifier], from: [pointOf(a), pointOf(b)], zoom: map.getZoom(), timer: window.setTimeout(begin, HOLD_MS) };
       held = hold.from;
     };
     const move = (e: TouchEvent) => {
@@ -93,7 +103,7 @@ export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
         const now = hold.ids.map(id => find(e.touches, id));
         if (now.some(t => !t)) return cancelHold();
         held = now.map(t => pointOf(t!));
-        if (!heldStill(hold.from, held)) cancelHold();
+        if (!heldStill(hold.from, held) || Math.abs(map.getZoom() - hold.zoom) > PINCHED_LEVELS) cancelHold();
         return;
       }
       if (!ruling) return;

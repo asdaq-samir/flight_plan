@@ -118,7 +118,18 @@ test("the card's runways are a page of the pictures across its top, the FAA's di
   await grabberTo(page, "full");
   await expect.poll(() => layout()).toEqual(half);
 
+  // A tap shows the picture alone, the name and buttons gone and the
+  // full-screen button in their place (the owner's ask, 2026-11-02); a
+  // tap again brings them back.
+  const shade = card(page).getByTestId("place-name").locator("..");
   await sketch.click();
+  await expect(shade).toHaveCSS("opacity", "0");
+  await expect(card(page).getByTestId("place-close").locator("..")).toHaveCSS("opacity", "0");
+  await sketch.click();
+  await expect(shade).toHaveCSS("opacity", "1");
+  await expect(card(page).getByTestId("place-diagram-open")).toHaveCount(0);
+  await sketch.click();
+  await card(page).getByTestId("place-diagram-open").click();
   await expect(page.getByTestId("airport-diagram-viewer").getByRole("heading", { name: "KDLH airport diagram" })).toBeVisible();
 });
 
@@ -268,8 +279,9 @@ test("a tap on the card's sketch of a field the FAA draws no diagram for shows t
   await page.goto("/app/plan?place=C81");
   await settle(page);
   const thumbnail = card(page).getByTestId("place-runway-sketch");
-  await expect(thumbnail).toHaveAccessibleName(/Runways sketch, full screen$/);
+  await expect(thumbnail).toHaveAccessibleName(/Runways sketch$/);
   await thumbnail.click();
+  await card(page).getByTestId("place-diagram-open").click();
   const viewer = page.getByTestId("airport-sketch-viewer");
   await expect(viewer.getByRole("heading", { name: "C81 runways" })).toBeVisible();
   await expect(viewer.getByTestId("runway-sketch").locator("line").first()).toBeVisible();

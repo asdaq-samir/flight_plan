@@ -25,6 +25,9 @@ test("experience item by item, a report's codes looked up, and an endorsement da
       { key: "longSoloCrossCountry", rule: "61.109(a)(5)(ii)", label: "A solo cross-country of 150 nm", have: 1, need: 1, unit: "flights", met: true },
     ],
     knowledgeTestCodes: [] as string[],
+    // The approach lessons an instructor set: none here (the record has
+    // carried them since V30).
+    lessons: [],
     endorsements: [] as { code: string; endorsedOn: string; until: string | null }[],
     // One signed by an instructor in the app, its words a tap away.
     signed: [{

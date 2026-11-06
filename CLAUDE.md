@@ -1,8 +1,33 @@
 # Wingtip Maps — for agents
 
-A VFR flight planner for pilots: the FAA chart on a map that works like
+A flight planner for pilots, VFR and IFR: the FAA chart on a map that works like
 Maps on an iPhone, and the route, checkpoints and nav log for a flight.
 It is headed for an iOS app. README.md has the services and the layout.
+
+## Architecture
+
+Functional core, imperative shell: one core every app shares, and a thin
+shell per app round it (the owner, 2026-11-03).
+
+- **The core is the Rust engine** (`native/engine`, wingtip-engine). Every
+  aviation rule or figure lives there once: altitudes, winds, runways,
+  fuel, weather limits, Go / No-Go, holds, procedures, the clearance
+  reader, currency, the debrief. No network, no screen, no clock of its
+  own. Each rule is a name in `native/engine/src/call.rs`, JSON in and out.
+- **Each app is a shell that gets data, keeps state and draws**, and asks
+  the engine the rest by name: the web through `callEngine`
+  (web/src/lib/engine, the engine built to WebAssembly), the planner
+  through `wingtip_native.call`, the iPhone through `wt_call`. A rule found in
+  a component, a hook, a Swift view or a route handler is a bug: move it
+  into the engine and delete the copy.
+- **Screens are view and view model** (MVVM): the view draws, one hook (web)
+  or observable model (iOS) per screen holds its state and makes its
+  calls. How a figure is written on the screen stays with each app.
+- **Data comes in at the edges**: the planner's endpoints and the cycle
+  packs feed the engine; the engine never fetches.
+- Changing a rule: the engine, its test against the shared fixtures
+  (web/src/lib/fixtures), `scripts/build-engine-wasm.sh` (the `.wasm` is
+  committed and CI checks it matches), and the planner's image rebuilt.
 
 ## Branches
 
@@ -48,10 +73,12 @@ It is headed for an iOS app. README.md has the services and the layout.
 |---|---|
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
 | `planning-service/` | `ruff check app tests && pytest tests/` |
-| `src/vfr`, `tests/` | `ruff check src/vfr tests && pytest tests/` (repo root) |
+| `src/wingtip`, `tests/` | `ruff check src/wingtip tests && pytest tests/` (repo root) |
+| `native/` (Rust, `wingtip_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same wingtip-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
 | `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |
+| `android/` (the native app) | CI only: `native-android.yml` builds the engine for each ABI, runs the unit tests, lint and a debug APK, then the instrumented tests on an emulator (docs/NATIVE-ANDROID.md) |
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
 

@@ -1,8 +1,8 @@
-"""vfr.remarks: an airport's lighting and mic-click remarks, from the
+"""wingtip.remarks: an airport's lighting and mic-click remarks, from the
 FAA's own text, in plain English."""
 import pytest
 
-from vfr import faa_data, remarks
+from wingtip import faa_data, remarks
 
 
 @pytest.fixture

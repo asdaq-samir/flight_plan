@@ -27,10 +27,10 @@ def test_each_pipeline_runs_one_at_a_time(path):
 
 
 def test_the_pipelines_skip_code_is_the_one_its_stages_exit_with():
-    # The DAG file cannot import vfr.pipeline (no pandas in Airflow's
+    # The DAG file cannot import wingtip.pipeline (no pandas in Airflow's
     # image), so it writes the number again; a stage exiting with another
     # would fail the run it was meant to skip.
-    from vfr.pipeline import SKIPPED_EXIT_CODE
+    from wingtip.pipeline import SKIPPED_EXIT_CODE
 
     for path in DAGS:
         assignments = {

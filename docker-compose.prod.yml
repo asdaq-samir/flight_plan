@@ -101,11 +101,10 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # The map's Google overlay (routers/basemaps), where the owner has a key.
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
-      GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY:-}
       ADSBX_RAPIDAPI_KEY: ${ADSBX_RAPIDAPI_KEY:-}
       # adsb.fi's open data is for personal, non-commercial use only
       # (github.com/adsbfi/opendata): off for the public app until adsb.fi
-      # agrees to it (vfr.traffic).
+      # agrees to it (wingtip.traffic).
       ADSBFI_OPEN_DATA: "0"
       # The FAA's SWIM feeds (app.swim): STDDS's terminal radar tracks; off
       # without them. The owner's SCDS subscription's login and queue.

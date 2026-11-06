@@ -92,7 +92,7 @@ export default function AirspaceCard({ point, onClose, summary = false, onExpand
   point: LatLon;
   onClose: () => void;
   /** The point into the route, as the pilot's own point off the nearest
-   *  fix ("VPBNG/095/14.2", the planner's vfr.fixes.frd_near), at the
+   *  fix ("VPBNG/095/14.2", the planner's wingtip.fixes.frd_near), at the
    *  owner's pick of the canvas's dropped point: where it bends the route
    *  least, flown to direct, or held at. None where there is no route to
    *  put it in, or no fix to name it off. */

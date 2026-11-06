@@ -1,6 +1,6 @@
 # src/
 
-`vfr` — the domain library. Every aviation fact this project knows lives
+`wingtip` — the domain library. Every aviation fact this project knows lives
 here: great-circle geometry, dead reckoning, airspace, terrain, weather,
 and reading checkpoints off a raster sectional chart.
 
@@ -21,18 +21,18 @@ task and a LangGraph tool, unchanged.
 
 ```bash
 # The test suite and the linter, exactly what CI runs
-docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.13-slim \
-  sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/vfr tests && pytest tests/ -q"
+docker run --rm -v "$PWD":/w -w /w -e PYTHONPATH=/w/src python:3.14-slim \
+  sh -c "apt-get update -qq && apt-get install -y -qq libexpat1 && pip install -q -r requirements-dev.txt && ruff check src/wingtip tests && pytest tests/ -q"
 ```
 
 The pipeline images deliberately carry no test tooling — they mirror what
 a SageMaker Processing or Training job needs and nothing more — so tests
-run in a plain `python:3.13-slim` against `requirements-dev.txt`, plus
+run in a plain `python:3.14-slim` against `requirements-dev.txt`, plus
 the one system library (`libexpat1`) rasterio's wheel expects and the
 slim image leaves out -- without it `tests/test_charts.py` fails to import.
 
 There is no `pip install -e .`. Containers put `src/` on `PYTHONPATH`
-directly (`ENV PYTHONPATH=/workspace/src`), so `import vfr` resolves
+directly (`ENV PYTHONPATH=/workspace/src`), so `import wingtip` resolves
 without packaging. That is a deliberate simplification for a repo where
 every consumer is a container in the same tree — a library published to
 an index would need a real `pyproject.toml`.
@@ -40,15 +40,15 @@ an index would need a real `pyproject.toml`.
 What packaging would have given for free is one list of the package's
 own dependencies, so that list lives here instead:
 `src/requirements.txt`, pinned once, and `src/requirements-charts.txt`
-on top of it for `vfr.charts`/`vfr.chartvision`'s raster stack. Every
-image that runs vfr -- planning-service, the two pipeline stages, `ml`
+on top of it for `wingtip.charts`/`wingtip.chartvision`'s raster stack. Every
+image that runs wingtip -- planning-service, the two pipeline stages, `ml`
 -- and `requirements-dev.txt` include one of them with a `-r` line and
 list only what they need beyond it. **A new third-party import in
-`src/vfr` is one line in one of those two files.** Before, it was a line
+`src/wingtip` is one line in one of those two files.** Before, it was a line
 in six, and on 2026-09-22 a missed one left both agents and both
 pipeline stages unable to import. CI's build job now imports each
 service's own code inside its built image, so a miss fails there. The
-two agents import only `vfr.planner_client`, which needs `requests`
+two agents import only `wingtip.planner_client`, which needs `requests`
 alone, and install neither list.
 
 ## Learning this from zero
@@ -147,7 +147,7 @@ Grouped by what they are for, not alphabetically.
 | `airports.py` | Identifier → coordinates, and the route form's search. |
 | `model_client.py` | model-service's `/score-detections`, the chart model's scores. The one client planning-service scores through -- a persistent `requests.Session`, not one connection per call. |
 | `planner_client.py` | planning-service's `/api/plan` and `/api/checkpoints`, for the two agents: the nav log they brief is the planner's own, not one they assemble. `requests` only, so importing it pulls in none of this package's other dependencies. |
-| `narrative.py` | What both narrative agents write from: the request they accept (`NarrativeRequest`) and the one briefing prompt, so the framework comparison is on one task. Its pydantic is on vfr's list like any other dependency; the agents get theirs with their frameworks. |
+| `narrative.py` | What both narrative agents write from: the request they accept (`NarrativeRequest`) and the one briefing prompt, so the framework comparison is on one task. Its pydantic is on wingtip's list like any other dependency; the agents get theirs with their frameworks. |
 | `retry.py` | The one retry loop the four modules above share for their requests, and `upstream_detail`, the one reader of a service's reason in an error response (planner_client, and the planner's dev-services proxy). |
 
 **Deciding things**

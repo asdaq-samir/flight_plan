@@ -203,18 +203,6 @@ export const selectionIcon = made(function selectionIcon() {
   });
 });
 
-/** A VFR waypoint on the chart (VPBNG): a magenta diamond and no words,
- *  as small as the chart's own flag, in a finger's 44 points of target. */
-export const diamondIcon = made(function diamondIcon() {
-  return L.divIcon({
-    className: "",
-    iconSize: [TAP, TAP], iconAnchor: [TAP / 2, TAP / 2],
-    html:
-      `<span class="absolute left-1/2 top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rotate-45 rounded-[2px] border-2 border-white shadow-sm"` +
-      ` style="background-color:${WAYPOINT_MAGENTA}"></span>`,
-  });
-});
-
 /** A point the route flies through or works out -- a VFR or GPS waypoint,
  *  a present position (POS0), a top of climb or descent -- as a pill on
  *  the course itself, centred on its point: the chart's magenta diamond

@@ -1,15 +1,16 @@
 import { Suspense, lazy, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { flushSync } from "react-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Play, ClipboardList, ListOrdered, MapPin, Plane, Route, TowerControl } from "lucide-react";
-import { legOf, navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
+import { Play, MapPin, ChartArea, Sparkles } from "lucide-react";
+import { AirplaneGlyph, AirportGlyph, RouteGlyph } from "../../components/tabGlyphs";
+import { navLogRows, TURNAROUND_MIN } from "./components/navlog/rows";
 import { fromChunk } from "../../lib/fromChunk";
 import { cn } from "cn";
 import { api } from "../../lib/api/client";
 import { showError } from "../../lib/problems";
 import { aircraftListQuery, aircraftProfilesQuery, airportQuery, checkpointsQuery, courseQuery, flightsQuery, stopsNearQuery, stopsAlongQuery, nearestQuery, pilotQuery, procedureQuery, queryClient, routeOptionsQuery } from "../../lib/queryClient";
 import type { AircraftChoice, AirportPlace, AltitudeChoice, Candidate, Detour, FuelStopSuggestion, ProcedureDrawing, RouteChip, RouteOptions } from "../../lib/api/types";
-import { aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
+import { N_NUMBER, aircraftKey, choiceOf, cruiseTasOf, shortName } from "../../lib/aircraftChoice";
 import { clockTime, useMinuteClock, duration } from "../../lib/clock";
 import { legsWithoutWind, windsOutOfDate } from "./format";
 import { placeName } from "../../lib/radio";
@@ -22,28 +23,32 @@ import { pickKeptAircraft, useTabSearch } from "../../lib/tabSearch";
 import TabBar, { type BarTab } from "../../components/TabBar";
 import { useTabAsk } from "./components/navlog/panelTab";
 import { useAddressCards, usePanelTabs, type PanelTab, type TabList } from "./hooks/useTabCards";
-import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, nameOwnPoints, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
+import { MAX_STOPS, altitudesOf, altitudesParam, departureOf, groundOf, identOf, isAirwayToken, isPosition, nameOwnPoints, positionIdent, routeName, routeOf, stopsOf } from "../../lib/identSchema";
 import { useKeptAirport, usePreferences, type FlightRules, type RecentAirport } from "../../lib/preferences";
 import Segmented from "../../components/Segmented";
 import { SearchNear, useAirportSearch } from "../../lib/useAirportSearch";
 import { RouteMap } from "./routeMapChunk";
 import { useProgressToast } from "../../lib/useProgressToast";
 import { patched, useSearchParamsNow } from "../../lib/useSearchParamsNow";
+import { lessonOf } from "../../lib/lessonLink";
 import type { WorkspaceProps } from "../page/workspace";
 import type { PanelState } from "../../components/mapChrome";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePlanHistory } from "../../hooks/use-plan-history";
-import { rebasedRoute } from "../../lib/routeRebase";
 import RoundButton from "../../components/RoundButton";
 import ShareMenu from "./components/ShareMenu";
+import { useAsk } from "./components/ask/useAsk";
+import { NO_PLAN, useBriefPlan } from "../../lib/briefPlan";
+import { briefingLegs } from "./hooks/briefingLegs";
 import type { RouteCard } from "../../lib/openCards";
 import TipHost from "../../components/TipHost";
+import FirstFlight from "./components/FirstFlight";
 import { useCardTitle, usePanelDragging } from "../../components/mapChrome";
 import { CardHead } from "../../components/PanelCard";
 import { AirportRecentsPage, RecentAirportTiles, SearchField, SearchResults } from "../../components/PanelCapsule";
 import { chipColourOf } from "../../lib/map/flightCategory";
-import { FavoriteStrip, FavoritesList } from "../../components/Favorites";
+import { FavoriteStrip } from "../../components/Favorites";
 import FlightLine from "./components/FlightLine";
 import type { FitInputs, ProcedureAirport, ProceduresAt } from "./components/ProceduresRoute";
 import { useLoad } from "./hooks/useLoad";
@@ -53,10 +58,9 @@ import { holdsOf, holdsParam, type Hold } from "../../lib/holds";
 import { FIELD_LIST_KEYS, fieldListParams, fieldListsOf, prunedFieldLists, renamedFieldLists } from "../../lib/fieldLists";
 import { picksOf, planHrefOf, recentHrefOf } from "../../lib/flightLink";
 import { runwayNumber } from "../../lib/pattern";
-import NearestCard, { NearestStrip } from "./components/NearestCard";
+import { NearestStrip } from "./components/NearestStrip";
 import AircraftCard, { AircraftRecentsPage } from "./components/AircraftCard";
 import AircraftPill from "./components/AircraftPill";
-import AircraftFavoritesList from "./components/AircraftFavoritesList";
 import TabKept from "../../components/TabKept";
 import type { RouteWay } from "../../lib/map/RouteWaysLayer";
 import { gridScale, sameStops, wayTime } from "../../lib/routeWays";
@@ -70,19 +74,21 @@ import { useStripShows } from "./hooks/useStripShows";
 import AirportPill from "./components/AirportPill";
 import FplStrip from "./components/FplStrip";
 import { RecentRoutesPage } from "./components/RecentRoutes";
-import MiniProfile from "./components/navlog/MiniProfile";
 import ProfileCard from "./components/ProfileCard";
-import { dryRunOf, type DryRun } from "./components/navlog/dryRun";
 import FixCard, { type OpenFix } from "./components/FixCard";
 import type { SuggestedStop } from "./components/StopServices";
-import { useDryRunButton } from "../../lib/dryRunButton";
 import { useWindPicks } from "../../lib/windPicks";
 import { useStopsAlong } from "../../lib/stopsAlong";
 import { usePointActions } from "../../lib/map/pointActions";
+import { useAtcRadio, useRadioActions } from "../../lib/atcRadio";
 import { kindsOf, type StopKind } from "../../lib/stopKinds";
 import DirectStrip from "./components/DirectStrip";
 import { loadFlightChart } from "./components/loadFlightChart";
-import { DRY_RUN, clearPastFlight, usePastFlight } from "../../lib/map/pastFlight";
+import { useDryRun } from "./hooks/useDryRun";
+import { useFlyingMode } from "./hooks/useFlyingMode";
+import { nextLanding } from "./figures";
+import { procedureKind, useRouteEdits } from "./hooks/useRouteEdits";
+import { useSuggestedStops, withStopsAfter } from "./hooks/useSuggestedStops";
 import type { RouteParts, RouteProcedure } from "./components/RouteBox";
 import type { PointAltitude } from "./components/PointAltitudeDialog";
 import { navlogQuery, usePlan, type PlanParams } from "./hooks/usePlan";
@@ -147,6 +153,8 @@ const SaveFlightButton = fromRoutePanel("SaveFlightButton");
 const ReviewAskItem = fromRoutePanel("ReviewAskItem");
 const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
 const RouteBox = fromRoutePanel("RouteBox");
+const RouteEnds = fromRoutePanel("RouteEnds");
+const RouteSplit = fromRoutePanel("RouteSplit");
 const Kneeboard = fromRoutePanel("Kneeboard");
 const FlightInputs = fromRoutePanel("FlightInputs");
 const AltitudeGroup = fromRoutePanel("AltitudeGroup");
@@ -167,6 +175,7 @@ const PlaceCard = fromRoutePanel("PlaceCard");
 const StopsCard = fromRoutePanel("StopsCard");
 const DryRunControls = fromRoutePanel("DryRunControls");
 const DryRunFigures = fromRoutePanel("DryRunFigures");
+const FlyingHead = fromRoutePanel("FlyingHead");
 /** A round button's room while its code comes (routePanel). */
 
 /** How many of the latest Recents, and of Saved, are planned ahead. */
@@ -204,13 +213,6 @@ const WAY_CHIP_SHARES = [0.2, 0.4, 0.6, 0.8];
 
 interface FuelCard { stops: string[]; added: string[]; nm: number; air: number; ground: number; landings: number }
 
-function withStopsAfter(dep: string, stops: string[], after: string, idents: string[]): { stops: string[]; added: string[] } | null {
-  const room = MAX_STOPS - stops.length;
-  if (room <= 0 || idents.length === 0) return null;
-  const at = sameField(dep, after) ? 0 : stops.findIndex(stop => sameField(stop, after)) + 1 || stops.length;
-  const added = idents.slice(0, room);
-  return { stops: [...stops.slice(0, at), ...added, ...stops.slice(at)], added };
-}
 
 /** The suggested stop at a field, where it is one of the planner's
  *  (the totals' fuel_stops): the field its flight leaves, and its figures
@@ -241,13 +243,26 @@ const drawnOnly = (results: { data?: ProcedureDrawing }[]) => results.flatMap(r 
 /** The saved flights in full, FPL's card (the console's list, loaded as
  *  it opens). */
 const SavedFlights = lazy(() => import("../pilot/AccountPanels").then(m => ({ default: m.FlightsPanel })));
+/** An approach the pilot's instructor set them, opened from their
+ *  Checkride page (`?lesson=12`): its own chunk, as the lesson's is. */
+const AssignedLesson = lazy(() => import("./components/AssignedLesson"));
+// The Favorites in full, airports' and airplanes', when one is opened:
+// their drag to reorder (dnd-kit, SortableRows) is kept out of the first
+// load (scripts/first-load.mjs's budget, 2026-11-05).
+const FavoritesList = lazy(() => import("../../components/FavoritesList"));
+const AircraftFavoritesList = lazy(() => import("./components/AircraftFavoritesList"));
+// The route from the side, drawn only in the Profile's card: out of the
+// first load as the lists above are.
+const MiniProfile = lazy(() => import("./components/navlog/MiniProfile"));
+// Nearest's list in full, when it is opened; its strip is the pill's.
+const NearestCard = lazy(() => import("./components/NearestCard"));
 
 const PLANNER_TABS: BarTab<PanelTab>[] = [
   // FPL first and Aircraft third, swapped back at the owner's ask ("Swap
   // fpl and aircraft tab positions").
-  { value: "fpl", label: "FPL", icon: Route },
-  { value: "airport", label: "Airport", icon: TowerControl },
-  { value: "aircraft", label: "Aircraft", icon: Plane },
+  { value: "fpl", label: "FPL", icon: RouteGlyph },
+  { value: "airport", label: "Airport", icon: AirportGlyph },
+  { value: "aircraft", label: "Aircraft", icon: AirplaneGlyph },
   // Nearest is Airport's now, its strip under the Favorites and its list
   // in full from the strip's title, at the owner's pick of the redesign
   // ("make it 4 tabs, combining the nearest into airport").
@@ -256,8 +271,6 @@ const PLANNER_TABS: BarTab<PanelTab>[] = [
 /** The flight rules a route is planned under, as the Profile card's switch
  *  offers them. */
 const FLIGHT_RULES = [{ value: "vfr", label: "VFR" }, { value: "ifr", label: "IFR" }];
-const NO_FUEL_STOPS: FuelStopSuggestion[] = [];
-const NO_IDENTS: string[] = [];
 
 /** The route as the address has it, "dep|stops|dest", kept as a Direct to
  *  goes in (directToPoint) for its Cancel. */
@@ -287,8 +300,6 @@ function renamed(params: URLSearchParams, from: string, to: string): URLSearchPa
 /** A procedure's kind, where its drawing has been asked for (procedureQuery):
  *  what prunedFieldLists needs to keep an approach only where the route
  *  lands. Unknown, it is kept. */
-const procedureKind = (p: PickedProcedure) =>
-  queryClient.getQueryData<ProcedureDrawing>(["procedure", p.ident, p.id, p.transition])?.kind;
 
 /** `auto` where no runway is picked for the wind: the pilot's own all. */
 const NO_AUTO = "-";
@@ -314,7 +325,7 @@ function approximateOf(key: string, ident: string): string | null {
  *  the workspace's render prop. */
 const panelNow: { current: PanelState } = { current: "peek" };
 
-export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: WorkspaceProps) {
+export default function PlanWorkspace({ panel, setPanel, children }: WorkspaceProps) {
   useEffect(() => {
     const later = window.setTimeout(prefetchPilotPanel, 2000);
     return () => window.clearTimeout(later);
@@ -331,6 +342,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // and sheet").
   useEffect(() => { panelNow.current = panel; }, [panel]);
   const [searchParams, setSearchParams] = useSearchParamsNow();
+  // How the route is changed once it has a destination (RouteEdit): its
+  // box folded to a line, or the plan's own rows under the route's name.
+  const routeEdit = usePreferences(p => p.routeEdit);
   // Every change of the plan can be taken back (Undo, Cmd-Z), whichever
   // button made it, in place of asking first.
   usePlanHistory(searchParams, setSearchParams);
@@ -363,7 +377,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // pick (2026-10-20): planned through it with the clearance it takes
   // (14 CFR 91.131), said in the altitude's sheet with "Avoid Class B".
   const classBClearance = searchParams.get("class_b") !== "0";
-  const classBVia = searchParams.get("class_b_via") ?? "";
   // Points' own altitudes (`altitudes`, "VPBNG:4500,KMSN:1900"), set from
   // a point's menu in the route's box: a waypoint's flown to it, an
   // airport's its pattern. As the address has them, for the planner.
@@ -371,13 +384,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // A local flight's time aloft, in minutes (`local_min`): an hour unless
   // the address says otherwise.
   const localMin = LOCAL_MINUTES.includes(Number(searchParams.get("local_min"))) ? Number(searchParams.get("local_min")) : 60;
-  // The Custom altitude box's own draft, sent with the next load -- and,
-  // like the header's route, belonging to the plan it was typed over: a
-  // different route or altitude in the address shows that one.
-  const altKey = `${planned.dep}-${planned.dest}-${via}-${altitudeFt}`;
-  const [altDraft, setAltDraft] = useState<{ of: string; value: string } | null>(null);
-  const alt = altDraft?.of === altKey ? altDraft.value : altitudeFt;
-  const setAlt = useCallback((value: string) => setAltDraft({ of: altKey, value }), [altKey]);
   // Load pressed again for the same route: a fresh nav log, fresh winds.
   const [load, setLoad] = useState(0);
   // The airplane the nav log is computed for: remembered per browser
@@ -453,7 +459,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const holdsText = holdsParam(holds);
   // The runway each departure picked is left from ("KSTL:30R"): the
   // departure field's runway picked, a stop's to leave from -- flown by its
-  // runway transition for it (vfr.procedure_paths), where St. Louis's
+  // runway transition for it (wingtip.procedure_paths), where St. Louis's
   // BERYY6 went out by its first, runway 11's, off 30R (the audit of
   // 2026-10-21). A runway picked into the wind as the route comes in asks
   // for the log again, which the planner answers from its cache: the legs
@@ -552,7 +558,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Checkpoints as the map shows them: the settings' Waypoints off, the
     // nav log runs from point to point, at the pilot's ask.
     checkpoints: showWaypoints,
-    planNow: true,
   };
   const s = usePlan(planParams);
   // The route's own time and miles: its nav log's once it is planned,
@@ -872,7 +877,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         : draw(a, pickedPatterns.get(a.ident), true);
     });
   }, [procedureAirports, pickedPatterns, pickedTakeoffs, towardLat, towardLon]);
-  // Theirs as the planner draws them (vfr.procedures), for the route's
+  // Theirs as the planner draws them (wingtip.procedures), for the route's
   // fields alone: a pick kept from a route since changed is not drawn.
   const procedureDrawings = useQueries({
     queries: pickedProcedures.filter(p => procedureAirports.some(a => a.ident === p.ident)).map(procedureQuery),
@@ -1053,15 +1058,18 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // A point held on the chart: its card half way.
     setPanel("half");
   }, [setSearchParams, setPanel]);
-  // Landed on nothing at all -- the planner opened fresh -- the map goes
-  // to the pilot's position, as Maps opens on yours (locateOnOpen); once,
-  // on landing. A card in the address opens at the pill's size (MapPage).
+  // The map opens on the pilot's position, as Maps opens on yours
+  // (locateOnOpen), a route planned or not, at the owner's ask
+  // (2026-11-04: "By default load the sheet on current location"); once,
+  // on landing. Not where the address names a field or a point, which is
+  // what was opened; a card in the address opens at the pill's size
+  // (MapPage).
   const landed = useRef(false);
   useEffect(() => {
     if (landed.current) return;
     landed.current = true;
-    if (!place && !heldPoint && !planned.dep && !planned.dest) void locateOnOpen();
-  }, [place, heldPoint, planned.dep, planned.dest]);
+    if (!place && !heldPoint) void locateOnOpen();
+  }, [place, heldPoint]);
   const { data: placeData } = useQuery({ ...airportQuery(place ?? ""), enabled: !!place });
   // Where it is, from the card's answer -- or at once, where this browser
   // keeps where it is (Home, a Favorite, one picked lately): the map and
@@ -1213,167 +1221,15 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     });
   }, [fromFor, depart, setSearchParams, setPanel, showWaypoints, aircraft, load, flightRules, setLoad]);
 
-  const submit = useCallback(() => {
-    const route = routeOf(dep, dest, planned.stops);
-    if (!route) return;
-    const next: Record<string, string> = { ...route };
-    if (via) next.stops = via;
-    if (alt.trim()) next.altitude_ft = alt.trim();
-    // Still the wheel's pick: still flown at each leg's nearest legal one.
-    if (alt.trim() && altitudeNearest && alt.trim() === altitudeFt) next.altitude_nearest = "1";
-    if (altitudeChoice !== "fastest") next.altitude_choice = altitudeChoice;
-    if (altitudes) next.altitudes = altitudes;
-    if (depart) next.depart = depart;
-    // Class B avoided for this route, not the next one.
-    if (!classBClearance && route.dep === planned.dep && route.dest === planned.dest) {
-      next.class_b = "0";
-      if (classBVia && planned.stops.includes(classBVia)) next.class_b_via = classBVia;
-    }
-    if (panelNow.current === "full") next.view = "briefing";
-    setSearchParams(next, { replace: true });
-    setLoad(n => n + 1);
-  }, [dep, dest, planned.dep, planned.dest, planned.stops, via, alt, altitudeFt, altitudeNearest, altitudeChoice, altitudes, depart, classBClearance, classBVia, setSearchParams, setLoad]);
 
-  // The route, changed in its box (RouteBox): in the address at once,
-  // which re-plans, as the airplane and the time do -- the departure,
-  // the stops, the destination.
-  // Either end may be missing -- taken out in the box, half a route with
-  // the other still to be typed -- and with neither, there is no route:
-  // FPL's box empty to type another in, the panel left the height it was,
-  // as the route's close leaves it (clearRoute).
-  // An edit is worked out from the route this render drew; made while the
-  // address is a change ahead of it, it is carried onto the address's
-  // route (lib/routeRebase), never written over it.
-  const drawnDep = planned.dep, drawnDest = planned.dest;
-  const setRoute = useCallback((parts: RouteParts, fuelAdded: string[] = [], keepLists = false) => {
-    const { dep, dest } = parts;
-    const drawn = { dep: drawnDep, stops, dest: drawnDest };
-    if (!dep && !dest) {
-      setSearchParams({}, { replace: true });
-      return;
-    }
-    // The course asked for now, as the route goes in, not once the page
-    // has drawn it: the draw is half a second of a phone's before the
-    // plan's own requests went (measured 2026-10-07), and the course's
-    // answer starts the planner's chart read and ground (app.prefetch).
-    const via = stopsOf(parts.stops.join(","));
-    const whole = routeOf(dep, dest, via);
-    if (whole) void queryClient.prefetchQuery(courseQuery(whole.dep, whole.dest, via));
-    setSearchParams(prev => {
-      const { dep, stops, dest } = rebasedRoute(drawn, parts, { dep: departureOf(prev.get("dep")), stops: stopsOf(prev.get("stops")), dest: identOf(prev.get("dest")) });
-      // What was picked at a field goes with it out of the route -- its
-      // runways, procedures, altitude, time on the ground and hold -- in
-      // the same change, so the planner is not asked once with them.
-      // Not while the Routes' cards are browsed (`keepLists`): a way in
-      // sight that skips a stop took the stop's approach and ground time
-      // with it, and Your Route came back without them.
-      const lists = fieldListsOf(prev);
-      const kept = keepLists ? lists : prunedFieldLists(lists, { dep, stops, dest }, procedureKind);
-      // A route changed by hand is the route: a Direct to's own is kept,
-      // and Cancel has nothing to go back to.
-      // The fuel stops among the stops (useFuelStops): those added now, and
-      // those before that are stops still.
-      const fuel = [...(prev.get("fuel") ?? "").split(","), ...fuelAdded]
-        .filter((id, i, all) => id && all.indexOf(id) === i && stops.some(stop => sameField(stop, id)));
-      return patched(prev, { dep, dest, stops: stops.join(","), ...fieldListParams(kept), direct: null, was: null, fuel: fuel.length ? fuel.join(",") : null });
-    }, { replace: true });
-  }, [setSearchParams, drawnDep, stops, drawnDest]);
-  // An airport's card's Add Stop, at the pilot's ask: the field the
-  // route's next stop, after the ones it makes and before its destination
-  // (it was Add to Route, the field the new destination); with half a
-  // route, the end it lacks; with none, the first point of one, its box
-  // asking for the destination next (RouteBox). The card put away for the
-  // route under it.
-  const addStop = useCallback((to: { ident: string }) => {
-    const points = [planned.dep, ...planned.stops, planned.dest].filter(Boolean);
-    if (points.includes(to.ident)) return;
-    if (planned.dep && planned.dest) points.splice(-1, 0, to.ident);
-    else if (planned.dest) points.unshift(to.ident);
-    else points.push(to.ident);
-    // One change of the address: two in a row, the second read the first's
-    // address from before it.
-    setSearchParams(prev => {
-      return patched(prev, {
-        dep: points[0]!,
-        stops: points.length > 2 ? points.slice(1, -1).join(",") : null,
-        dest: points.length > 1 ? points.at(-1)! : null,
-        place: null, direct: null, was: null,
-      });
-    }, { replace: true });
-  }, [planned.dep, planned.stops, planned.dest, setSearchParams]);
-  // A point's own altitude set, or (null) given back to the plan.
-  const setPointAltitude = useCallback((ident: string, feet: number | null) => {
-    setSearchParams(prev => {
-      const own = altitudesOf(prev.get("altitudes"));
-      if (feet === null) delete own[ident];
-      else own[ident] = feet;
-      return patched(prev, { altitudes: altitudesParam(own) });
-    }, { replace: true });
-  }, [setSearchParams]);
-  // The box's own changes (RouteBox).
-  const routeTyped = useCallback((parts: RouteParts, fuelAdded?: string[]) => setRoute(parts, fuelAdded), [setRoute]);
-  const setStops = useCallback(
-    (stops: string[], fuelAdded?: string[], keepLists = false) => setRoute({ dep: planned.dep, stops, dest: planned.dest }, fuelAdded, keepLists),
-    [setRoute, planned.dep, planned.dest]);
-  // A stop taken out from its menu in FPL's list, as from its pill's.
-  const removeStop = useCallback(
-    (ident: string) => setStops(planned.stops.filter(stop => !sameField(stop, ident))), [setStops, planned.stops]);
-  // The pilot's own point (FixFromDialog), flown over straight after the
-  // point it was made off: the first stop after the departure, before the
-  // destination off the destination. Past the planner's most stops, none.
-  const insertStopAfter = useCallback((after: string, ident: string) => {
-    if (planned.stops.length >= MAX_STOPS) return;
-    const at = sameField(planned.dep, after) ? 0 : planned.stops.findIndex(stop => sameField(stop, after)) + 1 || planned.stops.length;
-    setStops([...planned.stops.slice(0, at), ident, ...planned.stops.slice(at)]);
-  }, [setStops, planned.dep, planned.stops]);
-  // The fuel stops the planner suggests for a flight too long for its
-  // tanks (the totals' fuel_stops), kept: put in after the flight's
-  // departure, in order, as many as the planner takes.
-  const allFuelStops = s.local ? NO_FUEL_STOPS : s.totals?.fuel_stops ?? NO_FUEL_STOPS;
-  // Suggested fuel stops the pilot took out of the route box (its chip's
-  // Remove), for this route: left out of the box, the list and the map,
-  // and put back by the route menu's Show Fuel Stops, at the owner's ask
-  // ("Fuel stops should also have a way to delete them and add them back
-  // as pleased", 2026-10-24). FPL's Routes keep their own card for them.
-  const fuelRoute = `${planned.dep}|${planned.stops.join(",")}|${planned.dest ?? ""}`;
-  const [hiddenFuel, setHiddenFuel] = useState<{ route: string; idents: string[] }>({ route: "", idents: [] });
-  const hiddenHere = hiddenFuel.route === fuelRoute ? hiddenFuel.idents : NO_IDENTS;
-  const fuelStops = useMemo(() => (hiddenHere.length
-    ? allFuelStops.map(f => ({ ...f, stops: f.stops.filter(x => !hiddenHere.includes(x.ident)) })).filter(f => f.stops.length)
-    : allFuelStops), [allFuelStops, hiddenHere]);
-  const hideFuelStop = useCallback((ident: string) => setHiddenFuel(was => ({
-    route: fuelRoute, idents: [...(was.route === fuelRoute ? was.idents : []), ident],
-  })), [fuelRoute]);
-  const showFuelStops = useCallback(() => setHiddenFuel({ route: "", idents: [] }), []);
-  // The tanks for FPL's fuel at each point: the fuel check's usable fuel,
-  // allowance and reserve, the first flight's where the route has stops
-  // (each is filled again), the strictest reserve of them.
-  const tankFigures = useMemo(() => {
-    const t = s.local ? null : s.totals;
-    const flights = t?.hops?.length ? t.hops.map(h => h.totals) : t ? [t] : [];
-    const usable = flights[0]?.usable_fuel_gal;
-    if (!usable) return null;
-    return {
-      usableGal: usable, taxiGal: flights[0]?.taxi_gal ?? 0,
-      reserveGal: Math.max(0, ...flights.map(f => f.reserve_gal ?? 0)),
-    };
-  }, [s.local, s.totals]);
-  // Their pins on the map, every flight's.
-  const fuelStopPins = useMemo(() => fuelStops.flatMap(f => f.stops.map(({ ident, lat, lon }) => ({ ident, lat, lon, reason: f.reason }))), [fuelStops]);
-  // A break the planner suggests on a long flight its tanks hold is the
-  // pilot's own stop once kept, not a fuel stop (useFuelStops).
-  const keepFuelStops = useCallback((after: string, idents: string[]) => {
-    const next = withStopsAfter(planned.dep, planned.stops, after, idents);
-    const isBreak = fuelStops.some(f => f.reason === "break" && [...f.stops, ...(f.choices ?? [])].some(c => idents.includes(c.ident)));
-    if (next) setStops(next.stops, isBreak ? [] : next.added);
-  }, [setStops, planned.dep, planned.stops, fuelStops]);
-  // A field from the map's Stops put in the route after its flight's
-  // departure, the pilot's own stop: by the route's own points, not its
-  // course, which a tap before the course was in found missing.
-  const addStopField = useCallback((field: { ident: string; departure?: string | null }) => {
-    const next = withStopsAfter(planned.dep, planned.stops, field.departure ?? planned.dep, [field.ident]);
-    if (next) setStops(next.stops);
-  }, [setStops, planned.dep, planned.stops]);
+  // The route's edits, each a change of the address (useRouteEdits).
+  const { setRoute, addStop, setPointAltitude, setStops, removeStop, insertStopAfter, acceptClassB, avoidClassB, flyAltitude } = useRouteEdits({
+    planned, routePoints, setSearchParams,
+  });
+  // The stops the planner suggests, and keeping them (useSuggestedStops).
+  const { fuelStops, fuelHidden, hideFuelStop, showFuelStops, tankFigures, fuelStopPins, keepFuelStops, addStopField } = useSuggestedStops({
+    totals: s.totals, local: s.local, planned, setStops,
+  });
   // The suggested stop the airport's card is open on, where it is one: its
   // figures at the card's top, and Add Stop keeps it at its place
   // (PlaceCard's `stop`).
@@ -1430,18 +1286,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [setSearchParams]);
   // The map's VOR and fix cards' Add to Route and Direct To, while there
   // is a route (lib/map/pointActions).
-  // Allowed again: the waypoint Avoid Class B put round it (class_b_via)
-  // taken out of the stops too, where it still is -- left in, the route
-  // still bent round the Class B it was now planned through.
-  const acceptClassB = useCallback((accept: boolean) => {
-    setSearchParams(prev => {
-      const via = prev.get("class_b_via");
-      const stops = stopsOf(prev.get("stops")).filter(stop => !accept || stop !== via);
-      return patched(prev, {
-        class_b: accept ? null : "0", class_b_via: accept ? null : via, stops: stops.length ? stops.join(",") : null,
-      });
-    }, { replace: true });
-  }, [setSearchParams]);
   const hasFix = useOwnShip(st => st.enabled && st.fix !== null);
   const classBAvoided = searchParams.get("class_b") === "0";
   useEffect(() => {
@@ -1453,33 +1297,71 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     });
     return () => usePointActions.setState({ addToRoute: null, directTo: null, avoidClassB: null, courseLine: null });
   }, [course, planned.stops.length, addStopAt, directToChartPoint, hasFix, classBAvoided, acceptClassB]);
-  // "Avoid Class B": the planner's waypoint round it put in the stops where
-  // it says (Detour.stop_index, before that stop), and the clearance taken
-  // back, so the rest is planned under or round it; with no waypoint in
-  // reach, the clearance alone. One change of the address.
-  // The waypoint only where the route has room for another stop
-  // (MAX_STOPS): a ninth was refused by the planner (422), the clearance
-  // alone taken back then. Its ident kept (class_b_via), for Allow.
-  const avoidClassB = useCallback((detour: Detour | null) => {
-    setSearchParams(prev => {
-      const stops = stopsOf(prev.get("stops"));
-      const added = !!detour && !stops.includes(detour.ident) && stops.length < MAX_STOPS;
-      if (added) stops.splice(Math.min(detour.stop_index, stops.length), 0, detour.ident);
-      return patched(prev, { class_b: "0", class_b_via: added ? detour.ident : null, stops: stops.length ? stops.join(",") : null });
-    }, { replace: true });
-  }, [setSearchParams]);
-  // An altitude of the pilot's own, the rest of the address as it was.
-  // An altitude typed beside the airplane is flown on every leg, legal or
-  // not, with its cautions; one picked on the wheel (`nearest`) on each
-  // leg where that leg may fly it, else at the leg's nearest legal one, as
-  // the wheel's figures said -- flown on every leg, it could be under a
-  // leg's floor or on the wrong thousands for its course (14 CFR 91.119,
-  // 91.159).
-  const flyAltitude = useCallback((ft: number, nearest = false) => {
-    setAlt(String(ft));
-    setSearchParams(prev => patched(prev, { altitude_ft: String(ft), altitude_nearest: nearest ? "1" : null, altitude_choice: null }), { replace: true });
-  }, [setAlt, setSearchParams]);
-  const flyWheelAltitude = useCallback((ft: number, legal: boolean) => flyAltitude(ft, legal), [flyAltitude]);
+  // The radio's calls to us (lib/atcRadio): ours by the airplane's
+  // registration, the one picked or one of the pilot's own; Direct To the
+  // place a call said, found near the route, from where the airplane is,
+  // and the altitude it gave flown.
+  const callSign = aircraft.tail ?? (N_NUMBER.test(shortName(aircraft.label)) ? shortName(aircraft.label) : null);
+  const nearNow = course
+    ? [course.departure, course.destination].map(end => `${end.lat.toFixed(3)},${end.lon.toFixed(3)}`).join(";")
+    : "";
+  useEffect(() => useAtcRadio.setState({ tail: callSign, near: nearNow }), [callSign, nearNow]);
+  useEffect(() => {
+    useRadioActions.setState({
+      directTo: async said => {
+        const ship = useOwnShip.getState();
+        if (!ship.enabled || !ship.fix) return "Direct To flies from where the airplane is: turn on Show my position.";
+        const near = [nearNow, `${ship.fix.lat.toFixed(3)},${ship.fix.lon.toFixed(3)}`].filter(Boolean).join(";");
+        try {
+          const found = await api.clearancePlaces({ route: [said], near });
+          const ident = found.route?.[0]?.find(p => p.ident)?.ident;
+          if (!ident) return `“${said}” was not found near the route.`;
+          directToChartPoint({ ident });
+          return null;
+        } catch {
+          return "The place could not be looked up; check the connection.";
+        }
+      },
+      fly: ft => flyAltitude(ft),
+      // "Plan a trip to Las Vegas": the place as the search finds it (a
+      // field, a town, an address), and the biggest field by it; from the
+      // route's departure, else from the field nearest the airplane.
+      planTo: async place => {
+        try {
+          const found = (await api.placesSearch(place))[0];
+          if (!found) return `“${place}” was not found.`;
+          const fields = await api.nearestAirports(found.lat, found.lon);
+          const dest = (found.kind === "airport" ? fields[0] : fields.find(f => f.kind === "large" || f.kind === "medium") ?? fields[0])?.ident;
+          if (!dest) return `No field was found near ${found.label}.`;
+          let dep = planned.dep;
+          if (!dep) {
+            const ship = useOwnShip.getState();
+            if (!ship.enabled || !ship.fix) return "No departure: plan a route from a field first, or turn on Show my position.";
+            dep = (await api.nearestAirports(ship.fix.lat, ship.fix.lon))[0]?.ident ?? "";
+            if (!dep) return "No field was found near the airplane.";
+          }
+          if (dep === dest) return `${dest} is the departure.`;
+          setRoute({ dep, stops: [], dest });
+          return null;
+        } catch {
+          return "The place could not be looked up; check the connection.";
+        }
+      },
+    });
+    return () => useRadioActions.setState({ directTo: null, fly: null, planTo: null });
+  }, [nearNow, directToChartPoint, flyAltitude, planned.dep, setRoute]);
+  // A clearance heard and read by the pilot (ClearanceCard): its route,
+  // its SID and STAR picked as typed ones are, and the altitude it gives.
+  const enterClearance = useCallback((parts: RouteParts, typed: TypedProcedure[], altitudeFt: number | null) => {
+    setRoute(parts);
+    if (typed.length) void typeProcedures(typed, { dep: parts.dep, dest: parts.dest });
+    if (altitudeFt) flyAltitude(altitudeFt);
+  }, [setRoute, typeProcedures, flyAltitude]);
+  const plannedStops = planned.stops;
+  useEffect(() => {
+    useRadioActions.setState({ route: { dep: planned.dep, stops: plannedStops, dest: planned.dest }, enter: enterClearance });
+    return () => useRadioActions.setState({ enter: null });
+  }, [planned.dep, plannedStops, planned.dest, enterClearance]);
 
   // With no route, the panel is Maps' search: the bar in the capsule and
   // at the top of the sheet, Favorites and what was picked before under it,
@@ -1561,6 +1443,68 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const waypointStops = useMemo(() => new Set(planned.stops.filter(stop =>
     course?.stops?.some(a => a.ident === stop && a.kind === "fix") || !identOf(stop)
     || (isAirwayToken(stop) && !course?.stops?.some(a => a.ident === stop)))), [planned.stops, course]);
+  // A whole route's box opened again from its folded line (RouteEdit's
+  // "folded"), till its Done; and where a stop asked for from FPL's list
+  // is typed in (its Add a Stop, a point's Add a Stop After).
+  const [routeOpen, setRouteOpen] = useState(false);
+  const [addAt, setAddAt] = useState<number | null>(null);
+  // In the Plan, a stop added as an empty card at its place in the list,
+  // with no route box (the owner, 2026-11-05: "I want to completely get rid
+  // of the route box for in the plan, when adding a stop just add a stop
+  // with the editable card").
+  const [newStopAt, setNewStopAt] = useState<number | null>(null);
+  // Fly via's ways round the Class B, offered on that card.
+  const [newStopVia, setNewStopVia] = useState<Detour[] | null>(null);
+  const typeStopAt = useCallback((index: number) => {
+    if (routeEdit === "plan") {
+      setNewStopAt(index);
+      return;
+    }
+    setAddAt(index);
+    setAddingStop("stop");
+  }, [routeEdit]);
+  // A point dragged by its grip in FPL's list onto another's place, as the
+  // box's pills are dragged: the ends kept airports (or a position), as
+  // the box keeps them -- a waypoint is flown through, never taken off
+  // from or landed at -- and the route planned again.
+  const movePoint = useCallback((from: number, to: number) => {
+    const points = [...routePoints];
+    const [moved] = points.splice(from, 1);
+    if (moved === undefined || points.length < 1) return;
+    points.splice(to, 0, moved);
+    const isEnd = (p: string) => (!!identOf(p) && !waypointStops.has(p)) || isPosition(p);
+    if (!isEnd(points[0]!) || !isEnd(points.at(-1)!) || points.some((p, i) => i > 0 && p === points[i - 1])) return;
+    setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
+  }, [routePoints, waypointStops, setRoute]);
+  // A point made another from its card's ident (In the Plan): anything
+  // typed, as the box takes it; only a point the same as its neighbour's
+  // is let go, a leg of none.
+  const replacePoint = useCallback((at: number, ident: string) => {
+    const points = [...routePoints];
+    if (at < 0 || at >= points.length) return;
+    points[at] = ident.trim().toUpperCase();
+    if (!points[at] || points.some((p, i) => i > 0 && p === points[i - 1])) return;
+    setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
+  }, [routePoints, setRoute]);
+  const insertPoint = useCallback((at: number, ident: string) => {
+    setNewStopAt(null);
+    setNewStopVia(null);
+    const points = [...routePoints];
+    points.splice(at, 0, ident.trim().toUpperCase());
+    if (points.some((p, i) => i > 0 && p === points[i - 1])) return;
+    setRoute({ dep: points[0]!, stops: points.slice(1, -1), dest: points.at(-1)! });
+  }, [routePoints, setRoute]);
+  const cancelNewStop = useCallback(() => {
+    setNewStopAt(null);
+    setNewStopVia(null);
+  }, []);
+  const listEdit = useMemo(() => ({
+    onMove: movePoint, onAddAt: typeStopAt, onReplace: replacePoint,
+    newAt: newStopAt, newVia: newStopVia, onInsert: insertPoint, onCancelNew: cancelNewStop,
+    // In the Plan, the points as cards (ProceduresRoute), each changed by
+    // its own ident's text box, no menu's Change to a box.
+    cards: routeEdit === "plan",
+  }), [movePoint, typeStopAt, replacePoint, newStopAt, newStopVia, insertPoint, cancelNewStop, routeEdit]);
   // Each tab's lists in full -- Airport's Favorites and Recents, FPL's
   // routes planned, Aircraft's Favorites and Recents -- the address's
   // (`list`, useAddressCards), kept for their tab as its cards are.
@@ -1589,11 +1533,12 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The tab bar's place (TabBar) and what each tab keeps open over it
   // (useTabCards): FPL, the route's box and its nav log; Airport, the
   // search and the nearest fields; Aircraft, the traffic.
-  const { tab, setTabPick, pickTab, tabUp, closeSheet } = usePanelTabs({
+  const { tab: pickedTab, setTabPick, pickTab, tabUp, closeSheet } = usePanelTabs({
     cards, route: `${planned.dep}|${planned.stops.join(",")}|${planned.dest}`,
     hasRoute: routed || !!planned.dep || !!planned.dest || planned.stops.length > 0,
     panel, setPanel, searchParams, setSearchParams,
   });
+  const tab: PanelTab = pickedTab;
   // The tabs opened so far, each kept under the others once it has been
   // (TabKept), as iOS keeps a tab's screen: back to one, it is as it was
   // left, a list scrolled where it was. Built again from nothing at every
@@ -1642,7 +1587,8 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // The side view, a card over FPL as the nav log is (ProfileCard).
   const profileShown = profileOpen && tab === "fpl" && routed && !briefShown && !navLogShown;
   // The map's Stops (StopsCard), a card over FPL as the Profile is, opened
-  // from its button among the map's (StopsAlongButton).
+  // from the Airport tab's Find Nearby (its button among the map's gave its
+  // place to the radio's microphone, 2026-11-02).
   const stopsOpen = useStopsAlong(st => st.open);
   const setStopsOpen = useStopsAlong(st => st.setOpen);
   // With a route or none: with none, the stops are round the pilot.
@@ -1681,15 +1627,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     const kinds = kindsOf(f).filter(k => stopKind === "all" || k === stopKind);
     return kinds.length && !fuelStopPins.some(p => p.ident === f.ident) ? [{ ident: f.ident, lat: f.lat, lon: f.lon, kinds }] : [];
   }) : undefined), [stopsShown, stopsFound, stopKind, fuelStopPins]);
-  // Find Nearby's tile (the Airport tab): the Stops round the pilot, that
-  // kind picked, over FPL as the map's button opens them.
-  const setStopKind = usePreferences(p => p.setStopKind);
-  const stopsOpener = useStopsAlong(st => st.opener);
-  const findNearby = useCallback((kind: StopKind) => {
-    setStopKind(kind);
-    setStopsScope("near");
-    stopsOpener?.();
-  }, [setStopKind, setStopsScope, stopsOpener]);
   // Airport's pill's NEAREST strip: the list's own question, shared, asked
   // while the strip is in sight.
   // Airport's strip in sight, at the pill or all the way up.
@@ -1698,6 +1635,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const { data: nearStrip } = useQuery({ ...nearestQuery(nearOrigin?.lat ?? 0, nearOrigin?.lon ?? 0), enabled: airportPill && showsNearest && !!nearOrigin });
   // FPL's saved flights in full, a card over it (SAVED's title).
   const savedOpen = searchParams.get("saved") === "1";
+  // An approach set by their instructor, open over the map until closed.
+  const lessonOpen = lessonOf(searchParams.get("lesson"));
+  const closeLesson = useCallback(() => {
+    setSearchParams(prev => patched(prev, { lesson: null }), { replace: true });
+  }, [setSearchParams]);
   // Each written in place of the address's last, as every panel change is
   // (lib/back): they pushed onto the history, the browser's Back stepping
   // through Saved and Nearest alone of the lists.
@@ -1752,9 +1694,9 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const closeProfileCard = useCallback(() => closeCard(() => setProfileOpen(false)), [closeCard]);
   // The map's Stops, put away to the height FPL had (closeCard).
   const closeStops = useCallback(() => closeCard(() => setStopsOpen(false)), [closeCard, setStopsOpen]);
-  // Opened from the map's button: FPL in sight with it, the other cards
-  // over FPL and an airport's put away, half way up from the pill, as the
-  // Profile opens from its button.
+  // Opened: FPL in sight with it, the other cards over FPL and an
+  // airport's put away, half way up from the pill, as the Profile opens
+  // from its button.
   const openStops = useCallback(() => {
     setStopsOpen(true);
     setTabPick("fpl");
@@ -1763,6 +1705,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setSearchParams(prev => (prev.get("brief") || prev.get("place") ? patched(prev, { brief: null, place: null }) : prev), { replace: true });
     if (panelNow.current !== "full") setPanel("half");
   }, [setStopsOpen, setTabPick, setSearchParams, setPanel]);
+  // Find Nearby's tile (the Airport tab): the Stops round the pilot, that
+  // kind picked.
+  const setStopKind = usePreferences(p => p.setStopKind);
+  const findNearby = useCallback((kind: StopKind) => {
+    setStopKind(kind);
+    setStopsScope("near");
+    openStops();
+  }, [setStopKind, setStopsScope, openStops]);
+  // Put away with the planner.
+  useEffect(() => () => setStopsOpen(false), [setStopsOpen]);
   // A field's pin tapped on the chart: its row picked in the sheet, the
   // sheet half way up from the pill so the row is in sight, where the tap
   // opened the field's card (the owner, 2026-10-28: the card is a tap on
@@ -1772,18 +1724,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     setStopPicked(ident);
     if (panelNow.current === "peek") setPanel("half");
   }, [setStopPicked, setPanel]);
-  const setStopsOpener = useStopsAlong(st => st.setOpener);
-  useEffect(() => {
-    setStopsOpener(openStops);
-    return () => setStopsOpener(null);
-  }, [openStops, setStopsOpener]);
-  // The button there always: the stops near the pilot, with a route or none.
-  const setStopsAvailable = useStopsAlong(st => st.setAvailable);
-  const canStop = true;
-  useEffect(() => {
-    setStopsAvailable(canStop);
-    return () => setStopsAvailable(false);
-  }, [canStop, setStopsAvailable]);
   // The legs asked for from the Brief: FPL all the way up in its place.
   const showLegs = useCallback(() => {
     setSearchParams(prev => {
@@ -1805,6 +1745,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       return patched(prev, { near: null, nearAt: null, nearName: null });
     }, { replace: true });
   }, [setSearchParams]);
+  // The microphone's own commands (lib/pilotCommand, RadioLayer): the
+  // Nearest list over Airport, and an approach's page in the procedures
+  // sheet, whose lists are the route's fields' alone.
+  useEffect(() => {
+    useRadioActions.setState({
+      nearest: () => {
+        setTabPick("airport");
+        openNearest();
+      },
+      showProcedure: async (ident, approach, runway) => {
+        if (![planned.dep, ...plannedStops, planned.dest].some(f => f && sameField(f, ident))) return `${ident} is not on the route: add it first.`;
+        setProceduresShown({ ident, kind: "approach", pick: { approach, runway } });
+        return null;
+      },
+    });
+    return () => useRadioActions.setState({ nearest: null, showProcedure: null });
+  }, [setTabPick, openNearest, planned.dep, plannedStops, planned.dest, setProceduresShown]);
   // The route's box and its nav log are FPL's, a route or none -- with none
   // the box is empty to type one in, at the pilot's ask.
   const started = tab === "fpl";
@@ -2073,7 +2030,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // briefing's sections under it, the briefing's own actions in the
   // drawer's header.
   // A leg where no 500 ft step fits and the planner flies the highest
-  // whole hundred under its ceiling (vfr.altitude's tight altitude):
+  // whole hundred under its ceiling (wingtip.altitude's tight altitude):
   // where, at what, and how little room there is either side.
   const tight = s.nav?.altitude_selection.segments?.find(seg => seg.tight);
   const tightLeg = tight && tight.candidates_ft[0] !== undefined && tight.band_ceiling_ft != null ? (() => {
@@ -2159,7 +2116,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   // the owner's ask ("why is there grey color for airport button metar? We
   // should get the modeled one in like the airport card has"): the weather
   // the National Weather Service's Gridded LAMP models at it for the hour
-  // (vfr.glmp), else the nearest station's report within ten miles
+  // (wingtip.glmp), else the nearest station's report within ten miles
   // (PlaceCard's "≈"); grey only where neither is had. The route's fields'
   // cards, asked once and shared with their rows (airportQuery).
   const weatherFields = [planned.dep, ...planned.stops.filter(stop => !waypointStops.has(stop)), planned.dest].filter(ident => !!identOf(ident));
@@ -2189,97 +2146,33 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   const descriptionsPaywall = useMemo(() => (paywalled ? (
     <PaidPrompt feature="CHECKPOINT_NOTES">A line for each checkpoint on what to look for from the air.</PaidPrompt>
   ) : undefined), [paywalled]);
-  // The flight flown on paper (dryRunOf), started from the side view's
-  // play, at the owner's ask ("a dry run of the flight with altitude and
-  // speed profile as well as the calculations at the bottom"): the replay's
-  // airplane flown along the course (DryRunLayer), its controls and chart
-  // in the side view's place, its figures as it goes under them. Put away
-  // with its close, or as the replay is another's (a past flight's).
-  // Flown from its start (seconds), the run itself made from the route as
-  // it is now, so it follows the route as it changes while it plays, at the
-  // owner's ask ("make sure to update the dry run if an approach is added
-  // or other route changes are added"): a procedure picked, a runway
-  // changed, a stop added or the legs come in again, it is flown again
-  // from the same start, its clock where it was, gone missed still if it
-  // had.
-  const [runFrom, setRunFrom] = useState<number | null>(null);
-  // Whether the approach picked has gone missed (the run's Go missed).
-  const [goMissed, setGoMissed] = useState(false);
-  const flownFrom = useMemo(() => (runFrom !== null && course ? dryRunOf(
-    navLogRows(course, selected, s.legs), runFrom, course.course_line, goMissed,
-  ) : null), [runFrom, course, selected, s.legs, goMissed]);
-  // The last run long enough to fly, held while new legs stream in.
-  const [lastRun, setLastRun] = useState<DryRun | null>(null);
-  if (flownFrom && flownFrom.points.length >= 2 && flownFrom !== lastRun) setLastRun(flownFrom);
-  const dryRun = runFrom === null ? null : lastRun;
-  const dryRunHeld = usePastFlight(p => p.hex === DRY_RUN);
-  const dryRunning = dryRun && dryRunHeld && routed ? dryRun : null;
-  // The replay's points kept the run's as it changes, its clock where it
-  // was (within the new run).
-  useEffect(() => {
-    if (!dryRun || !usePastFlight.getState().hex || usePastFlight.getState().hex !== DRY_RUN) return;
-    usePastFlight.setState(p => (p.points === dryRun.points ? p
-      : { points: dryRun.points, at: p.at === null ? dryRun.points[0]!.t : Math.min(p.at, dryRun.points.at(-1)!.t) }));
-  }, [dryRun]);
-  // Played in the Profile card it was started from, in the side view's
-  // place, at the owner's ask ("profile should play the dry run within
-  // profile card"), and put away with it.
-  const startDryRun = () => {
-    if (!course) return;
-    // The procedures picked flown, as the legs are planned by them: out by
-    // a departure, in by an arrival and an approach.
-    const from = Math.round((depart ? Date.parse(depart) : Date.now()) / 1000);
-    const run = dryRunOf(navLogRows(course, selected, s.legs), from, course.course_line);
-    if (run.points.length < 2) return;
-    setGoMissed(false);
-    setRunFrom(from);
-    setLastRun(run);
-    usePastFlight.setState({ hex: DRY_RUN, id: 0, points: run.points, at: run.points[0]!.t, playing: true });
-  };
-  // Gone missed on the final (the run's Go missed): the run that does, the
-  // same up to the missed approach point, so it goes on from where it is.
-  const goMissedNow = () => setGoMissed(true);
-  // Flown once every leg is in: the side view is drawn before the legs
-  // have streamed in, and a tap on its Dry run then did nothing (the run
-  // too short to fly) -- seen as the dry-run spec's phone tapped it early.
-  // Its button waits for them, dimmed.
-  const dryRunReady = useMemo(
-    () => !!course && navLogRows(course, selected, s.legs).slice(1).every(row => !!legOf(row)),
-    [course, selected, s.legs],
-  );
-  // Stopped, the side view it was flown over, the route's list a swipe
-  // back, at the owner's ask ("When stopping dry run it should become
-  // profile view and then swiping should take it back").
-  const stopDryRun = () => {
-    setRunFrom(null);
-    clearPastFlight();
-  };
-  // The run is the Profile card's: put away with it, at the owner's ask
-  // ("I still see dry run in fpl after I play it in profile card once") --
-  // it stayed at FPL's foot, over the route, once the card was closed. The
-  // replay let go; the run's own start with it, as with another replay's.
-  useEffect(() => {
-    if (dryRunning && !profileShown) clearPastFlight();
-  }, [dryRunning, profileShown]);
-  if (runFrom !== null && !dryRunHeld) setRunFrom(null);
-  // The map's Play (DryRunButton): the profile opened and the route flown
-  // on it, at the owner's ask (2026-10-27), where the profile had a button
-  // of its own in the route box. Through refs, so the button's store is
-  // set as the run's state changes, not at every render.
-  const playRef = useRef(() => {});
-  const stopRef = useRef(() => {});
-  useEffect(() => {
-    // The profile opened either way: a route with no legal altitude has no
-    // run to fly, and its profile is where its way round is offered.
-    playRef.current = () => { setTabPick("fpl"); openProfileCard(); if (dryRunReady) startDryRun(); };
-    stopRef.current = stopDryRun;
+  // The flight flown on paper, from the Profile card (useDryRun).
+  const { running: dryRunning, goMissed, ready: dryRunReady, start: startDryRun, stop: stopDryRun, goMissedNow } = useDryRun({
+    course, selected, legs: s.legs, depart, routed, profileShown,
   });
-  const flyingNow = !!dryRunning;
-  const playable = routed && !!course;
-  useEffect(() => {
-    useDryRunButton.setState({ ready: playable, flying: flyingNow, play: () => playRef.current(), stop: () => stopRef.current() });
-  }, [playable, flyingNow]);
-  useEffect(() => () => useDryRunButton.setState({ ready: false, flying: false, play: null, stop: null }), []);
+  // The airplane flying the route (useFlyingMode): its NRST is Nearest's
+  // list over Airport, as the microphone's is; its D→ direct to the next
+  // landing, as the Stops' Direct To goes (directToPoint).
+  const flyNearest = useCallback(() => { setTabPick("airport"); openNearest(); }, [setTabPick, openNearest]);
+  const flyDirectTo = nextLanding(s.totals, `${planned.dest}`).to;
+  const flyDirect = useMemo(() => (flyDirectTo ? { to: flyDirectTo, go: () => directToPoint(flyDirectTo) } : null), [flyDirectTo, directToPoint]);
+  const { flying, done: doneFlying } = useFlyingMode({ routed, setPanel, nearest: flyNearest, direct: flyDirect });
+  // The Profile opened, at rest, from the route's Profile button, where the map's Play opened it and flew its
+  // dry run at once until the owner took Play off the map (2026-11-02:
+  // "I don't want the play button there, just the mic"); the run is the
+  // profile's own Dry run button. With a route to draw it for: the side
+  // view is drawn only then (sideView).
+  const profileReady = routed && !!course && !s.local;
+  const openProfile = useCallback(() => {
+    setTabPick("fpl");
+    openProfileCard();
+  }, [setTabPick, openProfileCard]);
+  // A caution on the pilot's own altitude, or one tight in its band, marked
+  // on the Profile button where the caution is said, as the AI brief's mark
+  // is on its own (the owner, 2026-11-05: "The red dot can be on profile
+  // (like brief) instead of the altitude"); not for a route with no legal
+  // altitude, which the altitude's field says in red itself.
+  const altitudeMark = !profileReady || s.unflyable || !s.nav ? null : s.nav.cautions?.length ? "caution" : tightLeg ? "tight" : null;
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
@@ -2401,14 +2294,6 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   }, [lineOpen, routeLine, routeWays, chips, browsing, ownMinutes, ownGround]);
   // A way's line or chip on the chart tapped: its chip picked.
   const pickWay = useCallback((key: string) => applyChip(key === "own" ? "none" : key), [applyChip]);
-  // The routes the chips put in, end to end, for the route box to keep
-  // its height through them while the line is open and they are tapped
-  // through (RouteBox's holdFor); folded, the box is the route's own
-  // height -- a short route's one line was held at two.
-  const browsedRoutes = useMemo(() => {
-    if (!routeLine || !lineOpen) return undefined;
-    return chips.map(c => [planned.dep, ...c.stops, `${planned.dest ?? ""}`]);
-  }, [routeLine, lineOpen, chips, planned.dep, planned.dest]);
   const routeList = useMemo(() => (
     <>
     <ProceduresRoute
@@ -2422,12 +2307,16 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuel={tankFigures}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
       chartsDisabled={!planned.dest || noApproaches} routeLine={routeLine}
+      // The list changes the route too where the box is folded away once
+      // the route is whole (RouteEdit, both of the owner's picks).
+      // Not with the box as it was, whose pills do it.
+      edit={routeEdit !== "box" && planned.dep && planned.dest ? listEdit : undefined}
     />
     </>
   ), [routeLine, procedureAirports, routeRows, depart, metarColour, pickedPatterns, pickPattern, preselectPattern, pickedTakeoffs, setTakeoff, preselectTakeoff, autoPicked, runwayFitInputs, pickedProcedures, routeProcedures, pickProcedures, crossings, showFix,
     ground, setGround, previewProcedure, proceduresAt, setProceduresShown, planned.dest, selectPlace, noApproaches, changeDepart,
     altitudeAt, setPointAltitude, directParam, directToPoint, removeStop, insertStopAfter, holds, setHold, holdAsk, routePoints, planned.stops.length,
-    tankFigures]);
+    tankFigures, listEdit, routeEdit]);
   // Its head: the route by name, and its plan under it -- where from and
   // to, the airplane, the altitude, when -- as an airport's card has its
   // name and where it is.
@@ -2457,7 +2346,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // In sight all the way up, the Brief not over it: a row picked is
       // brought into sight as it comes back.
       drawerOpen={drawerOpen && !briefShown} dryRun={dryRunning}
-      route={navLogShown ? undefined : routeList}
+      // Under the strip the nav log's card keeps the route in order too:
+      // its pills' menus -- a stop taken out, a point's altitude, a hold,
+      // direct to -- have no route box there (features/strip).
+      // Route Cards with one end only: its card is the end's own (RouteEnds),
+      // not again under it as the list's row (the owner's screenshot,
+      // 2026-11-05: C81 typed as the departure, there twice).
+      route={navLogShown || (routeEdit === "plan" && !(planned.dep && planned.dest)) ? undefined : routeList}
       cardHead={navLogShown ? (
         <CardHead
           // As the Brief's head: the route's name, and the line under it --
@@ -2487,7 +2382,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
   ), [s.totals, s.descriptionError, s.nav, s.legs, depart, planned.dep, planned.dest, course, s.logSelected, s.descriptions, s.saveDescription,
     s.generateDescriptions, descriptionsLoading, descriptionsPaywall, descriptionsHidden, selectedPoint, selectPointAt, deselectPoint, drawerOpen, aircraft.label,
     marks, tabContent, s.briefing, s.local, landedStops, s.langgraphNarrative, s.crewaiNarrative, unflyableBrief, kneeboardLater, metarColour, dryRunning, briefShown,
-    routeList, navLogShown, closeNavLogCard, planned.stops, briefLine]);
+    routeList, navLogShown, closeNavLogCard, planned.stops, briefLine, routeEdit, planned.dep, planned.dest]);
   // The Brief's pages (BriefCard): En route's without the legs, which are
   // FPL's own; and its warnings over them.
   const briefContents = useMemo(() => ({
@@ -2542,18 +2437,21 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     routed, depart, changeDepart, flightRules, s.replanning, altitudeFt, altitudeNearest]);
 
   // Saving the flight, the narrative and Print.
-  const addingChange = useCallback((open: boolean) => setAddingStop(open ? "stop" : false), []);
+  const addingChange = useCallback((open: boolean) => {
+    setAddingStop(open ? "stop" : false);
+    if (!open) setAddAt(null);
+  }, []);
 
   // The flight plan filed: the Brief's Flight Plan, where the FAA's form
   // is filled in from the plan and sent where Flight Service is connected
   // -- all the way up, the panel the form's room. Only where the Brief has
   // one: a route from an airport, its nav log in.
   const fileable = !!identOf(planned.dep) && !!s.totals;
-  const fileFlightPlan = () => {
+  const fileFlightPlan = useCallback(() => {
     setSearchParams(prev => patched(prev, { brief: "1" }), { replace: true });
     setPanel("full");
     useTabAsk.getState().go("preflight", "Flight Plan");
-  };
+  }, [setSearchParams, setPanel]);
 
   // The plan as a flight to save: Save's, and the solo cross-country
   // review's, which saves it as it asks.
@@ -2574,6 +2472,43 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     course: routed && settledPlan ? course : null, totals: s.pointToPoint ? null : s.totals, nav: s.nav, legs: s.legs, selected: s.logSelected,
     aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: picksOf(searchParams),
   };
+  // The flight as the Brief reads it (lib/briefPlan), for its Ask, its
+  // words and its watch, which draw outside the route's props: the
+  // route and its time, the airplane, the nav log's altitude, time en
+  // route and legs (as the briefing is asked with them), and the plan as
+  // Save files it. Cleared as the workspace goes.
+  const briefLegs = useMemo(() => briefingLegs(course, s.logSelected, s.legs), [course, s.logSelected, s.legs]);
+  const eteMin = s.local ? localMin : s.totals?.ete_min ?? null;
+  // The altitude flown, the nav log's (`altitudeFt` above is the pilot's
+  // own as typed, a string).
+  const flownFt = s.nav?.altitude_ft ?? null;
+  const flightCourse = flightToSave.course;
+  useEffect(() => {
+    useBriefPlan.getState().set({
+      dep: planned.dep, dest: planned.dest, stops: planned.stops, aircraft: aircraft.profile || null, altitudeFt: flownFt, depart,
+      eteMin, legs: briefLegs ? { fixes: briefLegs.fixes, legMin: briefLegs.legMin } : null, routed, local: !!s.local,
+      flight: { course: flightCourse, totals: flightToSave.totals, nav: s.nav, legs: s.legs, selected: s.logSelected, aircraftId: aircraft.aircraftId ?? null, depart, altitudes, picks: flightToSave.picks },
+    });
+  }, [planned.dep, planned.dest, planned.stops, aircraft.profile, aircraft.aircraftId, flownFt, depart, eteMin, briefLegs, routed, s.local,
+    flightCourse, flightToSave.totals, s.nav, s.legs, s.logSelected, altitudes, flightToSave.picks]);
+  useEffect(() => () => useBriefPlan.getState().set(NO_PLAN), []);
+  // A change the assistant proposes (useAsk's actions), applied at the
+  // pilot's tap through the route box's own setters -- the route, the
+  // altitude flown, the departure time -- each a change of the address,
+  // which plans again. Registered while the workspace is up; the chip
+  // applies nothing otherwise.
+  useEffect(() => {
+    useAsk.setState({
+      applyChange: change => {
+        if (change.dep !== undefined || change.dest !== undefined || change.stops !== undefined) {
+          setRoute({ dep: change.dep ?? planned.dep, stops: change.stops ?? planned.stops, dest: change.dest ?? planned.dest });
+        }
+        if (change.altitude_ft !== undefined) flyAltitude(change.altitude_ft);
+        if (change.depart !== undefined) changeDepart(change.depart);
+      },
+    });
+    return () => useAsk.setState({ applyChange: null });
+  }, [setRoute, flyAltitude, changeDepart, planned.dep, planned.stops, planned.dest]);
   // Share and everything else the route's row had (ShareMenu).
   // What planning again would bring in fresh, said by the refresh's dot:
   // winds past the forecast's period the legs were flown on, legs flown
@@ -2598,16 +2533,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       // Plan again in the route's own menu, at the owner's pick ("A") to
       // keep the route box's row on one line; Share marked where it is due.
       planAgain={card === undefined && routed && !s.local ? { stale, onPlan: () => setLoad(n => n + 1) } : undefined}
-      onShowFuel={card === undefined && hiddenHere.length ? showFuelStops : undefined}
+      onShowFuel={card === undefined && fuelHidden ? showFuelStops : undefined}
+      onNavLog={card === undefined && routed && course ? openNavLogCard : undefined}
     />
   );
 
 
-  const dragging = usePanelDragging(d => d.dragging);
+  // The strips and lists drawn under the pill too while the sheet is on
+  // the move, so they are there as it comes up: read as one answer with
+  // the size, so a move between half and full -- where they are drawn
+  // either way -- does not draw the whole workspace again at its start
+  // and its end (the drag probe at CPU 4x, 2026-11-04: 100 to 170 ms each,
+  // with the map's follow of the sheet waiting behind them).
+  const stripsDrawn = usePanelDragging(d => panel !== "peek" || d.dragging);
   // The open card's name for the bar over it: an airport's ident, the
   // airspace at a point, an airplane's callsign (its card's, useCardTitle).
   const flightTitle = useCardTitle(t => t.title);
-  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "Brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Stops" : undefined);
+  const cardTitle = place ?? (heldPoint ? "Airspace" : flight ? flightTitle ?? undefined : briefShown ? "AI brief" : navLogShown ? "Nav log" : profileShown ? "Profile" : stopsShown ? "Stops" : undefined);
   // The airport's card, in the panel's body.
   const placeCard = place && (
     <Suspense fallback={null}>
@@ -2615,7 +2557,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         key={place} ident={place} from={measuredFrom}
         onClose={closePlace} onFlyHere={to => void flyHere(to)} onExpand={() => setPanel("full")} onLower={() => setPanel("half")}
         // None for a point of the route, or past the planner's most stops.
-        onAddStop={[planned.dep, ...planned.stops, planned.dest].includes(place) || planned.stops.length >= MAX_STOPS ? undefined
+        onAddStop={routePoints.includes(place) || planned.stops.length >= MAX_STOPS ? undefined
           : suggestedAt ? () => keepFuelStops(suggestedAt.after, [place]) : addStop}
         stop={suggestedAt?.stop}
         // The route's destination: when the flight lands there -- the time
@@ -2648,7 +2590,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     <Suspense fallback={<div className="h-56" />}>
       <AltitudeProfile
         nav={s.nav} legs={s.legs} ends={course}
-        chart={(preview, scaleTop) => <MiniProfile ends={course} selected={selected} legs={s.legs} preview={preview} scaleTop={scaleTop} ruler />}
+        chart={(preview, scaleTop) => <Suspense fallback={null}><MiniProfile ends={course} selected={selected} legs={s.legs} preview={preview} scaleTop={scaleTop} ruler /></Suspense>}
         corner={(
           <RoundButton label="Dry run" onClick={startDryRun} disabled={!dryRunReady} className="absolute top-1.5 right-1.5" data-testid="dry-run-start">
             <Play className="size-5" />
@@ -2657,22 +2599,56 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         wheelHidden={!!dryRunning}
         problem={unflyable ? (
           <RouteProblem
-            problem={unflyable} onAddStop={() => { closeProfileCard(); setAddingStop("stop"); }}
-            onFlyVia={() => { closeProfileCard(); setAddingStop("via"); }} onAcceptClassB={() => acceptClassB(true)}
+            problem={unflyable} onAddStop={() => { closeProfileCard(); if (routeEdit === "plan") typeStopAt(routePoints.length - 1); else setAddingStop("stop"); }}
+            onFlyVia={() => {
+              closeProfileCard();
+              if (routeEdit !== "plan") return setAddingStop("via");
+              // Between the points the ways round go between, as the box
+              // put them (its `asked`).
+              const detours = s.unflyable?.detours ?? [];
+              setNewStopVia(detours.length ? detours : null);
+              typeStopAt(detours.length ? detours[0]!.stop_index + 1 : routePoints.length - 1);
+            }} onAcceptClassB={() => acceptClassB(true)}
             onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
           />
         ) : undefined}
         tight={unflyable ? null : tightLeg}
         classBAvoided={!classBClearance} onAvoidClassB={avoidClassB} onAllowClassB={() => acceptClassB(true)}
         onGoRound={(via, at) => { closeProfileCard(); setStops([...planned.stops.slice(0, at), ...via, ...planned.stops.slice(at)]); }}
-        onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyWheelAltitude}
+        onAltitudeChoiceChange={changeAltitudeChoice} onFlyAltitude={flyAltitude}
         // The rules' switch at the card's top right (ProfileCard's corner).
         rules={flightRules}
       />
     </Suspense>
   );
+  // In flight, the one way out of flying mode (useFlyingMode): a small
+  // Done flying at the figures' foot, as the canvas has the line there;
+  // the tabs come back on the ground by themselves.
+  const doneFlyingRow = flying && (
+    <div className={cn("flex items-center justify-between pt-1 text-foreground/65", TEXT.note)} data-testid="flying-foot">
+      <span>Flying</span>
+      <button type="button" className="relative font-semibold text-tint after:absolute after:-inset-x-2 after:-inset-y-3 after:content-['']" data-testid="done-flying" onClick={doneFlying}>
+        Done flying
+      </button>
+    </div>
+  );
+
   // The route's chips: the airplane, the altitude, the time, Saved,
   // Approaches and Share (`controls`), and with no route the pill's too.
+  // Folded from the start, no route yet too, at the owner's ask ("They
+  // should not have route box from the start", 2026-11-05): the box only
+  // while it is opened from the head, or a stop is typed in. Opened to
+  // type a route, it folds by itself once the route is whole -- the
+  // destination in -- as the pilot has what they opened it for.
+  const wholeRoute = !!planned.dep && !!planned.dest;
+  const [wasWhole, setWasWhole] = useState(wholeRoute);
+  if (wholeRoute !== wasWhole) {
+    setWasWhole(wholeRoute);
+    if (wholeRoute && routeOpen) setRouteOpen(false);
+  }
+  // In the Plan never the box (the owner, 2026-11-05: "completely get rid
+  // of the route box for in the plan").
+  const routeFolded = routeEdit === "plan" || (routeEdit === "folded" && !routeOpen && !addingStop);
   const routeControls = (
     <div className="flex w-full min-w-0 flex-wrap items-center gap-x-1 gap-y-4">
       {/* On the narrowest panels (iPhone SE, the iPad slide-over) the row
@@ -2717,23 +2693,40 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           Back on this line at the owner's ask (2026-10-25), the sheet edge
           to edge for the room (MapPanel's HALF_INSET). */}
       <div className="ml-auto flex shrink-0 items-center gap-3 pl-3.5" data-testid="route-actions">
-        {/* The nav log beside the Brief, out of the route's menu, at the
-            owner's ask (2026-10-27: "move the Navlog button next to
-            brief"). */}
-        {routed && course && (
-          <RoundButton label="Nav Log" onClick={openNavLogCard} className="size-8" data-testid="route-navlog">
-            <ListOrdered className="size-[1.125rem]" strokeWidth={2} />
-          </RoundButton>
-        )}
-        {/* The Brief, a card over FPL (BriefCard), marked as the worst of
-            its pages is. */}
-        {routed && (
+        {/* The Profile -- the route from the side, its altitude's wheel and
+            its dry run -- where the nav log's button was, the nav log in
+            the route's ••• menu, at the owner's ask (2026-11-04: "Replace
+            the navlog button with profile button ... Navlog can be moved
+            to the more button"). */}
+        {profileReady && (
           <RoundButton
-            label={briefMark ? `Brief, ${briefMark === "stop" ? "warning" : "caution"}` : "Brief"} onClick={openBrief} className="size-8"
-            data-testid="route-brief" data-finding={briefMark ?? undefined}
+            label={altitudeMark === "caution" ? "Profile, your altitude has a caution" : altitudeMark === "tight" ? "Profile, your altitude is tight" : "Profile"}
+            onClick={openProfile} className="size-8" data-testid="route-profile"
           >
             <span className="relative">
-              <ClipboardList className="size-[1.125rem]" strokeWidth={2} />
+              <ChartArea className="size-[1.125rem]" strokeWidth={2} />
+              {altitudeMark && (
+                <span
+                  aria-hidden="true" data-testid={altitudeMark === "caution" ? "own-altitude-flag" : "tight-altitude-flag"}
+                  className="absolute -top-0.5 -right-1 size-2 rounded-full bg-caution"
+                />
+              )}
+            </span>
+          </RoundButton>
+        )}
+        {/* The AI's brief, a card over FPL (BriefCard) -- its verdict, its
+            words with their sources and Ask at its foot -- marked as the
+            worst of its pages is: one sparkle where the Brief's clipboard
+            and the menu's "Ask about this flight" were, at the owner's ask
+            ("Replace ... the brief button with AI button because they are
+            both the same thing", 2026-11-04). */}
+        {routed && (
+          <RoundButton
+            label={briefMark ? `AI brief, ${briefMark === "stop" ? "warning" : "caution"}` : "AI brief"} onClick={openBrief} className="size-8"
+            data-testid="route-brief" data-finding={briefMark ?? undefined} data-tip="brief"
+          >
+            <span className="relative">
+              <Sparkles className="size-[1.125rem]" strokeWidth={2} />
               {briefMark && (
                 <span
                   aria-hidden="true" data-testid="route-brief-mark"
@@ -2810,9 +2803,17 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           ways={wayLines} wayShown={lineKey === "none" ? "own" : lineKey} onPickWay={pickWay}
         />
         </Suspense>
+        {/* The next checkpoint over the map in flight (FlyingHead). */}
+        {flying && <Suspense fallback={null}><FlyingHead run={dryRunning} rows={routeRows} /></Suspense>}
         <FixCard open={openFix} onClose={() => setOpenFixAt(null)} onDirect={directTo} onCross={setCrossing} />
+        {lessonOpen !== null && (
+          <Suspense fallback={null}>
+            <AssignedLesson key={lessonOpen} id={lessonOpen} aircraft={fitAircraft} onClose={closeLesson} />
+          </Suspense>
+        )}
         {/* What to look for, a tip at a time, the first times (lib/tips). */}
         <TipHost />
+        <FirstFlight routed={routed} onPlan={setRoute} onPlanned={openNavLogCard} />
       </div>
     ),
     // The tab's body (TabBar): FPL's nav log, kept mounted under whatever
@@ -2843,11 +2844,13 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         {opened.includes("aircraft") && (
           <TabKept away={cardUp || tab !== "aircraft"}>{flightCard ?? (aircraftOpen && (aircraftFavoritesOpen && !aircraftTyped ? (
             <TabPage testId="aircraft-favorites">
-              <AircraftFavoritesList
-                onBack={closeList} onOpen={hex => selectFlight(hex)}
-                onChangeMine={() => { closeList(); addFromPill("mine"); }}
-                onAdd={() => { closeList(); addFromPill("airplane"); }}
-              />
+              <Suspense fallback={null}>
+                <AircraftFavoritesList
+                  onBack={closeList} onOpen={hex => selectFlight(hex)}
+                  onChangeMine={() => { closeList(); addFromPill("mine"); }}
+                  onAdd={() => { closeList(); addFromPill("airplane"); }}
+                />
+              </Suspense>
             </TabPage>
           ) : aircraftRecentsOpen && !aircraftTyped ? (
             // Kept open under an airplane's card opened from it, as the
@@ -2856,21 +2859,23 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
           ) : (
             // The strip once, in the pill or here: at the pill's size the
             // body is out of sight but for a finger taking it up.
-            <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={panel !== "peek" || dragging ? aircraftStrip : null} />
+            <AircraftCard onPick={plane => selectFlight(plane.hex, plane)} onPickHex={hex => selectFlight(hex)} strip={stripsDrawn ? aircraftStrip : null} />
           )))}</TabKept>
         )}
         {!cardUp && tab !== "aircraft" && nearOpen && (
-          <NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} onBack={closeNearest} />
+          <Suspense fallback={null}><NearestCard onOpen={selectPlace} from={nearFrom} onFrom={setNearFrom} onBack={closeNearest} /></Suspense>
         )}
         {opened.includes("airport") && (
           <TabKept away={cardUp || tab !== "airport" || nearOpen}>{favoritesOpen ? (
             <TabPage testId="favorites-page">
-              <FavoritesList
-                home={home} favorites={favorites}
-                onBack={closeList} onOpen={airport => selectPlace(airport.ident)}
-                onChangeHome={() => askFor("home")} onRemoveHome={() => setHomeAirport(null)}
-                onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
-              />
+              <Suspense fallback={null}>
+                <FavoritesList
+                  home={home} favorites={favorites}
+                  onBack={closeList} onOpen={airport => selectPlace(airport.ident)}
+                  onChangeHome={() => askFor("home")} onRemoveHome={() => setHomeAirport(null)}
+                  onRemove={toggleFavoriteAirport} onMove={moveFavoriteAirport} onAdd={() => askFor("favorite")}
+                />
+              </Suspense>
             </TabPage>
           ) : airportRecentsOpen && !query ? (
             <TabPage testId="airport-recents-list">
@@ -2884,7 +2889,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               <SearchResults
                 query={query} onPick={airport => void pickPlace(airport)}
                 // The pill's strip where it was, the Recents under it.
-                places={picking === "place" && (panel !== "peek" || dragging) && airportStrip}
+                places={picking === "place" && stripsDrawn && airportStrip}
                 onAllRecents={() => openList("recents")}
               />
             </TabPage>
@@ -2897,7 +2902,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
             up"). */}
         {/* Not under the Stops with no route: FPL's Saved stood over
             its list (the owner's screenshot, 2026-10-26). */}
-        {!savedOpen && !hasPoints && !stopsHere && (panel !== "peek" || dragging) && (
+        {!savedOpen && !hasPoints && !stopsHere && stripsDrawn && (
           routeRecentsOpen ? (
             <TabPage testId="route-recents-list">
               <RecentRoutesPage onBack={closeList} />
@@ -2981,6 +2986,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // a back close button and title as the airport id").
     cardOver: cardOpen || briefShown || navLogShown || profileShown || stopsShown,
     toEdge: !!place,
+    flying,
     // The planner's tabs, the panel's first row, and at rest the pill
     // itself, at the pilot's ask: no search bar or route under them
     // (MapPanel).
@@ -3013,7 +3019,7 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
       <div className={cn("flex min-h-0 w-full flex-col", (navLogShown || profileShown) && "px-4")}>
         {dryRunning ? (
           <Suspense fallback={null}>
-            <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} />
+            <DryRunFigures run={dryRunning} totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} flying={flying} />
           </Suspense>
         ) : (
           <>
@@ -3021,10 +3027,11 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
               Put away in the pill, whose one row is the figures. */}
           {directParam && <div data-pill-hides=""><DirectStrip ident={directParam} onCancel={() => directToPoint(null)} /></div>}
           <div data-testid="flight-line">
-            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow />
+            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow flying={flying} />
           </div>
           </>
         )}
+        {doneFlyingRow}
       </div>
     ) : undefined,
     // The route as one box of pills, in place of the two airport fields,
@@ -3033,7 +3040,51 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
     // Share menu (Clear the route). An airport twice (a round trip with its
     // stop taken out) keeps the box, its notice saying what to change.
     // Whatever the tab: MapPanel keeps it under the others' heads (`kept`).
-    route: (
+    // Once the route is whole, folded away (lib/preferences RouteEdit, the
+    // owner's A and B of the FPL canvas, 2026-11-05: "keeping the route box
+    // on top after a destination is known is redundant because the plan
+    // at the bottom can have dragables"): the route on one line, a tap the
+    // box again (A), or its name over the plan whose rows change it (B);
+    // the airplane, the altitude and the route's buttons under either, as
+    // they were under the box. The box again while a stop is typed in
+    // from the list or a problem, and while it is opened from the head;
+    // with no route either, the head folded (the owner, 2026-11-05).
+    route: routeFolded ? (
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5" data-testid="route-folded">
+        {/* In the Plan, the owner's pick of the canvas's option 3 as
+            cards (2026-11-05): until the route is whole, its departure
+            and destination as two cards and nothing else -- no airplane,
+            no altitude; once it is, those over the plan, whose Routes
+            and cards follow (ProceduresRoute), with no title. */}
+        {routeEdit === "plan" ? (!wholeRoute && (
+          <Suspense fallback={<div className="h-[7.75rem]" />}>
+            <RouteEnds
+              dep={planned.dep} dest={planned.dest}
+              onDep={dep => setRoute({ dep, stops: planned.stops, dest: planned.dest })}
+              onDest={dest => setRoute({ dep: planned.dep, stops: planned.stops, dest })}
+            />
+          </Suspense>
+        )) : (
+          // One Line, the owner's pick L1 of the canvas (2026-11-05): the
+          // route split in three, each end its own tap, the stops between
+          // them the box's.
+          <Suspense fallback={<div className="h-[3.25rem] rounded-[1.625rem] bg-card" />}>
+            <RouteSplit
+              dep={planned.dep} dest={planned.dest} stops={planned.stops}
+              depName={wholeRoute && course ? placeName(course.departure.name, course.departure.ident) : null}
+              destName={wholeRoute && course ? placeName(course.destination.name, course.destination.ident) : null}
+              onDep={dep => setRoute({ dep, stops: planned.stops, dest: planned.dest })}
+              onDest={dest => setRoute({ dep: planned.dep, stops: planned.stops, dest })}
+              onStops={() => (planned.stops.length ? setRouteOpen(true) : typeStopAt(routePoints.length - 1))}
+            />
+          </Suspense>
+        )}
+        {/* The airplane, the altitude and the route's buttons once the route
+            is whole, in either: none before, at the owner's ask ("no n
+            number or altitude" till both ends are in). */}
+        {wholeRoute && <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>}
+      </div>
+    ) : (
       <div className="min-w-0 flex-1">
         {/* Its room while its code comes: the box's own line. */}
         <Suspense fallback={<div className="h-10 rounded-[20.5px] bg-card" />}>
@@ -3041,42 +3092,25 @@ export default function PlanWorkspace({ dep, dest, panel, setPanel, children }: 
         <RouteBox
           dep={planned.dep} stops={planned.stops} dest={planned.dest} waypoints={waypointStops} airspaceOf={airspaceOf} metarColourOf={metarColour}
           altitudeAt={altitudeAt} onAltitudeChange={setPointAltitude}
-          onChange={routeTyped} onTypedProcedures={typeProcedures}
+          onChange={setRoute} onTypedProcedures={typeProcedures}
           adding={!!addingStop} onAddingChange={addingChange}
           via={addingStop === "via" ? s.unflyable?.detours : undefined}
-          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop} holdFor={browsedRoutes}
+          procedures={routeProcedures} onProcedures={openProcedures} fuelStops={fuelStops} onKeepFuelStops={keepFuelStops} onHideFuelStop={hideFuelStop}
           // An airport's pill tapped: its card over the route, as a tap on
           // it on the chart opens it, at the pilot's ask; closed, the route.
           onOpenAirport={selectPlace}
           directTo={directParam} onDirectTo={directToPoint}
           onClear={clearRoute}
           footer={routeControls}
+          addAt={addAt}
+          // Opened from its folded line: Done folds it again.
+          onDone={routeEdit !== "box" && routeOpen ? () => setRouteOpen(false) : undefined}
         />
         </SearchNear.Provider>
         </Suspense>
       </div>
     ),
-    // The airplane and the departure time, under the route with the
-    // panel out, and beside them saving the flight, the narrative and
-    // Print: the route's box has the top row to itself.
-    // A local flight: how long aloft in place of the narrative, which is
-    // written from legs it has none of.
-    // On one line, at the pilot's ask: the airplane, the altitude and the
-    // time, chips at a note's 13 (as Maps' route options are) four apart,
-    // and Save, Share and Print at the end -- at the reader's own text
-    // size, which on the pilot's phone is a step up from iOS's default.
-    // Narrower than that, the actions take a line of their own rather than
-    // run off the screen. With the route cleared or half typed, all of it
-    // still, what needs a route greyed (routeActions). While a dry run is up
-    // too, the half sheet now tall enough for both, at the owner's ask
-    // ("This way we won't have to hide the buttons for dry run"): they made
-    // way for it before.
-    // In the route's box, under its lines (RouteBox's footer), at the
-    // owner's ask: no row of their own under it.
-    controls: undefined,
     console: <PilotPanel />,
-    submit,
-    loading: s.stage !== null,
   });
 }
 

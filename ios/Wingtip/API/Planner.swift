@@ -88,7 +88,12 @@ enum Planner {
     static func data(for request: URLRequest, ok: ClosedRange<Int> = 200...200) async throws -> Data {
         let (data, response) = try await URLSession.shared.data(for: request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard ok.contains(status) else { throw Failure(status: status, detail: detail(of: data)) }
+        guard ok.contains(status) else {
+            // The path names the call (an ident in it is public); the query
+            // may hold a position and is left out.
+            Log.planner.error("\(request.url?.path ?? "", privacy: .public) answered \(status)")
+            throw Failure(status: status, detail: detail(of: data))
+        }
         return data
     }
 
@@ -110,7 +115,10 @@ enum Planner {
                 do {
                     let (bytes, response) = try await URLSession.shared.bytes(for: try await make())
                     let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-                    guard status == 200 else { throw Failure(status: status, detail: nil) }
+                    guard status == 200 else {
+                        Log.planner.error("stream answered \(status)")
+                        throw Failure(status: status, detail: nil)
+                    }
                     for try await line in bytes.lines where !line.isEmpty {
                         if let value = try decode(Data(line.utf8)) { continuation.yield(value) }
                     }
@@ -203,6 +211,19 @@ enum Planner {
     /// A field's procedures (/api/airport/{ident}/procedures).
     static func procedures(_ ident: String) async throws -> ProcedureList {
         try await fetch(ProcedureList.self, "/api/airport/\(ident)/procedures")
+    }
+
+    /// An ATC clearance heard: the places it named, found near the route
+    /// (/api/clearance/places, wingtip.spoken).
+    static func clearancePlaces(_ ask: ClearanceAsk) async throws -> ClearancePlaces {
+        try await postRead(ClearancePlaces.self, "/api/clearance/places", ask)
+    }
+
+    /// The names a clearance near the route will likely say, for the
+    /// recognizer's contextualStrings (/api/clearance/words).
+    static func clearanceWords(near: String, dep: String) async throws -> [String] {
+        struct Answer: Decodable { let words: [String] }
+        return try await fetch(Answer.self, "/api/clearance/words", ["near": near.isEmpty ? nil : near, "dep": dep.isEmpty ? nil : dep]).words
     }
 
     /// An airplane by its N-number in the FAA's registry (/api/traffic/find).

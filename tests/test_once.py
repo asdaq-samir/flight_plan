@@ -1,7 +1,7 @@
 import threading
 import time
 
-from vfr.once import once
+from wingtip.once import once
 
 
 def test_callers_at_once_build_it_once_and_share_the_answer():

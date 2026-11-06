@@ -1,13 +1,13 @@
 """Hand-derived headwind/tailwind/crosswind cases -- the sanity checks
-worked through by hand while building vfr.navlog, formalized as
+worked through by hand while building wingtip.navlog, formalized as
 regression tests -- and the flyability and fuel rules built on them.
 """
 import math
 
 import pytest
 
-from vfr.navlog import groundspeed_kt, wind_correction_angle_deg
-from vfr.weather import _interp_circular_deg
+from wingtip.navlog import groundspeed_kt, wind_correction_angle_deg
+from wingtip.weather import _interp_circular_deg
 
 
 def test_direct_headwind_no_wca_reduces_groundspeed():
@@ -46,7 +46,7 @@ def test_circular_interpolation_normal_case():
 
 
 def _leg_with_wind(monkeypatch, wind_dir, wind_speed, tas=100.0, oat_c=None, altitude_ft=6000.0):
-    from vfr import navlog
+    from wingtip import navlog
     monkeypatch.setattr(navlog, "wind_at_altitude", lambda lat, lon, alt, fcst_hr="06": {
         "wind_dir_true_deg": wind_dir, "wind_speed_kt": wind_speed})
     monkeypatch.setattr(navlog, "temperature_at_altitude", lambda lat, lon, alt, fcst_hr="06": oat_c)
@@ -93,7 +93,7 @@ def test_a_leg_flies_the_aeroplanes_figures_in_its_own_air(monkeypatch):
 
 
 def test_the_fuel_required_includes_start_taxi_and_takeoff():
-    from vfr import navlog
+    from wingtip import navlog
     plan = navlog.fuel_plan(20.0, {"fuel_burn_gph": 8.0, "usable_fuel_gal": 40}, night=False)
     assert plan["taxi_gal"] == navlog.DEFAULT_TAXI_FUEL_GAL
     assert plan["fuel_required_gal"] == round(20.0 + navlog.DEFAULT_TAXI_FUEL_GAL + 4.0, 1)
@@ -103,7 +103,7 @@ def test_the_fuel_required_includes_start_taxi_and_takeoff():
 def test_under_ifr_the_reserve_is_45_minutes_by_day_and_by_night():
     """14 CFR 91.167(a)(3): 45 minutes at normal cruise after the
     destination (or its alternate), where VFR's is 30 by day (91.151)."""
-    from vfr import navlog
+    from wingtip import navlog
     profile = {"fuel_burn_gph": 8.0}
     assert navlog.fuel_plan(20.0, profile, night=False)["reserve_min"] == 30.0
     day = navlog.fuel_plan(20.0, profile, night=False, rules="ifr")

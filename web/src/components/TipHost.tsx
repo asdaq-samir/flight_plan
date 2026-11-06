@@ -40,7 +40,7 @@ export default function TipHost() {
   const see = useTips(s => s.see);
   const [current, setCurrent] = useState<TipSpec | null>(null);
   const anchor = useRef<HTMLElement | null>(null);
-  const waiting = TIPS.filter(t => unseen(seen, t.id));
+  const waiting = TIPS.filter(t => unseen(seen, t.id) && (!t.after || seen.includes(t.after)));
   const waitingKey = waiting.map(t => t.id).join(",");
 
   useEffect(() => {
@@ -50,6 +50,13 @@ export default function TipHost() {
     // control passing by as the panel moves.
     let candidate: string | null = null;
     const look = () => {
+      // Not while something moves -- the sheet turning, the map's zoom or
+      // pan, each a running animation: each look lays the page out to
+      // read where its control is, and in the middle of a move that was
+      // a layout forced into the move's frames (a probe of the sheet's
+      // turns, 2026-11-03). The next look, 0.7 s on, is soon enough. One
+      // that runs for ever -- a spinner, the radio's wave -- is no move.
+      if (document.getAnimations().some(a => a.playState === "running" && a.effect?.getTiming().iterations !== Infinity)) return;
       const up = anchor.current;
       if (up) {
         if (!up.isConnected || !inSight(up)) { anchor.current = null; setCurrent(null); }

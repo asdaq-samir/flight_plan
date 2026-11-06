@@ -9,7 +9,7 @@ from mcp.server.mcpserver import MCPServer
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
 
-from vfr.narrative import NarrativeRequest, invalid_detail
+from wingtip.narrative import NarrativeRequest, invalid_detail
 
 from . import db
 from .graph import briefing_prompt, build_graph

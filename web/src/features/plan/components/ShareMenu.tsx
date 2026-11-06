@@ -1,12 +1,12 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { toast } from "sonner";
-import { Ellipsis, FileArchive, FileDown, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share } from "lucide-react";
+import { Ellipsis, FileArchive, FileText, Fuel, Link2, MapPinned, Printer, RotateCw, Send, Share, ListOrdered } from "lucide-react";
 import RoundButton from "../../../components/RoundButton";
 import { ResponsivePopover, ResponsivePopoverAnchor } from "../../../components/ResponsivePopover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "../../../components/ui/dropdown-menu";
 import type { Candidate, Course } from "../../../lib/api/types";
 import type { RouteCard } from "../../../lib/openCards";
-import { foreflightRoute, fplOf, gpxOf, shareFile, type PlanPoint } from "../../../lib/flightPlanFiles";
+import { foreflightRoute, type PlanPoint } from "../../../lib/flightPlanFiles";
 import { markPackSent, openInForeFlight, packOrigin, packPath, packSent } from "../../../lib/foreflightPack";
 import { routeName } from "../../../lib/identSchema";
 import { showError } from "../../../lib/problems";
@@ -49,10 +49,12 @@ interface Planned {
  * menu goes.
  */
 export default function ShareMenu({
-  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, local, fileable, onFile, saving, reviewSheet, planAgain, onShowFuel,
+  align, testId = "share-route", card = "route", planned, course, selected, altitudeFt, routed, local, fileable, onFile, saving, reviewSheet, planAgain, onShowFuel, onNavLog,
 }: {
   /** The suggested fuel stops taken out of the route box, put back. */
   onShowFuel?: () => void;
+  /** The route's nav log opened: the route box's, with a course drawn. */
+  onNavLog?: () => void;
   align: "start" | "end";
   /** Its button's: the route box's, or the tab bar's over the Brief and
    *  the nav log (TabBar's `routeShare`). */
@@ -99,20 +101,12 @@ export default function ShareMenu({
   const points = useMemo((): PlanPoint[] => !course ? [] : navLogRows(course, selected, []).flatMap((row): PlanPoint[] => {
     if (row.kind === "checkpoint") return [{ ident: "", name: row.cp.name || row.cp.category, kind: "checkpoint", lat: row.cp.lat, lon: row.cp.lon, waypoint: row.cp.waypoint }];
     if (row.kind === "toc" || row.kind === "tod") return [];
-    return [{ ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport", lat: row.airport.lat, lon: row.airport.lon }];
+    return [{
+      ident: row.airport.ident, name: row.airport.name ?? row.airport.ident, kind: row.airport.kind === "fix" ? "fix" : "airport",
+      lat: row.airport.lat, lon: row.airport.lon,
+    }];
   }), [course, selected]);
 
-  const exportPlan = useCallback(async (kind: "fpl" | "gpx") => {
-    if (!points.length) return;
-    const name = routeName(planned.dep, planned.dest, planned.stops);
-    const file = name.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
-    try {
-      if (kind === "fpl") await shareFile(`${file}.fpl`, "application/xml", fplOf(points, name));
-      else await shareFile(`${file}.gpx`, "application/gpx+xml", gpxOf(points, name));
-    } catch (err) {
-      if ((err as Error).name !== "AbortError") showError("Could not export the route", (err as Error).message);
-    }
-  }, [points, planned.dep, planned.dest, planned.stops]);
 
   // The checkpoints as a ForeFlight content pack, built by the planner
   // (lib/foreflightPack): each a waypoint with its own page, and the course
@@ -158,14 +152,20 @@ export default function ShareMenu({
           </DropdownMenuTrigger>
         </ResponsivePopoverAnchor>
         <DropdownMenuContent align={align} className="min-w-56 print:hidden">
+          {/* The nav log, its button's place beside the AI's brief now the
+              Profile's (the owner, 2026-11-04: "Navlog can be moved to the
+              more button"). The assistant's Ask is the AI brief's own. */}
+          {onNavLog && <DropdownMenuItem onSelect={onNavLog} data-testid="route-navlog"><ListOrdered />Nav log</DropdownMenuItem>}
           {routed && onShowFuel && <DropdownMenuItem onSelect={onShowFuel} data-testid="route-show-fuel"><Fuel />Show Fuel Stops</DropdownMenuItem>}
           {routed && <DropdownMenuItem onSelect={() => void share()} data-testid="share-link"><Link2 />Share link</DropdownMenuItem>}
           {card === "route" && (
             <>
               {routed && (
                 <>
-                  <DropdownMenuItem onSelect={() => void exportPlan("fpl")} data-testid="export-fpl"><FileDown />Flight plan (.fpl)</DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void exportPlan("gpx")} data-testid="export-gpx"><FileDown />GPX route (.gpx)</DropdownMenuItem>
+                  {/* ForeFlight sends the route on to the panel wirelessly
+                      (Garmin's Connext, Avidyne, Dynon): the owner's pick
+                      (2026-11-02), as most pilots have ForeFlight and not
+                      Garmin Pilot, and no files for an SD card or a USB stick. */}
                   {/* Links, not handlers: ForeFlight opens from a tap on its
                       own link, and a download needs one too. */}
                   {points.length > 0 && (packHref && !sentPack ? (

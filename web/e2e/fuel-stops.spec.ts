@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow } from "./helpers";
+import { inSheet, openPanel, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * Fuel stops suggested as Tesla suggests chargers, at the owner's pick
@@ -9,7 +9,7 @@ import { openPanel, settle, sideDrawer, slow } from "./helpers";
  * route line took their job (the owner's redesign, 2026-10-26;
  * route-line.spec).
  *
- * The planner's choice is its own (vfr.fuelstops, tested there); here the
+ * The planner's choice is its own (wingtip.fuelstops, tested there); here the
  * live nav log for C81-KDLH, a route CI reads anyway, is answered with a
  * suggestion added to its totals, so the page is tried without planning a
  * trip long enough to need one.
@@ -84,8 +84,8 @@ test("a suggested fuel stop can be taken out of the route box and put back, or a
   await expect(page).toHaveURL(/[?&]stops=KRPD(&|$)/);
 });
 
-/** What KRPD offers on the ground, as the planner answers it (vfr.nearby,
- *  vfr.faa_data.airport_services): a diner a walk away, a courtesy car. */
+/** What KRPD offers on the ground, as the planner answers it (wingtip.nearby,
+ *  wingtip.faa_data.airport_services): a diner a walk away, a courtesy car. */
 const SERVICES = {
   ident: "KRPD", fuel_types: ["100LL", "A"], fuel_notes: ["24 hour self serve fuel."], landing_fee: false, tie_down: true,
   hangar: true, airframe_repair: null, powerplant_repair: null, oxygen: false, courtesy_car: true, ground_notes: ["Courtesy car available."],
@@ -126,6 +126,7 @@ test("the airport's Info says its fuel in its details, and what is on the field 
   await expect(details.getByTestId("services-fuel")).toContainText("100LL, Jet A");
   // Its remarks folded under their own row, opened by a tap.
   await expect(details).not.toContainText("24 hour self serve fuel.");
+  await inSheet(page, details.getByTestId("services-fuel-remarks"));
   await details.getByTestId("services-fuel-remarks").click();
   await expect(details).toContainText("24 hour self serve fuel.");
   const services = card.getByTestId("place-services");

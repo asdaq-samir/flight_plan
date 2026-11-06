@@ -1,6 +1,6 @@
 /** Great-circle distance and initial bearing on a sphere of the earth's
  *  mean radius -- for a card's "18 nm NE", where a tenth of a mile is
- *  nothing; the planner's own figures (vfr.geo) are on the ellipsoid. */
+ *  nothing; the planner's own figures (wingtip.geo) are on the ellipsoid. */
 const EARTH_NM = 3440.065;
 /** Degrees to radians, and back: each file that turned a bearing or a
  *  latitude into one wrote its own. */
@@ -57,8 +57,11 @@ export function signedTurn(from: number, to: number): number {
 /** Feet in a nautical mile (1,852 m). */
 export const FT_PER_NM = 6076.12;
 
+/** Metres in a nautical mile, the international one. */
+export const M_PER_NM = 1852;
+
 /** Feet lost for every nautical mile of a descent: three to one, 333
- *  ft/nm, as the nav log descends (vfr.navlog.with_descents) -- a little
+ *  ft/nm, as the nav log descends (wingtip.navlog.with_descents) -- a little
  *  steeper than a 3° path's 318 ft/nm (6,076 × tan 3°), the angle a VASI
  *  is normally set at (AIM 2-1-2). It was named FT_PER_NM
  *  too, beside the 6,076 of a nautical mile. */

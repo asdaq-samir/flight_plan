@@ -1,7 +1,7 @@
-"""vfr.plates: an approach's plate placed on the map by its own georeference."""
+"""wingtip.plates: an approach's plate placed on the map by its own georeference."""
 import pytest
 
-from vfr import plates
+from wingtip import plates
 
 DLH = [
     {"kind": "IAP", "name": "ILS OR LOC RWY 09", "url": "u/IL9"},

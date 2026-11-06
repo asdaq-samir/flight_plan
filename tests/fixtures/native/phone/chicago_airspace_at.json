@@ -1,0 +1,1160 @@
+{
+ "O'Hare": {
+  "lat": 41.9786,
+  "lon": -87.9048,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 10000.0,
+    "class": "B",
+    "name": "CHICAGO CLASS B",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     }
+    },
+    "entry": "An ATC clearance into the Class B, and a private pilot certificate or a student's endorsement for it (91.131).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": {
+   "ident": "KORD",
+   "name": "CHICAGO O'HARE INTL",
+   "distance_nm": 0.2
+  },
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "KDPA": {
+  "lat": 41.9078,
+  "lon": -88.2486,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 3300.0,
+    "class": "D",
+    "name": "CHICAGO, DUPAGE AIRPORT CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio, and a transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 3300.0,
+    "ceiling_ft": 4000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 4000.0,
+    "ceiling_ft": 10000.0,
+    "class": "B",
+    "name": "CHICAGO CLASS B",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     }
+    },
+    "entry": "An ATC clearance into the Class B, and a private pilot certificate or a student's endorsement for it (91.131).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": {
+   "ident": "KORD",
+   "name": "CHICAGO O'HARE INTL",
+   "distance_nm": 15.8
+  },
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Midway": {
+  "lat": 41.7868,
+  "lon": -87.7522,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 3000.0,
+    "class": "C",
+    "name": "CHICAGO CLASS C",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with ATC established before entering (91.130).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 3000.0,
+    "ceiling_ft": 10000.0,
+    "class": "B",
+    "name": "CHICAGO CLASS B",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     }
+    },
+    "entry": "An ATC clearance into the Class B, and a private pilot certificate or a student's endorsement for it (91.131).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": {
+   "ident": "KORD",
+   "name": "CHICAGO O'HARE INTL",
+   "distance_nm": 13.4
+  },
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Midway's shelf": {
+  "lat": 41.7,
+  "lon": -87.6,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 700.0,
+    "class": "G",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 1,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 700.0,
+    "ceiling_ft": 1900.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 1900.0,
+    "ceiling_ft": 3600.0,
+    "class": "C",
+    "name": "CHICAGO CLASS C",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with ATC established before entering (91.130).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 3600.0,
+    "ceiling_ft": 10000.0,
+    "class": "B",
+    "name": "CHICAGO CLASS B",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     }
+    },
+    "entry": "An ATC clearance into the Class B, and a private pilot certificate or a student's endorsement for it (91.131).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": {
+   "ident": "KORD",
+   "name": "CHICAGO O'HARE INTL",
+   "distance_nm": 21.6
+  },
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Wheeling under O'Hare's shelf": {
+  "lat": 42.1222,
+  "lon": -87.9045,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 3000.0,
+    "class": "D",
+    "name": "WHEELING CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio, and a transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 3000.0,
+    "ceiling_ft": 10000.0,
+    "class": "B",
+    "name": "CHICAGO CLASS B",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     }
+    },
+    "entry": "An ATC clearance into the Class B, and a private pilot certificate or a student's endorsement for it (91.131).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": {
+   "ident": "KORD",
+   "name": "CHICAGO O'HARE INTL",
+   "distance_nm": 8.7
+  },
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Lake Michigan off Chicago": {
+  "lat": 41.9,
+  "lon": -87.4,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 700.0,
+    "class": "G",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 1,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 700.0,
+    "ceiling_ft": 3600.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 3600.0,
+    "ceiling_ft": 10000.0,
+    "class": "B",
+    "name": "CHICAGO CLASS B",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     }
+    },
+    "entry": "An ATC clearance into the Class B, and a private pilot certificate or a student's endorsement for it (91.131).",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": {
+   "ident": "KORD",
+   "name": "CHICAGO O'HARE INTL",
+   "distance_nm": 23.2
+  },
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Rockford": {
+  "lat": 42.1954,
+  "lon": -89.0972,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 2500.0,
+    "class": "D",
+    "name": "CHICAGO/ROCKFORD CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio.",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 2500.0,
+    "ceiling_ft": 3200.0,
+    "class": "D",
+    "name": "CHICAGO/ROCKFORD CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio.",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 3200.0,
+    "ceiling_ft": 10000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": null,
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": null,
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Aurora": {
+  "lat": 41.7719,
+  "lon": -88.4757,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 2500.0,
+    "class": "D",
+    "name": "CHICAGO, AURORA MUNI AIRPORT CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio, and a transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 2500.0,
+    "ceiling_ft": 3200.0,
+    "class": "D",
+    "name": "CHICAGO, AURORA MUNI AIRPORT CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio, and a transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 3200.0,
+    "ceiling_ft": 10000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out: inside a 30 nm Mode C veil (91.215(b)(2), 91.225(d)(2)).",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": {
+   "ident": "KORD",
+   "name": "CHICAGO O'HARE INTL",
+   "distance_nm": 28.2
+  },
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Gary": {
+  "lat": 41.6163,
+  "lon": -87.4128,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 2500.0,
+    "class": "D",
+    "name": "GARY CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio.",
+    "speed_kt": 200
+   },
+   {
+    "floor_ft": 2500.0,
+    "ceiling_ft": 3100.0,
+    "class": "D",
+    "name": "GARY CLASS D",
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Two-way radio communication with the tower established before entering (91.129).",
+    "equipment": "A two-way radio.",
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 3100.0,
+    "ceiling_ft": 10000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": null,
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": null,
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ },
+ "Joliet": {
+  "lat": 41.52,
+  "lon": -88.18,
+  "ground_ft": null,
+  "bands": [
+   {
+    "floor_ft": 0.0,
+    "ceiling_ft": 700.0,
+    "class": "G",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 1,
+      "clear_of_clouds": true,
+      "below_ft": null,
+      "above_ft": null,
+      "horizontal_ft": null
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing.",
+    "equipment": null,
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 700.0,
+    "ceiling_ft": 10000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     },
+     "night": {
+      "visibility_sm": 3,
+      "clear_of_clouds": false,
+      "below_ft": 500,
+      "above_ft": 1000,
+      "horizontal_ft": 2000
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": null,
+    "speed_kt": 250
+   },
+   {
+    "floor_ft": 10000.0,
+    "ceiling_ft": 18000.0,
+    "class": "E",
+    "name": null,
+    "minimums": {
+     "day": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     },
+     "night": {
+      "visibility_sm": 5,
+      "clear_of_clouds": false,
+      "below_ft": 1000,
+      "above_ft": 1000,
+      "horizontal_ft": 5280
+     }
+    },
+    "entry": "Nothing for VFR.",
+    "equipment": "A transponder with altitude reporting and ADS-B Out (91.215, 91.225).",
+    "speed_kt": null
+   },
+   {
+    "floor_ft": 18000.0,
+    "ceiling_ft": 60000.0,
+    "class": "A",
+    "name": null,
+    "minimums": null,
+    "entry": "IFR only: an instrument rating, an IFR flight plan and a clearance (91.135).",
+    "equipment": null,
+    "speed_kt": null
+   }
+  ],
+  "mode_c_veil": null,
+  "special_use": [],
+  "special_use_unavailable": false,
+  "tfrs": [],
+  "tfrs_unavailable": true,
+  "point": null
+ }
+}

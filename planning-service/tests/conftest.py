@@ -3,7 +3,7 @@ flyable altitude selection and an NDJSON reader."""
 import json
 
 import pytest
-from vfr import airports, airspace, faa_data, fixes, model_client, pattern, publications, tfr, weather
+from wingtip import airports, airspace, faa_data, fixes, model_client, pattern, publications, tfr, weather
 
 from app import chart_model, detection, planning, prefetch, scoring
 
@@ -126,7 +126,7 @@ def no_publications(monkeypatch):
 
 @pytest.fixture
 def altitude() -> dict:
-    """What vfr.altitude.select_cruise_altitude returns for a flyable route."""
+    """What wingtip.altitude.select_cruise_altitude returns for a flyable route."""
     return {
         "recommended_ft": 4500.0, "candidates_ft": [4500.0], "course_magnetic_deg": 335.0, "eastbound": False,
         "floor_ft": 2200.0, "airspace_ceiling_ft": None,

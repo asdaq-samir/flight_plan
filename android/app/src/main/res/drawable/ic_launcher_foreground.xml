@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon's foreground layer: a simple airplane, white, well
+     inside the 66 dp every launcher's mask keeps of the 108 dp canvas. A
+     stand-in until the brand's own layers (docs/brand/android-foreground.svg,
+     android-background.svg, android-monochrome.svg: the chart behind, the
+     mark in front) are made vector drawables; the ring's dashes there are
+     not a vector drawable's stroke, so that is a drawing by hand. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:rotation="-30">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M54,30 C56.5,30 58,32.5 58,36 L58,47 L80,60 L80,65 L58,57 L58,70 L65,75 L65,79 L54,76 L43,79 L43,75 L50,70 L50,57 L28,65 L28,60 L50,47 L50,36 C50,32.5 51.5,30 54,30 Z" />
+    </group>
+</vector>

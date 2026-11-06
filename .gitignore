@@ -38,7 +38,7 @@ data/labels/chart_picks.csv
 data/labels/spottability_ratings.csv
 data/processed/features_*.parquet
 data/processed/candidates_map.html
-# The chart model's training table (vfr.chartmodel), which the planner
+# The chart model's training table (wingtip.chartmodel), which the planner
 # writes from the ratings when a retrain starts.
 data/processed/chart_training.parquet
 
@@ -54,7 +54,7 @@ infra/local-https/certs/
 # wanted here.
 * [0-9].*
 
-# vfr.routecsv's lock files and the temporary files it renames into place.
+# wingtip.routecsv's lock files and the temporary files it renames into place.
 data/labels/*.lock
 data/labels/.*.tmp
 
@@ -66,3 +66,22 @@ ios/Wingtip.xcodeproj
 ios/.build
 ios/Wingtip/Info.plist
 ios/Wingtip/Wingtip.entitlements
+# And the Watch app's and the widgets' files it writes beside them.
+ios/WingtipWatch/Info.plist
+ios/WingtipWidgets/Info.plist
+ios/WingtipWidgets/WingtipWidgets.entitlements
+# The engine for the app, built on the runner (native/ffi/build-xcframework.sh).
+ios/Frameworks/
+
+# The Rust extension's build output (native/, built by maturin)
+native/target/
+
+# The native Android app (android/, docs/NATIVE-ANDROID.md): the engine
+# built for it on the runner (native/ffi/build-android.sh), Gradle's own
+# state and output, and the SDK path a machine writes for itself.
+android/app/engine/
+android/.gradle/
+android/**/build/
+# The JNI shim's CMake state, which the Gradle plugin writes.
+android/app/.cxx/
+android/local.properties

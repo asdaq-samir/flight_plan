@@ -40,9 +40,15 @@ struct AirportPin: Codable, Equatable, Sendable {
     var airspaceClass: String?
     var military: String?
     var isPrivate: Bool? = false
+    /// The class of airspace (B, C or D) this field is the primary airport
+    /// of, as the FAA's airspace file names it (the planner's primary_of:
+    /// O'Hare for Chicago's Class B, not Midway), for which mark to keep
+    /// where two would collide (AirportMarks' tiers). Nil for every other
+    /// field.
+    var primaryOf: String?
 
     enum CodingKeys: String, CodingKey {
-        case ident, name, lat, lon, kind, flightCategory, airspaceClass, military
+        case ident, name, lat, lon, kind, flightCategory, airspaceClass, military, primaryOf
         case isPrivate = "private"
     }
 
@@ -306,7 +312,7 @@ struct Briefing: Codable, Equatable, Sendable {
     var legsFrom: String?
 }
 
-/// One thing ahead of the airplane (AheadAlert, vfr.alerts): airspace, a
+/// One thing ahead of the airplane (AheadAlert, wingtip.alerts): airspace, a
 /// special-use area or a TFR its track goes into in the next five
 /// minutes, or the ground or an obstacle it comes within 500 ft of in the
 /// next minute. The planner's judgment; the app says it.
@@ -334,7 +340,7 @@ struct AheadAlert: Codable, Equatable, Sendable, Identifiable {
 }
 
 /// The ways to fly a route, as Maps offers its routes (RouteOptions,
-/// vfr.route_options): the direct line and the ways round what it meets
+/// wingtip.route_options): the direct line and the ways round what it meets
 /// -- storms, weather under minimums, terrain over the ceiling, TFRs --
 /// each with its stops, its time, its fuel and what it still crosses.
 /// Every judgment in it is the planner's.
@@ -395,7 +401,7 @@ struct RouteOptions: Codable, Equatable, Sendable {
 }
 
 /// A field's instrument procedures from the FAA's CIFP (ProcedureList,
-/// vfr.procedures): departures, arrivals and approaches, each with its
+/// wingtip.procedures): departures, arrivals and approaches, each with its
 /// transitions, for the pull-downs the route's fields get.
 struct ProcedureSummary: Codable, Equatable, Sendable, Identifiable {
     let id: String
@@ -420,7 +426,20 @@ struct ProcedurePick: Codable, Equatable, Sendable, Identifiable {
     var name: String
     var transition: String?
 
-    var param: String { [ident, id].joined(separator: ":") + (transition.map { ":" + $0 } ?? "") }
+    /// As the planner reads it, "KORD:WYNDE3:ZZIPR".
+    var param: String { Self.text([self]) }
+
+    /// Picks as the planner reads them (PlanQuery.procedures), each fix
+    /// flown direct, by "FIELD:PROCEDURE" in `direct`, after a fourth
+    /// colon: "KELD:I22::BXCMB". The engine's `procedures_write`, as the
+    /// web app writes its address.
+    static func text(_ picks: [ProcedurePick], direct: [String: String] = [:]) -> String {
+        let asked: [[String: String?]] = picks.map {
+            ["ident": $0.ident, "id": $0.id, "transition": $0.transition, "direct": direct["\($0.ident):\($0.id)"]]
+        }
+        let written: String? = try? Engine.call("procedures_write", json: ["picks": asked])
+        return written ?? ""
+    }
 }
 
 /// A field's card (AirportPlace).

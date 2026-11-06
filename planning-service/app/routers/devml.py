@@ -6,8 +6,8 @@ Nothing the planner's own scoring path depends on."""
 import json
 
 from fastapi import APIRouter, Response
-from vfr import aircraft, airports, model_registry, places
-from vfr import fixes as fixes_module
+from wingtip import aircraft, airports, model_registry, places
+from wingtip import fixes as fixes_module
 
 from ..common import SHARED_CACHE
 from ..schemas import AircraftProfiles, AirportSearch, ModelComparison
@@ -32,7 +32,7 @@ def aircraft_profiles(response: Response) -> AircraftProfiles:
 
 def _where(fix: dict) -> str | None:
     """A fix's line under its name: where it is, and its state -- "by
-    Bangs Lake, IL" (vfr.places) -- or the state alone."""
+    Bangs Lake, IL" (wingtip.places) -- or the state alone."""
     where = places.describe(fix["lat"], fix["lon"])
     return ", ".join(part for part in (where, fix["state"]) if part) or None
 
@@ -53,7 +53,7 @@ def _near(near: str) -> tuple:
 @router.get("/api/airports/index", responses={200: {"content": {"application/json": {}}}})
 def airport_index(v: int = 0) -> Response:
     """Every US airport the search answers with, for the app to search on
-    the phone itself as a pilot types (vfr.airports.search_index): its
+    the phone itself as a pilot types (wingtip.airports.search_index): its
     answers there at once, where each letter's question waited on this
     planner, a second and more while it planned a route. Gzipped as it is
     kept -- about 530 KB, from 1.8 MB -- and the same for every pilot until
@@ -74,7 +74,7 @@ def airport_search(response: Response, q: str = "", fixes: bool = False, near: s
     Runs against the same in-memory OurAirports table the real lookup
     uses, not a second data source that could drift from it. With
     `fixes`, a stop's: the named fixes and navaids whose ident starts with
-    it too, after the airports -- VFR waypoints first (vfr.fixes). `near`,
+    it too, after the airports -- VFR waypoints first (wingtip.fixes). `near`,
     the route's points as "lat,lon;lat,lon": of an ident's navaids in two
     places, the one the route would fly over (fixes.find_navaid), as the
     stop typed will be -- the row named the other where they differed.
@@ -83,7 +83,7 @@ def airport_search(response: Response, q: str = "", fixes: bool = False, near: s
     """
     response.headers["Cache-Control"] = SHARED_CACHE
     # Of fields alike, the nearest to `near` first: the pilot's position,
-    # or the route's ends (vfr.airports.search_airports).
+    # or the route's ends (wingtip.airports.search_airports).
     by_route = _near(near)
     found = airports.search_airports(q, near=[(p[0], p[1]) for p in by_route] if by_route else None)
     if fixes:
@@ -107,7 +107,7 @@ def model_comparison() -> ModelComparison:
     not just the sklearn family retrain() grid-searches: the promoted
     model's own comparison against Ridge/GradientBoosting/a dummy
     "predict the mean" baseline, plus PyTorch/TensorFlow/Spark's own
-    candidates (vfr.model_candidates), when they exist.
+    candidates (wingtip.model_candidates), when they exist.
 
     Each entry names its own metric rather than pretending they are
     all the same number: the sklearn family's own selection already

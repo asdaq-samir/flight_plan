@@ -15,11 +15,29 @@ import { followDynamicType } from "./lib/dynamicType";
 import { keepAddressThroughReload, startFresh } from "./lib/freshLoad";
 import { installErrorReports, reportOf, sendReport } from "./lib/errorReports";
 import { startSpeedReports } from "./lib/speed";
+import { startLoadLog } from "./lib/loadLog";
 import MapPage from "./features/page/MapPage";
 import { prefetchRouteMap } from "./features/plan/routeMapChunk";
 import "./index.css";
+// Barlow, the face of both looks (lib/brand), in the first stylesheet
+// rather than fetched once the app has drawn: drawn first in the system's
+// face and swapped, the tabs' and every other word shrank as the page
+// settled (the owner, 2026-11-04: "Why do the tabs font become smaller
+// as they settle on load?"). Chart ink's Barlow Condensed is still
+// fetched only when that look is picked.
+import "@fontsource/barlow/latin-400.css";
+import "@fontsource/barlow/latin-500.css";
+import "@fontsource/barlow/latin-600.css";
+import "@fontsource/barlow/latin-700.css";
 import { followAppLinks, followBackButton, inNativeApp, nativePlatform } from "./lib/native";
 import { startTv, tvPlatform } from "./lib/tv";
+import { loadEngine } from "./lib/engine/engine";
+
+// The shared Rust engine (lib/engine), asked for first: the rules it
+// works out (the hold's entry, lost comms, the diversion, the debrief)
+// answer synchronously, so the first render waits for it below, while
+// everything else here runs. index.html preloads it beside the scripts.
+const engineLoaded = loadEngine();
 
 // The reader's text size from the iPhone's Settings, before the first
 // render, so the page is never drawn at the wrong size first.
@@ -40,6 +58,8 @@ installErrorReports();
 // How fast the page is on this device, for the speed trend (lib/speed):
 // Core Web Vitals, nothing of the pilot's, once the page is idle.
 startSpeedReports();
+// When the map's layers show at each load, for Setup's Log.
+startLoadLog();
 
 // The service worker (vite.config.ts): the app shell, the chart tiles
 // the map has drawn or kept ahead, and the planner's answers, held for
@@ -145,12 +165,18 @@ void queryClient.prefetchQuery({ ...chartQuery, meta: { silent: true } });
 const opening = new URLSearchParams(window.location.search);
 const openingDep = opening.get("dep")?.trim().toUpperCase();
 const openingDest = opening.get("dest")?.trim().toUpperCase();
-const openingStops = stopsOf(opening.get("stops"));
-if (routeOf(openingDep, openingDest, openingStops)) {
-  // Quiet: if the planner is down, the page's own course query says so
-  // once it mounts and asks again -- under the page's rule, not this one.
-  void queryClient.prefetchQuery({ ...courseQuery(openingDep!, openingDest!, openingStops), meta: { silent: true } });
-}
+const prefetchCourse = () => {
+  const openingStops = stopsOf(opening.get("stops"));
+  if (routeOf(openingDep, openingDest, openingStops)) {
+    // Quiet: if the planner is down, the page's own course query says so
+    // once it mounts and asks again -- under the page's rule, not this one.
+    void queryClient.prefetchQuery({ ...courseQuery(openingDep!, openingDest!, openingStops), meta: { silent: true } });
+  }
+};
+// A stop's form is the engine's (lib/identSchema stopOf), so a route with
+// stops is asked for once the engine is there; one without, at once.
+if (opening.get("stops")) void engineLoaded.then(prefetchCourse, () => {});
+else prefetchCourse();
 
 // A chunk that will not load -- the deploy after this page's own replaced
 // it, or no signal -- loads the page again, once a minute at most, as
@@ -165,7 +191,9 @@ window.addEventListener("vite:preloadError", event => {
 });
 
 // A render React could not finish takes the page down: reported too.
-ReactDOM.createRoot(document.getElementById("root")!, {
+// Drawn once the engine is there; drawn all the same where it failed to
+// load (reported), when only the pages that ask it a rule say so.
+const render = () => ReactDOM.createRoot(document.getElementById("root")!, {
   onUncaughtError: error => { sendReport(reportOf("render", error)); console.error(error); },
 }).render(
   <React.StrictMode>
@@ -193,3 +221,11 @@ ReactDOM.createRoot(document.getElementById("root")!, {
     </ThemeProvider>
   </React.StrictMode>,
 );
+// And the face in before the first render, so no word is drawn in another
+// first; never held more than 400 ms for it, the system's face then.
+const faceLoaded = Promise.race([
+  Promise.all(["400", "500", "600", "700"].map(weight => document.fonts.load(`${weight} 1rem Barlow`))),
+  new Promise(resolve => setTimeout(resolve, 400)),
+]);
+void engineLoaded.catch(error => { sendReport(reportOf("error", error)); console.error(error); })
+  .finally(() => faceLoaded.then(render, render));

@@ -50,7 +50,7 @@ describe("the airspace's ceilings on the side views", () => {
     ])).toEqual([10000, 4800, 3200]);
   });
   it("names each B, C and D once, over its widest piece, and none of another class", () => {
-    // C81 to Madison (vfr.profile's answer): Chicago's shelf, and Madison's
+    // C81 to Madison (wingtip.profile's answer): Chicago's shelf, and Madison's
     // Class C over its shelf and down to the surface.
     const shelf = { class: "C", ident: "KMSN", from_nm: 64.18, to_nm: 74.17 };
     const named = namedPieces([

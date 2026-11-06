@@ -149,7 +149,7 @@ test("plan page: the nav log and the summary on screen, the 'planning aid only' 
   // In Settings' About now, at the pilot's ask, not at the foot of the
   // tabs; never a toast, which covered the nav log's last rows.
   await expect(sideDrawer(page).getByTestId("planning-aid-note")).toHaveCount(0);
-  await expect(page.locator("[data-sonner-toast]", { hasText: "planning aid for VFR flight" })).toHaveCount(0);
+  await expect(page.locator("[data-sonner-toast]", { hasText: "planning aid for VFR and IFR flight" })).toHaveCount(0);
 
   // FPL's route in order, the nav log a sheet of its own, and the briefing
   // in the Brief's pages. No "Flight Plan Summary": the line at the foot

@@ -1,17 +1,35 @@
 import L from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Marker, Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
-import { usePreferences } from "../preferences";
+import { usePreferences, type AirspaceClass } from "../preferences";
 import { closeSheetCards } from "../sheetCards";
 import type { AirportPin } from "../api/types";
 import { colourOf } from "./flightCategory";
 import { AirportMarksLayer, type CanvasMark } from "./AirportCanvas";
+import { useCardRings } from "./Halo";
 import { selectionIcon } from "./icons";
 import { useDrawnAirports } from "./declutter";
-import { boxOf, hovers } from "./view";
-import { PANNING_MS, useAhead, useLiveZoom } from "./useView";
+import { boundsAt, boxAt, boxOf, hovers, type Box } from "./view";
+import { PANNING_MS, levelOf, useAhead, useLiveZoom, type FlightStart } from "./useView";
+
+/** The panes' places among the map's own (as `style`, constants so a
+ *  render does not restyle them). The fields in Class B, C or D airspace
+ *  over the airspace's rings (350, AirspaceLayer), its altitudes (355)
+ *  and the VORs (360), under the course line (400), at the owner's ask
+ *  (2026-11-05: "move the order of class B,C,D airports to right after
+ *  airspace rings", "split the airports layer", then "I thought we ...
+ *  prioritized them before vor?"); every other field over all of those,
+ *  as all of them were. Each selected field's ring just under its own
+ *  marks. */
+const TOWERED_PANE = { zIndex: 365 };
+const TOWERED_SELECTED_PANE = { zIndex: 364 };
+const AIRPORTS_PANE = { zIndex: 450 };
+const SELECTED_PANE = { zIndex: 445 };
+
+/** The classes of airspace whose fields are drawn by the rings. */
+const UNDER_RINGS = new Set<AirspaceClass | null>(["B", "C", "D"]);
 
 /** From this zoom in a sectional draws its airports big enough to aim a
  *  finger at; further out the targets would be a field of overlapping
@@ -48,6 +66,8 @@ const shownFrom = (a: AirportPin) =>
   Math.min(SHOWN_FROM[a.kind], a.airspace_class === "B" ? FARTHEST_ZOOM : a.airspace_class === "C" ? 6 : a.airspace_class === "D" ? FROM_ZOOM : Infinity);
 /** Which kind first, out there, where only some fit. */
 const KIND_RANK: Record<AirportPin["kind"], number> = { large: 0, medium: 1, small: 2, other: 3 };
+/** Before them, the field each class of airspace is named for. */
+const PRIMARY_RANK: Record<"B" | "C" | "D", number> = { B: 0, C: 1, D: 2 };
 /** What is drawn round the view, a share of it on each side: a pan
  *  shows marks already there as it starts. */
 const PAD = 0.3;
@@ -57,9 +77,31 @@ const PAD = 0.3;
  *  handful on the screen rather than every strip in half a state.
  *  Further out they keep an invisible target. */
 const NO_REPORT_FROM_ZOOM = 10;
+/** A private field with no report a zoom later again: at 10 the fields
+ *  with no report came in all at once, 27 marks round Kansas City to 194
+ *  (the owner's audit of the map's overlays, 2026-11-02), the public ones
+ *  and the private strips together. */
+const PRIVATE_FROM_ZOOM = 11;
 
 /** The most fields the planner answers with at once. */
 const AIRPORTS_LIMIT = 1000;
+
+/** The planner asked for a box's fields at a zoom, from FARTHEST_ZOOM in:
+ *  at zoom 7 and further out the ones that report alone. Up to a
+ *  thousand, the box being some nine views: the planner's most, 270 in
+ *  two degrees by two and a half round Chicago in 0.14 s. Ten minutes, as
+ *  a METAR's colour can change by the hour. The layer's useQuery and the
+ *  map's own events (useAhead) ask it alike. */
+export function airportsQuery(asked: Box, zoom: number) {
+  const reportingOnly = zoom < FROM_ZOOM;
+  return {
+    queryKey: ["airportsInView", asked.key, reportingOnly],
+    queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
+    enabled: zoom >= FARTHEST_ZOOM,
+    staleTime: 10 * 60_000,
+    meta: { silent: true },
+  };
+}
 
 /** How near the mouse names a field: its mark's half-width. */
 const HOVER_PX = 13;
@@ -67,11 +109,29 @@ const HOVER_PX = 13;
  *  half a finger's 44 points. */
 const NEAR_MISS_PX = 22;
 
+/** The airports' first question, asked as the map is made: their layer
+ *  comes a frame after the chart (RouteMap's useAfterPaint), where the
+ *  airspace and the VORs ask at once, and the VORs were on the map
+ *  before the fields (the owner, 2026-11-05: "on the app vors show up
+ *  first"). The same question the layer's own first is -- the view's
+ *  box, its key the layer's -- so the layer finds the answer in, or on
+ *  its way. */
+export function AirportsAsk() {
+  const map = useMap();
+  const client = useQueryClient();
+  useEffect(() => {
+    const zoom = map.getZoom();
+    const query = airportsQuery(boxAt(map.getBounds(), zoom), zoom);
+    if (query.enabled) void client.prefetchQuery(query);
+  }, [map, client]);
+  return null;
+}
+
 /** The canvas the marks are drawn on (AirportCanvas), in the airports'
  *  pane: made once, given the marks as they change. */
-function AirportCanvasMarks({ marks }: { marks: CanvasMark[] }) {
+function AirportCanvasMarks({ marks, pane }: { marks: CanvasMark[]; pane: string }) {
   const map = useMap();
-  const layer = useMemo(() => new AirportMarksLayer("airports"), []);
+  const layer = useMemo(() => new AirportMarksLayer(pane), [pane]);
   useEffect(() => {
     layer.addTo(map);
     return () => { layer.remove(); };
@@ -163,8 +223,9 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // already, and the marks are drawn as they come into sight. Drawn for
   // the view alone (below), not the whole box: a mark costs a phone over a
   // millisecond to make, and the box's 885 round Minneapolis held the map
-  // up seconds.
-  const asked = useAhead();
+  // up seconds. The question goes from the map's own event, and a
+  // flight's for where it lands as it takes off (useAhead's `flights`).
+  const asked = useAhead(airportsQuery, { flights: true });
   // Memoized, not an object literal. react-leaflet lists the handlers
   // object in its effect's own dependencies, so a fresh one on every
   // render detaches the listener and re-attaches it on every commit --
@@ -179,18 +240,34 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // it opened one. Anywhere else, the card is put away.
   const drawn = useRef<AirportPin[]>([]);
   const elsewhere = useRef(others);
-  // A flight across zooms (flyTo: a route picked, the arrow's close-in)
-  // draws nothing new until it lands: the view grew as it flew out while
-  // the zoom it draws for (useLiveZoom) was still the close one, and every
-  // field in a whole state's view was drawn for a moment, hundreds of
-  // marks over the chart, at the owner's notice ("going from current
-  // location to zoom out is not smooth").
+  // A flight across zooms (flyTo: a route picked, a card's field) draws,
+  // as it takes off, the marks of the view it will land on at the level it
+  // will land at, beside the marks drawn already, and nothing for the
+  // views it passes over on the way: drawn for the view as it flew, the
+  // view grew as it flew out while the zoom it drew for (useLiveZoom) was
+  // still the close one, and every field in a whole state's view was drawn
+  // for a moment, hundreds of marks over the chart, at the owner's notice
+  // ("going from current location to zoom out is not smooth"). The marks
+  // waited for it to land, then for the planner, and faded in after it
+  // (the audit of the map's overlays, 2026-11-04; the owner, "make it fast
+  // but stable"). Those drawn as it took off stay, as they were, until it
+  // lands, so none goes from the screen as the flight starts.
   const flying = useRef(false);
+  const [flight, setFlight] = useState<{ level: number; held: CanvasMark[] } | null>(null);
+  const drawnMarks = useRef<CanvasMark[]>([]);
   // The zoom what is drawn was drawn at: a zoom in keeps the bounds inside
   // the drawn ones, but the marks shown change with the level.
   const seenZoom = useRef(map.getZoom());
   const handlers = useMemo(() => ({
-    zoom: (e: L.LeafletEvent & { flyTo?: boolean }) => { if (e.flyTo) flying.current = true; },
+    flystart: (e: FlightStart) => {
+      flying.current = true;
+      const bounds = boundsAt(map, e.center, e.zoom);
+      const next = boxAt(bounds, e.zoom);
+      setFlight({ level: levelOf(e.zoom), held: drawnMarks.current });
+      setView(was => (was.key === next.key && was.zoom === next.zoom ? was : next));
+      setSeen(bounds);
+      seenZoom.current = e.zoom;
+    },
     // Drawn again only as the view nears the edge of what is drawn, not
     // at every step of a move: a draw a few times a second under a finger
     // held a busy phone's pan up.
@@ -207,6 +284,7 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     // thousand marks again for nothing.
     moveend: () => {
       flying.current = false;
+      setFlight(null);
       const next = boxOf(map);
       setView(was => (was.key === next.key && was.zoom === next.zoom ? was : next));
       const bounds = map.getBounds();
@@ -237,12 +315,12 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       const target = e.target as Element | null;
       // Nor one on a line drawn over the chart -- the course, a way the
       // Routes offer -- which keeps its own tap where it passes a field.
-      // But an airspace ring's or a VOR's or fix's tap target is under a
-      // field's mark: near a field the field wins, as its mark is drawn
-      // over them (the owner, 2026-10-30: "When I try to select airport,
-      // it selects the airspace or vor if they are overlapping").
-      const yields = target?.closest(".leaflet-airspace-taps-pane, .leaflet-navaid-taps-pane");
-      if (!target?.closest(".leaflet-map-pane") || (!yields && target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive"))) return;
+      // A VOR's or fix's tap and an airspace ring's are the map's own
+      // click (NavaidsLayer, AirspaceLayer), which this stops near a
+      // field: the field wins, as its mark is drawn over them (the owner,
+      // 2026-10-30: "When I try to select airport, it selects the airspace
+      // or vor if they are overlapping").
+      if (!target?.closest(".leaflet-map-pane") || target.closest(".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, path.leaflet-interactive")) return;
       const at = map.mouseEventToContainerPoint(e);
       let best: { ident: string; px: number } | null = null;
       for (const a of drawn.current) {
@@ -254,17 +332,22 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
       // (SheetCard), as any tap on the chart puts them away: this tap goes
       // no further, so their own dismissal never hears it.
       closeSheetCards();
-      e.stopPropagation();
+      // Immediate: a tap on the chart lands on the map's container itself
+      // (every pane lets the pointer through), where Leaflet listens too,
+      // and a plain stop let its click through after this one -- the field
+      // picked twice, and the rings' tap answering it as the ring through
+      // the field (Session1's probe, 2026-11-03).
+      e.stopImmediatePropagation();
       selectRef.current(best.ident);
     };
     container.addEventListener("click", caught, true);
     return () => container.removeEventListener("click", caught, true);
   }, [map]);
-  const near = zoom >= FROM_ZOOM;
-  const reports = zoom >= FARTHEST_ZOOM;
-  // At zoom 7 the view asks for the fields that report alone -- at the
-  // zoom a zoom is going to, so the question goes as it starts.
-  const reportingOnly = zoom < FROM_ZOOM;
+  // The level drawn for: a zoom's as it starts (useLiveZoom), and a
+  // flight's landing's as it takes off.
+  const level = flight?.level ?? zoom;
+  const near = level >= FROM_ZOOM;
+  const reports = level >= FARTHEST_ZOOM;
   // The fields along the route that report, asked for once the route is
   // drawn: zoomed in anywhere on it, their chips are already here, where
   // they used to wait for the zoom to settle and then behind its tiles.
@@ -280,16 +363,12 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
     refetchInterval: 10 * 60_000,
     meta: { silent: true },
   });
-  // Up to a thousand, the box being some nine views: the planner's most,
-  // 270 in two degrees by two and a half round Chicago in 0.14 s.
+  // At zoom 7 the view asks for the fields that report alone -- at the
+  // zoom a zoom is going to, so the question goes as it starts.
   const { data: inView } = useQuery({
-    queryKey: ["airportsInView", asked.key, reportingOnly],
-    queryFn: () => api.airportsInView({ ...asked.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
-    enabled: zoom >= FARTHEST_ZOOM,
-    staleTime: 10 * 60_000,
+    ...airportsQuery(asked, level),
     refetchInterval: 10 * 60_000,
     placeholderData: keepPreviousData,
-    meta: { silent: true },
   });
   // The planner keeps the biggest fields when the box holds more than the
   // limit, cut from the whole box and not from the view, so a full answer
@@ -297,13 +376,10 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // asked for too (the old question, with a thousand to spare for one view).
   const full = (inView?.length ?? 0) >= AIRPORTS_LIMIT;
   const { data: inViewAlone } = useQuery({
-    queryKey: ["airportsInView", view.key, reportingOnly],
-    queryFn: () => api.airportsInView({ ...view.box, reporting: reportingOnly, limit: AIRPORTS_LIMIT }),
-    enabled: full && zoom >= REPORTING_FROM_ZOOM,
-    staleTime: 10 * 60_000,
+    ...airportsQuery(view, level),
+    enabled: full && level >= REPORTING_FROM_ZOOM,
     refetchInterval: 10 * 60_000,
     placeholderData: keepPreviousData,
-    meta: { silent: true },
   });
   const data = useMemo(() => {
     // The view as it rested, on its half-degree grid, and as it is now
@@ -324,53 +400,88 @@ export function AirportsLayer({ selected, onSelect, others, route }: {
   // aside: its ring (below) went round nothing on a small field further
   // out than SHOWN_FROM.
   const selectedIdent = selected?.ident ?? null;
+  // Its ring given up while a map card opened over it wears one.
+  const ringCovered = useCardRings(s => s.open > 0);
   const shown = useMemo(() => {
     if (!reports) return [];
-    const kept = data.filter(a => !exclude.has(a.ident) && (zoom >= shownFrom(a) || a.ident === selectedIdent) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
-    if (zoom >= REPORTING_FROM_ZOOM) return kept;
+    const kept = data.filter(a => !exclude.has(a.ident) && (level >= shownFrom(a) || a.ident === selectedIdent) && (near || a.flight_category) && (showMilitary || a.military !== "military") && (showPrivate || !a.private));
+    if (level >= REPORTING_FROM_ZOOM) return kept;
     // Out past the sectional's scale: the biggest first, each only where
     // no bigger one's mark is on it -- fewer and bigger at each zoom out.
+    // Ahead of its size, the field a Class B or C is named for (the
+    // planner's primary_of): both inside Dallas's Class B and both large,
+    // Love Field came before DFW in the answer and wore the one mark, off
+    // the rings' middle (the owner's screenshot, 2026-11-03, Love Field
+    // and Hobby for Dallas and Houston).
     const room: L.Point[] = [];
     const out: AirportPin[] = [];
-    for (const a of [...kept].sort((x, y) => shownFrom(x) - shownFrom(y) || KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
-      const at = map.project([a.lat, a.lon], zoom);
+    const primary = (a: AirportPin) => (a.primary_of ? PRIMARY_RANK[a.primary_of] : 3);
+    for (const a of [...kept].sort((x, y) => primary(x) - primary(y) || shownFrom(x) - shownFrom(y) || KIND_RANK[x.kind] - KIND_RANK[y.kind])) {
+      const at = map.project([a.lat, a.lon], level);
       if (room.some(p => p.distanceTo(at) < OUT_APART_PX)) continue;
       room.push(at);
       out.push(a);
     }
     return out;
-  }, [reports, data, exclude, near, showMilitary, showPrivate, zoom, map, selectedIdent]);
+  }, [reports, data, exclude, near, showMilitary, showPrivate, level, map, selectedIdent]);
   useEffect(() => { drawn.current = shown; }, [shown]);
   useEffect(() => { elsewhere.current = others; }, [others]);
   // What the canvas draws (AirportCanvas): each field's mark where it
   // wears one, its look from its airspace, its use and its METAR's colour.
-  const marks = useMemo((): CanvasMark[] => shown.map(a => ({
+  const own = useMemo((): CanvasMark[] => shown.map(a => ({
     ident: a.ident, lat: a.lat, lon: a.lon,
-    chip: !!a.flight_category || zoom >= NO_REPORT_FROM_ZOOM,
+    chip: !!a.flight_category || level >= (a.private ? PRIVATE_FROM_ZOOM : NO_REPORT_FROM_ZOOM),
     space: a.airspace_class ?? null, weather: colourOf(a.flight_category),
     use: a.military === "military" ? "military" : a.private ? "private" : null,
-  })), [shown, zoom]);
+  })), [shown, level]);
+  // Through a flight, the marks drawn as it took off as well, as they
+  // were, the landing's own over them where a field is in both.
+  const marks = useMemo((): CanvasMark[] => {
+    if (!flight) return own;
+    const byIdent = new Map(flight.held.map(m => [m.ident, m]));
+    for (const m of own) byIdent.set(m.ident, m);
+    return [...byIdent.values()];
+  }, [flight, own]);
+  useEffect(() => { drawnMarks.current = marks; }, [marks]);
+  const towered = useMemo(() => marks.filter(m => UNDER_RINGS.has(m.space)), [marks]);
+  const untowered = useMemo(() => marks.filter(m => !UNDER_RINGS.has(m.space)), [marks]);
+  const selectedLow = !!selected && towered.some(m => m.ident === selected.ident);
   // The fields wearing a mark and an ident just now, the canvas's and the
   // route's own, for the VORs' tags to keep off (declutter): given as what
-  // is drawn changes, not at every render.
+  // is drawn changes, not at every render; and as a flight lands, not as
+  // it takes off: the tags are kept clear of the marks at the level the
+  // map is at, and the landing's, drawn for another level, would have
+  // moved a tag for a field that was not yet beside it.
   useEffect(() => {
-    const fields = [...marks.filter(m => m.chip), ...others];
+    if (flight) return;
+    const fields = [...own.filter(m => m.chip), ...others];
     useDrawnAirports.setState({ fields });
-  }, [marks, others]);
+  }, [flight, own, others]);
   useEffect(() => () => useDrawnAirports.setState({ fields: [] }), []);
+  // The first answer in, the VORs may come (NavaidsLayer waits for it).
+  const answered = inView !== undefined;
+  useEffect(() => { if (answered) useDrawnAirports.setState({ airportsIn: true }); }, [answered]);
   return (
     <>
-      <Pane name="airports" style={{ zIndex: 450 }}>
-        <AirportCanvasMarks marks={marks} />
+      {/* The Class B, C and D fields by the rings, the rest over
+          everything (TOWERED_PANE, AIRPORTS_PANE). */}
+      <Pane name="towered-airports" style={TOWERED_PANE}>
+        <AirportCanvasMarks marks={towered} pane="towered-airports" />
+      </Pane>
+      <Pane name="airports" style={AIRPORTS_PANE}>
+        <AirportCanvasMarks marks={untowered} pane="airports" />
       </Pane>
       {hovers && <AirportHover fields={shown} />}
-      {/* Under the marks (the airports' pane, 450), round the field's
-          own: over them, it hid the first letters of its ident beside its
-          mark. Over the course line and the chart (the overlay pane, 400);
-          the route's and the Class B fields' marks, in the marker pane
-          (600), lie in it as these do. */}
-      {selected && (
-        <Pane name="selected-airport" style={{ zIndex: 445 }}>
+      {/* Under the marks (the airports' pane), round the field's own:
+          over them, it hid the first letters of its ident beside its
+          mark. Over the rings and the chart; the route's and the Class B
+          fields' marks, in the marker pane (600), lie in it as these do. */}
+      {selected && !ringCovered && (
+        <Pane
+          key={selectedLow ? "low" : "high"}
+          name={selectedLow ? "towered-selected-airport" : "selected-airport"}
+          style={selectedLow ? TOWERED_SELECTED_PANE : SELECTED_PANE}
+        >
           <Marker
             position={[selected.lat, selected.lon]} icon={selectionIcon()}
             interactive={false} keyboard={false}

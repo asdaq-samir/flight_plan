@@ -1,5 +1,5 @@
 """Where the agent's nav log comes from: planning-service's /api/plan,
-through vfr.planner_client, and nowhere else. The planner and the
+through wingtip.planner_client, and nowhere else. The planner and the
 database are mocked; nothing here needs either running."""
 import pytest
 from starlette.testclient import TestClient

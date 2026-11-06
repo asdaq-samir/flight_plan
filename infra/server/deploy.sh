@@ -69,7 +69,7 @@ aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS 
 # planner ranks by its own rules (planning-service/app/chart_model.py).
 aws s3 sync --quiet "s3://$SERVER_BUCKET/models/" /srv/flight_plan/data/models/ || true
 
-# The ground under the lower 48 (vfr.ground_grid), which a plan's floor is
+# The ground under the lower 48 (wingtip.ground_grid), which a plan's floor is
 # read from in a few array reads: the bucket's copy where one has been kept,
 # else built once here after the planner is up (below).
 GRID=/srv/flight_plan/data/raw/ground_grid
@@ -86,8 +86,10 @@ docker image prune -f > /dev/null
 # kept in the bucket for the next server. The planner reads the tiles as it
 # did until then, and takes the grid up within ten minutes of its being
 # there (LOOK_AGAIN_S), with no restart.
-if [ ! -f "$GRID/high_ft.npy" ] || [ -f "$GRID/rows_done.json" ]; then
-  nohup sh -c "docker compose --env-file '$ENV_FILE' -f docker-compose.prod.yml run --rm --no-deps --entrypoint python planning-service -m vfr.ground_grid \
+# Its files are named for how the tiles were read (wingtip.ground_grid VERSION):
+# a server with only an older grid builds this one.
+if [ ! -f "$GRID/high_ft.v2.npy" ] || [ -f "$GRID/rows_done.v2.json" ]; then
+  nohup sh -c "docker compose --env-file '$ENV_FILE' -f docker-compose.prod.yml run --rm --no-deps --entrypoint python planning-service -m wingtip.ground_grid \
     && aws s3 sync --quiet '$GRID/' 's3://$SERVER_BUCKET/ground_grid/'" > /var/log/ground_grid.log 2>&1 &
 fi
 echo "deployed: $(docker compose --env-file "$ENV_FILE" -f docker-compose.prod.yml ps --format '{{.Service}} {{.Status}}' | tr '\n' ';')"

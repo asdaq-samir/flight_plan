@@ -21,9 +21,14 @@ struct ReplaySection: View {
             HStack(spacing: 12) {
                 Button { replay.playing ? replay.pause() : play() } label: {
                     Image(systemName: replay.playing ? "pause.fill" : "play.fill").frame(width: 32, height: 32)
+                        // The 44-point hit area round the 32-point glyph, which does not grow.
+                        .contentShape(Rectangle().inset(by: -6))
                 }
                 .accessibilityLabel(replay.playing ? "Pause the replay" : "Play the replay")
-                Button { replay.stop() } label: { Image(systemName: "stop.fill").frame(width: 32, height: 32) }
+                Button { replay.stop() } label: {
+                    Image(systemName: "stop.fill").frame(width: 32, height: 32)
+                        .contentShape(Rectangle().inset(by: -6))
+                }
                     .disabled(replay.at == nil)
                     .accessibilityLabel("Stop the replay")
                 Spacer()
@@ -39,7 +44,10 @@ struct ReplaySection: View {
                 HStack {
                     Text(replay.here.map { Self.clock($0.t) } ?? "Altitude, ft · ground speed, kt").foregroundStyle(.secondary)
                     Spacer()
-                    if let here = replay.here { Text(Self.figures(here)).fontWeight(.semibold) }
+                    if let here = replay.here {
+                        Text(Self.figures(here)).fontWeight(.semibold)
+                            .accessibilityLabel(Self.spoken(here))
+                    }
                 }
                 .font(.footnote.monospacedDigit())
                 FlightProfileChart(points: points, cursor: replay.here, onScrub: { t in replay.scrub(to: t) })
@@ -73,5 +81,24 @@ struct ReplaySection: View {
         let speed = here.gsKt.map { "\(Int($0.rounded())) kt" } ?? "—"
         let heading = here.trackDeg.map { " · " + AirportWords.compassPoint($0) } ?? ""
         return "\(height) · \(speed)\(heading)"
+    }
+
+    /// The same as VoiceOver says it: "three thousand feet, one hundred
+    /// eight knots, northeast".
+    static func spoken(_ here: Replay.Point) -> String {
+        [here.altFt.map { SpokenFigures.feet(($0 / 100).rounded() * 100) },
+         here.gsKt.map(SpokenFigures.knots),
+         here.trackDeg.map(SpokenFigures.compass)].compactMap { $0 }.joined(separator: ", ")
+    }
+}
+
+#Preview("ReplaySection") {
+    List {
+        ReplaySection(points: [
+            Replay.Point(t: 1_762_200_000, lat: 37.461, lon: -122.115, altFt: 50, gsKt: 0, trackDeg: 310),
+            Replay.Point(t: 1_762_200_300, lat: 37.520, lon: -122.050, altFt: 2500, gsKt: 95, trackDeg: 45),
+            Replay.Point(t: 1_762_200_900, lat: 37.650, lon: -121.850, altFt: 4500, gsKt: 112, trackDeg: 62),
+            Replay.Point(t: 1_762_201_500, lat: 37.693, lon: -121.820, altFt: 400, gsKt: 70, trackDeg: 250),
+        ], key: "preview")
     }
 }

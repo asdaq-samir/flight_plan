@@ -8,10 +8,10 @@ import { useQuery } from "@tanstack/react-query";
 import { airportQuery, classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
 import { placeWords } from "../../../lib/advisories";
-import type { Candidate, ClassBAirport, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
+import type { Candidate, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
-import type { AirportWeather } from "../../../lib/map/AirportCard";
-import { AirportsLayer } from "../../../lib/map/AirportsLayer";
+import { AirportsAsk, AirportsLayer } from "../../../lib/map/AirportsLayer";
+import { airportBox, overlaps, useDrawnAirports } from "../../../lib/map/declutter";
 import { useAfterPaint } from "../../../hooks/use-after-paint";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
@@ -30,7 +30,8 @@ const NO_PROCEDURES: ProcedureDrawing[] = [];
 import { chipColourOf, colourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { RouteWaysLayer, type RouteWay } from "../../../lib/map/RouteWaysLayer";
-import { COURSE_MAGENTA, MAP_BLUE } from "../../../lib/map/chartColors";
+import { COURSE_MAGENTA, MAP_BLUE, checkpointColour } from "../../../lib/map/chartColors";
+import { useInkLook } from "../../../lib/brand";
 import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
 import { LegHighlightLayer } from "../../../lib/map/LegHighlightLayer";
 import { Halo } from "../../../lib/map/Halo";
@@ -343,30 +344,17 @@ function CheckpointCard({ candidate, number, leg }: { candidate: Candidate; numb
   );
 }
 
-/** A departure or destination's weather, in `AirportCard`'s shape: its
- *  own METAR from the briefing, and -- when it is a Class B field on the
- *  Class B layer -- that layer's forecast for it. Each of "still
+/** What is known of a departure or destination's weather, for its
+ *  chip's colour: its own METAR from the briefing. Each of "still
  *  checking", "could not be checked" and "checked, no report" says so;
  *  they used to share one "no report". */
-function weatherOf(ident: string, briefing: BriefingState, classB: ClassBAirport | undefined): AirportWeather {
-  const forecast = classB && (classB.taf || classB.taf_ceiling_ft != null || classB.taf_visibility_sm != null)
-    ? { ceilingFt: classB.taf_ceiling_ft ?? null, visibilitySm: classB.taf_visibility_sm ?? null, raw: classB.taf ?? null }
-    : undefined;
+function weatherOf(ident: string, briefing: BriefingState): { status: string; category: string | null } {
   const ready = briefing.state === "ready" ? briefing : null;
   const metar = ready?.data.metars[ident];
   const status = briefing.state === "failed" || ready?.data.weather_unavailable.includes("metars") ? "unavailable"
     : !ready ? "checking"
       : metar ? "reported" : "no-report";
-  return {
-    status,
-    stale: !!ready?.refreshError,
-    category: metar?.flight_category ?? null,
-    ceilingFt: metar?.ceiling_ft ?? null,
-    visibilitySm: metar?.visibility_sm ?? null,
-    raw: metar?.raw ?? null,
-    observedAt: metar?.observed_at ?? null,
-    forecast,
-  };
+  return { status, category: metar?.flight_category ?? null };
 }
 
 /** The route's airports in the order they are flown -- the departure,
@@ -413,7 +401,7 @@ function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
           );
         }
         const field = classBShown ? classB?.find(b => b.ident === a.ident) : undefined;
-        const w = weatherOf(a.ident, weather, field);
+        const w = weatherOf(a.ident, weather);
         return (
           <Marker
             key={a.ident} position={[a.lat, a.lon]}
@@ -470,6 +458,10 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus,
   airports: { ident: string; lat: number; lon: number }[];
 }) {
   const show = usePreferences(s => s.waypoints);
+  // The dots' ink: their scores' colours, or the Chart ink look's brown
+  // (checkpointColour); asked here so they are drawn again as the look
+  // changes.
+  const ink = useInkLook();
   const { carded, cardEvents } = useCardedMarker<string>();
   const spaced = useSpaced(selected, airports);
   // Named once the map is in close, or the one picked (its row, its dot):
@@ -502,7 +494,7 @@ function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus,
         if (!spaced.has(key) && carded !== key) return null;
         return (
           <Marker
-            key={key} position={[c.lat, c.lon]} icon={dotIcon(scoreColor(c.predicted_score), i + 1)}
+            key={key} position={[c.lat, c.lon]} icon={dotIcon(checkpointColour(scoreColor(c.predicted_score), ink), i + 1)}
             eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectCandidate(c); }, ...cardEvents(key) }}
           >
             {carded !== key && <MapTooltip><CheckpointCard candidate={c} number={i + 1} /></MapTooltip>}
@@ -572,7 +564,7 @@ function useRestZoom(): number {
 
 /** A checkpoint's name as its label shows it, in sentence case (the
  *  design review, 2026-10-28): the chart's name for the place as the
- *  places know it, "River near Lenroot", "Lake Zurich" (vfr.places
+ *  places know it, "River near Lenroot", "Lake Zurich" (wingtip.places
  *  checkpoint_name), where its ForeFlight waypoint's capitals (RIVER
  *  LENROOT) were shouted over the chart; else that waypoint's words,
  *  spaced, spelt as a place's are, a code (a figure in it) as written --
@@ -651,23 +643,30 @@ const PILL_ROOM = { x: 58, y: 26 };
 function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props["onSelectPoint"] }) {
   // Each pill where it has room, in route order: zoomed out, a short
   // climb's TOC and the next leg's lay on one another (the style audit,
-  // 2026-10-26); closer in, every one.
+  // 2026-10-26); closer in, every one. And none over an airport's mark or
+  // its ident (declutter's fields): zoomed out to a region, a stop's TOD
+  // and the next flight's TOC lay on KENW and C81, and KMSN's ident under
+  // its TOD (a probe on the phone viewport, 2026-11-03).
   const map = useMap();
   const zoom = useRestZoom();
+  const fields = useDrawnAirports(s => s.fields);
   const roomy = useMemo(() => {
     const kept: L.Point[] = [];
     const out = new Set<string>();
+    const marks = fields.map(f => airportBox(map.project([f.lat, f.lon], zoom), f.ident));
     legs.forEach((leg, i) => {
       for (const [key, at] of [[`toc-${i}`, leg.toc], [`tod-${i}`, leg.tod]] as const) {
         if (!at) continue;
         const p = map.project([at.lat, at.lon], zoom);
         if (kept.some(k => Math.abs(k.x - p.x) < PILL_ROOM.x && Math.abs(k.y - p.y) < PILL_ROOM.y)) continue;
+        const pill = { x0: p.x - PILL_ROOM.x / 2, y0: p.y - PILL_ROOM.y / 2, x1: p.x + PILL_ROOM.x / 2, y1: p.y + PILL_ROOM.y / 2 };
+        if (marks.some(m => overlaps(m, pill))) continue;
         kept.push(p);
         out.add(key);
       }
     });
     return out;
-  }, [legs, map, zoom]);
+  }, [legs, map, zoom, fields]);
   return (
     <>
       {legs.flatMap((leg, i) => [
@@ -693,8 +692,9 @@ function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props[
 }
 
 /** A hold's racetrack in the course line's own magenta and weight
- *  (lib/map/CourseLine), dashed: flown round, not along. */
-const HOLD_LINE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false };
+ *  (lib/map/CourseLine), dashed: flown round, not along. Its class takes
+ *  the Chart ink look's magenta from the stylesheet (index.css). */
+const HOLD_LINE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false, className: "course-ink" };
 
 /** Each hold the pilot put on the route (the legs' `hold`, plan.with_holds):
  *  one turn round its racetrack from its point, as Garmin's and
@@ -783,6 +783,7 @@ export default memo(function RouteMap({
     >
       {/* The chart's own airports with no route as well: a tap on a field
           opens its card, and Fly Here makes the route. */}
+      <AirportsAsk />
       {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} others={chippedFields} route={routeBox} />}
       {layered && <TfrLayer />}
       {layered && <WaypointsLayer exclude={chipped} />}

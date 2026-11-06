@@ -1,7 +1,7 @@
-"""vfr.holds: a hold the pilot puts anywhere -- how it is written, the
+"""wingtip.holds: a hold the pilot puts anywhere -- how it is written, the
 entry from the course flown to it, and the racetrack and time it takes."""
 import pytest
-from vfr import geo, holds
+from wingtip import geo, holds
 
 
 def test_a_hold_is_written_as_the_address_has_it():

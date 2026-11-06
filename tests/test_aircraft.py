@@ -1,10 +1,10 @@
-"""vfr.aircraft: a profile is refused, by name, when it is missing what
+"""wingtip.aircraft: a profile is refused, by name, when it is missing what
 the nav log needs -- at load, not leg by leg further in."""
 import json
 
 import pytest
 
-from vfr import aircraft
+from wingtip import aircraft
 
 
 def test_every_stock_profile_has_what_the_nav_log_needs():

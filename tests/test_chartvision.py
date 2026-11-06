@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from vfr.chartvision import (
+from wingtip.chartvision import (
     DEFAULT_ZOOM,
     Landmark,
     Mosaic,
@@ -124,8 +124,8 @@ def test_mosaic_maps_its_own_pixels_back_to_the_world():
 
 # --- the course walk must follow the great circle, not a pixel-space line ---
 
-from vfr.chartvision import great_circle_pixels  # noqa: E402
-from vfr.geo import cross_track_distance_nm  # noqa: E402
+from wingtip.chartvision import great_circle_pixels  # noqa: E402
+from wingtip.geo import cross_track_distance_nm  # noqa: E402
 
 C81, KDLH = (42.3246, -88.0741), (46.8419, -92.1987)
 
@@ -185,7 +185,7 @@ def test_a_missing_tile_is_not_read_as_black_linework():
     does not exist: 75 of 463 detections on one real route.
     """
     import numpy as np
-    from vfr.chartvision import Mosaic, _dark_line
+    from wingtip.chartvision import Mosaic, _dark_line
 
     # Half the canvas is a real (white) chart, half was never filled.
     pixels = np.zeros((16, 16, 3), dtype=np.uint8)
@@ -207,7 +207,7 @@ def test_a_mosaic_without_coverage_information_is_left_alone():
     # Mosaics built by hand in tests, and any older caller, pass no
     # coverage; clipping must not silently drop everything.
     import numpy as np
-    from vfr.chartvision import Mosaic
+    from wingtip.chartvision import Mosaic
 
     mask = np.ones((4, 4), dtype=bool)
     mosaic = Mosaic(pixels=np.zeros((4, 4, 3), dtype=np.uint8), origin_px=(0, 0), zoom=9)
@@ -223,7 +223,7 @@ def test_a_block_with_no_sheet_over_it_is_never_read():
     nothing, while the progress line counted them as work done. On
     05AA -> KDLH that was 96 blocks where 22 have chart under them.
     """
-    from vfr.chartvision import _has_chart
+    from wingtip.chartvision import _has_chart
 
     zoom = 9
     n = 2 ** zoom
@@ -247,7 +247,7 @@ def test_a_block_straddling_the_edge_is_still_read():
     That is the safe direction: a block half over the sea and half over
     Chicago must still be read, because half of it is real chart.
     """
-    from vfr.chartvision import _has_chart
+    from wingtip.chartvision import _has_chart
 
     zoom = 9
     n = 2 ** zoom
@@ -264,7 +264,7 @@ def test_a_block_straddling_the_edge_is_still_read():
 
 # --- what the chart's blue is: a river, or a symbol drawn in its colour ---
 
-from vfr.chartvision import detect_landmarks, linear_crossings  # noqa: E402
+from wingtip.chartvision import detect_landmarks, linear_crossings  # noqa: E402
 
 BACKGROUND = (220, 230, 210)   # the chart's pale green
 RIVER_BLUE = (3, 82, 113)      # sampled on a river a pilot marked by hand
@@ -349,7 +349,7 @@ def test_a_meridian_and_its_minute_ticks_are_not_a_road_but_a_road_beside_it_is(
     tick every minute: each read as a road or railroad crossing wherever
     the course cut it, and a pilot rated them 0. In web mercator a
     meridian is a column, so it is taken out by where it is."""
-    from vfr.chartvision import Mosaic
+    from wingtip.chartvision import Mosaic
 
     x_meridian, y = latlon_to_global_px(42.8, -88.5)
     pixels = _chart()

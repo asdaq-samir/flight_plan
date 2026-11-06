@@ -1,23 +1,18 @@
-import { ChevronRight, CircleMinus, GripVertical, House, ListFilter, Plane, Plus } from "lucide-react";
-import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DraggableAttributes, type DraggableSyntheticListeners } from "@dnd-kit/core";
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import { ChevronRight, CircleMinus, House, ListFilter, Plane, Plus } from "lucide-react";
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { AircraftKind } from "../lib/aircraftKind";
 import { cn } from "cn";
 import { airportMarkSvg } from "../lib/map/airportMark";
 import { colourOf } from "../lib/map/flightCategory";
 import type { AirspaceClass, RecentAirport } from "../lib/preferences";
 import { useAirspace } from "../lib/useAirspace";
 import { holdOpenCard } from "../lib/openCards";
-import { SwipeToDelete } from "./SwipeToDelete";
-import { SortItem, useSwipeRow } from "./swipeRow";
-import { placeLink } from "../lib/flightLink";
+import { useSwipeRow } from "./swipeRow";
 import { useAway } from "../lib/useAway";
 import { TEXT } from "../lib/text";
 import { Button } from "./ui/button";
 import PullDown from "./PullDown";
-import { ListGroup, ListRow } from "./GroupedList";
 import IconButton from "./IconButton";
 import CloseButton from "./CloseButton";
 import { airportQuery } from "../lib/queryClient";
@@ -113,11 +108,129 @@ export function KeptMark({ airport }: { airport: RecentAirport }) {
  *  sky airplane and Recents and the found ones a bare grey airplane (the
  *  owner, 2026-10-28: "How come nearest airports and aircraft icons look
  *  different than favorites"). */
-export function PlaneMark({ trackDeg, emergency = false, small = false }: { trackDeg?: number | null; emergency?: boolean; small?: boolean }) {
+export function PlaneMark({ trackDeg, emergency = false, small = false, kind }: {
+  trackDeg?: number | null;
+  emergency?: boolean;
+  small?: boolean;
+  /** A kept airplane's shape (lib/aircraftKind), nose up; the ones heard,
+   *  turned to their track, keep lucide's airplane as the map's traffic
+   *  does (the owner: "Keep traffic as is", 2026-11-04). */
+  kind?: AircraftKind;
+}) {
+  const fill = emergency ? "bg-destructive text-white" : "bg-sky-600 text-white";
+  if (kind) {
+    // The shapes fill their square, so drawn larger than a glyph: 34 in
+    // the tile's 56, 22 in the row's 32.
+    const icon = <KindGlyph kind={kind} />;
+    return small
+      ? <Mark icon={icon} className={cn(fill, "[&_svg]:size-[22px]")} />
+      : <SmallMark icon={icon} className={cn(fill, "[&_svg]:size-[34px]")} />;
+  }
   // lucide's airplane points north-east: turned to its track.
   const icon = <Plane fill="currentColor" style={trackDeg != null ? { transform: `rotate(${trackDeg - 45}deg)` } : undefined} />;
-  const fill = emergency ? "bg-destructive text-white" : "bg-sky-600 text-white";
   return small ? <Mark icon={icon} className={fill} /> : <SmallMark icon={icon} className={fill} />;
+}
+
+/** An airplane's shape alone, sized by its container's svg rule. */
+export function KindGlyph({ kind }: { kind: AircraftKind }) {
+  return (
+    <svg viewBox="0 0 64 64" aria-hidden="true">
+      <KindShapes kind={kind} strokeWidth={1.5} />
+    </svg>
+  );
+}
+
+/**
+ * The seven shapes, seen from above, nose up, on a 64 square, from the
+ * owner's sheet of designs (2026-11-04): high wing, low wing (tapered,
+ * its canopy cut out), twin, jet, helicopter, glider, and a balloon from
+ * the side, as from above it would be a disc. In currentColor, outlined
+ * a little so they hold at a row's size.
+ */
+function KindShapes({ kind, strokeWidth }: { kind: AircraftKind; strokeWidth: number }) {
+  const cut = useId();
+  const paint = { fill: "currentColor", stroke: "currentColor", strokeWidth, strokeLinejoin: "round" as const };
+  switch (kind) {
+    case "high":
+      return (
+        <g {...paint}>
+          <path d="M32 12C34.2 12 35 14.5 35 18L34.2 44 33 51H31L29.8 44 29 18C29 14.5 29.8 12 32 12Z" />
+          <rect x="9" y="23" width="46" height="6.5" rx="3" />
+          <rect x="23" y="45" width="18" height="4.5" rx="2.2" />
+        </g>
+      );
+    case "low":
+      return (
+        <>
+          <mask id={cut}><rect width="64" height="64" fill="#fff" /><ellipse cx="32" cy="20.5" rx="1.9" ry="3.6" fill="#000" /></mask>
+          <g {...paint} mask={`url(#${cut})`}>
+            <path d="M32 12C34.2 12 35 14.5 35 18L34.2 44 33 51H31L29.8 44 29 18C29 14.5 29.8 12 32 12Z" />
+            <path d="M30 26 9.5 28C8 28.2 7.5 29 7.5 30.2S8 32.2 9.5 32.2L30 34.5Z" />
+            <path d="M34 26 54.5 28C56 28.2 56.5 29 56.5 30.2S56 32.2 54.5 32.2L34 34.5Z" />
+            <rect x="24" y="46" width="16" height="4.5" rx="2.2" />
+          </g>
+        </>
+      );
+    case "twin":
+      return (
+        <>
+          <mask id={cut}><rect width="64" height="64" fill="#fff" /><ellipse cx="32" cy="19" rx="1.9" ry="3.4" fill="#000" /></mask>
+          <g {...paint} mask={`url(#${cut})`}>
+            <path d="M32 11C34.2 11 35 13.5 35 17L34.2 45 33 52H31L29.8 45 29 17C29 13.5 29.8 11 32 11Z" />
+            <path d="M30 25 7.5 27.5C6 27.7 5.5 28.5 5.5 29.7S6 31.7 7.5 31.7L30 34Z" />
+            <path d="M34 25 56.5 27.5C58 27.7 58.5 28.5 58.5 29.7S58 31.7 56.5 31.7L34 34Z" />
+            <rect x="16" y="17.5" width="5.6" height="19" rx="2.8" />
+            <rect x="42.4" y="17.5" width="5.6" height="19" rx="2.8" />
+            <rect x="22.5" y="47" width="19" height="4.5" rx="2.2" />
+          </g>
+        </>
+      );
+    case "jet":
+      return (
+        <g {...paint}>
+          <path d="M32 5C34.3 5 35.5 9 35.5 15V46L33 56H31L28.5 46V15C28.5 9 29.7 5 32 5Z" />
+          <path d="M29 24 7 37V40.5L29 34Z" />
+          <path d="M35 24 57 37V40.5L35 34Z" />
+          <rect x="23" y="39" width="4.6" height="9.5" rx="2.2" />
+          <rect x="36.4" y="39" width="4.6" height="9.5" rx="2.2" />
+          <path d="M32 49 21 55.5V58L32 55.5 43 58V55.5Z" />
+        </g>
+      );
+    case "helicopter":
+      return (
+        <g {...paint}>
+          <ellipse cx="32" cy="29" rx="6.5" ry="9.5" />
+          <rect x="30.8" y="35" width="2.4" height="21" rx="1.2" />
+          <rect x="26.5" y="47" width="11" height="2.6" rx="1.3" />
+          <rect x="33.2" y="51" width="5" height="2.2" rx="1.1" />
+          <rect x="5" y="26.7" width="54" height="2.6" rx="1.3" transform="rotate(32 32 28)" />
+          <rect x="5" y="26.7" width="54" height="2.6" rx="1.3" transform="rotate(-32 32 28)" />
+        </g>
+      );
+    case "glider":
+      return (
+        <g {...paint}>
+          <path d="M32 13C33.6 13 34.2 15.5 34.2 19L33.4 47 32.6 56H31.4L30.6 47 29.8 19C29.8 15.5 30.4 13 32 13Z" />
+          <path d="M30.5 24 3.5 25.8C2.4 25.9 2 26.4 2 27.2S2.4 28.5 3.5 28.5L30.5 29.5Z" />
+          <path d="M33.5 24 60.5 25.8C61.6 25.9 62 26.4 62 27.2S61.6 28.5 60.5 28.5L33.5 29.5Z" />
+          <rect x="25.5" y="53" width="13" height="3.2" rx="1.6" />
+        </g>
+      );
+    case "balloon":
+      return (
+        <>
+          <mask id={cut}>
+            <rect width="64" height="64" fill="#fff" />
+            <path d="M32 8V46M24 10C21 20 23 36 28.5 46M40 10C43 20 41 36 35.5 46" fill="none" stroke="#000" strokeWidth={1.8} />
+          </mask>
+          <g {...paint}>
+            <path d="M32 7C44 7 50.5 15 50.5 24.5 50.5 34 42 40 37.5 46.5H26.5C22 40 13.5 34 13.5 24.5 13.5 15 20 7 32 7Z" mask={`url(#${cut})`} />
+            <path d="M27.5 47 29.5 51M36.5 47 34.5 51" fill="none" />
+            <rect x="28.5" y="51" width="7" height="6" rx="1.2" />
+          </g>
+        </>
+      );
+  }
 }
 
 /** A field's chart symbol in a strip's tile: 44 in the tile's 56, as wide
@@ -152,161 +265,6 @@ export function RemoveMinus({ label, onClick, testId }: { label: string; onClick
     <IconButton label={label} className="-ml-1.5 text-destructive" onClick={row ? row.reveal : onClick} data-testid={testId}>
       <CircleMinus className="size-5 fill-destructive text-white dark:text-background" />
     </IconButton>
-  );
-}
-
-/** The rows a list's handles drag: dnd-kit's sortable (as the route's
- *  stops are, RouteBox), round the ListGroup that draws them, each row a
- *  `SortableRow` -- a drag by the handle, the list making room under it,
- *  VoiceOver told where it is, and the move made once, at the drop. */
-export function SortableRows({ ids, onMove, children }: {
-  ids: string[];
-  onMove: (from: number, to: number) => void;
-  children: ReactNode;
-}) {
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-  return (
-    <DndContext
-      sensors={sensors} collisionDetection={closestCenter}
-      onDragEnd={({ active, over }) => {
-        if (!over || active.id === over.id) return;
-        const from = ids.indexOf(`${active.id}`), to = ids.indexOf(`${over.id}`);
-        if (from >= 0 && to >= 0) onMove(from, to);
-      }}
-    >
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
-    </DndContext>
-  );
-}
-
-const SortHandle = createContext<{
-  ref: (node: HTMLElement | null) => void; attributes: DraggableAttributes; listeners: DraggableSyntheticListeners;
-} | null>(null);
-
-/** One of a `SortableRows`' rows, lifted over the others while dragged. */
-export function SortableRow({ id, children }: { id: string; children: ReactNode }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id });
-  // The row's own box is what moves (SwipeToDelete's, by SortItem), not a
-  // box round it: wrapped, each row was the first and the last of its own,
-  // and lost the reach over the group's gaps that a list's rows have, a
-  // band above and below every Favorite that a tap did nothing on (the
-  // owner's screenshot, 2026-10-28).
-  const item = useMemo(() => ({
-    ref: setNodeRef, style: { transform: CSS.Translate.toString(transform), transition },
-    className: cn(isDragging && "relative z-10 bg-card shadow-lg"),
-  }), [setNodeRef, transform, transition, isDragging]);
-  return (
-    <SortItem.Provider value={item}>
-      <SortHandle.Provider value={{ ref: setActivatorNodeRef, attributes, listeners }}>{children}</SortHandle.Provider>
-    </SortItem.Provider>
-  );
-}
-
-/** The handle after a row being edited, in a `SortableRow`: dragged, its
- *  row goes with it (dnd-kit); and the arrow keys a place at a time, as
- *  they did, besides dnd-kit's own Space to lift and drop. */
-export function MoveHandle({ label, index, count, onMove }: {
-  label: string;
-  index: number;
-  count: number;
-  onMove: (from: number, to: number) => void;
-}) {
-  const sort = useContext(SortHandle);
-  return (
-    <IconButton
-      label={label} className="touch-none"
-      {...sort?.attributes} {...sort?.listeners} ref={sort?.ref}
-      onKeyDown={e => {
-        if (e.key === "ArrowUp" && index > 0) { e.preventDefault(); onMove(index, index - 1); return; }
-        if (e.key === "ArrowDown" && index < count - 1) { e.preventDefault(); onMove(index, index + 1); return; }
-        sort?.listeners?.onKeyDown?.(e);
-      }}
-    >
-      <GripVertical className="size-5 text-muted-foreground" />
-    </IconButton>
-  );
-}
-
-/**
- * Favorites in full, as Maps' own list: Home, which a tap changes
- * through the search bar, and the kept airports, which a tap opens --
- * and with Edit, a minus before each to let it go and a handle after
- * each to drag it up or down the list (or move it with the arrow keys).
- * Add a Favorite asks the search bar for one more.
- */
-export function FavoritesList({ home, favorites, onBack, onOpen, onChangeHome, onRemoveHome, onRemove, onMove, onAdd }: {
-  home: RecentAirport | null;
-  favorites: RecentAirport[];
-  onBack: () => void;
-  onOpen: (airport: RecentAirport) => void;
-  onChangeHome: () => void;
-  onRemoveHome: () => void;
-  onRemove: (airport: RecentAirport) => void;
-  onMove: (from: number, to: number) => void;
-  onAdd: () => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  return (
-    <div className="space-y-6" data-testid="favorites-list">
-      {/* Every list's head (ListPageHead), where this was a copy of it. */}
-      <ListPageHead
-        title="Favorites" backLabel="Back to the search" onBack={onBack} testId="favorites-page"
-        action={<EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="favorites-edit" />}
-      />
-      <ListGroup title="Home">
-        {!home ? (
-          <ListRow media={<Plus className="size-5" />} title="Add Home" onClick={onChangeHome} data-testid="favorites-home" />
-        ) : (
-          // Taken off as every kept list's rows are: a swipe to the left, or
-          // Edit's minus bringing out the Delete (SwipeToDelete).
-          <SwipeToDelete label={`Remove ${home.ident} as Home`} onDelete={onRemoveHome} share={placeLink(home)}>
-            {editing ? (
-              <ListRow
-                media={<RemoveMinus label={`Remove ${home.ident} as Home…`} testId="favorites-home-remove" />}
-                title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
-                description={home.municipality ?? undefined}
-              />
-            ) : (
-              <ListRow
-                media={<Mark icon={<House />} className="bg-teal-600 text-white" />} chevron
-                title={<><span className="font-mono font-semibold">{home.ident}</span> · {home.name}</>}
-                description={home.municipality ?? undefined} onClick={onChangeHome} data-testid="favorites-home"
-              />
-            )}
-          </SwipeToDelete>
-        )}
-      </ListGroup>
-      <SortableRows ids={favorites.map(a => a.ident)} onMove={onMove}>
-      <ListGroup title="Airports">
-        {favorites.length === 0 && <ListRow muted title="A star on an airport's card adds it here" />}
-        {favorites.map((a, index) => (
-          <SortableRow key={a.ident} id={a.ident}>
-          <SwipeToDelete label={`Remove ${a.ident} from Favorites`} onDelete={() => onRemove(a)} share={placeLink(a)}>
-            {editing ? (
-              <ListRow
-                media={<RemoveMinus label={`Remove ${a.ident} from Favorites…`} />}
-                title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-                description={a.municipality ?? undefined}
-              >
-                <MoveHandle label={`Move ${a.ident}`} index={index} count={favorites.length} onMove={onMove} />
-              </ListRow>
-            ) : (
-              <ListRow
-                media={<KeptMark airport={a} />} chevron
-                title={<><span className="font-mono font-semibold">{a.ident}</span> · {a.name}</>}
-                description={a.municipality ?? undefined} onClick={() => onOpen(a)}
-              />
-            )}
-          </SwipeToDelete>
-          </SortableRow>
-        ))}
-        <ListRow media={<Plus className="size-5" />} title="Add a Favorite" onClick={onAdd} data-testid="favorites-add" />
-      </ListGroup>
-      </SortableRows>
-    </div>
   );
 }
 
@@ -611,31 +569,28 @@ export function FavoriteStrip({ home, favorites, onOpen, onAddHome, onAddFavorit
 }
 
 /**
- * The pilot's own airplane's glyph: lucide's airplane, as the map's
- * Traffic shows one, a little smaller, with a solid house at its bottom
- * right cut into its wing -- the owner's pick of a sheet of designs ("D
- * but add a home to the bottom right of it"), for the Plane tile that is
- * to airplanes what Home is to airports. Sized by its container's svg
- * rule, as a lucide glyph is; the cut a mask, so it shows whatever the
- * glyph sits on.
+ * The pilot's own airplane's glyph: the app icon in miniature, its
+ * airplane seen from above in the dashed airspace ring -- the owner's
+ * pick ("I like 3 for my plane", 2026-11-04, beside the icon's A), for
+ * the Plane tile that is to airplanes what Home is to airports; the
+ * airplane in it the pilot's own one's shape (lib/aircraftKind). Drawn in
+ * currentColor and sized by its container's svg rule, as a lucide glyph
+ * is; the ring needs more room than a glyph, so its marks size it up
+ * (PLANE_TILE, PLANE_ROW).
  */
-export function HomePlane() {
-  const cut = useId();
-  const house = "M14.5 22.5v-4.2l3.75-3.2 3.75 3.2v4.2z";
+export function HomePlane({ kind = "high" }: { kind?: AircraftKind }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <mask id={cut}>
-        <rect width="24" height="24" fill="#fff" />
-        <path d={house} fill="#000" stroke="#000" strokeWidth={3.4} />
-      </mask>
-      {/* lucide's plane, at 0.85 with its stroke kept at 2. */}
-      <g mask={`url(#${cut})`}>
-        <path
-          d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"
-          transform="scale(0.85)" strokeWidth={2.35}
-        />
+    <svg viewBox="6 6 52 52" aria-hidden="true">
+      {/* Twelve dashes, as the icon's ring: 2 pi 22 is 138.2, eleven and
+          a half a dash. */}
+      <circle cx="32" cy="32" r="22" fill="none" stroke="currentColor" strokeWidth={3.6} strokeDasharray="8 3.52" transform="rotate(-100.4 32 32)" />
+      <g transform="translate(32 32) scale(0.6) translate(-32 -32)">
+        <KindShapes kind={kind} strokeWidth={2} />
       </g>
-      <path d={house} fill="currentColor" strokeWidth={1} />
     </svg>
   );
 }
+
+/** HomePlane's sizes: 40 in a strip tile's 56, 24 in a row's 32. */
+export const PLANE_TILE = "bg-teal-600 text-white [&_svg]:size-10";
+export const PLANE_ROW = "bg-teal-600 text-white [&_svg]:size-6";

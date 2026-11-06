@@ -292,12 +292,16 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     return () => { map.off("resize", read); };
   }, [map]);
   const edgeOf = useCallback((bottom: number) => !map ? 0 : (mapTop.current ?? 0) + map.getSize().y - bottom, [map]);
-  const sheetRoom = useCallback((bottom: number, el: HTMLElement) => ({
-    el, from: edgeOf(bottom), halfEdge: edgeOf(halfBottom.current ?? (map ? map.getSize().y / 2 : 0)),
+  const sheetRoom = useCallback((el: HTMLElement) => ({
+    el, halfEdge: edgeOf(halfBottom.current ?? (map ? map.getSize().y / 2 : 0)),
     pressed: () => pressed.current, free: () => !heldRef.current,
   }), [edgeOf, map]);
-  // Under a finger on the sheet the map goes with it as it is dragged, not
-  // once it has landed.
+  // A finger on the sheet: the map stays put under the drag, as Apple
+  // Maps' does, and goes once the finger lets go and the sheet says where
+  // it is going (sheetturn, below) -- the rest of the way on the
+  // compositor (sheetSlide's glide). Followed a frame at a time from the
+  // main thread under the finger, it stepped behind the sheet (the owner,
+  // 2026-11-04: "map stutters", then "Do all" of the sheet's list).
   useEffect(() => {
     if (!map) return;
     const doc = map.getContainer().ownerDocument;
@@ -306,7 +310,6 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const { left, bottom } = insetsRef.current;
       if (!el || left || !bottom || heldRef.current) return;
       pressed.current = true;
-      followSheet(map, sheetRoom(bottom, el));
     };
     const up = () => { pressed.current = false; };
     // And as the sheet starts to move by itself (MapPanel's sheetturn: a
@@ -325,7 +328,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       }
       const { left, bottom } = insetsRef.current;
       if (!(el instanceof HTMLElement) || pressed.current || left || !bottom || heldRef.current) return;
-      followSheet(map, sheetRoom(bottom, el));
+      followSheet(map, sheetRoom(el));
     };
     doc.addEventListener("pointerdown", down, true);
     doc.addEventListener("pointerup", up, true);
@@ -389,7 +392,9 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
     const phoneTurn = insets.left === was.left && insets.bottom !== was.bottom;
     const withSheet = () => {
       const el = map.getContainer().ownerDocument.querySelector<HTMLElement>('[data-slot="map-panel"]');
-      if (el) followSheet(map, { ...sheetRoom(was.bottom, el), to: edgeOf(insets.bottom) });
+      // From the room it left, which the map was still centred on: it did
+      // not move under the finger.
+      if (el) followSheet(map, { ...sheetRoom(el), from: edgeOf(was.bottom), to: edgeOf(insets.bottom) });
     };
     if (!turned && phoneTurn && what !== "route") return;
     if (turned) {
@@ -440,7 +445,13 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       const corners = bounds && L.bounds(map.latLngToContainerPoint(bounds.getNorthWest()), map.latLngToContainerPoint(bounds.getSouthEast())).getSize();
       const sightSize = sight.getSize();
       const zoomedIn = !!corners && (corners.x > sightSize.x + 60 || corners.y > sightSize.y + 60);
-      const routeWay = zoomedIn || fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
+      // On a phone the sheet's turn always slides it, never fits it again:
+      // a fit zoomed the chart and drew the route and the airspace again
+      // while the sheet was still moving, the heaviest work at a turn (the
+      // owner, 2026-11-04, of the sheet's list: "Do all"). The location
+      // arrow or a tap on the route still fits it. From `md` up, a card
+      // out at the side, as before.
+      const routeWay = insets.left === was.left || zoomedIn || fitsAfter(middle(insets).subtract(middle(was))) ? "slide" : "route";
       // Neither in sight, on a phone the map still slides with the sheet,
       // what was in the middle of the room it left in the middle of the
       // room it leaves now, as Apple Maps' does (the owner, 2026-10-27:
@@ -507,6 +518,15 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
           // and as far out as the chart layer has tiles. On a TV (lib/tv)
           // the map takes the remote's arrows while it is focused, to pan.
           zoomControl={false} minZoom={3} keyboard={onTv} attributionControl={false} zoomAnimationThreshold={12}
+          // Each tile drawn in the frame it comes, not faded in over 0.2 s
+          // by script, as Leaflet does by default, from the cache too: about
+          // a quarter second on every pan, on top of the chart's own
+          // whole-level change (ChartTiles), which no one had asked for (the
+          // map-load audit; the owner, 2026-11-04: "make it fast but
+          // stable"). The fade also kept tiles through a zoom's animation,
+          // which levelHold's pruneOnlyAtRest does now. Popups on a desktop
+          // open and close at once with it; a phone's cards are the sheet's.
+          fadeAnimation={false}
           className="h-full w-full bg-slate-100 dark:bg-slate-900"
         >
           {/* A remote has no pinch: Leaflet's own + and - to reach with
@@ -547,7 +567,7 @@ export function MapShell({ course, onReady, children, onSelectPlace, held: heldA
       )}
       {/* Two fingers held on the chart measure it, as ForeFlight's ruler. */}
       {chart && map && <MapRuler map={map} />}
-      <MapBanners />
+      <MapBanners map={map} />
       <MapControls />
     </div>
   );

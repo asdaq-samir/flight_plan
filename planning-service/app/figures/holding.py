@@ -1,117 +1,73 @@
 """Holding-pattern entries and wind (the roadmap's holding visualiser, ACS
-IR.III.B), as AIM 5-3-8 gives them: the entry from the airplane's heading
-to the fix against the holding course -- direct from the 180 degree
-sector, teardrop from the 70 degree one on the non-holding side beyond the
-fix, parallel from the 110 degree one on the holding side -- the 70 degree
-line drawn on the holding side, for left turns mirrored; and the inbound
-leg at a minute (a minute and a half above 14,000 ft MSL), the outbound
-heading and time worked to make it so in the wind.
+IR.III.B) by AIM 5-3-8: the entry from the airplane's heading against the
+holding course, the other entry within 5 degrees of a sector's edge, and
+the legs in the wind -- each worked out by the engine
+(wingtip_engine::figures::holding, through wingtip_native), the one copy the
+planner and the phones share. Only the dicts the router reads are made
+here.
 
-web/src/lib/holding.ts, and the words of features/pilot/HoldingPage.tsx,
-ported line for line: the two hold the same rules and change together."""
-from vfr import holds
-from vfr.geo import angle_between
-from vfr.holds import default_leg_min as leg_minutes
-from vfr.runway_wind import components_kt
+web/src/lib/holding.ts asks the same engine (its WebAssembly, by the
+rule's name); the words of features/pilot/HoldingPage.tsx change with the
+engine's."""
+import json
 
-from ..gonogo.words import js_round
-from .diversion import wind_triangle
+import wingtip_native
 
-ENTRY_NAME = {"direct": "Direct", "teardrop": "Teardrop", "parallel": "Parallel"}
+ENTRY_NAME = {key: wingtip_native.holding_entry_name(key) for key in ("direct", "teardrop", "parallel")}
 
 
-def _norm(deg: float) -> float:
-    return (deg % 360 + 360) % 360
+def leg_minutes(altitude_ft: float | None) -> float:
+    """The inbound leg's minutes: a minute at or below 14,000 ft MSL, a
+    minute and a half above (AIM 5-3-8 j.4(a))."""
+    return wingtip_native.holding_leg_minutes(altitude_ft)
 
 
 def bearing(deg: float) -> str:
     """A direction as a pilot writes it, "005°", north "360°" (lib/units
     bearing)."""
-    whole = (js_round(deg) % 360 + 360) % 360
-    return f"{360 if whole == 0 else whole:03d}°"
+    return wingtip_native.figures_bearing(deg)
 
 
 def wind_correction(deg: float) -> str:
     """A correction signed, "+8°", "−3°", none "0°" (lib/units windCorrection)."""
-    shown = js_round(abs(deg))
-    return f"{'' if shown == 0 else '+' if deg > 0 else '−'}{shown}°"
+    return wingtip_native.figures_wind_correction(deg)
 
 
 def holding_entry(inbound_deg: float, heading_deg: float, turns: str) -> dict:
     """The entry for an airplane heading `heading_deg` to the fix of a hold
-    on `inbound_deg` with `turns`: by AIM 5-3-8's sectors, the heading
-    against the inbound course -- for right turns, direct within 110 right
-    to 70 left of it, teardrop beyond 110 right to the reciprocal, parallel
-    beyond the reciprocal to 70 left; left turns their mirror. `either`
-    where it is within 5 degrees of a sector's edge, where the AIM lets a
-    pilot use either entry ("+/- 5 degrees in heading is considered to be
-    within allowable good operating limits for determining entry", AIM
-    5-3-8 j.8(d))."""
-    off = _norm(heading_deg - inbound_deg if turns == "right" else inbound_deg - heading_deg)
-    entry = holds.entry(heading_deg, inbound_deg, turns == "right")
-    edges = [(110, "direct", "teardrop"), (180, "teardrop", "parallel"), (290, "parallel", "direct")]
-    near = next((e for e in edges if angle_between(off, e[0]) <= 5), None)
-    either = (near[2] if near[1] == entry else near[1]) if near else None
+    on `inbound_deg` with `turns` by AIM 5-3-8's sectors, and `either`, the
+    other one, within 5 degrees of a sector's edge (AIM 5-3-8 j.8(d))."""
+    entry, either = wingtip_native.holding_entry(inbound_deg, heading_deg, turns == "right")
     return {"entry": entry, "either": either}
 
 
 def approach_relative(inbound_deg: float, heading_deg: float) -> float:
     """The bearing from the fix the airplane comes from, against the
-    inbound course, for drawing: where it is on the page round the fix."""
-    return _norm(heading_deg + 180 - inbound_deg)
+    inbound course, for drawing."""
+    return wingtip_native.holding_approach_relative(inbound_deg, heading_deg)
 
 
 def holding_wind(inbound_deg: float, tas_kt: float, wind_from_deg: float, wind_kt: float, altitude_ft: float) -> dict | None:
-    """The legs flown in a wind from `wind_from_deg` at `wind_kt` at
-    `tas_kt`, the courses and the wind in the same reference (magnetic, as
-    a clearance gives the course). None where the wind is stronger than
-    the airplane. The outbound heading by the rule of three: three times
-    the inbound correction, the other way ("When outbound, triple the
-    inbound drift correction", AIM 5-3-8 j.8(c)); the outbound time, seconds,
-    for the inbound leg to take its minute at the legs' ground speeds, the
-    turns left out; and a rule of thumb with no FAA figure behind it, a
-    second a knot of the wind along the course (the AIM asks only that the
-    outbound time be set to make the inbound leg's, 5-3-8 j.4(a))."""
-    leg_min = leg_minutes(altitude_ft)
-    outbound_deg = _norm(inbound_deg + 180)
-    inbound = wind_triangle(inbound_deg, tas_kt, wind_from_deg, wind_kt)
-    out_leg = wind_triangle(outbound_deg, tas_kt, wind_from_deg, wind_kt)
-    if not inbound or not out_leg:
+    """The legs flown in the wind -- the inbound leg's minutes, each leg's
+    heading, correction and ground speed, the outbound time by the speeds
+    and by the rule of a second a knot -- or None where the wind is
+    stronger than the airplane (AIM 5-3-8 j.4(a), j.8(c))."""
+    worked = wingtip_native.holding_wind_json(inbound_deg, tas_kt, wind_from_deg, wind_kt, altitude_ft)
+    if worked is None:
         return None
-    out_wca = -3 * inbound["wca"]
-    headwind_in, _ = components_kt(wind_from_deg, wind_kt, inbound_deg)
-    return {
-        "leg_min": leg_min,
-        "inbound": {"heading": _norm(inbound_deg + inbound["wca"]), "wca": inbound["wca"], "gs": inbound["gs"]},
-        "outbound": {"heading": _norm(outbound_deg + out_wca), "wca": out_wca, "gs": out_leg["gs"]},
-        "outbound_sec": (leg_min * 60 * inbound["gs"]) / out_leg["gs"],
-        # A headwind inbound is a tailwind outbound: shorten the outbound leg.
-        "rule_sec": leg_min * 60 - headwind_in,
-    }
+    w = json.loads(worked)
+    for words in ("inbound_words", "outbound_words", "time_words"):
+        del w[words]
+    return w
 
 
 def entry_steps(entry: str, inbound: float, turns: str, altitude_ft: float) -> str:
-    """AIM 5-3-8's words for each entry, for the turns given: the outbound
-    minute is a minute and a half above 14,000 ft MSL (leg_minutes)."""
-    leg = "one minute" if leg_minutes(altitude_ft) == 1 else "a minute and a half"
-    outbound = (inbound + 180) % 360
-    away = "left" if turns == "right" else "right"
-    if entry == "direct":
-        return f"Fly to the fix and turn {turns} to follow the pattern: outbound on {bearing(outbound)}."
-    if entry == "teardrop":
-        tear = outbound - 30 if turns == "right" else outbound + 30
-        return (f"Fly to the fix, then turn to {bearing(tear)}, 30° into the holding side, for {leg}; "
-                f"turn {turns} to intercept the inbound course, {bearing(inbound)}.")
-    return (f"At the fix, turn to {bearing(outbound)}, parallel to the holding course on the non-holding side, for {leg}; "
-            f"then turn {away}, toward the holding side, through more than 180° to intercept the inbound course or return to the fix.")
+    """AIM 5-3-8's words for each entry, for the turns given."""
+    return wingtip_native.holding_entry_steps(entry, inbound, turns == "right", altitude_ft)
 
 
 def wind_words(w: dict) -> dict:
     """The rows' lines under the legs' figures, as HoldingPage writes them."""
-    minute = "a minute" if w["leg_min"] == 1 else "a minute and a half"
-    gs_in = js_round(w["inbound"]["gs"])
-    return {
-        "inbound": f"{wind_correction(w['inbound']['wca'])} for the wind, {gs_in} kt over the ground",
-        "outbound": f"Three times the inbound correction, {wind_correction(w['outbound']['wca'])}, the turns' drift taken up too",
-        "time": f"So the inbound leg takes {minute} at {gs_in} kt; by the rule of a second a knot, {js_round(w['rule_sec'])} s",
-    }
+    inbound, outbound, time = wingtip_native.holding_wind_words(
+        w["leg_min"], w["inbound"]["wca"], w["inbound"]["gs"], w["outbound"]["wca"], w["rule_sec"])
+    return {"inbound": inbound, "outbound": outbound, "time": time}

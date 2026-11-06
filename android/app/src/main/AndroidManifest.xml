@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The native Android app (docs/NATIVE-ANDROID.md). The network for the
+     planner, the gateway and the chart's tiles; whether there is one, for
+     the words shown when there is not. No location yet: own ship is a
+     later phase. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Own ship (flight/OwnShip.kt): the position at one fix a second,
+         kept with the screen off while flying through a foreground
+         service of the location type (Android 14 wants the typed
+         permission too), with the notification Android requires for one
+         and the alerts the flight pieces post (notify/Notifications.kt). -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Only HTTPS: the gateway and the tiles' CDN are, and a plain-HTTP
+         request is refused by the system rather than sent. The session's
+         cookies are kept by the app itself (CookieStore), so Android's
+         backup of the app's data is off. Predictive back (Android 14+):
+         the system's back animation, with nothing of our own in its way. -->
+    <application
+        android:name=".WingtipApplication"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/Theme.WingtipMaps"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
+        android:enableOnBackInvokedCallback="true">
+
+        <!-- One task, one instance: a link tapped in Gmail while the app is
+             open comes to the running activity as a new intent
+             (MainActivity.onNewIntent) rather than opening a second one. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- App Links (docs/ANDROID.md): the sign-in link emailed to the
+                 pilot, and a shared route, open the app rather than Chrome,
+                 verified against the site's /.well-known/assetlinks.json
+                 once the owner lists this package's signing key there. The
+                 host is the build's WINGTIP_HOST (build.gradle.kts). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
+                <data android:host="${wingtipHost}" />
+                <data android:pathPrefix="/app/plan" />
+                <data android:pathPrefix="/api/auth/magic-link/verify" />
+            </intent-filter>
+        </activity>
+
+        <!-- The foreground service that keeps the fixes coming with the
+             screen off while the airplane is flying (flight/OwnShip.kt);
+             started and stopped by OwnShip as the airplane reaches and
+             leaves flying speed, never by anything outside the app. -->
+        <service
+            android:name=".flight.OwnShipService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+    </application>
+
+</manifest>

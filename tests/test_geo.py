@@ -4,7 +4,7 @@ import random
 import numpy as np
 import pytest
 
-from vfr.geo import (
+from wingtip.geo import (
     EARTH_RADIUS_NM,
     along_path_nm,
     along_track_distance_nm,
@@ -14,6 +14,7 @@ from vfr.geo import (
     cross_track_distance_nm,
     destination_point,
     distance_nm,
+    nearest,
     nearest_neighbour_nm,
     neighbours_within_nm,
     tile_lat_lon,
@@ -65,7 +66,7 @@ def test_cross_track_distance_off_route_is_nonzero_and_signed():
 
 def test_cross_track_sign_is_positive_right_of_course():
     # Flying due east along the equator, a point to the south is off the
-    # right wing. vfr.pipeline's corridor filter and the nav log both
+    # right wing. wingtip.pipeline's corridor filter and the nav log both
     # read this sign.
     route_start, route_end = (0, 0), (0, 10)
     assert cross_track_distance_nm(-1, 5, route_start, route_end) > 0
@@ -81,7 +82,7 @@ def test_along_track_distance_at_route_midpoint():
 
 
 def test_along_track_distance_behind_the_start_is_negative():
-    # The signed convention vfr.pipeline's corridor filter is written
+    # The signed convention wingtip.pipeline's corridor filter is written
     # for: it bounds along-track between -MARGIN_NM and the route length
     # plus MARGIN_NM, which only excludes anything if a candidate behind
     # the departure point reads negative.
@@ -145,7 +146,7 @@ def test_corridor_bbox_padding():
 
 # --- The library check ---------------------------------------------------
 #
-# vfr.geo's distances and azimuths are PROJ's, and the two track
+# wingtip.geo's distances and azimuths are PROJ's, and the two track
 # distances are written there from the standard spherical identities.
 # pygeodesy has its own independent implementation of all four, so it is
 # the oracle they are pinned against. It is a test dependency only
@@ -263,3 +264,17 @@ def test_tiles_take_arrays_and_give_plain_floats_for_scalars():
     for i in range(2):
         assert (xs[i], ys[i]) == pytest.approx(tile_xy(lats[i], lons[i], 10))
     assert all(type(v) is float for v in tile_xy(36.08, -115.152, 10) + tile_lat_lon(184.3, 401.7, 10))
+
+
+def test_nearest_is_the_argmin_of_every_distance_first_on_a_tie():
+    rng = np.random.default_rng(11)
+    for _ in range(30):
+        lat, lon = rng.uniform(25, 49, 400), rng.uniform(-125, -67, 400)
+        to_lat, to_lon = rng.uniform(25, 49, 150), rng.uniform(-125, -67, 150)
+        # Ties and near-ties: points repeated, and points a hair apart, as a
+        # way's samples meet at a turn.
+        to_lat[10:20], to_lon[10:20] = to_lat[:10], to_lon[:10]
+        to_lat[20:30], to_lon[20:30] = to_lat[:10] + 1e-13, to_lon[:10] - 1e-13
+        lat[:150], lon[:150] = to_lat + rng.normal(0, 0.01, 150), to_lon + rng.normal(0, 0.01, 150)
+        every = distance_nm(lat[:, None], lon[:, None], to_lat[None, :], to_lon[None, :])
+        assert (nearest(lat, lon, to_lat, to_lon) == np.argmin(every, axis=1)).all()

@@ -2,9 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 import { settle, slow, controlsInSight } from "./helpers";
 
 /**
- * The route as a file for another app or the panel's GPS: the capsule's
- * share opens a menu of the link and the files, and a file the browser
- * cannot share is downloaded.
+ * The route to ForeFlight, which sends it on to the panel's GPS
+ * wirelessly, by ForeFlight's own links.
  */
 
 /** C81 to KDLH, its checkpoints in, as the files go through them. */
@@ -16,17 +15,13 @@ async function routeWithCheckpoints(page: Page) {
   await controlsInSight(page);
 }
 
-test("the route exports as a Garmin flight plan through its checkpoints", async ({ page }) => {
+test("the route goes to the panel through ForeFlight, with no Garmin Pilot item and no files for an SD card or a USB stick", async ({ page }) => {
   await routeWithCheckpoints(page);
   await page.getByTestId("share-route").click();
-  const download = page.waitForEvent("download");
-  await page.getByTestId("export-fpl").click();
-  const file = await download;
-  expect(file.suggestedFilename()).toBe("C81-KDLH.fpl");
-  const text = await (await file.createReadStream()).toArray().then(chunks => Buffer.concat(chunks).toString());
-  expect(text).toContain("<waypoint-identifier>C81</waypoint-identifier>");
-  expect(text).toContain("<waypoint-identifier>KDLH</waypoint-identifier>");
-  expect(text).toContain("<waypoint-identifier>CP01</waypoint-identifier>");
+  await expect(page.getByTestId("open-foreflight")).toBeVisible();
+  // The owner's calls (2026-11-02): wireless through ForeFlight, which
+  // most pilots have; no Garmin Pilot, no SD card or USB stick.
+  for (const id of ["open-garmin-pilot", "export-fpl", "export-gfp", "export-gpx", "export-user-wpt", "export-dynon"]) await expect(page.getByTestId(id)).toHaveCount(0);
 });
 
 test("the route goes to ForeFlight in one button: its checkpoints' pack the first time, then the route by their names", async ({ page }) => {

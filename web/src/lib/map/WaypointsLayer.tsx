@@ -1,103 +1,127 @@
-import L from "leaflet";
-import { memo, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type L from "leaflet";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Marker, Pane } from "react-leaflet";
+import { Pane, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
-import { hovers } from "./view";
+import { hovers, type Box } from "./view";
 import { useAhead, useLiveZoom } from "./useView";
-import { diamondIcon } from "./icons";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { MAGENTA } from "../useAirspace";
-import { MapTooltip } from "./MapTooltip";
+import { NavaidMarksLayer, type NavaidMark } from "./NavaidCanvas";
+import { fieldTapped } from "./declutter";
+import { NavaidHover, TAP_PX } from "./NavaidsLayer";
 import { PointWhere } from "./PointWhere";
 import { PointActions } from "./PointCardActions";
 import { usePointActions } from "./pointActions";
 import { fixRadialDistance } from "../navaid";
 import { TEXT } from "../text";
 
-/** From this zoom in, as the airports' (AirportsLayer): further out the
- *  diamonds would be a scatter over every city's airspace. */
-const FROM_ZOOM = 8;
+/** From this zoom in, the GPS waypoints' (NavaidsLayer's FIX_ZOOM), at
+ *  the owner's ask ("Vfr waypoints can show at the zoom level of gps
+ *  waypoints too", 2026-11-04): further out their idents would be a
+ *  scatter over every city's airspace. */
+const FROM_ZOOM = 10;
+
+type Waypoint = { ident: string; lat: number; lon: number; description?: string | null };
 
 /**
- * The chart's VFR waypoints (VPBNG), each marked with a magenta diamond
- * from zoom 8 in: the sectional prints them as small flags, too small to
- * read zoomed out and not a thing to tap. A tap opens its card: what and
- * where it is, and with a route open Direct To and Add to Route.
- * Under the airports' chips, and not for one the route has already
+ * The chart's VFR waypoints (VPBNG), from zoom 10 in, drawn as the GPS
+ * waypoints are (NavaidsLayer's fixes) -- the low chart's triangle and
+ * the ident beside it, on the navaids' canvas, a tap given to the nearest
+ * -- in the chart's magenta, at the owner's ask ("The VFR waypoints
+ * should look/behave similar to gps waypoints, just in different color",
+ * 2026-11-04); they were a magenta diamond each with no name, a marker of
+ * their own. A tap opens its card: what and where it is, and with a route
+ * open Direct To and Add to Route. Not one the route has already
  * (`exclude`), which wears its own.
  */
 export function WaypointsLayer({ exclude }: { exclude: Set<string> }) {
   // As the airports' marks are asked for and drawn (useAhead, useLiveZoom):
   // the view and a screen round it, asked again under a finger's pan or
-  // pinch, and the zoom each whole level a pinch passes. The diamonds were
-  // asked for only once the map had stopped, so none came in under the
-  // finger, a pan's or a pinch's.
+  // pinch, and the zoom each whole level a pinch passes; the question sent
+  // from the map's own events.
   const zoom = useLiveZoom();
-  const asked = useAhead();
-  const { data } = useQuery({
-    queryKey: ["waypointsInView", asked.key],
-    queryFn: () => api.waypointsInView(asked.box),
-    enabled: zoom >= FROM_ZOOM,
-    staleTime: Infinity,
-    placeholderData: keepPreviousData,
-    meta: { silent: true },
-  });
-  // The diamonds made again only when the answer changes, not at each
-  // level a zoom passes: a pan inside the same half-degree box drew every
-  // diamond, and its open card, again (MapPopup).
-  const diamonds = useMemo(() => (data ?? []).filter(w => !exclude.has(w.ident)), [data, exclude]);
-  if (zoom < FROM_ZOOM) return null;
+  const asked = useAhead(waypointsQuery);
+  const query = waypointsQuery(asked, zoom);
+  const { data } = useQuery({ ...query, placeholderData: keepPreviousData });
+  const shown = useMemo(() => (data ?? []).filter(w => !exclude.has(w.ident)), [data, exclude]);
+  if (!query.enabled) return null;
   return (
     <Pane name="waypoints" style={{ zIndex: 440 }}>
-      {diamonds.map(w => <WaypointMark key={w.ident} waypoint={w} />)}
+      <WaypointMarks waypoints={shown} />
     </Pane>
   );
 }
 
-/** A tap on a diamond kept off the map under it. A constant: react-leaflet
- *  binds a marker's handlers again whenever they are a new object. */
-const STOP_CLICK = { click: (e: L.LeafletMouseEvent) => L.DomEvent.stopPropagation(e) };
+/** The planner asked for a box's VFR waypoints, from FROM_ZOOM: by the
+ *  layer's useQuery and by the map's own events (useAhead) alike. */
+export function waypointsQuery(asked: Box, zoom: number) {
+  return {
+    queryKey: ["waypointsInView", asked.key],
+    queryFn: () => api.waypointsInView(asked.box),
+    enabled: zoom >= FROM_ZOOM,
+    staleTime: Infinity,
+    meta: { silent: true },
+  };
+}
 
-/** One VFR waypoint's diamond and its card, drawn again only when the
- *  waypoint changes: made inline, every diamond had a new position and new
- *  handlers at every draw of the map -- each placed on the page again, its
- *  handlers unbound and bound -- at every zoom's end. */
-const WaypointMark = memo(function WaypointMark({ waypoint: w }: {
-  waypoint: { ident: string; lat: number; lon: number; description?: string | null };
-}) {
-  const position = useMemo<[number, number]>(() => [w.lat, w.lon], [w.lat, w.lon]);
+/** The canvas the waypoints are drawn on, made once and given them as
+ *  they change; a tap's card; with a mouse, the one under the pointer
+ *  named (NavaidMarks the same). */
+function WaypointMarks({ waypoints }: { waypoints: Waypoint[] }) {
+  const map = useMap();
+  const [layer] = useState(() => new NavaidMarksLayer("waypoints"));
+  useEffect(() => {
+    layer.addTo(map);
+    return () => { layer.remove(); };
+  }, [layer, map]);
+  const marks = useMemo(() => waypoints.map((w): NavaidMark => ({ key: `vfr-${w.ident}`, ident: w.ident, lat: w.lat, lon: w.lon, kind: "vfr", side: "right" })), [waypoints]);
+  useEffect(() => { layer.setMarks(marks); }, [layer, marks]);
+  const byKey = useRef(new Map<string, Waypoint>());
+  useEffect(() => { byKey.current = new Map(waypoints.map(w => [`vfr-${w.ident}`, w])); }, [waypoints]);
+  const [picked, setPicked] = useState<Waypoint | null>(null);
+  useMapEvents(useMemo(() => ({
+    click: (e: L.LeafletMouseEvent) => {
+      const target = e.originalEvent.target as Element | null;
+      if (target?.closest(".leaflet-marker-icon, .leaflet-popup, path.leaflet-interactive")) return;
+      // A field's tap is the field's (declutter's fieldTapped).
+      const near = fieldTapped(map, e.containerPoint) ? null : layer.nearest(e.containerPoint, TAP_PX)?.mark ?? null;
+      setPicked(was => (!near ? null : was && `vfr-${was.ident}` === near.key ? was : byKey.current.get(near.key) ?? null));
+    },
+  }), [layer, map]));
+  const closed = useMemo<L.LeafletEventHandlerFnMap>(() => ({ remove: () => setPicked(null) }), []);
   return (
-    <Marker position={position} icon={diamondIcon()} eventHandlers={STOP_CLICK}>
-      {/* In Leaflet's own panes, not this one: a popup in the
-          diamonds' pane had the diamonds after it drawn over it. */}
-      {hovers && <MapTooltip pane="tooltipPane">{w.ident} · VFR waypoint{w.description ? ` ${w.description}` : ""}</MapTooltip>}
-      <MapPopup pane="popupPane" panOnce>
-        {/* No name of its own: what it is beside its ident, and where it
-            is on a line of its own (the planner's vfr.places), at the
-            pilot's ask -- on one line the card ran the screen's width. */}
-        <WaypointCard waypoint={w} />
-      </MapPopup>
-    </Marker>
+    <>
+      {hovers && <NavaidHover layer={layer} />}
+      {picked && (
+        <MapPopup key={picked.ident} position={[picked.lat, picked.lon]} pane="popupPane" panOnce eventHandlers={closed}>
+          <WaypointCard waypoint={picked} />
+        </MapPopup>
+      )}
+    </>
   );
-});
+}
 
 /** A VFR waypoint's card, made once it is opened: what it is and where,
  *  off the nearest VOR on the map as a controller places it, and Direct
  *  To, Add to Route and Copy of its ident, as a VOR's card (PointActions),
  *  at the owner's ask for cards that say what a pilot does there
  *  (2026-10-30). No name of its own: what it is beside its ident, and where
- *  it is on a line of its own (the planner's vfr.places) -- on one line the
+ *  it is on a line of its own (the planner's wingtip.places) -- on one line the
  *  card ran the screen's width. */
-function WaypointCard({ waypoint: w }: { waypoint: { ident: string; lat: number; lon: number; description?: string | null } }) {
+function WaypointCard({ waypoint: w }: { waypoint: Waypoint }) {
   const stations = usePointActions(s => s.stations);
   const frd = fixRadialDistance(w, stations);
   return (
     <MapCard
       pill={{ name: `${w.ident} VFR waypoint`, line: w.description || frd || undefined, colour: MAGENTA }}
-      // The chart's diamond, as the map marks it, before its ident.
-      media={<span aria-hidden="true" className="mx-1.5 size-3.5 shrink-0 rotate-45 rounded-[2px] border-2 border-white shadow-sm" style={{ backgroundColor: MAGENTA }} />}
+      // The map's magenta triangle, as it marks it, before its ident.
+      media={(
+        <svg className="mx-1 shrink-0" width="16" height="16" viewBox="0 0 10 10" aria-hidden="true">
+          <polygon points="5,1 9.4,8.8 0.6,8.8" fill="#fff" stroke={MAGENTA} strokeWidth="1.6" strokeLinejoin="round" />
+        </svg>
+      )}
       title={<>{w.ident}<span className="font-normal text-muted-foreground">VFR waypoint</span></>}
       subtitle={w.description || undefined}
     >

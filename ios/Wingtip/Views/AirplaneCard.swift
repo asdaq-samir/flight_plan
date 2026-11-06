@@ -258,10 +258,15 @@ struct NowFlightRow: View {
                 Text(route.flatMap { $0.airports.count > 1 ? $0.airports.last?.ident : nil } ?? "Now").font(.title3.bold())
             }
             Text(flying).font(.subheadline.monospacedDigit().weight(.semibold))
+                .accessibilityLabel(spokenFlying)
             if let squawk = plane.squawk {
+                // An emergency code says its meaning in words beside the
+                // red (FlightWords.squawks), so the colour is not the only
+                // sign of it.
                 Text("Squawk \(squawk)\(FlightWords.squawks[squawk].map { " · \($0)" } ?? "")")
                     .font(.subheadline.monospacedDigit())
                     .foregroundStyle(FlightWords.squawks[squawk] != nil ? Color.red : Color.secondary)
+                    .accessibilityLabel("Squawk \(SpokenFigures.digits(squawk))\(FlightWords.squawks[squawk].map { ", \($0)" } ?? "")")
             }
             if let fix = ownShip.fix {
                 Text(fromYou(fix)).font(.subheadline).foregroundStyle(.secondary)
@@ -278,8 +283,16 @@ struct NowFlightRow: View {
         let climb = abs(rate) >= 100 ? "\(rate > 0 ? "↑" : "↓") \((Int((abs(rate) / 100).rounded()) * 100).formatted()) fpm" : "level"
         let height = plane.altitudeFt.map { "\((Int(($0 / 25).rounded()) * 25).formatted()) ft" } ?? "—"
         let speed = plane.speedKt.map { "\(Int($0.rounded())) kt" } ?? "—"
-        let track = plane.trackDeg.map { String(format: " · %03.0f° true", $0) } ?? ""
+        let track = plane.trackDeg.map { " · \(Formats.degrees($0)) true" } ?? ""
         return "\(height) \(climb) · \(speed)\(track)"
+    }
+
+    /// The same line in words: the arrows would be read as "up arrow".
+    private var spokenFlying: String {
+        let rate = plane.verticalFpm ?? 0
+        let climb = abs(rate) >= 100 ? "\(rate > 0 ? "climbing" : "descending") \(SpokenFigures.feetPerMinute((abs(rate) / 100).rounded() * 100))" : "level"
+        return [plane.altitudeFt.map { SpokenFigures.feet(($0 / 25).rounded() * 25) }, climb, plane.speedKt.map(SpokenFigures.knots),
+                plane.trackDeg.map { "track \(SpokenFigures.degrees($0)) true" }].compactMap { $0 }.joined(separator: ", ")
     }
 
     private func fromYou(_ fix: OwnShip.Fix) -> String {
@@ -287,7 +300,7 @@ struct NowFlightRow: View {
         let nm = Flight.nm(from: fix.coordinate, to: here)
         let bearing = Flight.bearing(from: fix.coordinate, to: here)
         let height = fix.altitudeFt.flatMap { own in plane.altitudeFt.map { ", " + FlightWords.against($0 - own) } } ?? ""
-        return String(format: "%.0f nm %@ of you", nm, AirportWords.compassPoint(bearing)) + height
+        return "\(Formats.nm(nm, decimals: 0)) \(AirportWords.compassPoint(bearing)) of you" + height
     }
 }
 
@@ -432,7 +445,10 @@ struct FlightProfileChart: View {
         .onChange(of: picked) { _, date in
             if let date { onScrub?(date.timeIntervalSince1970) }
         }
-        .accessibilityLabel("Profile, highest \(Int(points.compactMap(\.altFt).max() ?? 0).formatted()) feet")
+        .accessibilityLabel("Profile, highest \(SpokenFigures.feet(points.compactMap(\.altFt).max() ?? 0))")
+        // Where the replay's airplane is, as the figures over the chart say
+        // it; the slider under the chart is the way to move it by VoiceOver.
+        .accessibilityValue(cursor.map { "\(ReplaySection.clock($0.t)), \(ReplaySection.spoken($0))" } ?? "")
     }
 }
 
@@ -470,4 +486,57 @@ struct FAARecordSection: View {
             }
         }
     }
+}
+
+private enum PreviewData {
+    static let plane = TrafficAircraft(hex: "a8c2e1", lat: 46.84, lon: -92.19, callsign: "N3429J", registration: "N3429J", type: "P28A",
+                                       altitudeFt: 4500, trackDeg: 215, speedKt: 112, verticalFpm: 0, squawk: "1200")
+    static let faa = FAARecord(nNumber: "N3429J", airworthiness: "Standard", airworthinessDate: "1998-04-02", city: "Duluth",
+                               engine: "Lycoming O-320", engineType: "Reciprocating", expires: "2028-06-30", horsepower: 150,
+                               manufacturer: "Piper", model: "PA-28-140", owner: "Lake Superior Flying Club", ownerType: "Corporation",
+                               seats: 4, standing: "current", state: "MN", status: "Valid", year: 1968)
+    static let detail = FlightDetail(hex: "a8c2e1", departed: FlightDeparted(at: 1_762_180_000, ident: "KDLH", name: "Duluth Intl"),
+                                     description: "PIPER PA-28-140", `operator`: "LAKE SUPERIOR FLYING CLUB", registration: "N3429J",
+                                     type: "P28A", year: "1968", faa: faa)
+    static let route = FlightRoute(airports: [RouteAirport(ident: "KDLH", location: "Duluth", name: "Duluth Intl"),
+                                              RouteAirport(ident: "KBRD", location: "Brainerd", name: "Brainerd Lakes Rgnl")], plausible: true)
+    static let flight = PastFlightSummary(id: 1, inAir: false, landed: true, maxAltFt: 5500, off: 1_762_000_000, on: 1_762_003_120,
+                                          origin: PastFlightField(ident: "KDLH", city: "Duluth", name: "Duluth Intl", region: "US-MN"),
+                                          destination: PastFlightField(ident: "KBRD", city: "Brainerd", name: "Brainerd Lakes Rgnl", region: "US-MN"))
+}
+
+#Preview("NowFlightRow") {
+    List { NowFlightRow(plane: PreviewData.plane, detail: PreviewData.detail, route: PreviewData.route) }
+        .environment(OwnShip())
+}
+
+#Preview("PastFlightRow") {
+    List {
+        PastFlightRow(flight: PreviewData.flight, type: "P28A")
+        PastFlightRow(flight: PastFlightSummary(id: 2, inAir: true, landed: false, maxAltFt: 4500, off: 1_762_180_000, on: 1_762_182_400,
+                                                origin: PastFlightField(ident: "KDLH", city: "Duluth", region: "US-MN")), type: "P28A")
+    }
+}
+
+#Preview("PastFlightCard") {
+    NavigationStack { PastFlightCard(hex: "a8c2e1", flight: PreviewData.flight) }
+}
+
+#Preview("FlightProfileChart") {
+    let start = 1_762_000_000.0
+    // Typed out: as one inferred closure the type checker gave up on it.
+    let points: [Replay.Point] = (0..<40).map { (i: Int) -> Replay.Point in
+        let n = Double(i)
+        let climb: Double = Double(min(i, 20)) * 250
+        let gust: Double = Double(i % 7) * 3
+        return Replay.Point(t: start + n * 60, lat: 46.84 - n * 0.01, lon: -92.19 - n * 0.015,
+                            altFt: 1400 + climb, gsKt: 95 + gust)
+    }
+    return FlightProfileChart(points: points, cursor: points[15])
+        .frame(height: 180)
+        .padding()
+}
+
+#Preview("FAARecordSection") {
+    List { FAARecordSection(faa: PreviewData.faa) }
 }

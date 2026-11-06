@@ -75,9 +75,12 @@ interface OwnShip {
 }
 
 /** Where the planner opens on the pilot's position: the region a flight
- *  from here goes to, some 200 nm across a phone -- four levels out from
- *  the location arrow's close-in view, the pilot found it too close. */
-export const OPEN_ZOOM = 7;
+ *  from here goes to, some 100 nm across a phone -- the zoom from which
+ *  the Class D rings and every airport are drawn (AirspaceLayer's and
+ *  AirportsLayer's FROM_ZOOM), at the owner's ask (2026-11-04: "make the
+ *  current position zoom level the same as class D airports"); at 7 the
+ *  position opened on a chart with the Class B and C alone. */
+export const OPEN_ZOOM = 8;
 /** Where a map with no route and no position opens: the lower 48, whole
  *  on a phone, as Maps opens on the country before it knows where you are. */
 export const COUNTRY_ZOOM = 4;
@@ -298,25 +301,22 @@ export function endSimulation() {
 }
 
 /**
- * The planner opened fresh, on no route: the map on the pilot's position,
- * as Maps opens on yours -- own ship on and the map brought to it
- * (OwnShipLayer) -- where the position has been given before: the
- * browser says it is granted, or this browser has had a fix (`lastFix`,
- * kept), as Safari, which asks again on a later day, does not say. On a
- * first visit nothing is asked as the page opens, at the pilot's ask and
- * as Apple's guidelines have it (ask for location when it is needed):
- * the map is on the country, and the location arrow asks. A prompt on
- * opening was also a mark against the page in Lighthouse's best
- * practices. Not where this site has been refused, which is not asked
- * again; and quietly: a refusal now leaves own ship off, the map on the
- * country, with no error over it (a tap on the arrow still says why).
+ * The planner opened: the map on the pilot's position, as Maps opens on
+ * yours -- own ship on and the map brought to it (OwnShipLayer) -- by
+ * default, at the owner's ask (2026-11-04: "By default load the sheet on
+ * current location"): on a first visit the browser asks as the page
+ * opens, where before it waited for the location arrow (Apple's
+ * guidelines' ask-when-needed, and a mark against the page in
+ * Lighthouse's best practices, both now the owner's call). Not where
+ * this site has been refused, which is not asked again; and quietly: a
+ * refusal now leaves own ship off, the map on the country, with no error
+ * over it (a tap on the arrow still says why).
  */
 export async function locateOnOpen() {
   if (!ownShipAvailable()) return;
   const permission = await navigator.permissions?.query({ name: "geolocation" })
     .then(status => status.state).catch(() => "prompt" as const) ?? "prompt";
   if (permission === "denied") return;
-  if (permission !== "granted" && !useOwnShip.getState().lastFix) return;
   const { enabled, setEnabled, recentre } = useOwnShip.getState();
   if (!enabled) {
     quiet = true;

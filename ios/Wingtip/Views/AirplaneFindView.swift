@@ -22,11 +22,20 @@ struct AirplaneRow: View {
     var body: some View {
         HStack {
             Image(systemName: "airplane").rotationEffect(.degrees((plane.trackDeg ?? 90) - 90)).foregroundStyle(.secondary)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(KeptAirplane.name(plane)).font(.headline)
                 Text(AirplaneRow.line(plane)).font(.footnote).foregroundStyle(.secondary)
+                    .accessibilityLabel(Self.spoken(plane))
             }
         }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The line as VoiceOver says it: the height and speed in words.
+    static func spoken(_ plane: TrafficAircraft) -> String {
+        [plane.type, plane.altitudeFt.map { SpokenFigures.feet(($0 / 100).rounded() * 100) }, plane.speedKt.map(SpokenFigures.knots)]
+            .compactMap { $0 }.joined(separator: ", ")
     }
 
     /// Its type, height in hundreds of feet as reported, and speed.
@@ -36,5 +45,13 @@ struct AirplaneRow: View {
         if let ft = plane.altitudeFt { parts.append("\(Int((ft / 100).rounded() * 100).formatted()) ft") }
         if let kt = plane.speedKt { parts.append("\(Int(kt.rounded())) kt") }
         return parts.joined(separator: " · ")
+    }
+}
+
+#Preview("AirplaneRow") {
+    List {
+        AirplaneRow(plane: TrafficAircraft(hex: "a8c2e1", lat: 46.84, lon: -92.19, callsign: "N3429J", registration: "N3429J", type: "P28A",
+                                           altitudeFt: 4500, trackDeg: 215, speedKt: 112))
+        AirplaneRow(plane: TrafficAircraft(hex: "a1b2c3", lat: 46.90, lon: -92.30, registration: "N172SP", type: "C172", altitudeFt: 3000, trackDeg: 40, speedKt: 98))
     }
 }

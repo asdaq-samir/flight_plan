@@ -3,7 +3,7 @@ sources a small corpus, the examiner's tool calls canned."""
 import anthropic
 import pytest
 from fastapi.testclient import TestClient
-from vfr import references
+from wingtip import references
 
 from app import oral
 from app.main import app

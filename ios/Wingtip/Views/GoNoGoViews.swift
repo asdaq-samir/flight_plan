@@ -23,6 +23,18 @@ enum FindingStyle {
         default: .secondary
         }
     }
+
+    /// The finding in a word, for VoiceOver, where the mark's shape and
+    /// colour say it to the eye.
+    static func word(_ finding: String) -> String {
+        switch finding {
+        case "ok": "Clear"
+        case "caution": "Caution"
+        case "stop": "Stop"
+        case "pending": "Still being checked"
+        default: "Not worked out"
+        }
+    }
 }
 
 /// Where a finding opens: a section of the Brief by its anchor, or a page
@@ -54,19 +66,54 @@ enum VerdictTarget: Equatable {
 /// them, which the weather is held to.
 struct GoNoGoSection: View {
     @Environment(Verdict.self) private var verdict
+    @Environment(Session.self) private var session
     /// Scrolls the Brief to one of its sections.
     var open: (String) -> Void
+    /// The Go / No-Go in words (Words.swift), over its findings: the
+    /// planner's, else this iPhone's; written again as the answer changes.
+    @State private var riskWords: SaidWords?
+    @State private var writingWords = false
+    /// The instructor the pilot asked in, once they accepted, for the
+    /// note at the foot.
+    @State private var instructor: InstructorLink?
+    @State private var restOpen = false
 
     var body: some View {
+        if verdict.answer != nil {
+            WordsSection(title: "The flight in words", said: riskWords, writing: writingWords)
+        }
         Section {
             if let answer = verdict.answer {
                 Label {
                     Text(answer.line.words).font(.headline)
                 } icon: {
                     Image(systemName: FindingStyle.symbol(answer.line.finding))
+                        .accessibilityLabel(FindingStyle.word(answer.line.finding))
                 }
                 .foregroundStyle(FindingStyle.colour(answer.line.finding))
-                ForEach(answer.items) { item in row(item) }
+                .accessibilityElement(children: .combine)
+                // At a glance (the owner's rule, 2026-11-03): at most three
+                // lines a pilot acts on, each opening to its why, and the
+                // rest in one row.
+                ForEach(Glance.lines(answer)) { line in
+                    if let item = answer.items.first(where: { $0.key == line.key }) {
+                        FindingFold(item: item, words: line.words, open: open)
+                    }
+                }
+                if let rest = Glance.restWords(answer) {
+                    DisclosureGroup(isExpanded: $restOpen) {
+                        ForEach(Glance.rest(answer)) { item in row(item) }
+                    } label: {
+                        Label {
+                            Text(rest)
+                        } icon: {
+                            let finding = Glance.rest(answer).contains { $0.finding != "ok" } ? "caution" : "ok"
+                            Image(systemName: FindingStyle.symbol(finding)).foregroundStyle(FindingStyle.colour(finding))
+                                .accessibilityLabel(FindingStyle.word(finding))
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                }
             } else if let problem = verdict.problem {
                 Label(problem, systemImage: "exclamationmark.triangle").foregroundStyle(.secondary)
             } else {
@@ -75,11 +122,39 @@ struct GoNoGoSection: View {
             NavigationLink { MinimumsView() } label: {
                 Label("Personal minimums", systemImage: "slider.horizontal.3")
             }
+            .task(id: session.signedIn) {
+                // The instructor's name comes with the training (Gateway);
+                // none for a pilot with no instructor, or signed out.
+                guard session.signedIn else { instructor = nil; return }
+                instructor = (try? await Gateway.training())??.instructors.first { $0.accepted }
+            }
+            if let instructor {
+                Label {
+                    Text("Your instructor, \(instructor.name ?? instructor.email), reviews the flights you put to them from their phone.")
+                        .font(.subheadline)
+                } icon: {
+                    Image(systemName: "person.crop.circle").foregroundStyle(Color.accentColor)
+                }
+                .accessibilityElement(children: .combine)
+            }
         } header: {
             HStack {
                 Text("Go / No-Go")
                 if verdict.asking, verdict.answer != nil { ProgressView().controlSize(.mini) }
             }
+        }
+        // The words for the answer on the page; the findings stay as they
+        // are while they are written.
+        .task(id: verdict.answer) {
+            guard let answer = verdict.answer else { riskWords = nil; return }
+            writingWords = true
+            defer { writingWords = false }
+            let minimums = PersonalMinimums.Key.allCases.compactMap { key in verdict.minimums[key].map { "\(key.title): \(key.words($0))" } }
+            let pilot: [String: String]? = minimums.isEmpty ? nil : ["personal minimums": minimums.joined(separator: ", ")]
+            guard let ask = try? WordsAsk(kind: .risk, body: RiskWordsAsk(answer, pilot: pilot), figures: WordsFigures.risk(answer)) else { return }
+            let said = await WordsFor().said(ask)
+            guard !Task.isCancelled else { return }
+            riskWords = said
         }
     }
 
@@ -105,6 +180,7 @@ struct VerdictRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: FindingStyle.symbol(item.finding)).foregroundStyle(FindingStyle.colour(item.finding))
+                .accessibilityLabel(FindingStyle.word(item.finding))
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.label).font(.body.weight(.semibold))
                 Text(item.detail).font(.subheadline)
@@ -113,6 +189,45 @@ struct VerdictRow: View {
         }
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// One of the glance's lines: the finding's sentence, opening to its why
+/// (what the planner found, and where the Brief says it in full) and a
+/// way to the reports themselves: the Brief's section for the weather
+/// and the airspace, the loading's and the risk's own pages.
+struct FindingFold: View {
+    let item: VerdictItem
+    let words: String
+    var open: (String) -> Void
+    @State private var isExpanded = false
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.detail).font(.subheadline)
+                Text("In the Brief: \([item.tab.capitalized, item.section].compactMap { $0 }.joined(separator: " · "))")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
+            switch VerdictTarget.of(item) {
+            case .section(let anchor)?:
+                Button("See the reports") { open(anchor) }
+            case .loading?:
+                NavigationLink("See the loading") { LoadingView() }
+            case .risk?:
+                NavigationLink("See the risk assessment") { RiskView() }
+            case nil:
+                EmptyView()
+            }
+        } label: {
+            Label {
+                Text(words).font(.body.weight(item.finding == "stop" ? .semibold : .regular))
+            } icon: {
+                Image(systemName: FindingStyle.symbol(item.finding)).foregroundStyle(FindingStyle.colour(item.finding))
+                    .accessibilityLabel(FindingStyle.word(item.finding))
+            }
+            .accessibilityElement(children: .combine)
+        }
     }
 }
 
@@ -152,6 +267,8 @@ struct LoadingView: View {
     @Environment(Verdict.self) private var verdict
     @Environment(Plan.self) private var plan
     @Environment(Session.self) private var session
+    /// The figure's field grows with the type, so a four-figure weight fits.
+    @ScaledMetric(relativeTo: .body) private var fieldWidth = 96.0
 
     var body: some View {
         Form {
@@ -204,7 +321,7 @@ struct LoadingView: View {
         LabeledContent {
             HStack(spacing: 4) {
                 TextField(title, value: Binding(get: { value }, set: { set(max(0, $0)) }), format: .number.precision(.fractionLength(0...2)))
-                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: 96)
+                    .keyboardType(.decimalPad).multilineTextAlignment(.trailing).frame(maxWidth: fieldWidth)
                 Text(unit).foregroundStyle(.secondary)
             }
         } label: {
@@ -229,9 +346,13 @@ struct RiskView: View {
             if let risk = verdict.answer?.risk {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(risk.line).font(.headline).foregroundStyle(colour(risk.level))
+                        // The level's mark with its colour, so the line reads
+                        // the same to a pilot who does not see the colour.
+                        Label(risk.line, systemImage: FindingStyle.symbol(finding(risk.level)))
+                            .font(.headline).foregroundStyle(colour(risk.level))
                         Text(risk.words)
                     }
+                    .accessibilityElement(children: .combine)
                 }
                 let own = Set((verdict.answer?.selfChecks ?? []).map(\.key))
                 let raised = (risk.factors ?? []).filter { !own.contains($0.key) }
@@ -251,8 +372,10 @@ struct RiskView: View {
                                 } icon: {
                                     Image(systemName: FindingStyle.symbol(factor.finding ?? "caution"))
                                         .foregroundStyle(FindingStyle.colour(factor.finding ?? "caution"))
+                                        .accessibilityLabel(FindingStyle.word(factor.finding ?? "caution"))
                                 }
                             }
+                            .accessibilityElement(children: .combine)
                         }
                     }
                 }
@@ -288,11 +411,45 @@ struct RiskView: View {
         return seen
     }
 
-    private func colour(_ level: String) -> Color {
+    /// The risk's level as a finding: low is clear, caution is caution,
+    /// anything higher a stop.
+    private func finding(_ level: String) -> String {
         switch level {
-        case "low": FindingStyle.colour("ok")
-        case "caution": FindingStyle.colour("caution")
-        default: FindingStyle.colour("stop")
+        case "low": "ok"
+        case "caution": "caution"
+        default: "stop"
         }
     }
+
+    private func colour(_ level: String) -> Color { FindingStyle.colour(finding(level)) }
+}
+
+#Preview("GoNoGoSection") {
+    // The planner's answer comes with a route, so the section is at its
+    // "Checking the flight…" state here, with the minimums under it.
+    NavigationStack {
+        List { GoNoGoSection { _ in } }
+    }
+    .environment(Verdict())
+    .environment(Session())
+}
+
+#Preview("FindingFold") {
+    List {
+        FindingFold(item: VerdictItem(key: "balance", label: "Weight & balance", finding: "stop", detail: "The baggage, 170 lb in all, is over its 120 lb", tab: "preflight", section: "Weight & Balance"),
+                    words: "Weight & balance: The baggage, 170 lb in all, is over its 120 lb.") { _ in }
+    }
+}
+
+#Preview("VerdictRow") {
+    List {
+        VerdictRow(item: VerdictItem(key: "weather", label: "Weather", finding: "ok", detail: "VFR along the route, KDLH 10 sm, few at 4,500 ft", tab: "brief"))
+        VerdictRow(item: VerdictItem(key: "fuel", label: "Fuel", finding: "caution", detail: "8.4 gal at landing, 1.9 gal over the reserve", tab: "navlog"))
+        VerdictRow(item: VerdictItem(key: "airspace", label: "Airspace", finding: "stop", detail: "TFR over KHIB until 15:00", tab: "brief"))
+    }
+}
+
+#Preview("MinimumsView") {
+    NavigationStack { MinimumsView() }
+        .environment(Verdict())
 }

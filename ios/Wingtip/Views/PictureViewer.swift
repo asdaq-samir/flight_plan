@@ -212,12 +212,29 @@ final class PagesScrollView: UIScrollView, UIScrollViewDelegate {
     func scrollViewDidZoom(_ scrollView: UIScrollView) { centre() }
 
     @objc private func doubleTapped(_ tap: UITapGestureRecognizer) {
+        // The zoom steps rather than glides with Reduce Motion on (MapMotion).
         if zoomScale > 1.01 {
-            setZoomScale(1, animated: true)
+            setZoomScale(1, animated: MapMotion.animated)
         } else {
             let at = tap.location(in: container)
             let size = CGSize(width: bounds.width / 3, height: bounds.height / 3)
-            zoom(to: CGRect(x: at.x - size.width / 2, y: at.y - size.height / 2, width: size.width, height: size.height), animated: true)
+            zoom(to: CGRect(x: at.x - size.width / 2, y: at.y - size.height / 2, width: size.width, height: size.height), animated: MapMotion.animated)
         }
     }
+}
+
+#Preview("PictureViewer") {
+    // A picture drawn here, so the viewer shows a page without the planner.
+    PictureViewer(picture: ShownPicture(title: "Airport diagram", credit: "FAA") {
+        [UIGraphicsImageRenderer(size: CGSize(width: 600, height: 800)).image { context in
+            UIColor.white.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 600, height: 800))
+            UIColor.darkGray.setFill()
+            context.fill(CGRect(x: 120, y: 80, width: 60, height: 640))
+        }]
+    })
+}
+
+#Preview("ZoomablePictures") {
+    ZoomablePictures(images: [UIImage(systemName: "airplane") ?? UIImage()])
 }

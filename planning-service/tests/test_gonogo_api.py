@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
-from vfr.aircraft import load_aircraft_profile
+from wingtip.aircraft import load_aircraft_profile
 
 from app.main import app
 from app.routers import gonogo
@@ -91,9 +91,9 @@ def test_a_quiet_flight_with_the_sample_load_and_a_pilot_is_nothing_found_agains
     assert items["balance"]["detail"].endswith(", within limits")
     assert body["risk"]["line"] == "Low · 0 points"
     assert [c["key"] for c in body["self_checks"]][:2] == ["illness", "medication"]
-    # Each check's mark as the web's RiskAssessment draws it.
-    marks = {c["key"]: (c["finding"], c["stop"]) for c in body["self_checks"]}
-    assert marks["alcohol"] == ("stop", True) and marks["stress"] == ("caution", False)
+    # As the web's RiskAssessment lists them: in their groups, unmarked.
+    marks = {c["key"]: (c["finding"], c["stop"], c["group"]) for c in body["self_checks"]}
+    assert marks["alcohol"] == (None, True, "You") and marks["pressure"] == (None, False, "The day")
     # The briefing for the flight's own hours.
     assert stubbed["asked"]["ete_min"] == 150.0
 
@@ -157,3 +157,33 @@ def test_under_ifr_the_alternate_speaks_for_the_weather(stubbed, monkeypatch):
     assert weather["detail"] == "An alternate is required (14 CFR 91.169): file one in Weather"
     assert (weather["tab"], weather["section"]) == ("arrive", "Alternate")
     assert asked["dest"] == "KDLH" and asked["eta"] == datetime(2026, 10, 6, 16, 30, tzinfo=timezone.utc)
+
+
+def test_a_tfr_the_briefing_placed_on_the_legs_is_in_force_by_its_word_the_whole_time_inside_it(stubbed):
+    # The web's tfrInForce: on_route.when where the briefing gives it, the
+    # pass time only where it does not.
+    stubbed["briefing"] = briefing(tfrs=[
+        {"notam_id": "6/3333", "crosses": True, "along_track_nm": 10.0, "effective": "2026-10-06T18:00:00Z", "expires": None,
+         "on_route": {"when": "during"}},
+        {"notam_id": "6/4444", "crosses": True, "along_track_nm": 150.0, "effective": "2026-10-06T15:00:00Z", "expires": None,
+         "on_route": {"when": "after"}},
+    ])
+    items = by_key(client.post("/api/go-no-go", json=ask()).json())
+    assert items["airspace"]["detail"] == "TFR 6/3333 in force when you get there"
+    stubbed["briefing"] = briefing(tfrs=[stubbed["briefing"]["tfrs"][1]])
+    items = by_key(client.post("/api/go-no-go", json=ask()).json())
+    assert (items["airspace"]["finding"], items["airspace"]["detail"]) == ("ok", "1 TFR near, none in force on the route")
+
+
+def test_a_briefing_that_failed_with_nothing_to_say_is_said_as_the_web_says_it(stubbed):
+    stubbed["briefing"] = RuntimeError("boom")
+    items = by_key(client.post("/api/go-no-go", json=ask()).json())
+    assert items["weather"]["detail"] == "Not fetched: could not load the briefing"
+
+
+def test_a_pilots_own_altitude_is_written_as_the_owner_asked_and_a_ticked_check_keeps_its_group(stubbed):
+    stubbed["planned"] = gonogo.Planned(nav=nav(flown="custom", altitude_ft=4500.0), legs=legs(), totals=totals())
+    body = client.post("/api/go-no-go", json=ask(ticked=["pressure"])).json()
+    assert by_key(body)["altitude"]["detail"] == "FL-045, your own"
+    pressure = next(f for f in body["risk"]["factors"] if f["key"] == "pressure")
+    assert (pressure["group"], pressure["finding"]) == ("The day", None)

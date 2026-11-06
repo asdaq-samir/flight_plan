@@ -6,14 +6,15 @@ import { type AircraftFilter, filtering, inEmergency, keptFilter, matches, relat
 import { distanceNm, type LatLon } from "../../../lib/geo";
 import { nmAway } from "../../../lib/useAway";
 import { usePreferences } from "../../../lib/preferences";
+import { grouped } from "../../../lib/units";
 import { airportQuery } from "../../../lib/queryClient";
 
 const NONE: TrafficAircraft[] = [];
 
-/** How far round an airport its traffic is asked for, nm (lib/fbo
+/** How far round an airport its traffic is asked for, nm (the engine's
  *  RELATION_NM, an inbound airplane's reach). */
 const AIRPORT_TRAFFIC_NM = 40;
-/** Asked again this often, ms: adsb.lol's pace, a region's (vfr.traffic). */
+/** Asked again this often, ms: adsb.lol's pace, a region's (wingtip.traffic). */
 const FILTER_REFRESH_MS = 10_000;
 
 /**
@@ -87,7 +88,7 @@ export function useFilteredAircraft(seen: TrafficAircraft[], from: LatLon | null
     if (filter.relation === "based") return pool;
     return pool.filter(p => relationTo(p, at)[filter.relation as "around" | "inbound" | "departing"]);
   }, [pool, filter.place, filter.nearNm, filter.relation, field, from]);
-  // Based at the field: where each about it keeps to (vfr.traffic.based),
+  // Based at the field: where each about it keeps to (wingtip.traffic.based),
   // asked again while some are still being looked up.
   const basedAsk = filter.place === "airport" && filter.relation === "based" && field ? placed.map(p => p.hex).slice(0, 60) : [];
   const { data: bases } = useQuery({
@@ -126,7 +127,7 @@ export function strip(q: Question, planes: TrafficAircraft[], from: LatLon | nul
     }
     if (q === "around") {
       const above = plane.altitude_ft != null && field ? plane.altitude_ft - (field.elevation_ft ?? 0) : null;
-      return { plane, key: above ?? Infinity, detail: above == null ? "" : `${(Math.round(above / 100) * 100).toLocaleString("en-US")} AGL` };
+      return { plane, key: above ?? Infinity, detail: above == null ? "" : `${grouped(Math.round(above / 100) * 100)} AGL` };
     }
     if (q === "inbound") {
       const out = nm(field, plane);

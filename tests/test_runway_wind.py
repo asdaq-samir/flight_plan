@@ -1,7 +1,7 @@
 """The reported wind on the end of a runway it favours."""
 import pytest
 
-from vfr import runway_wind
+from wingtip import runway_wind
 
 NINE_27 = [("9", 88.0), ("27", 268.0)]
 
@@ -47,7 +47,7 @@ def test_calm_keeps_the_runway_the_last_wind_favoured():
 
 
 def test_a_fields_last_wind_is_its_newest_report_with_a_direction(monkeypatch):
-    from vfr import weather
+    from wingtip import weather
 
     reports = [{"obsTime": 300, "wdir": 0, "wspd": 0}, {"obsTime": 200, "wdir": "VRB", "wspd": 3},
                {"obsTime": 100, "wdir": 270, "wspd": 8}, {"obsTime": 50, "wdir": 90, "wspd": 6}]

@@ -1,38 +1,26 @@
 import type { Briefing } from "./api/types";
+import { callEngine } from "./engine/engine";
 import { altFt } from "./units";
 
 type GAirmet = Briefing["gairmets"][number];
 type Pirep = Briefing["pireps"][number];
 type RouteTfr = Briefing["tfrs"][number];
 
-/** The intensities PIREPs and G-AIRMETs report, in words. */
-const INTENSITY: Record<string, string> = {
-  NEG: "none", NEGCLR: "none", SMTH: "smooth", TRC: "trace", LGT: "light", "LGT-MOD": "light to moderate",
-  MOD: "moderate", "MOD-SEV": "moderate to severe", SEV: "severe", EXTRM: "extreme",
-};
-const intensity = (code: string) => INTENSITY[code.toUpperCase()] ?? code.toLowerCase();
-
-/** What the FAA's own capitalised text keeps in capitals once it is set
- *  in sentence case: the codes a pilot reads as written -- the services
- *  and the airspace, the references, and the weather contractions of a
- *  G-AIRMET's or SIGMET's "due to" (CIG BLW 010 VIS BLW 3SM BR FG). */
-const CODES = new Set([
-  "NOTAM", "TFR", "MOA", "ATC", "ATCAA", "ARTCC", "FAA", "FSS", "DOD", "US", "USA",
-  "VFR", "IFR", "MVFR", "LIFR", "AGL", "MSL", "SFC", "UTC", "FL", "NM", "SM",
-  "AIRMET", "SIGMET", "PIREP", "METAR", "TAF", "LLWS", "ICG", "TURB",
-  "CIG", "BLW", "VIS", "BR", "FG", "HZ", "FU", "DU", "SA", "RA", "SN", "DZ", "TS", "PCPN", "MTN", "MTNS", "OBSC", "OBSCN",
-  "CLDS", "BKN", "OVC", "SCT", "FEW", "N", "S", "E", "W", "NE", "NW", "SE", "SW",
-  // A field's radio, as its frequencies are listed (lib/frequencies).
-  "APP", "DEP", "TWR", "GND", "CTAF", "UNICOM", "ATIS", "AWOS", "ASOS", "CLNC", "DEL", "RDO", "ANG",
-]);
-const DAYS: Record<string, string> = { MON: "Mon", TUE: "Tue", WED: "Wed", THU: "Thu", FRI: "Fri", SAT: "Sat", SUN: "Sun" };
+/*
+ * How the FAA's own words are written -- its capitals in sentence case
+ * with its codes kept, names, the advisories' intensities and hazards, a
+ * special-use area's limits -- is the shared engine's
+ * (native/engine/src/wording, through lib/engine): the very rules the
+ * planner's Go / No-Go and the iPhone write them by. Only how a figure
+ * is printed and a date laid out are made here.
+ */
 
 /** A name the FAA writes in capitals, written as a name is: "CHICAGO
  *  CLASS B" as "Chicago Class B", "ROCKFORD" as "Rockford" -- a place's, a
  *  facility's, an airspace's -- where its prose is set in sentence case
- *  (faaWords). Three places had a copy of it. */
+ *  (faaWords). */
 export function titleCase(text: string): string {
-  return text.toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+  return callEngine<string>("title_case", { text });
 }
 
 /** The first letter a capital, the rest as it is: "road or rail" as "Road
@@ -45,50 +33,32 @@ export function capitalised(text: string): string {
  * The FAA's capitalised text -- a special-use area's times of use, a
  * G-AIRMET's cause, a TFR's purpose -- in sentence case, its codes kept:
  * "INTERMITTENT BY NOTAM 4 HOURS IN ADVANCE" reads "Intermittent by
- * NOTAM 4 hours in advance". A word with a figure in it (20KTS, FL180,
- * 0700) is a code too, its letters before a hyphen and all (R-4401A),
- * and an airspace's class is written as the AIM writes it, "Class B"
- * (AIM 3-2-1). Text with any lower case is someone's own writing and is
- * left as it is, and so are raw reports, which pilots read as sent.
+ * NOTAM 4 hours in advance", an airspace's class as the AIM writes it,
+ * "Class B" (AIM 3-2-1). Text with any lower case is someone's own
+ * writing and is left as it is, and so are raw reports, which pilots read
+ * as sent.
  */
 export function faaWords(text: string | null | undefined): string {
-  if (!text) return "";
-  if (/[a-z]/.test(text)) return text;
-  const words = text.replace(/\bCLASS ([A-G])\b|[A-Z]+-\d[A-Z0-9]*|[A-Z0-9]+/g, (word, letter?: string) => {
-    if (letter) return `Class ${letter}`;
-    if (/\d/.test(word) || CODES.has(word)) return word;
-    if (word === "NOTAMS") return "NOTAMs";
-    return DAYS[word] ?? word.toLowerCase();
-  });
-  // A sentence's first letter, and after a full stop.
-  return words.replace(/(^|[.!?]\s+)([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase());
+  return text ? callEngine<string>("faa_words", { text }) : "";
 }
 
 /** A place's name as it is written, each word capitalised: the FAA's and
  *  the airport file's capitals ("EAU CLAIRE", "LA CROSSE", "STERLING/
  *  ROCKFALLS") as a town is spelt -- "Eau Claire", "La Crosse",
- *  "Sterling/Rockfalls" -- where faaWords' sentence case read "La crosse"
- *  (the owner's screenshot, 2026-10-26). A name already in mixed case is
- *  kept as it is. */
+ *  "Sterling/Rockfalls", "McCook" -- where faaWords' sentence case read
+ *  "La crosse" (the owner's screenshot, 2026-10-26). A name already in
+ *  mixed case is kept as it is. */
 export function placeWords(text: string | null | undefined): string {
-  if (!text) return "";
-  if (/[a-z]/.test(text)) return text;
-  return text.toLowerCase().replace(/(^|[\s/(-])([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase())
-    // "Mc" names as they are written: McCook, McAlester.
-    .replace(/\bMc([a-z])/g, (_, letter: string) => `Mc${letter.toUpperCase()}`);
+  return text ? callEngine<string>("place_name", { text }) : "";
 }
 
 /** A SIGMET's hazard in words: "Convective", "Mountain obscuration". */
-const SIGMET_HAZARDS: Record<string, string> = {
-  CONVECTIVE: "Convective", TURB: "Turbulence", ICE: "Icing", IFR: "IFR", "MTN OBSCN": "Mountain obscuration",
-  ASH: "Volcanic ash", TS: "Thunderstorms", DS: "Dust storm", SS: "Sandstorm",
-};
 export const sigmetHazard = (hazard: string | null | undefined, kind?: string | null) =>
-  (hazard && (SIGMET_HAZARDS[hazard.toUpperCase()] ?? faaWords(hazard))) || kind || "Hazard";
+  callEngine<string>("sigmet_hazard", { hazard: hazard ?? null, kind: kind ?? null });
 
 /** A G-AIRMET's hazard and how bad: "Icing, moderate". */
 export function gairmetTitle(g: GAirmet): string {
-  return g.severity ? `${g.hazard}, ${intensity(g.severity)}` : g.hazard;
+  return callEngine<string>("gairmet_title", { hazard: g.hazard, severity: g.severity ?? null });
 }
 
 /** How high a G-AIRMET reaches: "Freezing level to 22,000 ft",
@@ -101,13 +71,9 @@ export function gairmetAltitudes(g: GAirmet): string | null {
 }
 
 /** What a PIREP reports of the turbulence and icing, in words:
- *  "Turbulence moderate · no icing". */
+ *  "Turbulence moderate · No icing". */
 export function pirepConditions(p: Pirep): string | null {
-  const parts = [
-    p.turbulence && `Turbulence ${intensity(p.turbulence)}`,
-    p.icing && (["NEG", "NEGCLR"].includes(p.icing.toUpperCase()) ? "No icing" : `Icing ${intensity(p.icing)}`),
-  ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : null;
+  return callEngine<string | null>("pirep_conditions", { turbulence: p.turbulence ?? null, icing: p.icing ?? null });
 }
 
 /** How high a TFR reaches: "Surface to 10,000 ft MSL", "Surface to
@@ -141,22 +107,17 @@ function dayTime(d: Date): string {
 
 /** A special-use area's floor and ceiling as the chart's tables write
  *  them: "Surface to 18,000 ft", "8,000 ft to FL180", "500 ft AGL to
- *  FL180" -- the one way the app says them, where the airspace card wrote
- *  "8,000 MSL to 18,000 STD" and the altitude reasoning "8,000 ft to
- *  18,000 ft" for the same area: a ceiling the FAA's data gives as STD
- *  is a flight level, a 29.92 pressure level (14 CFR 1.1). In a
- *  sentence's middle (`midSentence`) the surface is "the surface". */
+ *  FL180" -- the one way the app says them; a ceiling the FAA's data
+ *  gives as STD is a flight level, a 29.92 pressure level (14 CFR 1.1).
+ *  In a sentence's middle (`midSentence`) the surface is "the surface". */
 export function suaAltitudes(
   a: { floor_ft?: number | null; floor_ref?: string | null; ceiling_ft?: number | null; ceiling_ref?: string | null },
   { midSentence = false }: { midSentence?: boolean } = {},
 ): string {
-  const height = (ft: number | null | undefined, ref: string | null | undefined, bottom: boolean) => {
-    if (ref === "SFC" || (bottom && ft === 0)) return midSentence ? "the surface" : "Surface";
-    if (ft == null) return "unstated";
-    if (ref === "STD") return `FL${Math.round(ft / 100)}`;
-    return `${altFt(ft)} ft${ref === "AGL" ? " AGL" : ""}`;
-  };
-  return `${height(a.floor_ft, a.floor_ref, true)} to ${height(a.ceiling_ft, a.ceiling_ref, false)}`;
+  return callEngine<string>("sua_altitudes", {
+    floor_ft: a.floor_ft ?? null, floor_ref: a.floor_ref ?? null, ceiling_ft: a.ceiling_ft ?? null, ceiling_ref: a.ceiling_ref ?? null,
+    mid_sentence: midSentence,
+  });
 }
 
 /** A TFR's own page on tfr.faa.gov, its NOTAM number's slash an

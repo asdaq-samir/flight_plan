@@ -5,15 +5,15 @@ proven ones rather than all 24; external dependencies (model-service,
 aviationweather.gov, the OurAirports/FAA downloads) are mocked at the
 same module-level names app.main itself calls, so these tests check the
 HTTP contract (status codes, response shape, error translation) rather
-than re-testing vfr.altitude/vfr.weather's own logic, which has its own
+than re-testing wingtip.altitude/wingtip.weather's own logic, which has its own
 tests in the root tests/ package.
 """
 import json
 
 from fastapi.testclient import TestClient
-from vfr import airports, airspace, faa_data, pattern
-from vfr import model_registry, tfr, weather
-from vfr.weather import WeatherServiceError
+from wingtip import airports, airspace, faa_data, pattern
+from wingtip import model_registry, tfr, weather
+from wingtip.weather import WeatherServiceError
 
 from app.main import app
 from app.routers import system
@@ -160,7 +160,7 @@ def test_aircraft_profiles_lists_the_stock_profiles():
 
 
 def test_the_briefing_says_why_vfr_is_not_recommended(monkeypatch):
-    """The reasons are the planner's to give (vfr.weather); the page only
+    """The reasons are the planner's to give (wingtip.weather); the page only
     shows them."""
     monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
     windows = []
@@ -338,7 +338,7 @@ def test_a_failure_is_held_for_the_dev_console_with_its_words(monkeypatch):
 def test_a_chart_tile_no_sheet_covers_is_an_empty_204_kept_as_long_as_a_drawn_one(monkeypatch):
     # It was a 404: an error in the browser's console for every tile of sea
     # or Canada round the country as the planner opens.
-    from vfr import charts
+    from wingtip import charts
     monkeypatch.setattr(charts, "tile_png", lambda x, y, z, kind: None)
     empty = client.get("/api/chart-tile/sec/4/1/8.png")
     assert empty.status_code == 204 and empty.content == b""

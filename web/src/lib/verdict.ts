@@ -9,17 +9,14 @@
  * The findings are the planner's; the decision is the pilot in command's
  * (14 CFR 91.3), and the line says so.
  *
- * The planner holds the same rules for the native app (planning-service's
- * app/gonogo/verdict.py and the modules beside it, POST /api/go-no-go),
- * ported line for line with this file's tests: change the two together.
+ * Worked out by the shared engine (native/engine/src/gonogo/verdict.rs,
+ * through lib/engine), the very code behind the planner's POST
+ * /api/go-no-go and the phones' wt_call: the rules, their words and
+ * their sources live there. Only the shapes are made here.
  */
 import { create } from "zustand";
-import { worstOf, type Finding } from "./status";
-
-/** The reserve as the planner set it: 30 minutes by day, 45 at night
- *  (14 CFR 91.151) or under IFR (91.167). Unsaid where it did not send
- *  one, rather than a guess at 30, which is short at night. */
-const reserveWords = (min: number | null) => (min == null ? "reserve" : `${min} min reserve`);
+import { callEngine } from "./engine/engine";
+import type { Finding } from "./status";
 
 /** Where a finding is shown in full: a tab of the planning panel, and a
  *  section of it by its title. */
@@ -102,99 +99,35 @@ export interface VerdictInput {
   risk: { level: "low" | "caution" | "high"; line: string } | null;
 }
 
-const RISK_FINDING = { low: "ok", caution: "caution", high: "stop" } as const;
-const one = (n: number) => Math.round(n * 10) / 10;
+/** The input as the engine reads it, the planner's VerdictInput in
+ *  snake_case. */
+function engineInput({ weather, airspace, altitude, fuel, runways, balance, risk }: VerdictInput) {
+  return {
+    weather: {
+      pending: weather.pending, failed: weather.failed, vfr_not_recommended: weather.vfrNotRecommended,
+      under_minimums: weather.underMinimums, icing: weather.icing ?? null, hazards: weather.hazards, unchecked: weather.unchecked,
+      worst: weather.worst,
+    },
+    airspace: {
+      pending: airspace.pending, unchecked: airspace.unchecked, in_force: airspace.inForce, near: airspace.near,
+      special_use: airspace.specialUse,
+    },
+    altitude,
+    fuel: { pending: fuel.pending, margin_gal: fuel.marginGal, required_gal: fuel.requiredGal, reserve_min: fuel.reserveMin, ifr: fuel.ifr ?? false },
+    runways,
+    balance,
+    risk,
+  };
+}
 
 /** Each tab's finding, in the order a pilot goes through them. */
 export function verdictItems(input: VerdictInput): VerdictItem[] {
-  const { weather, airspace, altitude, fuel, runways, balance, risk } = input;
-  const items: VerdictItem[] = [];
-
-  items.push({
-    key: "weather", label: "Weather", tab: "enroute", section: "Adverse Conditions",
-    ...(weather.failed ? { finding: "unknown", detail: `Not fetched: ${weather.failed}` }
-      : weather.pending ? { finding: "pending", detail: "Fetching METARs, TAFs and hazards…" }
-        : weather.vfrNotRecommended.length ? { finding: "stop", detail: `VFR not recommended: ${weather.vfrNotRecommended[0]}` }
-          : weather.underMinimums.length ? { finding: "stop", detail: `Under your minimums: ${weather.underMinimums[0]}` }
-            : weather.icing ? { finding: "caution", detail: weather.icing }
-            : weather.hazards.length ? { finding: "caution", detail: `${weather.hazards.join(", ")} along the route` }
-              : weather.unchecked.length ? { finding: "caution", detail: `Not checked: ${weather.unchecked.join(", ")}` }
-                : { finding: "ok", detail: weather.worst ? `No hazards; at worst ${weather.worst}` : "No hazards along the route" }),
-  });
-
-  const activeArea = airspace.specialUse.find(a => a.when === "active");
-  const maybeArea = airspace.specialUse.find(a => a.when === "by-notam" || a.when === "unknown");
-  items.push({
-    key: "airspace", label: "TFRs & special use", tab: "preflight", section: "TFRs & Special Use",
-    ...(airspace.pending ? { finding: "pending", detail: "Checking TFRs along the route…" }
-      : airspace.inForce.length ? { finding: "stop", detail: `TFR ${airspace.inForce[0]} in force when you get there` }
-        : airspace.unchecked ? { finding: "caution", detail: "Not checked: see tfr.faa.gov" }
-          : activeArea ? { finding: "caution", detail: `${activeArea.name} scheduled in use when you pass` }
-            : maybeArea ? { finding: "caution", detail: `${maybeArea.name}: ask whether it is active` }
-              : {
-                finding: "ok",
-                detail: airspace.near || airspace.specialUse.length
-                  ? [airspace.near && `${airspace.near} TFR${airspace.near === 1 ? "" : "s"} near, none in force on the route`,
-                    airspace.specialUse.length && `${airspace.specialUse.length} special-use area${airspace.specialUse.length === 1 ? "" : "s"} not scheduled then`]
-                    .filter(Boolean).join("; ")
-                  : "None on the route",
-              }),
-  });
-
-  items.push({
-    key: "altitude", label: "Altitude", tab: "enroute", section: "Cruise Altitude",
-    ...(altitude.problem ? { finding: "stop", detail: altitude.problem }
-      : altitude.pending ? { finding: "pending", detail: "Planning altitudes…" }
-        : altitude.cautions.length ? { finding: "caution", detail: altitude.cautions[0]! }
-          : { finding: "ok", detail: altitude.flown ?? "Planned" }),
-  });
-
-  items.push({
-    key: "fuel", label: "Fuel", tab: "preflight", section: "Fuel",
-    ...(fuel.pending ? { finding: "pending", detail: "Working out the fuel…" }
-      : fuel.marginGal != null && fuel.marginGal < 0
-        ? { finding: "stop", detail: `${one(-fuel.marginGal)} gal short of the fuel and its ${reserveWords(fuel.reserveMin)} (14 CFR ${fuel.ifr ? "91.167" : "91.151"})` }
-        : fuel.marginGal == null
-          ? { finding: "unknown", detail: fuel.requiredGal != null ? `${one(fuel.requiredGal)} gal needed; the tanks' usable fuel not known` : "Not worked out" }
-          : { finding: "ok", detail: `Needs ${one(fuel.requiredGal ?? 0)} gal with taxi and a ${reserveWords(fuel.reserveMin)}; ${one(fuel.marginGal)} gal spare` }),
-  });
-
-  items.push({
-    key: "runways", label: "Runways", tab: "depart", section: "Takeoff",
-    ...(!runways.worked ? { finding: "unknown", detail: "Not worked out for this airplane" }
-      : runways.pending ? { finding: "pending", detail: "Waiting on the runways and the weather…" }
-        : runways.short.length ? { finding: "stop", detail: `Too short at ${runways.short.join(", ")}` }
-          : runways.crosswind.length ? { finding: "caution", detail: `Crosswind past the POH's demonstrated at ${runways.crosswind.join(", ")}` }
-            : { finding: "ok", detail: "Takeoff and landing within each runway" }),
-  });
-
-  items.push({
-    key: "balance", label: "Weight & balance", tab: "preflight", section: "Weight & Balance",
-    ...(balance.pending ? { finding: "pending", detail: "Waiting on the airplane's profile…" }
-      : !balance.worked ? { finding: "unknown", detail: "Not worked out for this airplane" }
-      : balance.problems.length ? { finding: "stop", detail: balance.problems[0]! }
-        : { finding: "ok", detail: balance.takeoff ? `${balance.takeoff}, within limits` : "Within limits" }),
-  });
-
-  items.push({
-    key: "risk", label: "Risk", tab: "preflight", section: "Risk Assessment",
-    ...(risk ? { finding: RISK_FINDING[risk.level], detail: risk.line } : { finding: "pending", detail: "Waiting on the briefing…" }),
-  });
-
-  return items;
+  return callEngine<VerdictItem[]>("gonogo_verdict_items", engineInput(input));
 }
 
 /** What the findings come to, in a line over them. */
 export function verdictLine(items: VerdictItem[]): { finding: Finding; words: string } {
-  const finding = worstOf(items.map(i => i.finding));
-  const named = (f: Finding) => items.filter(i => i.finding === f).map(i => i.label).join(", ");
-  switch (finding) {
-    case "stop": return { finding, words: `No-go as planned: ${named("stop")}` };
-    case "caution": return { finding, words: `Look again at ${named("caution")}` };
-    case "unknown": return { finding, words: `Nothing found against it; not worked out: ${named("unknown")}` };
-    case "pending": return { finding, words: `Still checking: ${named("pending")}` };
-    default: return { finding, words: "Nothing found against this flight" };
-  }
+  return callEngine("gonogo_verdict_line", { items: items.map(i => ({ ...i, section: i.section ?? null })) });
 }
 
 /** The findings for the flight on screen, published once (as the risk

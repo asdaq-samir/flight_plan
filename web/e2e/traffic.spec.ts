@@ -88,7 +88,7 @@ test("between reports each airplane is carried on along its track, as ForeFlight
     localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
   });
   // One report, the planner's held answer growing older as adsb.lol is
-  // not asked again (vfr.traffic): UAL1023 east at 450 kt.
+  // not asked again (wingtip.traffic): UAL1023 east at 450 kt.
   const reported = Date.now();
   const jet = { ...TRAFFIC.aircraft[1], speed_kt: 450 };
   await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route =>

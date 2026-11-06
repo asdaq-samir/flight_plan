@@ -1,8 +1,8 @@
-"""vfr.model_client: the one client planning-service uses to reach
+"""wingtip.model_client: the one client planning-service uses to reach
 model-service, for the chart model's scores."""
 import requests
 
-from vfr import model_client
+from wingtip import model_client
 
 
 class _Response:

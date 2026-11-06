@@ -33,9 +33,19 @@ export const queryClient = new QueryClient({
     onError: (error, query) => {
       const silent = query.meta?.silent;
       if (silent === true || (typeof silent === "function" && silent(error))) return;
-      if (isDropped(error) && !askedAgain.has(query.queryHash)) {
+      // A connection lost is never said: in the air a phone is out of
+      // coverage most of the flight, and the line stood over the chart
+      // the whole way (the owner, 2026-11-04: "we shouldn't show the
+      // errors for internet loss specially in no coverage up in the
+      // air"). The page keeps what it had (TanStack keeps a query's data
+      // through a failed refetch, the service worker its answers), and
+      // the query is asked again once the phone is back: a second after
+      // the first drop, then every half minute, not every second all
+      // flight. The Status page says what is being shown from the cache.
+      if (isDropped(error) || globalThis.navigator?.onLine === false) {
+        const again = askedAgain.has(query.queryHash);
         askedAgain.add(query.queryHash);
-        whenBack(() => void queryClient.refetchQueries({ predicate: q => q.queryHash === query.queryHash }));
+        whenBack(() => void queryClient.refetchQueries({ predicate: q => q.queryHash === query.queryHash }), document, again ? 30_000 : 1000);
         return;
       }
       failingWith.set(query.queryHash, failed(describeError(error), retryable(error)));
@@ -80,7 +90,7 @@ const failingWith = new Map<string, string>();
  */
 const askedAgain = new Set<string>();
 
-export function whenBack(run: () => void, doc: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener"> = document) {
+export function whenBack(run: () => void, doc: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener"> = document, afterMs = 1000) {
   const ready = () => doc.visibilityState === "visible" && globalThis.navigator?.onLine !== false;
   const done = () => {
     doc.removeEventListener("visibilitychange", go);
@@ -89,7 +99,7 @@ export function whenBack(run: () => void, doc: Pick<Document, "visibilityState" 
   function go() {
     if (!ready()) return;
     done();
-    setTimeout(run, 1000);
+    setTimeout(run, afterMs);
   }
   doc.addEventListener("visibilitychange", go);
   globalThis.addEventListener?.("online", go);
@@ -241,7 +251,7 @@ export const nearestQuery = (lat: number, lon: number) => {
 };
 
 /** A tracked flight's airplane, where it took off and its path today
- *  (vfr.traffic.flight): read again every minute while it is tracked, by
+ *  (wingtip.traffic.flight): read again every minute while it is tracked, by
  *  its card and the map's path alike. Quiet: the card says what it has. */
 export const flightQuery = (hex: string) => queryOptions({
   queryKey: ["flight", hex], queryFn: () => api.trafficFlight(hex), staleTime: 60_000, refetchInterval: 60_000,
@@ -259,7 +269,7 @@ export const flightStatusQuery = (hex: string) => queryOptions({
 });
 
 /** The route a tracked flight's number is scheduled to fly, asked once a
- *  callsign (vfr.traffic.route; the planner keeps it six hours): where the
+ *  callsign (wingtip.traffic.route; the planner keeps it six hours): where the
  *  airplane is says whether it is on it, so the position, to a degree, is
  *  in the key and a diversion or a reused callsign is asked again. Quiet,
  *  as the flight's. */
@@ -291,7 +301,7 @@ export const airportQuery = (ident: string) => queryOptions({
   queryKey: ["airport", ident], queryFn: () => api.airport(ident), staleTime: 5 * 60_000, meta: { silent: true },
 });
 
-/** A procedure picked, drawn as the planner draws it (vfr.procedures):
+/** A procedure picked, drawn as the planner draws it (wingtip.procedures):
  *  one query for the map's drawing, the planner's descent and the approach
  *  lesson (ApproachLesson) alike. */
 export const procedureQuery = (p: { ident: string; id: string; transition: string | null }) => ({
@@ -344,7 +354,7 @@ export const routeOptionsQuery = (...args: Parameters<typeof api.routeOptions>) 
 });
 
 /** An approach's plate placed on the map, and whether it publishes
- *  circling minimums (vfr.plates): the map's (PlateLayer) and the route's
+ *  circling minimums (wingtip.plates): the map's (PlateLayer) and the route's
  *  runway chips' (ProceduresRoute). A plate placed stays good for its
  *  cycle's 28 days; none placed is said by none drawn, not a retry. */
 export const plateQuery = (airport: string, id: string) => queryOptions({

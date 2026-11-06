@@ -1,9 +1,12 @@
 import type { ReactNode } from "react";
-import { ChevronRight } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, GraduationCap } from "lucide-react";
 import { cn } from "cn";
 import FindingIcon from "../../../../components/FindingIcon";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../../../../components/ui/collapsible";
 import { clockTime, duration } from "../../../../lib/clock";
-import { useGlance, type FieldGlance } from "../../../../lib/glance";
+import { glanceLines, useGlance, type FieldGlance, type GlanceLine } from "../../../../lib/glance";
+import { pilotQuery, trainingQuery } from "../../../../lib/queryClient";
 import { FINDING_TONE, type Finding } from "../../../../lib/status";
 import { TEXT } from "../../../../lib/text";
 import { grouped } from "../../../../lib/units";
@@ -30,6 +33,7 @@ const ft = (n: number | null) => (n == null ? DASH : `${grouped(n)}`);
 const time = (iso: string | null) => (iso ? clockTime(new Date(iso)) : null);
 /** The verdict's wash: the Brief's one alarm. */
 const MARK_TINT: Partial<Record<Finding, string>> = { stop: "bg-destructive/10", caution: "bg-caution-wash" };
+const CARD = "rounded-xl bg-card shadow-[0_0_0_0.5px_var(--border)]";
 
 /** A card: its part's name, the field and its category, its time at the
  *  right with the way in, its figures under, a line of note. The whole
@@ -53,9 +57,7 @@ function Card({ tab, label, ident, category, at, finding, stats, note, onOpen }:
   return (
     <button
       type="button" onClick={() => onOpen(tab)} data-testid={`brief-glance-${tab}`} data-finding={finding}
-      className={cn(
-        "flex w-full flex-col gap-1.5 rounded-xl bg-card px-3.5 py-2.5 text-left shadow-[0_0_0_0.5px_var(--border)] outline-none focus-visible:ring-2 focus-visible:ring-ring",
-      )}
+      className={cn("flex w-full flex-col gap-1.5 px-3.5 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", CARD)}
     >
       <span className="flex w-full items-center gap-2">
         <span className={cn("text-muted-foreground uppercase tracking-wide", TEXT.note)}>{label}</span>
@@ -89,23 +91,86 @@ function FieldCard({ tab, label, field, landing, onOpen }: { tab: PanelTab; labe
   );
 }
 
+const TRIGGER = "group flex w-full items-start gap-2.5 px-3.5 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/** A line a pilot acts on: the finding and what to do about it, in one
+ *  sentence (lib/glance), and under a tap why it matters with the rule it
+ *  rests on, the reports it was read from as sent, and the way to its
+ *  page. Folded, since the owner's rule is to look and go. */
+function Line({ line, onOpen }: { line: GlanceLine; onOpen: (tab: PanelTab) => void }) {
+  return (
+    <Collapsible className={CARD} data-testid={`brief-line-${line.key}`} data-finding={line.finding}>
+      <CollapsibleTrigger className={cn(TRIGGER, TEXT.row)}>
+        <FindingIcon finding={line.finding} className="mt-0.5 size-5 shrink-0" />
+        <span className="min-w-0 flex-1 font-medium" data-testid="brief-line-words">{line.line}</span>
+        <ChevronRight className="mt-0.5 size-5 shrink-0 text-tint transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+      </CollapsibleTrigger>
+      <CollapsibleContent className="space-y-2 px-3.5 pb-3" data-testid="brief-line-why">
+        <p className={cn("rounded-lg bg-muted px-3 py-2", TEXT.detail)}>
+          <span className="font-semibold">Why it matters: </span>{line.why} <span className="text-muted-foreground">({line.cite})</span>
+        </p>
+        {line.raw.length > 0 && (
+          <div className={cn("space-y-1 px-1 font-mono whitespace-pre-wrap text-muted-foreground", TEXT.note)} data-testid="brief-line-raw">
+            {line.raw.map(r => <p key={r}>{r}</p>)}
+          </div>
+        )}
+        <button
+          type="button" onClick={() => onOpen(line.tab)}
+          className={cn("relative ml-1 font-semibold text-tint after:absolute after:-inset-x-2 after:-inset-y-3", TEXT.detail)}
+        >
+          See it in full
+        </button>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+/** The student's instructor, where they have one (their training's
+ *  accepted link): the flights put to them are what the instructor signs
+ *  off from their own phone (InstructorPage). */
+function InstructorNote() {
+  const { data: pilot } = useQuery(pilotQuery);
+  const { data: training } = useQuery({ ...trainingQuery, enabled: !!pilot });
+  const link = training?.instructors.find(l => l.accepted);
+  if (!link) return null;
+  return (
+    <div className={cn("flex items-center gap-2.5 rounded-xl bg-primary/10 px-3.5 py-2.5 text-foreground", TEXT.detail)} data-testid="brief-instructor">
+      <GraduationCap className="size-5 shrink-0 text-tint" aria-hidden />
+      <span>Your instructor, {link.name ?? link.email}, sees the flights you put to them and can sign off from their phone.</span>
+    </div>
+  );
+}
+
 /**
- * The Brief as it opens, at the owner's pick of the redesign (D′,
- * 2026-10-22, "that new D looks fine for Brief"): whether to go, in a line
- * (lib/verdict), then a card for each part of the flight -- before you go,
- * the departure, en route, the arrival -- each two or three figures at a
- * glance (lib/glance), all four in one scroll, and a tap on one opens its
- * page. Stacked, not swiped: a swipe only ever goes back (the owner's
+ * The Brief as it opens, at the owner's rule (2026-11-03, "a pilot
+ * doesn't want to spend too much time in studying the briefs so make it
+ * simpler for them to just look and go"): whether to go, in a line
+ * (lib/verdict), then at most three one-sentence lines a pilot acts on,
+ * each unfolding to why it matters and the reports behind it, the rest
+ * of the findings folded into one row; then a card for each part of the
+ * flight -- before you go, the departure, en route, the arrival -- each
+ * two or three figures at a glance (lib/glance), a tap on one opening
+ * its page. Stacked, not swiped: a swipe only ever goes back (the owner's
  * rule), and a pager showed one part at a time, as the tabs did.
  */
-export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => void }) {
+export default function BriefGlance({ onOpen, before: first, afterVerdict, after }: {
+  onOpen: (tab: PanelTab) => void;
+  /** Over the verdict, under it, and after the cards: the assistant's
+   *  field, the words and the watch (BriefOverview), round the cards
+   *  without moving them. */
+  before?: ReactNode;
+  afterVerdict?: ReactNode;
+  after?: ReactNode;
+}) {
   const glance = useGlance(g => g.glance);
   const items = useVerdict(v => v.items);
   const verdict = items.length ? verdictLine(items) : null;
+  const lines = items.length ? glanceLines(items, glance) : null;
   const before = glance?.before;
   const enroute = glance?.enroute;
   return (
     <div className="flex flex-col gap-2.5 pt-1 pb-4" data-testid="brief-glance">
+      {first}
       {verdict && (
         <div
           className={cn("flex items-center gap-2.5 rounded-xl px-3.5 py-2.5", MARK_TINT[verdict.finding] ?? "bg-muted")}
@@ -114,6 +179,28 @@ export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => voi
           <FindingIcon finding={verdict.finding} className="size-6" />
           <span className={cn("font-semibold", TEXT.row, FINDING_TONE[verdict.finding])}>{verdict.words}</span>
         </div>
+      )}
+      {afterVerdict}
+      {lines?.act.map(line => <Line key={line.key} line={line} onOpen={onOpen} />)}
+      {lines && lines.rest.items.length > 0 && (
+        <Collapsible className={CARD} data-testid="brief-rest" data-finding={lines.rest.finding}>
+          <CollapsibleTrigger className={cn(TRIGGER, "items-center", TEXT.row)}>
+            <FindingIcon finding={lines.rest.finding} className="size-5 shrink-0" />
+            <span className="min-w-0 flex-1" data-testid="brief-rest-words">{lines.rest.line}</span>
+            <ChevronRight className="size-5 shrink-0 text-tint transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+          </CollapsibleTrigger>
+          <CollapsibleContent className="px-3.5 pb-2">
+            {lines.rest.items.map(i => (
+              <button
+                key={i.key} type="button" onClick={() => onOpen(i.tab)} data-testid={`brief-rest-${i.key}`}
+                className={cn("flex w-full items-start gap-2 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring", TEXT.detail)}
+              >
+                <FindingIcon finding={i.finding} className="mt-0.5 size-4 shrink-0" />
+                <span className="min-w-0 flex-1"><span className="font-medium">{i.label}</span> · {i.detail}</span>
+              </button>
+            ))}
+          </CollapsibleContent>
+        </Collapsible>
       )}
       <Card
         tab="preflight" label="Before you go" finding={before?.finding ?? "pending"} onOpen={onOpen}
@@ -141,6 +228,8 @@ export default function BriefGlance({ onOpen }: { onOpen: (tab: PanelTab) => voi
         note={enroute?.line ?? undefined}
       />
       {glance?.arrive && <FieldCard tab="arrive" label="Arrive" field={glance.arrive} landing onOpen={onOpen} />}
+      {after}
+      <InstructorNote />
     </div>
   );
 }

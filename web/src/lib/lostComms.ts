@@ -1,11 +1,16 @@
-// The planner's app/figures/lost_comms.py holds the same rules for the native app (POST /api/lost-comms): the two change together.
 /**
  * Two-way radio failure under IFR (the roadmap's lost-comms calculator,
  * 14 CFR 91.185, ACS IR.VII.A): the route to fly, the altitude on each
  * segment of it, and when to leave the clearance limit, each worked from
  * the clearance as the rule words it. In VFR conditions there is nothing
  * to work: continue VFR and land as soon as practicable (91.185(b)).
+ *
+ * Worked out by the shared engine (native/engine/src/figures/lost_comms.rs,
+ * through lib/engine), the very code behind the planner's /api/lost-comms
+ * and the phones' wt_lost_comms. ROUTES stays here as the page's labels
+ * and the type of its pick; lostComms.test.ts holds it to the engine's.
  */
+import { callEngine } from "./engine/engine";
 
 /** 91.185(c)(1): the route, in the rule's order -- the first that applies. */
 export const ROUTES = [
@@ -35,29 +40,27 @@ export interface Clearance {
 
 export type Because = "assigned" | "minimum" | "expected";
 
+/** The engine's "lost_comms" answer, as /api/lost-comms gives it. */
+export interface LostCommsAnswer {
+  vfr: string;
+  routes: { key: string; label: string; rule: string }[];
+  segments: { name: string; fly: number | null; because: Because | null; words: string }[];
+  leave: string;
+}
+
 /** 91.185(c)(2): on each segment, the highest of the altitude assigned,
  *  the minimum for IFR operations, and the altitude ATC said to expect --
- *  and which it was. Null where none is known. */
+ *  and which it was. Null where none is known. A segment with no name is
+ *  "Segment", as the planner names it. */
 export function segmentAltitudes(segments: Segment[], c: Clearance): { name: string; fly: number | null; because: Because | null }[] {
-  return segments.map((s, i) => {
-    const candidates: [number | null, Because][] = [
-      [c.assignedFt, "assigned"], [s.minimumFt, "minimum"], [i >= c.expectedFrom ? c.expectedFt : null, "expected"],
-    ];
-    const known = candidates.filter((x): x is [number, Because] => x[0] != null);
-    if (!known.length) return { name: s.name, fly: null, because: null };
-    const [fly, because] = known.reduce((a, b) => (b[0] > a[0] ? b : a));
-    return { name: s.name, fly, because };
+  const answer = callEngine<LostCommsAnswer>("lost_comms", {
+    segments: segments.map(s => ({ name: s.name, minimum_ft: s.minimumFt })),
+    assigned_ft: c.assignedFt, expected_ft: c.expectedFt, expected_from: c.expectedFrom,
   });
+  return answer.segments.map(({ name, fly, because }) => ({ name, fly, because }));
 }
 
 /** 91.185(c)(3): when to leave the clearance limit, in words. */
 export function leaveLimit(approachFix: boolean, efc: string, eta: string): string {
-  if (approachFix) {
-    return efc
-      ? `Hold at the clearance limit, and begin the descent or the approach as close as possible to the expect-further-clearance time, ${efc}.`
-      : `Begin the descent or the approach as close as possible to your estimated time of arrival${eta ? `, ${eta}` : ""}, from the filed or amended time en route.`;
-  }
-  return efc
-    ? `Leave the clearance limit at the expect-further-clearance time, ${efc}, proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival${eta ? `, ${eta}` : ""}.`
-    : `Leave the clearance limit on arriving over it, proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival${eta ? `, ${eta}` : ""}.`;
+  return callEngine<LostCommsAnswer>("lost_comms", { segments: [], approach_fix: approachFix, efc, eta }).leave;
 }

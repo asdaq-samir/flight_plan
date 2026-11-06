@@ -1,10 +1,10 @@
-"""vfr.planner_client: how both agents get a route's nav log from
+"""wingtip.planner_client: how both agents get a route's nav log from
 planning-service. The HTTP calls are mocked on the module's own Session,
 the same way tests/test_model_client.py does it."""
 import pytest
 import requests
 
-from vfr import planner_client
+from wingtip import planner_client
 
 
 class _Response:
@@ -93,6 +93,6 @@ def test_what_the_pilot_planned_with_is_passed_through(monkeypatch):
 def test_the_client_waits_past_the_planners_own_bound():
     """A plan the planner is still working on comes back as its own 504
     within its bound; the client must still be listening then."""
-    from vfr.config import PLAN_LIMIT_S
+    from wingtip.config import PLAN_LIMIT_S
 
     assert planner_client.TIMEOUT_S > PLAN_LIMIT_S

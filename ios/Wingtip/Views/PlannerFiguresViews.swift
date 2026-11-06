@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// How the four planner-worked pages write a figure the planner sent: a
-/// figure signed, a share. Formatting only; the figures and the rules are
-/// the planner's (app.figures), and a direction, feet or a tolerance are
-/// written as AirportWords writes them.
+/// How the four figure pages write a figure the engine or the planner
+/// sent: a figure signed, a share. Formatting only; the figures and the
+/// rules are the engine's (the planner's app.figures runs the same), and
+/// a direction, feet or a tolerance are written as AirportWords writes
+/// them.
 enum FigureWords {
     /// "+300 ft", "−2 min", "0 ft".
     static func signed(_ value: Double, _ unit: String) -> String {
@@ -124,7 +125,7 @@ struct DebriefSections: View {
 
     private func courseLine(_ leg: LegGrade, _ t: DebriefTolerances) -> String? {
         guard let within = leg.courseWithin, let course = leg.courseDeg else { return nil }
-        let off = leg.worstOffNm.map { String(format: ", at most %.1f nm %@ of the line", abs($0), $0 >= 0 ? "right" : "left") } ?? ""
+        let off = leg.worstOffNm.map { ", at most \(Formats.nm(abs($0))) \($0 >= 0 ? "right" : "left") of the line" } ?? ""
         return "Course: \(FigureWords.percent(within)) within \(AirportWords.tenths(t.courseDeg))° of \(AirportWords.bearing(course))\(off)"
     }
 
@@ -136,7 +137,7 @@ struct DebriefSections: View {
         } else {
             parts.append("not reached")
         }
-        if !p.landed, let closest = p.closestNm { parts.append(String(format: "%.1f nm from it at closest", closest)) }
+        if !p.landed, let closest = p.closestNm { parts.append("\(Formats.nm(closest)) from it at closest") }
         return parts.joined(separator: " · ")
     }
 }
@@ -318,7 +319,8 @@ struct DiversionDrillView: View {
 /// inbound course and turns and the heading the airplane arrives on, its
 /// entry by AIM 5-3-8 drawn and said, and -- given a true airspeed, a
 /// wind and the altitude -- the headings and the outbound time that make
-/// the inbound leg a minute, all the planner's (GET /api/holding).
+/// the inbound leg a minute, all the engine's on the phone (`holding`,
+/// what the planner's GET /api/holding answers).
 struct HoldingView: View {
     @State private var inbound = "360"
     @State private var heading = "220"
@@ -385,14 +387,13 @@ struct HoldingView: View {
         .navigationTitle("Holding Entries")
         .navigationBarTitleDisplayMode(.inline)
         .task(id: asked) {
-            // A pause while the pilot types, then the planner's answer.
+            // A pause while the pilot types, then the engine's answer.
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled, let i = Double(inbound), let h = Double(heading), (0...360).contains(i), (0...360).contains(h) else { return }
             do {
-                answer = try await Planner.holding(inbound: i, heading: h, turns: turns, tasKt: Double(tas), windFrom: Double(windFrom),
-                                                   windKt: Double(windKt), altitudeFt: Double(altitude))
+                answer = try Engine.holding(inbound: i, heading: h, turns: turns, tasKt: Double(tas), windFrom: Double(windFrom),
+                                            windKt: Double(windKt), altitudeFt: Double(altitude))
                 problem = nil
-            } catch is CancellationError {
             } catch {
                 problem = error.localizedDescription
             }
@@ -520,8 +521,8 @@ struct HoldDiagram: View {
 
 /// Lost comms' clearance and segments (the web app's LostCommsPage): the
 /// altitude assigned and to expect, each segment's minimum for IFR
-/// operations, and what the planner says to fly on each (POST
-/// /api/lost-comms, 14 CFR 91.185(c)(2)); a tap on a segment's altitude
+/// operations, and what the engine says to fly on each (`lost_comms`, the
+/// planner's POST /api/lost-comms, 14 CFR 91.185(c)(2)); a tap on a segment's altitude
 /// says the expected altitude applies from there. It opens on a made-up
 /// route for the pilot's own.
 struct LostCommsSegmentsSections: View {
@@ -564,15 +565,14 @@ struct LostCommsSegmentsSections: View {
             }
         }
         .task(id: ask) {
-            // A pause while the pilot types, then the planner's answer.
+            // A pause while the pilot types, then the engine's answer.
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }
             do {
-                let found = try await Planner.lostComms(ask)
+                let found = try Engine.lostComms(ask)
                 answer = found
                 leave = found.leave
                 problem = nil
-            } catch is CancellationError {
             } catch {
                 problem = error.localizedDescription
             }
@@ -605,5 +605,37 @@ struct LostCommsSegmentsSections: View {
             }
             ProblemLine(problem)
         }
+    }
+}
+
+#Preview("WithinMark") {
+    HStack(spacing: 12) {
+        WithinMark(ok: true)
+        WithinMark(ok: false)
+    }
+}
+
+#Preview("DiversionDrillView") {
+    NavigationStack { DiversionDrillView() }
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+}
+
+#Preview("HoldingView") {
+    NavigationStack { HoldingView() }
+}
+
+#Preview("HoldDiagram") {
+    // Arriving on 220 to a hold inbound 360, right turns: from the fix the
+    // airplane comes from 040, the parallel sector (AIM 5-3-8).
+    HoldDiagram(inbound: 360, heading: 220, turns: "right", entry: "parallel", from: 40)
+        .padding()
+}
+
+#Preview("LostCommsSegmentsSections") {
+    @Previewable @State var leave: String? = nil
+    List {
+        LostCommsSegmentsSections(leave: $leave, approachFix: false, efc: "", eta: "1435Z")
     }
 }

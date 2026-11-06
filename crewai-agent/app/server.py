@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from vfr.narrative import NarrativeRequest, invalid_detail
+from wingtip.narrative import NarrativeRequest, invalid_detail
 
 from .main import build_crew
 

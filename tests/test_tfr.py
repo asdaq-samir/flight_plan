@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from vfr import tfr
+from wingtip import tfr
 
 # A trimmed copy of the site's detail_6_6654.xml: a fire-fighting TFR,
 # its times in UTC, one area from the surface to 10,000 ft MSL.
@@ -83,3 +83,52 @@ def test_the_time_the_shapes_were_fetched_is_kept_for_the_maps_age(monkeypatch):
     monkeypatch.setattr(tfr.requests, "get", lambda *a, **kw: Mock(json=lambda: {"features": []}, raise_for_status=lambda: None))
     assert tfr.fetched_at() is None
     assert tfr._shapes() == [] and tfr.fetched_at() == 1791126000.0
+
+
+def test_a_failed_refresh_serves_the_last_list_and_leaves_out_the_ended(monkeypatch):
+    """A momentary outage of tfr.faa.gov used to leave the map and the
+    briefing with no TFRs after ten minutes; the last list is served on,
+    its age kept, less any TFR whose NOTAM has expired since."""
+    import requests
+    from unittest.mock import Mock
+
+    clock = [1791126000.0]
+    monkeypatch.setattr(tfr, "_SHAPES", tfr.TTLCache(maxsize=1, ttl=tfr.SHAPES_TTL_S, timer=lambda: clock[0]))
+    monkeypatch.setattr(tfr, "_FETCHED_AT", None)
+    monkeypatch.setattr(tfr, "_HELD", None)
+    monkeypatch.setattr(tfr, "_RETRY_AT", 0.0)
+    monkeypatch.setattr(tfr.time, "time", lambda: clock[0])
+    features = [{"properties": {"NOTAM_KEY": "6/1-1-FDC-F", "TITLE": "ON IT", "LAST_MODIFICATION_DATETIME": "1"},
+                 "geometry": {"type": "Polygon", "coordinates": _square(42.5, -88.0)}}]
+    monkeypatch.setattr(tfr.requests, "get", lambda *a, **kw: Mock(json=lambda: {"features": features},
+                                                                   raise_for_status=lambda: None))
+    assert tfr._shapes() == features
+
+    def down(*a, **kw):
+        raise requests.ConnectionError("no route to host")
+
+    monkeypatch.setattr(tfr.requests, "get", down)
+    clock[0] += tfr.SHAPES_TTL_S + 60
+    assert tfr._shapes() == features
+    assert tfr.fetched_at() == 1791126000.0
+
+    # Served from the held list, one past its expiry is left out.
+    monkeypatch.setattr(tfr, "_detail", lambda notam_id, modified: {"expires": "2026-10-07T01:00:00Z"})
+    assert tfr.all_tfrs() == []
+    monkeypatch.setattr(tfr, "_detail", lambda notam_id, modified: {"expires": None})
+    assert [t["notam_id"] for t in tfr.all_tfrs()] == ["6/1"]
+
+
+def test_with_no_list_ever_fetched_a_failure_is_unavailable(monkeypatch):
+    import requests
+
+    monkeypatch.setattr(tfr, "_SHAPES", tfr.TTLCache(maxsize=1, ttl=tfr.SHAPES_TTL_S))
+    monkeypatch.setattr(tfr, "_HELD", None)
+    monkeypatch.setattr(tfr, "_RETRY_AT", 0.0)
+
+    def down(*a, **kw):
+        raise requests.ConnectionError("no route to host")
+
+    monkeypatch.setattr(tfr.requests, "get", down)
+    with pytest.raises(tfr.TfrUnavailable):
+        tfr._shapes()

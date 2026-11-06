@@ -1,4 +1,4 @@
-"""vfr.procedures: an airport's instrument procedures from the FAA's CIFP,
+"""wingtip.procedures: an airport's instrument procedures from the FAA's CIFP,
 read from KBUR's records of the 1 Oct 2026 cycle (tests/cifp, with the
 navaids and enroute fixes they name) -- the ILS Y RWY 08 via LAX a pilot
 asked to see drawn as ForeFlight draws it."""
@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from vfr import geo, procedures
+from wingtip import geo, procedures
 
 CIFP = Path(__file__).parent / "cifp" / "FAACIFP18"
 

@@ -33,6 +33,8 @@ class PlateCanvasLayer extends ViewCanvasLayer {
 
   constructor(pane: string, url: string, private readonly bounds: L.LatLngBounds) {
     super(pane, "approach-plate");
+    // Scaled with the chart through a pinch, drawn sharp again as it ends.
+    this.redrawWhileZooming = false;
     // Decoded off the main thread before its first draw.
     this.picture.src = url;
     this.picture.decode().then(() => this.schedule(), () => {});
@@ -54,7 +56,9 @@ class PlateCanvasLayer extends ViewCanvasLayer {
     const picture = this.picture;
     if (!picture.complete || !picture.naturalWidth) return;
     const kx = picture.naturalWidth / (se.x - nw.x), ky = picture.naturalHeight / (se.y - nw.y);
-    ctx.imageSmoothingQuality = "high";
+    // Quickly under a pinch, drawn only as its edge would come into sight
+    // (ViewCanvas' moved); sharp again as the fingers lift.
+    ctx.imageSmoothingQuality = (map as L.Map & { touchZoom?: { _zooming?: boolean } }).touchZoom?._zooming ? "low" : "high";
     ctx.drawImage(picture, (x0 - nw.x) * kx, (y0 - nw.y) * ky, (x1 - x0) * kx, (y1 - y0) * ky, x0, y0, x1 - x0, y1 - y0);
   }
 }
@@ -75,7 +79,7 @@ function Plate({ url, south, west, north, east }: { url: string; south: number; 
  * view on the chart under its coded lines (ProcedureLayer), at the owner's
  * ask ("Also show the approach plate on the map when selected"): the
  * planner places the plate by the FAA's own georeference in it
- * (vfr.plates) and draws it black on clear. Where it cannot -- a plate
+ * (wingtip.plates) and draws it black on clear. Where it cannot -- a plate
  * without one -- nothing is drawn, the coded lines alone. A sketch to fly
  * the dry run against, not the chart to navigate by.
  */

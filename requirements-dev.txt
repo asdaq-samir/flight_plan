@@ -3,12 +3,12 @@
 # -- see DEVELOPMENT.md for why this project doesn't have one of those
 # anymore.
 #
-# vfr's own dependencies come from src/requirements*.txt, so a new import
-# in vfr is covered here the moment it is added there. Anything a test
-# needs beyond vfr itself goes below: a test module importing something
+# wingtip's own dependencies come from src/requirements*.txt, so a new import
+# in wingtip is covered here the moment it is added there. Anything a test
+# needs beyond wingtip itself goes below: a test module importing something
 # missing fails at *collection*, which takes the whole suite down rather
 # than one test.
--r src/requirements-charts.txt   # vfr's own list, charts included -- tests/ covers both
+-r src/requirements-charts.txt   # wingtip's own list, charts included -- tests/ covers both
 pytest
 ruff
-pygeodesy   # TEST ONLY -- the independent implementation tests/test_geo.py pins vfr.geo against
+pygeodesy   # TEST ONLY -- the independent implementation tests/test_geo.py pins wingtip.geo against

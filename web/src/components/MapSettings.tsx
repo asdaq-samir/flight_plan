@@ -7,8 +7,9 @@ import Segmented from "./Segmented";
 import { Switch } from "./ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
-import { BASE_CHARTS, usePreferences, type BaseChart, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
+import { USGS_URL } from "../lib/map/OverlayTiles";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { OWN_SHIP_LOOKS, ownShipSvg, type OwnShipLook } from "../lib/map/ownShipLook";
 import { tileUrl } from "../lib/map/tiles";
@@ -19,6 +20,7 @@ import { useLayerAges } from "../lib/map/layerAges";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { inNativeApp } from "../lib/native";
 import { useReceiver } from "../lib/map/receiver";
+import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 
 /**
  * The map's settings, the whole of the map's own button's sheet
@@ -26,9 +28,10 @@ import { useReceiver } from "../lib/map/receiver";
  * owner's pick (2026-10-27, canvas RZDPvJ6hxfp93UL53LYLec): the chart and
  * what is over it as pictures, then what is drawn on the map as iOS's
  * switches, then how the chart looks, then where its data comes from. It
- * was one list of nineteen rows of three kinds of control; the alerts and
- * the charts kept offline, which work in the air whatever the map shows,
- * are Setup's Controls (QuickControls). Since the owner's split
+ * was one list of nineteen rows of three kinds of control. The alerts,
+ * Setup's for a while, are here again since 2026-11-05, at the owner's
+ * ask; Setup's Layout (QuickControls) has FPL, the theme, the sheet's
+ * edge and light or dark. Since the owner's split
  * (2026-10-27: "Everything else in the overlay"), with no Settings page,
  * this is the one home of everything else: the app's look, the chart at
  * night and own ship's look among it.
@@ -50,6 +53,7 @@ export default function MapSettings() {
   // How old each weather layer's data is, beside where it comes from.
   const ages = useLayerAges();
   const sec = prefs.base === "sec";
+  const [alertMode, setAlertMode] = useAlertMode();
   return (
     <div className="flex flex-col gap-5" data-testid="map-settings-groups">
       <PictureChoices
@@ -134,6 +138,17 @@ export default function MapSettings() {
             service's permission. A joint-use field is drawn either way. */}
         <SwitchRow title="Military Fields" on={prefs.military} onChange={prefs.setMilitary} testId="military-toggle" />
       </ListGroup>
+      {/* The in-flight alerts, off, shown or said aloud (lib/alertMode),
+          here from Setup's tiles since the owner's ask ("alerts can go to
+          overlay settings", 2026-11-05): a pick of three, segmented. */}
+      <ListGroup title="Alerts">
+        <ListRow title="Alerts">
+          <Segmented
+            label="Alerts" value={alertMode} onChange={v => setAlertMode(v as AlertMode)} testId="alerts-mode"
+            options={ALERT_MODES}
+          />
+        </ListRow>
+      </ListGroup>
       <ListGroup title="Appearance">
         {/* The white paper chart dimmed in the dark theme, so it does not
             take the pilot's night vision; only its tiles (index.css). */}
@@ -141,6 +156,14 @@ export default function MapSettings() {
           <Segmented
             label="Chart at night" value={prefs.chartNight} onChange={v => prefs.setChartNight(v as ChartNight)}
             testId="chart-night-select" options={[{ value: "normal", label: "Normal" }, { value: "dimmed", label: "Dimmed" }]}
+          />
+        </ListRow>
+        {/* The chart in bright sunlight (lib/sunlight): from the phone's
+            light sensor where the browser has one, or by hand. */}
+        <ListRow title="Sunlight">
+          <Segmented
+            label="Sunlight" value={prefs.chartLight} onChange={v => prefs.setChartLight(v as ChartLight)}
+            testId="sunlight-select" options={[{ value: "auto", label: "Auto" }, { value: "on", label: "On" }, { value: "off", label: "Off" }]}
           />
         </ListRow>
         {/* Own ship on the chart, a plane or the arrow, at the owner's ask:
@@ -197,8 +220,8 @@ export default function MapSettings() {
  *  towns and Class B, the IFR charts' airways), so the pictures tell the
  *  charts apart as Apple Maps' tell its maps apart. */
 const PICTURE_TILE = [9, 130, 190] as const;
-/** The USGS's imagery of the same tile (OverlayTiles' service: z/y/x). */
-const USGS_PICTURE = `https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/${PICTURE_TILE[0]}/${PICTURE_TILE[2]}/${PICTURE_TILE[1]}`;
+/** The USGS's imagery of the same tile (OverlayTiles' service). */
+const USGS_PICTURE = USGS_URL.replace("{z}", String(PICTURE_TILE[0])).replace("{x}", String(PICTURE_TILE[1])).replace("{y}", String(PICTURE_TILE[2]));
 
 /** A pick of one of a few, each a picture over its word, as Apple Maps'
  *  map types are: the stock ToggleGroup underneath, so each is a radio to

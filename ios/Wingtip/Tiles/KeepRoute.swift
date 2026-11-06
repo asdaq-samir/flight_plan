@@ -60,10 +60,48 @@ enum KeepRoute {
         return out
     }
 
-    /// Fetches every tile not yet in the store, a few at a time, and
-    /// reports how many are kept as it goes.
+    /// The tiles one and two levels above the coarsest kept, a screen's
+    /// worth round each: a zoom out from the route -- the location
+    /// arrow's, a flick -- asked for its coarser tiles only once it had
+    /// crossed the level, and showed the chart blurred until they came
+    /// (the web app's prefetch of the levels above, landed 2026-11-03).
+    /// Each kept tile's parent at the level above and the eight tiles
+    /// round it (a phone's screen is two tiles by four at any zoom), at
+    /// most MOST_ABOVE a level, so a long route does not double what is
+    /// kept: the parents of a corridor are a quarter of it a level up.
+    static let levelsAbove = 2
+    static let mostAbove = 400
+
+    static func parents(of tiles: Set<Tile>, levels: Int = levelsAbove) -> Set<Tile> {
+        guard let lowest = tiles.map(\.z).min() else { return [] }
+        var out = Set<Tile>()
+        var layer = tiles.filter { $0.z == lowest }
+        for up in 1...max(1, levels) {
+            let z = lowest - up
+            guard z >= 0 else { break }
+            let n = Int(pow(2.0, Double(z)))
+            var above = Set<Tile>()
+            for tile in layer {
+                let parent = Tile(z: z, x: tile.x / 2, y: tile.y / 2)
+                for dx in -1...1 {
+                    for dy in -1...1 {
+                        let x = parent.x + dx, y = parent.y + dy
+                        if x >= 0, x < n, y >= 0, y < n { above.insert(Tile(z: z, x: x, y: y)) }
+                    }
+                }
+                if above.count >= mostAbove { break }
+            }
+            out.formUnion(above)
+            layer = above
+        }
+        return out
+    }
+
+    /// Fetches every tile not yet in the store, a few at a time, with
+    /// the levels above the coarsest (parents), and reports how many are
+    /// kept as it goes.
     static func keep(_ tiles: Set<Tile>, template: TileTemplate, store: TileStore = .shared, progress: @escaping @Sendable (Int, Int) -> Void) async {
-        let all = Array(tiles)
+        let all = Array(tiles.union(parents(of: tiles)))
         let missing = all.filter { store.read(cycle: template.cycle, kind: template.kind, z: $0.z, x: $0.x, y: $0.y) == nil }
         var done = all.count - missing.count
         progress(done, all.count)

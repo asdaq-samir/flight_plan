@@ -22,6 +22,7 @@ final class Session {
             // Offline, or the gateway down: the last answer stands, and
             // the chart is still the pilot's from its cache.
             problem = error.localizedDescription
+            Log.app.notice("who is signed in could not be asked: \(error.localizedDescription, privacy: .public)")
         }
         loaded = true
     }
@@ -32,6 +33,7 @@ final class Session {
             await refresh()
         } catch {
             problem = "Apple's sign-in was not accepted: \(error.localizedDescription)"
+            Log.app.error("Sign in with Apple refused: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -58,6 +60,7 @@ final class Session {
             await refresh()
         } catch {
             problem = "The sign-in link did not work: \(error.localizedDescription)"
+            Log.app.error("the sign-in link was refused: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -68,10 +71,12 @@ final class Session {
         try? await Gateway.signOut()
         pilot = nil
         Session.forgetPilot()
+        Tracking.shared.forgetFavorites()
     }
 
-    /// The figures kept per N-number on this device and the airplanes
-    /// kept as Favorites, the pilot's own.
+    /// The figures kept per N-number on this device, the pilot's own;
+    /// the Favorites are the store's (Tracking.forgetFavorites), and the
+    /// old key of theirs is gone with the first launch's migration.
     static func forgetPilot(_ defaults: UserDefaults = .standard) {
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(TailFigures.prefix) || key == KeptAirplane.key {
             defaults.removeObject(forKey: key)
@@ -87,6 +92,7 @@ final class Session {
         try await Gateway.deleteAccount()
         if let id = Bundle.main.bundleIdentifier { UserDefaults.standard.removePersistentDomain(forName: id) }
         Kept.forget()
+        Tracking.shared.erase()
         let jar = Gateway.session.configuration.httpCookieStorage
         for cookie in jar?.cookies(for: Config.gateway) ?? [] { jar?.deleteCookie(cookie) }
         pilot = nil

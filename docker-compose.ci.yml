@@ -75,8 +75,11 @@ services:
       # Nor the FAA's aircraft registry (73 MB a run): the suite stubs a
       # tracked airplane's card.
       REGISTRY_REFRESH: "0"
+      # Nor the cycle pack (wingtip.pack): the suite's planner reads the FAA
+      # files themselves, and the pack is 400 MB written a run.
+      CYCLE_PACK: "0"
       # And a tile never sends for a sheet: the warm-up's are all it
-      # draws on (vfr.charts.FETCH_FOR_TILES). A zoomed-out view used to
+      # draws on (wingtip.charts.FETCH_FOR_TILES). A zoomed-out view used to
       # send for 29 sheets past the corridor's 10 -- minutes of downloads
       # and preparation in the first run of an FAA cycle, and 2.1 GB of
       # charts cache that every shard of every run then restored. Past

@@ -1,16 +1,17 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-import { grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { grabberTo, inSheet, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 const origin = new URL(process.env.BASE_URL ?? "http://localhost:8080").origin;
 
 /**
  * The map's Stops, one sheet near the pilot and along a route, at the
- * owner's pick of the Stops canvas (2026-10-27), where Fly-in Food was:
- * the map-pin button among the map's own, a sheet over FPL with how far to
- * look beside its title, the kinds as pills (All, Food, Fuel, Repair,
- * Training), and a row for each field with a line for each kind it has
- * and Add Stop along a route, its pin's tap picking it; the Airport tab's
- * Find Nearby tiles open it with a kind picked.
+ * owner's pick of the Stops canvas (2026-10-27): a sheet over FPL with how
+ * far to look beside its title, the kinds as pills (All, Food, Fuel,
+ * Repair, Training), and a row for each field with a line for each kind
+ * it has and Add Stop along a route, its pin's tap picking it. The
+ * Airport tab's Find Nearby tiles open it with a kind picked; the map's
+ * own Stops button gave its place to the radio's microphone at the
+ * owner's ask (2026-11-02).
  *
  * The fields are the planner's (/api/stops/near and /api/stops/along,
  * tested there); here they are answered with two, so the page is tried
@@ -41,6 +42,17 @@ async function stops(page: Page, asked: string[] = []) {
   });
 }
 
+/** The Stops opened from the Airport tab's Find Nearby, `kind` picked. */
+async function findNearby(page: Page, kind: string) {
+  await showTabs(page);
+  await page.getByTestId("tab-airport").click();
+  await grabberTo(page, "half");
+  await sideDrawer(page).getByTestId(`find-nearby-${kind}`).click();
+  const card = sideDrawer(page).getByTestId("stops-card");
+  await expect(card).toBeVisible({ timeout: slow(30_000) });
+  return card;
+}
+
 /** The planner opened with no route, the pilot at Grayslake. */
 async function nearMe(page: Page, context: BrowserContext) {
   await context.grantPermissions(["geolocation"], { origin });
@@ -53,21 +65,20 @@ test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 
-test("with a course drawn, the map's Stops button opens the fields along it, each with a line for each kind it has, its pin's tap picking it, and Add Stop", async ({ page }) => {
+test("with a course drawn, the Stops along it, each with a line for each kind it has, its pin's tap picking it, and Add Stop", async ({ page, context }) => {
   const asked: string[] = [];
   await stops(page, asked);
+  await context.grantPermissions(["geolocation"], { origin });
+  await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  const button = page.getByTestId("stops-along-button");
-  await expect(button).toBeVisible({ timeout: slow(30_000) });
-  await expect(button).toHaveAccessibleName("Stops: fuel, food, repair and training at the airports");
-  await button.click();
-  const card = sideDrawer(page).getByTestId("stops-card");
-  await expect(card).toBeVisible();
-  await expect(button).toHaveAttribute("aria-pressed", "true");
-  // Along the route at first where there is one.
+  const card = await findNearby(page, "fuel");
+  // Along the route, picked where there is one.
+  await card.getByTestId("stops-distance").click();
+  await page.getByTestId("stops-distance-option").filter({ hasText: "Along Route" }).click();
   await expect(card.getByTestId("stops-distance")).toHaveText("Along Route");
   await expect.poll(() => asked).toContain("along");
+  await card.getByTestId("stops-kind-all").click();
 
   const rows = card.getByTestId("stops-field");
   await expect(rows).toHaveCount(2, { timeout: slow(30_000) });
@@ -94,10 +105,12 @@ test("with a course drawn, the map's Stops button opens the fields along it, eac
   await expect(page.getByTitle("KAAA: Fuel, Food, Repair, Training")).toHaveCount(1);
 
   // A field's pin tapped with the sheet at its pill: its row picked, the
-  // sheet half way up to show it, and no card opened over the list.
+  // sheet up to show it, and no card opened over the list -- half way, or
+  // all the way where the row is under half's edge, which is not scrolled
+  // but pulled up (the owner, 2026-11-05: "pull up, like Apple Maps").
   await grabberTo(page, "peek");
   await page.getByTitle("KBBB: Fuel").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", /^(half|full)$/);
   await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
   await expect(rows.nth(0)).not.toHaveAttribute("aria-current", "true");
   await expect(rows.nth(1)).toBeInViewport();
@@ -113,11 +126,7 @@ test("with no route the Stops look round the pilot, 25 nm at first, the distance
   const asked: string[] = [];
   await stops(page, asked);
   await nearMe(page, context);
-  const button = page.getByTestId("stops-along-button");
-  await expect(button).toBeVisible({ timeout: slow(30_000) });
-  await button.click();
-  const card = sideDrawer(page).getByTestId("stops-card");
-  await expect(card).toBeVisible();
+  const card = await findNearby(page, "food");
   // The sheet alone: FPL's Saved stood over it (the owner's screenshot, 2026-10-26).
   await expect(sideDrawer(page).getByTestId("saved-strip")).toHaveCount(0);
   const distance = card.getByTestId("stops-distance");
@@ -138,8 +147,6 @@ test("with no route the Stops look round the pilot, 25 nm at first, the distance
   // away on the field's card (the owner, 2026-10-28).
   await expect(card.getByTestId("stops-direct")).toHaveCount(0);
   await expect(card.getByTestId("stops-add-stop")).toHaveCount(0);
-  await button.click();
-  await expect(card).toHaveCount(0);
 });
 
 test("the Airport tab's Find Nearby tiles open the Stops round the pilot with that kind picked", async ({ page, context }) => {
@@ -154,6 +161,7 @@ test("the Airport tab's Find Nearby tiles open the Stops round the pilot with th
   // A finger's 44 points.
   const tile = nearby.getByTestId("find-nearby-repair");
   expect((await tile.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await inSheet(page, tile);
   await tile.click();
   const card = sideDrawer(page).getByTestId("stops-card");
   await expect(card).toBeVisible();

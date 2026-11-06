@@ -6,7 +6,7 @@
 
 [![CI](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml)
 
-![Python](https://img.shields.io/badge/Python%203.13-3776AB?style=flat-square&logo=python&logoColor=white)
+![Python](https://img.shields.io/badge/Python%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
@@ -18,7 +18,7 @@
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square&logo=amazonaws&logoColor=white)
 ![Claude](https://img.shields.io/badge/Claude%20API-D97757?style=flat-square&logo=anthropic&logoColor=white)
 
-**A production-shaped platform that plans VFR cross-country flights end to end** — a trained model picks visually identifiable ground checkpoints off a real FAA sectional chart, a dead-reckoning engine computes headings, groundspeed, ETE, and fuel burn from live weather, a rules engine selects a legal cruising altitude from terrain, airspace, and weather constraints, and a Gen AI agent turns all of it into a natural-language pilot briefing.
+**A production-shaped platform that plans VFR and IFR cross-country flights end to end** — a trained model picks visually identifiable ground checkpoints off a real FAA sectional chart, a dead-reckoning engine computes headings, groundspeed, ETE, and fuel burn from live weather, a rules engine selects a legal cruising altitude from terrain, airspace, and weather constraints, and a Gen AI agent turns all of it into a natural-language pilot briefing.
 
 Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 
@@ -52,7 +52,7 @@ Ten services, one `docker compose up`. Full write-up, including the AWS target a
 
 ## A planning aid
 
-Wingtip Maps is a planning aid for VFR flight. It does not replace an official weather briefing (1800wxbrief.com or 1-800-WX-BRIEF), current FAA charts and publications, or the pilot in command's judgement and final authority (14 CFR 91.3, 91.103). Its checkpoints are a model's suggestions: check them against the chart. The app says so on first launch and under Settings, About & limits.
+Wingtip Maps is a planning aid for VFR and IFR flight. It does not replace an official weather briefing (1800wxbrief.com or 1-800-WX-BRIEF), current FAA charts and publications, or the pilot in command's judgement and final authority (14 CFR 91.3, 91.103). Its checkpoints are a model's suggestions: check them against the chart. The app says so on first launch and under Settings, About & limits.
 
 ## Quick start
 
@@ -72,6 +72,9 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 | Path | Contents |
 |---|---|
 | [`web/`](web) | React 19 + TypeScript + Leaflet front end |
+| [`ios/`](ios) | The native iOS app: SwiftUI over the shared Rust engine (docs/NATIVE.md) |
+| [`android/`](android) | The native Android app: Kotlin, Compose and MapLibre over the shared Rust engine (docs/NATIVE-ANDROID.md) |
+| [`native/`](native) | The shared Rust engine, every aviation rule once, and its Python, C and WebAssembly faces |
 | [`planning-service/`](planning-service) | Route planning and chart-vision API |
 | [`model-service/`](model-service) | Model-serving API |
 | [`springboot-app/`](springboot-app) | Public API, authentication, database |
@@ -93,6 +96,8 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 | [`docs/GOOGLE-MAPS.md`](docs/GOOGLE-MAPS.md) | The map's overlays over the chart: the USGS's imagery, and Google's map and satellite with the owner's key |
 | [`docs/TV.md`](docs/TV.md) | The TV apps for Samsung (Tizen) and LG (webOS): the site made for a remote, their packages, and the owner's store steps |
 | [`docs/ANDROID.md`](docs/ANDROID.md) | The Android app: the same shell, its build to Google Play's internal track, and the owner's Google steps |
+| [`docs/NATIVE.md`](docs/NATIVE.md) | The native iOS app: SwiftUI over the shared engine, its rules and fixtures, and its build and tests on the macOS runner |
+| [`docs/NATIVE-ANDROID.md`](docs/NATIVE-ANDROID.md) | The native Android app: Compose and MapLibre over the shared engine, its build and emulator tests on the Linux runner |
 | [`docs/LEARNING-GUIDE.md`](docs/LEARNING-GUIDE.md) | Guided walkthrough of the system, section by section |
 
 ## License

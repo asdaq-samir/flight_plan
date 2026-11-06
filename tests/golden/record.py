@@ -1,5 +1,5 @@
 """Records a route's nav log for tests/test_golden_routes.py: what the
-nav log engine (vfr.navlog) was given for it -- the fixes, each leg's
+nav log engine (wingtip.navlog) was given for it -- the fixes, each leg's
 legal altitudes, the aeroplane, the forecast period, the field's
 elevation and the pattern altitude at the end -- every wind,
 temperature and magnetic variation it asked for, and what it made of
@@ -18,7 +18,7 @@ import json
 import sys
 from pathlib import Path
 
-from vfr import navlog
+from wingtip import navlog
 
 HERE = Path(__file__).resolve().parent
 

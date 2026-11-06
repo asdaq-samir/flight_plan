@@ -59,7 +59,7 @@ easy and does nothing about whether the answer is true.
    and how unreliable the output is.
 
 2. **Give it tools.** `app/tools.py` wraps the planner's own answers
-   (checkpoints, altitude, legs, through `vfr.planner_client`) so the
+   (checkpoints, altitude, legs, through `wingtip.planner_client`) so the
    agent can call real checkpoint selection and dead reckoning. Output
    becomes grounded.
 
@@ -90,5 +90,5 @@ model-directed framework for a procedure you can already draw — which is
 the point worth taking away.
 
 Both get their nav log from planning-service through
-`vfr.planner_client`, the one a pilot sees on the page, so the
+`wingtip.planner_client`, the one a pilot sees on the page, so the
 comparison is of the frameworks and not of two different nav logs.

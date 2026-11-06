@@ -1,9 +1,9 @@
-"""vfr.places: a point described by what is there -- the landmark it is
+"""wingtip.places: a point described by what is there -- the landmark it is
 by, or the town it is near -- from the USGS's place names, as a
 stand-alone VFR waypoint has no name of its own."""
 import io
 
-from vfr import places
+from wingtip import places
 
 HEADER = "feature_id|feature_name|feature_class|prim_lat_dec|prim_long_dec\n"
 

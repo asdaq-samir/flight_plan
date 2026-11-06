@@ -82,7 +82,7 @@ const placeRows = (places: NearbyPlace[], media: ReactNode, testId: string) => p
  * long cross-country: the fuel and its remarks, what is on the field --
  * parking, a hangar, repair, oxygen, a landing fee, a courtesy car -- from
  * its Chart Supplement entry, then the places to eat, sleep and hire a car
- * within five miles, nearest first (vfr.nearby). A place with a phone is
+ * within five miles, nearest first (wingtip.nearby). A place with a phone is
  * a tap that calls it.
  */
 export function StopServices({ ident, withoutFuel = false }: {
@@ -132,7 +132,7 @@ export function StopServices({ ident, withoutFuel = false }: {
             data-testid="services-fuel"
           />
           {/* The remarks in plain English as the planner gives them
-              (vfr.remarks.service_notes): self-serve, its hours, the FBO's. */}
+              (wingtip.remarks.service_notes): self-serve, its hours, the FBO's. */}
           {s.fuel_notes.map(note => <ListRow key={note} title={note} />)}
         </Section>
       )}

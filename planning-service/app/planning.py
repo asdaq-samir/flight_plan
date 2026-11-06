@@ -1,6 +1,6 @@
 """The nav log's own arithmetic: the cruise altitude (remembered per
 route), the course line, and the aircraft it is all computed for. The
-legs are vfr.navlog's."""
+legs are wingtip.navlog's."""
 import math
 import threading
 import time
@@ -8,19 +8,19 @@ from datetime import datetime, timedelta, timezone
 
 from cachetools import TTLCache
 
-from vfr import aircraft as aircraft_module
-from vfr import altitude as altitude_module
-from vfr import ifr as ifr_module
-from vfr import airspace, geo, navlog, sun, weather
-from vfr.config import PLAN_LIMIT_S
+from wingtip import aircraft as aircraft_module
+from wingtip import altitude as altitude_module
+from wingtip import ifr as ifr_module
+from wingtip import airspace, geo, navlog, sun, weather
+from wingtip.config import PLAN_LIMIT_S
 
 
 # How long a caller waits on a computation that is already running before
 # saying so, and after which that computation counts as abandoned: the
-# planner's one bound, vfr.config's (see there).
+# planner's one bound, wingtip.config's (see there).
 COMPUTE_LIMIT_S = PLAN_LIMIT_S
 
-# What the stages of vfr.altitude's selection are called to a pilot, by
+# What the stages of wingtip.altitude's selection are called to a pilot, by
 # the part of their label before the dot.
 _STAGE_NAMES = {
     "terrain": "the terrain and obstacles",
@@ -130,7 +130,7 @@ class SingleFlightTTLCache:
     def get_or_compute(self, key, compute, limit_s: float | None = None, pending: set | None = None):
         """The cached value, or `compute()`'s -- computed once however
         many callers ask at the same time. `pending` is the set `compute`
-        reports its running stages in (see vfr.altitude._timed), shown to
+        reports its running stages in (see wingtip.altitude._timed), shown to
         anyone waiting on it; `limit_s` bounds the wait (see above)."""
         with self._lock:
             hit = self._cache.get(key)
@@ -279,7 +279,7 @@ def alternate_leg(dest: dict, alternate: dict, altitude_ft: float, profile: dict
 # result that only moves when the weather does. The terrain and airspace
 # halves are static per route outright; the weather half already runs on
 # aviationweather.gov products reissued a few times a day, and
-# vfr.weather's own winds cache uses this same 15-minute TTL. On a bad
+# wingtip.weather's own winds cache uses this same 15-minute TTL. On a bad
 # aviationweather.gov day (504s, retries) one uncached selection was
 # observed taking over two minutes -- a price worth paying once per
 # route per quarter hour, not on every page load.
@@ -333,7 +333,7 @@ def cruise_altitude(
     forecast period, since the freezing level is read from it, and
     `class_b_cleared`, a pilot who will have a Class B clearance,
     `rules`, "ifr" for a flight under IFR, and `airway`, the airway segment
-    a hop is flown along (vfr.altitude).
+    a hop is flown along (wingtip.altitude).
     Raises StillComputing when the same selection has been running longer
     than COMPUTE_LIMIT_S."""
     pending: set = set()
@@ -376,7 +376,7 @@ def altitude_waiting_on(start: tuple, end: tuple, aircraft: str, fixes: list | N
 
 # The four plans read the winds at every legal altitude of every leg,
 # and the winds product is reissued a few times a day and held by
-# vfr.weather for the same 15 minutes -- so the plans are held as long,
+# wingtip.weather for the same 15 minutes -- so the plans are held as long,
 # per route, fixes and aeroplane, and switching between them is free.
 # Single-flight for the same reason _ALTITUDE_CACHE is.
 _PLANS_CACHE = SingleFlightTTLCache(maxsize=512, ttl=_ALTITUDE_TTL_S)
@@ -494,7 +494,7 @@ def floor_caution(segment: dict, altitude: float) -> str | None:
     congested area: 1,000 ft over the highest obstacle within 2,000 ft,
     here a 1,500 ft tower"). Against the rule's own figure, the
     obstacle's top and its clearance, not the floor rounded up to the
-    next 100 ft (vfr.terrain): 2,480 ft over a 1,480 ft tower keeps
+    next 100 ft (wingtip.terrain): 2,480 ft over a 1,480 ft tower keeps
     91.119(b). A planner without those says the floor alone, as it did.
     None where the leg keeps it."""
     floor, highest, clearance = segment.get("floor_ft"), segment.get("highest_ft"), segment.get("obstacle_clearance_ft")
@@ -569,7 +569,7 @@ def altitude_anyway(selection: dict) -> float | None:
     """The altitude a route with no legal one is flown at anyway, at the
     owner's "I don't want to put hard limits on anything. A warning tick or
     a label is enough" (2026-10-23): the lowest that keeps the terrain and
-    obstacles' floor everywhere along it (14 CFR 91.119, vfr.terrain) on the course's own altitudes (91.159's thousands plus 500
+    obstacles' floor everywhere along it (14 CFR 91.119, wingtip.terrain) on the course's own altitudes (91.159's thousands plus 500
     under VFR, 91.179(b)(1)'s thousands under IFR, ATC's own in controlled airspace), whatever stops it there --
     the airplane's ceiling, the clouds, Class B -- for own_altitude_caution
     to say. None where no floor is known."""
@@ -729,7 +729,7 @@ def _no_ifr_altitude(stuck: dict, course: float, floor: float, top: float, title
 def class_b_detours(selection: dict, start: tuple, end: tuple) -> list[dict]:
     """Where Class B airspace is what leaves a leg of the flight from
     `start` to `end` no altitude, the waypoints that keep both legs out of
-    it (vfr.airspace.detour_waypoints), best first -- out of the parts low
+    it (wingtip.airspace.detour_waypoints), best first -- out of the parts low
     enough to stop the lowest altitude the leg's ground allows; none
     otherwise."""
     stuck = next((s for s in selection.get("segments", []) if not s.get("candidates_ft")), None)
@@ -753,7 +753,7 @@ _CLASS_B_WAYS: TTLCache = TTLCache(maxsize=512, ttl=6 * 3600)
 def class_b_ways(start: tuple, end: tuple, cruise_ft: float) -> list[dict]:
     """Where a leg planned with the Class B clearance (the default, at the
     owner's pick, 2026-10-20) enters Class B at its cruise altitude, the
-    waypoints that keep it out at that altitude (vfr.airspace.
+    waypoints that keep it out at that altitude (wingtip.airspace.
     detour_waypoints), best first: the pilot's "Avoid Class B". None where
     it passes under, over or round it."""
     key = (round(start[0], 4), round(start[1], 4), round(end[0], 4), round(end[1], 4), cruise_ft)
@@ -831,7 +831,7 @@ def _either(values) -> bool | None:
 
 def join_selections(selections: list[dict], offsets: list[float]) -> dict:
     """One altitude breakdown for a route with stops, from each hop's
-    (vfr.altitude.select_cruise_altitude): the hops' segments in turn,
+    (wingtip.altitude.select_cruise_altitude): the hops' segments in turn,
     along the whole route, with what they cross; and the route-wide
     figures the most limiting of the hops', as a hop's are the most
     limiting of its legs' -- the highest floor, the lowest ceilings and

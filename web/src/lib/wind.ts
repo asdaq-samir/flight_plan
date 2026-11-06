@@ -4,22 +4,29 @@
  * is calm. One owner for the sums the runway check, the runway chips,
  * the pattern's pick, the pilot's minimums and the holding page each did
  * their own way.
+ *
+ * Worked out by the shared engine (native/engine/src/runway/wind.rs,
+ * through lib/engine), the very code behind the planner's
+ * wingtip.runway_wind and the phones' wt_call: the rules and their sources
+ * live there.
  */
 import type { Runway } from "./api/types";
-import { rad } from "./geo";
+import { callEngine } from "./engine/engine";
+
+interface Components { headwind_kt: number; crosswind_kt: number }
 
 /** The headwind of a wind from `fromDeg` at `kt` on a heading of
  *  `headingDeg`, the same reference both (true for a METAR's wind and a
  *  runway's true heading): negative for a tailwind -- as the planner's
- *  vfr.runway_wind.components_kt. */
+ *  wingtip.runway_wind.components_kt. */
 export function headwindKt(fromDeg: number, kt: number, headingDeg: number): number {
-  return kt * Math.cos(rad(fromDeg - headingDeg));
+  return callEngine<Components>("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).headwind_kt;
 }
 
 /** The crosswind of that wind: positive from the right, negative from
- *  the left, as vfr.runway_wind.components_kt. */
+ *  the left, as wingtip.runway_wind.components_kt. */
 export function crosswindKt(fromDeg: number, kt: number, headingDeg: number): number {
-  return kt * Math.sin(rad(fromDeg - headingDeg));
+  return callEngine<Components>("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).crosswind_kt;
 }
 
 /** The crosswind a wind is judged by, steady or in the gusts, whichever
@@ -27,30 +34,26 @@ export function crosswindKt(fromDeg: number, kt: number, headingDeg: number): nu
  *  that is the one held against the demonstrated crosswind or a personal
  *  minimum -- a design choice that errs toward the stronger wind. */
 export function steadyOrGustKt(steadyKt: number, gustKt: number | null | undefined): number {
-  return Math.max(Math.abs(steadyKt), Math.abs(gustKt ?? 0));
+  return callEngine<number>("wind_steady_or_gust", { steady_kt: steadyKt, gust_kt: gustKt ?? null });
 }
 
-/** A runway's wind as the planner works it out (vfr.runway_wind), judged
+/** A runway's wind as the planner works it out (wingtip.runway_wind), judged
  *  by steadyOrGustKt. */
 export function runwayCrosswindKt(wind: Pick<NonNullable<Runway["wind"]>, "crosswind_kt" | "gust_crosswind_kt">): number {
-  return steadyOrGustKt(wind.crosswind_kt, wind.gust_crosswind_kt);
+  return callEngine<number>("runway_crosswind", { wind: { crosswind_kt: wind.crosswind_kt, gust_crosswind_kt: wind.gust_crosswind_kt ?? null } });
 }
 
 /**
  * Whether a reported or forecast wind is calm: a speed of nothing, which
- * a METAR and a TAF code as 00000KT (AIM 7-1-28's key, "00000KT for
- * calm"; a TAF's calm is 3 knots or less, forecast as 00000KT, AIM
- * 7-1-29). No speed at all is a wind not reported, never a calm one.
+ * a METAR and a TAF code as 00000KT (AIM 7-1-28). No speed at all is a
+ * wind not reported, never a calm one.
  */
 export function isCalm(speedKt: number | null | undefined): boolean {
-  return speedKt === 0;
+  return callEngine<boolean>("wind_calm", { speed_kt: speedKt ?? null });
 }
 
-/** Whether a runway's wind from the planner is a calm one: it puts no
- *  head-, cross- or gust's crosswind on the end only for a speed of 0
- *  (vfr.runway_wind.favoured_end). Any reported knot leaves at least
- *  0.71 kt along or across a runway, which rounds to 1, so this is
- *  isCalm on the report it was worked out from. */
+/** Whether a runway's wind from the planner is a calm one: nothing along,
+ *  across or in the gusts, which only a speed of 0 leaves. */
 export function calmOnRunway(wind: NonNullable<Runway["wind"]>): boolean {
-  return wind.headwind_kt === 0 && wind.crosswind_kt === 0 && wind.gust_crosswind_kt == null;
+  return callEngine<boolean>("runway_calm", { wind });
 }

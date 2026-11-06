@@ -9,7 +9,7 @@ import pytest
 import requests
 from PIL import Image
 
-from vfr import publications
+from wingtip import publications
 
 #: KDLH's charts in a kept index, by either ident.
 DLH_CHARTS = (

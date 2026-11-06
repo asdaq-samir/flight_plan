@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from vfr import faa_data
+from wingtip import faa_data
 
 
 def _dof_line(city: str, agl: int = 350) -> str:

@@ -2,7 +2,7 @@
 shapefile and both feeds stubbed."""
 import requests
 from fastapi.testclient import TestClient
-from vfr import airspace, airspace_at, airspace_map, elevation, fixes, sua, tfr
+from wingtip import airspace, airspace_at, airspace_map, elevation, fixes, sua, tfr
 
 from app.main import app
 
@@ -53,7 +53,7 @@ def test_a_feed_that_does_not_answer_is_said_so(monkeypatch):
         raise requests.ConnectionError("no tiles")
 
     _point(monkeypatch, sua_at=sua_down, tfr_at=tfr_down, ground=no_tiles)
-    monkeypatch.setattr("vfr.airports.nearest", lambda lat, lon, limit: [{"ident": "C81", "elevation_ft": 869.0}])
+    monkeypatch.setattr("wingtip.airports.nearest", lambda lat, lon, limit: [{"ident": "C81", "elevation_ft": 869.0}])
     body = client.get("/api/airspace/at", params={"lat": 42.3172, "lon": -88.0905}).json()
     # The nearest field's elevation, where the tiles could not be read.
     assert body["ground_ft"] == 869.0
@@ -74,10 +74,10 @@ def test_what_is_ahead_of_own_ship(monkeypatch):
     ])
     monkeypatch.setattr(sua, "areas_in", lambda bbox: [])
     monkeypatch.setattr(tfr, "all_tfrs", lambda: [])
-    monkeypatch.setattr("vfr.faa_data.ensure_nasr_file", lambda name, cache_dir: "DOF.DAT")
-    monkeypatch.setattr("vfr.faa_data.load_obstacles", lambda path, bbox, min_agl_ft=0: __import__("pandas").DataFrame(
+    monkeypatch.setattr("wingtip.faa_data.ensure_nasr_file", lambda name, cache_dir: "DOF.DAT")
+    monkeypatch.setattr("wingtip.faa_data.load_obstacles", lambda path, bbox, min_agl_ft=0: __import__("pandas").DataFrame(
         columns=["lat", "lon", "city", "type", "agl_ft", "amsl_ft", "lit"]))
-    monkeypatch.setattr("vfr.airports.nearest", lambda lat, lon, limit=1: [{"ident": "C81", "distance_nm": 20.0}])
+    monkeypatch.setattr("wingtip.airports.nearest", lambda lat, lon, limit=1: [{"ident": "C81", "distance_nm": 20.0}])
     body = client.get("/api/airspace/ahead", params={"lat": 42.0, "lon": -88.0, "track": 90, "gs": 120, "alt": 3000}).json()
     (alert,) = body["alerts"]
     assert alert["class"] == "C" and alert["kind"] == "airspace" and alert["level"] == "caution"

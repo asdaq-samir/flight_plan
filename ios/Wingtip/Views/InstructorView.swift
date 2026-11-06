@@ -260,7 +260,7 @@ struct ReviewSection: View {
             LabeledContent("Airplane", value: [review.makeModel, review.flight?.aircraftTailNumber].compactMap { $0 }.joined(separator: " · "))
             if let f = review.flight {
                 if let ft = f.cruiseAltitudeFt { LabeledContent("Altitude", value: "\(ft.formatted()) ft") }
-                if let nm = f.totalDistanceNm { LabeledContent("Distance", value: String(format: "%.0f nm", nm)) }
+                if let nm = f.totalDistanceNm { LabeledContent("Distance", value: Formats.nm(nm, decimals: 0)) }
                 if let min = f.totalEteMin { LabeledContent("Time", value: hoursMinutes(min)) }
                 if let gal = f.totalFuelGal { LabeledContent("Fuel", value: AirportWords.gal(gal)) }
             }
@@ -370,5 +370,40 @@ struct SignView: View {
         .navigationTitle(kind.label)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { if fields.isEmpty { fields = Dictionary(kind.fields.map { ($0.key, initial[$0.key] ?? "") }, uniquingKeysWith: { a, _ in a }) } }
+    }
+}
+
+private enum PreviewData {
+    static let instructor = Instructor(fullName: "J. J. Jones", certificate: "987654321CFI", until: "2027-12-31", untilKind: "RE",
+                                       asking: [], students: [], kinds: [], reviews: [], signed: [])
+    static let kind = EndorsementKind(
+        code: "solo-xc-flight", label: "Solo cross-country flight", paragraph: "A.10", rule: "61.93(c)(2)(i)",
+        template: "I certify that {student} has received the required solo cross-country training. I find that {student} has met the applicable requirements of § 61.93, and is proficient to make solo cross-country flights in a {mm} aircraft.",
+        fields: [EndorsementField(key: "mm", label: "Make and model", example: "PA-28-181", required: true)])
+    static let review = CrossCountryReview(
+        id: 7, flightOn: "2026-10-28", makeModel: "PA-28-181",
+        checks: [ReviewCheck(label: "Solo cross-country training", detail: "Logged 2026-10-20", rule: "61.93(d)(4)", met: true),
+                 ReviewCheck(label: "Solo flight endorsement in force", detail: "Signed 2026-09-30, 90 days", rule: "61.93(d)(5)", met: true)],
+        note: "Could you look at this one for Saturday?",
+        flight: SavedFlight(id: 31, departureIdent: "KDLH", destinationIdent: "KHIB", aircraftTailNumber: "N3429J", cruiseAltitudeFt: 4500,
+                            totalDistanceNm: 62.4, totalEteMin: 36, totalFuelGal: 5.1))
+}
+
+#Preview("CertificateSection") {
+    Form { CertificateSection(instructor: PreviewData.instructor) { _ in } }
+}
+
+#Preview("ReviewSection") {
+    NavigationStack {
+        List {
+            ReviewSection(review: PreviewData.review, kind: PreviewData.kind, studentId: 12, studentName: "Sam Rivers",
+                          instructor: PreviewData.instructor) { _ in }
+        }
+    }
+}
+
+#Preview("SignView") {
+    NavigationStack {
+        SignView(kind: PreviewData.kind, studentId: 12, studentName: "Sam Rivers", instructor: PreviewData.instructor) { _ in }
     }
 }

@@ -1,6 +1,6 @@
 /**
  * The holds the pilot put on the route's points, as the address keeps
- * them (`holds`) and the planner reads them (vfr.holds): the point, its
+ * them (`holds`) and the planner reads them (wingtip.holds): the point, its
  * inbound course (magnetic), R or L, its legs by minutes ("1M") or nm
  * ("4N"), and how long, turns ("2T") or minutes ("10M") --
  * "VPBNG/090/30:270:R:1M:2T", several joined by commas.
@@ -16,34 +16,51 @@ export interface Hold {
   length: { turns: number } | { minutes: number };
 }
 
+import { callEngine } from "./engine/engine";
 import { bearing } from "./units";
 
-const HOLD = /^([A-Z0-9/.]+):(\d{1,3}):([RL]):(\d{1,2}(?:\.\d)?)([MN]):(\d{1,3})([TM])$/;
+/** A hold as the engine reads and writes it (native/engine/src/route,
+ *  the planner's wingtip.holds too): flat, the legs and the length each one
+ *  of two, the other null. */
+interface EngineHold {
+  fix: string;
+  inbound: number;
+  right: boolean;
+  leg_min: number | null;
+  leg_nm: number | null;
+  turns: number | null;
+  minutes: number | null;
+}
 
-/** One hold as the address writes it, or null. */
+const fromEngine = (h: EngineHold): Hold => ({
+  fix: h.fix, inbound: h.inbound, right: h.right,
+  leg: h.leg_min != null ? { min: h.leg_min } : { nm: h.leg_nm! },
+  length: h.turns != null ? { turns: h.turns } : { minutes: h.minutes! },
+});
+
+const toEngine = (h: Hold) => ({
+  fix: h.fix, inbound: h.inbound, right: h.right,
+  ...("min" in h.leg ? { leg_min: h.leg.min } : { leg_nm: h.leg.nm }),
+  ...("turns" in h.length ? { turns: h.length.turns } : { minutes: h.length.minutes }),
+});
+
+/** One hold as the address writes it, or null: read by the shared engine
+ *  (crate::route::holds), the one reading the planner and the phones
+ *  have too. */
 export function holdOf(text: string): Hold | null {
-  const m = HOLD.exec(text.trim().toUpperCase());
-  if (!m || Number(m[2]) > 360) return null;
-  const leg = Number(m[4]), length = Number(m[6]);
-  if (!(leg > 0) || !(length > 0)) return null;
-  return {
-    fix: m[1]!, inbound: Number(m[2]) % 360, right: m[3] === "R",
-    leg: m[5] === "M" ? { min: leg } : { nm: leg },
-    length: m[7] === "T" ? { turns: length } : { minutes: length },
-  };
+  const h = callEngine<EngineHold | null>("hold_read", { text });
+  return h && fromEngine(h);
 }
 
 /** How long a hold is held, as the address codes it: "2T", "10M". */
 export function lengthCode(length: Hold["length"]): string {
-  return "turns" in length ? `${length.turns}T` : `${length.minutes}M`;
+  return callEngine<string>("hold_length_write", length);
 }
 
 /** A length's code read back ("2T" two turns, "10M" ten minutes), or
  *  null for one that is not. */
 export function lengthOfCode(code: string): Hold["length"] | null {
-  const m = /^(\d{1,3})([TM])$/.exec(code.trim().toUpperCase());
-  if (!m || !(Number(m[1]) > 0)) return null;
-  return m[2] === "T" ? { turns: Number(m[1]) } : { minutes: Number(m[1]) };
+  return callEngine<Hold["length"] | null>("hold_length_read", { text: code });
 }
 
 /** How long a hold is held, in words: "2 turns", "1 turn", "10 min". */
@@ -52,16 +69,16 @@ export function lengthWords(length: Hold["length"]): string {
 }
 
 /** A hold as the address writes it: the inbound course in three figures,
- *  000 for north, as the planner reads it (vfr.holds). */
+ *  000 for north, as the planner reads it (wingtip.holds). */
 export function holdText(hold: Hold): string {
-  const leg = "min" in hold.leg ? `${hold.leg.min}M` : `${hold.leg.nm}N`;
-  return `${hold.fix}:${String(hold.inbound).padStart(3, "0")}:${hold.right ? "R" : "L"}:${leg}:${lengthCode(hold.length)}`;
+  return callEngine<string>("hold_write", { hold: toEngine(hold) });
 }
 
 /** The address's holds, each valid one, by its point: an airport, a
  *  fix, or the pilot's own point off one, not a present position. */
 export function holdsOf(value: string | null | undefined): Hold[] {
-  return (value ?? "").split(",").map(holdOf).filter((h): h is Hold => h !== null);
+  const read = callEngine<{ part: string; hold: EngineHold | null }[]>("holds_read", { text: value ?? "" });
+  return read.flatMap(({ hold }) => (hold ? [fromEngine(hold)] : []));
 }
 
 export const holdsParam = (holds: Hold[]) => holds.map(holdText).join(",");

@@ -41,7 +41,7 @@ const EASTBOUND = "eastbound (0° through 179°)";
 const WESTBOUND = "westbound (180° through 359°)";
 
 /** A course as the rule sorts it: cut to the whole degree, not rounded,
- *  as the planner sorts the exact course (vfr.altitude.is_eastbound) --
+ *  as the planner sorts the exact course (wingtip.altitude.is_eastbound) --
  *  a course of 179.6° rounded read "180° is eastbound" -- north as 360,
  *  as every bearing is written (lib/units' bearing). */
 const ruleCourse = (course: number) => bearing(Math.floor(course));
@@ -53,7 +53,7 @@ function join(parts: string[]): string {
 }
 
 /** What sets the whole route's VFR ceiling, the lowest of three
- *  (vfr.altitude's band_ceiling): the clouds (14 CFR 91.155's distance
+ *  (wingtip.altitude's band_ceiling): the clouds (14 CFR 91.155's distance
  *  under the lowest forecast near a leg), a Class B shelf, or the
  *  airplane. */
 function ceilingReason(s: NavLogAltitude["altitude_selection"]): string | null {
@@ -85,8 +85,8 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
 
 /**
  * How the cruise altitude was chosen, step by step, in the planner's
- * own order (`vfr.altitude.select_cruise_altitude` and
- * `vfr.navlog.altitude_profiles`): the floor from terrain and
+ * own order (`wingtip.altitude.select_cruise_altitude` and
+ * `wingtip.navlog.altitude_profiles`): the floor from terrain and
  * obstacles, the ceiling from airspace and the airplane -- leg by
  * leg, since a Class B shelf caps only the legs
  * under it -- the hemispheric rule that gives the legal altitudes in
@@ -107,7 +107,7 @@ function ceilingRuns(segments: AltitudeSegment[]): AltitudeSegment[] {
 export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Props) {
   const s = nav.altitude_selection;
   // Under IFR the floor, the ceiling and the rule are IFR's (the
-  // planner's vfr.ifr): said in their words below.
+  // planner's wingtip.ifr): said in their words below.
   const ifr = s.rules === "ifr";
   const [open, setOpen] = useState<string[]>([]);
   const printing = usePrinting();
@@ -169,7 +169,7 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
       ? "no SIGMET or AIRMET along the route"
       : `${s.hazards.length} SIGMET/AIRMET${s.hazards.length === 1 ? "" : "s"} along the route`;
 
-  // The airplane's cruise in each leg's own air (vfr.performance): its
+  // The airplane's cruise in each leg's own air (wingtip.performance): its
   // figures are its own at the reference altitude on a standard day, and
   // each leg's are worked out for the forecast temperature at its
   // altitude. Legs from a planner that did not say have none.
@@ -201,7 +201,7 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
   const airways = s.segments.flatMap(seg => (seg.airway ? [seg.airway] : []))
     .filter((a, i, all) => all.findIndex(b => b.id === a.id && b.mea_ft === a.mea_ft && b.maa_ft === a.maa_ft) === i);
   // Under IFR the ceiling is the airplane's service ceiling, or an
-  // airway's MAA under it (vfr.altitude's band): no shelf or cloud.
+  // airway's MAA under it (wingtip.altitude's band): no shelf or cloud.
   const ifrCeilingReason = s.band_ceiling_ft == null ? null
     : s.band_ceiling_ft === (ceilingToday ?? bookCeiling) ? "The airplane's service ceiling"
       : airways.some(a => a.maa_ft === s.band_ceiling_ft) ? "The airway's MAA" : null;
@@ -270,8 +270,8 @@ export default function AltitudeReasoning({ nav, legs, plansAbove = false }: Pro
       value: `${altFt(s.floor_ft)} ft`,
       body: (
         <>
-          {/* As the planner keeps it (vfr.terrain): the owner's 1,000 ft over the ground, and 14 CFR 91.119(b) and
-              (c) over obstacles, towns being the Census Bureau's urban areas and places (vfr.congested). */}
+          {/* As the planner keeps it (wingtip.terrain): the owner's 1,000 ft over the ground, and 14 CFR 91.119(b) and
+              (c) over obstacles, towns being the Census Bureau's urban areas and places (wingtip.congested). */}
           The highest ground along the course plus 1,000 ft, or the tallest charted obstacle within 5 nm of it plus
           1,000 ft over or within 2,000 ft of a town (14 CFR 91.119(b)) and 500 ft elsewhere (91.119(c)), whichever is
           higher, rounded up to the next 100 ft. Worked out leg by leg as well, so a leg over lower ground may fly lower.

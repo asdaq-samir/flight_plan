@@ -97,7 +97,32 @@ extension ChartMap.Coordinator {
         }
         if let first = hazardLines.first {
             let rect = hazardLines.dropFirst().reduce(first.boundingMapRect) { $0.union($1.boundingMapRect) }
-            map.setVisibleMapRect(rect, edgePadding: ChartMap.routePadding(in: map), animated: true)
+            map.setVisibleMapRect(rect, edgePadding: ChartMap.routePadding(in: map), animated: MapMotion.animated)
         }
     }
+}
+
+private enum PreviewData {
+    static let onRoute = OnRoute(legs: [1, 2], fromNm: 18.5, toNm: 41.0, enter: "2026-11-03T14:20:00Z", leave: "2026-11-03T14:45:00Z",
+                                 validTo: "2026-11-03T15:00:00Z", when: "during", source: "SIGMET")
+}
+
+#Preview("OnRouteRow") {
+    List { OnRouteRow(on: PreviewData.onRoute, key: "sigmet-1") }
+        .environment(Plan())
+}
+
+#Preview("FieldsBelowVfrSection") {
+    List {
+        FieldsBelowVfrSection(fields: [
+            FieldBelowVfr(ident: "KHIB", source: "METAR", flightCategory: "IFR", ceilingFt: 600, visibilitySm: 2.5, onRoute: PreviewData.onRoute),
+            FieldBelowVfr(ident: "KGPZ", source: "TAF", flightCategory: "LIFR", ceilingFt: 300, visibilitySm: 0.75, onRoute: PreviewData.onRoute),
+        ])
+    }
+    .environment(Plan())
+}
+
+#Preview("LayerAgesRows") {
+    Form { LayerAgesRows() }
+        .environment(Traffic())
 }

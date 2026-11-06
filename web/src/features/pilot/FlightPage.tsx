@@ -29,6 +29,8 @@ import { proceduresOf, sameField } from "../../lib/procedures";
 // Its own chunk: the approach's debrief is drawn only where a track came
 // down a final, and asks for the field's procedures as it is.
 const ApproachDebriefs = lazy(() => import("../../components/ApproachDebrief"));
+// Its own chunk too: the words are asked only where a track came in.
+const DebriefWords = lazy(() => import("./DebriefWords"));
 
 /** A difference as said, its sign after rounding: "+3 min", "±0 min". */
 function signed(n: number, unit = ""): string {
@@ -294,6 +296,8 @@ function DebriefSection({ flight, planHref }: { flight: Flight; planHref: string
         </p>
       )}
       {result && <Findings d={result} />}
+      {/* Under the figures, what they say to practise next, in words. */}
+      {result && <Suspense fallback={null}><DebriefWords flightId={flight.id} debrief={result} /></Suspense>}
       {result && track && (
         <Suspense fallback={null}>
           <ApproachDebriefs fields={approachFields} points={track.points} picked={picked} />

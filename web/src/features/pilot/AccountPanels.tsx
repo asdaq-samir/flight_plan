@@ -566,7 +566,7 @@ export function AircraftPanel() {
               {/* What the cruise figures mean to the planner, said where
                   they are typed: they are the airplane's at this power at
                   the reference altitude, and each leg flies them in its own
-                  air (vfr.performance): the handbook cruise table's at this
+                  air (wingtip.performance): the handbook cruise table's at this
                   power at the reference altitude on a standard day, which
                   the group's title says. */}
               <ListGroup title={`Cruise figures at ${altFt(CRUISE_REFERENCE_FT)} ft, standard day`}>

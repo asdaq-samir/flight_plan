@@ -71,7 +71,15 @@ test("a route rests as its figures in the tabs' place, the pill's own height, an
   await expect(panel.getByTestId("tab-bar")).toBeHidden();
   await expect(panel.getByTestId("mini-profile")).toBeHidden();
   await settled(panel);
-  expect((await panel.boundingBox())!.height).toBeLessThan(64);
+  // The row's 62 and the eight it keeps clear of the screen's edge (a
+  // phone's home indicator adds its own inset). The sheet is laid out at
+  // its full height and slid, so its box is that height: its pill is the
+  // first of its three heights (data-detents).
+  // The sheet is laid out at its full height and slid, so its box is that
+  // height: the pill is the first of its three heights (data-detents). A
+  // desktop's top sheet has eight more, its grabber's band under the row.
+  const [pill] = (await panel.getAttribute("data-detents"))!.split(",").map(Number);
+  expect(pill).toBeLessThan((page.viewportSize()?.width ?? 0) < 768 ? 72 : 80);
   await panel.getByTestId("panel-foot").click();
   await expect(panel).toHaveAttribute("data-panel", "half");
   // Half way, the tabs still the sheet's first row.
@@ -79,9 +87,11 @@ test("a route rests as its figures in the tabs' place, the pill's own height, an
   // Measured at rest: caught on its way up, the bar was still at the pill's.
   await settled(panel);
   const bar = (await page.getByTestId("tab-bar").boundingBox())!;
-  const sheet = (await panel.boundingBox())!;
-  expect(bar.y).toBeGreaterThanOrEqual(sheet.y);
-  expect(bar.y).toBeLessThan(sheet.y + 40);
+  // From the sheet's top in sight: a top sheet's box starts above the
+  // screen, slid up by what it does not show.
+  const top = Math.max(0, (await panel.boundingBox())!.y);
+  expect(bar.y).toBeGreaterThanOrEqual(top);
+  expect(bar.y).toBeLessThan(top + 40);
   // Another tab half way: half kept, the route still there.
   await page.getByTestId("tab-airport").click();
   await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
@@ -347,8 +357,9 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
     // Once it is at rest: measured while it moved, the pointer landed on
     // the map, whose own wheel zooms it.
     await settled(panel);
+    // Into the part in sight: a top sheet's box starts above the screen.
     const box = (await panel.boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + 30);
+    await page.mouse.move(box.x + box.width / 2, Math.max(0, box.y) + 30);
   };
   // A flick: four wheel events in one go, as a wheel's notch or a
   // trackpad's flick sends them, a frame or so apart -- Playwright's own
@@ -358,7 +369,7 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
     await over();
     await page.evaluate(([dx, dy]) => {
       const box = document.querySelector("[data-slot=map-panel]")!.getBoundingClientRect();
-      const x = box.left + box.width / 2, y = box.top + 30;
+      const x = box.left + box.width / 2, y = Math.max(0, box.top) + 30;
       const target = document.elementFromPoint(x, y)!;
       for (let i = 0; i < 4; i++) target.dispatchEvent(new WheelEvent("wheel", { deltaX: dx, deltaY: dy, clientX: x, clientY: y, bubbles: true, cancelable: true }));
     }, [dx, dy]);
@@ -421,47 +432,39 @@ test.describe("the tabs under a finger", () => {
     return (i: number) => ({ x: box.x + (box.width / count) * (i + 0.5), y: box.y + box.height / 2 });
   }
 
-  test("a finger held on the tabs lifts the lens, the pill growing; slid along, the lens follows, and let go it picks the tab under it", async ({ page }) => {
-    // The owner's recording of iOS 26's tab bar, Netflix's (2026-10-16).
+  test("a tap on a tab picks it, and a finger's slide along the tabs picks nothing", async ({ page }) => {
+    // The lens of iOS 26 went with the sheet's rewrite (2026-11-04): the
+    // tabs are plain buttons, the one up in its tinted capsule.
     await page.goto("/app/plan");
     await settle(page);
     const panel = sideDrawer(page);
     await showTabs(page);
     const size = (await panel.getAttribute("data-panel"))!;
     const tabs = panel.getByTestId("tab-bar");
-    const bubble = panel.getByTestId("tab-bubble");
     const at = await tabMiddles(page);
     await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
+    await expect(tabs.getByTestId("tab-fpl").getByTestId("tab-bubble")).toBeVisible();
     const touch = await finger(page);
+    // Slid along from FPL to Aircraft and let go: nothing picked, and the
+    // sheet where it was.
     await touch("touchStart", at(0));
-    // Held, the lens is up, and the pill -- a phone's panel at rest -- is
-    // a little bigger, still clear of the screen's sides.
-    await expect(bubble).toHaveAttribute("data-lifted", "");
-    if (size === "peek") {
-      await expect.poll(() => panel.evaluate(el => Number(getComputedStyle(el).scale))).toBeGreaterThan(1.01);
-      const grown = (await panel.boundingBox())!;
-      expect(grown.x).toBeGreaterThanOrEqual(2);
-      expect(grown.x + grown.width).toBeLessThanOrEqual(page.viewportSize()!.width - 2);
-    }
-    // Slid along to Aircraft, a frame a move: the tab under the lens is
-    // lit on the way, Airport half way, and the sheet stays where it is.
     for (let step = 1; step <= 12; step++) {
       await touch("touchMove", { x: at(0).x + ((at(2).x - at(0).x) * step) / 12, y: at(0).y + 2 });
       await page.waitForTimeout(16);
-      if (step === 6) await expect(tabs.getByTestId("tab-airport")).toHaveAttribute("data-lit", "true");
     }
-    await expect(tabs.getByTestId("tab-aircraft")).toHaveAttribute("data-lit", "true");
+    await touch("touchEnd");
+    await page.waitForTimeout(300);
     await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
     await expect(panel).toHaveAttribute("data-panel", size);
-    // Let go: Aircraft is the tab up, as a tap on it makes it, and the lens
-    // and the pill are as they were.
+    // A tap on Aircraft picks it, its capsule with it.
+    await touch("touchStart", at(2));
     await touch("touchEnd");
     await expect(tabs.getByTestId("tab-aircraft")).toHaveAttribute("aria-current", "page");
-    await expect(bubble).not.toHaveAttribute("data-lifted");
-    await expect.poll(() => panel.evaluate(el => getComputedStyle(el).scale)).toMatch(/^(none|1)$/);
+    await expect(tabs.getByTestId("tab-aircraft").getByTestId("tab-bubble")).toBeVisible();
+    await expect(tabs.getByTestId("tab-fpl").getByTestId("tab-bubble")).toHaveCount(0);
   });
 
-  test("the lens let go on the tab it was lifted from leaves the tab and the sheet as they were, and up or down the tabs drag the sheet, the lens staying down", async ({ page }) => {
+  test("up or down, a finger on the tabs drags the sheet, no tab picked", async ({ page }) => {
     test.skip(page.viewportSize()!.width >= 768, "a phone's sheet");
     await page.goto("/app/plan");
     await settle(page);
@@ -472,26 +475,8 @@ test.describe("the tabs under a finger", () => {
     const tabs = panel.getByTestId("tab-bar");
     const at = await tabMiddles(page);
     const touch = await finger(page);
-    // Out to Airport and back to FPL, held: FPL as it was, the sheet half
-    // way -- not lowered, as a tap on the tab up lowers it.
-    await touch("touchStart", at(0));
-    await expect(panel.getByTestId("tab-bubble")).toHaveAttribute("data-lifted", "");
-    for (const x of [at(0).x + 30, at(1).x, at(0).x + 30, at(0).x]) {
-      await touch("touchMove", { x, y: at(0).y });
-      await page.waitForTimeout(16);
-    }
-    await touch("touchEnd");
-    await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
-    await page.waitForTimeout(500);
-    await expect(panel).toHaveAttribute("data-panel", "half");
     // Up from Airport's place, a drag of the sheet: all the way up, FPL
-    // still the tab, and the lens never lifted under it.
-    await page.evaluate(() => {
-      const seen = window as unknown as { lensLifted: number };
-      seen.lensLifted = 0;
-      new MutationObserver(() => { if (document.querySelector("[data-lifted]")) seen.lensLifted++; })
-        .observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-lifted"] });
-    });
+    // still the tab.
     const from = at(1);
     await touch("touchStart", from);
     for (let step = 1; step <= 20; step++) {
@@ -501,6 +486,18 @@ test.describe("the tabs under a finger", () => {
     await touch("touchEnd");
     await expect(panel).toHaveAttribute("data-panel", "full");
     await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
-    expect(await page.evaluate(() => (window as unknown as { lensLifted: number }).lensLifted)).toBe(0);
+    // And down from there, on the minimized line's tabs shown again: half.
+    await settled(panel);
+    await showTabs(page);
+    const down = (await tabs.getByTestId("tab-airport").boundingBox())!;
+    const start = { x: down.x + down.width / 2, y: down.y + down.height / 2 };
+    await touch("touchStart", start);
+    for (let step = 1; step <= 20; step++) {
+      await touch("touchMove", { x: start.x, y: start.y + step * 20 });
+      await page.waitForTimeout(16);
+    }
+    await touch("touchEnd");
+    await expect(panel).toHaveAttribute("data-panel", "half");
+    await expect(tabs.getByTestId("tab-fpl")).toHaveAttribute("aria-current", "page");
   });
 });

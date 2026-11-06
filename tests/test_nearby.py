@@ -1,10 +1,10 @@
-"""vfr.nearby: places to eat, sleep and hire a car and flight schools near a field, from
+"""wingtip.nearby: places to eat, sleep and hire a car and flight schools near a field, from
 Overture Maps' places."""
 import json
 
 import pytest
 
-from vfr import nearby
+from wingtip import nearby
 
 RESTAURANT = {"primary": "american_restaurant", "hierarchy": ["food_and_drink", "restaurant", "american_restaurant"]}
 BAR = {"primary": "bar", "hierarchy": ["food_and_drink", "alcoholic_beverage_venue", "bar"]}
@@ -107,7 +107,7 @@ def test_a_companys_registered_name_is_not_somewhere_to_eat():
 def test_food_at_the_field_is_a_place_on_it_or_a_walk_from_it(tmp_path, monkeypatch):
     import json
 
-    from vfr import nearby
+    from wingtip import nearby
     monkeypatch.setattr(nearby, "latest_release", lambda timeout_s=10.0: "2026-10-21.0")
     (tmp_path / "2026-10-21.0").mkdir()
 

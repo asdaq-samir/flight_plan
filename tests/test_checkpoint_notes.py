@@ -1,8 +1,8 @@
-"""vfr.checkpoint_notes: a pilot's own edit is theirs, the shared note
+"""wingtip.checkpoint_notes: a pilot's own edit is theirs, the shared note
 is everyone else's, and nothing an edit replaces is lost."""
 import threading
 
-from vfr import checkpoint_notes, routecsv
+from wingtip import checkpoint_notes, routecsv
 
 ROUTE = "C81->KDLH"
 

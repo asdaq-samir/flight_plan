@@ -11,8 +11,14 @@ enum RootLayout: Equatable {
     case sheet
     case split
 
-    static func of(_ sizeClass: UserInterfaceSizeClass?, pad: Bool) -> RootLayout {
-        pad && sizeClass == .regular ? .split : .sheet
+    /// By the size classes alone, as Apple asks of apps on iPhone Duo
+    /// (its "Prepare your app for iPhone Duo" talk): regular both ways is
+    /// an iPad or iPhone Duo open, with room for the map beside the
+    /// sidebar. An iPhone Max held sideways is regular across but compact
+    /// up and down, and keeps the sheet, as do iPhone Duo closed and an
+    /// iPad in a narrow Split View.
+    static func of(_ horizontal: UserInterfaceSizeClass?, _ vertical: UserInterfaceSizeClass?) -> RootLayout {
+        horizontal == .regular && vertical == .regular ? .split : .sheet
     }
 
     /// Which of the Airport tab's pages open in the inspector on iPad: a
@@ -107,13 +113,16 @@ struct SplitLayout<Map: View>: View {
     @Binding var card: SideCard?
     @Environment(Plan.self) private var plan
     @State private var columns: NavigationSplitViewVisibility = .all
+    /// Ask (AskView) over the sidebar's tabs, as the iPhone's sheet has it
+    /// (RootView's SheetView).
+    @State private var asking = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             // A tab's own navigation bar is folded into the column's in
             // the sidebar, which showed none of its title or buttons: the
             // column's bar carries them instead.
-            SheetView(tab: $tab, airports: sidebarAirports, pill: false)
+            SheetView(tab: $tab, airports: sidebarAirports, pill: false, asking: $asking)
                 .navigationTitle(Self.title(tab))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { if tab == .fpl { fplItems } }
@@ -227,4 +236,27 @@ struct SplitLayout<Map: View>: View {
             Button { close() } label: { Image(systemName: "xmark") }.accessibilityLabel("Close")
         }
     }
+}
+
+#Preview("CardLink") {
+    NavigationStack {
+        List {
+            CardLink(.profile) { Text("Profile") }
+            CardLink(.brief) { Text("Brief") }
+        }
+    }
+}
+
+#Preview("SplitLayout") {
+    @Previewable @State var tab: RootView.Tabs = .fpl
+    @Previewable @State var airports: [String] = []
+    @Previewable @State var card: SideCard? = nil
+    SplitLayout(map: Color(.secondarySystemBackground).ignoresSafeArea(), tab: $tab, airports: $airports, card: $card)
+        .environment(Session())
+        .environment(Charts())
+        .environment(Plan())
+        .environment(OwnShip())
+        .environment(DryRun())
+        .environment(Traffic())
+        .environment(Verdict())
 }

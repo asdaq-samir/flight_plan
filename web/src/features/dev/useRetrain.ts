@@ -46,7 +46,7 @@ export function useRetrain() {
   // in the snapshot only after that -- the badge waited on both.
   const running = start.isPending || underWay(status);
   // Whether the ratings are enough to learn from, worked out by the
-  // planner before any run (vfr.pipeline.training_readiness): too few,
+  // planner before any run (wingtip.pipeline.training_readiness): too few,
   // and the button says why instead of starting a run that fails in
   // Airflow. Unknown (no corridor read yet) leaves it to the run.
   const training = pipeline?.training ?? null;

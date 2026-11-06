@@ -9,7 +9,7 @@ makes good today; keep it so.
 | Field | Text |
 |---|---|
 | Name | Wingtip Maps |
-| Subtitle (30) | VFR charts, routes and nav logs |
+| Subtitle (30) | VFR & IFR charts and nav logs |
 | Primary category | Navigation |
 | Secondary category | Weather |
 | Age rating | 4+ (no objectionable content, no user-to-user content) |
@@ -18,17 +18,17 @@ makes good today; keep it so.
 | Privacy policy URL | `https://<domain>/app/privacy.html` |
 | Copyright | 2026 Wingtip Maps |
 
-**Promotional text (170):** Plan a VFR flight on the FAA's own charts:
+**Promotional text (170):** Plan a VFR or IFR flight on the FAA's charts:
 the route, checkpoints you can see from the air, a nav log with the
 winds aloft, and the weather and airspace along the way.
 
 **Keywords (100):**
-`VFR,sectional,flight planning,nav log,pilot,aviation,checkpoints,METAR,TAF,airspace,TFR,student pilot`
+`VFR,IFR,sectional,flight planning,nav log,pilot,checkpoints,METAR,TAF,airspace,TFR,student pilot`
 
 **Description:**
 
 > Wingtip Maps is the FAA chart on a map that works like Maps on your
-> iPhone, and everything a VFR flight needs on top of it.
+> iPhone, and everything a VFR or IFR flight needs on top of it.
 >
 > - The current FAA sectional, terminal area and IFR enroute charts,
 >   kept for the air: the charts you have looked at work with no signal.

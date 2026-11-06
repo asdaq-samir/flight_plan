@@ -1,4 +1,3 @@
-import { GLASS_EDGE } from "../lib/glass";
 import { createContext } from "react";
 import { create } from "zustand";
 import { TEXT } from "../lib/text";
@@ -103,23 +102,9 @@ export const MATERIAL = "bg-background/85 backdrop-blur-xl backdrop-saturate-150
  */
 export const GLASS = "liquid-glass";
 
-/** The same glass for a sheet at half height, frostier -- more of the
- *  material, less of the chart -- as what is on it is read: the map's
- *  panel and the console. */
+/** The same glass for a sheet, frostier -- more of the material, less of
+ *  the chart -- as what is on it is read: the console, the dialogs. */
 export const GLASS_SHEET = "bg-[var(--sheet)] shadow-[0_-1px_12px_rgb(0_0_0/0.12)] dark:shadow-[0_-1px_12px_rgb(0_0_0/0.5)]";
-
-/** And all the way up, on the screen's edges as Maps' sheet is, nearly
- *  whole: its rim lit and its far corners round, as at half -- the opaque
- *  slab it was read heavy, the pilot found -- but the chart only faintly
- *  under a screenful of nav log. */
-export const GLASS_SHEET_FULL = GLASS_SHEET;
-
-/** The glass's fill at each shape (GLASS, GLASS_SHEET, GLASS_SHEET_FULL),
- *  for a sheet being dragged to follow from one to the next. A dragged
- *  sheet was an opaque fill with no blur behind it, for the frames a blur
- *  re-drawn every frame was measured to cost; the pilot found the glass
- *  giving way under the finger, which Maps' never does. */
-export const GLASS_FILL = { capsule: 80, half: 100, full: 100 };
 
 /** How long the sheet takes from the pill to half (SETTLE_POINTS), in
  *  seconds, at the owner's ask ("make the 8443 a bit fast to match Apple
@@ -129,26 +114,6 @@ export const GLASS_FILL = { capsule: 80, half: 100, full: 100 };
  *  It was 0.45 s. The map's own move to a route as the sheet settles
  *  (MapShell) takes it too, so the two arrive together. */
 export const SHEET_SECONDS = 0.3;
-/** A sheet's height, and its way in from the screen's edges as it changes
- *  shape: iOS's ease-out, at the owner's pick ("Do b"). The curve before
- *  (0.32 0.72 0 1 over half a second) covered three quarters of a move to
- *  all the way up in its first 170 ms, and read as a snap; a spring that
- *  went a point or two past, as Maps' does, the owner turned down ("I
- *  don't want the spring"). */
-const SHEET_CURVE = `${SHEET_SECONDS}s cubic-bezier(0, 0, 0.58, 1)`;
-export const SHEET_RESHAPE = ["left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${SHEET_CURVE}`).join(", ");
-/** The sheet's settle over `seconds`: its height, its shape and its
- *  progress up (MapPanel's --sheet-progress, index.css's @property), which
- *  eases with the height so what grows with it -- FPL's figures, the side
- *  view folding away -- moves with the sheet, not at once. */
-export const sheetSettle = (seconds: number) => {
-  const curve = `${seconds}s cubic-bezier(0, 0, 0.58, 1)`;
-  return {
-    height: ["height", "left", "right", "top", "bottom", "border-radius"].map(p => `${p} ${curve}`).join(", "),
-    progress: `--sheet-progress ${curve}`,
-    curve,
-  };
-};
 /** How far the sheet goes in SHEET_SECONDS: the pill to half on an iPhone
  *  16 Pro, the move the owner likes ("Pill to half card and back eases
  *  nicely but to/from full card snaps very quickly"). A longer move takes
@@ -159,11 +124,6 @@ export const SETTLE_POINTS = 273;
 export const SETTLE_LEAST = 0.22;
 export const SETTLE_MOST = 0.35;
 
-/** Maps' medium sheet: in from the sides and its edge, every corner
- *  round, as the screen's own are -- the map's panel and the console's
- *  sheet up to half way, and their far corners all the way up. */
-export const SHEET_INSET = 8;
-export const SHEET_INSET_RADIUS = 36;
 /** The same corners as a class, for every sheet drawn with classes: a
  *  phone's floating sheet (PhoneSheetContent). Written out whole, as
  *  Tailwind finds a class only as it is written. */
@@ -186,20 +146,13 @@ export const PILL_RADIUS = 24;
  *  from the far one. */
 export const SHEET_MARGIN = 8;
 
-/** A pane of clear glass, as the tab up is (TabGlass): bright at its top
- *  and clearing toward its foot, lit along its rim in white, standing off
- *  the sheet on a soft shadow -- raised, never a dark line inside the rim,
- *  which read as etched. The tab up's capsule in the pill (TabBar). */
-export const GLASS_CLEAR =
-  "border-0 bg-transparent bg-linear-to-b from-[var(--glass-top-fill)] to-[var(--glass-foot-fill)] text-foreground " + GLASS_EDGE;
-
 /** A control's own pane of glass, as iOS 26 draws its buttons over
- *  content, clear as the tab up's is (TabGlass), at the owner's ask ("Can
+ *  content, clear as the tab up's was, at the owner's ask ("Can
  *  we try clear instead of tint", 2026-10-23, after the tinted "2"):
  *  nearly the sheet's own tone, so it reads by its light and its edge as
  *  the tab does -- a sheen at its top, bright there and clearing to almost
  *  nothing at its foot, a white rim, a hairline and a soft shade round it.
- *  The first clear glass (GLASS_CLEAR) was whiter all the way down and
+ *  The first clear glass was whiter all the way down and
  *  read as white chips on the near-white sheet. Lit along its top edge
  *  alone, as iOS's glass is, in the dark (the owner's "Yes", 2026-10-22:
  *  a light ring round every button outlined the screen) and in the light
@@ -240,14 +193,8 @@ export const ADD_CAPSULE =
   "relative h-8 shrink-0 rounded-full bg-tint/12 px-3.5 font-semibold text-tint outline-none " +
   `after:absolute after:-inset-1.5 after:content-[''] focus-visible:ring-2 focus-visible:ring-ring ${TEXT.detail}`;
 
-/** A star filled in iOS's yellow while its card action is on (data-state
- *  on its button, a stock Toggle's: the airport and airplane cards'
- *  Favorite), as a starred thing is everywhere on iOS. */
-export const FAVORITE_STAR = "in-data-[state=on]:fill-[#ffcc00] in-data-[state=on]:text-[#ffcc00] dark:in-data-[state=on]:fill-[#ffd60a] dark:in-data-[state=on]:text-[#ffd60a]";
-
-/** The same star's yellow, given outright: the airport card's star is a
- *  round button by its close, a tooltip's trigger, with no Toggle's
- *  data-state to read. */
+/** A star filled in iOS's yellow, as a starred thing is everywhere on
+ *  iOS: the airport card's star, a round button by its close. */
 export const FAVORITE_STAR_ON = "fill-[#ffcc00] text-[#ffcc00] dark:fill-[#ffd60a] dark:text-[#ffd60a]";
 
 /** A round button on the panel -- the console's, the route's close -- as
@@ -255,10 +202,31 @@ export const FAVORITE_STAR_ON = "fill-[#ffcc00] text-[#ffcc00] dark:fill-[#ffd60
  *  text's colour (the pilot's pick, after a grey disc). */
 export const ROUND_BUTTON = `rounded-full ${GLASS_BUTTON}`;
 
-/** Whether the map panel is between sizes (MapPanel): dragged, or easing
- *  down to the pill after a tap. A card shown at the pill's size as its
+/** Whether the map panel is between sizes (MapPanel): dragged, or on its
+ *  way to a size. A card shown at the pill's size as its
  *  summary is drawn in full in the panel's body while a finger takes it
  *  up, so the sheet grows with the card in it, not an empty band over the
  *  summary that changed into the card at the release; and easing down, the
  *  body stays as it was until the sheet is the pill. */
 export const usePanelDragging = create<{ dragging: boolean }>(() => ({ dragging: false }));
+
+/** A map button in flight (useFlyingMode, MapControls): 60 points, the
+ *  size the canvas's Flying screen draws them (2026-11-03), a word on it
+ *  in the tint -- a target for a hand in turbulence, where the 36-point
+ *  glyphs are a desk's. One size for the whole stack, the microphone's
+ *  circle included, set on the stack rather than each button. */
+export const FLYING_BUTTON_PX = 60;
+export const FLYING_STACK = "gap-3 [&_button]:size-[60px]";
+export const FLYING_BUTTON = "rounded-full font-bold text-tint";
+
+/** Flying mode, as the planner sets it (useFlyingMode) for the map's
+ *  chrome to read: whether it is on, and what its two big buttons do --
+ *  Nearest's list and direct to the next landing -- which are the
+ *  planner's to give. Off with nothing to do until a route is flown. */
+export const useFlying = create<{
+  flying: boolean;
+  /** Done flying tapped on this flight: off until the ground. */
+  stopped: boolean;
+  nearest: (() => void) | null;
+  direct: { to: string; go: () => void } | null;
+}>(() => ({ flying: false, stopped: false, nearest: null, direct: null }));

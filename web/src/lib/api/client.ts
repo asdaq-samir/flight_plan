@@ -1,7 +1,8 @@
 import createClient, { type Middleware } from "openapi-fetch";
 import type { paths } from "./schema";
 import type { paths as WebappPaths } from "./webapp-schema";
-import type { Aircraft, AircraftBases, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AirspaceInView, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, MapLayerAges, ModelComparison, NarrativeMessage, NarrativeRequest, NavaidsInView, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, RouteStops, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StopFields, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView } from "./types";
+import { noteAnswer } from "../fromCache";
+import type { Aircraft, AircraftBases, AssignLessonRequest, LessonProgressRequest, AircraftChoice, AircraftProfiles, AircraftRequest, AirportPhotos, AirportPlace, AirportSearch, AirportServices, ForecastWind, AirportsInView, AirspaceAt, AirspaceInView, AlertsAhead, Alternates, AltitudeChoice, AppleSignedIn, Briefing, ChartInfo, ChartPages, ChartRefreshStarted, ChecklistDto, CheckpointDescriptionMessage, CheckpointNoteSaved, Checkpoints, ClassBResponse, Classification, Course, Currency, CurrencyDatesRequest, Detour, DeviceCode, DevServices, DevServiceStarted, Flight, FlightDetail, FlightPlanFiled, FlightPlanFilingRequest, FlightRoute, FlightServiceStatus, FlightStatus, FlightSummary, GoogleMaps, InspectionsRequest, Instructor, InstructorRequest, LogbookEntry, LogbookEntryRequest, LogbookImportResult, MapLayerAges, ModelComparison, NarrativeMessage, NarrativeRequest, NavaidsInView, NavLogMessage, NearestAirports, OralGrade, OralGradeRequest, OralQuestion, OralQuestionRequest, PastFlight, PastFlights, PickDeleted, PickSaved, Pilot, PilotContactRequest, PlacesFound, PlateOverlay, ProcedureDrawing, ProcedureList, Rating, Reminders, RetrainStarted, Role, RouteProfile, RouteOptions, SavedTrack, SaveFlightRequest, SignRequest, SignInCapabilities, SpeedDay, Squawk, SquawkRequest, Status, StopFields, StreamMessage, Subscription, Tfrs, Totals, Traffic, TrafficFound, Training, VorCheckRequest, WaypointsInView, ClearanceAsk, ClearancePlaces, ClearanceWords } from "./types";
 
 /**
  * Every call the pages make. Both servers' calls go through
@@ -36,10 +37,11 @@ export class ApiError extends Error {
  * echoed back; session cookies are attached by the browser on their
  * own, which is the condition CSRF exploits, so this is what tells our
  * own request apart from someone else's page making the same one. The
- * one place the rule lives -- both clients' middleware and both plain
- * fetches ask it.
+ * one place the rule lives -- both clients' middleware, both plain
+ * fetches, and the assistant's and the words' own (./assistant, ./words)
+ * ask it.
  */
-function csrfHeaders(method: string): Record<string, string> {
+export function csrfHeaders(method: string): Record<string, string> {
   if (method.toUpperCase() === "GET") return {};
   const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
   return match?.[1] ? { "X-XSRF-TOKEN": decodeURIComponent(match[1]) } : {};
@@ -76,7 +78,7 @@ export function statusWords(status: number): string {
 
 /** A response that is not OK, as the `ApiError` every caller expects --
  *  so every call either resolves with its data or rejects. */
-async function failIfNotOk(response: Response): Promise<void> {
+export async function failIfNotOk(response: Response): Promise<void> {
   if (!response.ok) throw new ApiError(await detailOf(response), response.status);
 }
 
@@ -86,7 +88,11 @@ const csrfAndFailures: Middleware = {
     for (const [name, value] of Object.entries(csrfHeaders(request.method))) request.headers.set(name, value);
     return request;
   },
-  async onResponse({ response }) {
+  async onResponse({ request, response }) {
+    // From the network or the service worker's cache, said on the map
+    // where it is the cache's (lib/fromCache). The request's address,
+    // not the response's: one the worker makes up has none.
+    noteAnswer(request.url, response);
     await failIfNotOk(response);
   },
 };
@@ -231,7 +237,7 @@ export const errorMessage = (err: unknown, fallback: string) => (err ? describeE
 /** A route's stops as the planner takes them, "KDSM,KLNK"; none, none. */
 const stopsParam = (stops?: string[]) => (stops?.length ? stops.join(",") : undefined);
 
-/** The airport index's shape (vfr.airports.search_index), in its address
+/** The airport index's shape (wingtip.airports.search_index), in its address
  *  so a day's copy in the browser of an older shape is not read as this
  *  one: 2, each field's place after its size (2026-10-22). */
 const INDEX_VERSION = 2;
@@ -287,7 +293,7 @@ export const api = {
           class_b_clearance: classBClearance || undefined,
           altitudes: altitudes || undefined,
           checkpoints: checkpoints ? undefined : false,
-          // Under IFR (the planner's vfr.ifr); VFR, the default, unsaid.
+          // Under IFR (the planner's wingtip.ifr); VFR, the default, unsaid.
           rules: rules === "ifr" ? rules : undefined,
           // The IFR alternate filed, whose fuel is in the totals.
           alternate: rules === "ifr" && alternate ? alternate : undefined,
@@ -489,6 +495,15 @@ export const api = {
   /** One airport's card: where it is, the airspace over it, its runways
    *  and radio, and the weather there now. Ahead of the chart's tiles,
    *  as the fields in view are (`priority`). */
+  /** An ATC clearance heard (lib/clearance): the places it named, found
+   *  near the route (wingtip.spoken). */
+  clearancePlaces: (body: ClearanceAsk) => planner.POST("/api/clearance/places", { body }).then(data<ClearancePlaces>),
+  /** The names a clearance near the route will likely say, for the
+   *  phone's recognizer to listen for (lib/listen). */
+  clearanceWords: (near: string, dep: string) =>
+    planner.GET("/api/clearance/words", { params: { query: { near: near || undefined, dep: dep || undefined } } })
+      .then(data<ClearanceWords>).then(r => r.words),
+
   /** The mock oral (the planner's app.oral): a question about this
    *  flight, and an answer graded. The developer's, for now. */
   oral: {
@@ -500,10 +515,6 @@ export const api = {
   /** The pictures an airport's card swipes through behind its diagram. */
   airportPhotos: (ident: string) =>
     planner.GET("/api/airport/{ident}/photos", { params: { path: { ident } } }).then(data<AirportPhotos>),
-  /** The fields along the route to stop at, for the map's Stops: asked
-   *  again while some of their places are still being read (`pending`). */
-  routeStops: (dep: string, dest: string, stops: string) =>
-    planner.GET("/api/route-stops", { params: { query: { dep, dest, stops } } }).then(data<RouteStops>),
   /** The ways to fly a route, for FPL's Routes: the fastest, the best
    *  weather's and the fewest stops', round storms, weather under the
    *  minimums given, prohibited areas, TFRs and high ground; and what the
@@ -538,7 +549,7 @@ export const api = {
       params: { path: { ident, procedure }, query: transition ? { transition } : {} },
     }).then(data<ProcedureDrawing>),
   /** An approach's plate's plan view placed on the map, where the planner
-   *  could place it (vfr.plates); 404 where it could not. */
+   *  could place it (wingtip.plates); 404 where it could not. */
   plate: (ident: string, procedure: string) =>
     planner.GET("/api/airport/{ident}/procedures/{procedure}/plate", { params: { path: { ident, procedure } } }).then(data<PlateOverlay>),
   /** The pages of one of the FAA's charts, by its address, drawn by the
@@ -843,6 +854,9 @@ export const api = {
       webapp.POST("/api/training/reviews", { body }).then(data<Training>),
     withdrawReview: (id: number) =>
       webapp.DELETE("/api/training/reviews/{id}", { params: { path: { id } } }).then(data<Training>),
+    /** How far along an approach set them: briefed, flown, its quiz so far. */
+    lessonProgress: (id: number, body: LessonProgressRequest) =>
+      webapp.POST("/api/training/lessons/{id}/progress", { params: { path: { id } }, body }).then(data<Training>),
   },
 
   /** The pilot as a flight instructor: their certificate, students,
@@ -863,6 +877,15 @@ export const api = {
       webapp.POST("/api/instructor/endorsements/{id}/void", { params: { path: { id } } }).then(data<Instructor>),
     decline: (id: number, note: string) =>
       webapp.POST("/api/instructor/reviews/{id}/decline", { params: { path: { id } }, body: { note } }).then(data<Instructor>),
+    /** An approach set one of their students as a lesson, and taken back. */
+    assignLesson: (studentId: number, body: AssignLessonRequest) =>
+      webapp.POST("/api/instructor/students/{studentId}/lessons", { params: { path: { studentId } }, body }).then(data<Training>),
+    removeLesson: (studentId: number, id: number) =>
+      webapp.DELETE("/api/instructor/students/{studentId}/lessons/{id}", { params: { path: { studentId, id } } }).then(data<Training>),
+    /** The track of a flight the student put to them, to debrief its approach. */
+    reviewedTrack: (studentId: number, flightId: number) =>
+      webapp.GET("/api/instructor/students/{studentId}/flights/{flightId}/track", { params: { path: { studentId, flightId } } })
+        .then(data<SavedTrack>),
   },
 
   /** A signed-in pilot's own filed flights. */

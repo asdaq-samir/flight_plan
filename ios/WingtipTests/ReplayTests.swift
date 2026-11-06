@@ -111,11 +111,11 @@ struct ReplayTests {
 @MainActor
 struct RootLayoutTests {
     @Test func theIPadAtFullWidthSplitsEverythingElseKeepsTheSheet() {
-        #expect(RootLayout.of(.regular, pad: true) == .split)
-        #expect(RootLayout.of(.compact, pad: true) == .sheet)       // an iPad in a narrow Split View
-        #expect(RootLayout.of(nil, pad: true) == .sheet)
-        #expect(RootLayout.of(.regular, pad: false) == .sheet)      // an iPhone Max held sideways
-        #expect(RootLayout.of(.compact, pad: false) == .sheet)
+        #expect(RootLayout.of(.regular, .regular) == .split)        // an iPad, or iPhone Duo open
+        #expect(RootLayout.of(.compact, .regular) == .sheet)        // an iPhone, iPhone Duo closed, an iPad in a narrow Split View
+        #expect(RootLayout.of(.regular, .compact) == .sheet)        // an iPhone Max held sideways
+        #expect(RootLayout.of(.compact, .compact) == .sheet)        // an iPhone held sideways
+        #expect(RootLayout.of(nil, .regular) == .sheet)
     }
 
     @Test func aFieldAndAPointOpenInTheInspectorTheListsStayInTheSidebar() {

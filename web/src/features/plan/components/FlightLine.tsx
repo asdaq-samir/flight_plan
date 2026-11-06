@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { cn } from "cn";
 import type { Totals } from "../../../lib/api/types";
-import { GROUP_HEADING, GROW_FIGURE, TEXT } from "../../../lib/text";
+import { FLYING_FIGURE, GROUP_HEADING, GROW_FIGURE, TEXT } from "../../../lib/text";
 import { useFigureFit } from "../../../components/useFigureFit";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { TriangleAlert } from "lucide-react";
@@ -42,7 +42,7 @@ import type { Flown } from "./navlog/dryRun";
  *  13), with the sheet (`grow`); TEXT's sizes, a mouse's and a finger's. */
 const { value: GROW_VALUE, unit: GROW_UNIT, name: GROW_NAME } = GROW_FIGURE;
 
-export default function FlightLine({ totals, estimate, destination, depart, local, grow = false, flown = null }: {
+export default function FlightLine({ totals, estimate, destination, depart, local, grow = false, flown = null, flying = false }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -56,18 +56,22 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
   depart: string;
   /** One airport to itself: the time aloft and the time back. */
   local: boolean;
-  /** Pinned at the sheet's foot at every height: smaller at the pill's
-   *  size ("you can make the calculations smaller"), growing smoothly to
-   *  their full size as the sheet comes up (the owner's "just make them
-   *  bigger smoothly as expanded") -- by MapPanel's --sheet-progress, 0 at
-   *  the pill, 1 all the way up. */
+  /** Pinned at the sheet's foot at every height: small at half, under the
+   *  list, and their full size at the pill and all the way up (the owner,
+   *  2026-11-05: "when in small detent, the font should become larger size
+   *  as in large detent"), eased between as the sheet moves -- by
+   *  MapPanel's --sheet-progress, 0 at half, 1 at the other two. */
   grow?: boolean;
   /** A dry run flying: the same figures from where the airplane is
    *  (tripFigures' `flown`), the same taps on them. */
   flown?: Flown | null;
+  /** In flight (useFlyingMode): the figures one large size whatever the
+   *  sheet's (FLYING_FIGURE), over `grow`. */
+  flying?: boolean;
 }) {
-  const valueType = grow ? GROW_VALUE : TEXT.heading;
-  const unitType = grow ? GROW_UNIT : TEXT.note;
+  const valueType = flying ? FLYING_FIGURE.value : grow ? GROW_VALUE : TEXT.heading;
+  const unitType = flying ? FLYING_FIGURE.unit : grow ? GROW_UNIT : TEXT.note;
+  const nameType = flying ? FLYING_FIGURE.name : grow ? GROW_NAME : undefined;
   // The time en route tapped, the arrival's clock time in its place, and
   // back, at the owner's ask ("Ete should change to eta when tapped").
   const [arrival, setArrival] = useState(false);
@@ -101,7 +105,7 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
           <div key={f.name} className="min-w-0 text-center">
             {/* Its names and units a grey that reads on the pill's glass
                 over any chart (WCAG's 4.5:1), where the muted one did not. */}
-            <dt className={cn(GROUP_HEADING, grow && GROW_NAME, "truncate text-foreground/65")}>{f.name}</dt>
+            <dt className={cn(GROUP_HEADING, nameType, "truncate text-foreground/65")}>{f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(valueType, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
               {f.name === "Fuel" && breakdown ? (
                 <ResponsivePopover>

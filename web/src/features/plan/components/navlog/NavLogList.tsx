@@ -24,7 +24,7 @@ function windOf(row: NavLogRow): string | null {
  *  nav log's route column has them: "V191 · MEA 4,000 · MOCA 2,600", the
  *  GNSS MEA where the segment publishes no other (a T route's). The MEA
  *  is the floor under IFR (14 CFR 91.177(a)(1)); the MOCA is legal below
- *  it within 22 nm of the VOR, said, not flown (vfr.airways). */
+ *  it within 22 nm of the VOR, said, not flown (wingtip.airways). */
 function airwayOf(row: NavLogRow): string | null {
   const airway = legOf(row)?.airway;
   if (!airway) return null;

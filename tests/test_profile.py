@@ -2,7 +2,7 @@
 import pytest
 from shapely.geometry import box
 
-from vfr import profile
+from wingtip import profile
 
 
 @pytest.fixture

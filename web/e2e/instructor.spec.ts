@@ -83,7 +83,14 @@ test("a student asks an instructor in, and the instructor endorses their solo cr
   await expect(desk.getByTestId("cfi-certificate")).toContainText("987654321CFI");
   await expect(desk.getByTestId("student-ask")).toContainText("Avery B. Student");
   await desk.getByTestId("student-accept").click();
-  await expect(desk.getByRole("button", { name: /^Avery B\. Student/ })).toBeVisible();
+  // Taken on, the student is under Everyone with their two dots -- no
+  // solo endorsement on record, no flight put to the instructor yet --
+  // and nothing needs the instructor today.
+  const everyone = desk.getByTestId("student-row").filter({ hasText: "Avery B. Student" });
+  await expect(everyone).toBeVisible();
+  await expect(everyone.getByTestId("student-dots")).toHaveAttribute("data-currency", "unknown");
+  await expect(everyone.getByTestId("student-dots")).toHaveAttribute("data-go", "unknown");
+  await expect(desk.getByTestId("student-needs")).toHaveCount(0);
 
   // The student puts the flight to them, from Flights.
   await page.reload();
@@ -100,7 +107,14 @@ test("a student asks an instructor in, and the instructor endorses their solo cr
   await instructor.reload();
   desk = await logbook(instructor);
   await desk.getByRole("button", { name: /^Instructing/ }).click();
-  await desk.getByRole("button", { name: /^Avery B\. Student/ }).click();
+  // The flight, put to them for today, needs the instructor today: first
+  // in the list, with Sign off, and the student still under Everyone.
+  const needs = desk.getByTestId("student-needs").filter({ hasText: "Avery B. Student" });
+  await expect(needs).toBeVisible();
+  await expect(needs).toContainText(/Solo KUGN KRFD KUGN today · no risk assessment/);
+  await expect(needs).toContainText("Sign off");
+  await expect(desk.getByTestId("student-row").filter({ hasText: "Avery B. Student" })).toContainText("1 waiting on you");
+  await needs.click();
   const review = desk.getByTestId("review");
   await expect(review).toContainText("KUGN KRFD KUGN");
   await expect(review).toContainText("“Back by four”");

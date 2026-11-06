@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 function gatewayRoutes(): { method: string; pattern: RegExp }[] {
-  const java = read("../../../../springboot-app/src/main/java/com/northflyers/vfr/controller/PlannerProxyController.java");
+  const java = read("../../../../springboot-app/src/main/java/com/northflyers/wingtip/controller/PlannerProxyController.java");
   const constants = new Map([...java.matchAll(/static final String (\w+) = "([^"]*)";/g)].map(m => [m[1]!, m[2]!]));
   return [...java.matchAll(/route\("(\w+)", ((?:\w+ \+ )?"[^"]*"|\w+)\)/g)].map(m => {
     const path = m[2]!.split(" + ").map(part => (part.startsWith('"') ? part.slice(1, -1) : constants.get(part) ?? part)).join("");

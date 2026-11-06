@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Command as CommandPrimitive } from "cmdk";
 import { ChevronsUpDown, Search } from "lucide-react";
 import { cn } from "cn";
@@ -35,6 +35,10 @@ interface Props {
   onOpenChange?: (open: boolean) => void;
   /** What a tap on the button does in place of opening the search. */
   onTap?: () => void;
+  /** What the button shows in place of the ident and its chevron: FPL's
+   *  split route line, its mark and the airport's name with it
+   *  (RouteSplit). */
+  children?: ReactNode;
 }
 
 /**
@@ -53,7 +57,7 @@ interface Props {
  */
 export default function AirportPicker({
   value, onChange, placeholder, ariaLabel, invalid, className, look = "field", testId, fixes = false,
-  open: shown, onOpenChange, onTap,
+  open: shown, onOpenChange, onTap, children,
 }: Props) {
   const [ownOpen, setOwnOpen] = useState(false);
   const open = shown ?? ownOpen;
@@ -112,8 +116,12 @@ export default function AirportPicker({
             ? cn("font-semibold uppercase text-foreground", TEXT.detail, className)
             : cn("font-mono uppercase text-foreground", TEXT.row, !value && "text-muted-foreground", className)}
         >
-          {value || placeholder}
-          {look === "field" && <ChevronsUpDown className="text-muted-foreground" />}
+          {children ?? (
+            <>
+              {value || placeholder}
+              {look === "field" && <ChevronsUpDown className="text-muted-foreground" />}
+            </>
+          )}
         </Button>
       </ResponsivePopoverTrigger>
       {/* The panel's own search, as the search bar is with no route: on a

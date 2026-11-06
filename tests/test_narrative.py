@@ -1,9 +1,9 @@
-"""vfr.narrative: the request both narrative agents accept and the one
+"""wingtip.narrative: the request both narrative agents accept and the one
 prompt both write from."""
 import pytest
 from pydantic import ValidationError
 
-from vfr import narrative
+from wingtip import narrative
 
 LEG = {"from": "C81", "to": "KDLH", "distance_nm": 290.0, "magnetic_heading_deg": 335.0,
        "groundspeed_kt": 110.0, "ete_min": 158.0, "fuel_gal": 22.4}

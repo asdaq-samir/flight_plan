@@ -71,10 +71,10 @@ test("the imagery over the chart comes in under a finger's pan, before it lifts"
   await touch("touchEnd", []);
 });
 
-test("a pinch brings in the airports and the VFR waypoints of each level it passes, before the fingers lift", async ({ page }) => {
+test("a pinch brings in the airports of each level it passes, before the fingers lift", async ({ page }) => {
   await openOnC81(page);
-  // Fields with no report and VFR waypoints across every box asked for:
-  // at the region's zoom neither is drawn, from 8 both are -- regional
+  // Fields with no report across every box asked for: at the region's
+  // zoom none is drawn, from 8 they are -- regional
   // fields, as a small one's mark waits for 10 since the owner's "Do two
   // levels up" (2026-10-29, 507308ae: AirportsLayer's SHOWN_FROM).
   const grid = (url: string, row: (i: number, j: number, lat: number, lon: number) => object) => {
@@ -87,18 +87,34 @@ test("a pinch brings in the airports and the VFR waypoints of each level it pass
   await page.route(url => url.pathname.endsWith("/api/planner/airports/in-view"), route => route.fulfill({ json: {
     airports: grid(route.request().url(), (i, j, lat, lon) => ({ ident: `G${i}${j}`, name: "Grid", lat, lon, kind: "medium", flight_category: null, military: null })),
   } }));
-  await page.route(url => url.pathname.endsWith("/api/planner/waypoints/in-view"), route => route.fulfill({ json: {
-    waypoints: grid(route.request().url(), (i, j, lat, lon) => ({ ident: `VPG${i}${j}`, lat, lon, description: null })),
-  } }));
   await page.goto("/app/plan");
   await settle(page);
+  await mapStill(page);
+  // Out to the region's zoom, 7: the page opens on the position at 8
+  // since the owner's "make the current position zoom level the same as
+  // class D airports" (2026-11-04, ownShip's OPEN_ZOOM), where these
+  // fields are drawn already.
+  await page.evaluate(() => {
+    const box = document.querySelector(".leaflet-container") as unknown as Record<string, unknown>;
+    const key = Object.keys(box).find(k => k.startsWith("__reactFiber"))!;
+    let map: { setZoom: (z: number, o: object) => void } | null = null;
+    const seen = new Set<unknown>();
+    const walk = (f: { memoizedProps?: { value?: { map?: { setZoom?: unknown } } }; child?: unknown; sibling?: unknown } | null, depth: number) => {
+      if (!f || map || depth > 40 || seen.has(f)) return;
+      seen.add(f);
+      const value = f.memoizedProps?.value;
+      if (value?.map?.setZoom) { map = value.map as typeof map; return; }
+      walk(f.child as typeof f, depth + 1);
+      walk(f.sibling as typeof f, depth);
+    };
+    walk(box[key] as Parameters<typeof walk>[0], 0);
+    map!.setZoom(7, { animate: false });
+  });
   await mapStill(page);
   // The fields' places on the airports' canvas (AirportCanvas), drawn or
   // a target for a tap without a mark of their own.
   const targets = { count: async () => (await airportMarks(page)).length };
-  const diamonds = page.locator(".leaflet-waypoints-pane .leaflet-marker-icon");
-  expect(await targets.count()).toBe(0);
-  await expect(diamonds).toHaveCount(0);
+  await expect.poll(() => targets.count(), { timeout: slow(5_000) }).toBe(0);
   // Two fingers spreading from 60 to 180 points apart: three times as
   // close, a level and a half in. Each 6 points out at a step, so the
   // second step is past the ruler's 10 (lib/map/ruler's STILL_PX): at 3 a
@@ -114,10 +130,9 @@ test("a pinch brings in the airports and the VFR waypoints of each level it pass
   }
   // A pinch, not a ruler.
   await expect(page.getByTestId("map-ruler")).toHaveCount(0);
-  // Still held: the fields' targets and the waypoints' diamonds drawn for
+  // Still held: the fields' targets drawn for
   // the level the pinch is at. They waited for the fingers to lift.
   await expect.poll(() => targets.count(), { timeout: slow(5_000) }).toBeGreaterThan(0);
-  await expect.poll(() => diamonds.count(), { timeout: slow(5_000) }).toBeGreaterThan(0);
   await touch("touchEnd", []);
 });
 

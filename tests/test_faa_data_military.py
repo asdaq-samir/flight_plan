@@ -1,7 +1,7 @@
 """The fields the armed services own, and those closed to the public,
-from the FAA's airport file (vfr.faa_data.military_fields and
+from the FAA's airport file (wingtip.faa_data.military_fields and
 private_fields)."""
-from vfr import faa_data
+from wingtip import faa_data
 
 HEADER = "SITE_TYPE_CODE,ARPT_ID,ICAO_ID,ARPT_NAME,OWNERSHIP_TYPE_CODE,FACILITY_USE_CODE,TPA\n"
 

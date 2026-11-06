@@ -61,10 +61,6 @@ export interface PlanParams {
   /** The departure time as an ISO instant, or "" for about now. */
   depart: string;
   aircraft: AircraftChoice;
-  /** False while the pilot browses FPL's Routes: the course alone, for the
-   *  map, and no nav log, checkpoints or briefing till a route is picked
-   *  (the owner's "Don't plan anything unless a route is picked"). */
-  planNow?: boolean;
   /** Load pressed again for the same route: a fresh nav log, fresh winds. */
   load: number;
   /** The pilot will have a Class B clearance: planned through it. */
@@ -188,7 +184,7 @@ export function usePlan(
   {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance = false, altitudes = "",
     checkpoints: withCheckpoints = true, localMin = 60, rules = "vfr", alternate = "", procedures = "", runways = "", crossings = "", ground = "", holds = "",
-    altitudeNearest = false, patterns = "", planNow = true,
+    altitudeNearest = false, patterns = "",
   }: PlanParams,
 ) {
   const routeKnown = routeOf(dep, dest, stops) !== null;
@@ -215,14 +211,14 @@ export function usePlan(
   // out the checkpoints for the nav log itself (and once for both:
   // app.scoring) -- and starts on the chart's read and the ground under
   // the route as the course is asked for (app.prefetch).
-  const checkpoints = useQuery({ ...checkpointsQuery(dep, dest, stops), enabled: routeKnown && withCheckpoints && planNow });
+  const checkpoints = useQuery({ ...checkpointsQuery(dep, dest, stops), enabled: routeKnown && withCheckpoints });
 
   const plan = {
     dep, dest, stops, altitudeFt, altitudeChoice, depart, aircraft, load, classBClearance, altitudes, checkpoints: withCheckpoints, rules,
     alternate, procedures, runways, crossings, ground, holds, altitudeNearest, patterns,
   };
   const planKey = planKeyOf(plan);
-  const navlog = useQuery({ ...navlogQuery(plan, withCheckpoints), enabled: routeKnown && planNow });
+  const navlog = useQuery({ ...navlogQuery(plan, withCheckpoints), enabled: routeKnown });
   const fullIn = (navlog.data ?? []).some(m => m.type === "leg" || m.type === "done") || !!navlog.error;
   // The route as entered first, point to point, at the pilot's ask for a
   // fast route to nav log: no chart read before it, so its legs are in a
@@ -245,7 +241,7 @@ export function usePlan(
   }, [routeId, routeKnown, withCheckpoints, fullIn]);
   const ready = course.isPlaceholderData ? undefined : course.data?.checkpoints_ready;
   const asEntered = useQuery({
-    ...navlogQuery(plan, false), enabled: planNow && routeKnown && withCheckpoints && !fullIn && (ready === undefined ? slowFor === routeId : !ready),
+    ...navlogQuery(plan, false), enabled: routeKnown && withCheckpoints && !fullIn && (ready === undefined ? slowFor === routeId : !ready),
   });
   const pointToPoint = withCheckpoints && !fullIn && !!asEntered.data?.some(m => m.type === "leg");
   const streamed = useMemo(
@@ -359,7 +355,7 @@ export function usePlan(
     // Not on the previous route's placeholder course once the route is
     // closed: asked for two empty idents, it toasted "Airport identifier
     // '' not found".
-    enabled: briefable && !!course.data && planNow, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
+    enabled: briefable && !!course.data, staleTime: 5 * 60_000, refetchInterval: 5 * 60_000,
     // The answer before kept up only while the route is the same -- a new
     // departure time, ETE or Load again -- not under a new route, where the
     // old route's hazards and TFRs showed for a moment (the audit's finding).
@@ -371,9 +367,7 @@ export function usePlan(
   // every tab of the panel again with it.
   const hasCourse = !!course.data;
   const briefingState = useMemo((): BriefingState => {
-    // And while nothing is planned (planNow): it said "loading" for ever,
-    // the progress line "Fetching METARs…" with it, under the Routes' cards.
-    if (!briefable || !hasCourse || !planNow) return { state: "waiting" };
+    if (!briefable || !hasCourse) return { state: "waiting" };
     if (briefing.data) {
       return {
         state: "ready", data: briefing.data, fetchedAt: briefing.dataUpdatedAt,
@@ -382,7 +376,7 @@ export function usePlan(
     }
     if (briefing.error) return { state: "failed", detail: describeError(briefing.error, "could not load the briefing") };
     return { state: "loading" };
-  }, [briefable, hasCourse, planNow, briefing.data, briefing.dataUpdatedAt, briefing.error]);
+  }, [briefable, hasCourse, briefing.data, briefing.dataUpdatedAt, briefing.error]);
 
   const notes = useCheckpointNotes(dep, dest, stops);
   // Written from the checkpoints' nav log, not the route as entered.

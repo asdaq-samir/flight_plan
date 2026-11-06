@@ -9,6 +9,10 @@ struct FPLView: View {
 
     enum Field { case dep, dest, altitude }
     @State private var altitude = ""
+    /// The fields' widths follow the type size, so three figures or an
+    /// ident still fit at the larger sizes.
+    @ScaledMetric(relativeTo: .body) private var identWidth = 110.0
+    @ScaledMetric(relativeTo: .body) private var altitudeWidth = 64.0
 
     /// The hundreds typed, flown; nothing typed, the planner's own pick.
     private func flyAltitude() {
@@ -27,6 +31,14 @@ struct FPLView: View {
                         routeField("From", text: $plan.dep, field: .dep)
                         Image(systemName: "arrow.right").foregroundStyle(.secondary)
                         routeField("To", text: $plan.dest, field: .dest)
+                        // A clearance heard into the route (ClearanceSheet).
+                        Button { focused = nil; ClearanceListener.shared.sheetText = nil; ClearanceListener.shared.sheetShown = true } label: {
+                            Image(systemName: ClearanceListener.shared.listening ? "mic.fill" : "mic")
+                                // The 44-point hit area round the glyph, which does not grow.
+                                .contentShape(Rectangle().inset(by: -10))
+                        }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(ClearanceListener.shared.listening ? "Listening to the radio" : "Listen to the radio")
                         Button("Plan") { focused = nil; plan.plan() }
                             .buttonStyle(.borderedProminent)
                             .disabled(!plan.routed || plan.planning)
@@ -81,25 +93,32 @@ struct FPLView: View {
                         Text("Altitude").foregroundStyle(.secondary)
                         TextField(plan.altitudeFt.map { String(format: "%03d", Int($0) / 100) } ?? "—", text: $altitude)
                             .textFieldStyle(.roundedBorder).keyboardType(.numberPad).font(.body.monospaced())
-                            .frame(width: 64).multilineTextAlignment(.trailing)
+                            .frame(width: altitudeWidth).multilineTextAlignment(.trailing)
                             .focused($focused, equals: .altitude)
                             .onSubmit(flyAltitude)
+                            .accessibilityLabel("Altitude, hundreds of feet")
+                            .accessibilityValue(plan.altitudeFt.map(SpokenFigures.feet) ?? "the planner's pick")
                         // The profile, with the altitude's warning tick where
                         // the pilot's own breaks a limit: in the inspector
                         // on the iPad (CardLink), as the brief is.
+                        let cautioned = !(plan.altitude?.cautions.isEmpty ?? true)
                         CardLink(.profile) {
-                            Image(systemName: (plan.altitude?.cautions.isEmpty ?? true) ? "chart.xyaxis.line" : "exclamationmark.triangle.fill")
-                                .foregroundStyle((plan.altitude?.cautions.isEmpty ?? true) ? Color.accentColor : Color.orange)
+                            Image(systemName: cautioned ? "exclamationmark.triangle.fill" : "chart.xyaxis.line")
+                                .foregroundStyle(cautioned ? Color.orange : Color.accentColor)
+                                .contentShape(Rectangle().inset(by: -10))
                         }
-                        .accessibilityLabel("Profile")
+                        .accessibilityLabel(cautioned ? "Profile, with cautions on the altitude" : "Profile")
                         .buttonStyle(.plain)
                         // The Brief, marked where the planner says VFR is
-                        // not recommended.
+                        // not recommended: in the glyph too, for a pilot who
+                        // does not see the red.
+                        let notRecommended = !(plan.briefing?.vfrNotRecommended?.isEmpty ?? true)
                         CardLink(.brief) {
-                            Image(systemName: "doc.text")
-                                .foregroundStyle((plan.briefing?.vfrNotRecommended?.isEmpty ?? true) ? Color.accentColor : Color.red)
+                            Image(systemName: notRecommended ? "doc.text.fill" : "doc.text")
+                                .foregroundStyle(notRecommended ? Color.red : Color.accentColor)
+                                .contentShape(Rectangle().inset(by: -10))
                         }
-                        .accessibilityLabel("Brief")
+                        .accessibilityLabel(notRecommended ? "Brief, VFR flight not recommended" : "Brief")
                         .buttonStyle(.plain)
                     }
                     .toolbar {
@@ -126,11 +145,14 @@ struct FPLView: View {
                     Section {
                         HStack {
                             stripFigure("TO", plan.dest)
-                            stripFigure("DIST", totals.distanceNm.map(AirportWords.nm) ?? "—")
-                            stripFigure("ETE", totals.eteMin.map(hoursMinutes) ?? "—")
-                            stripFigure("FUEL", totals.fuelGal.map(AirportWords.gal) ?? "—",
+                            stripFigure("DIST", totals.distanceNm.map(AirportWords.nm) ?? "—", spoken: totals.distanceNm.map(SpokenFigures.nauticalMiles))
+                            stripFigure("ETE", totals.eteMin.map(hoursMinutes) ?? "—", spoken: totals.eteMin.map(SpokenFigures.minutes))
+                            stripFigure("FUEL", totals.fuelGal.map(AirportWords.gal) ?? "—", spoken: totals.fuelGal.map(SpokenFigures.gallons),
                                    warn: (totals.fuelMarginGal ?? 0) < 0)
                         }
+                        .accessibilityElement(children: .combine)
+                        // As the sheet's strip: four across stop at this size.
+                        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                     }
                 }
                 if plan.course != nil {
@@ -186,6 +208,9 @@ struct FPLView: View {
                 }
             }
             .toolbar { RouteToolbar(plan: plan) }
+            .sheet(isPresented: Binding(get: { ClearanceListener.shared.sheetShown }, set: { ClearanceListener.shared.sheetShown = $0 })) {
+                ClearanceSheet().presentationDetents([.medium, .large])
+            }
         }
     }
 
@@ -195,7 +220,7 @@ struct FPLView: View {
             .textInputAutocapitalization(.characters)
             .autocorrectionDisabled()
             .font(.body.monospaced())
-            .frame(maxWidth: 110)
+            .frame(maxWidth: identWidth)
             .focused($focused, equals: field)
             .onSubmit { if field == .dep { focused = .dest } else { plan.plan() } }
     }
@@ -231,7 +256,23 @@ struct LegRow: View {
                 .foregroundStyle(.secondary)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    /// The row as a pilot reads a nav log aloud: "To KHIB, heading zero
+    /// nine zero, ninety-eight knots, wind two seven zero at twelve, twenty
+    /// nautical miles, twelve minutes, one point four gallons".
+    private var spoken: String {
+        var parts = ["To \(leg.to)", "heading \(SpokenFigures.degrees(leg.magneticHeadingDeg))"]
+        if let gs = leg.groundspeedKt { parts.append(SpokenFigures.knots(gs)) }
+        if let wind = leg.wind, let dir = wind.directionDeg, let kt = wind.speedKt {
+            parts.append("wind \(SpokenFigures.digits(String(format: "%03.0f", dir))) at \(SpokenFigures.number(kt))")
+        }
+        parts.append(SpokenFigures.nauticalMiles(leg.distanceNm))
+        if let ete = leg.eteMin { parts.append(SpokenFigures.minutes(ete)) }
+        if let fuel = leg.fuelGal { parts.append(SpokenFigures.gallons(fuel)) }
+        return parts.joined(separator: ", ")
     }
 }
 

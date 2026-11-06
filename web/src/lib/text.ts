@@ -47,6 +47,25 @@ export const TEXT = {
    *  size a bit bigger so it fits nicely"; the tabs to "pop out more",
    *  2026-10-22). */
   tab: "text-[0.8125rem] leading-[1.0625rem]",
+  /** The tab bar's words: 12, a size under the 13 they were, for a
+   *  slimmer bar with room round its tabs (the owner, 2026-11-04: 49
+   *  points "seems too congested and small"), on iOS's own 16 for 12
+   *  (Caption 1, 12/16; the iOS audit's P3). 14 failed the audit on every
+   *  screen with the tabs; the tab is 50 tall, so the bar keeps its height. */
+  tabBar: "text-[0.75rem] leading-[1rem]",
+  /** A figure's name, an ident, a chip's word in the display face
+   *  (index.css --display: Barlow Condensed in the Chart ink look, the
+   *  body's own face in the others): a note's 13 on 17, semibold, in
+   *  capitals spaced a tenth of an em, as the ink canvas sets a figure's
+   *  label (2026-11-04). */
+  label: "font-display text-[0.8125rem] leading-[1.0625rem] font-semibold uppercase tracking-[0.1em]",
+  /** A figure in the Chart ink look (FigureStrip): 26 on 31, bold, in
+   *  tabular figures -- the Flying screen's size (FLYING_FIGURE), a
+   *  weight up, in the text face. */
+  figure: "text-[1.625rem] leading-[1.9375rem] font-bold tabular-nums",
+  /** A word button's words (the strip layout's): the display face's
+   *  capitals, semibold, spaced 0.08em; its size the button's own. */
+  word: "font-display font-semibold uppercase tracking-[0.08em]",
 } as const;
 
 /** A group's heading, as iOS's grouped lists set one: a note's size,
@@ -61,9 +80,9 @@ export const GROUP_HEADING = `font-semibold uppercase tracking-wide text-muted-f
 export const TEXT_POINTS = { caption: 11, row: 17 } as const;
 
 /** A figure pinned at the map panel's foot (FlightLine, FigureStrip), its
- *  value, unit and name growing from the pill's size to their own as the
- *  sheet comes up (MapPanel's --sheet-progress, 0 at the pill, 1 all the
- *  way up), each with its iOS leading at either end (the audit's P3: 15
+ *  value, unit and name small at half and their own size at the pill and
+ *  all the way up (MapPanel's --sheet-progress, 0 at half, 1 at the other
+ *  two; the owner, 2026-11-05), each with its iOS leading at either end (the audit's P3: 15
  *  on 20 to 20 on 25, 11 on 13 to 13 on 18), eased between as the size
  *  is. */
 const GROW_SMALL = "text-[length:calc(0.6875rem+0.0625rem*var(--sheet-progress,1))] leading-[calc(0.8125rem+0.1875rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.6875rem+0.125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(0.8125rem+0.3125rem*var(--sheet-progress,1))]";
@@ -71,4 +90,14 @@ export const GROW_FIGURE = {
   value: "text-[length:calc(0.75rem+0.375rem*var(--sheet-progress,1))] leading-[calc(1rem+0.75rem*var(--sheet-progress,1))] pointer-coarse:text-[length:calc(0.9375rem+0.3125rem*var(--sheet-progress,1))] pointer-coarse:leading-[calc(1.25rem+0.3125rem*var(--sheet-progress,1))]",
   unit: GROW_SMALL,
   name: GROW_SMALL,
+};
+
+/** The same figures in flight (useFlyingMode): one size whatever the
+ *  sheet's, read at arm's length in a bumpy cockpit -- the value 26 on
+ *  31, its unit 14 and its name 12 on 16, as the canvas draws the Flying
+ *  screen (2026-11-03). */
+export const FLYING_FIGURE = {
+  value: "text-[1.625rem] leading-[1.9375rem]",
+  unit: "text-[0.875rem] leading-[1.125rem]",
+  name: "text-xs leading-4",
 };

@@ -1,4 +1,4 @@
-"""vfr.registry: the FAA's Releasable Aircraft Database read into a lookup
+"""wingtip.registry: the FAA's Releasable Aircraft Database read into a lookup
 by transponder address and N-number, from a small archive in the FAA's own
 shape (its files' header rows, byte-order mark and trailing commas, and
 rows as the FAA writes them, 2026-10-09's)."""
@@ -6,7 +6,7 @@ import zipfile
 
 import pytest
 
-from vfr import registry
+from wingtip import registry
 
 MASTER_HEADER = ("N-NUMBER,SERIAL NUMBER,MFR MDL CODE,ENG MFR MDL,YEAR MFR,TYPE REGISTRANT,NAME,STREET,STREET2,CITY,STATE,"
                  "ZIP CODE,REGION,COUNTY,COUNTRY,LAST ACTION DATE,CERT ISSUE DATE,CERTIFICATION,TYPE AIRCRAFT,TYPE ENGINE,"

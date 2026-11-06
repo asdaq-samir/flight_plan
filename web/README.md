@@ -61,7 +61,7 @@ flights, checkpoint notes).
 
 ## Running it
 
-No native Node toolchain is used. Everything runs in `node:24-slim`, the
+No native Node toolchain is used. Everything runs in `node:26-slim`, the
 image `springboot-app/Dockerfile` builds the bundle with.
 
 ```bash
@@ -69,7 +69,7 @@ image `springboot-app/Dockerfile` builds the bundle with.
 docker compose up -d --build --wait webapp   # full stack; returns once the pages answer (webapp's healthcheck)
 
 # typecheck, lint and unit tests
-docker run --rm -v "$PWD/web":/w -w /w node:24-slim \
+docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
   sh -c "npm ci && npm run types && npx tsc -b && npx eslint . && npx vitest run"
 
 # real-browser layout tests, against the running stack
@@ -116,7 +116,7 @@ docker run --rm --add-host=host.docker.internal:host-gateway -v "$PWD/web":/w -w
   mcr.microsoft.com/playwright:v1.55.1-noble npx playwright test e2e/checkpoints.spec.ts -g "nav log"
 
 # the checks, with their caches: seconds after the first run
-docker run --rm -v "$PWD/web":/w -w /w node:24-slim \
+docker run --rm -v "$PWD/web":/w -w /w node:26-slim \
   sh -c "npx tsc --noEmit && npx eslint --cache --cache-location node_modules/.cache/eslint/ . && npx vitest run"
 
 # before a push: the whole suite (about four and a half minutes)
@@ -318,6 +318,28 @@ again (a retry, the same route asked for twice), and each answer is a
 new object; fitting on every one of those snapped the map back to the
 whole route from wherever a pilot had navigated to, seconds after a
 tap.
+
+**The first flight.** The first time the planner opens with no route on
+a device, `FirstFlight` (its view model `hooks/useFirstFlight.ts`) is a
+card over the map: a destination from the same airport search the
+route's box uses (`useAirportSearch`, through `PanelCapsule`'s field and
+results), and Plan it, which plans from own ship's nearest field, else
+the last departure or Home, else asks where from. Planned, the nav log
+opens, the card is marked seen in the tips store (`lib/tips`,
+`FIRST_FLIGHT`) and never comes back, and one tip (`brief`, gated
+`after` that key) points at the Brief.
+
+**Sunlight.** The map's settings' Sunlight (Auto, On, Off;
+`preferences.chartLight`) is a high-contrast scheme for a screen in a
+sunlit cockpit: `lib/sunlight` keeps `data-chart-light="bright"` on
+`<html>`, under which `index.css` draws the chart's tiles at more
+contrast, the course wider and black-cased, and every sheet, button and
+the figure strip solid white with black figures. Auto reads the
+ambient light sensor where the browser has one (on past 10,000 lux, off
+under 4,000), and the first time it switches on by itself
+`SunlightBanner` says so with a one-tap Keep off. The airspace rings
+draw on a canvas at their own width and are not reached by the
+stylesheet.
 
 ## What is deliberately not here
 

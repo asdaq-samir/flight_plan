@@ -34,7 +34,12 @@ function "image" {
   params = [name]
   result = {
     tags       = ["${REGISTRY}/${name}:sha-${SHA}"]
-    cache-from = ["type=registry,ref=${REGISTRY}/${name}:buildcache"]
+    # The planner's cache too: every image that imports wingtip carries the
+    # same wingtip-native stage (docker/Dockerfile.native), so the engine an
+    # earlier run compiled for the planner is found by the others, not
+    # compiled again for each image's own cache.
+    cache-from = ["type=registry,ref=${REGISTRY}/${name}:buildcache",
+                  "type=registry,ref=${REGISTRY}/planning-service:buildcache"]
     cache-to   = PUSH == "true" ? ["type=registry,ref=${REGISTRY}/${name}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true"] : []
     output     = PUSH == "true" ? ["type=registry"] : ["type=cacheonly"]
   }

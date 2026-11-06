@@ -15,6 +15,8 @@ struct SetupView: View {
     @AppStorage(MapExtrasInput.Keys.military) private var militaryOn = false
     @AppStorage(MapExtrasInput.Keys.privateFields) private var privateOn = false
     @AppStorage(ChartNight.key) private var chartNight = ChartNight.dimmed.rawValue
+    /// The screen's layout, the tabs or the strip (RootView).
+    @AppStorage("layout") private var layoutName = "tabs"
 
     var body: some View {
         NavigationStack {
@@ -57,6 +59,17 @@ struct SetupView: View {
                     // How old each weather layer's data is.
                     LayerAgesRows()
                 }
+                // The tabs, or the strip: one field and the flight as one
+                // strip (StripSheetView), the owner's pick of 2026-11-04,
+                // tried beside the tabs; a segmented control, as a setting
+                // of two is.
+                Section("Screen") {
+                    Picker("Screen", selection: $layoutName) {
+                        Text("Tabs").tag("tabs")
+                        Text("Strip").tag("strip")
+                    }
+                    .pickerStyle(.segmented)
+                }
                 Section("Chart") {
                     // The white paper chart dimmed in dark appearance, so it
                     // does not take the pilot's night vision: a menu of two,
@@ -88,4 +101,12 @@ struct SetupView: View {
             }
         }
     }
+}
+
+#Preview("SetupView") {
+    SetupView()
+        .environment(Session())
+        .environment(Charts())
+        .environment(Traffic())
+        .environment(Plan())
 }

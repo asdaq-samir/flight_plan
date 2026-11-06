@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
-from vfr import airports, airspace, alternates, altitude, geo, pattern, publications, runway_wind, tfr, weather
+from wingtip import airports, airspace, alternates, altitude, geo, pattern, publications, runway_wind, tfr, weather
 
 from .. import exposure
 from ..common import load_route
@@ -122,15 +122,25 @@ def _fixes(text: str) -> list[tuple[float, float]] | None:
 def map_layer_ages() -> MapLayerAges:
     """When the planner fetched what the map's weather layers are drawn
     from, for the map's settings to say how old each is: the METARs
-    (aviationweather.gov's METAR file, held and refreshed by vfr.weather)
-    and the TFRs (tfr.faa.gov)."""
-    return {"metars_at": exposure.iso(weather.dataset_status().get("metars")), "tfrs_at": exposure.iso(tfr.fetched_at())}
+    (aviationweather.gov's METAR file, held and refreshed by wingtip.weather)
+    and the TFRs (tfr.faa.gov); and each source the planner keeps
+    through an outage, for the pilot's Status page."""
+    sources = [
+        {**s, "fetched_at": exposure.iso(s["fetched_at"]), "kept_until": exposure.iso(s["kept_until"])}
+        for s in weather.sources_status()
+    ]
+    sources.append({"name": "TFRs", "fetched_at": exposure.iso(tfr.fetched_at()), "kept_until": None, "failing": tfr.failing()})
+    return {
+        "metars_at": exposure.iso(weather.dataset_status().get("metars")),
+        "tfrs_at": exposure.iso(tfr.fetched_at()),
+        "sources": sources,
+    }
 
 
 @router.get("/api/tfrs")
 def tfrs() -> Tfrs:
     """Every temporary flight restriction in force or to come, for the
-    map: each NOTAM's areas, when, how high and why (vfr.tfr). A 502 when
+    map: each NOTAM's areas, when, how high and why (wingtip.tfr). A 502 when
     tfr.faa.gov does not answer, for the map to say so rather than draw
     a sky with none."""
     try:
@@ -146,7 +156,7 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
     conditions (SIGMET/AIRMET), current conditions (METAR) and
     forecast (TAF-derived ceiling/visibility) along the route, and
     each airport's runways and radio frequencies, its traffic pattern
-    (vfr.pattern) and the class of the airspace over it, for its
+    (wingtip.pattern) and the class of the airspace over it, for its
     pattern card and the radio calls.
 
     The forecast is for the flight: from `depart` (now when not given;
@@ -176,7 +186,7 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
 
     # Runways/frequencies are in this pool too, not just the three
     # weather calls -- on a freshly started container (an empty
-    # in-memory table cache, see vfr.airports._TABLE_CACHE) those are
+    # in-memory table cache, see wingtip.airports._TABLE_CACHE) those are
     # each a multi-megabyte CSV parse, the same order of cost as a
     # weather round trip, and were previously paying that cost after
     # the weather pool had already finished instead of alongside it.
@@ -196,7 +206,7 @@ def briefing(dep: str, dest: str, stops: str = "", depart: datetime | None = Non
         runways = {ident: pool.submit(airports.get_runways, source[ident]) for ident in idents}
         frequencies = {ident: pool.submit(airports.get_frequencies, source[ident]) for ident in idents}
 
-        # Same reasoning as vfr.altitude.select_cruise_altitude: these are
+        # Same reasoning as wingtip.altitude.select_cruise_altitude: these are
         # three independent live aviationweather.gov calls, and a transient
         # failure on any one of them (a 504 on a slow bbox query) used to
         # take the whole briefing down even though the other two -- plus
@@ -279,7 +289,7 @@ def alternate(dest: str, eta: datetime, tas_kt: float = 110.0, alternate: str = 
     "1-2-3" rule, from its TAF an hour either side of the ETA), the
     pilot's `alternate` checked against its minimums at the ETA there
     (91.169(c)), and the nearest fields with a TAF that will do, each
-    reached at `tas_kt` from the destination (vfr.alternates)."""
+    reached at `tas_kt` from the destination (wingtip.alternates)."""
     arrival = (eta if eta.tzinfo else eta.replace(tzinfo=timezone.utc)).timestamp()
     try:
         dest_airport = airports.get_airport(dest)

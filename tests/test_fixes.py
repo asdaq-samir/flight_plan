@@ -1,9 +1,9 @@
-"""vfr.fixes reads NASR's FIX_BASE.csv: which fixes are VFR waypoints a
+"""wingtip.fixes reads NASR's FIX_BASE.csv: which fixes are VFR waypoints a
 pilot has on a chart, and what the rest are."""
 import os
 
 import pytest
-from vfr import fixes, geo, magnetic
+from wingtip import fixes, geo, magnetic
 
 HEADER = '"FIX_ID","STATE_CODE","LAT_DECIMAL","LONG_DECIMAL","FIX_USE_CODE","CHARTS"\n'
 

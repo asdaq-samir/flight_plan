@@ -1,3 +1,4 @@
+import type { AircraftKind } from "./aircraftKind";
 import { NO_FILTER, type AircraftFilter } from "./fbo";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -47,17 +48,32 @@ export type NavEdge = "top" | "bottom";
 /** The FAA chart in the dark theme: as printed, or dimmed for night
  *  vision (index.css's chart-tiles). */
 export type ChartNight = "normal" | "dimmed";
-/** The app's look (lib/brand), one of the four the owner had drawn
- *  (2026-10-26): Sectional, the chart's own colours; Glass Cockpit;
- *  Windsock; Clear Sky. */
-export type Brand = "sectional" | "cockpit" | "windsock" | "clearsky";
+/** The chart in bright sunlight (lib/sunlight): its tiles at higher
+ *  contrast, the course and the sheets solid white with black figures.
+ *  Auto turns it on from the phone's light sensor where the browser has
+ *  one; On and Off are the pilot's own. */
+export type ChartLight = "auto" | "on" | "off";
+/** The app's look (lib/brand): Glass Cockpit or Chart ink, the two the
+ *  owner kept (2026-11-04: "Only keep the glass cockpit and chart ink");
+ *  Sectional, Windsock and Clear Sky are gone. */
+export type Brand = "cockpit" | "ink";
 /** Which agent writes the Brief's narrative: nav-log-agent (LangGraph) or
  *  crewai-agent (CrewAI). */
 export type NarrativeFramework = "langgraph" | "crewai";
 /** The flight rules a route is planned under (the altitude's popover):
  *  VFR, or IFR -- its minimum altitudes, its thousands by direction of
- *  flight and its 45-minute reserve (the planner's vfr.ifr). */
+ *  flight and its 45-minute reserve (the planner's wingtip.ifr). */
 export type FlightRules = "vfr" | "ifr";
+/** How FPL's route is changed once it has a destination, the owner's
+ *  two picks of the FPL canvas (2026-11-05, artifact W9FwhatzHhe2hV9qroiYzv:
+ *  "I want to have a toggle between A and B in settings") and the box as
+ *  it was ("Fpl have 3 options? One for the current one?"): `box`, the
+ *  route's box over the plan as before; `folded`, the
+ *  route's box folded to one line, a tap opening it again (A); `plan`, no
+ *  box, the route's name over the plan, whose rows are dragged and added
+ *  to (B); both folded from the start, no route yet too, the box opened
+ *  from the head. In Setup's Layout. */
+export type RouteEdit = "box" | "folded" | "plan";
 
 /** The stock C172 until a pilot picks one of their own. */
 export const DEFAULT_AIRCRAFT: AircraftChoice = { profile: "c172", label: "C172 · Cessna 172" };
@@ -153,6 +169,8 @@ interface Preferences {
   /** The chart in the dark theme (ChartTiles), dimmed unless the pilot
    *  asks for it as printed. */
   chartNight: ChartNight;
+  /** The chart in sunlight (lib/sunlight): from the light sensor, on, or off. */
+  chartLight: ChartLight;
   /** The app's look: its tint, its typeface and its corners (lib/brand). */
   brand: Brand;
   /** How own ship is drawn on the chart (lib/map/ownShipLook). */
@@ -163,6 +181,15 @@ interface Preferences {
   /** The flight rules every route is planned under, kept: a pilot who
    *  files IFR files it flight after flight. */
   flightRules: FlightRules;
+  /** How FPL's route is changed once it has a destination (RouteEdit). */
+  routeEdit: RouteEdit;
+  /** The input last chosen to listen through (lib/audioInput, the Radio
+   *  card's Listen through): an audio panel's or a headset's Bluetooth
+   *  link, a cable, or the phone's own microphone, by the browser's id
+   *  for it and its name -- matched by the id first and then the name,
+   *  as a private window gives a device another id. A convenience: lost,
+   *  the next listening hears the phone's microphone as before. */
+  listenInput: { id: string; label: string } | null;
   /** The airports last picked from the search bar, newest first: what
    *  it offers before anything is typed, as Maps' Recents. */
   recentAirports: RecentAirport[];
@@ -230,10 +257,12 @@ interface Preferences {
   setFilter: (key: FilterKey, on: boolean) => void;
   setNavBar: (navBar: NavEdge) => void;
   setChartNight: (chartNight: ChartNight) => void;
+  setChartLight: (chartLight: ChartLight) => void;
   setBrand: (brand: Brand) => void;
   setOwnShipLook: (ownShipLook: OwnShipLook) => void;
   setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
+  setRouteEdit: (routeEdit: RouteEdit) => void;
   addRecentAirport: (airport: RecentAirport) => void;
   /** One airport taken off the Recents (a swipe), or all of them (Clear). */
   removeRecentAirport: (ident: string) => void;
@@ -294,11 +323,15 @@ export const usePreferences = create<Preferences>()(
       filters: DEFAULT_FILTERS,
       navBar: null,
       chartNight: "dimmed",
-      brand: "sectional",
+      chartLight: "auto",
+      brand: "cockpit",
       // A plane, at the owner's ask, where it was the arrow.
       ownShipLook: "single",
       narrative: "langgraph",
       flightRules: "vfr",
+      // The box as it was, till the pilot picks another.
+      routeEdit: "box",
+      listenInput: null,
       recentAirports: [],
       homeAirport: null,
       favoriteAirports: [],
@@ -364,10 +397,12 @@ export const usePreferences = create<Preferences>()(
       setFilter: (key, on) => set(s => ({ filters: { ...s.filters, [key]: on } })),
       setNavBar: navBar => set({ navBar }),
       setChartNight: chartNight => set({ chartNight }),
+      setChartLight: chartLight => set({ chartLight }),
       setBrand: brand => set({ brand }),
       setOwnShipLook: ownShipLook => set({ ownShipLook }),
       setNarrative: narrative => set({ narrative }),
       setFlightRules: flightRules => set({ flightRules }),
+      setRouteEdit: routeEdit => set({ routeEdit }),
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
       })),
@@ -398,16 +433,25 @@ export const usePreferences = create<Preferences>()(
       // browser that had them on by the old default (the owner's ask).
       // 2: the airspace and the VORs drawn over the chart, on for every
       // browser as for a new one (the owner's pick of the map's looks).
-      version: 2,
+      // 3: the chart in sunlight from the light sensor (Auto), for every
+      // browser as for a new one.
+      // 4: a look no longer offered (Sectional, Windsock, Clear Sky) is
+      // the Glass Cockpit, the default now.
+      // 5: the tabs for everyone, the strip and the field over the tabs
+      // taken out of Setup (the owner, 2026-11-04: "I like the tab, I
+      // don't want the strip or field, remove it from settings").
+      version: 5,
       migrate: (kept, from) => ({
         ...(kept as object),
         ...(from < 1 ? { waypoints: false } : {}),
         ...(from < 2 ? { airspace: true, navaids: true } : {}),
+        ...(from < 3 ? { chartLight: "auto" } : {}),
+        ...(from < 4 && !["cockpit", "ink"].includes((kept as { brand?: string }).brand ?? "") ? { brand: "cockpit" } : {}),
       }) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
-        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
-        flightRules: s.flightRules,
+        base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
+        flightRules: s.flightRules, routeEdit: s.routeEdit, listenInput: s.listenInput,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
         recentRoutes: s.recentRoutes,
@@ -457,11 +501,14 @@ export function recentRouteKey(route: Pick<RecentRoute, "dep" | "dest" | "stops"
 
 /** What this browser keeps of an airplane picked or starred: its ICAO
  *  address, what it is called (its registration, else its callsign) and
- *  its type, for its tile and row before anything is asked. */
+ *  its type, for its tile and row before anything is asked; and the shape
+ *  it is drawn as (lib/aircraftKind), worked out from all that was known
+ *  when it was kept. */
 export interface KeptAircraft {
   hex: string;
   name: string;
   type: string | null;
+  kind?: AircraftKind;
 }
 
 /** What this browser keeps of a field -- Home, a Favorite, one picked

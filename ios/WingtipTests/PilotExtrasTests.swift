@@ -96,7 +96,10 @@ struct PilotWordsTests {
         #expect(e.dayLandings == 2 && e.nightLandings == 1 && e.approaches == 3 && e.instrumentHours == 0.5 && e.holding && e.remarks == "Wind, gusty")
         #expect(read.skipped.map(\.line) == [10, 11])
         #expect(read.skipped[0].reason.contains("more than a day"))
-        #expect(LogbookCSV.dateOf("1/2/2002") == "2002-01-02" && LogbookCSV.dateOf("2002-1-2") == nil)
+        // A spreadsheet's date read as ForeFlight writes it, one cut short
+        // left out (the engine's date_of, LogbookCSV.dateOf's before it).
+        let dates = LogbookCSV.read("Date,AircraftID,TotalTime\r\n1/2/2002,N3429J,1\r\n2002-1-2,N3429J,1\r\n")
+        #expect(dates.entries.map(\.flownOn) == ["2002-01-02"] && dates.skipped.map(\.line) == [3])
         #expect(LogbookCSV.summary(read, LogbookImportResult(added: 1, duplicates: 0)).hasPrefix("1 flight added, 2 rows left out (line 10:"))
     }
 
@@ -185,6 +188,14 @@ struct DeviceKeptTests {
         Session.forgetPilot(defaults)
         #expect(defaults.data(forKey: "figures:N3429J") == nil && defaults.data(forKey: "aircraftFavorites") == nil)
         #expect(defaults.bool(forKey: "traffic"))
+
+        // The Favorites live in the store now: they go, the Recents stay.
+        let tracking = try Tracking(container: Records.inMemory(), defaults: defaults)
+        let plane = KeptAirplane(hex: "a1b2c3", name: "N3429J", type: "P28A")
+        tracking.toggleFavorite(plane)
+        tracking.remember(plane)
+        tracking.forgetFavorites()
+        #expect(tracking.favorites.isEmpty && tracking.recents == [plane])
     }
 
     @Test func anAirplanesNameAndLine() {

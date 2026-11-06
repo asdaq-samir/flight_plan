@@ -64,6 +64,8 @@ final class CheckpointMarkView: MKAnnotationView {
         addSubview(name)
         canShowCallout = false
         displayPriority = .required
+        isAccessibilityElement = true
+        accessibilityTraits = .staticText
     }
 
     @available(*, unavailable)
@@ -79,6 +81,9 @@ final class CheckpointMarkView: MKAnnotationView {
         dot.backgroundColor = CheckpointAnnotation.colour(for: point.score)
         dot.textColor = CheckpointAnnotation.ink(for: point.score)
         name.text = " \(point.name.uppercased()) "
+        // The number and the name, with the colour's meaning in words
+        // (the guide's bands): the dot's brown says it to the eye only.
+        accessibilityLabel = "Checkpoint \(point.number), \(point.name), rated \(SpokenFigures.number(point.score, decimals: 1)) of five"
         name.sizeToFit()
         // Beside the dot on its right, a gap away, as the web app's label.
         name.frame = CGRect(x: 24 + 8, y: (24 - 18) / 2, width: name.bounds.width, height: 18)

@@ -1,216 +1,61 @@
 import Foundation
 
-/// An airplane's checklist as the pilot writes it in plain text (the web
-/// app's lib/checklist, kept the same): a line starting "#" a section,
-/// every other line an item, its challenge and its response split by a
-/// dash or a run of dots, as a printed checklist sets them ("Fuel
-/// selector -- Both", "Mixture ..... Rich"). An item before any section is
-/// in "Checklist". The limits are the gateway's: 40 characters a title,
-/// 80 a challenge or a response. The app writes none of its own: the
-/// flight manual's is the airplane's.
+/// An airplane's checklist as the pilot writes it in plain text (the
+/// engine's `checklist_read` and `checklist_write`, the web app's
+/// lib/checklist): a line starting "#" a section, every other line an
+/// item, its challenge and its response split by a dash or a run of dots,
+/// as a printed checklist sets them ("Fuel selector -- Both", "Mixture
+/// ..... Rich"). An item before any section is in "Checklist". The limits
+/// are the gateway's: 40 characters a title, 80 a challenge or a
+/// response. The app writes none of its own: the flight manual's is the
+/// airplane's.
 enum ChecklistText {
-    private static let split = try! NSRegularExpression(pattern: "\\s+(?:-{1,2}|–|—|\\.{2,})\\s+|\\s*\\.{3,}\\s*|\\t+")
-
+    /// Nothing read where the engine cannot answer, which is never for
+    /// text.
     static func parse(_ text: String) -> Checklist {
-        var sections: [ChecklistSection] = []
-        for raw in text.components(separatedBy: .newlines) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty { continue }
-            if line.hasPrefix("#") {
-                let title = String(line.drop { $0 == "#" }).trimmingCharacters(in: .whitespaces)
-                sections.append(ChecklistSection(title: title.isEmpty ? "Checklist" : String(title.prefix(40)), items: []))
-                continue
-            }
-            if sections.isEmpty { sections.append(ChecklistSection(title: "Checklist", items: [])) }
-            let ns = line as NSString
-            var parts: [String] = []
-            var from = 0
-            for match in split.matches(in: line, range: NSRange(location: 0, length: ns.length)) {
-                parts.append(ns.substring(with: NSRange(location: from, length: match.range.location - from)))
-                from = match.range.location + match.range.length
-            }
-            parts.append(ns.substring(from: from))
-            let challenge = parts[0].trimmingCharacters(in: .whitespaces)
-            let response = parts.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
-            sections[sections.count - 1].items.append(
-                ChecklistItem(challenge: String(challenge.prefix(80)), response: response.isEmpty ? nil : String(response.prefix(80))))
-        }
-        return Checklist(sections: sections.filter { !$0.items.isEmpty })
+        let read: Checklist? = try? Engine.call("checklist_read", ["text": text])
+        return read ?? Checklist(sections: [])
     }
 
     static func text(of checklist: Checklist) -> String {
-        checklist.sections.map { section in
-            (["# \(section.title)"] + section.items.map { item in item.response.map { "\(item.challenge) -- \($0)" } ?? item.challenge })
-                .joined(separator: "\n")
-        }
-        .joined(separator: "\n\n")
+        let written: String? = try? Engine.call("checklist_write", ["checklist": checklist])
+        return written ?? ""
     }
 }
 
-/// The logbook as a CSV file, out and in (the web app's lib/logbookCsv,
-/// kept the same): out in ForeFlight's column names where it has the
+/// The logbook as a CSV file, out and in (the engine's
+/// `logbook_csv_write` and `logbook_csv_read`, the web app's
+/// lib/logbookCsv): out in ForeFlight's column names where it has the
 /// field; in from that file again or from ForeFlight's own export -- an
 /// Aircraft Table, then a Flights Table, each a row of field names
 /// (ForeFlight Logbook Guide v14.0, "ForeFlight Template"), its names read
 /// whatever their spaces or case. All its landings count as day landings
-/// for 61.57(a), the night full-stop ones apart (61.57(b)).
+/// for 61.57(a), the night full-stop ones apart (61.57(b)). The entries
+/// are the gateway's, camel case, as the engine reads and writes them.
 enum LogbookCSV {
-    /// RFC 4180: commas, quotes doubled inside quotes, a quoted field's own
-    /// commas and line breaks.
+    /// RFC 4180's rows of fields (the engine's `csv_rows`).
     static func rows(_ text: String) -> [[String]] {
-        var rows: [[String]] = []
-        var row: [String] = []
-        var field = ""
-        var quoted = false
-        var chars = Array(text)
-        if chars.first == "\u{FEFF}" { chars.removeFirst() }
-        var i = 0
-        while i < chars.count {
-            let c = chars[i]
-            if quoted {
-                if c == "\"" {
-                    if i + 1 < chars.count, chars[i + 1] == "\"" { field.append("\""); i += 1 } else { quoted = false }
-                } else { field.append(c) }
-            } else if c == "\"" {
-                quoted = true
-            } else if c == "," {
-                row.append(field); field = ""
-            } else if c == "\r\n" || c == "\n" || c == "\r" {
-                row.append(field); field = ""
-                rows.append(row); row = []
-            } else {
-                field.append(c)
-            }
-            i += 1
-        }
-        if !field.isEmpty || !row.isEmpty { row.append(field); rows.append(row) }
-        return rows
+        let rows: [[String]]? = try? Engine.call("csv_rows", ["text": text])
+        return rows ?? []
     }
-
-    private static func cell(_ s: String) -> String {
-        // Quoted where a reader would read it otherwise: a comma, a quote,
-        // a line break, or a space at either end (as the web's papaparse
-        // writes it, logbookCsv.json).
-        s.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" || $0 == "\r" }) || s.first == " " || s.last == " " ? "\"\(s.replacingOccurrences(of: "\"", with: "\"\""))\"" : s
-    }
-
 
     /// The logbook as a CSV file, oldest flight first.
     static func csv(_ entries: [LogbookEntry]) -> String {
-        let names = ["Date", "AircraftID", "TypeCode", "Route", "TotalTime", "Night", "CrossCountry", "Solo", "DualReceived", "Instrument",
-                     "AllLandings", "NightLandingsFullStop", "ToweredLandings", "Distance", "LongestLeg", "Approaches", "Holds", "Tracking",
-                     "PilotComments"]
-        let lines = entries.sorted { $0.flownOn < $1.flownOn }.map { e -> String in
-            [e.flownOn, e.aircraft ?? "", e.aircraftType ?? "", e.route ?? "", AirportWords.plain(e.totalHours), AirportWords.plain(e.nightHours),
-             AirportWords.plain(e.crossCountryHours), e.soloHours.map(AirportWords.plain) ?? "", e.dualHours.map(AirportWords.plain) ?? "", AirportWords.plain(e.instrumentHours),
-             String(e.dayLandings + e.nightLandings), String(e.nightLandings), e.toweredLandings.map { String($0) } ?? "", AirportWords.plain(e.distanceNm),
-             e.longestLegNm.map(AirportWords.plain) ?? "", String(e.approaches), (e.holding ?? false) ? "1" : "0", (e.tracking ?? false) ? "x" : "",
-             e.remarks ?? ""].map(cell).joined(separator: ",")
-        }
-        return ([names.joined(separator: ",")] + lines).joined(separator: "\r\n") + "\r\n"
+        let written: String? = try? Engine.call("logbook_csv_write", ["entries": entries])
+        return written ?? ""
     }
 
-    struct Skipped: Equatable { let line: Int; let reason: String }
-    struct Imported: Equatable { var entries: [LogbookEntryRequest]; var skipped: [Skipped] }
+    struct Skipped: Equatable, Decodable { let line: Int; let reason: String }
+    struct Imported: Equatable, Decodable { var entries: [LogbookEntryRequest]; var skipped: [Skipped] }
 
-    /// A field's name as compared: "Total Time" and "TotalTime" are one.
-    static func key(_ name: String) -> String { name.lowercased().filter { $0.isASCII && ($0.isLetter || $0.isNumber) } }
-
-    private static func hours(_ v: String?) -> Double {
-        guard let n = Double((v ?? "").trimmingCharacters(in: .whitespaces)), n.isFinite, n > 0 else { return 0 }
-        return (n * 10).rounded() / 10
-    }
-    private static func count(_ v: String?) -> Int {
-        let digits = (v ?? "").trimmingCharacters(in: .whitespaces).prefix { $0.isNumber || $0 == "-" }
-        guard let n = Int(digits), n > 0 else { return 0 }
-        return n
-    }
-    private static func truthy(_ v: String?) -> Bool {
-        let s = (v ?? "").trimmingCharacters(in: .whitespaces).lowercased()
-        return !["", "0", "false", "no", "n"].contains(s)
-    }
-
-    /// A date as ForeFlight writes it (2002-01-02), or as a spreadsheet
-    /// may have turned it (1/2/2002); nil for neither.
-    static func dateOf(_ v: String?) -> String? {
-        let s = (v ?? "").trimmingCharacters(in: .whitespaces)
-        if s.range(of: "^\\d{4}-\\d{2}-\\d{2}$", options: .regularExpression) != nil { return s }
-        let parts = s.split(separator: "/")
-        guard parts.count == 3, parts[0].count <= 2, parts[1].count <= 2, parts[2].count == 4,
-              let m = Int(parts[0]), let d = Int(parts[1]), Int(parts[2]) != nil else { return nil }
-        return String(format: "%@-%02d-%02d", String(parts[2]), m, d)
-    }
-
-    private static func headerRow(_ rows: [[String]], from: Int, _ names: [String]) -> Int {
-        guard from < rows.count else { return -1 }
-        for i in from..<rows.count {
-            let keys = rows[i].map(key)
-            if names.allSatisfy(keys.contains) { return i }
-        }
-        return -1
-    }
-
-    /// A logbook CSV read: ForeFlight's, or this logbook's own.
+    /// A logbook CSV read: ForeFlight's, or this logbook's own. A file the
+    /// engine could not answer for is one row left out, said so.
     static func read(_ text: String) -> Imported {
-        let rows = rows(text)
-        var types: [String: String] = [:]
-        let aircraftAt = headerRow(rows, from: 0, ["aircraftid", "typecode", "make"])
-        let flightsAt = headerRow(rows, from: aircraftAt + 1, ["date", "aircraftid", "totaltime"])
-        if aircraftAt >= 0, flightsAt < 0 || aircraftAt < flightsAt {
-            let names = rows[aircraftAt].map(key)
-            let end = flightsAt < 0 ? rows.count : flightsAt
-            for i in (aircraftAt + 1)..<end {
-                let row = rows[i]
-                func at(_ n: String) -> String? { names.firstIndex(of: n).flatMap { $0 < row.count ? row[$0].trimmingCharacters(in: .whitespaces) : nil } }
-                if let tail = at("aircraftid"), let type = at("typecode"), !tail.isEmpty, !type.isEmpty, tail.lowercased() != "text" { types[tail] = type }
-            }
+        do {
+            return try Engine.call("logbook_csv_read", ["text": text])
+        } catch {
+            return Imported(entries: [], skipped: [Skipped(line: 1, reason: error.localizedDescription)])
         }
-        guard flightsAt >= 0 else { return Imported(entries: [], skipped: [Skipped(line: 1, reason: "No row of field names with Date, AircraftID and TotalTime")]) }
-        let names = rows[flightsAt].map(key)
-        var entries: [LogbookEntryRequest] = []
-        var skipped: [Skipped] = []
-        for i in (flightsAt + 1)..<rows.count {
-            let row = rows[i]
-            func at(_ n: String) -> String? { names.firstIndex(of: n).flatMap { $0 < row.count ? row[$0] : nil } }
-            if row.allSatisfy({ $0.trimmingCharacters(in: .whitespaces).isEmpty }) { continue }
-            let line = i + 1
-            guard let flownOn = dateOf(at("date")) else {
-                skipped.append(Skipped(line: line, reason: "No date (\"\(at("date") ?? "")\")"))
-                continue
-            }
-            let total = hours(at("totaltime"))
-            if total > 24 {
-                skipped.append(Skipped(line: line, reason: "\(AirportWords.plain(total)) hours is more than a day: a summary entry, to log as its flights"))
-                continue
-            }
-            let tail = (at("aircraftid") ?? "").trimmingCharacters(in: .whitespaces)
-            let route = [at("from"), at("route"), at("to")].map { ($0 ?? "").trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ")
-            let night = count(at("nightlandingsfullstop"))
-            let allGiven = !(at("alllandings") ?? "").trimmingCharacters(in: .whitespaces).isEmpty
-            let all = allGiven ? count(at("alllandings")) : count(at("daylandingsfullstop")) + night
-            // ForeFlight's approaches, "count;type;runway;airport;comments" each.
-            let approaches = names.contains("approaches")
-                ? count(at("approaches"))
-                : names.enumerated().filter { $0.element.range(of: "^approach\\d+$", options: .regularExpression) != nil }
-                    .reduce(0) { sum, n in sum + count(n.offset < row.count ? row[n.offset].split(separator: ";").first.map(String.init) : nil) }
-            let type = (at("typecode") ?? types[tail] ?? "").trimmingCharacters(in: .whitespaces)
-            let remarks = (at("pilotcomments") ?? "").trimmingCharacters(in: .whitespaces)
-            let instrument = names.contains("instrument")
-                ? hours(at("instrument"))
-                : ((hours(at("actualinstrument")) + hours(at("simulatedinstrument"))) * 10).rounded() / 10
-            entries.append(LogbookEntryRequest(
-                flownOn: flownOn,
-                aircraft: tail.isEmpty ? nil : String(tail.prefix(16)),
-                aircraftType: type.isEmpty ? nil : String(type.prefix(16)),
-                route: route.isEmpty ? nil : String(route.prefix(120)),
-                remarks: remarks.isEmpty ? nil : String(remarks.prefix(500)),
-                totalHours: total, nightHours: hours(at("night")), crossCountryHours: hours(at("crosscountry")),
-                dualHours: hours(at("dualreceived")), soloHours: hours(at("solo")), instrumentHours: instrument,
-                dayLandings: max(0, all - night), nightLandings: night, toweredLandings: count(at("toweredlandings")),
-                distanceNm: hours(at("distance")), longestLegNm: hours(at("longestleg")), approaches: approaches,
-                holding: count(at("holds")) > 0, tracking: truthy(at("tracking"))))
-        }
-        return Imported(entries: entries, skipped: skipped)
     }
 
     /// What an import brought in, in a line.
@@ -230,20 +75,11 @@ enum LogbookCSV {
 /// blanks filled, and the signature line every endorsement carries.
 enum Endorsing {
     /// The template's {blanks} filled: {student} with the name as on the
-    /// student's certificate, the rest from the form; runs of space made one.
+    /// student's certificate, the rest from the form; runs of space made
+    /// one (the engine's `endorsement_render`).
     static func render(_ template: String, student: String, fields: [String: String]) -> String {
-        let blank = try! NSRegularExpression(pattern: "\\{([A-Za-z]+)\\}")
-        let ns = template as NSString
-        var out = ""
-        var from = 0
-        for match in blank.matches(in: template, range: NSRange(location: 0, length: ns.length)) {
-            out += ns.substring(with: NSRange(location: from, length: match.range.location - from))
-            let key = ns.substring(with: match.range(at: 1))
-            out += key == "student" ? student : (fields[key] ?? "")
-            from = match.range.location + match.range.length
-        }
-        out += ns.substring(from: from)
-        return out.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        let words: String? = try? Engine.call("endorsement_render", json: ["template": template, "student": student, "fields": fields])
+        return words ?? template
     }
 
     /// "/s/ 10-13-2026 J. J. Jones 987654321CFI RE 12-31-2027": the date,
@@ -254,27 +90,37 @@ enum Endorsing {
     }
 
     /// The warning above "Sign as" once the instructor's date has passed
-    /// on the day of signing, or nil; the web's lib/endorsements
-    /// lapseWarning, word for word. Never a block: the owner's rule is to
-    /// make the pilot aware, not restrict them (2026-10-26), and the
-    /// gateway signs either way. A certificate issued on or after 1 Dec
-    /// 2024 has no expiration date (14 CFR 61.19(d)(1)) and its date is
-    /// the end of the recent experience 61.197(a) asks for in the
-    /// preceding 24 calendar months; an older one expires 24 calendar
-    /// months from issue, renewal or reinstatement (61.19(d)(2)), and its
-    /// privileges then wait for reinstatement under 61.199 (61.197(e)).
+    /// on the day of signing, or nil; the engine's `endorsement_lapse`,
+    /// the web's lib/endorsements lapseWarning word for word. Never a
+    /// block: the owner's rule is to make the pilot aware, not restrict
+    /// them (2026-10-26), and the gateway signs either way. A certificate
+    /// issued on or after 1 Dec 2024 has no expiration date (14 CFR
+    /// 61.19(d)(1)) and its date is the end of the recent experience
+    /// 61.197(a) asks for in the preceding 24 calendar months; an older
+    /// one expires 24 calendar months from issue, renewal or reinstatement
+    /// (61.19(d)(2)), and its privileges then wait for reinstatement under
+    /// 61.199 (61.197(e)).
     static func lapseWarning(_ instructor: Instructor, signedOn: String) -> String? {
-        guard let until = instructor.until, !Day.current(until, today: signedOn) else { return nil }
-        return instructor.untilKind == "EXP"
-            ? "Your certificate expired on \(Day.said(until)): 14 CFR 61.197(e) asks for it to be reinstated (61.199) before you sign as an instructor."
-            : "Your recent experience ran out on \(Day.said(until)): 14 CFR 61.197(a) asks for recent experience in the preceding 24 calendar months before you sign as an instructor."
+        do {
+            return try Engine.call("endorsement_lapse", json: [
+                "until": instructor.until, "until_kind": instructor.untilKind, "signed_on": signedOn,
+            ])
+        } catch {
+            return nil
+        }
     }
 
     /// The latest of each kind signed in the app and not voided; the
-    /// record comes newest first.
+    /// record comes newest first (the engine's `endorsements_in_force`,
+    /// which answers each code with its index into the record).
     static func inForce(_ signed: [SignedEndorsement]) -> [String: SignedEndorsement] {
+        let asked: [[String: Any]] = signed.map { ["code": $0.code, "voided": $0.voided] }
+        guard let pairs = (try? Engine.callJSON("endorsements_in_force", ["signed": asked])) as? [[Any]] else { return [:] }
         var out: [String: SignedEndorsement] = [:]
-        for e in signed where !e.voided && out[e.code] == nil { out[e.code] = e }
+        for pair in pairs {
+            guard pair.count == 2, let code = pair[0] as? String, let at = pair[1] as? Int, signed.indices.contains(at) else { continue }
+            out[code] = signed[at]
+        }
         return out
     }
 
@@ -312,17 +158,10 @@ enum Endorsing {
 
     /// The ACS codes in what was pasted -- a report's text, a list, codes in
     /// lower case -- each once, in the order given; a sub-element's letter
-    /// lower case, as the ACS writes it (K1a).
+    /// lower case, as the ACS writes it (K1a). The engine's `acs_codes`.
     static func acsCodes(in text: String) -> [String] {
-        let code = try! NSRegularExpression(pattern: "\\b(PA|IR)\\.([IVX]{1,4})\\.([A-Z])\\.([KRS])(\\d{1,2})([A-Z]?)\\b")
-        let upper = text.uppercased() as NSString
-        var found: [String] = []
-        for m in code.matches(in: upper as String, range: NSRange(location: 0, length: upper.length)) {
-            func g(_ i: Int) -> String { m.range(at: i).location == NSNotFound ? "" : upper.substring(with: m.range(at: i)) }
-            let c = "\(g(1)).\(g(2)).\(g(3)).\(g(4))\(g(5))\(g(6).lowercased())"
-            if !found.contains(c) { found.append(c) }
-        }
-        return found
+        let codes: [String]? = try? Engine.call("acs_codes", ["text": text])
+        return codes ?? []
     }
 }
 

@@ -220,12 +220,13 @@ function altitudeRange(nav: NavLogAltitude): string {
  * in spelled out beside it; that airplane is the header's own picker, a
  * line above.
  */
-/** The flights saved, one mutation key for every Save item (SaveFlightButton). */
-const SAVE_FLIGHT = ["saveFlight"];
+/** The flights saved, one mutation key for every Save item
+ *  (SaveFlightButton) and the flight watch's save (FlightWatch). */
+export const SAVE_FLIGHT = ["saveFlight"];
 
 /** A plan as Save compares it: the same plan with its risk assessment
  *  made again is not another (SaveFlightButton). */
-const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
+export const planOf = (r: SaveFlightRequest) => JSON.stringify({ ...r, risk: null });
 
 /** The plan on screen as a flight to save: what Save files, and what a
  *  solo cross-country's review is asked of (ReviewAskSheet). */
@@ -254,7 +255,7 @@ export interface FlightToSave {
  *  course (the airports' own idents and places, not a route being
  *  switched to), the nav log and its totals. Save used to be offered
  *  mid-stream, or after a stream failed, and filed null totals. */
-function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "", picks = "" }: FlightToSave): SaveFlightRequest | null {
+export function useSaveRequest({ course, totals, nav, legs, selected, aircraftId, depart, altitudes = "", picks = "" }: FlightToSave): SaveFlightRequest | null {
   // The briefing's risk assessment (lib/frat), filed with the flight.
   const risk = useRisk(s => s.assessment);
   return useMemo((): SaveFlightRequest | null => {
@@ -491,7 +492,7 @@ export default memo(function FlightBriefingView({
   const landings = [...new Set([dep, ...stops, dest])];
   const stretches = windStretches(legs);
   // "VFR flight not recommended" (AIM 7-1-5) and its reasons are the
-  // planner's call (vfr.weather), made against 14 CFR 91.155's minimums
+  // planner's call (wingtip.weather), made against 14 CFR 91.155's minimums
   // in one place; this page states them.
   const briefing = briefingState.state === "ready" ? briefingState.data : null;
   const failed = briefingState.state === "failed" ? briefingState.detail : null;
@@ -524,7 +525,7 @@ export default memo(function FlightBriefingView({
     return !pass || tfrWhen(t, pass) === "in-force";
   };
   const tfrsCrossed = briefing?.tfrs.filter(t => t.crosses && tfrInForce(t)) ?? [];
-  // The special-use areas the legs cross (vfr.sua, with the altitudes),
+  // The special-use areas the legs cross (wingtip.sua, with the altitudes),
   // and their times of use read for when the flight passes each, in the
   // area's own time zone.
   const specialUse = (nav?.altitude_selection.special_use ?? []).map(area => {
@@ -680,6 +681,7 @@ export default memo(function FlightBriefingView({
         runwayFt: check?.runway?.length_ft ?? null,
         overFiftyFt: distance ? Math.round(distance.totalFt) : null,
         wind: said === "calm" ? "Calm" : said ? `${said.dir.replace(/T$/, "")}/${said.speed}` : null,
+        crosswindKt: check ? Math.round(check.crosswindKt) : null,
         radio: call ? { to: call.to, mhz: call.mhz! } : null,
         finding: !check ? "unknown" : distance?.over ? "stop" : check.crosswindOver ? "caution" : "ok",
       };
@@ -703,6 +705,15 @@ export default memo(function FlightBriefingView({
         finding: byKey(["weather", "altitude"]),
       },
       arrive: course ? fieldAt(dest, "arrival", totals?.ete_min != null ? new Date(leaving.getTime() + totals.ete_min * 60_000) : null) : null,
+      // The reports as sent, for a finding's sources under its line.
+      raw: {
+        metars: landings.flatMap(i => (briefing?.metars[i]?.raw ? [{ ident: i, raw: briefing.metars[i]!.raw! }] : [])),
+        tafs: landings.flatMap(i => {
+          const st = briefing?.forecast.stations.find(s => s.icaoId === i);
+          return st?.raw ? [{ ident: i, raw: st.raw }] : [];
+        }),
+        tfrs: (briefing?.tfrs ?? []).map(t => [t.notam_id, t.title].filter(Boolean).join(" · ")),
+      },
     };
   })() : null;
   const setGlance = useGlance(g => g.set);

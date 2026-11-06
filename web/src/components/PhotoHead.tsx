@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Share } from "lucide-react";
+import { Maximize2, Share } from "lucide-react";
 import { cn } from "cn";
 import CloseButton from "./CloseButton";
 import RoundButton from "./RoundButton";
@@ -31,7 +31,26 @@ const OVER_PICTURE = "bg-black/45 text-white backdrop-blur-md hover:bg-black/55 
  * (`picture` in lib/openCards). The close goes back one card, as the
  * bar's did. Scrolled up past the picture, a bar takes its place with the
  * name, the share and the close on it, so the way back is always in sight.
+ *
+ * A tap on the picture shows it alone, at the owner's ask (2026-11-02:
+ * "hide overlays and show the full screen button"): the name, the dots,
+ * the share, the star and the close fade away and a full-screen button
+ * takes their place where the page in sight has somewhere to open; a tap
+ * again brings them back. A credit a licence asks for stays.
  */
+export type HeadSlide = {
+  key: string;
+  picture: ReactNode;
+  /** Full screen: a viewer of the app's own... */
+  open?: () => void;
+  /** ...or the picture's own page, where its terms ask it be linked
+   *  (Planespotters'). */
+  href?: string;
+  /** The full-screen button's name, for VoiceOver. */
+  openLabel?: string;
+  openTestId?: string;
+};
+
 export function PhotoHead({ title, subtitle, line, slides, label, onClose, onShare, shareAtLeft, beside, pill, testId, titleTestId, subtitleTestId, closeTestId, shareTestId, children }: {
   /** Set large over the picture's foot: an airport's ident, an airplane's callsign. */
   title: string;
@@ -40,7 +59,7 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
   /** A line under that, smaller. */
   line?: ReactNode;
   /** The pictures, a page each (PictureSlides, flush). */
-  slides: ReactNode[];
+  slides: (HeadSlide | null | false | undefined)[];
   /** What the pictures are of, for VoiceOver. */
   label: string;
   onClose: () => void;
@@ -73,9 +92,24 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
     const read = () => setPast(scroller.scrollTop > HEAD_PX - BAR_PX);
     read();
     scroller.addEventListener("scroll", read, { passive: true });
-    return () => scroller.removeEventListener("scroll", read);
+    // A row brought into view (a focus, a find, a test's click) stops
+    // under the bar pinned at the top, not behind it: the scroller's own
+    // room for the panel's head (under-head) plus the bar's.
+    const before = scroller.style.scrollPaddingTop;
+    scroller.style.scrollPaddingTop = `calc(var(--head-room, 0px) + ${BAR_PX}px)`;
+    return () => {
+      scroller.removeEventListener("scroll", read);
+      scroller.style.scrollPaddingTop = before;
+    };
   }, []);
-  const shown = slides.filter(Boolean);
+  const shown = slides.filter((s): s is HeadSlide => !!s);
+  const [bare, setBare] = useState(false);
+  const [page, setPage] = useState(0);
+  const inSight = shown[Math.min(page, shown.length - 1)];
+  // Out of sight while the picture is shown alone, unless it has scrolled
+  // up under the bar, where they are the way back.
+  const hidden = bare && !past;
+  const fades = cn("transition-opacity duration-200", hidden && "pointer-events-none opacity-0");
   return (
     <>
       {/* Pinned to the top of the card's scroller, no height of its own:
@@ -96,13 +130,13 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
         {/* Ten apart, as the design has them: their 44-point hit areas
             (index.css) a point over each other's, never grown. */}
         {onShare && shareAtLeft && (
-          <div className="absolute top-2.5 left-4 flex">
+          <div className={cn("absolute top-2.5 left-4 flex", fades)} inert={hidden}>
             <RoundButton label={`Share ${title}`} onClick={onShare} className={cn(!past && OVER_PICTURE)} data-testid={shareTestId}>
               <Share className="size-5" strokeWidth={2} />
             </RoundButton>
           </div>
         )}
-        <div className="absolute top-2.5 right-4 flex gap-2.5">
+        <div className={cn("absolute top-2.5 right-4 flex gap-2.5", fades)} inert={hidden}>
           {onShare && !shareAtLeft && (
             <RoundButton label={`Share ${title}`} onClick={onShare} className={cn(!past && OVER_PICTURE)} data-testid={shareTestId}>
               <Share className="size-5" strokeWidth={2} />
@@ -114,21 +148,52 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
           <CloseButton onClick={() => { if (!closeTopCard()) onClose(); }} className={cn(!past && OVER_PICTURE)} data-testid={closeTestId} />
         </div>
       </div>
-      <div ref={head} className="relative -mx-4 shrink-0 overflow-hidden bg-muted" style={{ height: HEAD_PX }} data-testid={testId} data-picture-head="">
-        <PictureSlides flush label={label} slides={shown} className="size-full" testId={`${testId}-pictures`} />
+      <div ref={head} className="relative isolate -mx-4 shrink-0 overflow-hidden bg-muted" style={{ height: HEAD_PX }} data-testid={testId} data-picture-head="">
+        <PictureSlides
+          flush label={label} className="size-full" testId={`${testId}-pictures`} dots={!bare} onPage={setPage}
+          slides={shown.map(slide => (
+            <button
+              key={slide.key} type="button" onClick={() => setBare(b => !b)} aria-pressed={bare}
+              aria-label={bare ? `${title}: show its name and buttons` : `${title}: show the picture alone`}
+              className="absolute inset-0 block size-full text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              data-testid={`${testId}-picture`}
+            >
+              {slide.picture}
+            </button>
+          ))}
+        />
         {/* The name on a shade up from the pictures' foot, whatever the
             picture: as tall as the name's lines and more, so it grows with
-            them at a larger text size. */}
+            them at a larger text size. Raised over the slides by its own
+            z-index: Safari on the iPhone drew the carousel's moved (3D
+            transformed) track over it, an opaque slide hiding the name. */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 flex flex-col bg-linear-to-t from-black/85 via-black/55 to-transparent pt-14 pb-3.5 pl-4 text-white [text-shadow:0_1px_2px_rgba(0,0,0,.45)]",
+            "pointer-events-none absolute inset-x-0 bottom-0 z-10 flex transition-opacity duration-200 flex-col bg-linear-to-t from-black/85 via-black/55 to-transparent pt-14 pb-3.5 pl-4 text-white [text-shadow:0_1px_2px_rgba(0,0,0,.45)]",
             shown.length > 1 ? "pr-16" : "pr-4",
+            bare && "opacity-0",
           )}
+          aria-hidden={bare || undefined}
         >
           <h2 tabIndex={-1} className={cn("truncate font-extrabold tracking-tight outline-none", TEXT.hero)} data-testid={titleTestId}>{title}</h2>
           {subtitle != null && <p className={cn("line-clamp-2 text-white/90", TEXT.prose)} data-testid={subtitleTestId}>{subtitle}</p>}
           {line}
         </div>
+        {/* The picture in sight full screen, where it has somewhere to
+            open, in the dots' corner while it is shown alone. */}
+        {bare && inSight && (inSight.open || inSight.href) && (
+          <div className="absolute right-4 bottom-3 z-10">
+            {inSight.href ? (
+              <RoundButton asChild label={inSight.openLabel ?? "Full screen"} className={OVER_PICTURE}>
+                <a href={inSight.href} target="_blank" rel="noopener" data-testid={inSight.openTestId}><Maximize2 className="size-5" strokeWidth={2} /></a>
+              </RoundButton>
+            ) : (
+              <RoundButton label={inSight.openLabel ?? "Full screen"} onClick={inSight.open} className={OVER_PICTURE} data-testid={inSight.openTestId}>
+                <Maximize2 className="size-5" strokeWidth={2} />
+              </RoundButton>
+            )}
+          </div>
+        )}
         {children}
       </div>
     </>

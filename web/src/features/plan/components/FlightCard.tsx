@@ -3,7 +3,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { BadgeCheck, ChartLine, Crosshair, Fan, IdCard, Plane, Route, Star, UserRound } from "lucide-react";
 import { cn } from "cn";
 import { PanelCard } from "../../../components/PanelCard";
-import { PhotoHead } from "../../../components/PhotoHead";
+import { PhotoHead, type HeadSlide } from "../../../components/PhotoHead";
 import { PhotoSlide } from "../../../components/PictureSlides";
 import { FAVORITE_STAR_ON, useCardTitle } from "../../../components/mapChrome";
 import RoundButton from "../../../components/RoundButton";
@@ -34,6 +34,7 @@ import { pastFlightQuery, pastFlightsQuery } from "./pastFlightsQuery";
 import { CardAction } from "../../../components/CardAction";
 import { AirplaneFigures } from "./AirplaneFigures";
 import { shareOrCopy } from "../../../lib/share";
+import { aircraftKind } from "../../../lib/aircraftKind";
 
 /** A link to the airplane on the planner, shared where the phone can,
  *  copied where it cannot. */
@@ -259,7 +260,16 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
   const keptBefore = usePreferences(p => [p.myAircraft, ...p.favoriteAircraft, ...p.recentAircraft].find(a => a?.hex === hex) ?? null);
   const keptName = detail?.registration ?? plane?.registration ?? detail?.faa?.n_number ?? plane?.callsign ?? keptBefore?.name ?? null;
   const keptType = detail?.type ?? plane?.type ?? keptBefore?.type ?? null;
-  const kept = useMemo(() => (keptName ? { hex, name: keptName, type: keptType } : null), [hex, keptName, keptType]);
+  // Its shape from all that is known of it now, the registry's record and
+  // its transponder's category with its type (lib/aircraftKind); a string,
+  // so the kept airplane is new only when the shape is.
+  const keptShape = detail?.faa || plane?.category || keptType
+    ? aircraftKind({ type: keptType, category: plane?.category, faa: detail?.faa })
+    : keptBefore?.kind;
+  const kept = useMemo(
+    () => (keptName ? { hex, name: keptName, type: keptType, kind: keptShape } : null),
+    [hex, keptName, keptType, keptShape],
+  );
   useEffect(() => {
     if (kept) usePreferences.getState().addRecentAircraft(kept);
   }, [kept]);
@@ -340,24 +350,37 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
   // The photo first, as Maps opens a place on its photos, where
   // Planespotters has one; else the airplane's shape on the tint, a
   // quiet stand-in, not an empty box. Where it has flown a swipe across.
-  const slides = [
-    photo ? (
-      <PhotoSlide
-        key="photo" flush src={photo.src} alt={name} href={photo.link} label={`${name}'s photo on Planespotters`}
-        // Planespotters' terms: the photographer named beside it.
-        credit={`© ${photo.photographer} · Planespotters`} testId="flight-photo" creditTestId="flight-photo-credit"
-      />
-    ) : (
-      <div key="none" className="flex size-full items-start justify-center bg-linear-to-b from-primary/55 to-primary/15 pt-10" data-testid="flight-photo-none">
-        <Plane className="size-20 text-white/55" strokeWidth={1.25} aria-hidden="true" />
-      </div>
-    ),
-    <AirplaneSketch
-      key="trail" points={trail} now={here && plane ? { ...here, altFt: plane.altitude_ft ?? null } : null}
-      // Its track now, or, not heard, its last flight's last way.
-      trackDeg={plane?.track_deg ?? (trail.length > 1 ? bearingDeg(trail[trail.length - 2]!, trail[trail.length - 1]!) : null)}
-      from={fromField ?? null} to={toField ?? null}
-    />,
+  const slides: HeadSlide[] = [
+    photo ? {
+      // Planespotters' terms: the photo linked to its page, from the
+      // full-screen button once it is shown alone.
+      key: "photo", href: photo.link, openLabel: `${name}'s photo on Planespotters`, openTestId: "flight-photo-open",
+      picture: (
+        <PhotoSlide
+          flush src={photo.src} alt={name} label={`${name}'s photo`}
+          // Planespotters' terms: the photographer named beside it.
+          credit={`© ${photo.photographer} · Planespotters`} testId="flight-photo" creditTestId="flight-photo-credit"
+        />
+      ),
+    } : {
+      key: "none",
+      picture: (
+        <div className="flex size-full items-start justify-center bg-linear-to-b from-primary/55 to-primary/15 pt-10" data-testid="flight-photo-none">
+          <Plane className="size-20 text-white/55" strokeWidth={1.25} aria-hidden="true" />
+        </div>
+      ),
+    },
+    {
+      key: "trail",
+      picture: (
+        <AirplaneSketch
+          points={trail} now={here && plane ? { ...here, altFt: plane.altitude_ft ?? null } : null}
+          // Its track now, or, not heard, its last flight's last way.
+          trackDeg={plane?.track_deg ?? (trail.length > 1 ? bearingDeg(trail[trail.length - 2]!, trail[trail.length - 1]!) : null)}
+          from={fromField ?? null} to={toField ?? null}
+        />
+      ),
+    },
   ];
   // The pill's line, at the owner's pick (P5, 2026-10-29): what the
   // summary says first -- its altitude and ground speed as it writes them
@@ -472,7 +495,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
  * A US airplane's FAA registration, at the pilot's ask: who it is
  * registered to and where, whether the registration is in effect and
  * till when, what it is and its engine, and its airworthiness
- * certificate -- the registry's own record (vfr.registry), as the FAA's
+ * certificate -- the registry's own record (wingtip.registry), as the FAA's
  * N-number inquiry shows it, the owner's town and never the street.
  */
 function FaaRegistration({ faa }: { faa: AircraftRegistration }) {

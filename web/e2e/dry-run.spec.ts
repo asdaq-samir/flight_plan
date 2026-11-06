@@ -253,7 +253,7 @@ test("the side view is a skeleton of the ground and the climb while its ground i
   await expect(skeleton).toHaveCount(0);
 });
 
-test("the profile is a card from its button beside the nav log's, no swipe at the foot; a dry run started there plays over the route, and stopped, the card is back", async ({ page }) => {
+test("the profile is a card from its button beside the AI brief's, no swipe at the foot; a dry run started there plays over the route, and stopped, the card is back", async ({ page }) => {
   // The owner's ask (2026-10-20): "profile view can move next to the
   // navlog button and open like brief and navlog opens instead of the
   // swipe"; and before, "When stopping dry run it should become profile
@@ -265,9 +265,9 @@ test("the profile is a card from its button beside the nav log's, no swipe at th
   await expect(panel.getByTestId("procedures")).toBeVisible({ timeout: slow(60_000) });
   await expect(panel.getByTestId("foot-pager")).toHaveCount(0);
   await expect(panel.getByTestId("mini-profile")).toHaveCount(0);
-  // No button of its own beside the nav log's (the owner, 2026-10-20):
-  // the altitude's opens it, the card's name and the route under it.
-  await expect(panel.getByTestId("route-profile")).toHaveCount(0);
+  // Its own button in the route's row, where the nav log's was (the
+  // owner, 2026-11-04), the nav log in the route's ••• menu.
+  await expect(panel.getByTestId("route-navlog")).toHaveCount(0);
   const card = await openProfile(page);
   await expect(card.getByTestId("profile-name")).toHaveText("C81 → KDLH");
   await expect(card.getByTestId("mini-profile")).toBeVisible();
@@ -306,7 +306,7 @@ test("the dry run is the Profile card's: closed, the run is put away and FPL's f
 });
 
 // Duluth's RNAV (GPS) RWY 27 via PLANE as the planner draws it
-// (vfr.procedures, the 2026-10 cycle), stubbed: the FAA's file is not read
+// (wingtip.procedures, the 2026-10 cycle), stubbed: the FAA's file is not read
 // on CI's runner. From PLANE, south-east of the field, north to HOMUV, and
 // west down its final through CIRUS to the runway.
 const R27 = {

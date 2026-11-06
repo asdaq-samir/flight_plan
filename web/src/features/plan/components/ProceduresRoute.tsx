@@ -2,10 +2,16 @@ import { Fragment, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState,
 import { create } from "zustand";
 import { useWindPicks } from "../../../lib/windPicks";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight, Fuel, PlaneLanding, PlaneTakeoff, Route, Wind } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Fuel, GripVertical, PlaneLanding, PlaneTakeoff, Plus, Route, Wind } from "lucide-react";
+import {
+  DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDraggable, useDroppable, useSensor, useSensors,
+  type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import CloseButton from "../../../components/CloseButton";
+import CardIdent from "./CardIdent";
+import { CARD_BODY, CARD_GAP, CardMark, CardThread, EmptyMark, POINT_CARD } from "./routeCard";
 import { GLASS_BUTTON, GLASS_PICKED } from "../../../components/mapChrome";
 import { Button } from "../../../components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "../../../components/ui/toggle-group";
@@ -14,7 +20,7 @@ import { Skeleton } from "../../../components/ui/skeleton";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "../../../components/ResponsivePopover";
 import { api } from "../../../lib/api/client";
 import { useMinuteClock, zuluTime } from "../../../lib/clock";
-import type { AircraftProfile, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
+import type { AircraftProfile, Detour, ProcedureDrawing, ProcedureList, ProcedureSummary, Runway } from "../../../lib/api/types";
 import { distanceNm, normalizeDeg } from "../../../lib/geo";
 import { runwayNumber, windPick, type RunwayEnd, type WindPick } from "../../../lib/pattern";
 import { airportQuery, plateQuery } from "../../../lib/queryClient";
@@ -23,8 +29,7 @@ import { trafficPattern } from "../../../lib/trafficPattern";
 import { TEXT } from "../../../lib/text";
 import { altFt } from "../../../lib/units";
 import { endFit, type EndFit } from "../../../lib/runwayFit";
-import { frdOf, isPosition, placeOfPoint, pointName } from "../../../lib/identSchema";
-import { COURSE_MAGENTA } from "../../../lib/map/chartColors";
+import { frdOf, isFixIdent, isPosition, placeOfPoint, pointName } from "../../../lib/identSchema";
 import { useOwnShip } from "../../../lib/map/ownShip";
 import { etaAt, reportedWind, type ReportedWind } from "../format";
 import { AirportMark, PointMark } from "./navlog/PointMark";
@@ -44,8 +49,10 @@ import { groundMinAt, legOf, rowPoint, type NavLogRow } from "./navlog/rows";
 
 /** The line that joins the route's points down FPL's list, in the course's
  *  magenta as the map draws the route, at the owner's ask ("draw the
- *  connection with magenta line"); it was the border's grey. */
-const ROUTE_LINE = { backgroundColor: COURSE_MAGENTA } as const;
+ *  connection with magenta line"); it was the border's grey. The token
+ *  (index.css --course, chartColors' COURSE_MAGENTA) rather than the
+ *  value, so the Chart ink look's own magenta reaches it. */
+const ROUTE_LINE = { backgroundColor: "var(--course)" } as const;
 
 // Opened only from a point's menu, so fetched as one first is: in the
 // first load they took it over its 1.10 MB budget (CI, 2026-10-20).
@@ -57,8 +64,6 @@ const ApproachLesson = lazy(() => import("./ApproachLesson"));
 /** The value of a choice's "None" (no transition), and a runway line's
  *  with none picked yet: a toggle's value is a string. */
 const NONE = "none";
-/** No altitudes of the pilot's own at any fix: one object, kept. */
-const NO_CROSSINGS: Record<string, number> = {};
 
 export type ProcedureKind = ProcedureSummary["kind"];
 type Kind = ProcedureKind;
@@ -67,7 +72,7 @@ const KIND_TITLE: Record<Kind, string> = { approach: "Approaches", arrival: "Arr
 /** A kind as a branch's head says it, under the procedure's name. */
 const KIND_WORD: Record<Kind, string> = { approach: "Approach", arrival: "Arrival", departure: "Departure" };
 /** The FAA's chart codes in a field's d-TPP for each kind (its card's
- *  terminal charts, vfr.publications, as the d-TPP metafile's chart_code
+ *  terminal charts, wingtip.publications, as the d-TPP metafile's chart_code
  *  has them): an instrument approach procedure, a STAR ("STR"), a
  *  departure procedure (a SID or a graphic obstacle departure) or a
  *  textual one. */
@@ -79,6 +84,83 @@ const PROCEDURE_STALE_MS = 6 * 60 * 60_000;
  *  the forecast wind rather than the wind now, ms: an hour. */
 const FORECAST_AFTER_MS = 60 * 60_000;
 const TEN_MIN_MS = 10 * 60_000;
+
+/** The route changed in FPL's list rather than its box (lib/preferences
+ *  RouteEdit), by the points' places in `routePoints`. */
+export interface RouteListEdit {
+  /** A point dragged by its grip onto another's place. */
+  onMove: (from: number, to: number) => void;
+  /** The route's box opened to type a stop in at this place. */
+  onAddAt: (index: number) => void;
+  /** The point at this place made another, from its card's ident. */
+  onReplace?: (index: number, ident: string) => void;
+  /** A stop being added at this place, an empty card there to type it
+   *  in (In the Plan, which has no route box), and what is typed put in;
+   *  left empty, given up. */
+  newAt?: number | null;
+  /** Fly via's ways round the Class B, offered on that card, best first. */
+  newVia?: Detour[] | null;
+  onInsert?: (index: number, ident: string) => void;
+  onCancelNew?: () => void;
+  /** Each point a card of its own, easier to see as it is dragged (In the
+   *  Plan, the owner's pick of the canvas's option 3 as cards). */
+  cards?: boolean;
+  /** A point changed, from its menu's Change: the route's box opened. */
+  onChange?: () => void;
+}
+
+
+
+
+/**
+ * A stop being added, In the Plan: an empty card at its place, its text
+ * box ready to type in (CardIdent), on the course's line, at the owner's
+ * ask (2026-11-05: "when adding a stop just add a stop with the editable
+ * card"). Return or leaving it puts the stop in; left empty, it goes.
+ */
+function NewStopCard({ via, onCommit, onCancel }: { via: Detour[] | null; onCommit: (ident: string) => void; onCancel: () => void }) {
+  return (
+    <li className={cn("relative", POINT_CARD, "isolate", CARD_GAP)} data-testid="route-new-stop">
+      <CardThread first={false} last={false} />
+      <div className="flex items-center gap-2.5">
+        <span className="grid w-7 shrink-0 place-items-center" aria-hidden="true">
+          {/* An airport's mark in the marks' grey disc, faded till its ident
+              is in, at the owner's ask (2026-11-05: "The stop icons can be
+              airport like when empty"); the disc the marks' 36, so the line
+              meets it at its left as theirs. */}
+          <CardMark><EmptyMark /></CardMark>
+        </span>
+        <div className="flex min-w-0 flex-1 pr-1.5">
+          <CardIdent value="" label="New stop" placeholder="Airport or waypoint" testId="route-new-stop-ident" focused wide onCommit={onCommit} onEmpty={onCancel} />
+        </div>
+      </div>
+      {/* Fly via's ways round, on the card between the points they go
+          between, at the owner's ask (2026-11-05: "Fly via suggestions
+          should come between the cards right?"): each a tap that puts it
+          in, as the box's Suggested were; held off the text box's blur,
+          which would take the empty card away before the tap. */}
+      {via && via.length > 0 && (
+        <ul className="mt-2 pl-[2.375rem]" aria-label="Suggested" data-testid="route-new-stop-via">
+          {via.map(d => (
+            <li key={d.ident}>
+              <button
+                type="button" onPointerDown={e => e.preventDefault()} onClick={() => onCommit(d.ident)} data-testid="picker-suggestion"
+                className="flex min-h-11 w-full items-center gap-2 pr-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block font-semibold text-tint", TEXT.row)}>{d.ident}</span>
+                  <span className={cn("block truncate text-muted-foreground", TEXT.note)}>{[d.kind, d.description].filter(Boolean).join(" · ")}</span>
+                </span>
+                <span className={cn("shrink-0 text-muted-foreground tabular-nums", TEXT.detail)}>+{Math.round(d.added_nm)} nm</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 
 export interface ProcedureAirport {
   ident: string;
@@ -97,12 +179,15 @@ export interface FitInputs {
   landingLb: number | null;
 }
 
-/** Where the procedures' sheet is open: one kind of a field's. */
-export type ProceduresAt = { ident: string; kind: Kind } | null;
+/** Where the procedures sheet is open: a field's kind of procedure, and
+ *  one to open the page of as the list comes in, asked for by voice
+ *  (lib/pilotCommand: "the ILS one nine right at Milwaukee") -- the
+ *  approach as the FAA's names start ("ILS", "RNAV (GPS)") and its
+ *  runway ("19R"), or any runway's. */
+export type ProceduresAt = { ident: string; kind: Kind; pick?: { approach: string; runway: string | null } | null } | null;
 
 // No runway picked into the wind, one set for good (a new one at every
 // render would be a new intoWind for the effect).
-const NO_AUTO: ReadonlySet<string> = new Set();
 
 /**
  * The route in FPL, in the order it is flown, at the owner's ask ("I
@@ -121,18 +206,17 @@ const NO_AUTO: ReadonlySet<string> = new Set();
  * A pattern is picked by its runway, as a chip, the runway the wind
  * favours marked (the redesign's A); it is drawn on the map
  * (PatternLayer). An instrument procedure from the FAA's CIFP
- * (vfr.procedures) is picked in a sheet of its own, as ForeFlight's
+ * (wingtip.procedures) is picked in a sheet of its own, as ForeFlight's
  * Procedure Advisor picks one: the field's of that kind, then the one
  * procedure, its transition chosen, the map above the sheet drawing it
  * as it is chosen (`onPreview`, ProcedureLayer), its fixes listed, and
- * Add to Route at the foot. Back is the round button at the sheet's
- * head, the close's twin, at the owner's ask.
+ * Add to Route at the foot. Its close goes back to the list.
  */
 export default function ProceduresRoute({
-  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked = NO_AUTO, fit = null, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
-  crossings = NO_CROSSINGS, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
-  onCreateFix, holds = NO_HOLDS, onHoldSet, askHold = null, routePoints, stopsFull = false,
-  fuel = null, routeLine = null,
+  airports, rows, depart, weather, picked, onPick, onPreselect, takeoffs, onTakeoff, onPreselectTakeoff, autoPicked, fit, onCharts, chartsDisabled, procedures, inRoute, onProcedures, onPreview, at, onAt,
+  crossings, onFix, onDepart, ground, onGround, pointAltitude, onPointAltitude, directTo = null, onDirectTo, onInfo, onRemove,
+  onCreateFix, holds, onHoldSet, askHold = null, routePoints, stopsFull = false,
+  fuel = null, routeLine = null, edit,
 }: {
   airports: ProcedureAirport[];
   /** The route's rows as the nav log has them (navLogRows), for its
@@ -157,10 +241,10 @@ export default function ProceduresRoute({
   onPreselectTakeoff: (ident: string, end: string) => void;
   /** The runways picked into the wind and not since by the pilot
    *  ("land:KABQ", "takeoff:KEVU"): each follows the wind as it changes. */
-  autoPicked?: ReadonlySet<string>;
+  autoPicked: ReadonlySet<string>;
   /** The airplane's figures and weights its runways' fit is worked from;
    *  none, no fit marked. */
-  fit?: FitInputs | null;
+  fit: FitInputs | null;
   /** The destination's approach charts, in its card. */
   onCharts: () => void;
   chartsDisabled: boolean;
@@ -182,33 +266,33 @@ export default function ProceduresRoute({
    *  `ground`), and the pick of one, from the time it leaves: a stop not
    *  named, the planner's turnaround (groundMinAt). */
   ground?: Record<string, number>;
-  onGround?: (ident: string, minutes: number) => void;
+  onGround: (ident: string, minutes: number) => void;
   /** The pilot's own altitudes to cross the procedures' fixes at, by fix. */
-  crossings?: Record<string, number>;
+  crossings: Record<string, number>;
   /** A fix of a procedure picked, tapped on its branch: its card (FixCard). */
-  onFix?: (field: string, kind: Kind, fix: string) => void;
+  onFix: (field: string, kind: Kind, fix: string) => void;
   /** The departure's time picked on its step (DepartPicker). */
-  onDepart?: (iso: string) => void;
+  onDepart: (iso: string) => void;
   /** The altitude at a point of the route, as the route box's menu offers
    *  it (PlanWorkspace's altitudeAt), and the pilot's own set there or
    *  (null) given back to the plan. */
-  pointAltitude?: (ident: string, waypoint: boolean) => PointAltitude;
-  onPointAltitude?: (ident: string, feet: number | null) => void;
+  pointAltitude: (ident: string, waypoint: boolean) => PointAltitude;
+  onPointAltitude: (ident: string, feet: number | null) => void;
   /** The point flown direct to (the address's `direct`), and Direct to
    *  one, or (null) the route flown as it was. */
   directTo?: string | null;
-  onDirectTo?: (ident: string | null) => void;
+  onDirectTo: (ident: string | null) => void;
   /** A point's card (an airport's, a waypoint's), from its menu. */
-  onInfo?: (ident: string) => void;
+  onInfo: (ident: string) => void;
   /** A stop taken out of the route, from its menu. */
-  onRemove?: (ident: string) => void;
+  onRemove: (ident: string) => void;
   /** The pilot's own point off one of the route's, flown over after it
    *  (FixFromDialog): "VPBNG/090/30". */
-  onCreateFix?: (after: string, ident: string) => void;
+  onCreateFix: (after: string, ident: string) => void;
   /** The pilot's holds (lib/holds), each its own row after its point, and
    *  one set, changed or (null) taken off (HoldSheet). */
-  holds?: Hold[];
-  onHoldSet?: (fix: string, hold: Hold | null) => void;
+  holds: Hold[];
+  onHoldSet: (fix: string, hold: Hold | null) => void;
   /** A hold asked for at a point just put in the route ("VPBNG/095/14.2@"
    *  and when, AirspaceCard's Hold here): its sheet opened once the plan
    *  has the leg to the point, for the course flown to it. */
@@ -217,7 +301,7 @@ export default function ProceduresRoute({
    *  a row not among them -- a fix along an airway typed as V100 -- has no
    *  Direct to, Remove or Create a fix, which work on the typed points
    *  (the audit's finding: they did nothing there, or the wrong thing). */
-  routePoints?: string[];
+  routePoints: string[];
   /** As many stops as the planner takes (MAX_STOPS): no Create a fix. */
   stopsFull?: boolean;
   /** The tanks, for the fuel in them at each point: their usable fuel, the
@@ -227,6 +311,10 @@ export default function ProceduresRoute({
   /** The route line under the departure (RouteLine): the planner's ways as
    *  chips, the one picked, and the way to pick one; none, no line. */
   routeLine?: RouteLineChoices | null;
+  /** The route changed in the list itself (RouteListEdit): each typed
+   *  point's grip, Add a Stop After in its menu, and Add a Stop at the
+   *  list's end. None, the list as before. */
+  edit?: RouteListEdit;
 }) {
   // The procedure on its own page in the sheet, over its kind's list.
   const [page, setPage] = useState<{ at: ProceduresAt; procedure: ProcedureSummary } | null>(null);
@@ -259,7 +347,7 @@ export default function ProceduresRoute({
   // goes from there.
   const positioned = useOwnShip(s => s.enabled && !!s.fix);
   const [answered, setAnswered] = useState<string | null>(null);
-  if (askHold && askHold !== answered && onHoldSet) {
+  if (askHold && askHold !== answered) {
     const fix = askHold.slice(0, askHold.lastIndexOf("@"));
     const to = rows.find(r => "airport" in r && sameField(r.airport.ident, fix));
     const leg = to ? legOf(to) : undefined;
@@ -481,15 +569,26 @@ export default function ProceduresRoute({
   // `altitudes`), else a waypoint's cruise to it, a field's elevation --
   // and its menu. `to`, a point flown to: Direct to it and its altitude
   // set there; `stop`, one the route's points can lose.
-  const pointEnd = (ident: string, at: { time: ReactNode; waypoint: boolean; elevationFt: number | null; to: boolean; stop: boolean; holdable?: boolean; row?: NavLogRow }) => {
-    const altitude = at.to ? pointAltitude?.(ident, at.waypoint) : undefined;
+  const asCards = !!edit?.cards;
+  // A field's place among the typed points, for its grip and Add a Stop
+  // After: the departure first, the destination last (a round trip's
+  // field is both, by its role), a stop its own place between them.
+  const pointIndex = (ident: string, role: ProcedureAirport["role"]) => {
+    if (!routePoints.length) return undefined;
+    if (role === "Departure") return 0;
+    if (role === "Destination") return routePoints.length - 1;
+    const found = routePoints.findIndex((p, j) => j > 0 && j < routePoints.length - 1 && sameField(p, ident));
+    return found >= 0 ? found : undefined;
+  };
+  const pointEnd = (ident: string, at: { time: ReactNode; waypoint: boolean; elevationFt: number | null; to: boolean; stop: boolean; holdable?: boolean; row?: NavLogRow; index?: number }) => {
+    const altitude = at.to ? pointAltitude(ident, at.waypoint) : undefined;
     const own = altitude?.own ? altitude.feet : null;
     const shown = own ?? (at.waypoint ? altitude?.feet ?? null : at.elevationFt);
     const direct = directTo !== null && sameField(directTo, ident);
-    const typed = !routePoints || routePoints.some(p => sameField(p, ident));
+    const typed = routePoints.some(p => sameField(p, ident));
     // Direct to a round trip's end on the ground, with no position, is from
     // the field to itself: a local flight, not a direct (the audit's).
-    const homeward = !!routePoints && routePoints.length > 1 && sameField(routePoints[0]!, ident) && !positioned;
+    const homeward = routePoints.length > 1 && sameField(routePoints[0]!, ident) && !positioned;
     const kind = own !== null ? "set" : at.waypoint ? "cruise" : "elev";
     return {
       direct,
@@ -503,17 +602,17 @@ export default function ProceduresRoute({
       menu: (face: ReactNode) => (
         <PointMenu
           face={face} ident={ident} direct={direct}
-          onDirect={at.to && typed && !homeward && onDirectTo ? () => onDirectTo(direct ? null : ident) : undefined}
-          onAltitude={at.to && altitude && onPointAltitude ? () => setEditing({ ident, waypoint: at.waypoint, altitude, elevationFt: at.elevationFt }) : undefined}
+          onDirect={at.to && typed && !homeward ? () => onDirectTo(direct ? null : ident) : undefined}
+          onAltitude={at.to && altitude ? () => setEditing({ ident, waypoint: at.waypoint, altitude, elevationFt: at.elevationFt }) : undefined}
           // An airport's card; a waypoint's is the chart's popup.
-          onInfo={onInfo && !at.waypoint ? () => onInfo(ident) : undefined}
+          onInfo={!at.waypoint ? () => onInfo(ident) : undefined}
           // Off a fix, a navaid or an airport by its ident: not off the
           // pilot's own point, nor a present position.
-          onFix={onCreateFix && typed && !stopsFull && /^[A-Z0-9]{2,5}$/.test(ident) ? () => setFixFrom(ident) : undefined}
+          onFix={typed && !stopsFull && isFixIdent(ident) ? () => setFixFrom(ident) : undefined}
           // Held over a point flown over, or before landing at the end:
           // not over a field landed at on the way, where it is left again.
           held={!!holdOn(ident)}
-          onHold={at.holdable && onHoldSet ? () => {
+          onHold={at.holdable ? () => {
             const leg = at.row ? legOf(at.row) : undefined;
             setHoldAt({
               fix: ident, hold: holdOn(ident), altitudeFt: leg?.altitude_ft ?? null,
@@ -521,14 +620,21 @@ export default function ProceduresRoute({
               arrivalDeg: leg ? normalizeDeg(leg.true_course_deg - leg.magnetic_variation_deg) : null,
             });
           } : undefined}
-          onRemove={at.stop && typed && onRemove ? () => onRemove(ident) : undefined}
+          // Not after the destination: what follows it is a new
+          // destination, the route box's own (its end).
+          onChange={edit?.onChange && typed ? edit.onChange : undefined}
+          onAddAfter={edit && at.index !== undefined && at.index < routePoints.length - 1 && !stopsFull ? () => edit.onAddAt(at.index! + 1) : undefined}
+          onRemove={at.stop && typed ? () => onRemove(ident) : undefined}
         />
       ),
+      // Its grip, where the list changes the route: by its place among the
+      // typed points.
+      grip: edit && at.index !== undefined ? <PointGrip ident={ident} index={at.index} /> : null,
     };
   };
 
   // A field's step: what is flown there, in the order it is flown.
-  const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean) => {
+  const fieldStep = (a: ProcedureAirport, row: NavLogRow | undefined, last: boolean, leads: boolean) => {
     // A kind's pull-down: the one in the route said on it (ProcedureMenu).
     const wind = windOf(a.ident);
     const i = airports.findIndex(f => sameField(f.ident, a.ident));
@@ -571,7 +677,7 @@ export default function ProceduresRoute({
           key={`branch-${kind}`} name={inPlace.label} kind={KIND_WORD[kind]} menu={kindMenu(kind, "button")}
           fixes={inPlace.fixes ?? []} direct={inPlace.direct ?? null} crossings={crossings}
           onDirect={fix => onProcedures(procedures.map(p => (p === chosen ? { ...p, direct: fix } : p)), null)}
-          onOpen={fix => onFix?.(a.ident, kind, fix)}
+          onOpen={fix => onFix(a.ident, kind, fix)}
         />
       );
     };
@@ -654,7 +760,7 @@ export default function ProceduresRoute({
       const first = parts[0]!;
       const end = pointEnd(a.ident, {
         time: headTime, waypoint: false, elevationFt: a.elevationFt ?? cards[i]?.data?.elevation_ft ?? null, to: a.role !== "Departure", stop: a.role === "Stop",
-        holdable: a.role === "Destination", row,
+        holdable: a.role === "Destination", row, index: pointIndex(a.ident, a.role),
       });
       const reported = reportedOf(a.ident);
       // Without the "T" after its direction, at the owner's ask ("No need
@@ -668,9 +774,10 @@ export default function ProceduresRoute({
         // its content. A stop's second part, in a section of its own, is
         // shown with it (a Collapsible has one content).
         <Collapsible key={key} asChild open={opened} onOpenChange={next => toggleField(key, a.ident, next)}>
-          <li className="relative" data-testid="route-field" data-ident={a.ident}>
-            {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
-            <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && "pb-5")}>
+          <li className={cn("relative", asCards && cn(POINT_CARD, "isolate"), asCards && !last && CARD_GAP)} data-testid="route-field" data-ident={a.ident}>
+            {asCards && <CardThread first={leads} last={last} />}
+            {!last && !asCards && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
+            <section aria-label={`${a.ident} · ${first.role}`} className={cn(!(opened && parts[1]) && !asCards && "pb-5")}>
               {/* The airport's lines: a tap anywhere on them -- its symbol, its
                   ident, its fuel, its wind, its time -- opens it, at the
                   owner's ask ("it should expand when tapped anywhere on the
@@ -688,7 +795,7 @@ export default function ProceduresRoute({
                 {/* Centred on the two lines, at the owner's ask ("Center it
                     on the two lines"): the column as tall as they are. */}
                 <div className="relative z-10 flex w-7 shrink-0 items-center justify-center">
-                  {end.menu(
+                  {(face => (asCards ? <CardMark>{face}</CardMark> : face))(end.menu(
                     <span className="relative">
                       {mark}
                       {a.role === "Stop" && isFuelStop(a.ident) && (
@@ -697,17 +804,22 @@ export default function ProceduresRoute({
                         </span>
                       )}
                     </span>,
-                  )}
+                  ))}
                 </div>
                 {/* Two lines, as a waypoint's row and the list before had them,
                     at the owner's ask ("line up the time with airport id and
                     elevation with wind like before"): the ident and the time,
                     then the wind and the elevation. */}
-                <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2">
+                <div className={cn("grid min-w-0 flex-1 items-center gap-x-2", end.grip ? "grid-cols-[minmax(0,1fr)_auto_auto]" : "grid-cols-[minmax(0,1fr)_auto]")}>
                   <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-1.5">
                     {/* The disclosure, iOS's small chevron by the symbol, not
                         an icon button (data-disclosure): the Collapsible's
                         trigger, the arrow turned by its open state. */}
+                    {/* A card's without its arrow, at the owner's ask (2026-11-05:
+                        "Now that it's a card, we don't need the expanding
+                        arrow next to airport", then "It should still become
+                        a smaller card with a tap"): its tap over the lines
+                        alone. */}
                     <CollapsibleTrigger asChild>
                       <button
                         type="button" data-testid="field-toggle" data-ident={a.ident} data-disclosure=""
@@ -722,14 +834,24 @@ export default function ProceduresRoute({
                         // twelve over it, into the room above the field, where the
                         // arrow's 44 points, round its line, reach (the iOS
                         // audit's P1).
-                        className="group static -ml-0.5 grid size-4 shrink-0 place-items-center text-tint outline-none before:absolute before:inset-x-0 before:-top-3 before:bottom-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring"
+                        className={cn(
+                          "group static grid shrink-0 place-items-center text-tint outline-none before:absolute before:inset-x-0 before:-top-3 before:bottom-0 before:content-[''] focus-visible:ring-2 focus-visible:ring-ring",
+                          asCards ? "-ml-1.5 size-0" : "-ml-0.5 size-4",
+                        )}
                       >
-                        <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />
+                        {!asCards && <ChevronRight className="size-4 transition-transform group-data-[state=open]:rotate-90" aria-hidden />}
                       </button>
                     </CollapsibleTrigger>
                     {/* The size the list's names were ("the font size is bigger
                         than it used to be for airport id"). */}
-                    <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>
+                    {asCards && edit?.onReplace && pointIndex(a.ident, a.role) !== undefined ? (
+                      <h3 className="min-w-0">
+                        <CardIdent
+                          value={a.ident} label={`${a.ident}, change`} testId="field-ident"
+                          onCommit={v => { const at = pointIndex(a.ident, a.role); if (at !== undefined && !sameField(v, a.ident)) edit.onReplace!(at, v); }}
+                        />
+                      </h3>
+                    ) : <h3 className={cn("truncate font-semibold", TEXT.row)}>{a.ident}</h3>}
                     {tank && <FuelGauge gal={tank.gal} usable={tank.usable} tone={tank.low ? "low" : a.role === "Stop" && isFuelStop(a.ident) ? "fuel" : undefined} />}
                   </div>
                   <div className="relative z-10 col-start-2 row-start-1 justify-self-end">{end.time}</div>
@@ -743,11 +865,17 @@ export default function ProceduresRoute({
                     )}
                   </p>
                   <div className="col-start-2 row-start-2 justify-self-end">{end.elevation}</div>
+                  {end.grip && <div className="relative z-10 col-start-3 row-span-2 row-start-1 self-center">{end.grip}</div>}
                 </div>
               </div>
-              <CollapsibleContent className="pl-[2.375rem]">{partBody(first)}</CollapsibleContent>
+              {/* A card's runways and procedures nearly its whole width, at
+                  the owner's ask ("we can use all card width for runway and
+                  arrival approach buttons"), right of the line down its
+                  marks (CARD_BODY): the arrival and the approach then fit
+                  on the runway's line. */}
+              <CollapsibleContent className={asCards ? CARD_BODY : "pl-[2.375rem]"}>{partBody(first)}</CollapsibleContent>
             </section>
-            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className="pb-5 pl-[2.375rem]">{partBody(parts[1])}</section>}
+            {opened && parts[1] && <section aria-label={`${a.ident} · ${parts[1].role}`} className={asCards ? CARD_BODY : "pl-[2.375rem] pb-5"}>{partBody(parts[1])}</section>}
           </li>
         </Collapsible>
       );
@@ -783,7 +911,7 @@ export default function ProceduresRoute({
     // The departure's time on its own step, from the route's box at the
     // owner's ask ("The departure time can move from the route box to the
     // departure and arrival boxes"): picked there, Now for about now.
-    const leaving = onDepart ? <DepartPicker value={depart} onChange={onDepart} look="time" /> : time;
+    const leaving = <DepartPicker value={depart} onChange={onDepart} look="time" />;
     // Each runway line's key as PatternChips keeps it open: the field and
     // the chips' own name, none for a landing's or a departure's own.
     const landingLine = { key: `${a.ident}:`, chosen: chosenAt(a.ident) };
@@ -805,8 +933,11 @@ export default function ProceduresRoute({
     // Never before it lands.
     const onGroundMin = row?.kind === "stop" ? row.groundMin : groundMinAt(ground, a.ident);
     const flownTo = row?.minutesFlown ?? landedAt(a.ident);
-    const landsMs = flownTo == null ? null : startMs + flownTo * 60_000;
-    const leaves = landsMs === null ? null : onGround ? (
+    // To the whole minute, as its picker shows it: with the seconds kept, a
+    // departure picked a quarter of an hour after the one shown was 44
+    // minutes on the ground, not 45 (the stops spec, 2026-11-03).
+    const landsMs = flownTo == null ? null : Math.floor((startMs + flownTo * 60_000) / 60_000) * 60_000;
+    const leaves = landsMs === null ? null : (
       <DepartPicker
         value={new Date(landsMs + onGroundMin * 60_000).toISOString()} look="time" label={`Departure from ${a.ident}`} testId={`depart-date-${a.ident}`} leavesNow={false}
         // From landing to a day after, as the planner takes a stop's time
@@ -814,7 +945,7 @@ export default function ProceduresRoute({
         earliest={landsMs} latest={landsMs + DAY_MIN * 60_000}
         onChange={iso => { if (iso) onGround(a.ident, Math.min(DAY_MIN, Math.max(0, Math.round((Date.parse(iso) - landsMs) / 60_000)))); }}
       />
-    ) : etaAt(depart || new Date().toISOString(), flownTo! + onGroundMin);
+    );
     return block([
       { role: "Arrive", kinds: (["arrival", "approach"] as Kind[]).filter(has), chips: landingChips, leaves: null, line: landingLine },
       { role: "Depart", kinds: (["departure"] as Kind[]).filter(has), chips: takeoffChips, leaves, line: takeoffLine },
@@ -849,6 +980,16 @@ export default function ProceduresRoute({
   // the Routes row's (the iOS audit's P1, CI on 4d7da5f0).
   const lineRow = routeLine ? <RouteLine line={routeLine} /> : null;
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
+  // The stop being added, its card before the point at its place.
+  const newAt = asCards && edit?.onInsert ? edit.newAt ?? null : null;
+  const newCard = newAt !== null ? <NewStopCard key="new-stop" via={edit!.newVia ?? null} onCommit={v => edit!.onInsert!(newAt, v)} onCancel={() => edit!.onCancelNew?.()} /> : null;
+  let newPut = false;
+  const newBefore = (index: number | undefined, into: ReactNode[]) => {
+    if (newCard && !newPut && index === newAt) {
+      into.push(newCard);
+      newPut = true;
+    }
+  };
   points.forEach((row, i) => {
     const last = i === points.length - 1;
     // By the field, not its spelling: a stop typed UES comes back from the
@@ -859,7 +1000,7 @@ export default function ProceduresRoute({
     // ("hold should get its own row").
     const holdRow = (ident: string) => {
       const hold = holdOn(ident);
-      return hold && onHoldSet ? (
+      return hold ? (
         <HoldRow
           key={`hold-${ident}`} hold={hold} flown={heldAs(ident)} last={last}
           onOpen={() => setHoldAt({ fix: hold.fix, hold, altitudeFt: legOf(row)?.altitude_ft ?? null, arrivalDeg: null })}
@@ -868,7 +1009,8 @@ export default function ProceduresRoute({
     };
     if (field) {
       shown.add(field);
-      steps.push(fieldStep(field, row, last));
+      newBefore(pointIndex(field.ident, field.role), steps);
+      steps.push(fieldStep(field, row, last, steps.length === 0));
       if (field.role === "Destination") steps.push(holdRow(field.ident));
       return;
     }
@@ -876,10 +1018,13 @@ export default function ProceduresRoute({
     // and Direct to, as a field's landing has. Not where it starts.
     const time = etaAt(depart || new Date().toISOString(), row.minutesFlown);
     const to = row.kind !== "departure" && "airport" in row && !isPosition(row.airport.ident);
-    const end = to ? pointEnd(row.airport.ident, { time, waypoint: true, elevationFt: null, to: true, stop: row.kind === "stop", holdable: true, row }) : null;
+    const typedAt = to ? routePoints.findIndex(p => sameField(p, row.airport.ident)) : -1;
+    const end = to ? pointEnd(row.airport.ident, { time, waypoint: true, elevationFt: null, to: true, stop: row.kind === "stop", holdable: true, row, index: typedAt >= 0 ? typedAt : undefined }) : null;
+    if (typedAt >= 0) newBefore(typedAt, steps);
     steps.push(
       <Step
-        key={row.key} last={last} mark={<PointMark row={row} number={undefined} weather={weather} />}
+        key={row.key} first={steps.length === 0} last={last}
+        rename={asCards && edit?.onReplace && typedAt >= 0 ? v => edit.onReplace!(typedAt, v) : undefined} mark={<PointMark row={row} number={undefined} weather={weather} />}
         title={rowPoint(row).name} testId={`route-${row.kind}`}
         icon={tanks.has(row.key) ? <FuelGauge gal={tanks.get(row.key)!.gal} usable={tanks.get(row.key)!.usable} tone={tanks.get(row.key)!.low ? "low" : undefined} /> : undefined}
         // A present position, POS0, by its coordinates under it, where its
@@ -887,18 +1032,30 @@ export default function ProceduresRoute({
         // Direct to in the line's own colour: it says how the leg is
         // flown, and only what is tapped is in the tint.
         sub={end?.direct ? <span className="font-semibold">Direct to</span> : `${row.kind === "stop" ? (to && frdOf(row.airport.ident) ? row.airport.name : "Fly over") : row.kind === "destination" ? "Destination" : "airport" in row && isPosition(row.airport.ident) ? placeOfPoint(row.airport.ident) : "Departure"}${along(row)}`}
-        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu}
+        figures={end?.figures ?? <PointFigures time={time} altitude={null} kind="cruise" />} menu={end?.menu} grip={end?.grip} card={asCards}
       />,
     );
     if (to) steps.push(holdRow(row.airport.ident));
   });
   const fieldsAlone = rows.length === 0
-    ? airports.map((a, i) => fieldStep(a, undefined, i === airports.length - 1))
+    ? airports.flatMap((a, i) => {
+      const before: ReactNode[] = [];
+      newBefore(pointIndex(a.ident, a.role), before);
+      return [...before, fieldStep(a, undefined, i === airports.length - 1, i === 0)];
+    })
     : null;
 
   const field = on ? airports.find(a => sameField(a.ident, on.ident)) : undefined;
   const list = on ? listOf(on.ident) : undefined;
   const chosen = on ? pickOf(on.ident, on.kind) : null;
+  // The procedure asked for by voice, its page once the field's list is
+  // in: the first of that kind whose name starts as the approach does, on
+  // the runway said where one was. Set as the sheet renders, as `kept`
+  // is above; once set, the page is this address's and it is not again.
+  const wanted = on?.pick && list && !(page && page.at === on)
+    ? list.procedures.filter(p => p.kind === on.kind && p.name.toUpperCase().startsWith(on.pick!.approach)).find(p => !on.pick!.runway || p.runway === on.pick!.runway) ?? null
+    : null;
+  if (wanted && on) setPage({ at: on, procedure: wanted });
   const stale = list?.stale ? `Out of date: the ${cycleDate(list.cycle)} cycle, as the current one could not be had` : null;
   return (
     <>
@@ -906,7 +1063,7 @@ export default function ProceduresRoute({
         there, on a desktop, it closed as it opened. */}
     {holdUsed && (
       <Suspense fallback={null}>
-        <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet?.(fix, hold); setHoldAt(null); }} />
+        <HoldSheet at={holdAt} onClose={() => setHoldAt(null)} onSet={(fix, hold) => { onHoldSet(fix, hold); setHoldAt(null); }} />
       </Suspense>
     )}
     {lessonUsed && (
@@ -915,15 +1072,32 @@ export default function ProceduresRoute({
       </Suspense>
     )}
     {lineRow}
+    {/* The grips' drag round the list where it changes the route
+        (RouteListDrag): its own element, not the anchor's child. */}
+    <RouteListDrag on={edit?.onMove}>
     <ResponsivePopover open={!!at} onOpenChange={open => { if (!open) close(); }}>
       <ResponsivePopoverAnchor asChild>
         <ol className="pt-2 pb-1" aria-label="The route" data-testid="procedures">{fieldsAlone ?? steps}</ol>
       </ResponsivePopoverAnchor>
+      {/* A stop before the destination, as Maps' Add Stop is, at the
+          list's end where the list changes the route (the FPL canvas's A
+          and B, 2026-11-05). */}
+      {edit && routePoints.length > 1 && (
+        <button
+          type="button" disabled={stopsFull} onClick={() => edit.onAddAt(routePoints.length - 1)} data-testid="route-add-stop"
+          className={cn("flex h-11 w-full items-center gap-2.5 text-left text-tint outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40", TEXT.row)}
+        >
+          <span className="grid w-7 shrink-0 place-items-center">
+            <span className="grid size-6 place-items-center rounded-full bg-tint text-white"><Plus className="size-4" strokeWidth={2.6} aria-hidden /></span>
+          </span>
+          Add a Stop
+        </button>
+      )}
       {editingUsed && (
         <Suspense fallback={null}>
           <PointAltitudeDialog
             point={editing} onClose={() => setEditing(null)}
-            onSet={(ident, feet) => { onPointAltitude?.(ident, feet); setEditing(null); }}
+            onSet={(ident, feet) => { onPointAltitude(ident, feet); setEditing(null); }}
           />
         </Suspense>
       )}
@@ -931,7 +1105,7 @@ export default function ProceduresRoute({
         <Suspense fallback={null}>
           <FixFromDialog
             from={fixFrom} onClose={() => setFixFrom(null)}
-            onCreate={ident => { if (fixFrom) onCreateFix?.(fixFrom, ident); setFixFrom(null); }}
+            onCreate={ident => { if (fixFrom) onCreateFix(fixFrom, ident); setFixFrom(null); }}
           />
         </Suspense>
       )}
@@ -965,6 +1139,7 @@ export default function ProceduresRoute({
         ))}
       </ResponsivePopoverContent>
     </ResponsivePopover>
+    </RouteListDrag>
     </>
   );
 }
@@ -974,7 +1149,6 @@ function listTitle(ident: string, kind: Kind): string {
   return `${ident} ${KIND_TITLE[kind].toLowerCase()}`;
 }
 
-const NO_HOLDS: Hold[] = [];
 /** A day, min: the longest time on the ground at a stop the planner takes. */
 const DAY_MIN = 24 * 60;
 
@@ -990,7 +1164,7 @@ function HoldRow({ hold, flown, last, onOpen }: { hold: Hold; flown: LegHold | n
       {!last && <span aria-hidden="true" className="absolute top-0 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
       <div className="relative flex w-7 shrink-0 justify-center pt-1.5" aria-hidden="true">
         <svg viewBox="0 0 28 16" className="h-4 w-7 rounded-full bg-background">
-          <rect x="2" y="2" width="24" height="12" rx="6" fill="none" stroke={COURSE_MAGENTA} strokeWidth="2.5" strokeDasharray="4 3" />
+          <rect x="2" y="2" width="24" height="12" rx="6" fill="none" className="stroke-course" strokeWidth="2.5" strokeDasharray="4 3" />
         </svg>
       </div>
       <button
@@ -1085,7 +1259,81 @@ function RouteLine({ line }: { line: RouteLineChoices }) {
   );
 }
 
-function Step({ mark, title, sub, figures, menu, last, field = false, testId, icon, children }: {
+/**
+ * The list's drag, by the points' grips (PointGrip): a grip let go over
+ * another point's moves its point there, as the route box's pills are
+ * dragged. dnd-kit's DndContext, as the box's; only the grips are dragged
+ * and dropped on, as the list between them holds the legs' rows, the
+ * holds and the runways, none of them points to move. A finger starts it
+ * at once on the grip, which is there to be dragged; the ident lifted off
+ * the list follows it (DragOverlay).
+ */
+function RouteListDrag({ on, children }: { on?: (from: number, to: number) => void; children: ReactNode }) {
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor),
+  );
+  const [lifted, setLifted] = useState<string | null>(null);
+  const placeOf = (id: string | number) => Number(String(id).split(":")[0]);
+  const onDragStart = ({ active }: DragStartEvent) => setLifted(String(active.id).split(":").slice(1).join(":"));
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setLifted(null);
+    if (over && over.id !== active.id) on?.(placeOf(active.id), placeOf(over.id));
+  };
+  // Nothing to drag: the list as it was, no context round it.
+  if (!on) return <>{children}</>;
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setLifted(null)}>
+      {children}
+      <DragOverlay dropAnimation={null}>
+        {/* The point lifted off the list as a card the row's size, tilted
+            a little and ringed in the tint, as the canvas drew it. */}
+        {lifted && (
+          <div className={cn("flex h-full max-h-16 w-full -rotate-[1.5deg] items-center justify-between gap-2 rounded-2xl bg-card pr-3 pl-4 font-semibold shadow-xl ring-2 ring-tint", TEXT.row)}>
+            {pointName(lifted)}<GripVertical className="size-5 text-tint" aria-hidden />
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+/** A typed point's grip, at its row's end, as iOS's reorder control is:
+ *  dragged, and dropped on. Its own presses, not the sheet's drag; a
+ *  32-point glyph button with its 44-point area (index.css). */
+function PointGrip({ ident, index }: { ident: string; index: number }) {
+  const id = `${index}:${ident}`;
+  const drag = useDraggable({ id });
+  const drop = useDroppable({ id });
+  return (
+    <button
+      // The grip starts the drag; what is dragged and dropped on is the
+      // point's whole row, its card where the list is cards, so the one
+      // lifted is as big as it is and a drop anywhere on another counts.
+      type="button" {...drag.attributes} {...drag.listeners}
+      ref={node => {
+        drag.setActivatorNodeRef(node);
+        const row = node?.closest("li") ?? node;
+        drag.setNodeRef(row);
+        drop.setNodeRef(row);
+      }}
+      aria-label={`Move ${pointName(ident)}`} data-testid="route-grip" data-ident={ident}
+      data-dragging={drag.isDragging ? "" : undefined} data-over={drop.isOver && !drag.isDragging ? "" : undefined}
+      onPointerDown={e => e.stopPropagation()}
+      className={cn(
+        "relative grid size-8 shrink-0 touch-none place-items-center rounded-full text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        drag.isDragging && "opacity-30", drop.isOver && !drag.isDragging && "bg-tint/12 text-tint",
+      )}
+    >
+      <GripVertical className="size-5" aria-hidden />
+    </button>
+  );
+}
+
+function Step({ mark, title, sub, figures, menu, grip, card = false, first = false, last, field = false, testId, icon, rename, children }: {
+  /** A card's: its name a text box to change it (CardIdent). */
+  rename?: (ident: string) => void;
   /** Its menu, behind its mark (PointMenu's `face`). */
   mark: ReactNode;
   /** After its name: the fuel in the tanks there (FuelGauge). */
@@ -1097,6 +1345,11 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
   /** Its time over its altitude (PointFigures). */
   figures: ReactNode;
   menu?: (face: ReactNode) => ReactNode;
+  /** Its grip, where the list changes the route (PointGrip). */
+  grip?: ReactNode;
+  /** A card of its own, as the fields' are where the list is cards. */
+  card?: boolean;
+  first?: boolean;
   last: boolean;
   field?: boolean;
   testId?: string;
@@ -1104,19 +1357,23 @@ function Step({ mark, title, sub, figures, menu, last, field = false, testId, ic
 }) {
   const Name = field ? "h3" : "span";
   return (
-    <li className="relative flex gap-2.5" data-testid={testId}>
-      {!last && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
-      <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{menu ? menu(mark) : mark}</div>
-      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", field ? "pb-5" : "pb-4")}>
+    <li className={cn("relative flex gap-2.5", card && cn(POINT_CARD, "isolate"), card && !last && CARD_GAP)} data-testid={testId}>
+      {!last && !card && <span aria-hidden="true" className="absolute top-3 bottom-0 left-[calc(0.875rem-1px)] w-0.5" style={ROUTE_LINE} />}
+      {card && <CardThread first={first} last={last} />}
+      <div className="relative flex w-7 shrink-0 justify-center pt-0.5">{card ? <CardMark>{menu ? menu(mark) : mark}</CardMark> : menu ? menu(mark) : mark}</div>
+      <section aria-label={title} className={cn("min-w-0 flex-1 space-y-3", !card && (field ? "pb-5" : "pb-4"))}>
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="flex min-w-0 items-center gap-1">
-              <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>
+              {rename ? (
+                <Name className="min-w-0"><CardIdent value={title} label={`${title}, change`} testId="step-ident" onCommit={rename} bold={field} /></Name>
+              ) : <Name className={cn("truncate", field ? "font-semibold" : "font-normal", TEXT.row)}>{title}</Name>}
               {icon}
             </span>
             {sub && <span className={cn("truncate text-muted-foreground", TEXT.note)}>{sub}</span>}
           </div>
           {figures}
+          {grip}
         </div>
         {children}
       </section>
@@ -1379,7 +1636,7 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
       // a field with an arrival and an approach to add ran the nav log
       // 41 points past a phone's width (the iOS audit's "no sideways
       // scroll in a panel").
-      <div ref={line} className="flex flex-wrap items-center gap-x-3 gap-y-2" data-testid="procedure-patterns">
+      <div ref={line} className="flex flex-wrap items-center gap-x-2 gap-y-2" data-testid="procedure-patterns">
         {/* Still the group's choice to a screen reader, picked: the same
             stock ToggleGroup as the open line's, with the one runway in it,
             so VoiceOver says the same group and choice folded or open. A
@@ -1438,10 +1695,13 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
           >
             {/* A runway each: no None, at the owner's ask ("Why is none even
                 an option?"), as every takeoff and landing is on one -- and
-                the chip picked tapped again is no way to unpick it either. */}
+                the chip picked tapped again is no way to unpick it either:
+                it folds the line, as a new pick does (the owner, 2026-11-05:
+                "The runways should fold when a runway is picked", "Even the
+                same one"); the ToggleGroup's "" is that tap. */}
             <Chips
               label={label ?? `${a.ident} ${landing ? "runway" : "traffic pattern"}`} value={chosen ?? NONE}
-              onChange={v => { if (!v || v === NONE) return; setOpen(false); onPick(v); }} trailing={trailing} flushStart tray
+              onChange={v => { if (v === NONE) return; setOpen(false); if (v) onPick(v); }} trailing={trailing} flushStart tray
               trailingRef={after} enter={chosen !== null ? "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-6 motion-safe:duration-300" : undefined}
             >
               {ends.map(({ runway, end }) => {

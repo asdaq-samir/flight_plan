@@ -1,11 +1,11 @@
-"""vfr.performance against hand-worked figures: the standard atmosphere,
+"""wingtip.performance against hand-worked figures: the standard atmosphere,
 the cruise scaled from the reference altitude, the power full throttle
 makes, and the climb falling to 100 fpm at the service ceiling."""
 import math
 
 import pytest
 
-from vfr import performance
+from wingtip import performance
 
 C172 = {"service_ceiling_ft": 13500.0, "climb_rate_fpm_sea_level": 730.0, "cruise_tas_kt": 110.0,
         "fuel_burn_gph": 8.5, "cruise_power_pct": 65.0, "climb_tas_kt": 74.0}

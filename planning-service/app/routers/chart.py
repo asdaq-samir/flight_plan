@@ -4,7 +4,7 @@ Overpass, the FAA subscription or the elevation service."""
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
-from vfr import chartlabels, charts, chartvision, geo
+from wingtip import chartlabels, charts, chartvision, geo
 
 from .. import chart_model
 from ..chart_model import TRAINING_HALF_WIDTH_NM
@@ -57,7 +57,7 @@ def chart_tile(kind: str, z: int, x: int, y: int) -> Response:
     map's layers draw from.
 
     The FAA's own GeoTIFF of each sheet, rendered into a {z}/{x}/{y} tile
-    pyramid (vfr.charts -- downloaded once per 56-day chart cycle) and
+    pyramid (wingtip.charts -- downloaded once per 56-day chart cycle) and
     cached on disk; the same tiles the detector reads. A tile pyramid is
     what makes each chart a plain Leaflet tile layer: edge-only fetches
     on a pan, the previous zoom's tiles scaled under the zoom animation,

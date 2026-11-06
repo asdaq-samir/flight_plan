@@ -7,7 +7,7 @@
 # and crewai-agent/requirements.txt were the two unpinned service
 # requirements files in the repo, with no lockfile behind either, so a
 # plain rebuild could silently pull a newer langgraph/anthropic/mcp
-# between one build and the next. Pinned to what python:3.13-slim
+# between one build and the next. Pinned to what python:3.14-slim
 # currently resolves.
 langgraph==1.2.14
 anthropic==1.11.0
@@ -15,7 +15,7 @@ mcp==2.3.0
 psycopg[binary]==3.3.6
 pgvector==0.5.0
 sentence-transformers==6.1.0
-requests==2.34.2   # vfr.planner_client -- the nav log comes from planning-service's /api/plan
+requests==2.34.2   # wingtip.planner_client -- the nav log comes from planning-service's /api/plan
 # Nothing else from vfr: planner_client is the only vfr module this agent
 # imports, and it needs requests alone. The geometry, raster and FAA data
-# dependencies vfr's other modules need stay in the images that run them.
+# dependencies wingtip's other modules need stay in the images that run them.

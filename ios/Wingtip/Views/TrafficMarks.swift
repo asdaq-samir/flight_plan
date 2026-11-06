@@ -8,11 +8,17 @@ final class TrafficAnnotation: NSObject, MKAnnotation {
     @objc dynamic var coordinate: CLLocationCoordinate2D
     var plane: TrafficAircraft
     var ownFt: Double?
+    /// Its mark as the engine drew it for the whole answer at once
+    /// (Traffic.marks, ChartMap's show): the view reads it, where each
+    /// view asked the engine for its one airplane and a screen of traffic
+    /// was a screen of calls (Session2's profile, 2026-11-03).
+    var drawn: Traffic.Mark?
 
-    init(_ plane: TrafficAircraft, ownFt: Double?) {
+    init(_ plane: TrafficAircraft, ownFt: Double?, drawn: Traffic.Mark? = nil) {
         hex = plane.hex
         self.plane = plane
         self.ownFt = ownFt
+        self.drawn = drawn
         coordinate = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
     }
 
@@ -42,16 +48,22 @@ final class TrafficMarkView: MKAnnotationView {
         // A tap opens its card (FlightMapLayer), not a callout.
         canShowCallout = false
         displayPriority = .defaultHigh
+        isAccessibilityElement = true
+        accessibilityTraits = .button
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
     func show(_ mark: TrafficAnnotation) {
-        let near = Traffic.near(mark.plane, ownFt: mark.ownFt)
-        chevron.tintColor = near ? NightPalette.trafficNear : NightPalette.trafficFar
+        let drawn = mark.drawn
+        chevron.tintColor = drawn?.near == true ? NightPalette.trafficNear : NightPalette.trafficFar
         chevron.transform = CGAffineTransform(rotationAngle: CGFloat((mark.plane.trackDeg ?? 0) * .pi / 180))
-        label.text = Traffic.label(mark.plane, ownFt: mark.ownFt)
-        accessibilityLabel = "\(mark.title ?? "Airplane"), \(label.text ?? "")"
+        label.text = drawn?.label ?? ""
+        // Its height against own ship in words, and "near" said where the
+        // amber alone says it on the screen.
+        let height = mark.plane.altitudeFt.map { ", \(SpokenFigures.feet($0))" } ?? ""
+        let against = mark.ownFt.flatMap { own in mark.plane.altitudeFt.map { ", " + FlightWords.against($0 - own) } } ?? ""
+        accessibilityLabel = "\(mark.title ?? "Airplane")\(height)\(against)\(drawn?.near == true ? ", near" : "")"
     }
 }

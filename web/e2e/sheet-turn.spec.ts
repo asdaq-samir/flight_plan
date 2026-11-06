@@ -2,12 +2,12 @@ import { test, expect, type Page } from "@playwright/test";
 import { settle, sideDrawer } from "./helpers";
 
 /**
- * A phone's sheet turning from the pill into the sheet and back keeps
- * what it shows where it was, frame by frame, as the other session's
- * frames found it did not (2026-10-15): the tabs ten points lower the
- * moment the pill turned, and back up once it had come down; with a
- * route, the pill's figures out of sight under the sheet's foot from the
- * turn until the sheet was most of the way up.
+ * A phone's sheet going from the pill to half way and back keeps what it
+ * shows where it was, frame by frame: the tabs in their one place under
+ * the grabber (the sheet is one shape at every size since the rewrite of
+ * 2026-11-04), and with a route the figures at the sheet's visible foot
+ * the whole way, where they were once out of sight under it from the
+ * turn until the sheet was most of the way up (2026-10-15).
  */
 
 type Frame = { height: number; bar: { top: number } | null; figures: { top: number; bottom: number } | null };
@@ -20,13 +20,12 @@ async function frames(page: Page, move: () => Promise<void>): Promise<Frame[]> {
     w.__frames = [];
     const t0 = performance.now();
     const tick = () => {
-      // The sheet as it shows on the screen: on a phone it is moved by
-      // transforms and cut to its height at its foot (MapPanel's
-      // useSheetMotion), its box laid out as tall as the larger end.
+      // The sheet as it shows on the screen: on a phone it is laid out as
+      // tall as the larger end and moved by a translate (MapPanel), what
+      // is past the screen's edge out of sight.
       const sheet = document.querySelector<HTMLElement>("[data-slot=map-panel]")!;
       const box = sheet.getBoundingClientRect();
-      const cut = /^inset\(\S+ \S+ (-?[\d.]+)px/.exec(getComputedStyle(sheet).clipPath);
-      const foot = Math.min(box.bottom - (cut ? Math.max(0, Number(cut[1])) : 0), window.innerHeight);
+      const foot = Math.min(box.bottom, window.innerHeight);
       const panel = { top: box.top, height: foot - box.top };
       const at = (selector: string) => {
         const r = document.querySelector(`[data-slot=map-panel] ${selector}`)?.getBoundingClientRect();

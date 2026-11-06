@@ -29,7 +29,7 @@ struct AirspaceCard: View {
                     }
                 }
                 // The point into the route, named off its nearest fix
-                // (vfr.fixes.frd_near), as Maps' dropped pin offers its
+                // (wingtip.fixes.frd_near), as Maps' dropped pin offers its
                 // directions.
                 // Added where it bends the route least, flown to direct from
                 // where the airplane is, or held at (the web app's
@@ -64,6 +64,9 @@ struct AirspaceCard: View {
                     }
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    // Four actions across, as the airport card's: they stop
+                    // growing at the second accessibility size.
+                    .dynamicTypeSize(...DynamicTypeSize.accessibility2)
                 }
             }
             if let here {
@@ -124,10 +127,18 @@ struct AirspaceCard: View {
         .task(id: "\(lat),\(lon)") { await load() }
     }
 
+    /// The planner's answer; with no connection, the engine's from the
+    /// cycle packs kept on the phone (CyclePacks), the same bands but for
+    /// the ground's height, the TFRs and the fix the point is named off,
+    /// which only the planner has.
     private func load() async {
         problem = nil
         do { here = try await Planner.airspaceAt(lat: lat, lon: lon) } catch {
-            problem = "The planner could not read the airspace here. Try again in a moment."
+            if let kept = CyclePacks.shared.airspaceAt(lat: lat, lon: lon) {
+                here = kept
+            } else {
+                problem = "The planner could not read the airspace here. Try again in a moment."
+            }
         }
     }
 
@@ -142,6 +153,8 @@ struct AirspaceCard: View {
 struct BandRow: View {
     let band: AirspaceBand
     let ground: Double?
+    /// The class's box grows with its letter, so it is never clipped.
+    @ScaledMetric(relativeTo: .subheadline) private var side = 28.0
 
     /// Solid blue for B, magenta for C, dashed blue for D, dashed
     /// magenta for E, as the sectional draws them.
@@ -177,7 +190,7 @@ struct BandRow: View {
             Text(band.airspaceClass)
                 .font(.subheadline.weight(.bold))
                 .foregroundStyle(ink.solid ? Color.white : ink.colour)
-                .frame(width: 28, height: 28)
+                .frame(width: side, height: side)
                 .background(ink.solid ? ink.colour : Color.clear, in: RoundedRectangle(cornerRadius: 6))
                 .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(ink.colour, style: StrokeStyle(lineWidth: 2, dash: ink.dashed ? [3, 2] : [])))
                 .accessibilityHidden(true)
@@ -191,5 +204,32 @@ struct BandRow: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// 14 CFR 91.155's minimums as the planner sends them: Class G under
+/// 1,200 ft AGL by day 1 sm clear of clouds, at night 3 sm and
+/// 500/1,000/2,000 ft; Classes D and E below 10,000 ft MSL 3 sm and
+/// 500/1,000/2,000 ft, day and night.
+private enum PreviewData {
+    static let basic = VfrMinimums(visibilitySm: 3, clearOfClouds: false, belowFt: 500, aboveFt: 1000, horizontalFt: 2000)
+    static let controlled = DayNightMinimums(day: basic, night: basic)
+    static let ground = 1428.0
+}
+
+#Preview("BandRow") {
+    List {
+        BandRow(band: AirspaceBand(airspaceClass: "G", floorFt: PreviewData.ground, ceilingFt: 2628, entry: "Nothing.",
+                                   minimums: DayNightMinimums(day: VfrMinimums(visibilitySm: 1, clearOfClouds: true), night: PreviewData.basic)),
+                ground: PreviewData.ground)
+        // 91.117(b): 200 kt in Class D at or below 2,500 ft AGL within 4 nm of the field.
+        BandRow(band: AirspaceBand(airspaceClass: "D", floorFt: PreviewData.ground, ceilingFt: 3900,
+                                   entry: "Two-way radio contact with the tower before entering (91.129).", name: "DULUTH CLASS D",
+                                   equipment: "A two-way radio.", speedKt: 200, minimums: PreviewData.controlled),
+                ground: PreviewData.ground)
+        // 91.117(a): 250 kt below 10,000 ft MSL.
+        BandRow(band: AirspaceBand(airspaceClass: "E", floorFt: 3900, ceilingFt: 18000, entry: "Nothing for VFR.", name: "DULUTH CLASS E",
+                                   speedKt: 250, minimums: PreviewData.controlled),
+                ground: PreviewData.ground)
     }
 }

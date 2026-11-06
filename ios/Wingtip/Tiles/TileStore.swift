@@ -4,6 +4,9 @@ import Foundation
 /// looked at is there in the air with no connection -- what the web app's
 /// service worker keeps (vite.config's chart-tiles cache). Under Caches:
 /// iOS may clear it when space is short, and the next look fetches again.
+/// The disk holds the pyramid's own 256-pixel tiles; the tiles the map
+/// draws are composed of them (ChartTileOverlay) and kept in memory
+/// (TileCache).
 final class TileStore: Sendable {
     static let shared = TileStore()
 
@@ -44,5 +47,38 @@ final class TileStore: Sendable {
         for edition in editions where edition.lastPathComponent != cycle {
             try? FileManager.default.removeItem(at: edition)
         }
+    }
+}
+
+/// The composed 512-point tiles the map has drawn, in memory, so a tile
+/// scrolled back into view is handed over again rather than read from
+/// disk, decoded and composed again: the first level of the three
+/// (memory, the disk store, the network). An NSCache: it is safe from any
+/// thread and iOS trims it under memory pressure, which is why it holds
+/// the PNG bytes and not decoded images. Up to about 64 MB, some 700
+/// tiles at a typical 90 KB: a few screens at every zoom a flight uses.
+final class TileCache: @unchecked Sendable {
+    static let shared = TileCache()
+
+    private let cache = NSCache<NSString, NSData>()
+
+    init(bytes: Int = 64 * 1024 * 1024) {
+        cache.totalCostLimit = bytes
+    }
+
+    static func key(cycle: String, kind: String, z: Int, x: Int, y: Int) -> String {
+        "\(cycle)/\(kind)/\(z)/\(x)/\(y)@\(ChartTileOverlay.side)"
+    }
+
+    func read(_ key: String) -> Data? {
+        cache.object(forKey: key as NSString) as Data?
+    }
+
+    func write(_ data: Data, for key: String) {
+        cache.setObject(data as NSData, forKey: key as NSString, cost: data.count)
+    }
+
+    func removeAll() {
+        cache.removeAllObjects()
     }
 }

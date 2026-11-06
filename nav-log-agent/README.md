@@ -83,7 +83,7 @@ state. Everything below is about giving it those two things.
 1. **One model call** (above). Learn the message shape and that the
    answer is confident and partly invented, because it has no data.
 
-2. **Give it real data.** Call `vfr.navlog` yourself, put the numbers in
+2. **Give it real data.** Call `wingtip.navlog` yourself, put the numbers in
    the prompt, and ask for prose about *those*. The hallucinations stop.
    This is retrieval in its crudest form and is often enough.
 
@@ -122,11 +122,11 @@ fetch_nav_log → retrieve_memory → generate_briefing → store_memory
 ```
 
 Only `generate_briefing` calls Claude. `fetch_nav_log` is one call to
-planning-service's `/api/plan` through `vfr.planner_client`; the rest is
+planning-service's `/api/plan` through `wingtip.planner_client`; the rest is
 Postgres.
 
 It used to be seven nodes, the first four assembling the nav log from
-`vfr`'s pieces. That nav log was not the pilot's: legs between the
+`wingtip`'s pieces. That nav log was not the pilot's: legs between the
 checkpoints alone (20 where the planner flew 22, none to or from the
 airports), one altitude for the whole route, no climbs, no fuel check.
 Asking the planner for its own is what keeps the two from drifting
@@ -145,8 +145,8 @@ runs all four nodes and returns the finished text.
 | `app/graph.py` | The state machine and its nodes. |
 | `app/mcp_server.py` | MCP wrapper, so other clients can call it, and the `/compare` route Plan's briefing streams from. |
 | `app/db.py` | Postgres + pgvector access. |
-| `vfr.planner_client` (in `src/`) | The nav log, from planning-service -- shared with crewai-agent. With `vfr.narrative`, the only `vfr` modules this image imports, so it installs none of `vfr`'s geometry, raster or FAA data dependencies. |
-| `vfr.narrative` (in `src/`) | The `/compare` request model and the briefing prompt, shared word for word with crewai-agent. |
+| `wingtip.planner_client` (in `src/`) | The nav log, from planning-service -- shared with crewai-agent. With `wingtip.narrative`, the only `wingtip` modules this image imports, so it installs none of `wingtip`'s geometry, raster or FAA data dependencies. |
+| `wingtip.narrative` (in `src/`) | The `/compare` request model and the briefing prompt, shared word for word with crewai-agent. |
 | `app/migrations.py` + `migrations/` | Its own schema, applied at startup. |
 
 ## Things that are not obvious

@@ -1,6 +1,7 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "cn";
-import { COURSE_MAGENTA, WAYPOINT_MAGENTA } from "../../../../lib/map/chartColors";
+import { useInkLook } from "../../../../lib/brand";
+import { WAYPOINT_MAGENTA, checkpointColour } from "../../../../lib/map/chartColors";
 import { colourOf } from "../../../../lib/map/flightCategory";
 import { AIRPORT_MARK, airportMarkSvg } from "../../../../lib/map/airportMark";
 import type { AirspaceClass } from "../../../../lib/preferences";
@@ -29,8 +30,11 @@ export function PointMark({ row, number, weather, airportSize = AIRPORT_MARK }: 
   /** An airport's weather colour, as its chip on the map. */
   weather: (ident: string) => string | undefined;
 }) {
+  // The checkpoint's dot in its score's colour, or the Chart ink look's
+  // brown, as the map draws it (chartColors' checkpointColour).
+  const ink = useInkLook();
   if (row.kind === "checkpoint") {
-    const fill = scoreColor(row.cp.predicted_score);
+    const fill = checkpointColour(scoreColor(row.cp.predicted_score), ink);
     return (
       <span
         aria-hidden="true" data-mark="checkpoint"
@@ -43,11 +47,12 @@ export function PointMark({ row, number, weather, airportSize = AIRPORT_MARK }: 
   }
   if (row.kind === "toc" || row.kind === "tod") {
     const Arrow = row.kind === "toc" ? TrendingUp : TrendingDown;
+    // Its edge the course's magenta (index.css --course), the Chart ink
+    // look's own in it.
     return (
       <span
         aria-hidden="true" data-mark={row.kind}
-        className="grid size-6 shrink-0 place-items-center rounded-[5px] border-[1.5px] bg-white text-[#1c1a17]"
-        style={{ borderColor: COURSE_MAGENTA }}
+        className="grid size-6 shrink-0 place-items-center rounded-[5px] border-[1.5px] border-course bg-white text-[#1c1a17]"
       >
         <Arrow className="size-4" strokeWidth={2.5} />
       </span>

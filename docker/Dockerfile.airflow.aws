@@ -4,18 +4,45 @@
 # because that one runs DockerOperator sibling containers over the host's
 # Docker socket, which Fargate does not have. This image bakes in only the
 # AWS-mode DAG (vfr_pipeline_aws_dag.py, which launches SageMaker Jobs
-# instead of sibling containers) and the src/vfr package it imports --
+# instead of sibling containers) and the src/wingtip package it imports --
 # under /opt/project, not /opt/airflow: the task mounts its EFS home at
 # /opt/airflow (AirflowTaskDefinition), which would hide anything baked
 # beneath it.
-FROM apache/airflow:3.3.2-python3.13
+# >>> wingtip-native: the same in every image that imports wingtip, kept so by
+# tests/test_dockerfiles.py against docker/Dockerfile.native. wingtip's Rust
+# extension (native/py, over wingtip-engine in native/engine), which wingtip
+# imports at module level since the shared engine (2026-11-03): built
+# here, with Rust copied in from its own image, so the image carries the
+# wheel and none of the toolchain. The stage is the same text in each
+# Dockerfile so that BuildKit's cache key is the same: one bake of every
+# image compiles it once, and a commit that leaves native/ alone takes
+# it from the registry's cache.
+FROM python:3.14-slim AS native
+COPY --from=rust:1.89-slim-bookworm /usr/local/cargo /usr/local/cargo
+COPY --from=rust:1.89-slim-bookworm /usr/local/rustup /usr/local/rustup
+ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev
+RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
+COPY native /native
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
+# <<< wingtip-native
+
+FROM apache/airflow:3.3.2-python3.14
 
 # Constraints URL pinned in Dockerfile.airflow too -- keep both in sync
 # with the FROM tag's own version (see that file's own comment).
 RUN --mount=type=cache,target=/root/.cache/pip,uid=50000,gid=0 pip install \
     "apache-airflow-providers-amazon" \
     "apache-airflow-providers-standard" \
-    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.13.txt"
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-3.3.1/constraints-3.14.txt"
+# The engine's wheel from the native stage above, mounted rather than
+# copied, so no layer keeps it.
+RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
+    pip install --no-cache-dir --no-deps /tmp/wheels/*.whl
 
 ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
 ENV AIRFLOW__CORE__LOAD_EXAMPLES=false
@@ -26,4 +53,4 @@ COPY src /opt/project/src
 # The build fails if the provider or the registry evaluate and promote
 # run in-process cannot be imported. (The DAG itself reads an Airflow
 # Variable as it loads, which a build has no database for.)
-RUN python -B -c "import vfr.model_registry, airflow.providers.amazon.aws.operators.sagemaker"
+RUN python -B -c "import wingtip_native, wingtip.model_registry, airflow.providers.amazon.aws.operators.sagemaker"

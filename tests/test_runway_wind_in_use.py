@@ -1,7 +1,7 @@
-"""vfr.runway_wind.runway_in_use, the planner's runway into the wind for a
+"""wingtip.runway_wind.runway_in_use, the planner's runway into the wind for a
 first plan: the same examples as the web's windPick tests (lib/
 windPick.test.ts), which the page's own pick goes by."""
-from vfr.runway_wind import runway_in_use
+from wingtip.runway_wind import runway_in_use
 
 
 def runway(ends, length_ft, wind=None, surface="ASP"):
@@ -36,7 +36,7 @@ def test_no_report_or_a_variable_wind_picks_none_and_the_page_goes_by_a_nearby_o
 
 
 def test_a_forecasts_wind_by_every_open_end_the_report_set_aside():
-    from vfr.runway_wind import wind_pick
+    from wingtip.runway_wind import wind_pick
     # KDLH reports 21 favoured now; its TAF says 090° at 12 for the arrival.
     kdlh = [runway([("03", 31), ("21", 211)], 5719, {"end": "21", "headwind_kt": 7, "crosswind_kt": -1}),
             runway([("09", 91), ("27", 271)], 10591, {"end": "27", "headwind_kt": 2, "crosswind_kt": -7})]

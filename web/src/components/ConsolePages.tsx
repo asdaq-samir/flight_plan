@@ -4,6 +4,7 @@ import { TEXT } from "../lib/text";
 import { ListRow } from "./GroupedList";
 import { PagesShown } from "./pagesShown";
 import { holdOpenCard } from "../lib/openCards";
+import { useWantedPage } from "./wantedPage";
 import CloseButton from "./CloseButton";
 
 /** The way to open one of a tab's pages, and the page back came from. */
@@ -53,6 +54,27 @@ export function ConsolePages({ back, pages, children }: {
     top.current?.closest(".overflow-y-auto")?.scrollTo({ top: 0 });
     title.current?.focus({ preventScroll: true });
   }, [open]);
+  // A page asked for from outside (useWantedPage: the strip's field, its
+  // profile menu, the Debrief card): opened as it is asked, or as this
+  // mounts with it waiting, or as its page comes (Flights' list still
+  // fetching), where it is one of these pages -- in the render, as the
+  // tab's put-away is (below) -- and the ask's key then let go of for
+  // the pages inside it, in an effect, as an outside store is set. By
+  // the keys alone: the pages are made anew each render.
+  const wanted = useWantedPage(s => s.path[0] ?? null);
+  const known = Object.keys(pages).join(" ");
+  const [seen, setSeen] = useState<{ wanted: string | null; known: string }>({ wanted: null, known: "" });
+  if (seen.wanted !== wanted || seen.known !== known) {
+    setSeen({ wanted, known });
+    if (wanted && known.split(" ").includes(wanted)) {
+      setFrom(wanted);
+      setOpen(wanted);
+    }
+  }
+  useEffect(() => {
+    const { path, took } = useWantedPage.getState();
+    if (seen.wanted && path[0] === seen.wanted && seen.known.split(" ").includes(seen.wanted)) took();
+  }, [seen]);
   // Back to the list as the tab holding it is put away (PagesShown).
   const shown = useContext(PagesShown);
   const [wasShown, setWasShown] = useState(shown);

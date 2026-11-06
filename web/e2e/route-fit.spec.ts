@@ -200,18 +200,15 @@ async function countAsks(page: Page) {
   return () => page.evaluate(() => (window as unknown as { __asks: number }).__asks);
 }
 
-test("opened fresh with no position to have, the map stays on the country, nothing is asked as it opens and nothing complains; the location arrow asks", async ({ page }) => {
+test("opened fresh on a first visit, the position is asked for as the page opens, and nothing complains", async ({ page }) => {
   const asks = await countAsks(page);
   await page.goto("/app/plan");
   await settle(page);
-  await expect(page.getByTestId("my-position-button")).toHaveAttribute("aria-pressed", "false", { timeout: slow(10_000) });
+  // The map opens on the pilot's position by default (ownShip's
+  // locateOnOpen, the owner's ask, 2026-11-04), so a first visit is asked
+  // as it opens; a refusal leaves no error over the map.
+  await expect.poll(asks, { timeout: slow(10_000) }).toBe(1);
   await expect(page.getByTestId("error-alert")).toHaveCount(0);
-  // A first visit is asked nothing as the page opens (ownShip's
-  // locateOnOpen): Apple's guidelines ask for location when it is needed,
-  // and Lighthouse marks a prompt on load.
-  expect(await asks()).toBe(0);
-  await page.locator("[data-map-controls]").getByTestId("my-position-button").click();
-  await expect.poll(asks).toBe(1);
 });
 
 test("opened on the whole country, land and water lie under the charts where they end, not the page's grey", async ({ page }) => {
@@ -275,14 +272,23 @@ test("a route entered is fitted above the half sheet, to the whole screen at the
   await fittedClearOf(page, sideDrawer(page));
 });
 
-test("a route the pilot has moved is fitted again as the sheet goes up and down while any of it is in sight, and left alone once it is not", async ({ page }) => {
+test("a route the pilot has moved is slid with a phone's sheet as it goes up and down, fitted again beside a wider screen's card while any of it is in sight, and left alone once it is not", async ({ page }) => {
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   await fittedClearOf(page, sideDrawer(page));
-  // Moved, the route part off the screen: fitted again.
+  // Moved, the route part off the screen: on a phone slid with the sheet,
+  // never fitted again at a turn (the owner, 2026-11-04: a fit redrew the
+  // route and the airspace while the sheet moved); beside a card, fitted.
   await drag(page, 120, 80);
-  await openPanel(page);
-  await fittedClearOf(page, sideDrawer(page));
+  if (page.viewportSize()!.width < 768) {
+    const moved = await paneAndSheet(page);
+    await openPanel(page);
+    await settled(sideDrawer(page));
+    await slidWithSheet(page, moved);
+  } else {
+    await openPanel(page);
+    await fittedClearOf(page, sideDrawer(page));
+  }
 
   // Panned right off it: not fitted again, slid with the sheet on a phone.
   await closeSidebarWithTheStockKey(page);

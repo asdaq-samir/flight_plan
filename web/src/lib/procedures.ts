@@ -1,4 +1,5 @@
 import type { ProcedureFix, ProcedureList } from "./api/types";
+import { callEngine } from "./engine/engine";
 import { altFt } from "./units";
 
 /** An instrument procedure picked at a field of the route (the route's
@@ -11,7 +12,7 @@ export interface PickedProcedure {
   transition: string | null;
   /** A fix of it ATC sent the airplane direct to, at the owner's ask ("the
    *  ability to go direct to a fix as told by ATC"): the procedure flown
-   *  from there (vfr.procedure_paths). */
+   *  from there (wingtip.procedure_paths). */
   direct?: string | null;
 }
 
@@ -48,11 +49,16 @@ export function approachRunway(name: string): string | null {
  *  ("pattern=KDLH:27"). What is not one is left out. */
 export function proceduresOf(param: string | null): PickedProcedure[] {
   if (!param) return [];
-  return param.split(",").flatMap(part => {
-    const [ident, id, transition, direct] = part.split(":").map(s => s.trim().toUpperCase());
-    if (!(ident && id && /^[A-Z0-9]{2,5}$/.test(ident) && /^[A-Z0-9-]{1,6}$/.test(id))) return [];
-    const picked: PickedProcedure = { ident, id, transition: transition && /^[A-Z0-9]{1,5}$/.test(transition) ? transition : null };
-    return [direct && /^[A-Z0-9]{2,5}$/.test(direct) ? { ...picked, direct } : picked];
+  // The shared engine's reading (crate::route::picks), the one the
+  // planner's PlanQuery.procedure_picks asks too: the planner refuses a
+  // piece that is not exactly one, the address leaves it out.
+  const read = callEngine<{ pick: { ident: string; id: string; transition: string | null; direct: string | null } | null }[]>(
+    "procedures_read", { text: param },
+  );
+  return read.flatMap(({ pick }) => {
+    if (!pick) return [];
+    const { direct, ...picked } = pick;
+    return [direct ? { ...picked, direct } : picked];
   });
 }
 
@@ -97,13 +103,12 @@ export async function typedProcedure(
  *  come with a space round it. The one test for the app, which the
  *  traffic's (fbo) had a second of. */
 export function sameField(a: string, b: string): boolean {
-  const bare = (ident: string) => ident.trim().toUpperCase().replace(/^K(?=[A-Z0-9]{3}$)/, "");
-  return bare(a) === bare(b);
+  return callEngine<boolean>("same_field", { a, b });
 }
 
 /** The procedures picked, for the address. */
 export function proceduresParam(picks: PickedProcedure[]): string {
-  return picks.map(p => [p.ident, p.id, ...(p.direct ? [p.transition ?? "", p.direct] : p.transition ? [p.transition] : [])].join(":")).join(",");
+  return callEngine<string>("procedures_write", { picks });
 }
 
 /** One line of a fix's altitudes as an approach chart sets it (the FAA's
@@ -119,19 +124,20 @@ export interface AltitudeLine {
  *  above, at or below, or at; between two, the higher over the lower --
  *  and in words, for a screen reader. */
 export function altitudeLines(fix: Pick<ProcedureFix, "min_ft" | "max_ft">): { lines: AltitudeLine[]; words: string | null } {
+  // Which lines and how each is set are the engine's (crate::route::picks);
+  // the figures' print and the words are the page's.
+  const set = callEngine<{ crossing: "at" | "between" | "at_or_above" | "at_or_below" | null; lines: { ft: number; under: boolean; over: boolean }[] }>(
+    "altitude_lines", { min_ft: fix.min_ft ?? null, max_ft: fix.max_ft ?? null },
+  );
+  const lines = set.lines.map(({ ft, under, over }) => ({ text: altFt(ft), under, over }));
   const { min_ft: low, max_ft: high } = fix;
-  if (low != null && high != null && low === high) {
-    return { lines: [{ text: altFt(low), under: true, over: true }], words: `at ${altFt(low)} ft` };
-  }
-  if (low != null && high != null) {
-    return {
-      lines: [{ text: altFt(high), under: false, over: true }, { text: altFt(low), under: true, over: false }],
-      words: `between ${altFt(low)} and ${altFt(high)} ft`,
-    };
-  }
-  if (low != null) return { lines: [{ text: altFt(low), under: true, over: false }], words: `at or above ${altFt(low)} ft` };
-  if (high != null) return { lines: [{ text: altFt(high), under: false, over: true }], words: `at or below ${altFt(high)} ft` };
-  return { lines: [], words: null };
+  const words = {
+    at: () => `at ${altFt(low!)} ft`,
+    between: () => `between ${altFt(low!)} and ${altFt(high!)} ft`,
+    at_or_above: () => `at or above ${altFt(low!)} ft`,
+    at_or_below: () => `at or below ${altFt(high!)} ft`,
+  };
+  return { lines, words: set.crossing ? words[set.crossing]() : null };
 }
 
 /** A crossing altitude's line as CSS's text-decoration: underlined for at

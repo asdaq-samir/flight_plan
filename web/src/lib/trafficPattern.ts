@@ -21,16 +21,21 @@
  *
  * A sketch of the pattern to fly by, not a procedure: the size of a
  * pattern is the pilot's, flown as the field and its traffic need.
+ *
+ * Drawn by the shared engine (native/engine/src/runway/circuit.rs,
+ * through lib/engine), from the very corners the planner flies the
+ * pattern by (wingtip.pattern) and the phones draw it from: the legs and
+ * their sources live there. Only the shapes the map reads are made here.
  */
 import type { Runway } from "./api/types";
-import { FT_PER_NM, bearingDeg, destination, distanceNm, normalizeDeg, signedTurn, type LatLon } from "./geo";
-import { patternSideDeg, runwayNumber, type RunwayEnd } from "./pattern";
+import { callEngine } from "./engine/engine";
+import type { LatLon } from "./geo";
+import { isFixIdent } from "./identSchema";
 
 /** Three-quarters of a statute mile, in nautical miles: the middle of the
- *  handbook's half a mile to a mile for the downwind's distance out. */
+ *  handbook's half a mile to a mile for the downwind's distance out (the
+ *  engine's DOWNWIND_NM, named here for the pages). */
 export const DOWNWIND_NM = 0.75 * 0.868976;
-/** How far out the 45° entry is drawn from where it joins the downwind. */
-const ENTRY_NM = 1.2;
 
 export type LegName = "Upwind" | "Crosswind" | "Downwind" | "Base" | "Final";
 
@@ -52,9 +57,22 @@ export interface TrafficPattern {
   entry: { from: LatLon; to: LatLon; name: string };
 }
 
-/** A runway end's threshold, where the FAA or OurAirports has it. */
-const at = (end: RunwayEnd | undefined): LatLon | null =>
-  end && end.lat != null && end.lon != null ? { lat: end.lat, lon: end.lon } : null;
+/** A pattern as the engine draws it. */
+interface Drawn {
+  kind: "arrival" | "departure";
+  ident: string;
+  runway: string;
+  traffic: "left" | "right";
+  altitude_ft: number | null;
+  legs: { name: LegName; from: LatLon; to: LatLon }[];
+  entry: { from: LatLon; to: LatLon; name: string };
+}
+
+const drawn = (d: Drawn | null): TrafficPattern | null =>
+  d && { kind: d.kind, ident: d.ident, runway: d.runway, traffic: d.traffic, altitudeFt: d.altitude_ft, legs: d.legs, entry: d.entry };
+
+/** The runway as the engine reads it: its length and its ends. */
+const runwayOf = (runway: Runway) => ({ length_ft: runway.length_ft ?? null, runway_ends: runway.runway_ends ?? [] });
 
 /**
  * The pattern for landing on `endIdent` of `runway`, or null where its
@@ -62,27 +80,7 @@ const at = (end: RunwayEnd | undefined): LatLon | null =>
  * the runway's length where it alone is missing).
  */
 export function trafficPattern(ident: string, runway: Runway, endIdent: string, altitudeFt: number | null): TrafficPattern | null {
-  const c = corners(runway, endIdent);
-  if (!c) return null;
-  const { threshold, far, along, side, finalStart, upwindEnd, end } = c;
-  const crosswindEnd = destination(upwindEnd, side, DOWNWIND_NM);
-  const downwindEnd = destination(finalStart, side, DOWNWIND_NM);
-  const midfield = destination(destination(threshold, along, distanceNm(threshold, far) / 2), side, DOWNWIND_NM);
-  // From out on the pattern's side, behind the downwind's direction: the
-  // bisector of the landing direction and the pattern's side.
-  const turn = signedTurn(along, side);
-  const entryFrom = destination(midfield, normalizeDeg(along + turn / 2), ENTRY_NM);
-  return {
-    kind: "arrival", ident, runway: runwayNumber(end.ident), traffic: end.traffic, altitudeFt,
-    legs: [
-      { name: "Upwind", from: far, to: upwindEnd },
-      { name: "Crosswind", from: upwindEnd, to: crosswindEnd },
-      { name: "Downwind", from: crosswindEnd, to: downwindEnd },
-      { name: "Base", from: downwindEnd, to: finalStart },
-      { name: "Final", from: finalStart, to: threshold },
-    ],
-    entry: { from: entryFrom, to: midfield, name: "45° entry" },
-  };
+  return drawn(callEngine<Drawn | null>("traffic_pattern", { ident, runway: runwayOf(runway), end_ident: endIdent, altitude_ft: altitudeFt }));
 }
 
 /**
@@ -91,49 +89,14 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
  * its end, then out of the pattern straight on or with a 45° turn to the
  * pattern's side -- the two AIM 4-3-3 gives -- whichever is the nearer the
  * way on to `toward`, the flight's next field. The planner flies the same
- * (vfr.pattern.departure_circuit). It drew the landing's whole pattern and
+ * (wingtip.pattern.departure_circuit). It drew the landing's whole pattern and
  * its 45° entry at the field left from (the owner, 2026-10-27: "why is c81
  * also drawing a visual pattern?").
  */
 export function departurePattern(ident: string, runway: Runway, endIdent: string, altitudeFt: number | null, toward: LatLon | null): TrafficPattern | null {
-  const c = corners(runway, endIdent);
-  if (!c) return null;
-  const { threshold, along, side, upwindEnd, end } = c;
-  const turned = normalizeDeg(along + signedTurn(along, side) / 2);
-  const on = toward ? bearingDeg(upwindEnd, toward) : along;
-  const straight = Math.abs(signedTurn(along, on)) <= Math.abs(signedTurn(turned, on));
-  return {
-    kind: "departure", ident, runway: runwayNumber(end.ident), traffic: end.traffic, altitudeFt,
-    legs: [{ name: "Upwind", from: threshold, to: upwindEnd }],
-    entry: { from: upwindEnd, to: destination(upwindEnd, straight ? along : turned, ENTRY_NM), name: straight ? "Straight out" : "45° departure" },
-  };
-}
-
-/** The pattern's corners for `endIdent`: its threshold, the far end, the
- *  direction along the runway and the pattern's side, the final's start
- *  and the upwind's end. Null where its threshold or heading is not known
- *  (the other end's place is taken from the runway's length where it
- *  alone is missing). */
-function corners(runway: Runway, endIdent: string) {
-  const ends = runway.runway_ends ?? [];
-  const end = ends.find(e => e.ident === endIdent);
-  const threshold = at(end);
-  if (!end || !threshold || end.heading_true_deg == null) return null;
-  const other = ends.find(e => e !== end);
-  const heading = end.heading_true_deg;
-  const far = at(other) ?? (runway.length_ft ? destination(threshold, heading, runway.length_ft / FT_PER_NM) : null);
-  if (!far) return null;
-  // Along the runway as it is laid, not its painted heading, where both
-  // ends are known.
-  const along = at(other) ? bearingDeg(threshold, far) : heading;
-  const back = (along + 180) % 360;
-  const side = patternSideDeg({ ...end, heading_true_deg: along });
-  // The corners: the final's start on the extended centre line before the
-  // threshold, the upwind's end past the departure end, and the downwind's
-  // two ends abeam them.
-  const finalStart = destination(threshold, back, DOWNWIND_NM);
-  const upwindEnd = destination(far, along, DOWNWIND_NM);
-  return { threshold, far, along, side, finalStart, upwindEnd, end };
+  return drawn(callEngine<Drawn | null>("departure_pattern", {
+    ident, runway: runwayOf(runway), end_ident: endIdent, altitude_ft: altitudeFt, toward: toward ? { lat: toward.lat, lon: toward.lon } : null,
+  }));
 }
 
 /** The patterns picked, by field, from the address: "KDLH:27,C81:24".
@@ -145,7 +108,7 @@ export function patternsOf(param: string | null): Map<string, string> {
   const picked = new Map<string, string>();
   for (const part of (param ?? "").split(",")) {
     const [ident, end] = part.split(":").map(s => s.trim().toUpperCase());
-    if (ident && end && /^[A-Z0-9]{2,5}$/.test(ident) && /^\d{1,2}[LCR]?$|^[NSEW]{1,2}$/.test(end)) picked.set(ident, end);
+    if (ident && end && isFixIdent(ident) && /^\d{1,2}[LCR]?$|^[NSEW]{1,2}$/.test(end)) picked.set(ident, end);
   }
   return picked;
 }

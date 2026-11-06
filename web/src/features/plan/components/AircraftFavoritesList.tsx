@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import { EditToggle, HomePlane, ListPageHead, Mark, MoveHandle, PlaneMark, RemoveMinus, SortableRow, SortableRows } from "../../../components/Favorites";
+import { EditToggle, HomePlane, ListPageHead, Mark, PLANE_ROW, PlaneMark, RemoveMinus } from "../../../components/Favorites";
+import { MoveHandle, SortableRow, SortableRows } from "../../../components/SortableRows";
+import { keptKind } from "../../../lib/aircraftKind";
 import { planeLink } from "../../../lib/flightLink";
 import { ListGroup, ListRow } from "../../../components/GroupedList";
 import { SwipeToDelete } from "../../../components/SwipeToDelete";
@@ -48,7 +50,7 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
               />
             ) : (
               <ListRow
-                media={<Mark icon={<HomePlane />} className="bg-teal-600 text-white" />} chevron
+                media={<Mark icon={<HomePlane kind={keptKind(mine)} />} className={PLANE_ROW} />} chevron
                 title={name(mine)} description={mine.type ?? undefined} onClick={onChangeMine} data-testid="aircraft-favorites-mine"
               />
             )}
@@ -70,7 +72,7 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
               </ListRow>
             ) : (
               <ListRow
-                media={<PlaneMark small />} chevron
+                media={<PlaneMark small kind={keptKind(a)} />} chevron
                 title={name(a)} description={a.type ?? undefined} onClick={() => onOpen(a.hex)} data-testid="aircraft-favorites-row"
               />
             )}

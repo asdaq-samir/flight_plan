@@ -1,4 +1,5 @@
 import type { ChecklistDto } from "./api/types";
+import { callEngine } from "./engine/engine";
 
 /**
  * An airplane's checklist as the pilot writes it, in plain text: a line
@@ -8,29 +9,16 @@ import type { ChecklistDto } from "./api/types";
  * shows and what it saves (ChecklistDto). An item before any section is
  * in "Checklist". The webapp's limits are the text's: 40 characters a
  * section's title, 80 a challenge or a response.
+ *
+ * Read and written by the shared engine (native/engine/src/pilot/
+ * checklist.rs, through lib/engine), the code the iPhone app reads a
+ * checklist with too: the rule lives there.
  */
 
-const SPLIT = /\s+(?:-{1,2}|–|—|\.{2,})\s+|\s*\.{3,}\s*|\t+/;
-
 export function checklistOf(text: string): ChecklistDto {
-  const sections: ChecklistDto["sections"] = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (line.startsWith("#")) {
-      sections.push({ title: line.replace(/^#+\s*/, "").slice(0, 40) || "Checklist", items: [] });
-      continue;
-    }
-    if (!sections.length) sections.push({ title: "Checklist", items: [] });
-    const [challenge, ...rest] = line.split(SPLIT);
-    const response = rest.join(" ").trim();
-    sections.at(-1)!.items.push({ challenge: challenge!.trim().slice(0, 80), response: response ? response.slice(0, 80) : null });
-  }
-  return { sections: sections.filter(s => s.items.length) };
+  return callEngine<ChecklistDto>("checklist_read", { text });
 }
 
 export function textOf(checklist: ChecklistDto): string {
-  return checklist.sections
-    .map(s => [`# ${s.title}`, ...s.items.map(i => (i.response ? `${i.challenge} -- ${i.response}` : i.challenge))].join("\n"))
-    .join("\n\n");
+  return callEngine<string>("checklist_write", { checklist });
 }

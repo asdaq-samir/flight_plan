@@ -31,6 +31,10 @@ final class PlaneMarkView: MKAnnotationView {
         addSubview(arrow)
         displayPriority = .required
         isEnabled = false
+        // Not a button, but VoiceOver finds it on the map and says which
+        // way it points.
+        isAccessibilityElement = true
+        accessibilityTraits = .image
     }
 
     @available(*, unavailable)
@@ -38,6 +42,7 @@ final class PlaneMarkView: MKAnnotationView {
 
     func turn(to degrees: Double) {
         arrow.transform = CGAffineTransform(rotationAngle: degrees * .pi / 180)
+        accessibilityLabel = "The airplane, heading \(SpokenFigures.degrees(degrees))"
     }
 }
 
@@ -94,6 +99,7 @@ struct ChartMap: UIViewRepresentable {
         map.register(AirportMarkView.self, forAnnotationViewWithReuseIdentifier: AirportMarkView.reuse)
         map.register(CheckpointMarkView.self, forAnnotationViewWithReuseIdentifier: CheckpointMarkView.reuse)
         map.register(TrafficMarkView.self, forAnnotationViewWithReuseIdentifier: TrafficMarkView.reuse)
+        map.register(AirportClusterView.self, forAnnotationViewWithReuseIdentifier: AirportClusterView.reuse)
         context.coordinator.extras.attach(to: map)
         // The chart hides Apple's map; its labels would draw through
         // where a tile is missing, so none are shown at all.
@@ -122,14 +128,16 @@ struct ChartMap: UIViewRepresentable {
         context.coordinator.extras.update(map, extras, tiles: context.coordinator.overlay)
         context.coordinator.setFollowing = { [self] on in following = on }
         context.coordinator.setRouteAway = { [self] away in if routeAway != away { routeAway = away } }
+        // Every move of the map here steps to its end with Reduce Motion
+        // on (MapMotion), as Maps' own do.
         if following, map.userTrackingMode != .follow {
-            map.setUserTrackingMode(.follow, animated: true)
+            map.setUserTrackingMode(.follow, animated: MapMotion.animated)
         } else if !following, map.userTrackingMode != .none {
             map.setUserTrackingMode(.none, animated: false)
         }
         if context.coordinator.fitted != fitRequest, let line = context.coordinator.courseLine {
             context.coordinator.fitted = fitRequest
-            map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
+            map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: MapMotion.animated)
         }
         if let template, context.coordinator.overlay?.template != template {
             if let current = context.coordinator.overlay { map.removeOverlay(current) }
@@ -139,15 +147,27 @@ struct ChartMap: UIViewRepresentable {
         }
         if context.coordinator.checkpointsShown != checkpoints {
             context.coordinator.checkpointsShown = checkpoints
-            map.removeAnnotations(context.coordinator.checkpointMarks)
-            context.coordinator.checkpointMarks = checkpoints.enumerated().map { CheckpointAnnotation(number: $0.offset + 1, checkpoint: $0.element) }
-            map.addAnnotations(context.coordinator.checkpointMarks)
+            context.coordinator.showCheckpoints(checkpoints, on: map)
         }
-        if context.coordinator.proceduresShown.count != procedurePaths.count || zip(context.coordinator.proceduresShown, procedurePaths).contains(where: { $0.count != $1.count }) {
+        if !context.coordinator.proceduresShown.elementsEqual(procedurePaths, by: Self.samePath) {
+            // Each path kept as it is while its points are the same; a new
+            // or changed one drawn, a gone one taken off: every change to
+            // the plan redrew every procedure line before.
             context.coordinator.proceduresShown = procedurePaths
-            map.removeOverlays(context.coordinator.procedureLines)
-            context.coordinator.procedureLines = procedurePaths.filter { $0.count >= 2 }.map { ProcedurePolyline(coordinates: $0, count: $0.count) }
-            map.addOverlays(context.coordinator.procedureLines, level: .aboveLabels)
+            let wanted = procedurePaths.filter { $0.count >= 2 }
+            var kept: [(path: [CLLocationCoordinate2D], line: ProcedurePolyline)] = []
+            var unused = context.coordinator.procedureLines
+            for path in wanted {
+                if let i = unused.firstIndex(where: { Self.samePath($0.path, path) }) {
+                    kept.append(unused.remove(at: i))
+                } else {
+                    let line = ProcedurePolyline(coordinates: path, count: path.count)
+                    map.addOverlay(line, level: .aboveLabels)
+                    kept.append((path: path, line: line))
+                }
+            }
+            map.removeOverlays(unused.map(\.line))
+            context.coordinator.procedureLines = kept
         }
         if let simulated {
             let plane = context.coordinator.plane ?? {
@@ -169,6 +189,11 @@ struct ChartMap: UIViewRepresentable {
             context.coordinator.simulatedAt = nil
         }
         context.coordinator.showHazardLegs(hazardLegs, on: map)
+        let routeIdents = Set(([course?.departure, course?.destination].compactMap { $0 } + (course?.stops ?? [])).map(\.ident))
+        if context.coordinator.routeIdents != routeIdents {
+            context.coordinator.routeIdents = routeIdents
+            context.coordinator.refreshFields(on: map)
+        }
         if context.coordinator.courseShown != course {
             context.coordinator.courseShown = course
             if let line = context.coordinator.courseLine { map.removeOverlay(line) }
@@ -179,20 +204,28 @@ struct ChartMap: UIViewRepresentable {
                 context.coordinator.courseLine = line
                 // The whole route in sight above the sheet, which covers
                 // the lower half: as the web app fits a route clear of it.
-                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: true)
+                map.setVisibleMapRect(line.boundingMapRect, edgePadding: Self.routePadding(in: map), animated: MapMotion.animated)
             }
         }
     }
 
+    /// Whether two paths are the same points, to the metre: a procedure's
+    /// line is left on the map while its path has not changed.
+    static func samePath(_ a: [CLLocationCoordinate2D], _ b: [CLLocationCoordinate2D]) -> Bool {
+        a.count == b.count && zip(a, b).allSatisfy { abs($0.latitude - $1.latitude) < 1e-5 && abs($0.longitude - $1.longitude) < 1e-5 }
+    }
+
     static func routePadding(in map: MKMapView) -> UIEdgeInsets {
-        // On the iPad the sidebar and the inspector are beside the map
-        // (their safe areas), the figures along its foot; on the iPhone
-        // the sheet covers the lower half.
-        if RootLayout.of(map.traitCollection.horizontalSizeClass == .regular ? .regular : .compact, pad: map.traitCollection.userInterfaceIdiom == .pad) == .split {
-            let safe = map.safeAreaInsets
+        // On the iPad and iPhone Duo open the sidebar and the inspector
+        // are beside the map (their safe areas), the figures along its
+        // foot; on the iPhone the sheet covers the lower half. The sides
+        // keep their own insets: iPhone Duo's differ left and right.
+        let safe = map.safeAreaInsets
+        let trait = map.traitCollection
+        if RootLayout.of(UserInterfaceSizeClass(trait.horizontalSizeClass), UserInterfaceSizeClass(trait.verticalSizeClass)) == .split {
             return UIEdgeInsets(top: safe.top + 80, left: safe.left + 40, bottom: safe.bottom + 120, right: safe.right + 40)
         }
-        return UIEdgeInsets(top: 80, left: 40, bottom: map.bounds.height * 0.5 + 40, right: 40)
+        return UIEdgeInsets(top: 80, left: safe.left + 40, bottom: map.bounds.height * 0.5 + 40, right: safe.right + 40)
     }
 
     /// A moving airplane's point brought back into the part of the map in
@@ -203,7 +236,9 @@ struct ChartMap: UIViewRepresentable {
         let point = map.convert(at, toPointTo: map)
         guard clear.width > 0, clear.height > 0, !clear.contains(point) else { return }
         let middle = CGPoint(x: map.bounds.midX + point.x - clear.midX, y: map.bounds.midY + point.y - clear.midY)
-        map.setCenter(map.convert(middle, toCoordinateFrom: map), animated: true)
+        // A step, not a glide, with Reduce Motion on: the replay's and the
+        // dry run's airplane then jumps back into sight.
+        map.setCenter(map.convert(middle, toCoordinateFrom: map), animated: MapMotion.animated)
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -218,9 +253,36 @@ struct ChartMap: UIViewRepresentable {
         var proceduresShown: [[CLLocationCoordinate2D]] = []
         var plane: PlaneAnnotation?
         var simulatedAt: Date?
-        var procedureLines: [ProcedurePolyline] = []
-        var checkpointMarks: [CheckpointAnnotation] = []
+        /// Each procedure's line with the path it was drawn from, kept
+        /// while the path is the same (updateUIView).
+        var procedureLines: [(path: [CLLocationCoordinate2D], line: ProcedurePolyline)] = []
+        /// The checkpoints' marks by the checkpoint's id, with the number
+        /// and place each was drawn with.
+        private var checkpointMarks: [String: (number: Int, checkpoint: Checkpoint, mark: CheckpointAnnotation)] = [:]
+        /// The route's fields (its ends and stops): drawn whatever the
+        /// zoom, never folded into a cluster (AirportAnnotation.priority).
+        var routeIdents: Set<String> = []
         var onAirport: ((String) -> Void)?
+
+        /// The checkpoints' marks brought to `checkpoints`: a new one
+        /// added, a gone one taken off, one whose number, name, place or
+        /// score changed drawn again, the rest left as they are -- every
+        /// change to the plan took every mark off the map and put it back
+        /// before, a flicker of the whole route.
+        @MainActor
+        func showCheckpoints(_ checkpoints: [Checkpoint], on map: MKMapView) {
+            var wanted: [String: (number: Int, checkpoint: Checkpoint)] = [:]
+            for (i, checkpoint) in checkpoints.enumerated() { wanted[checkpoint.id] = (number: i + 1, checkpoint: checkpoint) }
+            for (id, drawn) in checkpointMarks where wanted[id] == nil || wanted[id]!.number != drawn.number || wanted[id]!.checkpoint != drawn.checkpoint {
+                map.removeAnnotation(drawn.mark)
+                checkpointMarks[id] = nil
+            }
+            for (id, want) in wanted where checkpointMarks[id] == nil {
+                let mark = CheckpointAnnotation(number: want.number, checkpoint: want.checkpoint)
+                map.addAnnotation(mark)
+                checkpointMarks[id] = (number: want.number, checkpoint: want.checkpoint, mark: mark)
+            }
+        }
         var onRegion: ((CLLocationCoordinate2D, Double) -> Void)?
         private var trafficShown: [String: TrafficAnnotation] = [:]
         var setFollowing: ((Bool) -> Void)?
@@ -311,6 +373,11 @@ struct ChartMap: UIViewRepresentable {
             if annotation is CheckpointAnnotation {
                 return mapView.dequeueReusableAnnotationView(withIdentifier: CheckpointMarkView.reuse, for: annotation)
             }
+            // Several fields folded into one where their marks would
+            // overlap (AirportMarkView.cluster): the count in a ring.
+            if annotation is MKClusterAnnotation {
+                return mapView.dequeueReusableAnnotationView(withIdentifier: AirportClusterView.reuse, for: annotation)
+            }
             guard annotation is AirportAnnotation else { return nil }
             return mapView.dequeueReusableAnnotationView(withIdentifier: AirportMarkView.reuse, for: annotation)
         }
@@ -327,7 +394,7 @@ struct ChartMap: UIViewRepresentable {
         func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
             guard !followed, let at = userLocation.location else { return }
             followed = true
-            mapView.setRegion(MKCoordinateRegion(center: at.coordinate, latitudinalMeters: 300_000, longitudinalMeters: 300_000), animated: true)
+            mapView.setRegion(MKCoordinateRegion(center: at.coordinate, latitudinalMeters: 300_000, longitudinalMeters: 300_000), animated: MapMotion.animated)
         }
 
         /// The fields in view, asked for once the map has rested a third
@@ -364,7 +431,9 @@ struct ChartMap: UIViewRepresentable {
                 let north = region.center.latitude + region.span.latitudeDelta / 2
                 let west = region.center.longitude - region.span.longitudeDelta / 2
                 let east = region.center.longitude + region.span.longitudeDelta / 2
-                guard let pins = try? await Planner.airports(south: south, west: west, north: north, east: east), !Task.isCancelled else { return }
+                // From the phone's own packs where the engine has them,
+                // the planner otherwise (PackMapData).
+                guard let pins = try? await PackMapData.airports(south: south, west: west, north: north, east: east), !Task.isCancelled else { return }
                 await MainActor.run {
                     self.pins = pins
                     self.showFields(on: mapView)
@@ -380,16 +449,24 @@ struct ChartMap: UIViewRepresentable {
             let gone = trafficShown.filter { fresh[$0.key] == nil }
             map.removeAnnotations(Array(gone.values))
             for hex in gone.keys { trafficShown[hex] = nil }
-            for (hex, plane) in fresh {
-                if let mark = trafficShown[hex] {
-                    guard mark.plane != plane || mark.ownFt != ownFt else { continue }
+            // Every airplane's mark in one call of the engine (traffic_marks
+            // takes the whole list), handed to each annotation: each view
+            // asked for its one airplane, a screen of traffic a screen of
+            // calls at every report (Session2's profile, 2026-11-03).
+            let ordered = Array(fresh.values)
+            let drawn = Traffic.marks(ordered, ownFt: ownFt)
+            for (i, plane) in ordered.enumerated() {
+                let its = i < drawn.count ? drawn[i] : nil
+                if let mark = trafficShown[plane.hex] {
+                    guard mark.plane != plane || mark.ownFt != ownFt || mark.drawn != its else { continue }
                     mark.plane = plane
                     mark.ownFt = ownFt
+                    mark.drawn = its
                     mark.coordinate = CLLocationCoordinate2D(latitude: plane.lat, longitude: plane.lon)
                     (map.view(for: mark) as? TrafficMarkView)?.show(mark)
                 } else {
-                    let mark = TrafficAnnotation(plane, ownFt: ownFt)
-                    trafficShown[hex] = mark
+                    let mark = TrafficAnnotation(plane, ownFt: ownFt, drawn: its)
+                    trafficShown[plane.hex] = mark
                     map.addAnnotation(mark)
                 }
             }
@@ -414,7 +491,15 @@ struct ChartMap: UIViewRepresentable {
         @MainActor
         private func showFields(on map: MKMapView) {
             let kept = AirportPin.shown(pins, military: fieldUse.military, privateFields: fieldUse.privateFields)
-            show(kept.map(AirportAnnotation.init), on: map)
+            show(kept.map { AirportAnnotation($0, onRoute: routeIdents.contains($0.ident)) }, on: map)
+        }
+
+        /// The marks drawn again as the route changes, for which stand on
+        /// their own and which may cluster (AirportAnnotation.onRoute).
+        @MainActor
+        func refreshFields(on map: MKMapView) {
+            guard !pins.isEmpty else { return }
+            showFields(on: map)
         }
 
         private func show(_ fields: [AirportAnnotation], on map: MKMapView) {
@@ -425,6 +510,15 @@ struct ChartMap: UIViewRepresentable {
             map.addAnnotations(new)
             for mark in gone { shown[mark.ident] = nil }
             for mark in new { shown[mark.ident] = mark }
+            // A mark kept whose standing changed (a field now on the
+            // route, or no longer): its view told again, which sets its
+            // clustering and priority afresh.
+            for (ident, mark) in shown where new.contains(where: { $0.ident == ident }) == false {
+                if let want = fresh[ident], want.onRoute != mark.onRoute {
+                    mark.onRoute = want.onRoute
+                    (map.view(for: mark) as? AirportMarkView)?.annotation = mark
+                }
+            }
         }
     }
 }

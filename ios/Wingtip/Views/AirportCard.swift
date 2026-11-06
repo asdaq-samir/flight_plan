@@ -26,7 +26,8 @@ struct AirportCard: View {
         List {
             if let place {
                 Section {
-                    AirportHead(place: place)
+                    // The UI tests' sign the card is up (WingtipUITests/FlowTests).
+                    AirportHead(place: place).accessibilityIdentifier("airport-card-head")
                     AirportPictures(place: place, photos: photos, shown: $shown)
                         .listRowInsets(EdgeInsets())
                     actions(place)
@@ -130,6 +131,10 @@ struct AirportCard: View {
         }
         .listRowBackground(Color.clear)
         .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+        // Four actions across the phone, each a glyph over a word: the row
+        // stops growing at the second accessibility size, where the words
+        // would no longer fit side by side.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 
     /// The field in Apple's Maps by its street address where the FAA
@@ -181,6 +186,9 @@ struct AirportHead: View {
                     if let cls = place.airspaceClass { Text("Class \(cls)") }
                 }
                 .font(.subheadline).foregroundStyle(.secondary)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel([place.elevationFt.map { "elevation \(SpokenFigures.feet($0))" }, place.towered ? "towered" : "non-towered",
+                                     place.airspaceClass.map { "Class \($0)" }].compactMap { $0 }.joined(separator: ", "))
             }
             Spacer(minLength: 0)
             if let chip = Self.category(place) {
@@ -263,7 +271,7 @@ struct AirportInfoTab: View {
             if place.frequencies.isEmpty { Text("None listed").foregroundStyle(.secondary) }
             ForEach(Array(place.frequencies.enumerated()), id: \.offset) { _, f in FrequencyRowView(frequency: f) }
             // What some fields read out on so many clicks of the mic on
-            // the CTAF: the weather, a radio check (vfr.remarks).
+            // the CTAF: the weather, a radio check (wingtip.remarks).
             ForEach(place.radioNotes ?? [], id: \.self) { note in
                 CardRow(badge: RowBadge(systemImage: "antenna.radiowaves.left.and.right", colour: Badge.traffic), title: note)
             }
@@ -301,16 +309,19 @@ struct AirportWeatherTab: View {
                 if metar.windSpeedKt != nil {
                     figure("wind", "Wind", AirportWords.windLine(dirTrueDeg: metar.windDirTrueDeg, speedKt: metar.windSpeedKt, gustKt: metar.windGustKt))
                 }
-                figure("eye", "Visibility", metar.visibilitySm.map { "\(AirportWords.plain($0)) sm" } ?? "—")
-                figure("cloud", "Ceiling", metar.ceilingFt.map(AirportWords.feet) ?? "None")
+                figure("eye", "Visibility", metar.visibilitySm.map { "\(AirportWords.plain($0)) sm" } ?? "—", spoken: metar.visibilitySm.map(SpokenFigures.statuteMiles))
+                figure("cloud", "Ceiling", metar.ceilingFt.map(AirportWords.feet) ?? "None", spoken: metar.ceilingFt.map(SpokenFigures.feet))
                 if let temp = metar.tempC {
                     CardRow(badge: RowBadge(systemImage: "thermometer.medium", colour: Badge.weather), title: "Temperature",
                             detail: metar.dewpointC.map { "Dew point \(Int($0.rounded())) °C" }) {
                         Text("\(Int(temp.rounded())) °C").fontWeight(.semibold)
+                            .accessibilityLabel("\(SpokenFigures.number(temp)) degrees Celsius")
                     }
                 }
                 if let altimeter = metar.altimeterInHg {
-                    figure("gauge.with.dots.needle.33percent", "Altimeter", String(format: "%.2f inHg", altimeter))
+                    // Read as set on the altimeter: "two niner niner two".
+                    figure("gauge.with.dots.needle.33percent", "Altimeter", "\(Formats.number(altimeter, decimals: 2)) inHg",
+                           spoken: "\(SpokenFigures.digits(Formats.number(altimeter, decimals: 2))) inches")
                 }
                 // The report as sent, never reworded.
                 if let raw = metar.raw { Text(raw).font(.footnote.monospaced()).textSelection(.enabled) }
@@ -320,28 +331,103 @@ struct AirportWeatherTab: View {
             }
         }
         // The National Weather Service's Gridded LAMP at the field for the
-        // hour (vfr.glmp): planning guidance from a model, not a report.
+        // hour (wingtip.glmp): planning guidance from a model, not a report.
         if place.metar == nil, let modelled = place.modelledWeather {
             Section("Modelled for \(AirportWords.date(modelled.validAt).map(AirportWords.zulu) ?? modelled.validAt)") {
-                figure("cloud.sun", "Flight category", modelled.flightCategory)
+                figure("cloud.sun", "Flight category", modelled.flightCategory, spoken: SpokenFigures.flightCategory(modelled.flightCategory))
                 // GLMP's most is 10 sm, as a METAR's "10SM" is.
-                figure("eye", "Visibility", modelled.visibilitySm >= 10 ? "10+ sm" : "\(AirportWords.plain(modelled.visibilitySm)) sm")
-                figure("cloud", "Ceiling", modelled.ceilingFt.map(AirportWords.feet) ?? "None")
+                figure("eye", "Visibility", modelled.visibilitySm >= 10 ? "10+ sm" : "\(AirportWords.plain(modelled.visibilitySm)) sm",
+                       spoken: modelled.visibilitySm >= 10 ? "ten statute miles or more" : SpokenFigures.statuteMiles(modelled.visibilitySm))
+                figure("cloud", "Ceiling", modelled.ceilingFt.map(AirportWords.feet) ?? "None", spoken: modelled.ceilingFt.map(SpokenFigures.feet))
             }
         }
+        AtisSection()
         if place.metar == nil, let nearby = place.nearbyMetar {
             Section("Nearest report, \(AirportWords.plain(nearby.distanceNm)) nm \(AirportWords.compassPoint(Double(nearby.bearingDeg)))") {
                 CardRow(title: nearby.ident, detail: nearby.metar.observedAt.flatMap { AirportWords.observed($0) }) {
-                    if let category = nearby.metar.flightCategory { Text(category).fontWeight(.semibold) }
+                    if let category = nearby.metar.flightCategory {
+                        Text(category).fontWeight(.semibold).accessibilityLabel(SpokenFigures.flightCategory(category))
+                    }
                 }
                 if let raw = nearby.metar.raw { Text(raw).font(.footnote.monospaced()).textSelection(.enabled) }
             }
         }
     }
 
-    private func figure(_ symbol: String, _ title: String, _ value: String) -> some View {
+    /// Listen to ATIS: one broadcast heard through the microphone
+    /// (ClearanceListener.hearBroadcast, the radio's recognizer), read by the
+    /// engine (Atis), and what matters at the hold-short line in one
+    /// line -- the runway in use and the altimeter -- with the figures
+    /// in a short table under it and the transcript folded away. A
+    /// failure is said in the row (ProblemLine), not an alert.
+    struct AtisSection: View {
+        @State private var listening = false
+        @State private var heard = ""
+        @State private var reading: Atis?
+        @State private var problem: String?
+        @State private var hearing: Task<Void, Never>?
+
+        var body: some View {
+            Section {
+                Button {
+                    if listening {
+                        ClearanceListener.shared.stop()
+                        return
+                    }
+                    listening = true
+                    problem = nil
+                    reading = nil
+                    heard = ""
+                    hearing = Task { @MainActor in
+                        let text = await ClearanceListener.shared.hearBroadcast { heard = $0 }
+                        listening = false
+                        guard let text else {
+                            problem = ClearanceListener.shared.problem ?? "Nothing could be heard."
+                            return
+                        }
+                        guard !text.isEmpty else {
+                            problem = "Nothing was heard. Tune the ATIS, hold the phone to the speaker and tap again."
+                            return
+                        }
+                        guard let read = Atis.read(text) else {
+                            problem = "The broadcast could not be read."
+                            return
+                        }
+                        reading = read
+                        if !read.heardAny { problem = "Nothing of a broadcast was heard in that." }
+                    }
+                } label: {
+                    CardRow(badge: RowBadge(systemImage: "dot.radiowaves.left.and.right", colour: Badge.weather),
+                            title: listening ? "Listening…" : "Listen to ATIS",
+                            detail: listening ? (heard.isEmpty ? "Tune the ATIS or AWOS and hold the phone to the speaker" : heard) : nil) {
+                        if listening { ProgressView() }
+                    }
+                }
+                .accessibilityLabel(listening ? "Stop listening" : "Listen to ATIS")
+                ProblemLine(problem)
+                if let reading, reading.heardAny {
+                    CardRow(title: reading.glance) {
+                        if let letter = reading.information { Text("Information \(letter)") }
+                    }
+                    ForEach(Array(reading.rows.enumerated()), id: \.offset) { _, row in
+                        LabeledContent(row.label, value: row.value)
+                    }
+                }
+                if let reading {
+                    DisclosureGroup("Transcript") {
+                        Text(reading.raw).font(.footnote.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                    }
+                }
+            }
+            .onDisappear { hearing?.cancel(); if listening { ClearanceListener.shared.stop() } }
+        }
+    }
+
+    /// One figure of the report; `spoken` is the figure as VoiceOver says
+    /// it (SpokenFigures), where "29.92 inHg" would be read as letters.
+    private func figure(_ symbol: String, _ title: String, _ value: String, spoken: String? = nil) -> some View {
         CardRow(badge: RowBadge(systemImage: symbol, colour: Badge.weather), title: title) {
-            Text(value).fontWeight(.semibold)
+            Text(value).fontWeight(.semibold).accessibilityLabel(spoken ?? value)
         }
     }
 }
@@ -357,7 +443,7 @@ struct AirportRunwaysTab: View {
             if let pattern = place.pattern, let altitude = pattern.altitudeFt {
                 CardRow(badge: RowBadge(systemImage: "arrow.triangle.2.circlepath", colour: Badge.runway), title: "Pattern altitude",
                         detail: pattern.published ? "As the FAA publishes it" : "1,000 ft above the field: none published") {
-                    Text(AirportWords.feet(altitude)).fontWeight(.semibold)
+                    Text(AirportWords.feet(altitude)).fontWeight(.semibold).accessibilityLabel(SpokenFigures.feet(altitude))
                 }
             }
             if place.runways.isEmpty { Text("No runways listed").foregroundStyle(.secondary) }
@@ -374,7 +460,7 @@ struct AirportChartsTab: View {
     let place: AirportPlace
     @Binding var shown: ShownPicture?
 
-    /// The groups by the FAA's chart codes (vfr.publications); the
+    /// The groups by the FAA's chart codes (wingtip.publications); the
     /// airport's own -- hot spots, land and hold short -- go with its
     /// diagram.
     static let groups: [(title: String, kinds: [String])] = [
@@ -449,8 +535,74 @@ struct AirportChartsTab: View {
             HStack {
                 CardRow(badge: RowBadge(systemImage: symbol, colour: colour), title: title, detail: detail)
                 Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
         }
         .foregroundStyle(.primary)
     }
+}
+
+/// A field with its weather, runways surveyed at both ends (so the
+/// sketch draws with no network), an FAA diagram by its address and a
+/// few plates.
+private enum PreviewData {
+    static let place = AirportPlace(
+        ident: "KDLH", name: "Duluth Intl", lat: 46.8420, lon: -92.1936, kind: "large_airport", towered: true,
+        runways: [
+            Runway(ends: "09/27", lengthFt: 10162, widthFt: 150, surface: "ASPH", lighted: true,
+                   wind: RunwayWind(end: "27", headwindKt: 9, crosswindKt: 4),
+                   runwayEnds: [RunwayEnd(ident: "09", headingTrueDeg: 92, lat: 46.8415, lon: -92.2140),
+                                RunwayEnd(ident: "27", headingTrueDeg: 272, lat: 46.8425, lon: -92.1733, traffic: "right")]),
+            Runway(ends: "03/21", lengthFt: 5719, widthFt: 150, surface: "ASPH", lighted: true,
+                   runwayEnds: [RunwayEnd(ident: "03", headingTrueDeg: 33, lat: 46.8355, lon: -92.2005),
+                                RunwayEnd(ident: "21", headingTrueDeg: 213, lat: 46.8490, lon: -92.1880)]),
+        ],
+        frequencies: [
+            Frequency(type: "ATIS", description: "ATIS", frequencyMhz: 124.1),
+            Frequency(type: "TWR", description: "DULUTH TOWER", frequencyMhz: 118.3),
+            Frequency(type: "GND", description: "GROUND", frequencyMhz: 121.9),
+            Frequency(type: "APP", description: "DULUTH APPROACH", frequencyMhz: 125.45),
+        ],
+        elevationFt: 1428, municipality: "Duluth", region: "US-MN", airspaceClass: "D", phone: "218 555 0100",
+        lighting: ["Runway lights on from dusk to dawn"],
+        metar: Metar(raw: "KDLH 031453Z 27009KT 10SM FEW040 BKN250 04/M03 A3012", observedAt: "2026-11-03T14:53:00Z", flightCategory: "VFR",
+                     windDirTrueDeg: 270, windSpeedKt: 9, visibilitySm: 10, tempC: 4, dewpointC: -3, altimeterInHg: 30.12),
+        pattern: TrafficPattern(altitudeFt: 2428, published: false),
+        address: "4701 Grinden Dr, Duluth, MN 55811",
+        airportDiagramUrl: "https://aeronav.faa.gov/d-tpp/2511/00126AD.PDF",
+        chartSupplementUrl: "https://aeronav.faa.gov/afd/03nov2026/nc_181_03NOV2026.pdf",
+        procedures: [
+            TerminalChart(kind: "IAP", name: "ILS OR LOC RWY 09", url: "https://aeronav.faa.gov/d-tpp/2511/00126IL9.PDF"),
+            TerminalChart(kind: "IAP", name: "RNAV (GPS) RWY 27", url: "https://aeronav.faa.gov/d-tpp/2511/00126R27.PDF"),
+            TerminalChart(kind: "DP", name: "DULUTH ONE", url: "https://aeronav.faa.gov/d-tpp/2511/00126DULUTH.PDF"),
+            TerminalChart(kind: "MIN", name: "TAKEOFF MINIMUMS", url: "https://aeronav.faa.gov/d-tpp/2511/NC1TO.PDF"),
+        ],
+        radioNotes: ["A radio check on the CTAF: key the mic three times"],
+        standardKeying: true)
+}
+
+#Preview("AirportHead") {
+    List { AirportHead(place: PreviewData.place) }
+}
+
+#Preview("AirportPictures") {
+    @Previewable @State var shown: ShownPicture? = nil
+    List { AirportPictures(place: PreviewData.place, photos: nil, shown: $shown).listRowInsets(EdgeInsets()) }
+}
+
+#Preview("AirportInfoTab") {
+    List { AirportInfoTab(place: PreviewData.place) }
+}
+
+#Preview("AirportWeatherTab") {
+    List { AirportWeatherTab(place: PreviewData.place) }
+}
+
+#Preview("AirportRunwaysTab") {
+    List { AirportRunwaysTab(place: PreviewData.place) }
+}
+
+#Preview("AirportChartsTab") {
+    @Previewable @State var shown: ShownPicture? = nil
+    List { AirportChartsTab(place: PreviewData.place, shown: $shown) }
 }
