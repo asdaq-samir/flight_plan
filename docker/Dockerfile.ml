@@ -86,4 +86,4 @@ USER appuser
 EXPOSE 8888
 
 CMD ["jupyter", "notebook", "--no-browser", "--ip=0.0.0.0", \
-     "--NotebookApp.notebook_dir=/workspace", "--NotebookApp.token=vfr"]
+     "--NotebookApp.notebook_dir=/workspace", "--NotebookApp.token=wingtip"]

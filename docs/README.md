@@ -484,7 +484,7 @@ bring up only what you need. Full command reference is in the
 
 ```bash
 docker compose up webapp                           # UI + API at :8080; brings up db, model-service, planning-service
-docker compose up ml                               # Jupyter at :8888 (token "vfr")
+docker compose up ml                               # Jupyter at :8888 (token "wingtip")
 docker compose up airflow                          # DAG UI at :8081
 docker compose up nav-log-agent                    # MCP server at :8082
 docker compose run --rm crewai-agent python -m app.main \
@@ -542,7 +542,7 @@ stack. Anything not listed here does not exist.
 | Planning + chart-vision API docs | [`localhost:8084/docs`](http://localhost:8084/docs) | `planning-service` |
 | Model-serving API docs | [`localhost:8000/docs`](http://localhost:8000/docs) | `model-service` |
 | Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
-| Jupyter | [`localhost:8888`](http://localhost:8888) (token `vfr`) | `ml` |
+| Jupyter | [`localhost:8888`](http://localhost:8888) (token `wingtip`) | `ml` |
 
 All three pages are served by `webapp`, not by `planning-service`: the
 React app in [`web/`](../web) is built into the Spring Boot jar, and the
@@ -668,7 +668,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
 | `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
 | `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db`, `model-service` and `planning-service` too | `8080` |
-| `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
+| `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `wingtip`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()`: downloads a corridor's candidates once, and again only with `--refresh` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |

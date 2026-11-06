@@ -403,7 +403,7 @@ services:
       start_period: 90s
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wingtip
-      SPRING_DATASOURCE_USERNAME: vfr
+      SPRING_DATASOURCE_USERNAME: wingtip
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-wingtip}
       PLANNER_SERVICE_URL: http://planning-service:8000
       # Traces to Jaeger with TRACING=1, the planner's calls under the

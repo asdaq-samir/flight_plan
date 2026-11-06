@@ -169,7 +169,7 @@ services:
       start_period: 120s
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wingtip
-      SPRING_DATASOURCE_USERNAME: vfr
+      SPRING_DATASOURCE_USERNAME: wingtip
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       PLANNER_SERVICE_URL: http://planning-service:8000
       NAV_LOG_AGENT_URL: http://nav-log-agent:8000
