@@ -49,13 +49,28 @@ if docker volume inspect "${NEW}_pgdata_pg18" >/dev/null 2>&1; then
   docker run -d --name "$name" -v "${NEW}_pgdata_pg18":/var/lib/postgresql pgvector/pgvector:pg18 >/dev/null
   trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
   for _ in $(seq 1 60); do docker exec "$name" pg_isready -q 2>/dev/null && break; sleep 1; done
-  as() { docker exec -i "$name" psql -v ON_ERROR_STOP=1 -qtA -U "$1" -d postgres; }
-  if [ "$(echo "select 1 from pg_roles where rolname = 'vfr'" | as vfr 2>/dev/null || true)" = 1 ]; then
+  as() { local u=$1; shift; docker exec -i "$name" psql -v ON_ERROR_STOP=1 -qtA -U "$u" -d postgres "$@"; }
+  # Each step is done only if it is not done yet, and the database goes
+  # before the role, so a run that stopped half way is finished by the next
+  # one. The user to work as is whichever of the three still exists.
+  user=
+  for candidate in wingtip_rename vfr "$NEW"; do
+    if echo "select 1" | as "$candidate" >/dev/null 2>&1; then user=$candidate; break; fi
+  done
+  [ -n "$user" ] || { echo "cannot connect to the copied database as wingtip_rename, vfr or $NEW" >&2; exit 1; }
+  if [ "$user" = vfr ]; then
     echo "create role wingtip_rename superuser login" | as vfr
-    as wingtip_rename <<SQL
-alter role vfr rename to $NEW;
-alter role $NEW password '$PASSWORD';
-alter database vfr_route rename to $NEW;
+    user=wingtip_rename
+  fi
+  if [ "$user" = wingtip_rename ]; then
+    # psql puts :'pw' in as a quoted literal, so a quote in the password
+    # is safe.
+    as wingtip_rename -v pw="$PASSWORD" <<SQL
+select 'alter database vfr_route rename to $NEW'
+  where exists (select from pg_database where datname = 'vfr_route') \gexec
+select 'alter role vfr rename to $NEW'
+  where exists (select from pg_roles where rolname = 'vfr') \gexec
+alter role $NEW password :'pw';
 SQL
     echo "drop role wingtip_rename" | as "$NEW"
     echo "renamed the database's user vfr and database vfr_route to $NEW"
