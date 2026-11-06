@@ -5,9 +5,8 @@ import Speech
 import UIKit
 
 /// The radio heard through the microphone by Apple's own recognizer (the
-/// Speech framework's SFSpeechRecognizer), a transmission at a time, as
-/// the web app's shell hears it (web/ios's SpeechPlugin): on the phone
-/// where it can be, so nothing said goes off it, and told the names near
+/// Speech framework's SFSpeechRecognizer), a transmission at a time: on
+/// the phone where it can be, so nothing said goes off it, and told the names near
 /// the route to listen for (contextualStrings, /api/clearance/words) -- a
 /// fix said as a word, "Pykla", is not English.
 ///

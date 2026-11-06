@@ -45,7 +45,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- App Links (docs/ANDROID.md): the sign-in link emailed to the
+            <!-- App Links (docs/NATIVE-ANDROID.md): the sign-in link emailed to the
                  pilot, and a shared route, open the app rather than Chrome,
                  verified against the site's /.well-known/assetlinks.json
                  once the owner lists this package's signing key there. The

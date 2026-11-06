@@ -18,8 +18,6 @@ import { GROUP_HEADING, TEXT } from "../lib/text";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
 import { useLayerAges } from "../lib/map/layerAges";
 import { keepingAvailable } from "../lib/map/keepRoute";
-import { inNativeApp } from "../lib/native";
-import { useReceiver } from "../lib/map/receiver";
 import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 
 /**
@@ -120,9 +118,6 @@ export default function MapSettings() {
             every five seconds. Setup's Controls has it too, for the
             cockpit, as iOS has Wi-Fi in Control Center and Settings. */}
         <SwitchRow title="Traffic" on={prefs.traffic} onChange={prefs.setTraffic} testId="traffic-toggle" />
-        {/* A cockpit receiver's traffic (lib/map/receiver), heard in the
-            app while the traffic is shown: what it is doing, in words. */}
-        {inNativeApp() && <ListRow title="Receiver" value={<ReceiverStatus on={prefs.traffic} />} />}
         {/* The Class B airports' weather now, as chips on the map, and
             the terminal sheet over the base wherever there is one: the
             TAC over the sectional, the IFR area chart over the IFR
@@ -292,16 +287,3 @@ function SwitchRow({ title, on, onChange, testId, disabled }: {
   );
 }
 
-
-/** The cockpit receiver, in a few words: whether it is heard, and what. */
-function ReceiverStatus({ on }: { on: boolean }) {
-  const listening = useReceiver(s => s.listening);
-  const connected = useReceiver(s => s.connected);
-  const count = useReceiver(s => Object.keys(s.traffic).length);
-  const error = useReceiver(s => s.error);
-  const words = !on ? "With Traffic on"
-    : error ? "Can't listen on the Wi-Fi"
-      : connected ? `Connected · ${count} ${count === 1 ? "airplane" : "airplanes"}`
-        : listening ? "Listening on the Wi-Fi" : "Starting…";
-  return <span className={connected && on ? "font-semibold text-foreground" : "text-muted-foreground"} data-testid="receiver-status">{words}</span>;
-}

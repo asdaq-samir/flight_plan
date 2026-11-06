@@ -1,8 +1,7 @@
 # The TV apps
 
 Wingtip Maps on Samsung's TVs (Tizen) and LG's (webOS) is the site in the
-TV's own web engine, as the phone apps are (`docs/IOS.md`,
-`docs/ANDROID.md`). It is for planning on the big screen: the chart, the
+TV's own web engine. It is for planning on the big screen: the chart, the
 route, the nav log, the weather and the brief.
 
 ## How they work

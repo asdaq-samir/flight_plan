@@ -7,8 +7,8 @@ Wingtip's Rust, in four crates:
   grid, whether an airspace volume holds a point, and the cycle pack's
   reader (its format is in `engine/src/pack.rs`). Plain Rust with no
   dependencies, so it builds as it is for the phones: aarch64-apple-ios
-  (the native iOS app, from Swift) and aarch64-linux-android (the Android
-  shell, a Capacitor plugin from Kotlin, later), both through `ffi/`.
+  (the native iOS app, from Swift) and aarch64-linux-android (the native
+  Android app, from Kotlin), both through `ffi/`.
   Keep it that way: no PyO3, no host-only crates, no network, and files
   read from bytes the caller maps.
 - `py/` (`wingtip_native`): the engine as wingtip imports it, through PyO3. It

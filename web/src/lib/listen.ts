@@ -4,17 +4,10 @@
  * pause ends one and the next is heard afresh, so what ATC says shows as
  * it is said and a call to us can be acted on (lib/heardCall).
  *
- * - In the iOS app, Apple's own recognizer (the shell's Speech plugin,
- *   web/ios's SpeechPlugin.swift: SFSpeechRecognizer, on the phone where
- *   it can be, told the names near the route to listen for), which goes
- *   on with the phone locked (UIBackgroundModes audio) and says a call to
- *   us in a notification there.
- * - In the Android app, Android's (SpeechPlugin.java: SpeechRecognizer,
- *   with the same names as its biasing strings), while the app is open.
- * - In a browser, the Web Speech API: Safari's is Apple's recognizer,
- *   Chrome's Google's, while the page is open. Firefox has one from 160
- *   (10 November 2026) on the desktop, not on Android (MDN's compat data,
- *   api/SpeechRecognition); without one a clearance is typed.
+ * The browser's Web Speech API: Safari's is Apple's recognizer, Chrome's
+ * Google's, while the page is open. Firefox has one from 160 (10 November
+ * 2026) on the desktop, not on Android (MDN's compat data,
+ * api/SpeechRecognition); without one a clearance is typed.
  *
  * Which input a browser's recognizer hears: the one the page hands it
  * (`track`, lib/audioInput) where it takes one -- Chrome and Edge 135+ and
@@ -24,21 +17,12 @@
  * 2026-11-04: the radio reaches the phone from the audio panel over
  * Bluetooth or a cable, as a microphone).
  */
-import type { PluginListenerHandle } from "@capacitor/core";
-import { inNativeApp } from "./native";
 
 /** A transmission heard so far (`id` the same until it ends), and
  *  whether the recognizer has settled on it. */
 export type OnHeard = (id: number, text: string, final: boolean) => void;
 /** Listening has ended: stopped, or (`error`) refused or failed. */
 export type OnEnded = (error?: string) => void;
-
-interface SpeechPlugin {
-  start(options: { words: string[]; callPattern?: string }): Promise<void>;
-  stop(): Promise<void>;
-  addListener(event: "heard", fn: (heard: { id: number; text: string; final: boolean }) => void): Promise<PluginListenerHandle>;
-  addListener(event: "ended", fn: (ended: { error?: string }) => void): Promise<PluginListenerHandle>;
-}
 
 /** The browser's recognizer, where it has one; Safari's and Chrome's are
  *  still prefixed. Only what is used here. */
@@ -65,7 +49,7 @@ function webRecognition(): WebRecognitionClass | null {
 
 /** Whether this phone or browser can listen at all. */
 export function canListen(): boolean {
-  return inNativeApp() || webRecognition() !== null;
+  return webRecognition() !== null;
 }
 
 /**
@@ -83,7 +67,7 @@ export function takesTrack(): boolean {
   // MediaStreamTrackWebSpeech flag is stable on Linux, Mac and Windows
   // only (runtime_enabled_features.json5), and start(track) falls back to
   // start() under WebIDL elsewhere.
-  if (typeof window === "undefined" || inNativeApp() || /Android|CrOS/.test(navigator.userAgent)) return false;
+  if (typeof window === "undefined" || /Android|CrOS/.test(navigator.userAgent)) return false;
   return typeof (window as unknown as { SpeechRecognition?: unknown }).SpeechRecognition === "function";
 }
 
@@ -92,10 +76,8 @@ export function takesTrack(): boolean {
  *  loses the microphone after a media-services reset until it is opened
  *  again (WebKit bug 319706; its fix is on the 7625 line, Safari 27, not
  *  26.x), and every browser on an iPhone or iPad is WebKit; elsewhere a
- *  reload asks again. The apps' Speech plugins do not take Bluetooth
- *  inputs, so they keep the words they always had. */
+ *  reload asks again. */
 export function noMicrophone(): string {
-  if (inNativeApp()) return "No microphone could be used.";
   const ua = typeof navigator !== "undefined" ? navigator.userAgent ?? "" : "";
   // iPadOS's Safari says it is a Mac; a touch screen gives it away.
   const ios = /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints ?? 0) > 1);
@@ -104,12 +86,11 @@ export function noMicrophone(): string {
 }
 
 /** The recognizer's refusal or failure in a pilot's words. A refusal is
- *  undone where it was given: the apps' own entry in iOS's Settings, or in
- *  a browser its settings for the site -- a website has no entry of its
- *  own in Settings, and the words sent pilots looking for one. */
+ *  undone where it was given, in the browser's settings for the site: a
+ *  website has no entry of its own in iOS's Settings, and words saying
+ *  so sent pilots looking for one. */
 function errorWords(code: string): string {
   if (code === "not-allowed" || code === "service-not-allowed" || code === "refused") {
-    if (inNativeApp()) return "Microphone or speech recognition access was refused; allow it for Wingtip Maps in Settings.";
     const ua = typeof navigator !== "undefined" ? navigator.userAgent ?? "" : "";
     const safari = /Safari\//.test(ua) && !/Chrome|Chromium|CriOS|FxiOS|EdgiOS|Edg\//.test(ua);
     return `Microphone or speech recognition access was refused; allow it in ${safari ? "Safari's" : "the browser's"} settings for this website.`;
@@ -127,40 +108,18 @@ export interface Listening {
 }
 
 /**
- * Listens until `stop`, a transmission at a time. `words`, names the
- * recognizer should expect (/api/clearance/words), where it can be told
- * them; `callPattern`, our call sign as a pattern (heardCall's
- * callPattern), for the iOS app to say a call to us while it is locked;
- * `track`, the input lib/audioInput holds, read afresh at each start so a
+ * Listens until `stop`, a transmission at a time. `words` and
+ * `callPattern` are kept for the callers' sake: a browser's recognizer
+ * takes neither (the native apps listen with their own). `track`, the input lib/audioInput holds, read afresh at each start so a
  * new choice is heard from the next.
  *
  * In a browser the recognizer starts before this returns, with no await
  * before it: Safari lets a page listen only straight from the tap.
  */
 export async function listen(
-  words: string[], callPattern: string | undefined, onHeard: OnHeard, onEnded: OnEnded,
+  _words: string[], _callPattern: string | undefined, onHeard: OnHeard, onEnded: OnEnded,
   track?: () => MediaStreamTrack | null,
 ): Promise<Listening> {
-  if (inNativeApp()) {
-    // The plugin's code only in the apps, as the receiver's (lib/map/receiver).
-    const { registerPlugin } = await import("@capacitor/core");
-    const plugin = registerPlugin<SpeechPlugin>("Speech");
-    const handles = await Promise.all([
-      plugin.addListener("heard", ({ id, text, final }) => onHeard(id, text, final)),
-      plugin.addListener("ended", ({ error }) => {
-        void Promise.all(handles.map(h => h.remove()));
-        onEnded(error ? errorWords(error) : undefined);
-      }),
-    ]);
-    try {
-      await plugin.start({ words, callPattern });
-    } catch (err) {
-      void Promise.all(handles.map(h => h.remove()));
-      onEnded(errorWords(err instanceof Error ? err.message : String(err)));
-      return { stop: () => {}, renew: () => {} };
-    }
-    return { stop: () => void plugin.stop(), renew: () => {} };
-  }
   const Recognition = webRecognition();
   if (!Recognition) {
     onEnded("This browser cannot listen; type the clearance instead.");

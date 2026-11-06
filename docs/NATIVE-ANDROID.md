@@ -5,10 +5,9 @@ Compose app (`android/`), with no web view and no Capacitor: the same
 planner and gateway as the website, the same Rust engine as the iOS app
 (docs/NATIVE.md) and the web app, and only the screens on the phone. The
 owner's decision of 3 November 2026 ("make android native as well"); the
-phases and gates are the iOS plan's. The Capacitor shell (`web/android`,
-docs/ANDROID.md) stays the Play Store app until this one passes the
-plan's last gate, and the two install side by side: this one's package
-is `app.wingtipmaps.android.native`.
+phases and gates are the iOS plan's. It is the Android app: the
+Capacitor shell that wrapped the website went on 2026-11-06, at the
+owner's word. Its package is `app.wingtipmaps.android.native`.
 
 ## What is here
 

@@ -19,7 +19,6 @@ import { heardThrough, useAtcRadio, useRadioActions, type PlannedRoute } from ".
 import { listenOnce, startRadio, stopRadio } from "../../../lib/atcListening";
 import { callPattern } from "../../../lib/heardCall";
 import { altitudeWords, clearanceParts, readbackCheck, readbackLines } from "../../../lib/readback";
-import { inNativeApp } from "../../../lib/native";
 import { TEXT } from "../../../lib/text";
 
 /** The words once they have stopped changing for a moment, so the
@@ -186,12 +185,6 @@ export default function ClearanceCard({ onDone }: {
   // the field to type in is under it; the rest as the pilot taps them.
   const [open, setOpen] = useState(() => ({ hear: !typed.trim(), readback: false, enter: false, compare: false }));
   const openRow = (id: keyof typeof open) => (on: boolean) => setOpen(o => ({ ...o, [id]: on }));
-  // The names to listen for, asked as the card opens, ready by the tap:
-  // the apps' recognizers take them, a browser's cannot.
-  const words = useQuery({
-    queryKey: ["clearance-words", near, route.dep], queryFn: () => api.clearanceWords(near, route.dep),
-    enabled: inNativeApp(), staleTime: 60 * 60_000,
-  });
   const settled = useSettled(text, 400);
   const clearance = useMemo(() => readClearance(settled), [settled]);
   const heardIt = heardAny(clearance);
@@ -215,7 +208,7 @@ export default function ClearanceCard({ onDone }: {
     if (onRadio) stopRadio();
     else {
       setFollowing(true);
-      void startRadio(words.data ?? [], (tail && callPattern(tail)) || undefined);
+      void startRadio([], (tail && callPattern(tail)) || undefined);
     }
   };
 
@@ -265,7 +258,7 @@ export default function ClearanceCard({ onDone }: {
         done("", null);
       }
     });
-    if (!fromRadio) void listenOnce(words.data ?? [], clearedText);
+    if (!fromRadio) void listenOnce([], clearedText);
   };
   const readbackTap = () => {
     if (!readingBack) { readBackAgain(); return; }

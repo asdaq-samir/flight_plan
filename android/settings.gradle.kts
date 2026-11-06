@@ -1,6 +1,4 @@
 // The native Android app (docs/NATIVE-ANDROID.md): one module, the app.
-// The Capacitor shell at web/android is a separate Gradle project and
-// stays the Play Store app until this one passes the plan's gates.
 pluginManagement {
     repositories {
         google()
