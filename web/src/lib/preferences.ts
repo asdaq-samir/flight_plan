@@ -64,14 +64,6 @@ export type NarrativeFramework = "langgraph" | "crewai";
  *  VFR, or IFR -- its minimum altitudes, its thousands by direction of
  *  flight and its 45-minute reserve (the planner's wingtip.ifr). */
 export type FlightRules = "vfr" | "ifr";
-/** The planner's layout (PlanWorkspace): the tab bar with FPL, Airport
- *  and Aircraft, or the strip -- one field at the foot of the chart that
- *  takes anything typed or said, and the flight as one strip in time
- *  (features/strip), the owner's "let's try it" of 2026-11-04; or the
- *  field over the tab bar, Target's way (FieldTabsBar), the owner's third
- *  pick that day, to compare them on the phone. The switch is in Setup's
- *  Controls. */
-export type Layout = "tabs" | "strip" | "field-tabs";
 /** How FPL's route is changed once it has a destination, the owner's
  *  two picks of the FPL canvas (2026-11-05, artifact W9FwhatzHhe2hV9qroiYzv:
  *  "I want to have a toggle between A and B in settings") and the box as
@@ -189,8 +181,6 @@ interface Preferences {
   /** The flight rules every route is planned under, kept: a pilot who
    *  files IFR files it flight after flight. */
   flightRules: FlightRules;
-  /** The planner's layout: the tabs, or the strip (features/strip). */
-  layout: Layout;
   /** How FPL's route is changed once it has a destination (RouteEdit). */
   routeEdit: RouteEdit;
   /** The input last chosen to listen through (lib/audioInput, the Radio
@@ -272,7 +262,6 @@ interface Preferences {
   setOwnShipLook: (ownShipLook: OwnShipLook) => void;
   setNarrative: (narrative: NarrativeFramework) => void;
   setFlightRules: (flightRules: FlightRules) => void;
-  setLayout: (layout: Layout) => void;
   setRouteEdit: (routeEdit: RouteEdit) => void;
   addRecentAirport: (airport: RecentAirport) => void;
   /** One airport taken off the Recents (a swipe), or all of them (Clear). */
@@ -340,7 +329,6 @@ export const usePreferences = create<Preferences>()(
       ownShipLook: "single",
       narrative: "langgraph",
       flightRules: "vfr",
-      layout: "tabs",
       // The box as it was, till the pilot picks another.
       routeEdit: "box",
       listenInput: null,
@@ -414,7 +402,6 @@ export const usePreferences = create<Preferences>()(
       setOwnShipLook: ownShipLook => set({ ownShipLook }),
       setNarrative: narrative => set({ narrative }),
       setFlightRules: flightRules => set({ flightRules }),
-      setLayout: layout => set({ layout }),
       setRouteEdit: routeEdit => set({ routeEdit }),
       addRecentAirport: airport => set(s => ({
         recentAirports: [airport, ...s.recentAirports.filter(a => a.ident !== airport.ident)].slice(0, RECENTS),
@@ -460,12 +447,11 @@ export const usePreferences = create<Preferences>()(
         ...(from < 2 ? { airspace: true, navaids: true } : {}),
         ...(from < 3 ? { chartLight: "auto" } : {}),
         ...(from < 4 && !["cockpit", "ink"].includes((kept as { brand?: string }).brand ?? "") ? { brand: "cockpit" } : {}),
-        ...(from < 5 ? { layout: "tabs" } : {}),
       }) as Preferences,
       // The functions are not state; only the values are written.
       partialize: s => ({
         base: s.base, tac: s.tac, waypoints: s.waypoints, classB: s.classB, airspace: s.airspace, navaids: s.navaids, tfrs: s.tfrs, alerts: s.alerts, speakAlerts: s.speakAlerts, plates: s.plates, traffic: s.traffic, military: s.military, privateFields: s.privateFields, minimums: s.minimums, routeWeather: s.routeWeather, stopsRadiusNm: s.stopsRadiusNm, stopKind: s.stopKind, loads: s.loads, keepOffline: s.keepOffline, aircraft: s.aircraft, tailFigures: s.tailFigures, filters: s.filters, navBar: s.navBar, chartNight: s.chartNight, chartLight: s.chartLight, brand: s.brand, ownShipLook: s.ownShipLook, narrative: s.narrative,
-        flightRules: s.flightRules, layout: s.layout, routeEdit: s.routeEdit, listenInput: s.listenInput,
+        flightRules: s.flightRules, routeEdit: s.routeEdit, listenInput: s.listenInput,
         recentAirports: s.recentAirports, homeAirport: s.homeAirport, favoriteAirports: s.favoriteAirports,
         recentAircraft: s.recentAircraft, favoriteAircraft: s.favoriteAircraft, myAircraft: s.myAircraft,
         recentRoutes: s.recentRoutes,
