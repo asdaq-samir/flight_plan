@@ -4,6 +4,7 @@
 # pattern: kept separate from requirements.txt because pytest/httpx have
 # no reason to ship inside the image that actually runs this service.
 -r requirements.txt
+# Pillow among them is pinned once, 13.0.0, in src/requirements-charts.txt.
 pytest
 httpx   # fastapi.testclient.TestClient's transport
 ruff
