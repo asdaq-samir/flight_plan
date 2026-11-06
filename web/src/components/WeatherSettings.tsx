@@ -9,12 +9,12 @@ import { useWeatherLayers, type WindsAt } from "../lib/map/weatherLayers";
 import { TEXT } from "../lib/text";
 
 /** The winds aloft's altitudes: the plan's cruise, or one of the FD
- *  product's own, written as lib/readback altitudeWords does: feet MSL
- *  below 18,000, a flight level from it (14 CFR 91.121(a)(2)). */
+ *  product's own, written FL and hundreds of feet as the map's weather
+ *  writes every altitude, the owner's pick (lib/weatherMap altitudeWords). */
 const WINDS: { value: WindsAt; label: string }[] = [
   { value: "off", label: "Off" }, { value: "plan", label: "The plan's" },
-  { value: 3000, label: "3,000 ft" }, { value: 6000, label: "6,000 ft" }, { value: 9000, label: "9,000 ft" },
-  { value: 12000, label: "12,000 ft" }, { value: 18000, label: "FL180" },
+  { value: 3000, label: "FL030" }, { value: 6000, label: "FL060" }, { value: 9000, label: "FL090" },
+  { value: 12000, label: "FL120" }, { value: 18000, label: "FL180" },
 ];
 
 /**

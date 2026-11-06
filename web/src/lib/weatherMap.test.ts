@@ -1,15 +1,17 @@
 import { describe, expect, test } from "vitest";
 import type { WeatherArea } from "./api/types";
-import { areaWords, barbSvg, inside, pirepMark, routeThrough } from "./weatherMap";
+import { altitudeWords, areaWords, barbSvg, inside, pirepMark, routeThrough } from "./weatherMap";
 
 const square = [[42, -90], [44, -90], [44, -87], [42, -87]];
 const icing = { id: "g", kind: "gairmet", hazard: "Icing", severity: "MOD", low_ft: null, high_ft: 16000, from_freezing_level: true, coords: square } as WeatherArea;
 const turb = { id: "s", kind: "sigmet", hazard: "TURB", low_ft: 8000, high_ft: 20000, from_freezing_level: false, coords: square } as WeatherArea;
 
 describe("the weather drawn on the map", () => {
-  test("writes altitudes in feet below 18,000 and as flight levels from it (14 CFR 91.121)", () => {
-    expect(areaWords(icing)).toEqual({ title: "G-AIRMET · Icing", altitudes: "Freezing level to 16,000 ft" });
-    expect(areaWords(turb)).toEqual({ title: "SIGMET · Turbulence", altitudes: "8,000 ft to FL200" });
+  test("writes altitudes as FL and hundreds of feet, the owner's pick (kept 2026-11-06)", () => {
+    expect(altitudeWords(4500)).toBe("FL045");
+    expect(altitudeWords(18000)).toBe("FL180");
+    expect(areaWords(icing)).toEqual({ title: "G-AIRMET · Icing", altitudes: "Freezing level to FL160" });
+    expect(areaWords(turb)).toEqual({ title: "SIGMET · Turbulence", altitudes: "FL080 to FL200" });
   });
 
   test("says how far the route is in an area, and whether the plan is under, in or over it", () => {

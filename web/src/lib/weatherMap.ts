@@ -1,5 +1,4 @@
 import type { MapPirep, WeatherArea } from "./api/types";
-import { altitudeWords } from "./readback";
 import { bearingDeg, destination, distanceNm, type LatLon } from "./geo";
 
 /** Each area's colour by what it warns of, as aviationweather.gov's own
@@ -21,8 +20,19 @@ export function areaColour(area: Pick<WeatherArea, "kind" | "hazard">): string {
   return AREA_COLOURS[area.hazard ?? ""] ?? "#9333ea";
 }
 
+/** An altitude as the map's weather writes it, in hundreds of feet after
+ *  "FL" (FL045 for 4,500 ft MSL), at the owner's pick (2026-10-20, "make
+ *  the altitude to be FL"), kept on 2026-11-06 ("Keep Fl for now") when
+ *  asked whether to match the rest of the app (lib/readback altitudeWords:
+ *  feet below 18,000, a flight level from it). A flight level proper is a
+ *  pressure altitude on 29.92, flown only from 18,000 ft (14 CFR 1.1,
+ *  91.121(a)(2)), so below that the figure is still feet MSL. */
+export function altitudeWords(feet: number): string {
+  return `FL${String(Math.round(feet / 100)).padStart(3, "0")}`;
+}
+
 /** What an area is, in words: its title ("G-AIRMET · Icing", "Convective
- *  SIGMET") and its altitudes ("Freezing level to 16,000 ft"). */
+ *  SIGMET") and its altitudes ("Freezing level to FL160"). */
 export function areaWords(area: WeatherArea): { title: string; altitudes: string | null } {
   const kind = area.kind === "gairmet" ? "G-AIRMET" : area.kind === "convective" ? "Convective SIGMET" : area.kind === "airmet" ? "AIRMET" : "SIGMET";
   const hazard = area.kind === "convective" ? null : area.hazard ? hazardWords(area.hazard) : null;

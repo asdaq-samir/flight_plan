@@ -5,8 +5,7 @@ import { Marker, Pane, Polygon, TileLayer, useMap, useMapEvents } from "react-le
 import { api } from "../api/client";
 import type { MapPirep, StationWind, WeatherArea } from "../api/types";
 import { faaWords } from "../advisories";
-import { altitudeWords } from "../readback";
-import { areaColour, areaWords, barbSvg, pirepMark, routeThrough } from "../weatherMap";
+import { altitudeWords, areaColour, areaWords, barbSvg, pirepMark, routeThrough } from "../weatherMap";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { useWeatherLayers } from "./weatherLayers";
