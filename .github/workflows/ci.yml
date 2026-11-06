@@ -349,8 +349,26 @@ jobs:
       test-crewai-agent: ${{ steps.plan.outputs.test-crewai-agent }}
       docs: ${{ steps.plan.outputs.docs }}
       infra: ${{ steps.plan.outputs.infra }}
+      docs-only: ${{ steps.docsonly.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # A pull request that changes only words -- docs, Markdown, the
+      # skills, the notebooks -- has nothing the browser suite could catch,
+      # so its e2e and their images are skipped (the owner, 2026-11-06:
+      # "trim"). Skipped counts as passing in "CI passed".
+      - name: Only docs?
+        id: docsonly
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qvE '^(docs/|notebooks/|\.claude/)|\.md$|^LICENSE$'; then
+            echo "only=true" >> "$GITHUB_OUTPUT"
+            echo "docs only: the browser suite is skipped"
+          fi
       - name: The last green commit on main
         id: base
         if: github.event_name != 'pull_request'
@@ -547,6 +565,8 @@ jobs:
   # commit.
   e2e:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
+    needs: [changes]
+    if: needs.changes.outputs.docs-only != 'true'
     runs-on: ubuntu-26.04
     # packages: read -- the images are private, like the registry cache a
     # pull request's shards build from; actions: read, to ask after the
@@ -563,10 +583,11 @@ jobs:
     # minutes end to end: desktop, the same specs at a wider window, 51.5;
     # mobile 33.4; the iPad and iPhone projects 37, 31 of it the iOS
     # audit. Mobile alone over ten shards is about 100 s of tests a shard
-    # after its minute of setup. The rest -- desktop, the iPhones, the
-    # iPad, the audit -- runs on main's push after the merge and every
-    # night, all of it, where a failure holds Promote (promote.yml takes
-    # only a green run on main).
+    # after its minute of setup. main's push runs the same, so a merge
+    # promotes in minutes; the rest -- desktop, the iPhones, the iPad, the
+    # audit -- runs every night and when started by hand, all of it (the
+    # owner, 2026-11-06: "trim"). A nightly failure says so in its run; it
+    # does not hold Promote, which takes main's green push.
     strategy:
       fail-fast: false
       matrix:
@@ -1035,7 +1056,7 @@ jobs:
         env:
           IOS_AUDIT: ${{ (github.event_name == 'schedule' || inputs.standards) && '1' || '' }}
           SCREENSHOTS: /out/screens
-          PROJECTS: ${{ github.event_name == 'pull_request' && '--project=mobile' || '' }}
+          PROJECTS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || '--project=mobile' }}
         run: |
           echo "$(($(date +%s) - T0)) the tests" >> /tmp/e2e-out/timeline
           mkdir -p /tmp/e2e-out/screens
@@ -1113,9 +1134,9 @@ jobs:
           path: web/test-results
           if-no-files-found: ignore
 
-      # Made where the iOS audit runs: main's push and the nightly run.
+      # Made where the iOS audit runs: the nightly run, or one by hand.
       - name: The iPhone screenshots
-        if: always() && github.event_name != 'pull_request'
+        if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: iphone-screens-${{ matrix.shard }}
@@ -1271,7 +1292,8 @@ jobs:
     # token is read-only. The images are pushed under their content's
     # keys, so a branch's are the same any other commit with those keys
     # would push.
-    if: (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
+    needs: [changes]
+    if: needs.changes.outputs.docs-only != 'true' && (github.event_name != 'pull_request' || (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'))
     permissions:
       contents: read
       packages: write
