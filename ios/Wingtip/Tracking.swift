@@ -57,6 +57,10 @@ final class Tracking {
     private(set) var recents: [KeptAirplane] = []
     private(set) var watches: [AirplaneWatch] = []
     @ObservationIgnored private let context: ModelContext
+    /// The store the context is of, held: a context keeps no hold on its
+    /// container, and one given here and dropped by its maker (a test's in
+    /// memory) was freed under it, SwiftData trapping at the next insert.
+    @ObservationIgnored private let container: ModelContainer
     @ObservationIgnored private var remote: Task<Void, Never>?
     /// The last watch that went off, for the banner over the map.
     var fired: String?
@@ -73,6 +77,7 @@ final class Tracking {
     /// it, taken in on the first launch after the change; a test gives
     /// its own of each.
     init(container: ModelContainer = Records.container, defaults: UserDefaults = .standard) {
+        self.container = container
         context = container.mainContext
         Records.migrate(from: defaults, into: context)
         reload()
