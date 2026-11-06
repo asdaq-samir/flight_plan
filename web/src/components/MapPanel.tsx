@@ -13,7 +13,6 @@ import { SheetCardHost } from "./SheetCard";
 import { raisedFor, useSheetCards } from "../lib/sheetCards";
 import TabKept from "./TabKept";
 import { prefersReducedMotion } from "../lib/motion";
-import { usePreferences } from "../lib/preferences";
 import { restingAt, settleSeconds, type Detents } from "./sheet/engine";
 import { useSheetDrag } from "./sheet/useSheetDrag";
 
@@ -173,10 +172,6 @@ export interface SheetTurn { insets: MapInsets }
  * measured only as the pill at rest.
  */
 export default function MapPanel({ label, top, kept, controls, compact, children, state: pageState, onStateChange: tellPage, onInsetsChange: tellInsets, toEdge: edgeAsked = false, bar, layer = "tab", cardOver: overAsked = false, foot, flying = false }: Props) {
-  // The pill's first row: the tab bar, or in the strip layout the strip's
-  // one field (the foot), its ribbon (the bar) from half way up
-  // (features/strip, lib/preferences).
-  const fieldPill = usePreferences(s => s.layout === "strip") && !!foot;
   const cardInPill = layer === "card";
   const cardOver = layer !== "console" && overAsked;
   // A card opened over whatever is here (SheetCard): the body's room its,
@@ -746,7 +741,6 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // In the pill the finger is the sheet's (touch-none), as on the
         // tabs: the browser's own scroll took it and cancelled the drag.
         pillHere ? "touch-none border-transparent [&_[data-pill-hides]]:hidden [&>*]:flex-none" : cn("border-border/60", SHEET_BELOW),
-        fieldPill && pillHere && "px-3",
       ),
       style: { "--sheet-progress": at === "half" ? "0" : "1", ...(toEdge && fromBottom && !pillHere ? { paddingBottom: Math.max(10, edgeInset) } : {}) } as CSSProperties,
     };

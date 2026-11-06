@@ -66,10 +66,6 @@ const MODES = {
 export default function MapPage({ mode }: { mode: Mode }) {
   const { title, panel: panelLabel, console: consoleLabel, Workspace, route } = MODES[mode];
   const navBar = usePreferences(s => s.navBar);
-  // The strip's field is the sheet's foot in every state, Setup open all
-  // the way up included (features/strip's OneField): the other layouts'
-  // foot -- a route's figures -- stays out of the console's layer.
-  const stripLayout = usePreferences(s => s.layout === "strip");
   const edge = useNavEdge();
   const [searchParams, setSearchParams] = useSearchParamsNow();
   // The route in the panel: the address's, unless the pilot has typed
@@ -300,7 +296,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
             // no pill of its own: at rest it is the tabs, for the way back to
             // the others.
             bar={pieces.bar} layer={consoleLayer ? "console" : pieces.alone ? "card" : "tab"}
-            foot={consoleLayer && !stripLayout ? undefined : pieces.foot}
+            foot={consoleLayer ? undefined : pieces.foot}
             cardOver={!!pieces.cardOver} flying={!!pieces.flying}
             top={topRow} kept={pieces.route != null ? routeRow : undefined}
           >

@@ -14,29 +14,6 @@ const ROUTE = "dep=C81&dest=KDLH";
  */
 export const SCREENS: Screen[] = [
   {
-    // The strip layout (features/strip): the ribbon and the one field in
-    // the pill over the chart, the plan in.
-    name: "strip",
-    ready: async page => {
-      await page.goto(`/app/plan?layout=strip&${ROUTE}`);
-      await settle(page);
-      await expect(page.getByTestId("strip-field")).toBeVisible({ timeout: slow(30000) });
-      await expect(page.getByTestId("strip-ribbon-figures")).toContainText("gal", { timeout: slow(120000) });
-      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: slow(30000) });
-    },
-  },
-  {
-    // The field over the tabs: the AI field with its one mic a glass bar at
-    // the top of the chart, the four tabs in the pill at its foot.
-    name: "field-tabs",
-    ready: async page => {
-      await page.goto(`/app/plan?layout=field-tabs&${ROUTE}`);
-      await settle(page);
-      await expect(page.getByTestId("field-tabs").getByTestId("strip-field")).toBeVisible({ timeout: slow(30000) });
-      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: slow(30000) });
-    },
-  },
-  {
     name: "map",
     ready: async page => {
       await page.goto(`/app/plan?${ROUTE}`);

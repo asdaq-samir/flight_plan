@@ -7,7 +7,6 @@ import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
 import RadioButton from "./RadioButton";
 import { useAtcRadio } from "../lib/atcRadio";
-import { usePreferences } from "../lib/preferences";
 import { FLYING_BUTTON, FLYING_STACK, GLASS, useFlying } from "./mapChrome";
 
 /**
@@ -45,11 +44,6 @@ export default function MapControls() {
   // next to close button on top", 2026-11-04); while it listens the mic
   // stays, its waveform saying so.
   const pillDone = useAtcRadio(s => s.pill !== null && !s.pill.listening);
-  // The strip's field has the microphone in it (OneField), and so has the
-  // field at the top of the map while the airplane is on the ground; in
-  // the air that layout's radio is the map's, as the tabs' is.
-  const layout = usePreferences(s => s.layout);
-  const stripLayout = layout === "strip" || (layout === "field-tabs" && !flying);
   return (
     <>
     {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its
@@ -118,15 +112,12 @@ export default function MapControls() {
         things apart, one here and one at the top of the map (the owner,
         2026-11-03). The width eases through a grid column from 0fr to
         1fr, which is how a box of unknown width is animated in CSS. */}
-    {/* Not in the strip layout (lib/preferences), whose one field has
-        the microphone in it (features/strip's OneField): the owner's
-        pick of Maps' pill, 2026-11-04. */}
     {/* At the foot's left, over the tabs, riding the sheet's top as the
         map's buttons do at the right: back from the top right at the
         owner's ask (2026-11-04, "Move the mic back to the left side, above
         the tabs"); tapped, it widens to the right into the pill. In the
         air it grows to 60 points there. */}
-    {!stripLayout && (
+    {(
     <div
       data-map-food=""
       className={cn(
