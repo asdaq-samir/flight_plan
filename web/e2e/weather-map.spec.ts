@@ -9,11 +9,13 @@ import { mapStill, openMapSettings, settle, slow } from "./helpers";
  * says how the route crosses it. The planner's answer stubbed.
  */
 
-// Over the route from C81 to Duluth, about half way: a convective SIGMET.
+// Over the route from C81 to Duluth, its middle and north: a convective
+// SIGMET, large enough that part of it is always clear of the sheet and
+// the airports' marks for the tap below.
 const AREA = {
   id: "sigmet-0", kind: "convective", hazard: "CONVECTIVE", severity: null, low_ft: null, high_ft: 45000, from_freezing_level: false,
   valid_from: Date.now() / 1000 - 600, valid_to: Date.now() / 1000 + 3000, raw: "CONVECTIVE SIGMET 12C",
-  coords: [[44.0, -91.2], [45.2, -91.2], [45.2, -89.0], [44.0, -89.0]],
+  coords: [[44.0, -93.0], [47.5, -93.0], [47.5, -88.0], [44.0, -88.0]],
 };
 const PIREP = { lat: 43.5, lon: -89.6, altitude_ft: 6500, aircraft: "C172", urgent: false, turbulence: "MOD", icing: null, observed_at: "2026-10-20T14:12:00Z", raw: "UA /OV MSN310012/TM 1412/FL065/TP C172/TB MOD" };
 const WIND = { ident: "MSN", lat: 43.14, lon: -89.34, dir_true_deg: 265, speed_kt: 34, temp_c: -6 };
@@ -67,25 +69,31 @@ test("the map's button turns the weather on and off, and an area's card says how
   await expect(area).toHaveCount(1);
 
   // A tap on it: what it is, and the route through it at the plan's
-  // altitude. Where the area itself is on top, once the map is still: the
-  // airports' marks cover its middle and, on CI's run 42214657620, its
-  // corner, and a spot found in a move had a mark slide over it (run
-  // 42219044827). Leaflet opens the card from a real pointer's click
-  // only, not a dispatched one (run 42216852993).
-  await mapStill(page);
-  const spot = await area.evaluate((path: Element) => {
-    const box = path.getBoundingClientRect();
-    for (let fy = 0.1; fy < 1; fy += 0.1) {
-      for (let fx = 0.1; fx < 1; fx += 0.1) {
-        const x = box.left + box.width * fx, y = box.top + box.height * fy;
-        if (document.elementFromPoint(x, y) === path) return { x, y };
-      }
-    }
-    return null;
-  });
-  expect(spot, "a part of the area with nothing over it").not.toBeNull();
-  await page.mouse.click(spot!.x, spot!.y);
+  // altitude. The tap is where the area itself is the top element and as
+  // high on the screen as it can be, clear of the sheet, the map's buttons
+  // and the airports' marks (which cover its middle; CI's run 42214657620
+  // its corner too), and made once the map is still and again if a move
+  // took the spot away -- a spot found in a move had a mark slide over it
+  // (run 42219044827). A real pointer's click: Leaflet opens the card from
+  // that only, not from a dispatched one (run 42216852993).
   const card = page.getByTestId("weather-area-card");
-  await expect(card).toBeVisible();
+  await expect(async () => {
+    await mapStill(page);
+    const spot = await area.evaluate((path: Element) => {
+      const box = path.getBoundingClientRect();
+      const width = window.innerWidth;
+      for (let fy = 0.05; fy < 1; fy += 0.05) {
+        for (let fx = 0.1; fx < 1; fx += 0.1) {
+          const x = box.left + box.width * fx, y = box.top + box.height * fy;
+          if (y < 80 || x < 20 || x > width - 64) continue;
+          if (document.elementFromPoint(x, y) === path) return { x, y };
+        }
+      }
+      return null;
+    });
+    expect(spot, "a part of the area with nothing over it").not.toBeNull();
+    await page.mouse.click(spot!.x, spot!.y);
+    await expect(card).toBeVisible({ timeout: 3000 });
+  }).toPass({ timeout: slow(30000) });
   await expect(card.getByTestId("weather-area-route")).toContainText(/Your route crosses it for \d+ nm/);
 });

@@ -117,7 +117,8 @@ const AreaShape = memo(function AreaShape({ area, line, altitudeFt }: { area: We
   // A G-AIRMET is a forecast snapshot, dashed; a SIGMET is in force, solid.
   return (
     <Polygon positions={area.coords as [number, number][]} pathOptions={areaStyle(areaColour(area), area.kind === "gairmet")}>
-      <MapPopup>
+      {/* An area's, as a TFR's (TfrLayer): no ring at the point tapped. */}
+      <MapPopup ring={false}>
         <AreaCard area={area} line={line} altitudeFt={altitudeFt} />
       </MapPopup>
     </Polygon>
