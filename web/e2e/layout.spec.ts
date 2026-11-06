@@ -250,7 +250,9 @@ for (const path of PAGES) {
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("no viewport configured");
 
-    const first = page.locator("[data-map-controls] button").first();
+    // The group's own first, not the radio's mic, which from md up stands
+    // over it in the same column (the owner, 2026-11-06).
+    const first = page.locator("[data-map-controls] > div:not([data-map-food]) button").first();
     const firstBox = (await first.boundingBox())!;
     // On the map, flush with its right edge -- the same on both pages: on a
     // phone just over the sheet, as Maps' ride on its sheet (2026-10-26),
@@ -261,7 +263,13 @@ for (const path of PAGES) {
       const group = (await page.locator("[data-map-controls]").boundingBox())!;
       expect(group.y + group.height).toBeLessThanOrEqual(sheet.y);
       expect(sheet.y - (group.y + group.height)).toBeLessThan(60);
-    } else expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
+    } else {
+      expect(firstBox.y).toBeGreaterThan(viewport.height / 2);
+      // The mic a button of its own right over the group, at the same edge.
+      const mic = (await page.locator("[data-map-controls] [data-map-food]").boundingBox())!;
+      expect(mic.y + mic.height).toBeLessThanOrEqual(firstBox.y);
+      expect(viewport.width - (mic.x + mic.width)).toBeLessThan(20);
+    }
     // Never among the map's buttons, on either page: their first is the
     // map's own, its sheet the map's settings, as Maps' is.
     expect(await page.locator("[data-map-controls]").getByTestId("setup-button").count()).toBe(0);
