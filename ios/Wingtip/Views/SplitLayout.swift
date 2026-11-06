@@ -113,13 +113,16 @@ struct SplitLayout<Map: View>: View {
     @Binding var card: SideCard?
     @Environment(Plan.self) private var plan
     @State private var columns: NavigationSplitViewVisibility = .all
+    /// Ask (AskView) over the sidebar's tabs, as the iPhone's sheet has it
+    /// (RootView's SheetView).
+    @State private var asking = false
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columns) {
             // A tab's own navigation bar is folded into the column's in
             // the sidebar, which showed none of its title or buttons: the
             // column's bar carries them instead.
-            SheetView(tab: $tab, airports: sidebarAirports, pill: false)
+            SheetView(tab: $tab, airports: sidebarAirports, pill: false, asking: $asking)
                 .navigationTitle(Self.title(tab))
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { if tab == .fpl { fplItems } }

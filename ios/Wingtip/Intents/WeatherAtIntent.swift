@@ -5,7 +5,7 @@ import AppIntents
 /// to the word), without opening the app, as the microphone's Weather
 /// chip says it in the app. The field is an AirportEntity, so the phrase
 /// carries it; a town said when Siri asks is found as the microphone
-/// finds one (AirportQuery).
+/// finds one (AirportEntityQuery).
 struct WeatherAtIntent: AppIntent {
     static let title: LocalizedStringResource = "Weather at an Airport"
     static let description = IntentDescription("Says an airport's latest weather report: wind, visibility, ceiling, temperature, altimeter and the flight category.")

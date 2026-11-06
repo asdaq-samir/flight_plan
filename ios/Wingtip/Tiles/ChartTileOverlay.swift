@@ -113,7 +113,10 @@ final class ChartTileOverlay: MKTileOverlay {
             }
             let composed = images.contains(where: { $0 != nil }) ? ChartTileOverlay.compose(images) : nil
             if let composed { cache.write(composed, for: key) }
-            signposter.endInterval("tile", interval, fromNetwork ? "network" : (composed == nil ? "none" : "disk"))
+            // Where the tile came from, as a value: a signpost's message is
+            // an OSLogMessage, which a ternary of literals cannot build.
+            let source = fromNetwork ? "network" : (composed == nil ? "none" : "disk")
+            signposter.endInterval("tile", interval, "\(source, privacy: .public)")
             let waiting = inFlight.withLockUnchecked { waiting -> [(Data?, (any Error)?) -> Void] in
                 waiting.removeValue(forKey: key) ?? []
             }

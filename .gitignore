@@ -66,6 +66,10 @@ ios/Wingtip.xcodeproj
 ios/.build
 ios/Wingtip/Info.plist
 ios/Wingtip/Wingtip.entitlements
+# And the Watch app's and the widgets' files it writes beside them.
+ios/WingtipWatch/Info.plist
+ios/WingtipWidgets/Info.plist
+ios/WingtipWidgets/WingtipWidgets.entitlements
 # The engine for the app, built on the runner (native/ffi/build-xcframework.sh).
 ios/Frameworks/
 
@@ -78,4 +82,6 @@ native/target/
 android/app/engine/
 android/.gradle/
 android/**/build/
+# The JNI shim's CMake state, which the Gradle plugin writes.
+android/app/.cxx/
 android/local.properties

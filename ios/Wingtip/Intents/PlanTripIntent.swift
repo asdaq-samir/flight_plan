@@ -7,7 +7,7 @@ import AppIntents
 /// the PendingCommand). At the owner's ask (2026-11-03): Apple's way to
 /// Siri, Shortcuts and Spotlight is App Intents, so what the microphone
 /// takes in the app Siri takes outside it too. A town or an address said
-/// when Siri asks is found as the microphone finds one (AirportQuery,
+/// when Siri asks is found as the microphone finds one (AirportEntityQuery,
 /// IntentLookups.field): the biggest field by it.
 struct PlanTripIntent: AppIntent {
     static let title: LocalizedStringResource = "Plan a Trip"

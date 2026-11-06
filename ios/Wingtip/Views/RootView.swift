@@ -194,7 +194,7 @@ struct RootView: View {
         .onAppear { plan.undoManager = undoManager }
         .onChange(of: undoManager) { _, manager in plan.undoManager = manager }
         // Siri listens for the fields the shortcuts' airport entity
-        // suggests (the kept route's: AirportQuery.suggestedEntities), so
+        // suggests (the kept route's: AirportEntityQuery.suggestedEntities), so
         // the phrases are told again when the route changes.
         .onAppear { WingtipShortcuts.updateAppShortcutParameters() }
         .onChange(of: plan.idents) { _, _ in WingtipShortcuts.updateAppShortcutParameters() }

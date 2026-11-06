@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 /// What Siri or a Shortcut asked for (the App Intents beside this), or a

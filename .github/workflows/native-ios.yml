@@ -55,12 +55,31 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The engine's framework as the last run that built this engine left
+      # it: the three Apple targets took 148 s of a 284 s job (run
+      # 42110145019), and the engine changes far less often than the app.
+      # Keyed on the engine's own files, 23 MB, so the full Actions cache
+      # loses little to it.
+      - name: The engine, as last built
+        id: engine
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
         # wingtip-engine through its C functions (native/ffi), which the app
         # answers the airspace from with no network. The runner's own
-        # rustup; no Actions cache, as the engine has no crates to fetch and
-        # builds for the three targets in about a minute.
+        # rustup, where the engine changed.
+        if: steps.engine.outputs.cache-hit != 'true'
         run: native/ffi/build-xcframework.sh
+      # Kept at once, not at the job's end: an app that fails its tests
+      # still built the engine right.
+      - name: The engine, kept
+        if: steps.engine.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The Xcode project, from project.yml
         run: |
           brew install xcodegen
@@ -174,11 +193,22 @@ jobs:
       KEY_P8: ${{ secrets.APP_STORE_KEY_P8 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The engine's framework as the last run that built this engine left
+      # it: the three Apple targets took 148 s of a 284 s job (run
+      # 42110145019), and the engine changes far less often than the app.
+      # Keyed on the engine's own files, 23 MB, so the full Actions cache
+      # loses little to it.
+      - name: The engine, as last built
+        id: engine
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
         # wingtip-engine through its C functions (native/ffi), which the app
         # answers the airspace from with no network. The runner's own
-        # rustup; no Actions cache, as the engine has no crates to fetch and
-        # builds for the three targets in about a minute.
+        # rustup, where the engine changed.
+        if: steps.engine.outputs.cache-hit != 'true'
         run: native/ffi/build-xcframework.sh
       - name: The Xcode project, from project.yml
         run: |

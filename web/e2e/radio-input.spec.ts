@@ -80,7 +80,7 @@ test("the Radio card finds the inputs, listens through the one picked with its l
   await settle(page);
   const mic = page.getByTestId("mic-circle");
   await expect(mic).toBeVisible({ timeout: slow(30000) });
-  const view = page.viewportSize()!;
+  const placed = (await mic.boundingBox())!;
 
   // With a recognizer the mic listens once; stopped, its pill opens the
   // card. The page's first tap can land before its handlers are in.
@@ -142,8 +142,10 @@ test("the Radio card finds the inputs, listens through the one picked with its l
   await expect(captions).toContainText(lost, { timeout: slow(10_000) });
   await expect(card.getByTestId("listen-problem")).toHaveText(lost);
 
-  // Nothing moved: the mic is where map-mic.spec has it.
+  // Nothing moved: the mic is where it was, at the left of the map's
+  // foot (map-mic.spec, the owner's "Move the mic back to the left side,
+  // above the tabs", 2026-11-04), its pill grown to the right of it. Its
+  // height follows the sheet's, which the Radio card raised.
   const box = (await mic.boundingBox())!;
-  expect(box.y).toBeLessThan(view.height / 4);
-  expect(view.width - (box.x + box.width)).toBeLessThanOrEqual(16);
+  expect(Math.abs(box.x - placed.x)).toBeLessThanOrEqual(1);
 });
