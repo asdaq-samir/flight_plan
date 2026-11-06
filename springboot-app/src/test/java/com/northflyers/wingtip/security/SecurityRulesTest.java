@@ -57,7 +57,7 @@ class SecurityRulesTest {
     void thePolicyLetsTheOverlayAndThePhotosReachTheirHostsOnly() throws Exception {
         String policy = mockMvc.perform(get("/api/me")).andReturn().getResponse().getHeader("Content-Security-Policy");
         assertThat(policy).containsPattern(
-                "img-src 'self' data:[^;]* https://basemap\\.nationalmap\\.gov https://tile\\.googleapis\\.com https://t\\.plnspttrs\\.net;");
+                "img-src 'self' data:[^;]* https://basemap\\.nationalmap\\.gov https://tile\\.googleapis\\.com https://mesonet\\.agron\\.iastate\\.edu https://t\\.plnspttrs\\.net;");
         assertThat(policy).contains("connect-src 'self' https://tile.googleapis.com https://api.planespotters.net;");
         assertThat(policy).doesNotContain("*");
     }

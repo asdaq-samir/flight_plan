@@ -8205,6 +8205,129 @@
         "title": "MapLayerAges",
         "type": "object"
       },
+      "MapPirep": {
+        "description": "A pilot report on the map, where it was made (wingtip.weather).",
+        "properties": {
+          "aircraft": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Aircraft"
+          },
+          "altitude_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Ft"
+          },
+          "icing": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Icing"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "observed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed At"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "turbulence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Turbulence"
+          },
+          "urgent": {
+            "default": false,
+            "title": "Urgent",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "lat",
+          "lon"
+        ],
+        "title": "MapPirep",
+        "type": "object"
+      },
+      "MapWinds": {
+        "properties": {
+          "altitude_ft": {
+            "title": "Altitude Ft",
+            "type": "number"
+          },
+          "period": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period"
+          },
+          "stations": {
+            "items": {
+              "$ref": "#/components/schemas/StationWind"
+            },
+            "title": "Stations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "altitude_ft",
+          "stations"
+        ],
+        "title": "MapWinds",
+        "type": "object"
+      },
       "Metar": {
         "properties": {
           "altimeter_in_hg": {
@@ -13889,6 +14012,51 @@
         "title": "SpokenProcedureAsk",
         "type": "object"
       },
+      "StationWind": {
+        "description": "An FD station's forecast wind (true) and temperature at the map's\naltitude.",
+        "properties": {
+          "dir_true_deg": {
+            "title": "Dir True Deg",
+            "type": "number"
+          },
+          "ident": {
+            "title": "Ident",
+            "type": "string"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lon": {
+            "title": "Lon",
+            "type": "number"
+          },
+          "speed_kt": {
+            "title": "Speed Kt",
+            "type": "number"
+          },
+          "temp_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temp C"
+          }
+        },
+        "required": [
+          "ident",
+          "lat",
+          "lon",
+          "dir_true_deg",
+          "speed_kt"
+        ],
+        "title": "StationWind",
+        "type": "object"
+      },
       "Status": {
         "properties": {
           "charts": {
@@ -15594,6 +15762,125 @@
         "title": "WaypointsInView",
         "type": "object"
       },
+      "WeatherArea": {
+        "description": "An area of weather on the map (wingtip.weather_map.advisories_in): a\nSIGMET, a convective SIGMET or a G-AIRMET snapshot; its hazard, its\nseverity where one is given, its altitudes (feet MSL; `low_ft` None\nfrom the surface, or from the freezing level where\n`from_freezing_level`), when it is valid (a G-AIRMET at `valid_from`,\na snapshot), its text (a SIGMET's raw report, a G-AIRMET's cause), and\nits outline, [lat, lon] pairs.",
+        "properties": {
+          "coords": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Coords",
+            "type": "array"
+          },
+          "from_freezing_level": {
+            "default": false,
+            "title": "From Freezing Level",
+            "type": "boolean"
+          },
+          "hazard": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hazard"
+          },
+          "high_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Ft"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "sigmet",
+              "convective",
+              "airmet",
+              "gairmet"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "low_ft": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Ft"
+          },
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Severity"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "hazard",
+          "coords"
+        ],
+        "title": "WeatherArea",
+        "type": "object"
+      },
       "WeatherAsk": {
         "description": "The briefing's own parameters besides the route (GET /api/briefing):\nthe flight's minutes, and the nav log's fixes (\"lat,lon;lat,lon\") and\neach leg's minutes where the page has them, for each hazard to be\nplaced where the flight meets it.",
         "properties": {
@@ -15677,6 +15964,57 @@
           "fetched_at"
         ],
         "title": "WeatherDataset",
+        "type": "object"
+      },
+      "WeatherMap": {
+        "description": "The weather the map draws in the part of it in sight, for `at`\n(UNIX seconds): areas, pilot reports, the winds aloft where an altitude\nwas asked for, and when the radar mosaic was made (ISO UTC).",
+        "properties": {
+          "advisories": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/WeatherArea"
+            },
+            "title": "Advisories",
+            "type": "array"
+          },
+          "at": {
+            "title": "At",
+            "type": "number"
+          },
+          "pireps": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/MapPirep"
+            },
+            "title": "Pireps",
+            "type": "array"
+          },
+          "radar_valid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Radar Valid"
+          },
+          "winds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MapWinds"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "at"
+        ],
+        "title": "WeatherMap",
         "type": "object"
       },
       "Wind": {
@@ -21013,6 +21351,121 @@
           }
         },
         "summary": "Waypoints In View"
+      }
+    },
+    "/api/weather/map": {
+      "get": {
+        "description": "The SIGMETs valid at `at` and the G-AIRMETs nearest it, the PIREPs\nof the last 90 minutes up to 18,000 ft, and -- with `altitude_ft` --\nthe FD stations' winds and temperatures there for the period that\nholds `at` (planning.forecast_hour_for, AC 00-45H's for-use windows),\nin the box; and when the radar mosaic was made.",
+        "operationId": "weather_on_the_map_api_weather_map_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "south",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "South",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "west",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "West",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "north",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "North",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "east",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "East",
+              "type": "number"
+            }
+          },
+          {
+            "description": "The time the advisories and winds are for, UNIX seconds; now when none",
+            "in": "query",
+            "name": "at",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4102444800,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The time the advisories and winds are for, UNIX seconds; now when none",
+              "title": "At"
+            }
+          },
+          {
+            "description": "The winds aloft's altitude; none, no winds",
+            "in": "query",
+            "name": "altitude_ft",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 45000,
+                  "minimum": 1000,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The winds aloft's altitude; none, no winds",
+              "title": "Altitude Ft"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeatherMap"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Weather On The Map"
       }
     },
     "/api/words/changes": {

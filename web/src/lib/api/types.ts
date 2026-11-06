@@ -156,6 +156,10 @@ export type PlacesFound = Schemas["PlacesFound"];
 /** The route from the side: the ground and the controlled airspace. */
 export type RouteProfile = Schemas["RouteProfile"];
 export type AirspaceAt = Schemas["AirspaceAt"];
+export type WeatherMap = Schemas["WeatherMap"];
+export type WeatherArea = Schemas["WeatherArea"];
+export type MapPirep = Schemas["MapPirep"];
+export type StationWind = Schemas["StationWind"];
 /** What is ahead of own ship (wingtip.alerts). */
 export type AlertsAhead = Schemas["AlertsAhead"];
 export type AheadAlert = Schemas["AheadAlert"];

@@ -15,6 +15,7 @@ import { airportBox, overlaps, useDrawnAirports } from "../../../lib/map/declutt
 import { useAfterPaint } from "../../../hooks/use-after-paint";
 import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
 import { TfrLayer } from "../../../lib/map/TfrLayer";
+import { WeatherLayer } from "../../../lib/map/WeatherLayer";
 import { PatternLayer } from "../../../lib/map/PatternLayer";
 import { PlateLayer } from "../../../lib/map/PlateLayer";
 import { ProcedureLayer } from "../../../lib/map/ProcedureLayer";
@@ -776,6 +777,9 @@ export default memo(function RouteMap({
   // one task with every layer in it, 0.2 s of a phone's (4x) as the
   // planner opened, a third of it the layers' (2026-10-10).
   const layered = useAfterPaint();
+  // The course and the plan's first cruise, for a weather area's card.
+  const courseLine = (course?.course_line as [number, number][] | undefined) ?? null;
+  const cruiseFt = legs[0]?.altitude_ft ?? null;
 
   return (
     <MapShell
@@ -785,6 +789,8 @@ export default memo(function RouteMap({
           opens its card, and Fly Here makes the route. */}
       <AirportsAsk />
       {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} others={chippedFields} route={routeBox} />}
+      {/* The weather under the TFRs and the route (WeatherLayer). */}
+      {layered && <WeatherLayer line={courseLine} altitudeFt={cruiseFt} />}
       {layered && <TfrLayer />}
       {layered && <WaypointsLayer exclude={chipped} />}
       {/* The airport whose card opens comes to the middle of the chart
