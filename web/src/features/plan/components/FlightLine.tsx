@@ -84,6 +84,7 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
   // place, and back, at the owner's ask ("To should change to next stop
   // or destination").
   const [toDestination, setToDestination] = useState(false);
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
   const stops = (totals?.hops.length ?? 0) > 0;
   const input = { totals, estimate, local, destination, depart, arrival, toDestination: stops && toDestination, flown };
   const exact = tripFigures(input, false);
@@ -117,7 +118,7 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
             <dt className={cn(GROUP_HEADING, nameType, "truncate text-foreground/65")}>{f.name === "Fuel" ? "Fuel req" : f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(valueType, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
               {f.name === "Fuel" && breakdown ? (
-                <ResponsivePopover>
+                <ResponsivePopover open={breakdownOpen} onOpenChange={setBreakdownOpen}>
                   <ResponsivePopoverTrigger asChild>
                     {/* The figure itself the button, in the tint as what is
                         tapped is; its 44-point area round it, the figure
@@ -139,7 +140,14 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                   <ResponsivePopoverContent title={`Fuel to ${breakdown.to}`} className="w-72 p-3" side="top" align="end">
                     <FuelBreakdown totals={breakdown.totals!} short={shortFlights(totals)} burnt={flown?.burntGal} />
                     {f.alert && fuelStop && (
-                      <Button type="button" variant="ghost" className="mt-2 w-full text-tint" onClick={fuelStop.add} data-testid="fuel-short-add-stop">
+                      <Button
+                        type="button" variant="ghost" data-testid="fuel-short-add-stop"
+                        // Its 44-point area made by the after, the button not grown to it;
+                        // the popover put away as the stop is kept, so a second tap cannot
+                        // keep it again over figures that are changing.
+                        className="relative mt-2 w-full text-tint after:absolute after:-inset-y-1 after:content-['']"
+                        onClick={() => { setBreakdownOpen(false); fuelStop.add(); }}
+                      >
                         Add fuel stop at {fuelStop.idents.join(", ")}
                       </Button>
                     )}

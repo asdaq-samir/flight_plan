@@ -26,7 +26,9 @@ export default function ProfileCard({ name, line, corner, cautions = [], onClose
   corner?: ReactNode;
   /** What the pilot's own altitude breaks, the planner's words with their
    *  rules (own_altitude_caution: over the airplane's service ceiling, the
-   *  oxygen 14 CFR 91.211 asks): said here under the head, where the
+   *  oxygen 14 CFR 91.211(a) asks: (a)(1) the crew past 30 minutes over
+   *  12,500 ft MSL, (a)(2) the crew over 14,000, (a)(3) every occupant over
+   *  15,000): said here under the head, where the
    *  Profile button's mark points, and in sight through a dry run, which
    *  puts the route's box and its altitude away. A warning, never a
    *  limit (the owner, 2026-10-23). */
