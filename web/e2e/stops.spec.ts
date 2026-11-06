@@ -216,7 +216,7 @@ test.describe("on a touch screen", () => {
     await settle(page);
     await openPanel(page);
     const lines = sideDrawer(page).getByTestId("route-slide");
-    const stopsAre = (list: string) => new RegExp(`[?&]stops=(${list.replace(",", "%2C")}|${list})(&|$)`);
+    const stopsAre = (list: string) => new RegExp(`[?&]stops=(${list.replaceAll(",", "%2C")}|${list})(&|$)`);
 
     await touchDrag(page, lines.getByTestId("route-dest"), lines.getByTestId("route-dep"));
     await expect(page).toHaveURL(/[?&]dep=KDLH(&|$)/);

@@ -46,6 +46,9 @@ from .routers.plan import DEFAULT_AIRCRAFT, PlanQuery
 
 log = logging.getLogger(__name__)
 
+#: What the pilot reads when Claude cannot be asked.
+UNREACHABLE = "The assistant cannot be reached just now; ask again in a moment."
+
 #: The most capable model, as the mock oral's (ORAL_MODEL): the pilot
 #: asks about a real flight, and a wrong reading of the figures is worse
 #: than a slow one. Effort medium: a conversation, not a proof; the
@@ -637,7 +640,10 @@ def answer(ask: AssistantAsk, runner=None, box: Toolbox | None = None) -> Iterat
     try:
         runner = runner or runner_for(turns, box)
     except anthropic.AnthropicError as err:
-        yield _line({"type": "error", "words": f"The assistant cannot be reached: {err}"})
+        # The error's own words (its status, its request id) are the log's,
+        # not the pilot's (CodeQL's py/stack-trace-exposure).
+        log.warning("assistant unreachable: %s", err)
+        yield _line({"type": "error", "words": UNREACHABLE})
         return
     said_any = False
     try:
@@ -663,7 +669,10 @@ def answer(ask: AssistantAsk, runner=None, box: Toolbox | None = None) -> Iterat
         yield _line({"type": "error", "words": "The assistant lost its place; ask again."})
         return
     except anthropic.AnthropicError as err:
-        yield _line({"type": "error", "words": f"The assistant cannot be reached: {err}"})
+        # The error's own words (its status, its request id) are the log's,
+        # not the pilot's (CodeQL's py/stack-trace-exposure).
+        log.warning("assistant unreachable: %s", err)
+        yield _line({"type": "error", "words": UNREACHABLE})
         return
     if not said_any:
         yield _line({"type": "text", "text": "I could not put an answer together from the figures; ask again in other words."})

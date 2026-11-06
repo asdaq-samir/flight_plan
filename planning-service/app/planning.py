@@ -7,6 +7,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from cachetools import TTLCache
+from fastapi import HTTPException
 
 from wingtip import aircraft as aircraft_module
 from wingtip import altitude as altitude_module
@@ -209,7 +210,12 @@ def aircraft_profile(
     numbers on top when given: the profile supplies the service ceiling
     the altitude selection needs unless the pilot set their own, the
     overrides supply what the legs, their climbs and the fuel check need."""
-    profile = aircraft_module.load_aircraft_profile(name)
+    # One of the stock profiles by its bare name, never a path: the name
+    # is the request's, and the loader opens one with a suffix as it is.
+    path = aircraft_module.profile_path(name)
+    if path is None:
+        raise HTTPException(422, f"No aircraft profile is named {name!r}.")
+    profile = aircraft_module.load_aircraft_profile(path)
     overrides = {
         "cruise_tas_kt": cruise_tas_kt, "fuel_burn_gph": fuel_burn_gph, "usable_fuel_gal": usable_fuel_gal,
         "climb_tas_kt": climb_tas_kt, "climb_fuel_burn_gph": climb_fuel_burn_gph,

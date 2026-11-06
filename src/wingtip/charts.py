@@ -1075,6 +1075,9 @@ def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
     where no chart of this kind covers it (a 404 for the map's tile
     layer to leave blank)."""
     chart_kind = KINDS[kind]
+    # Whole numbers, whatever the caller handed in: the tile's file is
+    # named by them under the cache (CodeQL's py/path-injection).
+    x, y, zoom = int(x), int(y), int(zoom)
     if not (chart_kind.min_zoom <= zoom <= chart_kind.max_zoom):
         return None
     cycle = serving_cycle_of(kind)

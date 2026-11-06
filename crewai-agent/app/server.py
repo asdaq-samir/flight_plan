@@ -8,6 +8,7 @@ internal docker network (crewai-agent:8000), no host port published in
 docker-compose.yml, no ALB route in infra/cloudformation/template.yaml.
 """
 import json
+import logging
 from collections.abc import Iterator
 
 from crewai.types.streaming import StreamChunkType
@@ -18,6 +19,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from wingtip.narrative import NarrativeRequest, invalid_detail
 
 from .main import build_crew
+
+log = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -62,8 +65,11 @@ def _narrative_lines(crew) -> Iterator[str]:
             if chunk.chunk_type == StreamChunkType.TEXT and chunk.content:
                 yield _line({"type": "delta", "text": chunk.content})
         yield _line({"type": "done", "briefing": str(streaming.result).strip()})
-    except Exception as err:  # noqa: BLE001 -- whatever failed, the stream must end with a line saying so
-        yield _line({"type": "error", "detail": str(err)})
+    except Exception:  # noqa: BLE001 -- whatever failed, the stream must end with a line saying so
+        # What failed, and where, is the log's; the page gets words (CodeQL's
+        # py/stack-trace-exposure: the error's text went to the browser).
+        log.exception("briefing stream failed")
+        yield _line({"type": "error", "detail": "The briefing could not be written just now; try again in a moment."})
 
 
 @app.post("/compare")
