@@ -12,15 +12,15 @@
 # this service and its callers both need to agree on. Pinned to what
 # python:3.14-slim (this service's own base image) currently resolves.
 -r ../src/requirements-charts.txt   # wingtip's own list, charts included: this service draws them
-fastapi==0.142.2
+fastapi==0.162.0
 uvicorn[standard]==0.54.0
-boto3==1.43.108      # wingtip.charts' S3 publish, used only on AWS
+boto3==1.43.123      # wingtip.charts' S3 publish, used only on AWS
 anthropic==1.11.0   # /api/checkpoint-notes: one Claude call per checkpoint
 solace-pubsubplus==1.11.0   # app.swim: the FAA's SWIM feeds (Solace's broker), where SWIM_* are set
 # Traces to an OTLP collector, only where OTEL_EXPORTER_OTLP_ENDPOINT is
 # set (app.tracing; docker-compose's tracing profile).
-opentelemetry-sdk==1.45.0
-opentelemetry-exporter-otlp-proto-http==1.45.0
+opentelemetry-sdk==1.45.2
+opentelemetry-exporter-otlp-proto-http==1.45.2
 opentelemetry-instrumentation-fastapi==0.66b0
 opentelemetry-instrumentation-requests==0.66b0
 
