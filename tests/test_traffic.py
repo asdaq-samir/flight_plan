@@ -1198,3 +1198,14 @@ def test_the_globe_turning_the_planner_away_is_not_asked_again_for_a_while(clock
         clock.now += traffic.GLOBE_BACKOFF_S + 1
         traffic._trace("a0b7d8")
         assert get.call_count == 2
+
+
+def test_an_address_that_is_not_six_hex_digits_names_no_file():
+    """A track's file is named by the airplane's ICAO address alone: one
+    that is not six hex digits (from a feed or a request) is neither read
+    nor written, so nothing reaches out of the directory."""
+    escaped = traffic.RECORDED_DIR.parent.parent / "escaped.json"
+    traffic._save_recorded("../../escaped", [{"t": 1.0}])
+    assert not escaped.exists()
+    traffic._load_recorded("../../escaped")
+    assert traffic._RECORDED["../../escaped"] == []

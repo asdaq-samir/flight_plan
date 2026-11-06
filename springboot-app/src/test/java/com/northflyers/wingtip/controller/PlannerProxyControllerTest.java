@@ -179,6 +179,19 @@ class PlannerProxyControllerTest {
     }
 
     @Test
+    void aPathThatMeansAnotherRouteAtThePlannerIsNotForwarded() {
+        // Each matched a route's one segment here and is more at the
+        // planner, which decodes the path, or names another host.
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/..%2F..%2Fdev/photos")).isFalse();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/%2e%2e/photos")).isFalse();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/a%5Cb/photos")).isFalse();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api/airport/../photos")).isFalse();
+        assertThat(PlannerProxyController.isForwarded("GET", "/api//evil.example/photos")).isFalse();
+        assertThat(PlannerProxyController.isPlain("/api/airport/KDLH/photos")).isTrue();
+        assertThat(PlannerProxyController.isPlain("/api/chart-tile/sectional/10/262/380.png")).isTrue();
+    }
+
+    @Test
     void theRouteTableCoversWhatTheBrowserCalls() {
         assertThat(PlannerProxyController.isForwarded("GET", "/api/chart-tile/sectional/10/262/380.png")).isTrue();
         assertThat(PlannerProxyController.isForwarded("POST", "/api/dev/services/ml/start")).isTrue();

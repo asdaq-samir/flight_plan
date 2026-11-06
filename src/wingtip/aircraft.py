@@ -35,6 +35,20 @@ def _load(path_str: str) -> dict:
     return profile
 
 
+@lru_cache(maxsize=1)
+def _profile_files() -> dict:
+    return {path.stem: path for path in DEFAULT_PROFILE_DIR.glob("*.json")}
+
+
+def profile_path(name: str) -> Path | None:
+    """The stock profile's file by its bare name ("c172"); None for any
+    other name. Looked up among the files there are rather than joined
+    onto the directory, so a name from a request -- one with a suffix was
+    opened as a path of its own (CodeQL's py/path-injection) -- only ever
+    picks one of them."""
+    return _profile_files().get(name)
+
+
 def load_aircraft_profile(name_or_path) -> dict:
     """`name_or_path` can be a bare profile name (e.g. "c172", resolved
     against data/aircraft/c172.json) or a full path to a JSON file.

@@ -886,14 +886,30 @@ _WATCH_SOURCE: dict[str, str] = {}
 _RECORDED: dict[str, list[dict]] = {}
 
 
+# An airplane's ICAO address, six hex digits (a TIS-B one's "~" taken off):
+# all its track's file is named by. The addresses come from the feeds and
+# from requests; one that is not this names no file, so none can reach out
+# of the directory (CodeQL's py/path-injection).
+_ICAO_HEX = re.compile(r"[0-9a-fA-F]{6}")
+
+
+def _recorded_file(hex_id: str) -> Path | None:
+    key = hex_id.lstrip("~")
+    return RECORDED_DIR / f"{key}.json" if _ICAO_HEX.fullmatch(key) else None
+
+
 def _load_recorded(hex_id: str) -> None:
     """An airplane's recorded track read from its file the first time it is
     wanted; nothing where there is none or it cannot be read. Called with
     the lock held."""
     if hex_id in _RECORDED:
         return
+    path = _recorded_file(hex_id)
+    if path is None:
+        _RECORDED[hex_id] = []
+        return
     try:
-        kept = json.loads((RECORDED_DIR / f"{hex_id.lstrip('~')}.json").read_text())
+        kept = json.loads(path.read_text())
         _RECORDED[hex_id] = [p for p in kept if isinstance(p, dict) and "t" in p] if isinstance(kept, list) else []
     except (OSError, ValueError):
         _RECORDED[hex_id] = []
@@ -902,9 +918,11 @@ def _load_recorded(hex_id: str) -> None:
 def _save_recorded(hex_id: str, track: list[dict]) -> None:
     """The track written to its file whole, through a file beside it, so a
     read never finds half of one; a failure to write leaves the old one."""
+    path = _recorded_file(hex_id)
+    if path is None:
+        return
     try:
         RECORDED_DIR.mkdir(parents=True, exist_ok=True)
-        path = RECORDED_DIR / f"{hex_id.lstrip('~')}.json"
         part = path.with_suffix(".part")
         part.write_text(json.dumps(track))
         part.replace(path)

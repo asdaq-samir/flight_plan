@@ -317,3 +317,16 @@ def test_with_no_chart_model_the_palettes_constants_score_them(monkeypatch):
     monkeypatch.setattr(chart_model, "predicted_scores", lambda ls: [None])
 
     assert [c["predicted_score"] for c in scoring.score("C81", "KDLH")] == [4.3]
+
+
+def test_an_aircraft_name_that_is_a_path_is_not_opened():
+    """The aircraft name is the request's: only a stock profile's bare
+    name picks a file, and a path (the loader opens one with a suffix as
+    it is) is a 422, never read (CodeQL's py/path-injection)."""
+    import pytest
+    from fastapi import HTTPException
+
+    for name in ("/etc/hostname.json", "../aircraft/c172.json", "c172.json", "nosuchplane"):
+        with pytest.raises(HTTPException) as refused:
+            planning.aircraft_profile(name)
+        assert refused.value.status_code == 422

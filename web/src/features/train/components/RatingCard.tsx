@@ -11,7 +11,7 @@ import { capitalised } from "../../../lib/advisories";
  *  Guide's scale (RatingGuide) in one line, each term kept whole where
  *  the line wraps. */
 const SCALE_KEY = ["0 not a feature", "3 workable", "5 unmistakable"]
-  .map(term => term.replaceAll(" ", " ")).join(" · ");
+  .map(term => term.replaceAll(" ", "\u00a0")).join(" · ");
 
 /** A rating's button as the stock Button drew it -- 40 tall in the
  *  card's grid, the figure bold at 17 to a finger, a clear border its

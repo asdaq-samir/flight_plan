@@ -220,6 +220,9 @@ public class PlannerProxyController {
             route("POST", "/api/dev/services/{service}/start"));
 
     static boolean isForwarded(String method, String upstreamPath) {
+        if (!isPlain(upstreamPath)) {
+            return false;
+        }
         PathContainer path = PathContainer.parsePath(upstreamPath);
         return ROUTES.stream().anyMatch(route -> route.matches(method, path));
     }
@@ -377,6 +380,29 @@ public class PlannerProxyController {
     }
 
     /** {@code /api/planner/course} upstream is {@code /api/course}. */
+    /** Whether the raw path means at the planner what it matched here: one
+     *  absolute path, no scheme-relative "//" to name another host, no
+     *  backslash, no "." or ".." segment, and no encoded slash, backslash
+     *  or dot, which the route table here sees as one segment and the
+     *  planner (Starlette decodes the path) as more. The host is the
+     *  configured planner's whatever the path (CodeQL's java/ssrf, the
+     *  path being the browser's): this keeps the path to the routes. */
+    static boolean isPlain(String upstreamPath) {
+        if (!upstreamPath.startsWith("/api/") && !upstreamPath.equals("/api")) {
+            return false;
+        }
+        String lower = upstreamPath.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("//") || lower.contains("\\") || lower.contains("%2f") || lower.contains("%5c") || lower.contains("%2e")) {
+            return false;
+        }
+        for (String segment : upstreamPath.split("/", -1)) {
+            if (segment.equals(".") || segment.equals("..")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private static String upstreamPath(HttpServletRequest request) {
         return "/api" + request.getRequestURI().substring("/api/planner".length());
     }
