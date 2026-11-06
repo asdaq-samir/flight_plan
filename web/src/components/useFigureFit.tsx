@@ -10,6 +10,9 @@ const SMALLEST = 0.75;
 interface Fitted {
   value: string;
   unit?: string;
+  /** Drawn with a warning mark before it (FlightLine's fuel short of the
+   *  tanks), as wide as 0.8 of the figure's size and its 2 px gap. */
+  alert?: boolean;
 }
 
 /** Each figure on its own: the one that does not fit its column rounded,
@@ -55,7 +58,7 @@ export function useFigureFit<F extends Fitted>(exact: F[], rounded: F[], valueTy
   // run's strip counting down did it at every frame -- each figure's
   // widths read after setting it, a layout forced each time, 190 to 390 ms
   // of three seconds at 4x a phone's (a dry run at 200x, 2026-10-29).
-  const shape = (f: F) => `${f.value.replace(/\d/g, "0")}${f.unit ?? ""}`;
+  const shape = (f: F) => `${f.value.replace(/\d/g, "0")}${f.unit ?? ""}${f.alert ? "!" : ""}`;
   const key = [...exact.map(shape), "/", ...rounded.map(shape)].join("|");
   const moving = usePanelDragging(d => d.dragging);
   const [verdict, setVerdict] = useState<{ key: string; room: typeof space; fits: boolean[]; scale: number; px: { value: number; unit: number } } | null>(null);
@@ -72,7 +75,11 @@ export function useFigureFit<F extends Fitted>(exact: F[], rounded: F[], valueTy
       unit.style.fontSize = scale < 1 ? `${px.unit * scale}px` : "";
       value.textContent = f.value;
       unit.textContent = f.unit ? ` ${f.unit}` : "";
-      return value.getBoundingClientRect().width + unit.getBoundingClientRect().width;
+      // The warning mark's room too: left out, a short fuel figure "fit"
+      // and was cut on the screen, "87.2 g" (the owner's screenshot,
+      // 2026-11-06).
+      const mark = f.alert ? px.value * Math.min(1, scale) * 0.8 + 2 : 0;
+      return value.getBoundingClientRect().width + unit.getBoundingClientRect().width + mark;
     };
     const fitsAt = (f: F, scale: number) => width(f, scale) <= space.width + 0.5;
     const fits = exact.map(f => fitsAt(f, 1));

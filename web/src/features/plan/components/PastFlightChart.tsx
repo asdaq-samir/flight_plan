@@ -52,6 +52,7 @@ const FlightChart = memo(function FlightChart({ points, fromStart = false, along
   // run's, as the side view lays the plan's onto the route's; the chart
   // tall enough for their ceilings, as the side view's is.
   const start = alongNm?.[0] ?? 0, runNm = (alongNm?.at(-1) ?? 0) - start;
+  const nmTicks = useMemo(() => distanceTicks(start, start + runNm), [start, runNm]);
   const route = plain && airspace && airspace.length_nm > 0 ? airspace : null;
   const pieces = route ? route.airspace.filter(a => AIRSPACE[a.class]) : [];
   const runAt = (nm: number) => {
@@ -71,7 +72,7 @@ const FlightChart = memo(function FlightChart({ points, fromStart = false, along
     <ChartContainer config={chartConfig} className="aspect-auto h-full w-full">
       <ComposedChart data={data} margin={{ left: plain ? 12 : 0, right: plain ? 12 : 0, top: 4, bottom: 0 }}>
         {plain ? (
-          <XAxis dataKey="nm" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} minTickGap={32}
+          <XAxis dataKey="nm" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} ticks={nmTicks} interval={0}
             tickFormatter={(nm: number) => `${Math.round(nm)} nm`} />
         ) : (
           <XAxis dataKey="t" type="number" domain={["dataMin", "dataMax"]} tickLine={false} axisLine={false} minTickGap={32}
@@ -202,3 +203,20 @@ function NowMarks({ nm, alt, kt }: { nm: number; alt: number; kt: number | null 
 }
 
 export default FlightChart;
+
+/** The distance's marks at one round step -- 1, 2, 2.5 or 5 of a power of
+ *  ten -- five at most, inside the run and none at its end. Recharts' own
+ *  put its round ones and the run's end together, the one before the end
+ *  dropped where they met: 350, 700, then 1270 under a 1270 nm run (the
+ *  owner's screenshot, 2026-11-06). */
+export function distanceTicks(from: number, to: number): number[] {
+  const span = to - from;
+  if (!(span > 0)) return [];
+  const power = 10 ** Math.floor(Math.log10(span / 5));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * power).find(s => Math.floor(span / s) <= 5) ?? 10 * power;
+  const ticks: number[] = [];
+  // Each mark a whole number of steps from zero, not a running sum, so a
+  // step like 0.25 gathers no float error.
+  for (let i = Math.ceil(from / step); i * step < to - step / 4; i++) if (i * step > from) ticks.push(Number((i * step).toPrecision(12)));
+  return ticks;
+}
