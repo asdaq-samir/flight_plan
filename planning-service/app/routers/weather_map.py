@@ -21,7 +21,7 @@ MAX_SPAN_DEG = 70.0
 def weather_on_the_map(
     south: float = Query(ge=-90, le=90), west: float = Query(ge=-180, le=180),
     north: float = Query(ge=-90, le=90), east: float = Query(ge=-180, le=180),
-    at: float | None = Query(default=None, description="The time the advisories and winds are for, UNIX seconds; now when none"),
+    at: float | None = Query(default=None, ge=0, le=4102444800, allow_inf_nan=False, description="The time the advisories and winds are for, UNIX seconds; now when none"),
     altitude_ft: float | None = Query(default=None, ge=1000, le=45000, description="The winds aloft's altitude; none, no winds"),
 ) -> WeatherMap:
     """The SIGMETs valid at `at` and the G-AIRMETs nearest it, the PIREPs

@@ -1,11 +1,12 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import L, { type PathOptions } from "leaflet";
 import { useQuery } from "@tanstack/react-query";
 import { Marker, Pane, Polygon, TileLayer, useMap, useMapEvents } from "react-leaflet";
 import { api } from "../api/client";
 import type { MapPirep, StationWind, WeatherArea } from "../api/types";
 import { faaWords } from "../advisories";
-import { altitudeWords, areaColour, areaWords, barbSvg, pirepMark, routeThrough } from "../weatherMap";
+import { altitudeWords } from "../readback";
+import { areaColour, areaWords, barbSvg, pirepMark, routeThrough } from "../weatherMap";
 import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { useWeatherLayers } from "./weatherLayers";
@@ -15,6 +16,9 @@ import { useWeatherLayers } from "./weatherLayers";
 const IEM = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0";
 const RADAR_URL = `${IEM}/nexrad-n0q-900913/{z}/{x}/{y}.png`;
 const SATELLITE_URL = `${IEM}/goes-east-ir-4km-900913/{z}/{x}/{y}.png`;
+/** Past this a radar mosaic is called old: IEM makes one every five
+ *  minutes, so three missed ones mean it has stopped. */
+const RADAR_STALE_MIN = 15;
 const CREDIT = 'Radar and satellite: NWS NEXRAD and NOAA GOES via <a href="https://mesonet.agron.iastate.edu" target="_blank" rel="noreferrer">IEM</a>';
 
 /** How far out the box asked for is rounded, degrees: a pan within it asks
@@ -71,12 +75,23 @@ export const WeatherLayer = memo(function WeatherLayer({ line, altitudeFt }: {
   // The radar's tiles asked for again as a new mosaic is made: IEM's
   // cache keeps one URL for the newest.
   const radarUrl = data?.radar_valid ? `${RADAR_URL}?v=${encodeURIComponent(data.radar_valid)}` : RADAR_URL;
+  // The radar is only useful with its time: said on the map's credit line,
+  // and unknown where the planner could not read it, never taken as current.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const made = data?.radar_valid ? Date.parse(data.radar_valid) : NaN;
+  const minutes = Math.round((now - made) / 60_000);
+  const radarAge = Number.isNaN(made) ? "time unknown" : `${zulu(made / 1000)}${minutes > RADAR_STALE_MIN ? `, ${minutes} min old` : ""}`;
+  const credit = `${CREDIT}${radar ? ` · radar ${radarAge}` : ""}`;
   return (
     <>
       {(radar || satellite) && (
         <Pane name="weather-tiles" style={{ zIndex: 420 }}>
-          {satellite && <TileLayer url={SATELLITE_URL} opacity={0.45} maxNativeZoom={9} attribution={CREDIT} pane="weather-tiles" />}
-          {radar && <TileLayer key={radarUrl} url={radarUrl} opacity={0.6} maxNativeZoom={10} attribution={CREDIT} pane="weather-tiles" />}
+          {satellite && <TileLayer url={SATELLITE_URL} opacity={0.45} maxNativeZoom={9} attribution={credit} pane="weather-tiles" />}
+          {radar && <TileLayer key={`${radarUrl}${radarAge}`} url={radarUrl} opacity={0.6} maxNativeZoom={10} attribution={credit} pane="weather-tiles" />}
         </Pane>
       )}
       {areas && data?.advisories.map(a => <AreaShape key={a.id} area={a} line={line} altitudeFt={altitudeFt} />)}
@@ -144,8 +159,8 @@ function pirepIcon(p: MapPirep): L.DivIcon {
   if (!icon) {
     icon = L.divIcon({
       className: "",
-      html: `<span style="display:inline-flex;align-items:center;gap:2px;white-space:nowrap;background:#fff;border:2px solid ${colour};border-radius:10px;padding:0 5px;font:700 12px/18px -apple-system,system-ui,sans-serif;color:${colour}">${glyph} ${level}</span>`,
-      iconSize: [56, 22], iconAnchor: [28, 11],
+      html: `<span style="display:flex;height:44px;align-items:center;justify-content:center"><span style="display:inline-flex;align-items:center;gap:2px;white-space:nowrap;background:#fff;border:2px solid ${colour};border-radius:10px;padding:0 5px;font:700 12px/18px -apple-system,system-ui,sans-serif;color:${colour}">${glyph} ${level}</span></span>`,
+      iconSize: [56, 44], iconAnchor: [28, 22],
     });
     iconOf.set(key, icon);
   }

@@ -1,4 +1,5 @@
 import type { MapPirep, WeatherArea } from "./api/types";
+import { altitudeWords } from "./readback";
 import { bearingDeg, destination, distanceNm, type LatLon } from "./geo";
 
 /** Each area's colour by what it warns of, as aviationweather.gov's own
@@ -18,15 +19,6 @@ export const AREA_COLOURS: Record<string, string> = {
 export function areaColour(area: Pick<WeatherArea, "kind" | "hazard">): string {
   if (area.kind === "convective") return AREA_COLOURS.convective!;
   return AREA_COLOURS[area.hazard ?? ""] ?? "#9333ea";
-}
-
-/** An altitude as the app writes it, in hundreds of feet after "FL"
- *  (FL045 for 4,500 ft MSL), at the owner's pick (2026-10-20, "make the
- *  altitude to be FL"), made with the FAA's own meaning before them: a
- *  flight level is a pressure altitude on 29.92, flown only from 18,000 ft
- *  (14 CFR 1.1, 91.121(a)(2)), so below that the figure is still feet MSL. */
-export function altitudeWords(feet: number): string {
-  return `FL${String(Math.round(feet / 100)).padStart(3, "0")}`;
 }
 
 /** What an area is, in words: its title ("G-AIRMET · Icing", "Convective
@@ -79,9 +71,9 @@ export function routeThrough(area: WeatherArea, line: [number, number][], altitu
 export function pirepMark(p: MapPirep): { glyph: string; colour: string; level: string } {
   const level = p.altitude_ft == null ? "---" : String(Math.round(p.altitude_ft / 100)).padStart(3, "0");
   if (p.urgent) return { glyph: "!", colour: "#dc2626", level };
-  if (p.turbulence && !/NEG|NONE/i.test(p.turbulence)) return { glyph: "⌁", colour: "#d97706", level };
-  if (p.icing && !/NEG|NONE/i.test(p.icing)) return { glyph: "❄", colour: "#2563eb", level };
-  return { glyph: "☁", colour: "#57534e", level };
+  if (p.turbulence && !/NEG|NONE/i.test(p.turbulence)) return { glyph: "⌁\uFE0E", colour: "#d97706", level };
+  if (p.icing && !/NEG|NONE/i.test(p.icing)) return { glyph: "❄\uFE0E", colour: "#2563eb", level };
+  return { glyph: "☁\uFE0E", colour: "#57534e", level };
 }
 
 /**
