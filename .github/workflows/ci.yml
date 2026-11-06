@@ -244,22 +244,22 @@ jobs:
         working-directory: planning-service
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      # The FAA's reference files the tests read (data/raw), kept between
-      # runs: fetched cold they were most of the planner's suite, 131 s of
-      # it against 11 s warm (#452), and the suite failed when the FAA was
-      # down. Keyed by the ISO week, so a new NASR cycle is fetched within
-      # a week of it; the chart folders are left out (the tests draw none).
+      # The planner's reference data (data/raw), the charts and their
+      # tiles included, kept between runs, keyed by the ISO week so a new
+      # NASR cycle is fetched within a week of it. The charts too: the
+      # suite's first plans of C81 -> KDLH read the corridor's sectional
+      # tiles, which were three tests and 185 s of the job's 215 s on run
+      # 42302178567 with the reference files cached and the charts not
+      # (test_foreflight's pack 106 s, test_plan's two plans 81 s). The
+      # suite failed with the FAA down, too (#452).
       - name: The week, for the reference data's cache
         id: week
         run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
-          path: |
-            data/raw/*
-            !data/raw/charts.nosync
-            !data/raw/chart_tiles.nosync
-          key: tests-raw-planner-v1-${{ steps.week.outputs.week }}
-          restore-keys: tests-raw-planner-v1-
+          path: data/raw
+          key: tests-raw-planner-v2-${{ steps.week.outputs.week }}
+          restore-keys: tests-raw-planner-v2-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.14"
@@ -522,7 +522,6 @@ jobs:
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
           ALL: ${{ steps.base.outputs.all }}
-          EVENT: ${{ github.event_name }}
         run: |
           python3 - <<'EOF'
           import json, os
@@ -532,15 +531,7 @@ jobs:
           # .github/images.hcl, which has its context and Dockerfile.
           IMAGES = ("ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
                     "nav-log-agent", "crewai-agent", "planning-service", "model-service", "webapp")
-          # The two narrative agents and the model-training tooling (the ML
-          # and pipeline images, Airflow) are built and tested every night
-          # and by hand, not on each change: neither is on the path a
-          # pilot's plan takes, and a pull request waited on them (the
-          # owner, 2026-11-06: "Can we make those to nightly for now?").
-          nightly = os.environ.get("EVENT") in ("schedule", "workflow_dispatch")
-          NIGHTLY_ONLY = {"ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
-                          "nav-log-agent", "crewai-agent", "test-nav-log-agent", "test-crewai-agent"}
-          due = lambda name: (everything or name in changed) and (nightly or name not in NIGHTLY_ONLY)
+          due = lambda name: everything or name in changed
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service", "test-model-service",

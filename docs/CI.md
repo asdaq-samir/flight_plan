@@ -8,22 +8,20 @@ What runs, when, and how to move it onto the owner's Mac mini.
 |---|---|---|
 | A pull request, and main's push after a merge | The unit tests of whatever the change touched (web, Python, Rust, Java), the dependency review, and the browser suite's smoke tests: the ~33 tests tagged `@smoke`, one per journey a pilot takes, on the phone, in one job against the whole stack | 4-5 min |
 | A pull request that changes only docs, Markdown, the skills or notebooks | The unit tests it touched; no browser suite | 1-2 min |
-| Every night, or Run workflow on CI | Everything: every browser test on the phone, desktop, the iPhones and the iPad, the iOS audit, WCAG and Lighthouse, over ten shards; the API reference docs built; and the two narrative agents (nav-log-agent, crewai-agent) and the model-training tooling (the ML and pipeline images, Airflow) built and tested, which a pull request leaves out | ~15 min |
+| Every night, or Run workflow on CI | Everything: every browser test on the phone, desktop, the iPhones and the iPad, the iOS audit, WCAG and Lighthouse, over ten shards; and the API reference docs built | ~15 min |
 | A change to `ios/` or `android/` | Native iOS: built and tested on a simulator. Native Android: unit tests, lint and an APK; its emulator tests run every night | 5-10 min |
 
 The Python suites keep the FAA's reference files (`data/raw`) between
 runs, a week at a time, rather than fetching them each run: the planner's
 suite was 131 s with them fetched (#452) and 159 s in one run (#474),
-against 11 s warm.
+against 11 s warm. The planner's cache holds the charts and their tiles
+(`charts.nosync`, `chart_tiles.nosync`) too, since its first plans of
+C81 -> KDLH read the corridor's sectional tiles: 185 s of a 215 s run
+with the charts left out. The other jobs keep the charts in a cache of
+their own, so this one is separate (`tests-raw-planner-v2-`).
 
 Promote tags the images after main's push is green. A nightly failure is
 said in its run and does not hold Promote.
-
-nav-log-agent is built for production (Promote and the AWS push), yet is
-nightly-only at the owner's ask (2026-11-06), so a change to
-`nav-log-agent/`, `src/` or `native/` that breaks it merges and is found by
-the next nightly run. Whoever merged it reads that run in the morning and
-fixes a failure before the next deploy.
 
 A test belongs in the smoke set (`{ tag: "@smoke" }` on the `test(...)`)
 when it is the one that proves a journey works end to end -- planning a
