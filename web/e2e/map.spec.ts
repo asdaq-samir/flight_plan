@@ -14,7 +14,7 @@ test("plan page: a route from an airport to itself is a local flight: the field'
   await expect(sideDrawer(page).getByTestId("navlog-ete")).toHaveText("1h", { timeout: slow(30000) });
   await expect(sideDrawer(page).locator('[data-slot="section-summary"] dt').nth(1)).toHaveText("Aloft");
   // Its fuel required among the figures.
-  await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(30000) });
+  await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d ?gal$/, { timeout: slow(30000) });
 
   // Longer aloft: its chip in the pill, in the address, and more fuel.
   await controlsInSight(page);

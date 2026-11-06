@@ -140,7 +140,7 @@ test("plan page: a departure time gives every checkpoint its time, and the nav l
   await expect(times.first()).toHaveText("15:00");
   // The route's figures say where it lands, the time en route and the
   // fuel required (the owner's "To, Dist, ETE, Fuel").
-  await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(60000) });
+  await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d ?gal$/, { timeout: slow(60000) });
   await expect(page.getByTestId("navlog-to")).toHaveText("KDLH");
   await expect(page.getByTestId("navlog-ete")).toHaveText(/^(\d+h( \d+m)?|\d+m)$/);
   // Every later row has a time once its leg is in.

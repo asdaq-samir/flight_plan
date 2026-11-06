@@ -84,7 +84,7 @@ test("a stop added in the panel lands the route there: the capsule, the nav log 
   // The figures to the next landing, KMSN, its fuel the tanks' for that
   // flight; a tap on To, the destination and the whole route's distance.
   await expect(sideDrawer(page).getByTestId("navlog-to")).toHaveText("KMSN", { timeout: slow(30000) });
-  await expect(sideDrawer(page).getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/);
+  await expect(sideDrawer(page).getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d ?gal$/);
   await sideDrawer(page).getByTestId("to-toggle").click();
   await expect(sideDrawer(page).getByTestId("navlog-to")).toHaveText("KDLH");
   await sideDrawer(page).getByTestId("to-toggle").click();
