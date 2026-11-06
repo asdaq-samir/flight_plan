@@ -81,7 +81,8 @@ jobs:
           key: engine-ios-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The Xcode project, from project.yml
         run: |
-          brew install xcodegen
+          # The Mac mini's runner has xcodegen already, and no Homebrew.
+          command -v xcodegen >/dev/null || brew install xcodegen
           xcodegen generate --spec ios/project.yml --project ios
       - name: The newest Xcode on the runner
         run: |
@@ -89,8 +90,10 @@ jobs:
           # side) needs an app built with the iOS 27.1 SDK; an older one is
           # letterboxed on the inner screen. The runner's default Xcode can
           # lag its newest.
-          newest=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|_rc' | sort -V | tail -1)
-          sudo xcode-select -s "$newest"
+          # The Mac mini's runner has the one Xcode.app, already selected,
+          # and no password-less sudo; GitHub's has numbered ones.
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -viE 'beta|_rc' | sort -V | tail -1 || true)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
           xcodebuild -version
       - name: The simulators to test on
         id: sim
@@ -211,7 +214,8 @@ jobs:
         run: native/ffi/build-xcframework.sh
       - name: The Xcode project, from project.yml
         run: |
-          brew install xcodegen
+          # The Mac mini's runner has xcodegen already, and no Homebrew.
+          command -v xcodegen >/dev/null || brew install xcodegen
           xcodegen generate --spec ios/project.yml --project ios
       - name: The newest Xcode on the runner
         run: |
@@ -219,8 +223,10 @@ jobs:
           # side) needs an app built with the iOS 27.1 SDK; an older one is
           # letterboxed on the inner screen. The runner's default Xcode can
           # lag its newest.
-          newest=$(ls -d /Applications/Xcode_*.app | grep -viE 'beta|_rc' | sort -V | tail -1)
-          sudo xcode-select -s "$newest"
+          # The Mac mini's runner has the one Xcode.app, already selected,
+          # and no password-less sudo; GitHub's has numbered ones.
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -viE 'beta|_rc' | sort -V | tail -1 || true)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
           xcodebuild -version
       - name: Archived, signed and uploaded to TestFlight
         run: |
