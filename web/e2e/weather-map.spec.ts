@@ -40,11 +40,22 @@ test("the map's button turns the weather on and off, and an area's card says how
   const area = page.locator('path.leaflet-interactive[stroke="#c2410c"]');
   await expect(area).toHaveCount(1, { timeout: slow(30000) });
   // A tap on it: what it is, and the route through it at the plan's altitude.
-  // Sent to the area itself: its outline is under the airports' marks
-  // wherever a tap might land (a cluster over its middle, a field by its
-  // corner on CI's run 42214657620), and which mark is on top is the map's
-  // business, not this test's.
-  await area.dispatchEvent("click");
+  // Where the area itself is on top: the airports' marks cover its middle
+  // and, on CI's run 42214657620, its corner, so the spot is looked for
+  // rather than guessed. Leaflet opens the card from a real pointer's
+  // click only, not a dispatched one (run 42216852993).
+  const spot = await area.evaluate((path: Element) => {
+    const box = path.getBoundingClientRect();
+    for (let fy = 0.1; fy < 1; fy += 0.1) {
+      for (let fx = 0.1; fx < 1; fx += 0.1) {
+        const x = box.left + box.width * fx, y = box.top + box.height * fy;
+        if (document.elementFromPoint(x, y) === path) return { x, y };
+      }
+    }
+    return null;
+  });
+  expect(spot, "a part of the area with nothing over it").not.toBeNull();
+  await page.mouse.click(spot!.x, spot!.y);
   const card = page.getByTestId("weather-area-card");
   await expect(card).toBeVisible();
   await expect(card.getByTestId("weather-area-route")).toContainText(/Your route crosses it for \d+ nm/);
