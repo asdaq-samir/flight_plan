@@ -19,6 +19,12 @@ against 11 s warm.
 Promote tags the images after main's push is green. A nightly failure is
 said in its run and does not hold Promote.
 
+nav-log-agent is built for production (Promote and the AWS push), yet is
+nightly-only at the owner's ask (2026-11-06), so a change to
+`nav-log-agent/`, `src/` or `native/` that breaks it merges and is found by
+the next nightly run. Whoever merged it reads that run in the morning and
+fixes a failure before the next deploy.
+
 A test belongs in the smoke set (`{ tag: "@smoke" }` on the `test(...)`)
 when it is the one that proves a journey works end to end -- planning a
 route, the nav log, the map, the brief, sign-in -- and is fast. Everything
