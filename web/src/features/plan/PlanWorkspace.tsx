@@ -147,6 +147,8 @@ const NavLogView = fromRoutePanel("NavLogView");
 // which waits on this chunk already: 61 KB off the first load, which
 // stood 10 KB under its 1.10 MB budget (the 20 Oct audit).
 const ProceduresRoute = fromRoutePanel("ProceduresRoute");
+// The Routes row, in Route Cards' head box beside the controls.
+const RouteLine = fromRoutePanel("RouteLine");
 const FlightBriefingView = fromRoutePanel("FlightBriefingView");
 const BriefingNotices = fromRoutePanel("BriefingNotices");
 const SaveFlightButton = fromRoutePanel("SaveFlightButton");
@@ -2306,7 +2308,10 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
       onInfo={selectPlace} onRemove={removeStop} onCreateFix={insertStopAfter} holds={holds} onHoldSet={setHold} askHold={holdAsk}
       routePoints={routePoints} stopsFull={planned.stops.length >= MAX_STOPS} fuel={tankFigures}
       onCharts={() => { if (planned.dest) { setApproachesOf(planned.dest); selectPlace(planned.dest); } }}
-      chartsDisabled={!planned.dest || noApproaches} routeLine={routeLine}
+      chartsDisabled={!planned.dest || noApproaches}
+      // In Route Cards the Routes row is in the head's box with the
+      // controls (the route slot, below), not over the list.
+      routeLine={routeEdit === "plan" ? null : routeLine}
       // The list changes the route too where the box is folded away once
       // the route is whole (RouteEdit, both of the owner's picks).
       // Not with the box as it was, whose pills do it.
@@ -3082,7 +3087,25 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         {/* The airplane, the altitude and the route's buttons once the route
             is whole, in either: none before, at the owner's ask ("no n
             number or altitude" till both ends are in). */}
-        {wholeRoute && <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>}
+        {/* In Route Cards, one white box of the flight's settings: the
+            airplane, the altitude and the route's buttons, and under a
+            hairline the Routes row, which was over the cards at the same
+            spacing as everything else and read as one more card (the
+            owner's pick B of the canvas, 2026-11-05: "show the controls
+            and routes grouped"). The cards follow, out of the box. */}
+        {wholeRoute && (routeEdit === "plan" ? (
+          <div className="mb-3 w-full rounded-2xl bg-card ring-1 ring-black/5 dark:ring-white/10" data-testid="route-group">
+            <div className="flex w-full items-center py-1.5 pr-1.5 pl-2">{routeControls}</div>
+            {routeLine && (
+              <>
+                <div className="ml-11 h-px bg-border" aria-hidden="true" />
+                <Suspense fallback={<div className="h-11" />}>
+                  <RouteLine line={routeLine} grouped />
+                </Suspense>
+              </>
+            )}
+          </div>
+        ) : <div className="flex w-full items-center pr-0.5 pb-2 pl-1.5">{routeControls}</div>)}
       </div>
     ) : (
       <div className="min-w-0 flex-1">
