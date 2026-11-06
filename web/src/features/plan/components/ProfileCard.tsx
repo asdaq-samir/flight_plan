@@ -26,7 +26,10 @@ export default function ProfileCard({ name, line, corner, onClose, children }: {
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="profile-card">
+    // Half way no taller than half's body (MapPanel's --half-body): the
+    // sheet is laid out at its full height and cut off at its edge, so the
+    // graph's max-h-full is the room in sight only with the card held to it.
+    <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] in-data-[panel=half]:max-h-(--half-body) print:hidden" data-testid="profile-card">
       <CardHead name={name} line={line} nameTestId="profile-name" onClose={onClose} onShare="profile" closeTestId="profile-close">{corner}</CardHead>
       {/* As tall as the card has room for over the route's figures, no
           taller: held at 160, it ran under them where the name took two
