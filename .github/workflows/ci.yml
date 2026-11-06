@@ -522,7 +522,6 @@ jobs:
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
           ALL: ${{ steps.base.outputs.all }}
-          EVENT: ${{ github.event_name }}
         run: |
           python3 - <<'EOF'
           import json, os
@@ -532,15 +531,7 @@ jobs:
           # .github/images.hcl, which has its context and Dockerfile.
           IMAGES = ("ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
                     "nav-log-agent", "crewai-agent", "planning-service", "model-service", "webapp")
-          # The two narrative agents and the model-training tooling (the ML
-          # and pipeline images, Airflow) are built and tested every night
-          # and by hand, not on each change: neither is on the path a
-          # pilot's plan takes, and a pull request waited on them (the
-          # owner, 2026-11-06: "Can we make those to nightly for now?").
-          nightly = os.environ.get("EVENT") in ("schedule", "workflow_dispatch")
-          NIGHTLY_ONLY = {"ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
-                          "nav-log-agent", "crewai-agent", "test-nav-log-agent", "test-crewai-agent"}
-          due = lambda name: (everything or name in changed) and (nightly or name not in NIGHTLY_ONLY)
+          due = lambda name: everything or name in changed
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service", "test-model-service",
