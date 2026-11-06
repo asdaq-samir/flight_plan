@@ -1210,14 +1210,17 @@ export interface RouteLineChoices {
  * runway opened until folded"). A way that meets something says so in
  * amber, in its name too: the planner warns, never refuses.
  */
-function RouteLine({ line }: { line: RouteLineChoices }) {
+/** The Routes row. `grouped`: inside Route Cards' head box (PlanWorkspace),
+ *  under the airplane and the altitude, the box's fill and corners its
+ *  own; else a rounded row of its own over the list. */
+export function RouteLine({ line, grouped = false }: { line: RouteLineChoices; grouped?: boolean }) {
   const open = useRouteLineOpen(s => s.open);
   const picked = line.chips.find(c => c.key === line.picked) ?? line.chips[0]!;
   const words = (c: RouteLineChoices["chips"][number]) =>
     `${c.key === "none" ? "None, the route as typed" : c.label}${c.time ? `, ${c.time}` : ""}${c.warning ? `, ${c.warning.toLowerCase()}` : ""}`;
   const others = line.chips.length - 1;
   return (
-    <Collapsible open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })} className="mt-2 mb-1 rounded-xl bg-card" data-testid="route-line">
+    <Collapsible open={open} onOpenChange={next => useRouteLineOpen.setState({ open: next })} className={grouped ? undefined : "mt-2 mb-1 rounded-xl bg-card"} data-testid="route-line">
       <CollapsibleTrigger asChild>
         <button
           type="button" data-testid="route-line-toggle" data-disclosure=""
