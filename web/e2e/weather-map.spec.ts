@@ -29,7 +29,14 @@ test("the map's button turns the weather on and off, and an area's card says how
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  // The SIGMET on by default, in its colour; the radar's tiles asked of IEM.
+  // The weather is off until asked for: nothing asked of the planner, and
+  // the areas turned on from the map's button.
+  expect(asked).toHaveLength(0);
+  await openMapSettings(page);
+  await expect(page.getByTestId("weather-areas-toggle")).toHaveAttribute("aria-pressed", "false");
+  await page.getByTestId("weather-areas-toggle").click();
+  await page.keyboard.press("Escape");
+  // The SIGMET, in its colour.
   const area = page.locator('path.leaflet-interactive[stroke="#c2410c"]');
   await expect(area).toHaveCount(1, { timeout: slow(30000) });
   // A tap on it: what it is, and the route through it at the plan's altitude.
