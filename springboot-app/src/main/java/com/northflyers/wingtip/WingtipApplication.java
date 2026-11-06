@@ -19,8 +19,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
         version = "0.1.0",
         description = "Scores candidate checkpoints and dead-reckoning nav-log data for a VFR route. "
                 + "See /swagger-ui/index.html for the interactive docs."))
-public class VfrRouteApplication {
+public class WingtipApplication {
     public static void main(String[] args) {
-        SpringApplication.run(VfrRouteApplication.class, args);
+        SpringApplication.run(WingtipApplication.class, args);
     }
 }

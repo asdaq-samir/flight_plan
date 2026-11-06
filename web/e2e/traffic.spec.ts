@@ -17,8 +17,8 @@ const TRAFFIC = {
 
 async function showTraffic(page: Page, on: boolean) {
   await page.addInitScript(show => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: show } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: show } }));
   }, on);
   const asks: URL[] = [];
   await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route => {
@@ -84,8 +84,8 @@ test("on a phone the credit rides on the sheet's top, under a finger and at rest
 
 test("between reports each airplane is carried on along its track, as ForeFlight's and FlightAware's are", async ({ page }) => {
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
   });
   // One report, the planner's held answer growing older as adsb.lol is
   // not asked again (wingtip.traffic): UAL1023 east at 450 kt.
@@ -149,8 +149,8 @@ test("the traffic is asked about wherever the map is panned, own ship or not, an
 
 test("an answer missed while the map is panned is not said; traffic is said unavailable only after half a minute without one", async ({ page }) => {
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, traffic: true } }));
   });
   let down = false;
   await page.route(url => url.pathname.endsWith("/api/planner/traffic"), route => (down

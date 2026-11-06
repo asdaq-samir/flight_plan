@@ -61,10 +61,10 @@ RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
 # Variable, and here it only ever showed as an import error.
 ENV AIRFLOW__CORE__DAGS_FOLDER=/opt/project/airflow/dags
 ENV PYTHONPATH=/opt/project/src
-COPY airflow/dags/vfr_pipeline_dag.py /opt/project/airflow/dags/vfr_pipeline_dag.py
+COPY airflow/dags/wingtip_pipeline_dag.py /opt/project/airflow/dags/wingtip_pipeline_dag.py
 COPY src /opt/project/src
 # The build fails if the DAG does not load here -- a provider or a wingtip
 # import missing -- rather than Airflow listing an import error later.
 # (The host path and the project name are compose's to give; any will do
 # for loading.)
-RUN PROJECT_HOST_PATH=/build-check PIPELINE_IMAGE_PREFIX=build-check python -B -c "import wingtip_native; from airflow.dag_processing.dagbag import DagBag; bag = DagBag('/opt/project/airflow/dags'); assert not bag.import_errors, bag.import_errors; assert set(bag.dags) == {'vfr_pipeline'}, set(bag.dags)"
+RUN PROJECT_HOST_PATH=/build-check PIPELINE_IMAGE_PREFIX=build-check python -B -c "import wingtip_native; from airflow.dag_processing.dagbag import DagBag; bag = DagBag('/opt/project/airflow/dags'); assert not bag.import_errors, bag.import_errors; assert set(bag.dags) == {'wingtip_pipeline'}, set(bag.dags)"

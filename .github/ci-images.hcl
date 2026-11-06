@@ -39,7 +39,7 @@ function "cache" {
 
 function "tags" {
   params = [image, key]
-  result = key == "" ? ["flight_plan-${image}:ci"] : ["${REGISTRY}/${image}:e2e-${key}", "${REGISTRY}/${image}:e2e"]
+  result = key == "" ? ["wingtip-${image}:ci"] : ["${REGISTRY}/${image}:e2e-${key}", "${REGISTRY}/${image}:e2e"]
 }
 
 # Pushed (with a key) with every layer zstd rather than gzip, the base

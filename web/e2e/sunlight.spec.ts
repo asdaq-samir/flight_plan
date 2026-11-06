@@ -15,8 +15,8 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem("sunlight-set")) return;
     sessionStorage.setItem("sunlight-set", "1");
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? "{}") as { state?: object };
-    localStorage.setItem("vfr.preferences", JSON.stringify({ state: { waypoints: true, ...kept.state, chartLight: "on" }, version: 3 }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? "{}") as { state?: object };
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ state: { waypoints: true, ...kept.state, chartLight: "on" }, version: 3 }));
   });
 });
 

@@ -13,8 +13,8 @@ test("under VFR the flight plan flies direct, with no alternate, and says where 
   test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "vfr", waypoints: false } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "vfr", waypoints: false } }));
   });
   await page.goto("/app/plan?dep=KMSN&dest=KOSH");
   await settle(page);
@@ -54,8 +54,8 @@ test("items 10 and 19 come from the airplane's page, the pilot's and the persons
     await route.fulfill({ json: { ...me, fullName: "Avery B. Pilot", phone: "608-555-0100", homeBase: "KMSN" } });
   });
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "vfr", waypoints: false,
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "vfr", waypoints: false,
       aircraft: { profile: "c172", label: "N12345 · C172", aircraftId: 5, cruiseTasKt: 110, fuelBurnGph: 8.5, usableFuelGal: 40 } } }));
   });
   await page.goto("/app/plan?dep=KMSN&dest=KOSH");
@@ -99,8 +99,8 @@ test("where Flight Service is connected, the form is filed from here in the pilo
     await route.fulfill({ status: 201, json: { reference: "FP-123" } });
   });
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "vfr", waypoints: false,
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "vfr", waypoints: false,
       aircraft: { profile: "c172", label: "N12345 · C172", aircraftId: 5, cruiseTasKt: 110, fuelBurnGph: 8.5, usableFuelGal: 40 } } }));
   });
   const depart = new Date(Math.ceil(Date.now() / 3600_000 + 3) * 3600_000).toISOString();

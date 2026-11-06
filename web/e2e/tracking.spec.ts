@@ -250,8 +250,8 @@ test("in the air, own ship's path flown is drawn behind it", async ({ page }) =>
       return window.setInterval(() => success(position()), 1000);
     };
     Geolocation.prototype.clearWatch = function (id: number) { window.clearInterval(id); };
-    localStorage.removeItem("vfr.owntrail");
-    localStorage.setItem("vfr.ownship",
+    localStorage.removeItem("wingtip.owntrail");
+    localStorage.setItem("wingtip.ownship",
       JSON.stringify({ state: { enabled: true, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 }));
   });
   await page.route(url => url.pathname.endsWith("/api/planner/airspace/ahead"), route => route.fulfill({ json: { alerts: [], unavailable: [] } }));

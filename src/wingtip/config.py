@@ -41,8 +41,8 @@ PLAN_LIMIT_S = 240
 # Who wingtip says it is to the sources it downloads from. Most take the
 # project's own name; the FAA's sites (and the Census geocoder's) 403 a
 # bare python-requests User-Agent and want one that reads as a browser's.
-REQUEST_HEADERS = {"User-Agent": "vfr-route-learning-project/0.1"}
-FAA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; vfr-route-learning-project/0.1)"}
+REQUEST_HEADERS = {"User-Agent": "wingtip-maps/0.1"}
+FAA_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; wingtip-maps/0.1)"}
 
 # Below this many labeled examples, a train/test split and 5-fold CV
 # aren't meaningful (some rating classes may have 0-1 examples), so

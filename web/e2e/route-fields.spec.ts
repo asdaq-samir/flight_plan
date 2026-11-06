@@ -12,7 +12,7 @@ import { openPanel, settle, sideDrawer, slow } from "./helpers";
  * they start as a pilot's do.
  */
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => { try { localStorage.removeItem("vfr.fieldsOpen"); } catch { /* no storage */ } });
+  await page.addInitScript(() => { try { localStorage.removeItem("wingtip.fieldsOpen"); } catch { /* no storage */ } });
 });
 
 test.afterEach(async ({ page }) => {

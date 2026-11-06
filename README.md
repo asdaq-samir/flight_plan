@@ -4,7 +4,7 @@
 
 **The map for flying.** Every airport and airspace on the FAA chart, on one map that works like Maps on an iPhone — and, when you go somewhere, the route, the checkpoints you'll see and the nav log. The mark and the app icon are in [`docs/brand/`](docs/brand/).
 
-[![CI](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asdaq-samir/flight_plan/actions/workflows/ci.yml)
+[![CI](https://github.com/asdaq-samir/wingtip/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/asdaq-samir/wingtip/actions/workflows/ci.yml)
 
 ![Python](https://img.shields.io/badge/Python%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
@@ -57,8 +57,8 @@ Wingtip Maps is a planning aid for VFR and IFR flight. It does not replace an of
 ## Quick start
 
 ```bash
-git clone https://github.com/asdaq-samir/flight_plan.git
-cd flight_plan
+git clone https://github.com/asdaq-samir/wingtip.git
+cd wingtip
 
 docker compose up webapp          # UI + API at http://localhost:8080/app
 ```

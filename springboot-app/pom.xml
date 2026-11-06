@@ -12,9 +12,9 @@
     </parent>
 
     <groupId>com.northflyers</groupId>
-    <artifactId>vfr-route</artifactId>
+    <artifactId>wingtip</artifactId>
     <version>0.1.0</version>
-    <name>vfr-route</name>
+    <name>wingtip</name>
     <description>VFR route planning API -- calls the model-service microservice, persists saved routes.</description>
 
     <properties>

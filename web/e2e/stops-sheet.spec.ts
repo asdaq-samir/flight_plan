@@ -142,7 +142,7 @@ test("with no route the Stops look round the pilot, 25 nm at first, the distance
   // The kind picked is kept for the next time.
   await card.getByTestId("stops-kind-training").click();
   await expect(card.getByTestId("stops-field")).toHaveCount(1);
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.preferences") ?? "{}").state?.stopKind)).toBe("training");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("wingtip.preferences") ?? "{}").state?.stopKind)).toBe("training");
   // Round the pilot no Direct To or Add Stop: a flight there is a tap
   // away on the field's card (the owner, 2026-10-28).
   await expect(card.getByTestId("stops-direct")).toHaveCount(0);

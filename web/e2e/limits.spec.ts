@@ -11,7 +11,7 @@ test("a fresh device opens straight onto the map, and About says what the planne
   // first-launch dialog kept (vfr.limits); this one has none.
   await page.addInitScript(() => {
     if (sessionStorage.getItem("limits-fresh")) return;
-    localStorage.removeItem("vfr.limits");
+    localStorage.removeItem("wingtip.limits");
     sessionStorage.setItem("limits-fresh", "1");
   });
   await page.goto("/app/plan");

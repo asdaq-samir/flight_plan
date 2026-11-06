@@ -151,7 +151,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ steps.ecr-login.outputs.registry }}/vfr-route/${{ matrix.ecrRepo }}:latest
+          tags: ${{ steps.ecr-login.outputs.registry }}/wingtip/${{ matrix.ecrRepo }}:latest
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/${{ matrix.service }}:buildcache
 
   # Then the server takes them: deploy.sh over SSM Run Command (no SSH,
@@ -179,7 +179,7 @@ jobs:
             --query 'Reservations[0].Instances[0].InstanceId' --output text)
           if [ "$instance" = None ]; then echo "::error title=No server::none running as $SERVER"; exit 1; fi
           id=$(aws ssm send-command --instance-ids "$instance" --document-name AWS-RunShellScript \
-            --comment "deploy ${GITHUB_SHA::7}" --parameters 'commands=["/srv/flight_plan/repo/infra/server/deploy.sh"]' \
+            --comment "deploy ${GITHUB_SHA::7}" --parameters 'commands=["/srv/wingtip/repo/infra/server/deploy.sh"]' \
             --query Command.CommandId --output text)
           # Pulling new images can outlast the CLI's own wait (100 s), so
           # the status is asked after for up to 15 minutes.

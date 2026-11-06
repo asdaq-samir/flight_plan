@@ -55,7 +55,7 @@ test("the dry run flies own ship along the route, and gives it back as it was", 
 
   await sideDrawer(page).getByTestId("dry-run-close").click();
   await expect(page.locator("[data-own-ship]")).toHaveCount(0);
-  const kept = await page.evaluate(() => ({ ship: localStorage.getItem("vfr.ownship"), trail: localStorage.getItem("vfr.owntrail") }));
+  const kept = await page.evaluate(() => ({ ship: localStorage.getItem("wingtip.ownship"), trail: localStorage.getItem("wingtip.owntrail") }));
   expect(JSON.parse(kept.ship ?? "{}").state?.enabled ?? false).toBe(false);
   expect(kept.trail).toBeNull();
 });

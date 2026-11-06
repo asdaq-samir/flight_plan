@@ -78,10 +78,10 @@ test("Google's map or its satellite over the chart where the deployment has a ke
 test("a saved Google overlay where there is no key is off, with no Strength row left", async ({ page }) => {
   await servers(page, null);
   await page.addInitScript(() => {
-    const kept = localStorage.getItem("vfr.preferences");
+    const kept = localStorage.getItem("wingtip.preferences");
     const saved = kept ? JSON.parse(kept) : { state: {}, version: 0 };
     saved.state.overlay = "google-satellite";
-    localStorage.setItem("vfr.preferences", JSON.stringify(saved));
+    localStorage.setItem("wingtip.preferences", JSON.stringify(saved));
   });
   await page.goto("/app/plan");
   await settle(page);
@@ -94,7 +94,7 @@ test("a saved Google overlay where there is no key is off, with no Strength row 
 test("Google's session refused says so in the settings; a kept session of another key is not reused", async ({ page }) => {
   const asked = await servers(page, "AIza-new");
   await page.addInitScript(() => {
-    localStorage.setItem("vfr.googleSession.map", JSON.stringify({ session: "old-session", expiry: Math.round(Date.now() / 1000) + 14 * 86400, key: "AIza-old" }));
+    localStorage.setItem("wingtip.googleSession.map", JSON.stringify({ session: "old-session", expiry: Math.round(Date.now() / 1000) + 14 * 86400, key: "AIza-old" }));
   });
   await page.goto("/app/plan");
   await settle(page);

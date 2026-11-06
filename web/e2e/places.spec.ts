@@ -424,8 +424,8 @@ test("the route's Procedures open its destination's card on its approaches, and 
  *  round C81 most of the fields on the chart are private strips. */
 async function withPrivateFields(page: Page) {
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? "null") ?? { state: {}, version: 1 };
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, privateFields: true } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? "null") ?? { state: {}, version: 1 };
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, privateFields: true } }));
   });
 }
 
@@ -509,7 +509,7 @@ async function airportToTap(page: Page) {
 test("a Favorite's card names it and the map goes to it before the card's answer is in", async ({ page }) => {
   await page.addInitScript(() => {
     const kept = { ident: "KBUR", name: "Hollywood Burbank/Bob Hope Airport", municipality: "Burbank", lat: 34.2007, lon: -118.3587 };
-    localStorage.setItem("vfr.preferences", JSON.stringify({ state: { favoriteAirports: [kept] }, version: 0 }));
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ state: { favoriteAirports: [kept] }, version: 0 }));
   });
   let answer: () => void = () => {};
   const held = new Promise<void>(go => { answer = go; });
@@ -826,7 +826,7 @@ test("with no route the panel is a search bar: Home is set from Favorites, an ai
   await page.goto("/app/plan");
   await settle(page);
   // A browser's own Favorites, from nothing.
-  await page.evaluate(() => localStorage.removeItem("vfr.preferences"));
+  await page.evaluate(() => localStorage.removeItem("wingtip.preferences"));
   await page.reload();
   await settle(page);
   const search = page.getByTestId("search-airports");

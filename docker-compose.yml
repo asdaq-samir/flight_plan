@@ -1,3 +1,9 @@
+# The project's name, which its images, containers and volumes carry
+# (wingtip-webapp, wingtip_pgdata): fixed here, not taken from the folder
+# it is run from, so a checkout under another name -- a worktree -- runs
+# the same stack (the owner renamed the app Wingtip, 2026-11-06).
+name: wingtip
+
 # Shared, not copy-pasted into each service below -- three of the
 # Python services (planning-service, model-service, crewai-agent) had
 # byte-identical healthcheck timing and the identical required-env
@@ -93,8 +99,7 @@ services:
       # airflow_home_v3, not airflow_home: the 2.x airflow.cfg this volume
       # held has no [api_auth]/jwt_secret -- a value Airflow 3's api-server
       # requires and refuses to autogenerate into an existing cfg file. A
-      # fresh volume gets a fresh cfg with the new default; the old one is
-      # left on disk, unreferenced, same fallback pattern as pgdata_pg18.
+      # fresh volume gets a fresh cfg with the new default.
       - airflow_home_v3:/opt/airflow
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
@@ -116,21 +121,20 @@ services:
     restart: unless-stopped
     image: pgvector/pgvector:pg18
     environment:
-      POSTGRES_DB: vfr_route
-      POSTGRES_USER: vfr
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vfr}
+      POSTGRES_DB: wingtip
+      POSTGRES_USER: wingtip
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wingtip}
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vfr -d vfr_route"]
+      test: ["CMD-SHELL", "pg_isready -U wingtip -d wingtip"]
       interval: 5s
       timeout: 5s
       retries: 10
     volumes:
       # pg18, not pg16: a Postgres major-version bump can't read an
       # existing data directory in place, so this is a new volume
-      # (migrated via pg_dump/pg_restore, not initdb) rather than the
-      # old pgdata -- which still exists, untouched, as a fallback.
+      # (migrated via pg_dump/pg_restore, not initdb).
       # Mounted at /var/lib/postgresql (not .../data): the postgres
       # image changed its expected layout at 18, to a pg_ctlcluster-
       # style major-version-specific subdirectory under the mount
@@ -284,7 +288,7 @@ services:
       # this agent assembles, so the one a pilot sees is the one it briefs.
       PLANNING_SERVICE_URL: http://planning-service:8000
       # The db's own password, as the webapp's datasource has it.
-      DATABASE_URL: postgresql://vfr:${POSTGRES_PASSWORD:-vfr}@db:5432/vfr_route
+      DATABASE_URL: postgresql://wingtip:${POSTGRES_PASSWORD:-wingtip}@db:5432/wingtip
 
   crewai-agent:
     restart: unless-stopped
@@ -398,9 +402,9 @@ services:
       retries: 30
       start_period: 90s
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/vfr_route
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/wingtip
       SPRING_DATASOURCE_USERNAME: vfr
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-vfr}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-wingtip}
       PLANNER_SERVICE_URL: http://planning-service:8000
       # Traces to Jaeger with TRACING=1, the planner's calls under the
       # webapp's (see the jaeger service); off otherwise.
@@ -504,13 +508,7 @@ networks:
     internal: true
 
 volumes:
-  # Neither pgdata nor airflow_home is referenced by any service anymore
-  # (superseded by pgdata_pg18 / airflow_home_v3) -- both left declared,
-  # and left on disk, purely as un-deleted fallbacks from their respective
-  # major-version migrations.
-  pgdata:
   pgdata_pg18:
-  airflow_home:
   airflow_home_v3:
   # webapp's JVM class-data archive -- see JAVA_TOOL_OPTIONS on webapp.
   webapp-cds:

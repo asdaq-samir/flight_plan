@@ -123,7 +123,7 @@ test.describe("where no subscription is sold", () => {
   test("a pilot signed out is asked only to sign in for the narrative, with no price, trial or subscribing", async ({ page }) => {
     await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
     await page.addInitScript(() => {
-      localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+      localStorage.setItem("wingtip.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
     });
     await page.goto("/app/plan?dep=C81&dest=KDLH");
     await settle(page);
@@ -140,7 +140,7 @@ test.describe("where no subscription is sold", () => {
   test("Personal has no Subscription row, and the terms and the privacy policy no word of one", async ({ page }) => {
     await sold(page, { subscriptions: false, claudeFeatures: "EVERYONE" });
     await page.addInitScript(() => {
-      localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+      localStorage.setItem("wingtip.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
     });
     await page.goto("/app/plan");
     await settle(page);

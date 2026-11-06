@@ -9,8 +9,8 @@ test("the passengers are briefed as 91.107 asks, and sent the flight", async ({ 
   test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, waypoints: false } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, waypoints: false } }));
   });
   await page.goto("/app/plan?dep=KMSN&dest=KOSH");
   await settle(page);

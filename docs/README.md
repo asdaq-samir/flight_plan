@@ -171,7 +171,7 @@ for the tabular feature pipeline.
 log. Serves no pages: the front end lives in [`web/`](../web) and is built
 into `webapp`'s jar, which proxies here for every computation. Publishes no
 port on AWS either — it sits behind `webapp` in a private subnet, found by
-service discovery at `planning-service.vfr-route.internal`.
+service discovery at `planning-service.wingtip.internal`.
 
 - `/api/course`, `/api/checkpoints`, `/api/navlog`, `/api/detect/stream`,
   `/api/picks`, `/api/chart-tile/{kind}` — reached by the
@@ -450,7 +450,7 @@ an engineering gap:
 
 ```bash
 git clone <repo-url>
-cd flight_plan
+cd wingtip
 
 # Only needed for nav-log-agent / crewai-agent:
 export ANTHROPIC_API_KEY=sk-...
@@ -466,7 +466,7 @@ Nothing else to install natively; every service builds its own image.
 data/             raw/processed/labels/aircraft/models — see Appendix for detail
 notebooks/        numbered, run-in-order exploratory notebooks (01-08)
 src/wingtip/          shared Python package — pipeline.py, model_registry.py, navlog.py, altitude.py, etc.
-airflow/dags/     the vfr_pipeline DAG (local) and vfr_pipeline_aws_dag.py (AWS, see README-AWS.md)
+airflow/dags/     the wingtip_pipeline DAG (local) and wingtip_pipeline_aws_dag.py (AWS, see README-AWS.md)
 docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training / airflow
                   (each including wingtip's own list, src/requirements.txt)
 model-service/    FastAPI app serving the chart model (/score-detections)
@@ -509,7 +509,7 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml up -d webapp
 
 Install `certs/ca.pem` on the phone once (the script prints the steps
 for iPhone and Android), then open `https://<address>:8443/app/plan`.
-The authority's own key stays out of the repo, in `~/.config/vfr-local-ca`:
+The authority's own key stays out of the repo, in `~/.config/wingtip-local-ca`:
 the repo is mounted read-write into most services, and whoever holds that
 key can mint certificates the phone trusts. A new authority is also
 name-constrained to private addresses and `localhost`; one made before
@@ -699,7 +699,7 @@ Notes:
   `generate_nav_log_briefing` and the flight planning drawer's streamed narrative
   spend Anthropic credit. `crewai-agent` needs a key for everything.
 - Full port list: `webapp` 8080, `model-service` 8000, `db` 5432
-  (`vfr`/`vfr`/`vfr_route`), `airflow` 8081, `nav-log-agent` 8082,
+  (`wingtip`/`wingtip`/`wingtip`), `airflow` 8081, `nav-log-agent` 8082,
   `planning-service` 8084, `ml` 8888. Addresses are in
   [Where things live](#where-things-live).
 

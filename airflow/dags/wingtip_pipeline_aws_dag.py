@@ -1,4 +1,4 @@
-"""The AWS-hosted counterpart to vfr_pipeline_dag.py: same five stages
+"""The AWS-hosted counterpart to wingtip_pipeline_dag.py: same five stages
 (Collect -> Feature-Engineer -> Retrain -> Evaluate -> Promote), but Collect/
 Feature-Engineer/Retrain run as real SageMaker Processing/Training Jobs
 instead of DockerOperator sibling containers -- there's no host Docker
@@ -7,9 +7,9 @@ docker/Dockerfile.airflow.aws). Evaluate/Promote stay in-process, same as
 the local DAG, for the same reason: wingtip.model_registry has zero third-party
 dependencies, so there's no compute to hand off either way.
 
-Only this DAG file (not vfr_pipeline_dag.py) ships in the AWS Airflow image
+Only this DAG file (not wingtip_pipeline_dag.py) ships in the AWS Airflow image
 -- docker/Dockerfile.airflow.aws copies just this one in, since
-vfr_pipeline_dag.py's DockerOperator tasks reference a host Docker socket
+wingtip_pipeline_dag.py's DockerOperator tasks reference a host Docker socket
 that doesn't exist on Fargate and would fail to parse there.
 
 Configuration comes from Airflow Variables, set once after the Airflow
@@ -21,7 +21,7 @@ UI) -- these are per-environment values a DAG file shouldn't hardcode:
                                 artifacts all live under this bucket.
 - vfr_sagemaker_job_role_arn -- matches SageMakerJobRole's ARN (a stack
                                  output; see infra/cloudformation/template.yaml).
-- vfr_pipeline_processing_image_uri / vfr_pipeline_training_image_uri
+- wingtip_pipeline_processing_image_uri / wingtip_pipeline_training_image_uri
                                 -- the ECR URIs CI pushed
                                    pipeline-processing/pipeline-training to.
 - vfr_sagemaker_instance_type -- defaults to ml.m5.large if unset.
@@ -99,7 +99,7 @@ def _processing_config(job_name: str, image_uri_var: str, container_arguments: l
 
 
 @dag(
-    dag_id="vfr_pipeline_aws",
+    dag_id="wingtip_pipeline_aws",
     description="AWS-hosted Collect -> Feature-Engineer -> Retrain -> Evaluate -> Promote, via SageMaker Jobs",
     schedule=None,
     start_date=datetime(2026, 9, 9, tz="UTC"),
@@ -111,7 +111,7 @@ def _processing_config(job_name: str, image_uri_var: str, container_arguments: l
     max_active_runs=1,
     tags=["vfr", "ml", "aws"],
 )
-def vfr_pipeline_aws():
+def wingtip_pipeline_aws():
     bucket = _s3_bucket()
     run_id = "{{ run_id }}"
 
@@ -119,7 +119,7 @@ def vfr_pipeline_aws():
         task_id="collect",
         config=_processing_config(
             job_name=f"vfr-collect-{run_id}",
-            image_uri_var="vfr_pipeline_processing_image_uri",
+            image_uri_var="wingtip_pipeline_processing_image_uri",
             container_arguments=["collect", "--out-path", "/opt/ml/processing/output/candidates.csv"],
             input_s3_uri=None,
             output_s3_uri=f"s3://{bucket}/candidates/",
@@ -130,7 +130,7 @@ def vfr_pipeline_aws():
         task_id="feature_engineer",
         config=_processing_config(
             job_name=f"vfr-feature-engineer-{run_id}",
-            image_uri_var="vfr_pipeline_processing_image_uri",
+            image_uri_var="wingtip_pipeline_processing_image_uri",
             container_arguments=[
                 "engineer-features",
                 "--in-path", "/opt/ml/processing/input/candidates.csv",
@@ -147,7 +147,7 @@ def vfr_pipeline_aws():
             "TrainingJobName": f"vfr-retrain-{run_id}",
             "RoleArn": _job_role_arn(),
             "AlgorithmSpecification": {
-                "TrainingImage": Variable.get("vfr_pipeline_training_image_uri"),
+                "TrainingImage": Variable.get("wingtip_pipeline_training_image_uri"),
                 "TrainingInputMode": "File",
             },
             # No ContainerArguments override exists for Training Jobs --
@@ -199,4 +199,4 @@ def vfr_pipeline_aws():
     collect >> feature_engineer >> retrain >> evaluate >> promote()
 
 
-vfr_pipeline_aws()
+wingtip_pipeline_aws()

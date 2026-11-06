@@ -76,7 +76,7 @@ def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator
 
 
 @dag(
-    dag_id="vfr_pipeline",
+    dag_id="wingtip_pipeline",
     description="Collect -> Feature-Engineer -> Retrain -> Evaluate -> Promote, and the chart model's Retrain -> Evaluate -> Promote",
     schedule=None,  # manual trigger for now -- not on a cron yet
     start_date=datetime(2026, 9, 7, tz="UTC"),
@@ -88,7 +88,7 @@ def _docker_task(task_id: str, image: str, command: list[str]) -> DockerOperator
     max_active_runs=1,
     tags=["vfr", "ml"],
 )
-def vfr_pipeline():
+def wingtip_pipeline():
     landmarks_ready = _docker_task("landmarks_ready", f"{IMAGE_PREFIX}-pipeline-processing", ["readiness"])
     collect = _docker_task("collect", f"{IMAGE_PREFIX}-pipeline-processing", ["collect"])
     feature_engineer = _docker_task("feature_engineer", f"{IMAGE_PREFIX}-pipeline-processing", ["engineer-features"])
@@ -127,4 +127,4 @@ def vfr_pipeline():
     chart_retrain >> chart_evaluate >> chart_promote()
 
 
-vfr_pipeline()
+wingtip_pipeline()

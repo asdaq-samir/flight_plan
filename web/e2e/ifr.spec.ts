@@ -81,8 +81,8 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   });
   // IFR, and the legs point to point: no chart read for checkpoints.
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
   });
   // Milwaukee's VOR to Oshkosh's along V191, by its fix CORIR, then
   // Appleton.
@@ -160,8 +160,8 @@ test("a SID and a STAR typed among the route's points are picked as its departur
 test("under IFR the Weather tab says whether an alternate is needed, files one with a tap, and the fuel flies on to it", async ({ page }) => {
   test.slow();
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
   });
   // The TAFs are the day's: the planner's answer is stubbed, its fuel is not.
   const madison = {
@@ -204,8 +204,8 @@ test("under IFR the Weather tab says whether an alternate is needed, files one w
 test("under IFR a leg in cloud at or above the freezing level is icing possible, in the Go / No-Go and the adverse conditions", async ({ page }) => {
   test.slow();
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, flightRules: "ifr", waypoints: false } }));
   });
   // The day's weather pinned: the freezing level at 2,000 ft with cloud,
   // under any IFR altitude out of C81, a report of moderate icing, and no

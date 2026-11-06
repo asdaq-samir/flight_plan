@@ -2,7 +2,7 @@
 collect, engineer_features, retrain. (evaluate/promote moved to
 wingtip.model_registry -- see that module's docstring for why.) Each function
 here is one Airflow/DockerOperator task body (see
-airflow/dags/vfr_pipeline_dag.py). The notebooks stay the human-facing/
+airflow/dags/wingtip_pipeline_dag.py). The notebooks stay the human-facing/
 exploratory versions of this same logic (plots, the folium map, the
 interactive hand-labeling cell); this module is the automatable subset --
 everything except labeling itself, which is still a human judgment call

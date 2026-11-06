@@ -50,7 +50,7 @@ CREWAI_AGENT_URL = os.environ.get("CREWAI_AGENT_URL")
 # Airflow's own standalone mode generates (docker-compose.yml mounts that
 # volume here read-only, so a local stack needs no configuration).
 AIRFLOW_URL = os.environ.get("AIRFLOW_URL")
-AIRFLOW_DAG_ID = os.environ.get("AIRFLOW_DAG_ID", "vfr_pipeline")
+AIRFLOW_DAG_ID = os.environ.get("AIRFLOW_DAG_ID", "wingtip_pipeline")
 AIRFLOW_PASSWORDS_FILE = os.environ.get("AIRFLOW_PASSWORDS_FILE")
 PROBE_TIMEOUT_S = 3.0
 

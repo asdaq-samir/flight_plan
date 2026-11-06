@@ -10,7 +10,7 @@ import { closeTopmost } from "./back";
  */
 export type TvPlatform = "tizen" | "webos";
 
-const KEY = "vfr.tv";
+const KEY = "wingtip.tv";
 
 /** Which TV this page is on, or null off one. */
 export function tvPlatform(): TvPlatform | null {

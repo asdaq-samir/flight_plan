@@ -177,7 +177,7 @@ A Dockerfile is a recipe; an image is the baked result sitting on your
 disk. `docker images` on a working copy of this repo shows two kinds.
 
 **The nine built from this repo**, named after the project directory
-(`flight_plan-webapp`, `flight_plan-ml`, and so on). `ml` is by far the
+(`wingtip-webapp`, `wingtip-ml`, and so on). `ml` is by far the
 largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark
 and a JVM in one place. Only four of the nine run the application — `webapp`,
 `planning-service`, `model-service` and the database's own image below;
@@ -443,7 +443,7 @@ Airflow itself rather than needing their own container (next section).
 A **DAG** (Directed Acyclic Graph) is just a set of tasks with dependency
 edges between them, and no cycles. Airflow's job is to run each task, in
 dependency order, and give you retries/logging/scheduling/a UI for free.
-Open [`airflow/dags/vfr_pipeline_dag.py`](../airflow/dags/vfr_pipeline_dag.py):
+Open [`airflow/dags/wingtip_pipeline_dag.py`](../airflow/dags/wingtip_pipeline_dag.py):
 
 ```python
 collect >> feature_engineer >> retrain >> evaluate >> promote()
@@ -492,13 +492,13 @@ There are two DAG files, and the reason is worth understanding because
 it's a constraint you'll hit any time an orchestrator moves to managed
 infrastructure.
 
-[`vfr_pipeline_dag.py`](../airflow/dags/vfr_pipeline_dag.py) is the local
+[`wingtip_pipeline_dag.py`](../airflow/dags/wingtip_pipeline_dag.py) is the local
 one described above: `DockerOperator` launching sibling containers over
 the host's Docker socket. On Fargate there *is* no host Docker socket to
 mount and no sibling containers to launch — that whole mechanism is a
 local-development affordance, not something that ports.
 
-[`vfr_pipeline_aws_dag.py`](../airflow/dags/vfr_pipeline_aws_dag.py) is
+[`wingtip_pipeline_aws_dag.py`](../airflow/dags/wingtip_pipeline_aws_dag.py) is
 the AWS counterpart. Same five tasks, same order, same
 `ShortCircuitOperator` gate on Evaluate — but Collect/Feature-Engineer
 become `SageMakerProcessingOperator` jobs and Retrain becomes a

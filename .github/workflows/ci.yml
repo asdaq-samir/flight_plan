@@ -443,7 +443,7 @@ jobs:
               - native/**
             airflow-aws:
               - docker/Dockerfile.airflow.aws
-              - airflow/dags/vfr_pipeline_aws_dag.py
+              - airflow/dags/wingtip_pipeline_aws_dag.py
               - src/**
               - native/**
             nav-log-agent:
@@ -765,7 +765,7 @@ jobs:
               await "$ref:e2e-$2" || return 1
             fi
             docker pull -q "$ref:e2e-$2" > /dev/null || return 1
-            docker tag "$ref:e2e-$2" "flight_plan-$1:ci"
+            docker tag "$ref:e2e-$2" "wingtip-$1:ci"
             mark "$1 pulled"
           }
           # The page, for its key, $1: copied out of the image e2e-images
@@ -997,7 +997,7 @@ jobs:
                       "https://davidmegginson.github.io/ourairports-data/airports.csv",
                       "https://aviationweather.gov/data/cache/metars.cache.csv.gz"):
               try:
-                  r = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "vfr-route-learning-project/0.1"})
+                  r = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "wingtip-maps/0.1"})
                   reach[url] = urllib.request.urlopen(r, timeout=20).status
               except Exception as err:
                   reach[url] = repr(err)[:120]
@@ -1514,7 +1514,7 @@ jobs:
       - run: shellcheck infra/server/*.sh
       - name: docker compose config (docker-compose.prod.yml)
         run: |
-          printf '%s\n' IMAGE_REGISTRY=registry.example/vfr-route PUBLIC_HOST=app.example.com \
+          printf '%s\n' IMAGE_REGISTRY=registry.example/wingtip PUBLIC_HOST=app.example.com \
             ORIGIN_HOST=origin.app.example.com ORIGIN_SECRET=x POSTGRES_PASSWORD=x NAV_LOG_AGENT_API_KEY=x \
             MAIL_HOST=smtp.example.com MAIL_FROM=no-reply@example.com > /tmp/prod.env
           docker compose --env-file /tmp/prod.env -f docker-compose.prod.yml config --quiet

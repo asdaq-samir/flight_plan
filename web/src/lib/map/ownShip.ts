@@ -225,7 +225,7 @@ export const useOwnShip = create<OwnShip>()(
       routeDrawn: false,
     }),
     {
-      name: "vfr.ownship",
+      name: "wingtip.ownship",
       // Written only when what is kept changes (lib/storage): the store is
       // set at every GPS fix. The last position kept is to a thousandth of
       // a degree, so a write a hundred metres or so.

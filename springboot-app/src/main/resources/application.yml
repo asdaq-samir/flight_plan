@@ -20,7 +20,7 @@ spring:
     jdbc:
       initialize-schema: never
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/vfr_route}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/wingtip}
     username: ${SPRING_DATASOURCE_USERNAME:vfr}
     password: ${SPRING_DATASOURCE_PASSWORD:vfr}
   jpa:

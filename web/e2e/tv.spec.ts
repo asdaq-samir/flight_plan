@@ -32,7 +32,7 @@ test("on a TV the remote's arrows move from control to control, Back closes what
   await settle(page);
   await expect(page.locator("html")).toHaveAttribute("data-tv", "webos");
   // Kept for the visit, the address rewritten by the planner without it.
-  expect(await page.evaluate(() => sessionStorage.getItem("vfr.tv"))).toBe("webos");
+  expect(await page.evaluate(() => sessionStorage.getItem("wingtip.tv"))).toBe("webos");
 
   // The remote starts on the panel's first control, ringed, and the
   // arrows take it on to another.

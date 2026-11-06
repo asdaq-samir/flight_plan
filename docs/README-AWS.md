@@ -234,7 +234,7 @@ its settings, but has no images to run until the first push to ECR.
    ```bash
    aws ssm send-command --region us-east-1 --targets Key=tag:Name,Values=<ServerName> \
      --document-name AWS-RunShellScript \
-     --parameters 'commands=["/srv/flight_plan/repo/infra/server/deploy.sh"]'
+     --parameters 'commands=["/srv/wingtip/repo/infra/server/deploy.sh"]'
    ```
 
 `deploy.sh` writes the server's `.env` from the stack's settings and the
@@ -297,14 +297,14 @@ SERVER=$(aws ec2 describe-instances --region us-east-1 \
   --query 'Reservations[0].Instances[0].InstanceId' --output text)
 aws ssm start-session --region us-east-1 --target "$SERVER"
 sudo -i
-cd /srv/flight_plan/repo
-docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml ps
-docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml logs -f --tail 100 webapp
+cd /srv/wingtip/repo
+docker compose --env-file /srv/wingtip/.env -f docker-compose.prod.yml ps
+docker compose --env-file /srv/wingtip/.env -f docker-compose.prod.yml logs -f --tail 100 webapp
 ```
 
-`/srv/flight_plan` is the data disk: `data` the planner's data folder,
+`/srv/wingtip` is the data disk: `data` the planner's data folder,
 `postgres` the database, `repo` this repository. Never edit
-`/srv/flight_plan/.env`; `deploy.sh` writes it.
+`/srv/wingtip/.env`; `deploy.sh` writes it.
 
 ### When something goes wrong
 
@@ -318,7 +318,7 @@ docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml logs 
   a stream per container, kept a month:
 
   ```bash
-  aws logs tail /wingtip/server --region us-east-1 --follow --log-stream-name-prefix flight_plan-webapp
+  aws logs tail /wingtip/server --region us-east-1 --follow --log-stream-name-prefix wingtip-webapp
   ```
 
 - **Errors on pilots' phones** are in the webapp's stream as `client
@@ -347,13 +347,13 @@ The data disk is also snapshotted daily at 05:00 UTC, seven kept. To
 restore one, on the server:
 
 ```bash
-cd /srv/flight_plan/repo
+cd /srv/wingtip/repo
 B=s3://<ServerBucketName>/backups/<date>
 aws s3 cp $B/postgres.dump - | \
-  docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml \
-  exec -T db pg_restore -U vfr -d vfr_route --clean --if-exists
-aws s3 cp $B/labels.tar.gz - | tar -xz -C /srv/flight_plan/data
-docker compose --env-file /srv/flight_plan/.env -f docker-compose.prod.yml restart webapp nav-log-agent planning-service
+  docker compose --env-file /srv/wingtip/.env -f docker-compose.prod.yml \
+  exec -T db pg_restore -U wingtip -d wingtip --clean --if-exists
+aws s3 cp $B/labels.tar.gz - | tar -xz -C /srv/wingtip/data
+docker compose --env-file /srv/wingtip/.env -f docker-compose.prod.yml restart webapp nav-log-agent planning-service
 ```
 
 Everything else in the data folder (the FAA's files, the chart sheets)

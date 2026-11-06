@@ -44,7 +44,7 @@ const LOADS_KEPT = 30;
 const LOOK_MS = 200;
 const GIVE_UP_MS = 30_000;
 
-export const useLoadLog = keptStore<LoadEntry[]>("vfr.loadLog", []);
+export const useLoadLog = keptStore<LoadEntry[]>("wingtip.loadLog", []);
 
 /** Whether a canvas's record says it drew anything: a list with an entry,
  *  or counts with one over nought ("{}" and "[]" are a canvas with none). */

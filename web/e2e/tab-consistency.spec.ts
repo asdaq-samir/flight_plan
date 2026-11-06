@@ -15,7 +15,7 @@ import { grabberTo, settle, settled, sideDrawer } from "./helpers";
 test.beforeEach(async ({ page }) => {
   // Recents on both search tabs, so each page has more than one section.
   await page.addInitScript(() => {
-    const key = "vfr.preferences";
+    const key = "wingtip.preferences";
     const kept = JSON.parse(localStorage.getItem(key) ?? '{"state":{},"version":1}');
     kept.state.recentAirports = [{ ident: "KDLH", name: "Duluth International" }, { ident: "C81", name: "Campbell" }];
     kept.state.recentAircraft = [{ hex: "a0b1c2", name: "N123AB", type: "C172" }];

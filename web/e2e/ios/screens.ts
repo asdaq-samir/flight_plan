@@ -292,12 +292,12 @@ export const SCREENS: Screen[] = [
     name: "FPL, Saved and Recents",
     ready: async page => {
       await page.addInitScript(() => {
-        const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":1}');
+        const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":1}');
         kept.state.recentRoutes = [
           { dep: "C81", dest: "KDLH", stops: [], at: Date.UTC(2026, 9, 15, 15) },
           { dep: "C81", dest: "KMSP", stops: ["KLSE"], at: Date.UTC(2026, 9, 14, 15) },
         ];
-        localStorage.setItem("vfr.preferences", JSON.stringify(kept));
+        localStorage.setItem("wingtip.preferences", JSON.stringify(kept));
       });
       await page.goto("/app/plan");
       await settle(page);

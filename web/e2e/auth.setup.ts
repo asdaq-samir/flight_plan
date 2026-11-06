@@ -29,6 +29,6 @@ setup("the developer signs in from the pilot console, and lands in dev mode", as
   // FPL's fields opened at first (ProceduresRoute's fieldsOpenAtFirst): the
   // specs work on their runways and procedures; route-fields.spec folds
   // them as a pilot sees them.
-  await page.evaluate(() => localStorage.setItem("vfr.fieldsOpen", "1"));
+  await page.evaluate(() => localStorage.setItem("wingtip.fieldsOpen", "1"));
   await page.context().storageState({ path: DEVELOPER_STATE });
 });

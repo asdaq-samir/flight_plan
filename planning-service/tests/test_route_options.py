@@ -25,7 +25,7 @@ def test_the_ways_with_the_airplanes_figures_and_the_pilots_minimums(monkeypatch
         return ANSWER
 
     monkeypatch.setattr(route_options, "resolve", lambda *idents: tuple({"lat": 1.0 + i, "lon": 2.0} for i, _ in enumerate(idents)))
-    monkeypatch.setattr(route_options.vfr_route_options, "options", options)
+    monkeypatch.setattr(route_options.wingtip_route_options, "options", options)
     ahead = []
     monkeypatch.setattr(route_options.prefetch, "route", lambda dep, dest, stops="": ahead.append((dep, dest, stops)))
     monkeypatch.setattr(route_options, "load_route", lambda dep, dest, stops="": type("R", (), {
@@ -64,7 +64,7 @@ def test_a_route_the_plan_refuses_still_gets_its_ways(monkeypatch):
         return ANSWER
 
     monkeypatch.setattr(route_options, "resolve", lambda *idents: tuple({"lat": 1.0 + i, "lon": 2.0} for i, _ in enumerate(idents)))
-    monkeypatch.setattr(route_options.vfr_route_options, "options", options)
+    monkeypatch.setattr(route_options.wingtip_route_options, "options", options)
 
     def refuse(dep, dest, stops=""):
         raise HTTPException(status_code=422, detail="too many stops")
@@ -111,7 +111,7 @@ def test_the_most_filed_route_is_the_last_chip_its_airway_named(monkeypatch):
         return {**ANSWER, "filed": filed_way}
 
     monkeypatch.setattr(route_options, "resolve", lambda *idents: tuple({"lat": 1.0 + i, "lon": 2.0} for i, _ in enumerate(idents)))
-    monkeypatch.setattr(route_options.vfr_route_options, "options", options)
+    monkeypatch.setattr(route_options.wingtip_route_options, "options", options)
     monkeypatch.setattr(route_options.prefetch, "route", lambda dep, dest, stops="": None)
     monkeypatch.setattr(route_options.filed_routes, "most_filed", lambda dep, dest: [
         {"stops": ["NOPE"], "flights": 9}, {"stops": ["BAE", "V100", "OBH"], "flights": 4}])

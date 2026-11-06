@@ -1486,10 +1486,10 @@ const toggleField = (key: string, ident: string, opening: boolean) => {
 };
 
 /** Whether the fields start opened: the browser specs' (localStorage
- *  "vfr.fieldsOpen", as the signed-in session they share keeps it), which
+ *  "wingtip.fieldsOpen", as the signed-in session they share keeps it), which
  *  work on the steps' runways and procedures. Folded otherwise. */
 function fieldsOpenAtFirst(): boolean {
-  try { return globalThis.localStorage?.getItem("vfr.fieldsOpen") === "1"; } catch { return false; }
+  try { return globalThis.localStorage?.getItem("wingtip.fieldsOpen") === "1"; } catch { return false; }
 }
 
 
