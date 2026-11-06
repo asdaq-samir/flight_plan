@@ -12,6 +12,7 @@
 # this service and its callers both need to agree on. Pinned to what
 # python:3.14-slim (this service's own base image) currently resolves.
 -r ../src/requirements-charts.txt   # wingtip's own list, charts included: this service draws them
+# Pillow among them is pinned once, 13.0.0, in src/requirements-charts.txt.
 fastapi==0.142.2
 uvicorn[standard]==0.54.0
 boto3==1.43.108      # wingtip.charts' S3 publish, used only on AWS
