@@ -20,9 +20,9 @@ spring:
     jdbc:
       initialize-schema: never
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/vfr_route}
-    username: ${SPRING_DATASOURCE_USERNAME:vfr}
-    password: ${SPRING_DATASOURCE_PASSWORD:vfr}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/wingtip}
+    username: ${SPRING_DATASOURCE_USERNAME:wingtip}
+    password: ${SPRING_DATASOURCE_PASSWORD:wingtip}
   jpa:
     # Flyway (db/migration/) owns schema now -- validate just checks the
     # entity mapping still matches what Flyway created, it doesn't touch

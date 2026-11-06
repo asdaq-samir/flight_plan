@@ -83,7 +83,7 @@ Parameters:
     Description: CloudFront's origin-facing managed prefix list in us-east-1 (com.amazonaws.global.cloudfront.origin-facing).
   GitHubRepo:
     Type: String
-    Default: asdaq-samir/flight_plan
+    Default: asdaq-samir/wingtip
   CreateGitHubOidcProvider:
     Type: String
     Default: "true"
@@ -162,7 +162,7 @@ Resources:
   WebappRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: vfr-route/webapp
+      RepositoryName: wingtip/webapp
       EmptyOnDelete: true
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
@@ -170,7 +170,7 @@ Resources:
   PlanningServiceRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: vfr-route/planning-service
+      RepositoryName: wingtip/planning-service
       EmptyOnDelete: true
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
@@ -178,7 +178,7 @@ Resources:
   NavLogAgentRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: vfr-route/nav-log-agent
+      RepositoryName: wingtip/nav-log-agent
       EmptyOnDelete: true
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
@@ -186,7 +186,7 @@ Resources:
   ModelServiceRepository:
     Type: AWS::ECR::Repository
     Properties:
-      RepositoryName: vfr-route/model-service
+      RepositoryName: wingtip/model-service
       EmptyOnDelete: true
       LifecyclePolicy:
         LifecyclePolicyText: '{"rules":[{"rulePriority":1,"description":"keep the last 20","selection":{"tagStatus":"any","countType":"imageCountMoreThan","countNumber":20},"action":{"type":"expire"}}]}'
@@ -411,9 +411,9 @@ Resources:
                 echo "blkid failed ($probe) on $disk: not formatting" >&2
                 exit 1
               fi
-              mkdir -p /srv/flight_plan
-              echo "UUID=$(blkid -s UUID -o value "$disk") /srv/flight_plan xfs defaults,nofail 0 2" >> /etc/fstab
-              mount /srv/flight_plan
+              mkdir -p /srv/wingtip
+              echo "UUID=$(blkid -s UUID -o value "$disk") /srv/wingtip xfs defaults,nofail 0 2" >> /etc/fstab
+              mount /srv/wingtip
               dnf install -y docker git cronie
               systemctl enable --now docker crond
               mkdir -p /usr/local/lib/docker/cli-plugins
@@ -428,9 +428,9 @@ Resources:
                 fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
                 echo '/swapfile none swap sw 0 0' >> /etc/fstab
               fi
-              cat > /etc/flight_plan.conf <<'CONF'
+              cat > /etc/wingtip.conf <<'CONF'
               AWS_REGION=${AWS::Region}
-              IMAGE_REGISTRY=${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vfr-route
+              IMAGE_REGISTRY=${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/wingtip
               IMAGE_TAG=${ImageTag}
               PUBLIC_HOST=${PublicHost}
               ORIGIN_HOST=origin.${PublicHost}
@@ -444,14 +444,14 @@ Resources:
               MAIL_HOST=email-smtp.${AWS::Region}.amazonaws.com
               MAIL_FROM=no-reply@${MailFrom}
               CONF
-              mkdir -p /srv/flight_plan/data /srv/flight_plan/postgres
-              chown 1000:1000 /srv/flight_plan/data
-              [ -d /srv/flight_plan/repo ] || git clone --depth 1 https://github.com/${GitHubRepo}.git /srv/flight_plan/repo
-              echo '17 7 * * * root /srv/flight_plan/repo/infra/server/backup.sh >> /var/log/flight_plan-backup.log 2>&1' \
-                > /etc/cron.d/flight_plan-backup
+              mkdir -p /srv/wingtip/data /srv/wingtip/postgres
+              chown 1000:1000 /srv/wingtip/data
+              [ -d /srv/wingtip/repo ] || git clone --depth 1 https://github.com/${GitHubRepo}.git /srv/wingtip/repo
+              echo '17 7 * * * root /srv/wingtip/repo/infra/server/backup.sh >> /var/log/wingtip-backup.log 2>&1' \
+                > /etc/cron.d/wingtip-backup
               # The images arrive with the first promote.yml push to ECR; until
               # then this fails, and deploy.sh is run again after that push.
-              /srv/flight_plan/repo/infra/server/deploy.sh || echo "no images yet: run deploy.sh after the first push"
+              /srv/wingtip/repo/infra/server/deploy.sh || echo "no images yet: run deploy.sh after the first push"
             - MailFrom: !If [HasMailDomain, !Ref MailDomain, !Ref PublicHost]
               BackupTopicArn: !If [HasBudget, !Ref BackupAlertTopic, ""]
 
@@ -829,7 +829,7 @@ Resources:
       TaskRoleArn: !GetAtt ChartRefreshTaskRole.Arn
       ContainerDefinitions:
         - Name: chart-refresh
-          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/vfr-route/planning-service:${ImageTag}"
+          Image: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/wingtip/planning-service:${ImageTag}"
           Command: ["python", "-m", "wingtip.charts", "refresh", "--workers", "2"]
           Environment:
             - { Name: CHART_TILES_BUCKET, Value: !Ref ChartTilesBucket }

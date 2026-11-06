@@ -40,9 +40,9 @@ Always pull first: Sync merges `main` back into `maps-layout` and may have added
 - **In CI,** `gh` is installed and signed in, so use `gh run view`, `gh pr checks` and the rest.
 - **On the owner's Mac there's no `gh` CLI.** Use the public API with `curl`, every three minutes at most (CI takes about two): it allows 60 requests an hour unauthenticated, and a poller that runs while you wait on something else is still polling. Don't use Python's `urllib`, because the host's Python has no CA bundle.
   ```sh
-  curl -s "https://api.github.com/repos/asdaq-samir/flight_plan/actions/runs?head_sha=$(git rev-parse HEAD)"   # the run
-  curl -s "https://api.github.com/repos/asdaq-samir/flight_plan/actions/runs/<run id>/jobs"                       # its jobs
-  curl -s "https://api.github.com/repos/asdaq-samir/flight_plan/check-runs/<job id>/annotations"                 # why one failed
+  curl -s "https://api.github.com/repos/asdaq-samir/wingtip/actions/runs?head_sha=$(git rev-parse HEAD)"   # the run
+  curl -s "https://api.github.com/repos/asdaq-samir/wingtip/actions/runs/<run id>/jobs"                       # its jobs
+  curl -s "https://api.github.com/repos/asdaq-samir/wingtip/check-runs/<job id>/annotations"                 # why one failed
   ```
 - **Read the annotations before guessing.** test-webapp turns each failing Java test into an annotation, and e2e posts one per failed test plus the planner's data and log. Job logs themselves need authentication.
 - **Rerunning a failed job** needs the GitHub login that git keeps in the keychain (`git credential fill`): `POST /actions/runs/<id>/rerun-failed-jobs`. The user has allowed this. Never print the token.

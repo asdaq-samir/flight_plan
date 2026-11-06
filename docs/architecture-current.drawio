@@ -5,7 +5,7 @@
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
 
-        <mxCell id="title" value="vfr_route — Local Architecture (current)" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1A1A1A;" vertex="1" parent="1">
+        <mxCell id="title" value="wingtip — Local Architecture (current)" style="text;html=1;align=center;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#1A1A1A;" vertex="1" parent="1">
           <mxGeometry x="440" y="18" width="400" height="30" as="geometry" />
         </mxCell>
 

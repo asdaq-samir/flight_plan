@@ -9,7 +9,7 @@ and descent.
 Run in the planner's container, the stack's live data under it, when a
 change to the nav log is meant and the golden files are to follow it:
 
-    docker exec -w /workspace flight_plan-planning-service-1 \\
+    docker exec -w /workspace wingtip-planning-service-1 \\
         python -m tests.golden.record C81-KDLH KUGN-KRFD
 
 then read the diff of tests/golden/*.json before committing it.

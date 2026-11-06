@@ -16,7 +16,7 @@ interface Session { session: string; expiry: number; key: string }
  * Google's roads and names over it, as its Satellite view does.
  */
 async function googleSession(key: string, kind: "map" | "satellite"): Promise<Session> {
-  const kept = keptStore<Session | null>(`vfr.googleSession.${kind}`, null);
+  const kept = keptStore<Session | null>(`wingtip.googleSession.${kind}`, null);
   // No storage: a new session.
   const held = kept.getState().value;
   if (held && held.key === key && held.expiry * 1000 - Date.now() > 24 * 3600_000) return held;

@@ -29,7 +29,7 @@ async function seed(page: Page, recentAirports = AIRPORTS, recentRoutes: unknown
     // Once: a reload keeps what the test took off.
     if (sessionStorage.getItem("recents-seeded")) return;
     sessionStorage.setItem("recents-seeded", "1");
-    localStorage.setItem("vfr.preferences", JSON.stringify({ state: { recentAirports, recentAircraft, recentRoutes }, version: 0 }));
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ state: { recentAirports, recentAircraft, recentRoutes }, version: 0 }));
   }, { recentAirports, recentAircraft: AIRCRAFT, recentRoutes });
 }
 
@@ -234,7 +234,7 @@ test("FPL's strip shows Saved or, from its filter, the latest routes planned as 
   await all.last().click();
   await expect(page).toHaveURL(/[?&]dep=C81&dest=KMSN/);
   // Kept first once the planner has answered it.
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.preferences")!).state.recentRoutes[0]?.dest), { timeout: 30_000 })
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("wingtip.preferences")!).state.recentRoutes[0]?.dest), { timeout: 30_000 })
     .toBe("KMSN");
   // Cleared from the route's box, the sheet out where the box is.
   await clearTheRoute(page);

@@ -12,7 +12,7 @@ import { settle, slow } from "./helpers";
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     if (!sessionStorage.getItem("first-fresh")) {
-      localStorage.removeItem("vfr.tips");
+      localStorage.removeItem("wingtip.tips");
       sessionStorage.setItem("first-fresh", "1");
     }
     // Own ship on with a fix by Campbell (C81), where the first flight
@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
       return window.setInterval(() => success(position()), 1000);
     };
     Geolocation.prototype.clearWatch = function (id: number) { window.clearInterval(id); };
-    localStorage.setItem("vfr.ownship",
+    localStorage.setItem("wingtip.ownship",
       JSON.stringify({ state: { enabled: true, follow: false, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 }));
   });
 });

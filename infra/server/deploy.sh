@@ -1,6 +1,6 @@
 #!/bin/bash
 # Brings the production server up to the latest images and settings:
-# writes /srv/flight_plan/.env from the stack's secrets, logs in to ECR,
+# writes /srv/wingtip/.env from the stack's secrets, logs in to ECR,
 # pulls and (re)starts docker-compose.prod.yml. Run by the server's first
 # boot (the stack's UserData) and by every deploy after it -- by hand over
 # SSM Session Manager, or by the GitHub deploy role with ssm send-command.
@@ -11,10 +11,10 @@ set -euo pipefail
 # PUBLIC_HOST, ORIGIN_HOST, SERVER_BUCKET, APP_SECRET_ARN, DB_SECRET_ARN,
 # AGENT_SECRET_ARN, ORIGIN_SECRET_ARN, MAIL_HOST, MAIL_FROM.
 # shellcheck source=/dev/null
-source /etc/flight_plan.conf
+source /etc/wingtip.conf
 
-REPO=/srv/flight_plan/repo
-ENV_FILE=/srv/flight_plan/.env
+REPO=/srv/wingtip/repo
+ENV_FILE=/srv/wingtip/.env
 
 git -C "$REPO" pull --ff-only --quiet
 
@@ -56,9 +56,9 @@ mv "$ENV_FILE.new" "$ENV_FILE"
 # mounted from the repository instead, docker-compose.prod.yml, so they
 # follow each deploy.)
 for dir in labels processed; do
-  install -d -o 1000 -g 1000 "/srv/flight_plan/data/$dir"
+  install -d -o 1000 -g 1000 "/srv/wingtip/data/$dir"
   for seed in "$REPO/data/$dir"/*; do
-    [ -e "/srv/flight_plan/data/$dir/${seed##*/}" ] || install -o 1000 -g 1000 -m 644 "$seed" "/srv/flight_plan/data/$dir/"
+    [ -e "/srv/wingtip/data/$dir/${seed##*/}" ] || install -o 1000 -g 1000 -m 644 "$seed" "/srv/wingtip/data/$dir/"
   done
 done
 
@@ -67,12 +67,12 @@ aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS 
 # The chart model the planner ranks checkpoints with, if one has been
 # uploaded (s3://SERVER_BUCKET/models/chart/current/); without it the
 # planner ranks by its own rules (planning-service/app/chart_model.py).
-aws s3 sync --quiet "s3://$SERVER_BUCKET/models/" /srv/flight_plan/data/models/ || true
+aws s3 sync --quiet "s3://$SERVER_BUCKET/models/" /srv/wingtip/data/models/ || true
 
 # The ground under the lower 48 (wingtip.ground_grid), which a plan's floor is
 # read from in a few array reads: the bucket's copy where one has been kept,
 # else built once here after the planner is up (below).
-GRID=/srv/flight_plan/data/raw/ground_grid
+GRID=/srv/wingtip/data/raw/ground_grid
 install -d -o 1000 -g 1000 "$GRID"
 aws s3 sync --quiet "s3://$SERVER_BUCKET/ground_grid/" "$GRID/" || true
 

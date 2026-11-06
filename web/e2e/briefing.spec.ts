@@ -200,9 +200,9 @@ test("plan page: the Brief is a tab after the Nav Log, its narrative from LangGr
   // The developer's pick now (the developer's Status page): set as it
   // sets it, in the stored preferences.
   await page.evaluate(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? "{\"state\":{},\"version\":1}");
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? "{\"state\":{},\"version\":1}");
     kept.state = { ...kept.state, narrative: "crewai" };
-    localStorage.setItem("vfr.preferences", JSON.stringify(kept));
+    localStorage.setItem("wingtip.preferences", JSON.stringify(kept));
   });
   await page.goto("/app/plan?dep=C81&dest=KDLH&view=briefing");
   await openTab(page, "Preflight");

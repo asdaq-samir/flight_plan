@@ -428,7 +428,7 @@ export const usePreferences = create<Preferences>()(
       })),
     }),
     {
-      name: "vfr.preferences",
+      name: "wingtip.preferences",
       // 1: the VFR checkpoints off unless turned on, once for every
       // browser that had them on by the old default (the owner's ask).
       // 2: the airspace and the VORs drawn over the chart, on for every

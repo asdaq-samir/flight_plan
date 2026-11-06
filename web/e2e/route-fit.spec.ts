@@ -161,7 +161,7 @@ test("reloaded where it was, the map opens on the position in the middle of what
   await context.setGeolocation({ latitude: 42.3247, longitude: -88.0742 });
   // Where the position last was, as an earlier visit keeps it (ownShip's
   // lastFix): the page opens on it.
-  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+  await page.addInitScript(() => localStorage.setItem("wingtip.ownship",
     JSON.stringify({ state: { enabled: true, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
   // Every place the map's pane is put, from the page's first frame: it
   // moves when the map does, and only then.
@@ -234,7 +234,7 @@ test("opened on the whole country, land and water lie under the charts where the
 test("opened fresh where the position was given before, it is asked for again as the page opens", async ({ page }) => {
   // A fix kept from an earlier visit, as Safari, which asks again on a
   // later day, leaves the permission at "prompt".
-  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+  await page.addInitScript(() => localStorage.setItem("wingtip.ownship",
     JSON.stringify({ state: { enabled: false, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
   const asks = await countAsks(page);
   await page.goto("/app/plan");

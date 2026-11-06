@@ -31,7 +31,7 @@ async function flying(page: Page, speedKt = 120, accuracyM = 10) {
     Geolocation.prototype.getCurrentPosition = function (success: PositionCallback) {
       window.setTimeout(() => success(position()), 0);
     };
-    localStorage.setItem("vfr.ownship",
+    localStorage.setItem("wingtip.ownship",
       JSON.stringify({ state: { enabled: true, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 }));
   }, [speedKt, accuracyM] as const);
 }
@@ -114,8 +114,8 @@ test("on the ground nothing is asked, and nothing is said", async ({ page }) => 
 test("switched off in the map's settings, nothing is asked", async ({ page }) => {
   await flying(page);
   await page.addInitScript(() => {
-    const kept = JSON.parse(localStorage.getItem("vfr.preferences") ?? '{"state":{},"version":0}');
-    localStorage.setItem("vfr.preferences", JSON.stringify({ ...kept, state: { ...kept.state, alerts: false } }));
+    const kept = JSON.parse(localStorage.getItem("wingtip.preferences") ?? '{"state":{},"version":0}');
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ ...kept, state: { ...kept.state, alerts: false } }));
   });
   const asks = await ahead(page, route => route.fulfill({ json: { alerts: [CLASS_B], unavailable: [] } }));
   await page.goto("/app/plan");

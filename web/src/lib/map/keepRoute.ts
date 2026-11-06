@@ -216,7 +216,7 @@ const KEPT_FOR_MS = 30 * 24 * 3600 * 1000;
  * flight -- is not downloaded again while its tiles are still held.
  */
 export const useKeptCharts = create<{ kept: Record<string, number> }>()(
-  persist(() => ({ kept: {} }), { name: "vfr.kept-charts" }),
+  persist(() => ({ kept: {} }), { name: "wingtip.kept-charts" }),
 );
 
 export function keptAlready(key: string, now = Date.now()): boolean {

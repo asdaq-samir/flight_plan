@@ -9,7 +9,7 @@
 #   does (infra/cloudformation/template.yaml). Its HTTPS is Caddy's own
 #   local certificate authority, so a browser is told to accept it.
 # - mailpit: Amazon SES, for the sign-in links.
-# - the server's /srv/flight_plan/data: REHEARSAL_DIR/data, a folder of
+# - the server's /srv/wingtip/data: REHEARSAL_DIR/data, a folder of
 #   its own, empty at first but for deploy.sh's seeds, so the planner
 #   fetches its FAA data the way a new server does.
 #

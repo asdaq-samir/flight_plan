@@ -99,7 +99,7 @@ test("plan page: panning the map with own ship off leaves 'Keep the map on me' a
   // checkbox that says so was disabled.
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
-  const follow = () => page.evaluate(() => JSON.parse(localStorage.getItem("vfr.ownship") ?? "{}").state?.follow ?? true);
+  const follow = () => page.evaluate(() => JSON.parse(localStorage.getItem("wingtip.ownship") ?? "{}").state?.follow ?? true);
   expect(await follow()).toBe(true);
 
   const map = await page.locator(".leaflet-container").boundingBox();
@@ -188,7 +188,7 @@ test("the chart's airports keep coming in under a finger's pan, before it lets g
   // The owner's ask: "can you update the map even while panning ... until
   // I let go of the finger, the airports don't show up".
   // The map opening where the pilot last was, at the region's zoom.
-  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+  await page.addInitScript(() => localStorage.setItem("wingtip.ownship",
     JSON.stringify({ state: { enabled: false, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
   // One reporting field in the middle of each box the planner is asked
   // for, named for the question: X1 for the first, X2 for the next.

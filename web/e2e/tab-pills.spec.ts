@@ -17,7 +17,7 @@ async function keep(page: Page, state: Record<string, unknown>) {
   await page.addInitScript(kept => {
     if (sessionStorage.getItem("pills-seeded")) return;
     sessionStorage.setItem("pills-seeded", "1");
-    localStorage.setItem("vfr.preferences", JSON.stringify({ state: kept, version: 0 }));
+    localStorage.setItem("wingtip.preferences", JSON.stringify({ state: kept, version: 0 }));
   }, state);
 }
 

@@ -10,7 +10,7 @@ import { consolePage, controlsInSight, openSetup, settle, slow } from "./helpers
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem("tips-fresh")) return;
-    localStorage.removeItem("vfr.tips");
+    localStorage.removeItem("wingtip.tips");
     sessionStorage.setItem("tips-fresh", "1");
   });
 });

@@ -14,7 +14,7 @@ import type { PathPoint } from "./tracking";
  * first of it. Kept in this browser (localStorage), so a reload in the
  * air keeps the path; at most a long day's flying of it.
  */
-const KEY = "vfr.owntrail";
+const KEY = "wingtip.owntrail";
 const STEP_NM = 0.1;
 const STEP_MS = 10_000;
 const NEW_FLIGHT_MS = 10 * 60_000;

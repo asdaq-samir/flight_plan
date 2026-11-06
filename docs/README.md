@@ -171,7 +171,7 @@ for the tabular feature pipeline.
 log. Serves no pages: the front end lives in [`web/`](../web) and is built
 into `webapp`'s jar, which proxies here for every computation. Publishes no
 port on AWS either — it sits behind `webapp` in a private subnet, found by
-service discovery at `planning-service.vfr-route.internal`.
+service discovery at `planning-service.wingtip.internal`.
 
 - `/api/course`, `/api/checkpoints`, `/api/navlog`, `/api/detect/stream`,
   `/api/picks`, `/api/chart-tile/{kind}` — reached by the
@@ -450,7 +450,7 @@ an engineering gap:
 
 ```bash
 git clone <repo-url>
-cd flight_plan
+cd wingtip
 
 # Only needed for nav-log-agent / crewai-agent:
 export ANTHROPIC_API_KEY=sk-...
@@ -466,7 +466,7 @@ Nothing else to install natively; every service builds its own image.
 data/             raw/processed/labels/aircraft/models — see Appendix for detail
 notebooks/        numbered, run-in-order exploratory notebooks (01-08)
 src/wingtip/          shared Python package — pipeline.py, model_registry.py, navlog.py, altitude.py, etc.
-airflow/dags/     the vfr_pipeline DAG (local) and vfr_pipeline_aws_dag.py (AWS, see README-AWS.md)
+airflow/dags/     the wingtip_pipeline DAG (local) and wingtip_pipeline_aws_dag.py (AWS, see README-AWS.md)
 docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training / airflow
                   (each including wingtip's own list, src/requirements.txt)
 model-service/    FastAPI app serving the chart model (/score-detections)
@@ -484,7 +484,7 @@ bring up only what you need. Full command reference is in the
 
 ```bash
 docker compose up webapp                           # UI + API at :8080; brings up db, model-service, planning-service
-docker compose up ml                               # Jupyter at :8888 (token "vfr")
+docker compose up ml                               # Jupyter at :8888 (token "wingtip")
 docker compose up airflow                          # DAG UI at :8081
 docker compose up nav-log-agent                    # MCP server at :8082
 docker compose run --rm crewai-agent python -m app.main \
@@ -509,7 +509,7 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml up -d webapp
 
 Install `certs/ca.pem` on the phone once (the script prints the steps
 for iPhone and Android), then open `https://<address>:8443/app/plan`.
-The authority's own key stays out of the repo, in `~/.config/vfr-local-ca`:
+The authority's own key stays out of the repo, in `~/.config/wingtip-local-ca`:
 the repo is mounted read-write into most services, and whoever holds that
 key can mint certificates the phone trusts. A new authority is also
 name-constrained to private addresses and `localhost`; one made before
@@ -542,7 +542,7 @@ stack. Anything not listed here does not exist.
 | Planning + chart-vision API docs | [`localhost:8084/docs`](http://localhost:8084/docs) | `planning-service` |
 | Model-serving API docs | [`localhost:8000/docs`](http://localhost:8000/docs) | `model-service` |
 | Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
-| Jupyter | [`localhost:8888`](http://localhost:8888) (token `vfr`) | `ml` |
+| Jupyter | [`localhost:8888`](http://localhost:8888) (token `wingtip`) | `ml` |
 
 All three pages are served by `webapp`, not by `planning-service`: the
 React app in [`web/`](../web) is built into the Spring Boot jar, and the
@@ -668,7 +668,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
 | `docker compose up model-service` | FastAPI model serving; needs a promoted model | `8000` |
 | `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db`, `model-service` and `planning-service` too | `8080` |
-| `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `vfr`) |
+| `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `wingtip`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()`: downloads a corridor's candidates once, and again only with `--refresh` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |
@@ -699,7 +699,7 @@ Notes:
   `generate_nav_log_briefing` and the flight planning drawer's streamed narrative
   spend Anthropic credit. `crewai-agent` needs a key for everything.
 - Full port list: `webapp` 8080, `model-service` 8000, `db` 5432
-  (`vfr`/`vfr`/`vfr_route`), `airflow` 8081, `nav-log-agent` 8082,
+  (`wingtip`/`wingtip`/`wingtip`), `airflow` 8081, `nav-log-agent` 8082,
   `planning-service` 8084, `ml` 8888. Addresses are in
   [Where things live](#where-things-live).
 

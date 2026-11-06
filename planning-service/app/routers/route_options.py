@@ -9,7 +9,7 @@ from typing import Annotated
 from cachetools import TTLCache
 from fastapi import APIRouter, HTTPException, Query
 from wingtip import filed_routes, nearby
-from wingtip import route_options as vfr_route_options
+from wingtip import route_options as wingtip_route_options
 
 from .. import prefetch
 from ..common import DEFAULT_AIRCRAFT, load_route, resolve
@@ -149,7 +149,7 @@ def route_options(
             nearby.read_later(ident, lat, lon)
         return bool(has)
 
-    found = vfr_route_options.options(
+    found = wingtip_route_options.options(
         {"ident": dep.upper(), "lat": start["lat"], "lon": start["lon"]},
         {"ident": dest.upper(), "lat": end["lat"], "lon": end["lon"]},
         profile, depart=depart, fcst_hr=forecast_hour_for(depart),

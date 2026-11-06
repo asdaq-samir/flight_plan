@@ -45,11 +45,11 @@ services:
     environment:
       POSTGRES_INITDB_ARGS: --no-sync
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U vfr -d vfr_route"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U wingtip -d wingtip"]
       start_period: 30s
       start_interval: 1s
   webapp:
-    image: flight_plan-webapp:ci
+    image: wingtip-webapp:ci
     depends_on: !override
       db:
         condition: service_healthy
@@ -61,7 +61,7 @@ services:
     volumes:
       - ./web/dist:/app/static/app:ro
   planning-service:
-    image: flight_plan-planning-service:ci
+    image: wingtip-planning-service:ci
     depends_on: !reset {}
     healthcheck:
       start_period: 60s
@@ -96,7 +96,7 @@ services:
       # for a machine of one's own.
       CHARTS_PREPARE_AT_ONCE: "1"
   model-service:
-    image: flight_plan-model-service:ci
+    image: wingtip-model-service:ci
     healthcheck:
       start_period: 60s
       start_interval: 1s

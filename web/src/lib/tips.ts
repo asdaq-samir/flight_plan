@@ -66,7 +66,7 @@ export const useTips = create<{
   seen: [],
   see: id => set(s => (s.seen.includes(id) ? s : { seen: [...s.seen, id] })),
   reset: () => set({ seen: [] }),
-}), { name: "vfr.tips" }));
+}), { name: "wingtip.tips" }));
 
 /** Whether a tip is still to be offered. */
 export const unseen = (seen: string[], id: string) => !seen.includes(ALL_SEEN) && !seen.includes(id);

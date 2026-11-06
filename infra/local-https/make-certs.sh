@@ -12,7 +12,7 @@
 #   webapp.p12   the server certificate and key, PKCS12, for the webapp
 #
 # The authority's own key is kept out of the repo, in
-# ~/.config/vfr-local-ca (VFR_LOCAL_CA_DIR to change it). The repo is
+# ~/.config/wingtip-local-ca (WINGTIP_LOCAL_CA_DIR to change it). The repo is
 # mounted read-write into most of the compose services, and anything
 # that can read that key can mint a certificate the phone trusts -- for
 # any site, unless the authority is name-constrained. So a new
@@ -37,7 +37,7 @@ if [ "${1:-}" = "--new-ca" ]; then new_ca=1; shift; fi
 address="${1:?the LAN address the phone will use, e.g. 192.168.1.42}"
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$here/certs"
-ca_dir="${VFR_LOCAL_CA_DIR:-$HOME/.config/vfr-local-ca}"
+ca_dir="${WINGTIP_LOCAL_CA_DIR:-$HOME/.config/wingtip-local-ca}"
 mkdir -p "$out" "$ca_dir"
 chmod 700 "$ca_dir"
 # The PKCS12 container's password, the one the webapp opens it with by
@@ -72,7 +72,7 @@ docker run --rm --entrypoint sh -v "$out:/certs" -v "$ca_dir:/ca" -w /certs \
     cp ca.pem /ca/ca.pem   # an authority from before the key moved: its certificate is still here
   fi
   cp /ca/ca.pem ca.pem
-  openssl req -newkey rsa:2048 -nodes -keyout webapp.key -out webapp.csr -subj "/CN=vfr-route local"
+  openssl req -newkey rsa:2048 -nodes -keyout webapp.key -out webapp.csr -subj "/CN=wingtip local"
   printf "subjectAltName=IP:%s,IP:127.0.0.1,DNS:localhost\nextendedKeyUsage=serverAuth\n" "$ADDRESS" > san.cnf
   openssl x509 -req -in webapp.csr -CA /ca/ca.pem -CAkey /ca/ca.key -CAserial /ca/ca.srl -CAcreateserial \
     -days 365 -sha256 -extfile san.cnf -out webapp.pem

@@ -19,7 +19,7 @@ const PIXEL = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQ
 /** The map opening on Campbell (C81), where the pilot last was, at the
  *  region's zoom. */
 async function openOnC81(page: Page) {
-  await page.addInitScript(() => localStorage.setItem("vfr.ownship",
+  await page.addInitScript(() => localStorage.setItem("wingtip.ownship",
     JSON.stringify({ state: { enabled: false, follow: true, lastFix: { lat: 42.325, lon: -88.074 } }, version: 0 })));
 }
 

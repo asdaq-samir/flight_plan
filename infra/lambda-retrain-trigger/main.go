@@ -55,7 +55,7 @@ func fetchCredentials(ctx context.Context, secretArn string) (*airflowCredential
 	return &creds, nil
 }
 
-// triggerDagRun POSTs to Airflow's REST API to start a vfr_pipeline run.
+// triggerDagRun POSTs to Airflow's REST API to start a wingtip_pipeline run.
 // Omitting dag_run_id in the body lets Airflow assign one automatically.
 func triggerDagRun(ctx context.Context, baseURL, dagID string, creds *airflowCredentials) (int, string, error) {
 	url := fmt.Sprintf("%s/api/v1/dags/%s/dagRuns", baseURL, dagID)

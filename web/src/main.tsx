@@ -1,3 +1,6 @@
+// First: the browser's kept "vfr." keys renamed "wingtip." before any
+// store below reads its own (lib/storageRename).
+import "./lib/storageRename";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, redirect, RouterProvider } from "react-router-dom";
@@ -183,9 +186,9 @@ else prefetchCourse();
 // Vite's own guide does: past that it falls to the route's PageError.
 window.addEventListener("vite:preloadError", event => {
   let last = 0;
-  try { last = Number(sessionStorage.getItem("vfr.chunkReload")) || 0; } catch { /* storage refused: reload once */ }
+  try { last = Number(sessionStorage.getItem("wingtip.chunkReload")) || 0; } catch { /* storage refused: reload once */ }
   if (Date.now() - last < 60_000) return;
-  try { sessionStorage.setItem("vfr.chunkReload", String(Date.now())); } catch { /* as above */ }
+  try { sessionStorage.setItem("wingtip.chunkReload", String(Date.now())); } catch { /* as above */ }
   event.preventDefault();
   window.location.reload();
 });
@@ -201,7 +204,7 @@ const render = () => ReactDOM.createRoot(document.getElementById("root")!, {
         sets it, next-themes keeps it and puts the `dark` class on
         <html>, which is what every colour token in index.css keys off
         (and what the Toaster below already reads). */}
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="vfr.theme" disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="wingtip.theme" disableTransitionOnChange>
     <QueryClientProvider client={queryClient}>
       {/* One instance for the whole app, the same as sonner's own
           Toaster below -- every icon-only button's own Tooltip shares

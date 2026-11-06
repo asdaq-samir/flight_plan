@@ -13,10 +13,10 @@ export const PAGES = ["/app/plan", "/app/dev"] as const;
  *  storage: for page.evaluate, or page.addInitScript where a spec starts
  *  with none of the suite's saved session. */
 export function noTips() {
-  localStorage.setItem("vfr.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
+  localStorage.setItem("wingtip.tips", JSON.stringify({ state: { seen: ["*"] }, version: 0 }));
   // The route's VFR checkpoints on, as a student has them: off by default
   // (lib/preferences), and most specs read the route through them.
-  if (!localStorage.getItem("vfr.preferences")) localStorage.setItem("vfr.preferences", JSON.stringify({ state: { waypoints: true }, version: 1 }));
+  if (!localStorage.getItem("wingtip.preferences")) localStorage.setItem("wingtip.preferences", JSON.stringify({ state: { waypoints: true }, version: 1 }));
 }
 
 /** An explicit wait, doubled in CI: playwright.config.ts doubles the

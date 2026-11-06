@@ -62,7 +62,7 @@ def docker(method: str, path: str):
 def own_project(api=docker) -> str | None:
     """The compose project this sidecar belongs to, read off its own
     container's labels -- so a checkout under another directory name
-    starts its own containers, not flight_plan's."""
+    starts its own containers, not wingtip's."""
     status, body = api("GET", f"/containers/{socket.gethostname()}/json")
     if status != 200 or not body:
         return None

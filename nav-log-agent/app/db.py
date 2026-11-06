@@ -31,10 +31,10 @@ def _database_url() -> str:
     if password := os.environ.get("DB_PASSWORD"):
         host = os.environ["DB_HOST"]
         port = os.environ.get("DB_PORT", "5432")
-        name = os.environ.get("DB_NAME", "vfr_route")
-        user = os.environ.get("DB_USER", "vfr")
+        name = os.environ.get("DB_NAME", "wingtip")
+        user = os.environ.get("DB_USER", "wingtip")
         return f"postgresql://{user}:{quote_plus(password)}@{host}:{port}/{name}"
-    return os.environ.get("DATABASE_URL", "postgresql://vfr:vfr@db:5432/vfr_route")
+    return os.environ.get("DATABASE_URL", "postgresql://wingtip:wingtip@db:5432/wingtip")
 
 
 DATABASE_URL = _database_url()
