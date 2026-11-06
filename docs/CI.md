@@ -38,22 +38,32 @@ npx playwright test --project=mobile --grep @smoke
 
 ## Where it runs
 
-Every job's machine comes from a repository variable, so moving CI is a
+Most jobs' machine comes from a repository variable, so moving them is a
 setting, not a change to the workflows:
 
 - `LINUX_RUNNER`: the Linux jobs (default `ubuntu-26.04`, GitHub's)
 - `MAC_RUNNER`: Native iOS (default GitHub's macOS runner)
 
-A private repository pays for GitHub's runners by the minute (2,000 free a
-month on the free plan, macOS at ten times the rate). To run CI on the Mac
-mini instead, for free:
+Some jobs always run on GitHub's `ubuntu-26.04`, whatever the variable
+says, because the Mac mini is Apple silicon and they need x86: `e2e`,
+`e2e-images` and `build-images` (the images go to AWS's t3 machines, and
+e2e tests those same images), Native Android (the SDK's Linux tools and
+emulator are x86 only), and Promote (it builds and pushes for AWS).
 
-1. **Settings → Actions → Runners → New self-hosted runner** (macOS,
-   ARM64): it gives a one-time token.
-2. Install the runner on the Mac mini with that token, labelled `mini`
-   (the page's commands; one Linux runner in a container beside it for the
-   Linux jobs, labelled `mini-linux`).
-3. **Settings → Secrets and variables → Actions → Variables:** set
-   `LINUX_RUNNER` to `mini-linux` and `MAC_RUNNER` to `mini`.
+A private repository pays for GitHub's runners by the minute (3,000 a
+month on Pro, macOS at ten times the rate), and `dependency-review` skips
+itself there, since it needs Advanced Security. The rest run on the Mac
+mini for free:
 
-Unset the variables to go back to GitHub's runners.
+- **Linux jobs (`mini-linux`):** a Lima VM, `wingtip-ci`, running Ubuntu
+  with its own Docker and the runners. It must be a VM, not a container:
+  the jobs use `sudo`, `localhost` and `--network host` as on GitHub's
+  machines, and their ports would otherwise meet the live stack's.
+- **iOS (`mini`):** a runner on the Mac itself, which has Xcode, rustup
+  and xcodegen (in `~/.local/bin`; no Homebrew, no sudo).
+- Then **Settings → Secrets and variables → Actions → Variables:** set
+  `LINUX_RUNNER` to `mini-linux` and `MAC_RUNNER` to `mini`.
+
+Unset the variables to go back to GitHub's runners. Only once the
+repository is private: on a public one any fork's pull request could run
+its code on the Mac.
