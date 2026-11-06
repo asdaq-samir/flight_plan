@@ -19,6 +19,28 @@ final class FlowTests: XCTestCase {
     /// How long a planner answer may take on the runner, s.
     private static let planner: TimeInterval = 120
 
+    /// Every flow here needs the planner, so with none answering at the
+    /// host the build was made for (WINGTIP_HOST, passed in by the
+    /// scheme), each is skipped and says why, where it would otherwise
+    /// wait minutes and fail: until the site is deployed, wingtipmaps.app
+    /// has no address and every run on main went red on these alone.
+    /// LaunchTests still runs, so a build that cannot show its first
+    /// screen fails as before.
+    override func setUp() async throws {
+        try await super.setUp()
+        let host = ProcessInfo.processInfo.environment["WINGTIP_HOST"] ?? "wingtipmaps.app"
+        guard let url = URL(string: "https://\(host)/") else {
+            throw XCTSkip("no planner host to ask")
+        }
+        var request = URLRequest(url: url, timeoutInterval: 15)
+        request.httpMethod = "HEAD"
+        do {
+            _ = try await URLSession.shared.data(for: request)
+        } catch {
+            throw XCTSkip("the planner at \(host) does not answer (\(error.localizedDescription)), so the flows that need it are skipped")
+        }
+    }
+
     @MainActor
     private func launch(tab: String) -> XCUIApplication {
         let app = XCUIApplication()
