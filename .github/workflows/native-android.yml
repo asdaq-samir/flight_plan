@@ -7,8 +7,7 @@ name: Native Android
 # the unit tests, lint and a debug APK a tester can install by hand (the
 # run's artifact); then the instrumented tests, the engine held to the
 # web's shared fixtures through the app's own bridge, on an emulator. No
-# Google Play lane yet: the Capacitor shell's (android.yml) stays the Play
-# Store app until this one passes the plan's gates.
+# Google Play lane yet.
 #
 # Actions are pinned as in ci.yml (its opening comment says why).
 on:

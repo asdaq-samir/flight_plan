@@ -41,7 +41,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Sign in with Apple from the iOS app (web/ios), the native way: the
+ * Sign in with Apple from the iOS app (ios/), the native way: the
  * app's Apple sheet hands the page an identity token, and this checks
  * it -- Apple's signature (its published keys), Apple as the issuer, this
  * app's bundle id as the audience, not expired -- and signs the pilot in

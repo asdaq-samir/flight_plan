@@ -31,31 +31,23 @@ shell per app round it (the owner, 2026-11-03).
 
 ## Branches
 
-- Work goes on `maps-layout` (the owner's) or a `claude/` branch (yours),
-  in a pull request to `main`.
-- Both merge by themselves once the "CI passed" check is green
-  (auto-merge.yml, auto-merge-agents.yml); nothing merges red. After main
-  moves, Sync merges it back into maps-layout.
-- Never push to `main`. Never force-push. Pull before pushing to
-  maps-layout: Sync may have added a merge.
+- One flow, for the owner and every session alike: a `claude/<topic>`
+  branch from `main`, a pull request to `main`, and it merges by itself
+  once the "CI passed" check is green and Claude's review has run
+  (auto-merge-agents.yml); nothing merges red. The branch is deleted on
+  merge (the repository's setting).
+- Never push to `main`. Never force-push. Merge `main` into a branch to
+  bring it up to date; never rebase a pushed one.
+- On a pull request, Claude's review is put right on the branch ("Address
+  review:" commits) and a CI failure is fixed ("Fix CI:"), each at most
+  twice.
 - Write to GitHub gently, as the `ship` skill says: one write at a time,
   ten seconds apart, a long list as one issue's checklist. A burst of API
   writes got the owner's account suspended in October 2026.
-- Every week the Audit workflow checks design, code, speed and aviation,
-  and once a month the market, the launch and the marketing. It opens
-  `claude/audit-*` pull requests, and issues labelled "audit".
-- An issue is "ready" (no decision left for the owner; Build, build.yml,
-  takes one a day) or "owner" (the owner decides, then labels it
-  "ready"). Only the owner takes "owner" off. Plan (plan.yml) keeps the
-  Roadmap issue, whose Now list Build follows, and a weekly digest.
-- On a `claude/` pull request, Claude's review is put right on the branch
-  ("Address review:" commits) and a CI failure is fixed ("Fix CI:"), each
-  at most twice. It is set to merge only once that review has run.
-- Every night the AI check (ai-check.yml) asks for one real checkpoint
-  description and one real briefing, and opens a "ready" issue if either
-  comes back empty, cut off or malformed. Every week Cleanup deletes the
-  `claude/` branches whose pull request is done.
-- How to check, ship, review and audit: the skills in `.claude/skills`.
+- Issues: "ready" (nothing left for the owner to decide) or "owner" (the
+  owner decides, then labels it "ready"). Only the owner takes "owner"
+  off.
+- How to check, ship and review: the skills in `.claude/skills`.
 
 ## Never
 

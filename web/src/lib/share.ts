@@ -1,17 +1,11 @@
 import { useEffect, useState } from "react";
-import { inNativeApp, nativeShare } from "./native";
 
 /**
  * Something sent from the app -- a route's address, the flight for the
- * passengers -- the one way it goes everywhere: the share sheet in the
- * iOS and Android apps (lib/native) or where the browser has one (Safari
- * on an iPhone), otherwise copied. Says which, for the page to say so.
+ * passengers -- the one way it goes everywhere: the share sheet where the
+ * browser has one (Safari on an iPhone), otherwise copied. Says which, for the page to say so.
  */
 export async function shareOrCopy(item: { title: string; text?: string; url?: string }): Promise<"shared" | "copied"> {
-  if (inNativeApp()) {
-    await nativeShare(item);
-    return "shared";
-  }
   if (navigator.share) {
     await navigator.share(item);
     return "shared";

@@ -1,7 +1,6 @@
 import { useMemo } from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { inNativeApp, watchNativePosition, type NativePosition } from "../native";
 import { browserStorage } from "../storage";
 
 /**
@@ -120,9 +119,6 @@ export function useOwnFix() {
  *  (simulateFix); above the store, which reads it as it saves. */
 let beforeSimulation: { enabled: boolean; follow: boolean } | null = null;
 let watchId: number | null = null;
-// In the iOS app, the plugin's own watch (lib/native), stopped by this.
-let stopNative: (() => void) | null = null;
-let nativeStarting = false;
 // Started by the page itself (locateOnOpen) rather than by a tap: a
 // refusal then is no error to show, own ship just goes off again.
 let quiet = false;
@@ -132,15 +128,9 @@ function stopWatching() {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
   }
-  stopNative?.();
-  stopNative = null;
 }
 
 function startWatching(set: (patch: Partial<OwnShip>) => void) {
-  if (inNativeApp()) {
-    startNativeWatching(set);
-    return;
-  }
   if (!ownShipAvailable() || watchId !== null) return;
   watchId = navigator.geolocation.watchPosition(
     position => applyFix(set, position),
@@ -151,20 +141,8 @@ function startWatching(set: (patch: Partial<OwnShip>) => void) {
   );
 }
 
-/** In the iOS app, the same fixes from iOS's own location (lib/native),
- *  asked for with the app's permission sheet. */
-function startNativeWatching(set: (patch: Partial<OwnShip>) => void) {
-  if (stopNative !== null || nativeStarting) return;
-  nativeStarting = true;
-  void watchNativePosition(position => applyFix(set, position), message => failed(set, message)).then(stop => {
-    nativeStarting = false;
-    if (useOwnShip.getState().enabled) stopNative = stop;
-    else stop();
-  });
-}
-
-/** A fix, the browser's or the app's (the same shape), into own ship. */
-function applyFix(set: (patch: Partial<OwnShip>) => void, position: GeolocationPosition | NativePosition) {
+/** A fix from the browser into own ship. */
+function applyFix(set: (patch: Partial<OwnShip>) => void, position: GeolocationPosition) {
   // A dry run is flying own ship: the GPS waits until it ends.
   if (useOwnShip.getState().simulated) return;
   quiet = false;

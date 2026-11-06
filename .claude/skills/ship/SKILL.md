@@ -8,7 +8,7 @@ description: Commit, push and land a change in this repo. Covers which branch, w
 A change is shipped when it is merged to `main` with CI green. Until then, say exactly where it stands.
 
 ## 1. Before committing
-- **Branch:** `maps-layout` (the owner's) or `claude/<topic>` (yours). Never commit to `main`, never force-push, never tag a commit.
+- **Branch:** `claude/<topic>`, from `main`. Never commit to `main`, never force-push, never tag a commit.
 - **Verified:** run the `checks` skill for everything the change touched. A green run against a stale image or a container that loaded old code is not evidence.
 
 ## 2. Stage by name
@@ -31,9 +31,10 @@ Write "airplane". Read `git log -3 --format=%B` first to match the voice. End wi
 
 ## 4. Push
 ```sh
-git pull --no-rebase origin maps-layout && git push origin maps-layout
+git push -u origin claude/<topic>
+gh pr create --base main --fill   # once, for the branch's first push
 ```
-Always pull first: Sync merges `main` back into `maps-layout` and may have added a commit. A push to `maps-layout` opens or updates its pull request to `main` with auto-merge on (auto-merge.yml). `claude/*` branches go through auto-merge-agents.yml. Either one merges by itself once the "CI passed" check is green. Nothing merges red.
+To bring the branch up to date, `git merge origin/main` (never rebase a pushed branch). auto-merge-agents.yml turns auto-merge on once Claude's review has run, and the pull request merges by itself once the "CI passed" check is green. Nothing merges red.
 
 ## 5. Follow CI
 - **One push at a time when it matters.** ci.yml cancels the running CI on the same branch when a new push arrives, and the cancelled run's path-filtered jobs (image builds, pdoc) never run again. If a push touched `src/`, a requirements file or a Dockerfile, wait for its run to finish before pushing again.

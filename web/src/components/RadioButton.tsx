@@ -4,10 +4,8 @@ import CommsGlyph from "./CommsGlyph";
 import { cn } from "cn";
 import IconButton from "./IconButton";
 import { ResponsivePopover, ResponsivePopoverAnchor, ResponsivePopoverContent } from "./ResponsivePopover";
-import { api } from "../lib/api/client";
-import { useAtcRadio, useRadioActions } from "../lib/atcRadio";
+import { useAtcRadio } from "../lib/atcRadio";
 import { canListen } from "../lib/listen";
-import { inNativeApp } from "../lib/native";
 
 const ClearanceCard = lazy(() => import("../features/plan/components/ClearanceCard"));
 
@@ -41,15 +39,8 @@ export default function RadioButton() {
       listening?.stopRadio();
       return;
     }
-    const start = (words: string[]) => (listening ? void listening.listenOnce(words) : void load().then(m => m.listenOnce(words)));
-    if (!inNativeApp()) {
-      start([]);
-      return;
-    }
-    // The apps' recognizers are told the names near the route to expect.
-    const { near } = useAtcRadio.getState();
-    const { route } = useRadioActions.getState();
-    void api.clearanceWords(near, route.dep).catch(() => [] as string[]).then(start);
+    if (listening) void listening.listenOnce([]);
+    else void load().then(m => m.listenOnce([]));
   };
   return (
     <ResponsivePopover open={open} onOpenChange={setOpen}>

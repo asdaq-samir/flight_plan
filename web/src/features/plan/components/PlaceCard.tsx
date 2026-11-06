@@ -37,7 +37,6 @@ import { RunwaySketch } from "./RunwaySketch";
 import { runwaysLeftOut, stripsOf } from "../../../lib/runwaySketch";
 import { TEXT } from "../../../lib/text";
 import { diagramRunwaysPicture } from "../../../lib/diagram";
-import { useHeardMetar, useHeardTaf } from "../../../lib/map/receiver";
 import { ago, useMinuteClock, zuluTime } from "../../../lib/clock";
 import { arrivalHour, hoursOf, sentenceOf, tafOf } from "../../../lib/hourly";
 import { HourlyForecast } from "./HourlyForecast";
@@ -334,16 +333,9 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
   // None from a planner older than the list (a card kept by the worker,
   // a deploy under way), not a page that fails.
   const procedures = place?.procedures ?? [];
-  // A cockpit receiver's report of the field over FIS-B (lib/fisb), where
-  // it is newer than the planner's or the planner's could not be had: in
-  // the air the internet is often out of reach, and the ground stations'
-  // broadcast is what there is.
-  const heard = useHeardMetar(ident);
-  const ownMetar = place?.metar ?? null;
-  const viaReceiver = !!heard?.observed_at && (!ownMetar?.observed_at || heard.observed_at > ownMetar.observed_at);
-  const metar = viaReceiver ? heard : ownMetar;
+  const metar = place?.metar ?? null;
   const weather = place
-    ? { status: place.weather_unavailable && !viaReceiver ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
+    ? { status: place.weather_unavailable ? "unavailable" : metar ? "reported" : "no-report", category: metar?.flight_category ?? null }
     : known && { status: known.category ? "reported" : "no-report", category: known.category };
   // A field with no report of its own: the nearest station's within 30
   // nm (wingtip.weather.nearest_report), at the pilot's ask -- its category
@@ -395,12 +387,10 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
         : place?.weather_unavailable ? "The weather service could not be reached" : "No weather station reports from this field";
   const weatherAge = metar ? ageOf(metar.observed_at) : nearby ? ageOf(nearby.metar.observed_at) : null;
   // And hour by hour, as Apple's Weather has it (the owner's pick, G1):
-  // Now from the report, each hour after it from the field's own TAF --
-  // the planner's, or own ship's receiver's where the planner has none --
+  // Now from the report, each hour after it from the field's own TAF,
   // and a sentence of what they say, written from them (lib/hourly). Read
   // again each minute, as the hours move on.
-  const heardTaf = useHeardTaf(ident);
-  const tafText = place?.taf ?? heardTaf;
+  const tafText = place?.taf ?? null;
   const now = useMinuteClock();
   const hourly = useMemo(() => {
     const hours = hoursOf({ metar, taf: tafOf(tafText, now), now });
@@ -724,7 +714,7 @@ export default function PlaceCard({ ident, from, onClose, onFlyHere, onAddStop, 
                       {metar.observed_at && (
                         <ListRow
                           title="Observed" data-testid="place-observed"
-                          value={<span className="text-foreground">{observedLine(metar.observed_at)}{viaReceiver ? " · FIS-B" : ""}</span>}
+                          value={<span className="text-foreground">{observedLine(metar.observed_at)}</span>}
                         />
                       )}
                       {/* Each figure with its glyph, its value at the right in

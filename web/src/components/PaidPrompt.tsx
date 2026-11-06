@@ -7,7 +7,6 @@ import { Button } from "./ui/button";
 import { Spinner } from "./ui/spinner";
 import { api, describeError } from "../lib/api/client";
 import type { PaidFeature } from "../lib/api/types";
-import { inNativeApp } from "../lib/native";
 import { PRICE, subscriptionQuery, useEntitlement, useSold } from "../lib/subscription";
 import { TEXT } from "../lib/text";
 
@@ -68,10 +67,9 @@ export default function PaidPrompt({ feature, title, children, className }: {
       </div>
     );
   }
-  const native = inNativeApp();
   const trial = entitlement.kind === "signed-out" || entitlement.subscription.trialAvailable;
   const action = entitlement.kind === "signed-out" ? <Suspense fallback={null}><SignInModal /></Suspense>
-    : trial && !native ? (
+    : trial ? (
       <div className="flex flex-col items-center gap-2">
         <Button onClick={() => start.mutate()} disabled={start.isPending} data-testid="start-trial">
           {start.isPending && <Spinner />}Start Free Month
@@ -79,7 +77,7 @@ export default function PaidPrompt({ feature, title, children, className }: {
         {start.isError && <p role="alert" className={cn("text-destructive", TEXT.note)}>{describeError(start.error)}</p>}
       </div>
     )
-      : <p className={cn("text-muted-foreground", TEXT.note)}>{native ? "Subscribing in the app is coming." : "Subscribing is coming."}</p>;
+      : <p className={cn("text-muted-foreground", TEXT.note)}>Subscribing is coming.</p>;
   return (
     <div data-testid={`paid-prompt-${feature}`} className={className}>
       <EmptyState icon={ICONS[feature]} title={title ?? TITLES[feature]} action={action} className="p-4">

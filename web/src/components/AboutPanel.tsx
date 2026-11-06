@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { editionOf } from "../lib/chartEdition";
 import { FileText, Hand, LifeBuoy } from "lucide-react";
@@ -7,7 +7,6 @@ import { ListGroup, ListRow } from "./GroupedList";
 import { RowBadge } from "./RowBadge";
 import { DATA_SOURCES, PLANNING_AID } from "../lib/limits";
 import { LEGAL_PAGES } from "../lib/legal";
-import { nativeAppVersion } from "../lib/native";
 import { chartQuery } from "../lib/queryClient";
 import { SETTING_BADGE } from "../lib/rowBadges";
 import { versionOf } from "../lib/speed";
@@ -21,7 +20,7 @@ const LEGAL_GLYPHS: Record<(typeof LEGAL_PAGES)[number]["key"], ReactNode> = {
  * The console's About tab, after Settings, at the owner's ask ("Design an
  * about tab in settings and you can move the planning aid paragraph
  * there"), laid out as iOS's Settings > General > About: the app's mark
- * and name over a group of what it is -- its version and build, the
+ * and name over a group of what it is -- its build, the
  * chart's edition -- then the planning aid's words, which were the nav
  * log's footer, where the data comes from, each with the terms it is used
  * under, and the privacy policy, terms and support (lib/legal), which App
@@ -30,12 +29,6 @@ const LEGAL_GLYPHS: Record<(typeof LEGAL_PAGES)[number]["key"], ReactNode> = {
  */
 export default function AboutPanel() {
   const { data: chart } = useQuery(chartQuery);
-  const [app, setApp] = useState<{ version: string; build: string } | null>(null);
-  useEffect(() => {
-    let live = true;
-    void nativeAppVersion().then(v => { if (live) setApp(v); }).catch(() => {});
-    return () => { live = false; };
-  }, []);
   // The web's build is the entry chunk's hash, as the speed reports name
   // it (lib/speed): one build, one name, and "dev" under vite's server.
   const build = versionOf(document);
@@ -48,8 +41,7 @@ export default function AboutPanel() {
       </header>
 
       <ListGroup>
-        {app && <ListRow title="Version" value={`${app.version} (${app.build})`} data-testid="about-version" />}
-        <ListRow title={app ? "Web build" : "Build"} value={build} data-testid="about-build" />
+        <ListRow title="Build" value={build} data-testid="about-build" />
         <ListRow title="Chart edition" value={chart ? editionOf(chart.chart_cycle) : "—"} data-testid="about-chart-edition" />
       </ListGroup>
 

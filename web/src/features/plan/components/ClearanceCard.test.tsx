@@ -15,7 +15,7 @@ import readbacks from "../../../lib/fixtures/readbacks.json";
 
 vi.mock("../../../lib/api/client", async importOriginal => ({
   ...(await importOriginal<typeof import("../../../lib/api/client")>()),
-  api: { clearancePlaces: vi.fn(), clearanceWords: vi.fn() },
+  api: { clearancePlaces: vi.fn() },
 }));
 vi.mock("../../../lib/atcListening", () => ({ listenOnce: vi.fn(), startRadio: vi.fn(), stopRadio: vi.fn() }));
 // The input picker's module (lib/audioInput) as a stand-in: Find Inputs

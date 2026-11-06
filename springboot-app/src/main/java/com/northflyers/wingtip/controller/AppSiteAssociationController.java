@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The file iOS reads to open links to this site in the iOS app (its
- * Associated Domains, web/ios): the sign-in link a pilot taps in Mail
+ * Associated Domains, ios/): the sign-in link a pilot taps in Mail
  * lands in the app's own session, and a shared route opens there. Apple
  * fetches it from /.well-known/ at the app's install and update, over
  * HTTPS with no redirect.

@@ -1,7 +1,7 @@
 import AuthenticationServices
 import SwiftUI
 
-/// The two ways in the app offers, as docs/IOS.md has them: Sign in with
+/// The two ways in the app offers, as docs/NATIVE.md has them: Sign in with
 /// Apple through iOS's own sheet, or a link emailed to the pilot that
 /// opens the app. Google refuses to sign in inside an app, so it stays
 /// the website's.

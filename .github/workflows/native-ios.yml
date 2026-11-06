@@ -5,8 +5,7 @@ name: Native iOS
 # Xcode project is made there by XcodeGen from ios/project.yml and the
 # tests run on a simulator. On main, once the
 # owner has set the App Store Connect key, the app is archived, signed by
-# Xcode's cloud-managed signing and uploaded to TestFlight, as ios.yml
-# does for the shell.
+# Xcode's cloud-managed signing and uploaded to TestFlight.
 #
 # Actions are pinned as in ci.yml (its opening comment says why).
 on:

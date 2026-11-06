@@ -24,15 +24,13 @@
  * Imported by lib/atcListening, lib/atis and the card's ListenThrough, all
  * chunks of their own, never by lib/listen, which the first load carries.
  * Every browser call is feature-tested and caught; where nothing can be
- * picked -- the apps, whose Speech plugins own the microphone, and Chrome
- * for Android, whose recognizer opens the microphone itself and whose
+ * picked -- Chrome for Android, whose recognizer opens the microphone itself and whose
  * inputs are only "Bluetooth headset" and "Default" -- all of it does
  * nothing, and listening is as it always was.
  */
 import { create } from "zustand";
 import { inputLevel, useAtcRadio, type HeardInput } from "./atcRadio";
 import { noMicrophone, takesTrack } from "./listen";
-import { inNativeApp } from "./native";
 import { usePreferences } from "./preferences";
 
 /** One input, as enumerateDevices lists it once the page may see names. */
@@ -62,7 +60,7 @@ export const useInputs = create<{ found: boolean; inputs: Input[]; chosen: strin
 /** Whether an input can be picked here at all. */
 export function canPickInput(): boolean {
   if (typeof window === "undefined" || typeof navigator === "undefined") return false;
-  if (inNativeApp() || /Android/.test(navigator.userAgent ?? "")) return false;
+  if (/Android/.test(navigator.userAgent ?? "")) return false;
   const devices = navigator.mediaDevices;
   return typeof devices?.getUserMedia === "function" && typeof devices.enumerateDevices === "function";
 }

@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The file Android reads to open links to this site in the Android app
- * (its App Links, web/android): the sign-in link a pilot taps in Gmail
+ * (its App Links, android/): the sign-in link a pilot taps in Gmail
  * lands in the app's own session, and a shared route opens there, as
  * apple-app-site-association does for iOS. Android fetches it from
  * /.well-known/ when the app is installed, over HTTPS with no redirect,
