@@ -123,6 +123,16 @@ export default function MapControls() {
       className={cn(
         "absolute z-[1000] flex items-end rounded-[26px] p-1",
         "bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] max-w-[min(28rem,calc(100vw-5rem))]",
+        // From md up at the map's right edge with the map's buttons, in
+        // the corner they leave free -- the top, or the foot where the
+        // navigation bar's edge puts them at the top -- and widening to
+        // the left into the pill: on a wide screen it was a circle alone
+        // at the chart's foot, past the panel's edge (the owner, 2026-11-06:
+        // "the floating buttons should have a better place on desktop").
+        // There is no sheet to ride over a wide screen (MapPanel's ride).
+        "md:right-[max(0.5rem,env(safe-area-inset-right))] md:left-auto md:flex-row-reverse",
+        "md:top-[max(0.5rem,env(safe-area-inset-top))] md:bottom-auto",
+        "md:nav-bottom:top-auto md:nav-bottom:bottom-[calc(max(env(safe-area-inset-bottom),var(--map-inset-bottom,0px))+1.5rem)]",
         GLASS,
       )}
       data-testid="mic-circle" data-listening={pill || undefined}

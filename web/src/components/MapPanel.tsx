@@ -127,10 +127,16 @@ const SHEET_BELOW = "[--muted-foreground:oklch(0.5_0_0)] [--tint:var(--tint-shad
  *  or the half sheet -- all the way up as well, where what counts is what
  *  shows once it comes down; from `md` up the column at the left while it
  *  is out, or the corner it rests in. */
+/** Over a wider screen the top sheet floats this far under the window's
+ *  top, its four corners round, as Maps' card does on an iPad and a Mac;
+ *  on a phone it hangs from the edge (the owner's screenshot, 2026-11-06:
+ *  the tabs ran into the window's top). */
+const FLOAT_PX = 16;
+
 function insetsOf(s: PanelState, d: Detents, onPhone: boolean, fromBottom: boolean): MapInsets {
   const up = s === "full";
   if (!onPhone && s !== "peek") return { top: 0, bottom: 0, left: 16 + CARD, out: true, up };
-  const strip = onPhone ? (s === "peek" ? d.peek : d.half) : d.peek + SHEET_MARGIN;
+  const strip = onPhone ? (s === "peek" ? d.peek : d.half) : d.peek + SHEET_MARGIN + (fromBottom ? 0 : FLOAT_PX);
   return fromBottom ? { top: 0, bottom: strip, left: 0, out: s !== "peek", up } : { top: strip, bottom: 0, left: 0, out: s !== "peek", up };
 }
 
@@ -206,7 +212,8 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   const fromBottom = edge === "bottom";
   const hasPill = !!bar || !!compact;
   // How tall it can be: eight points short of the far edge's inset.
-  const room = windowHeight - keyboard - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN;
+  const floating = !onPhone && !fromBottom;
+  const room = windowHeight - keyboard - Math.round(fromBottom ? safe.top : safe.bottom) - SHEET_MARGIN - (floating ? FLOAT_PX : 0);
   // A bottom sheet runs on to the screen's edge, under the home indicator
   // (or eight points where there is none), so its content sits clear of it.
   const edgeInset = fromBottom && !keyboard ? Math.max(Math.round(safe.bottom), SHEET_MARGIN) : 0;
@@ -373,18 +380,19 @@ export default function MapPanel({ label, top, kept, controls, compact, children
   // is laid out (its full height less its height now): a bottom sheet's
   // figures and body up by it, the body's content back down; a top
   // sheet's head and body down by it. Transform only, on these alone.
-  const pinState = useRef({ fromBottom, footShown });
+  const pinState = useRef({ fromBottom, footShown, floating });
   useLayoutEffect(() => {
-    pinState.current = { fromBottom, footShown };
-  }, [fromBottom, footShown]);
+    pinState.current = { fromBottom, footShown, floating };
+  }, [fromBottom, footShown, floating]);
   const pin = useCallback((off: number, ease: string) => {
     const { head, body, inner, foot } = parts.current;
     const { fromBottom: bottom, footShown: figures } = pinState.current;
     const shift = (px: number) => (Math.abs(px) < 0.25 ? "" : `translate3d(0, ${Math.round(px * 100) / 100}px, 0)`);
-    const write = (el: HTMLElement | null, px: number) => {
+    const write = (el: HTMLElement | null, px: number, also = "") => {
       if (!el) return;
-      // The figures' growth (--sheet-progress) eased with the sheet too.
-      const transition = !ease ? "" : el === foot ? `transform ${ease}, --sheet-progress ${ease}` : `transform ${ease}`;
+      // The figures' growth (--sheet-progress) eased with the sheet too,
+      // and a top sheet's body's cut (below) with its move.
+      const transition = !ease ? "" : el === foot ? `transform ${ease}, --sheet-progress ${ease}` : `transform ${ease}${also && `, ${also} ${ease}`}`;
       const transform = shift(px);
       // Written only where it changes: each write is a restyle.
       if (el.style.transition !== transition) el.style.transition = transition;
@@ -397,10 +405,16 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     };
     const up = bottom && figures ? off : 0;
     write(foot, bottom ? -up : 0);
-    write(body, bottom ? -up : off);
+    write(body, bottom ? -up : off, bottom ? "" : "clip-path");
     write(inner, up);
     write(head, bottom ? 0 : off);
     if (body && body.style.overflow !== (up ? "clip" : "")) body.style.overflow = up ? "clip" : "";
+    // A top sheet's body, moved down by `off`, runs on under the figures
+    // pinned at its foot: cut off at their top, as a bottom sheet's is by
+    // its overflow above, or its last rows are drawn over the figures (the
+    // owner's screenshot, 2026-11-06: "Add a Stop" over the distance).
+    const cut = !bottom && figures && off >= 0.25 ? `inset(0 0 ${Math.round(off * 100) / 100}px 0)` : "";
+    if (body && body.style.clipPath !== cut) body.style.clipPath = cut;
   }, []);
   // The map's buttons ride on a phone's bottom sheet's top: placed at the
   // height it rests at (--sheet-cover, their `bottom`, set once a move)
@@ -450,9 +464,15 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     if (!panel) return;
     const off = Math.max(0, fullRef.current - h);
     const y = Math.round((pinState.current.fromBottom ? off : -off) * 100) / 100;
-    const transition = ease ? `transform ${ease}` : "";
+    // A floating sheet slid up by `off` would show its glass in the gap
+    // over it: cut at its own `off`, where the window's gap ends, its top
+    // corners rounded there, eased with the slide.
+    const { floating: cutAtTop } = pinState.current;
+    const transition = ease ? `transform ${ease}${cutAtTop ? `, clip-path ${ease}` : ""}` : "";
     if (panel.style.transition !== transition) panel.style.transition = transition;
     panel.style.transform = `translate3d(0, ${y}px, 0)`;
+    const cut = cutAtTop ? `inset(${Math.round(off * 100) / 100}px 0 0 0 round ${PILL_RADIUS}px)` : "";
+    if (panel.style.clipPath !== cut) panel.style.clipPath = cut;
     pin(off, ease);
     ride(h, ease, from);
   }, [pin, ride]);
@@ -736,7 +756,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // 2026-11-05: "The calculations strip at the bottom should shrink
         // to fit the small text while in medium detent"). What gives way
         // in the pill (data-pill-hides) is put away there.
-        "flex shrink-0 flex-col justify-center border-t pb-1 print:hidden", at === "half" ? "min-h-0" : "min-h-[3.875rem]", ROW_PAD, cardInPill ? "px-0" : "px-4",
+        // A top sheet's grabber over its last 16 points (bottom-0 h-4): room
+        // for it under the figures, which it sat on at half's small size.
+        "flex shrink-0 flex-col justify-center border-t print:hidden", fromBottom ? "pb-1" : "pb-4", at === "half" ? "min-h-0" : "min-h-[3.875rem]", ROW_PAD, cardInPill ? "px-0" : "px-4",
         !footShown && "hidden",
         // In the pill the finger is the sheet's (touch-none), as on the
         // tabs: the browser's own scroll took it and cancelled the drag.
@@ -765,9 +787,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               ...vars,
               // Held on its edge, on the keyboard while it is up; laid out
               // once at its full height and slid (place).
-              ...(fromBottom ? { bottom: keyboard } : { top: 0 }),
+              ...(fromBottom ? { bottom: keyboard } : { top: floating ? FLOAT_PX : 0 }),
               height: detents.full,
-              borderRadius: fromBottom ? `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0` : `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px`,
+              borderRadius: floating ? PILL_RADIUS : fromBottom ? `${PILL_RADIUS}px ${PILL_RADIUS}px 0 0` : `0 0 ${PILL_RADIUS}px ${PILL_RADIUS}px`,
             } as CSSProperties}
             className={cn(
               // Clipped rather than hidden: a hidden overflow can still be
@@ -777,7 +799,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               // Liquid Glass at every size, as Maps' is: the chart through
               // it, blurred, the same pane whether it is the pill or the sheet.
               onPhone ? GLASS : MATERIAL,
-              onPhone ? "inset-x-0" : "left-[max(1rem,env(safe-area-inset-left))] w-[24rem] shadow-[0_2px_10px_rgba(0,0,0,0.12)] ring-1 ring-black/5 dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)] dark:ring-white/10",
+              onPhone ? "inset-x-0" : cn(
+                "left-[max(1rem,env(safe-area-inset-left))] w-[24rem] ring-1 ring-black/5 dark:ring-white/10",
+                // Floating, its edge drawn inside: the clip at its top (place)
+                // cuts whatever is outside its box, a ring's or a shadow's.
+                floating ? "ring-inset" : "shadow-[0_2px_10px_rgba(0,0,0,0.12)] dark:shadow-[0_2px_10px_rgba(0,0,0,0.45)]",
+              ),
             )}
           >
             {pillPictured && pill && <PillPicture pill={pill} />}
