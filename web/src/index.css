@@ -987,6 +987,9 @@ body[data-map-sheet][data-map-panel="full"] [data-sonner-toast][data-type="loadi
   margin-top: calc(-1 * var(--head-room, 0px));
   padding-top: calc(var(--head-room, 0px) + var(--under-pad, 0px));
   scroll-padding-top: var(--head-room, 0px);
+  /* And clear of the route's figures pinned at the sheet's foot over it
+     (MapPanel's --foot-room): a row brought into view stops above them. */
+  scroll-padding-bottom: var(--foot-room, 0px);
 }
 
 /* The map panel's head frosted with the sheet's own colour, a line under

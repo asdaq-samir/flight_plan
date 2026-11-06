@@ -155,8 +155,12 @@ export default function StopsCard({ at, route, scope, onScope, onClose, onOpenFi
     if (!row) return;
     row.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
     // Half way the list is cut off at the sheet's edge, not scrolled: the
-    // sheet comes up if the row is under it (MapPanel's sheetreveal).
-    row.dispatchEvent(new Event("sheetreveal", { bubbles: true }));
+    // sheet comes up if the row is under it (MapPanel's sheetreveal). A
+    // frame on: a pin's tap sends the sheet up from the pill in MapPanel's
+    // own effect, which runs after this one, and the sheet must know where
+    // it is going before it hears of the row.
+    const frame = requestAnimationFrame(() => row.dispatchEvent(new Event("sheetreveal", { bubbles: true })));
+    return () => cancelAnimationFrame(frame);
   }, [picked, pickedShown]);
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="stops-card">

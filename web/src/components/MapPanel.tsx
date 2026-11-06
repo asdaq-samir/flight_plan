@@ -272,7 +272,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       el.style.transition = "none";
       el.style.setProperty("--sheet-progress", "0");
       el.style.paddingBottom = look.paddingBottom;
-      const h = el.offsetHeight;
+      // Rounded up, not to the nearest: a strip 61.5 tall read as 61 left
+      // half's list running a point and a half under it.
+      const h = Math.ceil(el.getBoundingClientRect().height);
       el.className = kept.className;
       if (kept.style === null) el.removeAttribute("style");
       else el.setAttribute("style", kept.style);
@@ -282,7 +284,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
       const el = parts.current.foot;
       if (movingRef.current || !el) return;
       const at = sizeRef.current === "half" ? "half" : "other";
-      const h = el.offsetHeight;
+      const h = Math.ceil(el.getBoundingClientRect().height);
       const half = at === "other" && !halfSeen.current ? measureHalf(el) : null;
       if (half !== null) halfSeen.current = true;
       setFootHeights(was => {
@@ -854,7 +856,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
               inert={restingPill}
               // The sizes the body's content is laid out to: changed as it
               // sets off and at rest, never per frame.
-              style={{ "--half-body": `${halfBody}px`, "--full-body": `${fullBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
+              style={{ "--half-body": `${halfBody}px`, "--full-body": `${fullBody}px`, "--half-foot": `${toEdge && fromBottom ? halfChrome : 0}px`, "--head-room": `${under ? headHeight : 0}px`, "--foot-room": `${footShown ? (size === "half" ? footHalf : footFull) : 0}px`, "--panel-head": `${under ? headHeight : 0}px` } as CSSProperties}
               data-panel-body=""
             >
               <div ref={setInnerNode} className="flex min-h-0 flex-1 flex-col">
