@@ -1263,7 +1263,7 @@ jobs:
     name: build (e2e)
     runs-on: ubuntu-26.04
     # A push, and a pull request from this repository's own branches --
-    # every claude/ and maps-layout pull request, the most of CI's runs --
+    # every claude/ pull request, the most of CI's runs --
     # whose token can push: their eight shards pulled nothing and each
     # built the stack's images and the page itself, eight times over (the
     # handover's run on 77f6b687, 2026-11-05: the page 127 s and the
@@ -1646,8 +1646,8 @@ jobs:
 
   # The one check main requires (its ruleset), so the rule holds as jobs
   # come and go: every job above passed, or was not needed -- a job its
-  # paths did not touch is skipped, which counts as passing. The
-  # Auto-merge workflow merges maps-layout's pull request on it.
+  # paths did not touch is skipped, which counts as passing.
+  # auto-merge-agents.yml merges a pull request on it.
   passed:
     name: CI passed
     runs-on: ubuntu-26.04

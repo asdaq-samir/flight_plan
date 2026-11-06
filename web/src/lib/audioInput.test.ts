@@ -522,7 +522,7 @@ describe("the input remembered", () => {
 });
 
 describe("where nothing can be picked", () => {
-  test("Chrome for Android and the apps: every call does nothing", async () => {
+  test("Chrome for Android: every call does nothing", async () => {
     const devices = stubBrowser({ userAgent: "Mozilla/5.0 (Linux; Android 15) Chrome/142.0 Mobile" });
     const m = await load();
     expect(m.canPickInput()).toBe(false);
@@ -532,9 +532,5 @@ describe("where nothing can be picked", () => {
     expect(devices.getUserMedia).not.toHaveBeenCalled();
     expect(listening.track()).toBeNull();
     listening.release();
-
-    stubBrowser();
-    vi.stubGlobal("Capacitor", { isNativePlatform: () => true });
-    expect(m.canPickInput()).toBe(false);
   });
 });

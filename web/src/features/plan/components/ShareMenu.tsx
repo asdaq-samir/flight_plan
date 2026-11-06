@@ -83,8 +83,8 @@ export default function ShareMenu({
   const [askingReview, setAskingReview] = useState(false);
 
   // The plan's own address, to another device or person: the share
-  // sheet where the browser has one (Safari on an iPhone) or in the iOS
-  // app (lib/native), otherwise copied.
+  // sheet where the browser has one (Safari on an iPhone), otherwise
+  // copied.
   const share = useCallback(async () => {
     const url = window.location.href;
     const title = routeName(planned.dep, planned.dest, planned.stops);

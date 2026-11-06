@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Who is signed in, and the way in: the emailed link, which opens the
- * app (docs/ANDROID.md: Google refuses to sign in inside an app's web
+ * app (docs/NATIVE-ANDROID.md: Google refuses to sign in inside an app's web
  * view, and Sign in with Apple's sheet is iOS's). The gateway's session
  * cookie, kept by CookieStore, is the sign-in itself. The twin of the iOS
  * app's Session.swift, as a ViewModel with its state in flows.

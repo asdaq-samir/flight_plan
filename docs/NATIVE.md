@@ -3,9 +3,9 @@
 Wingtip Maps as a pure SwiftUI app (`ios/`), with no web view: the same
 planner and gateway as the website, and only the screens on the phone.
 The plan, its phases and gates are in the owner's doc "Native iOS
-Transition Plan" (24 October 2026). The Capacitor shell (`web/ios`,
-docs/IOS.md) stays the App Store app until this one passes the plan's
-last gate. The Android twin, the same engine behind Compose and MapLibre,
+Transition Plan" (24 October 2026). It is the iOS app: the Capacitor
+shell that wrapped the website went on 2026-11-06, at the owner's word
+("native only, delete the wrappers"). The Android twin, the same engine behind Compose and MapLibre,
 is docs/NATIVE-ANDROID.md.
 
 ## What is here
@@ -237,9 +237,33 @@ public repository):
   the newest iPhone simulator the runner has and on an iPad (a Pro
   where there is one), for the iPad's own layout, with a picture of
   each one's first screen kept with the run (`native-ios-screens`);
-- on `main`, with the App Store Connect key the owner sets as docs/IOS.md
-  lists (the same variables and secret as the shell's), the app is
-  archived and uploaded to TestFlight.
+- on `main`, with the App Store Connect key the owner sets (below), the
+  app is archived and uploaded to TestFlight.
 
 `WINGTIP_HOST` is the build's host (the repo variable `WINGTIP_URL`'s);
 it is the gateway's address and the app's associated domain.
+
+## What only the owner can do, for TestFlight
+
+1. **Join the Apple Developer Program** ($99 a year) and note the Team
+   ID (Membership details).
+2. **Choose the bundle id**, e.g. `app.wingtipmaps.ios`; it cannot change
+   once the app is in App Store Connect.
+3. **Create the app in App Store Connect** (My Apps → +): the name, the
+   bundle id (register it under Identifiers first, with the Associated
+   Domains and Sign in with Apple capabilities), a SKU.
+4. **Create an App Store Connect API key** (Users and Access →
+   Integrations → App Store Connect API, role App Manager) and download
+   its `.p8` once.
+5. **In GitHub** (Settings → Secrets and variables → Actions):
+   - variables `APPLE_TEAM_ID`, `IOS_BUNDLE_ID`, `APP_STORE_KEY_ID`,
+     `APP_STORE_ISSUER_ID`, and `WINGTIP_URL`
+     (`https://<the domain>/app/plan`);
+   - the secret `APP_STORE_KEY_P8`, the `.p8` file's contents.
+6. **On the server**, add `APPLE_TEAM_ID` and `APP_IOS_BUNDLE_ID` to the
+   stack's AppSecret (`infra/server/env.example`) and run `deploy.sh`,
+   so the site names the app for its links and accepts its Apple
+   sign-in.
+7. **TestFlight:** add yourself as an internal tester. The next push to
+   `main` that changes the app (or Run workflow on Native iOS) uploads a
+   build; it appears in TestFlight after Apple processes it.

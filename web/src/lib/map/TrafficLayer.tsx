@@ -12,12 +12,10 @@ import { prefersReducedMotion } from "../motion";
 import { centreClear } from "./clear";
 import { TRAFFIC_COLOURS, trafficIcon } from "./icons";
 import { useOwnShip, useOwnFix } from "./ownShip";
-import { CARRY_S, agedBy, carriedOn, colourRuns, markTraffic, mergeTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
+import { CARRY_S, agedBy, carriedOn, colourRuns, markTraffic, nearOwnHeight, ownShipHex, trafficLabel, trendPx } from "./traffic";
 import { reported, useTracking, useTrafficFocus, type Report } from "./tracking";
 import { usePastFlight } from "./pastFlight";
 import PastFlightPath from "./PastFlightPath";
-import { listen, useReceiver } from "./receiver";
-import { inNativeApp } from "../native";
 import { trafficCredit } from "./trafficCredit";
 
 /** How often the traffic is asked for again, ms: the planner asks
@@ -132,28 +130,9 @@ function Traffic() {
     const control = L.control.attribution({ prefix: false, position: "bottomleft" }).addAttribution(credit).addTo(map);
     return () => { control.remove(); };
   }, [map, credit]);
-  // A cockpit receiver, heard in the app while the traffic is drawn
-  // (lib/map/receiver, #191): its airplanes merged with the internet's.
-  useEffect(() => {
-    if (!inNativeApp()) return;
-    let stop: (() => void) | null = null;
-    let live = true;
-    void listen().then(done => {
-      if (live) stop = done;
-      else done();
-    });
-    return () => {
-      live = false;
-      stop?.();
-    };
-  }, []);
-  const cockpit = useReceiver(s => s.traffic);
-  const receiverOwn = useReceiver(s => s.ownHex);
-  const receiving = useReceiver(s => s.connected);
   // The planner answers 503 only once adsb.lol has given nothing for a
   // minute (wingtip.traffic): then the map says so, and the airplanes, carried
-  // on no further than half a minute, have gone -- unless a receiver in
-  // the cockpit is heard, whose traffic is drawn without the internet.
+  // on no further than half a minute, have gone.
   useEffect(() => () => clearProblem(PROBLEM), []);
 
   const targets = useRef(new Map<string, Target>());
@@ -180,23 +159,19 @@ function Traffic() {
   // for STALE_MS, or nothing ever has.
   const gone = isError && (!answer || errorUpdatedAt - answer.at > STALE_MS);
   useEffect(() => {
-    if (gone && !receiving) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
+    if (gone) raiseProblem({ id: PROBLEM, title: "Traffic isn't available right now." });
     else clearProblem(PROBLEM);
-  }, [gone, receiving]);
+  }, [gone]);
   const own = useMemo(
     () => (answer ? ownShipHex(agedBy(answer.data.aircraft, answer.data.age_s ?? 0), fix) : null),
     // Own ship's fix as each answer comes, not with every fix.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [answer],
   );
-  const internet = useMemo(() => (answer
+  const merged = useMemo(() => (answer
     ? answer.data.aircraft.filter(plane => plane.hex !== own)
       .map(plane => ({ plane, at: answer.at - ((answer.data.age_s ?? 0) + (plane.seen_s ?? 0)) * 1000 }))
     : null), [answer, own]);
-  // And the receiver's, merged by address: the fresher report of an
-  // airplane both hear, keeping the internet's registration and type,
-  // which GDL 90 does not send; own ship's echo, by its address, left out.
-  const merged = useMemo(() => mergeTraffic(internet, Object.values(cockpit), receiverOwn), [internet, cockpit, receiverOwn]);
 
   // Each airplane's report into the targets.
   useEffect(() => {

@@ -32,7 +32,6 @@ import "@fontsource/barlow/latin-400.css";
 import "@fontsource/barlow/latin-500.css";
 import "@fontsource/barlow/latin-600.css";
 import "@fontsource/barlow/latin-700.css";
-import { followAppLinks, followBackButton, inNativeApp, nativePlatform } from "./lib/native";
 import { startTv, tvPlatform } from "./lib/tv";
 import { loadEngine } from "./lib/engine/engine";
 
@@ -95,12 +94,6 @@ registerSW({
   },
 });
 startFresh();
-
-// In the iOS and Android apps, a link to the site tapped elsewhere -- the
-// sign-in link in Mail -- opens here, and Android's back closes what is
-// open (lib/native).
-if (inNativeApp()) void followAppLinks();
-if (nativePlatform() === "android") void followBackButton();
 
 // Three views, one app -- which is the point of the port. As separate
 // HTML files they drifted: one grew a basemap fix the other never

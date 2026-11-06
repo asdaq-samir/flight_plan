@@ -1,7 +1,7 @@
 # The App Store listing
 
 What App Store Connect asks for, ready to paste once the app is there
-(`docs/IOS.md` has how it gets there). Every claim here is one the app
+(`docs/NATIVE.md` has how it gets there). Every claim here is one the app
 makes good today; keep it so.
 
 ## The listing

@@ -2,7 +2,6 @@ import type { TrafficAircraft } from "../api/types";
 import { callEngine } from "../engine/engine";
 import { M_PER_NM, destination, type LatLon } from "../geo";
 import type { Fix } from "./ownShip";
-import type { Report } from "./tracking";
 
 /*
  * The rules here -- the height under an airplane as TCAS writes it, whether
@@ -12,9 +11,7 @@ import type { Report } from "./tracking";
  * lib/engine), the very code the phones ask (wt_call). What runs
  * every frame stays here -- an airplane carried on along its track between
  * reports, its trend line's length at the map's scale, the colours of a
- * flown path -- and so does the merging of the internet's reports with a
- * cockpit receiver's, which holds no rule and would carry every airplane
- * across twice an answer.
+ * flown path.
  */
 
 interface Mark { label: string; near: boolean }
@@ -145,29 +142,4 @@ export function colourRuns(path: { lat: number; lon: number; altFt: number | nul
 export function closestApproach(own: Fix, plane: TrafficAircraft): { inMin: number; nm: number; aboveFt: number | null } | null {
   const cpa = callEngine<{ in_min: number; nm: number; above_ft: number | null } | null>("closest_approach", { own: engineFix(own), plane });
   return cpa && { inMin: cpa.in_min, nm: cpa.nm, aboveFt: cpa.above_ft };
-}
-
-/**
- * The internet's airplanes and a cockpit receiver's (lib/map/receiver),
- * as one list by ICAO address: of an airplane both hear, the fresher
- * report, keeping the internet's registration and type, which GDL 90
- * does not send, and its callsign where the receiver has none; own ship's
- * echo (the receiver's own address) left out. Null with neither yet.
- */
-export function mergeTraffic(internet: Report[] | null, cockpit: Report[], ownHex: string | null): Report[] | null {
-  if (internet === null && !cockpit.length) return null;
-  const byHex = new Map<string, Report>((internet ?? []).map(r => [r.plane.hex, r]));
-  for (const heard of cockpit) {
-    const held = byHex.get(heard.plane.hex);
-    if (held && held.at > heard.at) continue;
-    byHex.set(heard.plane.hex, held ? {
-      plane: {
-        ...heard.plane, callsign: heard.plane.callsign ?? held.plane.callsign,
-        registration: held.plane.registration, type: held.plane.type,
-      },
-      at: heard.at,
-    } : heard);
-  }
-  if (ownHex) byHex.delete(ownHex);
-  return [...byHex.values()];
 }

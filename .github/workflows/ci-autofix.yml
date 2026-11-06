@@ -8,7 +8,7 @@ name: CI autofix
 # - On a pull request from Claude's own claude/ branch, Claude reads the
 #   failed jobs' logs, fixes the cause on the branch and pushes ("Fix CI:
 #   ..."), at most twice a branch; after that it only comments.
-# - On anyone else's pull request -- maps-layout's, Dependabot's -- it
+# - On anyone else's pull request -- Dependabot's -- it
 #   changes nothing and comments the cause and the fix it would make.
 # - On main's nightly run, a cause in the code is fixed on a new claude/
 #   branch, in a pull request that merges like any of Claude's; a cause
