@@ -86,6 +86,22 @@ jobs:
     if: needs.changes.outputs.test-root == 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The FAA's reference files the tests read (data/raw), kept between
+      # runs: fetched cold they were most of the planner's suite, 131 s of
+      # it against 11 s warm (#452), and the suite failed when the FAA was
+      # down. Keyed by the ISO week, so a new NASR cycle is fetched within
+      # a week of it; the chart folders are left out (the tests draw none).
+      - name: The week, for the reference data's cache
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw/*
+            !data/raw/charts.nosync
+            !data/raw/chart_tiles.nosync
+          key: tests-raw-root-v1-${{ steps.week.outputs.week }}
+          restore-keys: tests-raw-root-v1-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.14"
@@ -228,6 +244,22 @@ jobs:
         working-directory: planning-service
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The FAA's reference files the tests read (data/raw), kept between
+      # runs: fetched cold they were most of the planner's suite, 131 s of
+      # it against 11 s warm (#452), and the suite failed when the FAA was
+      # down. Keyed by the ISO week, so a new NASR cycle is fetched within
+      # a week of it; the chart folders are left out (the tests draw none).
+      - name: The week, for the reference data's cache
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw/*
+            !data/raw/charts.nosync
+            !data/raw/chart_tiles.nosync
+          key: tests-raw-planner-v1-${{ steps.week.outputs.week }}
+          restore-keys: tests-raw-planner-v1-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: "3.14"
@@ -1504,10 +1536,13 @@ jobs:
   # time, 3.6 to 9.8 minutes and the longest job of a run, and so on
   # pushes to main only. In the suites' jobs it takes seconds, and pull
   # requests get it too.
+  # The API reference docs, built to prove they build: every night and by
+  # hand, not on each pull request (the owner, 2026-11-06: lighter CI). A
+  # docstring that breaks them is found by the next morning.
   docs:
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
-    if: needs.changes.outputs.docs == 'true'
+    if: needs.changes.outputs.docs == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
 
