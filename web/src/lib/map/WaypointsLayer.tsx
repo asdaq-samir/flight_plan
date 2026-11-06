@@ -9,6 +9,7 @@ import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 import { MAGENTA } from "../useAirspace";
 import { NavaidMarksLayer, type NavaidMark } from "./NavaidCanvas";
+import { fieldTapped } from "./declutter";
 import { NavaidHover, TAP_PX } from "./NavaidsLayer";
 import { PointWhere } from "./PointWhere";
 import { PointActions } from "./PointCardActions";
@@ -84,10 +85,11 @@ function WaypointMarks({ waypoints }: { waypoints: Waypoint[] }) {
     click: (e: L.LeafletMouseEvent) => {
       const target = e.originalEvent.target as Element | null;
       if (target?.closest(".leaflet-marker-icon, .leaflet-popup, path.leaflet-interactive")) return;
-      const near = layer.nearest(e.containerPoint, TAP_PX)?.mark ?? null;
+      // A field's tap is the field's (declutter's fieldTapped).
+      const near = fieldTapped(map, e.containerPoint) ? null : layer.nearest(e.containerPoint, TAP_PX)?.mark ?? null;
       setPicked(was => (!near ? null : was && `vfr-${was.ident}` === near.key ? was : byKey.current.get(near.key) ?? null));
     },
-  }), [layer]));
+  }), [layer, map]));
   const closed = useMemo<L.LeafletEventHandlerFnMap>(() => ({ remove: () => setPicked(null) }), []);
   return (
     <>
