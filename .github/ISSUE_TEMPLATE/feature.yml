@@ -1,0 +1,20 @@
+name: Feature
+description: Something the app should do.
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What the pilot needs
+      description: The task or situation, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: An idea for how
+      description: Optional. Another app's screen that does it well is welcome.
+  - type: textarea
+    id: sources
+    attributes:
+      label: Rules involved
+      description: Optional. Any 14 CFR section, AIM paragraph or FAA product it depends on.
