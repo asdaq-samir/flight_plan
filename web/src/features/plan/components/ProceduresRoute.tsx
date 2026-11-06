@@ -1657,7 +1657,14 @@ function PatternChips({ airport: a, wind, chosen, landing, note, label, fitOf, o
             // side, the arrow never out under the chip (the owner's
             // screenshot, 2026-10-20): laid out in a row here, not left to
             // the chip's own.
-            className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
+            // Its area from the tray's head to the tray's own right edge, the
+            // 3 of padding past the chip: on a finger index.css's touch rule
+            // sizes a button's area to its own 44 across, outside the
+            // utilities' layer, so it stopped at the chip and the tray's
+            // 44-point square, 47 across, lost its two corners there above
+            // and below (the iOS audit's P1, on KDLH's folded runway,
+            // 2026-11-06). Marked important to win over that rule.
+            className={cn(CHIP, "inline-flex items-center gap-0.5 whitespace-nowrap after:left-0 after:-right-[3px]! motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-right-3 motion-safe:duration-300", c.ring)}
             aria-label={`${c.words}${note ? `, ${note}` : ""}, picked: tap for the other runways`} data-testid="procedure-pattern" data-fit={c.fit} data-folded=""
           >
             {c.face}
