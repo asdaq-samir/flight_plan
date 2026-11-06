@@ -759,8 +759,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
         // to fit the small text while in medium detent"). What gives way
         // in the pill (data-pill-hides) is put away there.
         // A top sheet's grabber over its last 16 points (bottom-0 h-4): room
-        // for it under the figures, which it sat on at half's small size.
-        "flex shrink-0 flex-col justify-center border-t print:hidden", fromBottom ? "pb-1" : "pb-4", at === "half" ? "min-h-0" : "min-h-[3.875rem]", ROW_PAD, cardInPill ? "px-0" : "px-4",
+        // for it under the figures at half, which it sat on at their small
+        // size there; the pill's and full's are centred in a taller box.
+        "flex shrink-0 flex-col justify-center border-t print:hidden", fromBottom || at !== "half" ? "pb-1" : "pb-4", at === "half" ? "min-h-0" : "min-h-[3.875rem]", ROW_PAD, cardInPill ? "px-0" : "px-4",
         !footShown && "hidden",
         // In the pill the finger is the sheet's (touch-none), as on the
         // tabs: the browser's own scroll took it and cancelled the drag.
