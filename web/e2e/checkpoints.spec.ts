@@ -101,6 +101,11 @@ test("plan page: a checkpoint picked on the map is brought to the middle of the 
   // route's head and the table's sticky heading was too short for a row
   // to stay put.
   await page.setViewportSize({ width: viewport.width, height: 462 });
+  // A resize starts no animation for settled() to wait on, so the drawer
+  // is waited on until it fits the new height.
+  await expect
+    .poll(async () => (await sideDrawer(page).boundingBox())?.height ?? Infinity)
+    .toBeLessThanOrEqual(462);
   await settled(sideDrawer(page));
   await grabberTo(page, "full");
   // The nav log opened from the route's box shows the pick, brought in.
@@ -166,6 +171,8 @@ test("plan page: the briefing's nav log scrolls inside the drawer, not the page"
   await settle(page);
 
   await openBriefing(page);
+  const scroller = page.getByTestId("navlog-scroller");
+  await expect(scroller).toBeVisible();
   await settled(page.locator("body"));
 
   const pageOverflowing = await page.evaluate(
@@ -173,7 +180,6 @@ test("plan page: the briefing's nav log scrolls inside the drawer, not the page"
   );
   expect(pageOverflowing).toBe(false);
 
-  const scroller = page.getByTestId("navlog-scroller");
   const info = await scroller.evaluate(el => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
   // The log a line a point, as wide as the drawer: nothing past its
   // side, the scroller scrolling down alone.
