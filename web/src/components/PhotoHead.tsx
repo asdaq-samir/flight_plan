@@ -92,7 +92,15 @@ export function PhotoHead({ title, subtitle, line, slides, label, onClose, onSha
     const read = () => setPast(scroller.scrollTop > HEAD_PX - BAR_PX);
     read();
     scroller.addEventListener("scroll", read, { passive: true });
-    return () => scroller.removeEventListener("scroll", read);
+    // A row brought into view (a focus, a find, a test's click) stops
+    // under the bar pinned at the top, not behind it: the scroller's own
+    // room for the panel's head (under-head) plus the bar's.
+    const before = scroller.style.scrollPaddingTop;
+    scroller.style.scrollPaddingTop = `calc(var(--head-room, 0px) + ${BAR_PX}px)`;
+    return () => {
+      scroller.removeEventListener("scroll", read);
+      scroller.style.scrollPaddingTop = before;
+    };
   }, []);
   const shown = slides.filter((s): s is HeadSlide => !!s);
   const [bare, setBare] = useState(false);

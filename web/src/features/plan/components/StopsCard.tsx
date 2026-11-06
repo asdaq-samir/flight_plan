@@ -151,8 +151,12 @@ export default function StopsCard({ at, route, scope, onScope, onClose, onOpenFi
   const pickedShown = fields.some(f => f.ident === picked);
   useEffect(() => {
     if (!picked || !pickedShown) return;
-    list.current?.querySelector(`[data-ident="${picked}"]`)?.closest('[data-testid="stops-field"]')
-      ?.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    const row = list.current?.querySelector(`[data-ident="${picked}"]`)?.closest('[data-testid="stops-field"]');
+    if (!row) return;
+    row.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    // Half way the list is cut off at the sheet's edge, not scrolled: the
+    // sheet comes up if the row is under it (MapPanel's sheetreveal).
+    row.dispatchEvent(new Event("sheetreveal", { bubbles: true }));
   }, [picked, pickedShown]);
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] print:hidden" data-testid="stops-card">

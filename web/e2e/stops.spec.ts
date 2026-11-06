@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { test, expect, type Locator, type Page } from "@playwright/test";
-import { clearTheRoute, waypointMarks, openPanel, settle, sideDrawer, slow, grabberTo, controlsInSight, showTabs, openNavLog, navLogSheet, closeNavLog } from "./helpers";
+import { clearTheRoute, closeNavLog, controlsInSight, grabberTo, inSheet, navLogSheet, openNavLog, openPanel, settle, showTabs, sideDrawer, slow, waypointMarks } from "./helpers";
 
 /**
  * A route that lands on the way, as Maps' Add Stop: a stop added in the
@@ -293,6 +293,7 @@ test("a stop is left again at the time picked on its Depart step, 30 minutes aft
   const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
   const planned = await at();
   // A quarter of an hour later: 45 minutes on the ground in the address.
+  await inSheet(page, leaves);
   await leaves.click();
   await expect(page.getByTestId("depart-clear")).toHaveCount(0);
   await page.getByTestId("depart-time").fill(hhmm(planned + 15));
@@ -338,6 +339,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   // One menu an airport now, at its ident (boards 4 and 5): Madison's is
   // its landing's, flown to.
   for (const name of ["C81 · Depart"]) {
+    await inSheet(page, route.getByRole("region", { name }).getByTestId("point-menu"));
     await route.getByRole("region", { name }).getByTestId("point-menu").click();
     await expect(page.getByTestId("point-menu-direct")).toHaveCount(0);
     await page.keyboard.press("Escape");
@@ -345,6 +347,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
 
   // Set from its menu, as the route box's menu sets it: the address's
   // `altitudes`.
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-altitude").click();
   await page.getByTestId("point-altitude-input").fill("2600");
@@ -356,6 +359,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   // Direct to Duluth with no position: from the departure, Madison
   // skipped; the route as it was kept for Cancel.
   const duluth = route.getByRole("region", { name: "KDLH · Arrive" });
+  await inSheet(page, duluth.getByTestId("point-menu"));
   await duluth.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-direct").click();
   await expect(page).toHaveURL(/[?&]direct=KDLH(&|$)/);
@@ -369,6 +373,7 @@ test("every point's row ends in its time over its altitude and a menu: an airpor
   await expect(sideDrawer(page).getByTestId("direct-strip")).toHaveCount(0);
 
   // Taken out from its menu: the route without it.
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-remove").click();
   await expect(page).not.toHaveURL(/[?&]stops=/);
@@ -383,6 +388,7 @@ test("on a phone a point's altitude is asked in the floating sheet from the bott
   await openPanel(page);
   const madison = sideDrawer(page).getByTestId("procedures").getByRole("region", { name: "KMSN · Arrive" });
   await expect(madison.getByTestId("point-altitude-figure")).toHaveAttribute("data-kind", "elev", { timeout: slow(30_000) });
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-altitude").click();
 
@@ -415,6 +421,7 @@ test("on a phone a point's altitude is asked in the floating sheet from the bott
   await expect(sheet).toHaveCount(0);
   await expect(page).not.toHaveURL(/[?&]altitudes=/);
   // Set, from the title row, once a figure is typed.
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-altitude").click();
   await field.fill("");
@@ -438,6 +445,7 @@ test("the pilot's own point off a fix is made from a point's menu or typed as a 
   const route = sideDrawer(page).getByTestId("procedures");
   const madison = route.getByRole("region", { name: "KMSN · Arrive" });
   await expect(madison.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(30_000) });
+  await inSheet(page, madison.getByTestId("point-menu"));
   await madison.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-fix").click();
   await page.getByTestId("fix-from-course").fill("090");
@@ -467,6 +475,7 @@ test("a hold is set from a point's menu, course, turns, legs and how long, and i
   const route = sideDrawer(page).getByTestId("procedures");
   const duluth = route.getByRole("region", { name: "KDLH · Arrive" });
   await expect(duluth.getByTestId("point-figures")).toContainText(/\d\d:\d\d/, { timeout: slow(60_000) });
+  await inSheet(page, duluth.getByTestId("point-menu"));
   await duluth.getByTestId("point-menu").click();
   await page.getByTestId("point-menu-hold").click();
   const sheet = page.getByTestId("hold-sheet");

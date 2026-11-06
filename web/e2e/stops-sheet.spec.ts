@@ -1,5 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
-import { grabberTo, settle, showTabs, sideDrawer, slow } from "./helpers";
+import { grabberTo, inSheet, settle, showTabs, sideDrawer, slow } from "./helpers";
 
 const origin = new URL(process.env.BASE_URL ?? "http://localhost:8080").origin;
 
@@ -159,6 +159,7 @@ test("the Airport tab's Find Nearby tiles open the Stops round the pilot with th
   // A finger's 44 points.
   const tile = nearby.getByTestId("find-nearby-repair");
   expect((await tile.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await inSheet(page, tile);
   await tile.click();
   const card = sideDrawer(page).getByTestId("stops-card");
   await expect(card).toBeVisible();

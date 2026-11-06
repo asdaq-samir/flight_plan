@@ -72,8 +72,11 @@ test("a route rests as its figures in the tabs' place, the pill's own height, an
   await expect(panel.getByTestId("mini-profile")).toBeHidden();
   await settled(panel);
   // The row's 62 and the eight it keeps clear of the screen's edge (a
-  // phone's home indicator adds its own inset).
-  expect((await panel.boundingBox())!.height).toBeLessThan(72);
+  // phone's home indicator adds its own inset). The sheet is laid out at
+  // its full height and slid, so its box is that height: its pill is the
+  // first of its three heights (data-detents).
+  const [pill] = (await panel.getAttribute("data-detents"))!.split(",").map(Number);
+  expect(pill).toBeLessThan(72);
   await panel.getByTestId("panel-foot").click();
   await expect(panel).toHaveAttribute("data-panel", "half");
   // Half way, the tabs still the sheet's first row.
@@ -81,9 +84,11 @@ test("a route rests as its figures in the tabs' place, the pill's own height, an
   // Measured at rest: caught on its way up, the bar was still at the pill's.
   await settled(panel);
   const bar = (await page.getByTestId("tab-bar").boundingBox())!;
-  const sheet = (await panel.boundingBox())!;
-  expect(bar.y).toBeGreaterThanOrEqual(sheet.y);
-  expect(bar.y).toBeLessThan(sheet.y + 40);
+  // From the sheet's top in sight: a top sheet's box starts above the
+  // screen, slid up by what it does not show.
+  const top = Math.max(0, (await panel.boundingBox())!.y);
+  expect(bar.y).toBeGreaterThanOrEqual(top);
+  expect(bar.y).toBeLessThan(top + 40);
   // Another tab half way: half kept, the route still there.
   await page.getByTestId("tab-airport").click();
   await expect(page.getByTestId("tab-airport")).toHaveAttribute("aria-current", "page");
@@ -349,8 +354,9 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
     // Once it is at rest: measured while it moved, the pointer landed on
     // the map, whose own wheel zooms it.
     await settled(panel);
+    // Into the part in sight: a top sheet's box starts above the screen.
     const box = (await panel.boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + 30);
+    await page.mouse.move(box.x + box.width / 2, Math.max(0, box.y) + 30);
   };
   // A flick: four wheel events in one go, as a wheel's notch or a
   // trackpad's flick sends them, a frame or so apart -- Playwright's own
@@ -360,7 +366,7 @@ test("with a mouse's wheel, down over the panel brings it up a size, up takes it
     await over();
     await page.evaluate(([dx, dy]) => {
       const box = document.querySelector("[data-slot=map-panel]")!.getBoundingClientRect();
-      const x = box.left + box.width / 2, y = box.top + 30;
+      const x = box.left + box.width / 2, y = Math.max(0, box.top) + 30;
       const target = document.elementFromPoint(x, y)!;
       for (let i = 0; i < 4; i++) target.dispatchEvent(new WheelEvent("wheel", { deltaX: dx, deltaY: dy, clientX: x, clientY: y, bubbles: true, cancelable: true }));
     }, [dx, dy]);

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { openPanel, settle, sideDrawer, slow } from "./helpers";
+import { inSheet, openPanel, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * Fuel stops suggested as Tesla suggests chargers, at the owner's pick
@@ -126,6 +126,7 @@ test("the airport's Info says its fuel in its details, and what is on the field 
   await expect(details.getByTestId("services-fuel")).toContainText("100LL, Jet A");
   // Its remarks folded under their own row, opened by a tap.
   await expect(details).not.toContainText("24 hour self serve fuel.");
+  await inSheet(page, details.getByTestId("services-fuel-remarks"));
   await details.getByTestId("services-fuel-remarks").click();
   await expect(details).toContainText("24 hour self serve fuel.");
   const services = card.getByTestId("place-services");
