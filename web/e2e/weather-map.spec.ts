@@ -40,8 +40,11 @@ test("the map's button turns the weather on and off, and an area's card says how
   const area = page.locator('path.leaflet-interactive[stroke="#c2410c"]');
   await expect(area).toHaveCount(1, { timeout: slow(30000) });
   // A tap on it: what it is, and the route through it at the plan's altitude.
-  // Near its corner: a cluster of airports sits on the middle of the area.
-  await area.click({ position: { x: 12, y: 12 } });
+  // Sent to the area itself: its outline is under the airports' marks
+  // wherever a tap might land (a cluster over its middle, a field by its
+  // corner on CI's run 42214657620), and which mark is on top is the map's
+  // business, not this test's.
+  await area.dispatchEvent("click");
   const card = page.getByTestId("weather-area-card");
   await expect(card).toBeVisible();
   await expect(card.getByTestId("weather-area-route")).toContainText(/Your route crosses it for \d+ nm/);

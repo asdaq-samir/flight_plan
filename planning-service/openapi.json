@@ -21410,6 +21410,8 @@
             "schema": {
               "anyOf": [
                 {
+                  "maximum": 4102444800,
+                  "minimum": 0,
                   "type": "number"
                 },
                 {
