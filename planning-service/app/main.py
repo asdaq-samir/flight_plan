@@ -226,6 +226,24 @@ def _warm_reference_data() -> None:
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
 
+    # And the chart's lakes and towns, read once a cycle under the
+    # sectionals on disk (app.landmarks), so a new route's corridor read
+    # takes them from there in under half the time. In a thread of its
+    # own: a first build is many minutes, and the weather below is kept
+    # warm meanwhile. Imported here, not at the top, so a planner with it
+    # off (LANDMARKS_BUILD=0, docker-compose.ci.yml) never loads the reader.
+    def _build_landmarks() -> None:
+        from . import landmarks
+        try:
+            built = landmarks.build_on_disk()
+            if built:
+                log.info("%d chart cells of lakes and towns read", built)
+        except Exception:  # noqa: BLE001 -- a corridor is read whole meanwhile, and the next start tries again
+            log.exception("chart cells not read")
+
+    if os.environ.get("LANDMARKS_BUILD", "1") != "0":
+        threading.Thread(target=_build_landmarks, name="landmark-cells", daemon=True).start()
+
     # Then keep the weather warm: the METAR/TAF/SIGMET files and the
     # winds product are fetched again every few minutes, inside their
     # own time-to-live, so no pilot's request ever pays for a download

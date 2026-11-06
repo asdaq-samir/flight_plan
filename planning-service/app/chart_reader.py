@@ -6,12 +6,32 @@ spawned process imports the module its work is in before it starts:
 app.chart_model's imports -- FastAPI by way of app.common, pandas, the
 chart model's features -- were 4.8 s of a new reader's start, every
 first new route after the pool had been let go (measured 2026-10-07),
-where app.detection's are 3.8."""
+where app.detection's are 3.8. (And app.landmarks, which imports no
+more than app.detection does.)"""
+import logging
+
+from . import detection, landmarks
 from .detection import detect_job
+
+log = logging.getLogger(__name__)
 
 
 def read_corridor(key: tuple, start: tuple, end: tuple, half_width_nm: float) -> str | None:
-    """The corridor read and kept on disk; what went wrong, else None."""
+    """The corridor read and kept on disk; what went wrong, else None.
+    Its lakes and towns from the cycle's cells where they are built
+    (app.landmarks), the same read to the digit in less than half the
+    time; else, or should that go wrong, read as app.detection reads."""
+    kept = detection._kept_path(key)
+    if not kept.exists():
+        try:
+            blocks = landmarks.read_blocks(start, end, half_width_nm)
+        except Exception as err:  # noqa: BLE001 -- the reader's own read below is the answer then
+            log.warning("the corridor %s was not read with the chart's cells: %s", key[0], err)
+            blocks = None
+        if blocks is not None:
+            detection._keep(kept, blocks)
+            if kept.exists():
+                return None
     job = detect_job(key, start, end, half_width_nm)
     with job["cond"]:
         job["cond"].wait_for(lambda: job["done"])
