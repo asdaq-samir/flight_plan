@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { openMapSettings, settle, slow } from "./helpers";
+import { closeCard, mapStill, openMapSettings, settle, slow } from "./helpers";
 
 /**
  * The weather on the map, at the owner's pick (the canvas's map weather,
@@ -42,8 +42,11 @@ test("the map's button turns the weather on and off, and an area's card says how
   // A tap on it: what it is, and the route through it at the plan's altitude.
   // Where the area itself is on top: the airports' marks cover its middle
   // and, on CI's run 42214657620, its corner, so the spot is looked for
-  // rather than guessed. Leaflet opens the card from a real pointer's
-  // click only, not a dispatched one (run 42216852993).
+  // rather than guessed, once the map is still: the area is drawn as the
+  // weather comes on, and a spot found in a move had a mark slide over it
+  // (run 42219044827's first try). Leaflet opens the card from a real
+  // pointer's click only, not a dispatched one (run 42216852993).
+  await mapStill(page);
   const spot = await area.evaluate((path: Element) => {
     const box = path.getBoundingClientRect();
     for (let fy = 0.1; fy < 1; fy += 0.1) {
@@ -59,6 +62,12 @@ test("the map's button turns the weather on and off, and an area's card says how
   const card = page.getByTestId("weather-area-card");
   await expect(card).toBeVisible();
   await expect(card.getByTestId("weather-area-route")).toContainText(/Your route crosses it for \d+ nm/);
+  // Put away before the map's button: on a phone the card is a sheet over
+  // the map and its buttons (run 42219044827's retries), closed by the
+  // tab bar's close; over the chart on a desktop, a popup Escape closes.
+  if (page.viewportSize()!.width < 768) await closeCard(page, "sheet-card-close");
+  else await page.keyboard.press("Escape");
+  await expect(card).toHaveCount(0);
 
   // PIREPs and the winds at 9,000 ft, from the map's button.
   await openMapSettings(page);
