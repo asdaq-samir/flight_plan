@@ -14,7 +14,11 @@ What runs, when, and how to move it onto the owner's Mac mini.
 The Python suites keep the FAA's reference files (`data/raw`) between
 runs, a week at a time, rather than fetching them each run: the planner's
 suite was 131 s with them fetched (#452) and 159 s in one run (#474),
-against 11 s warm.
+against 11 s warm. The planner's cache holds the charts and their tiles
+(`charts.nosync`, `chart_tiles.nosync`) too, since its first plans of
+C81 -> KDLH read the corridor's sectional tiles: 185 s of a 215 s run
+with the charts left out. The other jobs keep the charts in a cache of
+their own, so this one is separate (`tests-raw-planner-v2-`).
 
 Promote tags the images after main's push is green. A nightly failure is
 said in its run and does not hold Promote.
