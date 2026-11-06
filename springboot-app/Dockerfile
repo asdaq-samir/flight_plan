@@ -30,7 +30,7 @@ RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 # JDK 25, the same LTS the app targets (pom.xml's java.version), runs on
 # (the eclipse-temurin:25-jre stage below) and CI tests with. ASM in
 # Spring Boot's `repackage` can't parse Java 26+ class files anyway.
-FROM maven:3.9-eclipse-temurin-25 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY springboot-app/pom.xml .
 # The dependencies into the layer itself (/build/m2), not only into the
