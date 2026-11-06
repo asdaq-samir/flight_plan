@@ -298,7 +298,12 @@ export default function MapPage({ mode }: { mode: Mode }) {
             bar={pieces.bar} layer={consoleLayer ? "console" : pieces.alone ? "card" : "tab"}
             foot={consoleLayer ? undefined : pieces.foot}
             cardOver={!!pieces.cardOver} flying={!!pieces.flying}
-            top={topRow} kept={pieces.route != null ? routeRow : undefined}
+            // Kept too where the row holds the workspace's actions: one can
+            // own a card in the panel (Train's Filter, a ResponsivePopover),
+            // and the card's own coming up hides the head -- built again,
+            // the card went with it the moment it opened (dev-page.spec,
+            // 2026-11-05).
+            top={topRow} kept={pieces.route != null || pieces.actions != null ? routeRow : undefined}
           >
             {setupDrawn && consoleLayerOf(pieces)}
             {/* Under the console while it is out, kept as it is. */}

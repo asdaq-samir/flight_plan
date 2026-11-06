@@ -139,7 +139,7 @@ export default function AskSection() {
           48-point field, the microphone a round white button with the
           tint's glyph beside it, and Send a round filled one; each its
           own 44-point area, so gap-2 is room enough. */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" data-composer="">
         <Input
           ref={field} value={text} onChange={e => setText(e.target.value)} placeholder="Ask about this flight" aria-label="Ask about this flight"
           enterKeyHint="send" autoComplete="off" data-testid="ask-field"

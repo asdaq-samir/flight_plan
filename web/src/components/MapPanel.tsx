@@ -798,8 +798,12 @@ export default function MapPanel({ label, top, kept, controls, compact, children
                     // under it (the owner, 2026-11-04: 49 points "too
                     // congested", "make the space around the tabs slick like
                     // the grabber and the search bar"); minimized to a card's
-                    // name, as tall as the name's 44-point area, a line under it.
-                    "flex shrink-0 px-2", ROW_PAD, minimized ? "min-h-11 border-b border-border/60 pb-2" : "h-[4.25rem] pb-1.5",
+                    // name, as tall as the name's 44-point area, a line under it,
+                    // 16 over it rather than the band's 10: the name's 44 are
+                    // centred on its 32, so 6 run up, and they start where the
+                    // grabber's 10 stop (the iOS audit's P1, "lost 3",
+                    // 2026-11-05).
+                    "flex shrink-0 px-2", minimized ? "min-h-11 border-b border-border/60 pt-4 pb-2" : cn(ROW_PAD, "h-[4.25rem] pb-1.5"),
                     !barHere && "hidden",
                   )}
                 >

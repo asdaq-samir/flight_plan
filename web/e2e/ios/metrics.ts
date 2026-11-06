@@ -326,7 +326,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       const sheet = box.matches('[data-slot="console-sheet"], [data-floating]');
       // A toast is Apple Maps' banner, a capsule (the toast rewrite, 2026-10-27).
       const shape = box.matches("[data-capsule], [data-sonner-toast]") ? Math.min(24, box.getBoundingClientRect().height / 2)
-        : box.matches('[data-slot="map-panel"][data-sheet]') ? 24 : sheet ? 36 : box.matches("[data-glass]") ? 28 : radius;
+        : box.matches('[data-slot="map-panel"]') ? 24 : sheet ? 36 : box.matches("[data-glass]") ? 28 : radius;
       if (Math.abs(r - shape) > 0.5) found.push({ rule: `one radius, ${Math.round(shape)}`, what: name(box), measured: `${r}` });
     }
     for (const button of document.querySelectorAll<HTMLElement>('button, a[data-slot="button"]')) {
@@ -336,8 +336,12 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       // text field's clear (ClearButton), iOS's own 20-point circled cross
       // inside the field, which every field with words in it now wears.
       // Nor a list's disclosure (FPL's airport opened by the arrow by its
-      // fuel), iOS's small chevron, at the owner's ask.
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-disclosure], [data-point-mark]')) continue;
+      // fuel), iOS's small chevron, at the owner's ask. Nor a card head's
+      // picture (PhotoHead), tapped to show it alone: its svg, where there
+      // is no photo, is the picture. Nor the Ask row's round 48-point
+      // microphone, Stop and Send beside its 48-point field (data-composer),
+      // drawn as the canvas's Ask screen at the owner's ask (46502903).
+      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-disclosure], [data-point-mark], [data-picture-head], [data-composer]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is

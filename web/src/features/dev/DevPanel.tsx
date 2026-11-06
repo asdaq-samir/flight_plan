@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { BrainCircuit, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { showError } from "../../lib/problems";
@@ -182,7 +182,7 @@ function RoutesGroup({ status, failed }: { status: Status | undefined; failed: b
   const corridors = status?.corridors ?? [];
   const onMap = useOnMap(corridors);
   return (
-    <ListGroup title="Routes" footer="A route's name brings it onto the map to rate.">
+    <ListGroup title="Routes" footer="A route's row brings it onto the map to rate.">
         {corridors.length === 0 && (
           <ListRow muted title={<>{status ? "No route has been collected yet." : waiting(failed)}</>} />
         )}
@@ -192,13 +192,15 @@ function RoutesGroup({ status, failed }: { status: Status | undefined; failed: b
           const pct = c.candidates ? Math.round((c.labels.total / c.candidates) * 100) : null;
           const here = c === onMap;
           return (
-            // The route's name brings it onto the map to rate, unless it
-            // is there already; at the end, how far its rating has got.
+            // The route's row brings it onto the map to rate, unless it is
+            // there already; at the end, how far its rating has got. The
+            // whole row is the link, as an iOS list's row is: the name
+            // alone, 19 tall, had its 44 taken by the row's own lines (the
+            // iOS audit's P1, 2026-11-05).
             <ListRow
               key={`${c.departure_ident}-${c.destination_ident}`}
-              title={here
-                ? <span className="font-mono">{name}</span>
-                : <Link to={`/dev?${route}`} className="font-mono underline underline-offset-4">{name}</Link>}
+              to={here ? undefined : `/dev?${route}`}
+              title={<span className="font-mono">{name}</span>}
               description={`${here ? "On the map · " : ""}${c.labels.total} of ${c.candidates ?? "—"} rated${pct !== null ? ` (${pct}%)` : ""} · ${
                 c.labels.added} added by hand · ${c.notes} notes · collected ${agoOrDate(c.features_built_at)}`}
             >
