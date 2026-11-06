@@ -148,7 +148,7 @@ test("opening a saved flight puts its route in the header, and Load plans that r
   await expect(page).toHaveURL(/altitudes=KDLH%3A2400/);
 });
 
-test("a saved flight opened from FPL's Saved opens its page, and Open on the map plans it", async ({ page }) => {
+test("a saved flight opened from FPL's Saved opens its page, and Open on the map plans it", { tag: "@smoke" }, async ({ page }) => {
   // The same page as Setup's, outside Setup: its Open on the map was a
   // dialog's close with no dialog round it, which threw as the page was
   // drawn and took the whole planner down.

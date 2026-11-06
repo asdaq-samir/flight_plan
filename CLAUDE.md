@@ -80,6 +80,9 @@ from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn
 
 The browser tests (Playwright, `web/e2e`) need the whole stack and run in
 CI; write or update the spec for a change a pilot sees, and let CI run it.
+A pull request runs only the tests tagged `@smoke`, one per journey; the
+rest run every night (docs/CI.md). Tag a test `@smoke` only when it is the
+one that proves a journey end to end.
 On the owner's Mac run only the specs a change touches, and every browser
 run, image build and measurement through `scripts/one-at-a-time.sh`, so
 sessions sharing the Mac take turns (the `checks` skill).

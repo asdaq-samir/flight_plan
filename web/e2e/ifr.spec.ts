@@ -133,7 +133,7 @@ test("under IFR an airway in the route is flown fix by fix, its published MEA th
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("BAEE1 BAE V191 OSH OSHH2");
 });
 
-test("a SID and a STAR typed among the route's points are picked as its departure and arrival, by their transitions", async ({ page }) => {
+test("a SID and a STAR typed among the route's points are picked as its departure and arrival, by their transitions", { tag: "@smoke" }, async ({ page }) => {
   // The two fields' procedures as the planner would list them, made up:
   // neither field publishes these.
   await page.route(url => /\/api\/planner\/airport\/(C81|KATW)\/procedures$/.test(url.pathname), route => {

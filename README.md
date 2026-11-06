@@ -92,6 +92,7 @@ Everything else — `ml`, `airflow`, `nav-log-agent`, `crewai-agent`, and the fu
 |---|---|
 | [`docs/README.md`](docs/README.md) | Architecture, service reference, data design, developer guide |
 | [`docs/README-AWS.md`](docs/README-AWS.md) | AWS target architecture and deployment |
+| [`docs/CI.md`](docs/CI.md) | What CI runs and when, and how to run it on the Mac mini |
 | [`docs/GOOGLE-MAPS.md`](docs/GOOGLE-MAPS.md) | The map's overlays over the chart: the USGS's imagery, and Google's map and satellite with the owner's key |
 | [`docs/TV.md`](docs/TV.md) | The TV apps for Samsung (Tizen) and LG (webOS): the site made for a remote, their packages, and the owner's store steps |
 | [`docs/NATIVE.md`](docs/NATIVE.md) | The native iOS app: SwiftUI over the shared engine, its rules and fixtures, and its build and tests on the macOS runner |

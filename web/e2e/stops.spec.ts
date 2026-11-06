@@ -262,7 +262,7 @@ test("a cleared route's box takes the departure first, then asks for the destina
   await expect(field).toHaveAttribute("placeholder", "Destination");
 });
 
-test("a link with a stop opens on the route through it", async ({ page }) => {
+test("a link with a stop opens on the route through it", { tag: "@smoke" }, async ({ page }) => {
   await recordedStops(page);
   await page.goto("/app/plan?dep=C81&dest=KDLH&stops=KMSN");
   await openPanel(page);

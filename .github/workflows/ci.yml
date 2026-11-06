@@ -81,7 +81,7 @@ jobs:
   # either: the suites' pip caches were 6.5 of its 10 GB, and what they
   # pushed out was the browser suite's own planner data.
   test:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.test-root == 'true'
     steps:
@@ -140,7 +140,7 @@ jobs:
   # as rated, which way the arrows step, which leg leaves a checkpoint --
   # which need no browser and so run like anything else.
   test-web:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.test-web == 'true'
     defaults:
@@ -180,7 +180,7 @@ jobs:
   # Postgres for the migration/persistence tests; GitHub runners provide
   # the Docker daemon it needs.
   test-webapp:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.test-webapp == 'true'
     steps:
@@ -220,7 +220,7 @@ jobs:
   # on top of the service's own requirements.txt), and no reason to gate
   # it on the root `test` job's unrelated src/wingtip dependencies.
   test-planning-service:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.test-planning-service == 'true'
     defaults:
@@ -240,7 +240,7 @@ jobs:
 
   # model-service's own suite.
   test-model-service:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.test-model-service == 'true'
     defaults:
@@ -261,7 +261,7 @@ jobs:
   # first for the same reason its Dockerfile does. The suites mock the
   # database, planning-service and Claude, so nothing here is billed.
   test-nav-log-agent:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.test-nav-log-agent == 'true'
     defaults:
@@ -290,7 +290,7 @@ jobs:
           retention-days: 30
 
   test-crewai-agent:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.test-crewai-agent == 'true'
     defaults:
@@ -330,7 +330,7 @@ jobs:
   # changes. A run started by hand, a first run, or a main whose history
   # was rewritten past its last green commit does everything.
   changes:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     # paths-filter asks the API which files a PR touches, which the
     # default token cannot do ("Resource not accessible by integration"
     # otherwise); `actions: read` is for finding the last green run.
@@ -567,7 +567,7 @@ jobs:
     name: e2e (${{ matrix.shard }}/${{ strategy.job-total }})
     needs: [changes]
     if: needs.changes.outputs.docs-only != 'true'
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     # packages: read -- the images are private, like the registry cache a
     # pull request's shards build from; actions: read, to ask after the
     # job that pushes them (below).
@@ -583,15 +583,21 @@ jobs:
     # minutes end to end: desktop, the same specs at a wider window, 51.5;
     # mobile 33.4; the iPad and iPhone projects 37, 31 of it the iOS
     # audit. Mobile alone over ten shards is about 100 s of tests a shard
-    # after its minute of setup. main's push runs the same, so a merge
-    # promotes in minutes; the rest -- desktop, the iPhones, the iPad, the
-    # audit -- runs every night and when started by hand, all of it (the
-    # owner, 2026-11-06: "trim"). A nightly failure says so in its run; it
-    # does not hold Promote, which takes main's green push.
+    # after its minute of setup. Lighter again, so CI runs in minutes on
+    # the owner's Mac mini once the repository is private (the owner,
+    # 2026-11-06: "CI is too heavy for mini ... so it runs in minutes even
+    # on the mini"): a pull request and main's push run only the tests
+    # tagged @smoke, about thirty, one per journey a pilot takes, on the
+    # phone, in one job; everything -- every test, desktop, the iPhones,
+    # the iPad, the audit -- runs every night and when started by hand,
+    # over ten shards. A nightly failure says so in its run; it does not
+    # hold Promote, which takes main's green push.
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        # One job of the smoke tests on a pull request and main's push; ten
+        # shards of everything at night or by hand.
+        shard: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]' || '[1]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
       - uses: ./.github/actions/hub-mirror
@@ -1056,7 +1062,7 @@ jobs:
         env:
           IOS_AUDIT: ${{ (github.event_name == 'schedule' || inputs.standards) && '1' || '' }}
           SCREENSHOTS: /out/screens
-          PROJECTS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || '--project=mobile' }}
+          PROJECTS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || '--project=mobile --grep @smoke' }}
         run: |
           echo "$(($(date +%s) - T0)) the tests" >> /tmp/e2e-out/timeline
           mkdir -p /tmp/e2e-out/screens
@@ -1282,7 +1288,7 @@ jobs:
   # attestation: nothing verifies these.
   e2e-images:
     name: build (e2e)
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     # A push, and a pull request from this repository's own branches --
     # every claude/ pull request, the most of CI's runs --
     # whose token can push: their eight shards pulled nothing and each
@@ -1429,7 +1435,7 @@ jobs:
   # build` alike, and a broken image is never pushed.
   build-images:
     name: build (images)
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.images != '[]'
     permissions:
@@ -1473,7 +1479,7 @@ jobs:
   # than holds a merge, as before.
   dependency-review:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     permissions:
       contents: read
       pull-requests: write
@@ -1499,7 +1505,7 @@ jobs:
   # pushes to main only. In the suites' jobs it takes seconds, and pull
   # requests get it too.
   docs:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.docs == 'true'
     steps:
@@ -1540,7 +1546,7 @@ jobs:
   # itself with stand-in values, and the Caddyfile by Caddy. Nothing
   # else runs them before a deploy does.
   infra:
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes]
     if: needs.changes.outputs.infra == 'true'
     steps:
@@ -1576,7 +1582,7 @@ jobs:
     name: Standards
     needs: [e2e]
     if: always() && (github.event_name == 'schedule' || inputs.standards)
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     permissions:
       contents: read
       issues: write
@@ -1690,7 +1696,7 @@ jobs:
   # auto-merge-agents.yml merges a pull request on it.
   passed:
     name: CI passed
-    runs-on: ubuntu-26.04
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     needs: [changes, test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra]
     if: always()
     steps:

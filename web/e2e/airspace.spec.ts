@@ -13,7 +13,7 @@ test.afterEach(async ({ page }) => { await page.unrouteAll({ behavior: "ignoreEr
  * the address; the planner answers from the FAA's airspace file.
  */
 
-test("C81's column: G at the surface, E from 700 ft above it, Chicago's Class B over both, in the Mode C veil", async ({ page }) => {
+test("C81's column: G at the surface, E from 700 ft above it, Chicago's Class B over both, in the Mode C veil", { tag: "@smoke" }, async ({ page }) => {
   await page.goto("/app/plan?at=42.3172,-88.0905");
   const card = page.getByTestId("airspace-card");
   await expect(card.getByTestId("airspace-band").first()).toBeVisible({ timeout: slow(30000) });

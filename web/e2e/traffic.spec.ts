@@ -51,7 +51,7 @@ test("shown in the map's settings, the airplanes about are drawn on their tracks
 
 test.describe("on a touch screen", () => {
   test.use({ hasTouch: true });
-test("on a phone the credit rides on the sheet's top, under a finger and at rest", async ({ page }) => {
+test("on a phone the credit rides on the sheet's top, under a finger and at rest", { tag: "@smoke" }, async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 768, "the phone's sheet");
   await showTraffic(page, true);
   await page.goto("/app/plan?place=C81");

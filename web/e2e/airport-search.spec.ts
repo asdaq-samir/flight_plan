@@ -31,7 +31,7 @@ async function slowSearch(page: Page, heldFor: string) {
   });
 }
 
-test("Enter before the lookup has answered keeps what was typed, not the first row of an older answer", async ({ page }) => {
+test("Enter before the lookup has answered keeps what was typed, not the first row of an older answer", { tag: "@smoke" }, async ({ page }) => {
   await slowSearch(page, "KDLH");
   await page.goto("/app/plan?dep=C81&dest=KMSP");
   await openPanel(page);
