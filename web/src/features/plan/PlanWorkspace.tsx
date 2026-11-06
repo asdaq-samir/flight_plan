@@ -1236,6 +1236,14 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // figures at the card's top, and Add Stop keeps it at its place
   // (PlaceCard's `stop`).
   const suggestedAt = suggestedStopAt(place, fuelStops);
+  // The first flight's suggested fuel stops, offered where the route's fuel
+  // says it is short (FlightLine), as the route box offers them.
+  const firstFuelStop = useMemo(() => {
+    const first = fuelStops[0];
+    if (!first || !first.stops.length) return null;
+    const idents = first.stops.map(stop => stop.ident);
+    return { idents, add: () => keepFuelStops(first.departure, idents) };
+  }, [fuelStops, keepFuelStops]);
   // The route through the first flight's suggested stops planned as they
   // are suggested, as Fly Here's is at its tap: Add fuel stop then draws it
   // at once from what is in, where the owner watched four and a half
@@ -2175,6 +2183,9 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
   // (like brief) instead of the altitude"); not for a route with no legal
   // altitude, which the altitude's field says in red itself.
   const altitudeMark = !profileReady || s.unflyable || !s.nav ? null : s.nav.cautions?.length ? "caution" : tightLeg ? "tight" : null;
+  // The cautions' reasons, each once, for the Profile card's head, where
+  // the mark above points (ProfileCard).
+  const profileCautions = useMemo(() => [...new Set((s.nav?.cautions ?? []).flatMap(c => c.reasons))], [s.nav]);
   // The route in order in FPL, the nav log's place: its fields with their
   // runways and procedures, and the tops of climb and descent and the
   // fixes flown through, by the nav log's rows.
@@ -2939,6 +2950,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
         {profileHere && !savedOpen && (
           <ProfileCard
             name={routeName(planned.dep, planned.dest, planned.stops)} line={briefLine} onClose={closeProfileCard}
+            cautions={profileCautions}
             corner={!s.local && (
               <Segmented
                 label="Flight rules" value={flightRules} onChange={v => setFlightRules(v as FlightRules)} testId="flight-rules"
@@ -3032,7 +3044,7 @@ export default function PlanWorkspace({ panel, setPanel, children }: WorkspacePr
               Put away in the pill, whose one row is the figures. */}
           {directParam && <div data-pill-hides=""><DirectStrip ident={directParam} onCancel={() => directToPoint(null)} /></div>}
           <div data-testid="flight-line">
-            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow flying={flying} />
+            <FlightLine totals={s.totals} estimate={estimate} destination={`${planned.dest}`} depart={depart} local={s.local} grow flying={flying} fuelStop={firstFuelStop} />
           </div>
           </>
         )}

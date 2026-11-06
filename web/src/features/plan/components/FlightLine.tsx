@@ -5,6 +5,7 @@ import { FLYING_FIGURE, GROUP_HEADING, GROW_FIGURE, TEXT } from "../../../lib/te
 import { useFigureFit } from "../../../components/useFigureFit";
 import { ResponsivePopover, ResponsivePopoverContent, ResponsivePopoverTrigger } from "../../../components/ResponsivePopover";
 import { TriangleAlert } from "lucide-react";
+import { Button } from "../../../components/ui/button";
 import { nextLanding, shortFlights, tripFigures } from "../figures";
 import FuelBreakdown from "./FuelBreakdown";
 import type { Flown } from "./navlog/dryRun";
@@ -42,7 +43,7 @@ import type { Flown } from "./navlog/dryRun";
  *  13), with the sheet (`grow`); TEXT's sizes, a mouse's and a finger's. */
 const { value: GROW_VALUE, unit: GROW_UNIT, name: GROW_NAME } = GROW_FIGURE;
 
-export default function FlightLine({ totals, estimate, destination, depart, local, grow = false, flown = null, flying = false }: {
+export default function FlightLine({ totals, estimate, destination, depart, local, grow = false, flown = null, flying = false, fuelStop = null }: {
   totals: Totals | null;
   /** Before the nav log's totals, at the pilot's ask for the figures as
    *  soon as can be: the course's distance at once, and the time and fuel
@@ -68,6 +69,10 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
   /** In flight (useFlyingMode): the figures one large size whatever the
    *  sheet's (FLYING_FIGURE), over `grow`. */
   flying?: boolean;
+  /** The planner's first suggested fuel stop for a flight longer than the
+   *  tanks (useSuggestedStops), offered under the fuel's breakdown where
+   *  the figure says it is short, as the route box offers it in FPL. */
+  fuelStop?: { idents: string[]; add: () => void } | null;
 }) {
   const valueType = flying ? FLYING_FIGURE.value : grow ? GROW_VALUE : TEXT.heading;
   const unitType = flying ? FLYING_FIGURE.unit : grow ? GROW_UNIT : TEXT.note;
@@ -133,6 +138,11 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                   </ResponsivePopoverTrigger>
                   <ResponsivePopoverContent title={`Fuel to ${breakdown.to}`} className="w-72 p-3" side="top" align="end">
                     <FuelBreakdown totals={breakdown.totals!} short={shortFlights(totals)} burnt={flown?.burntGal} />
+                    {f.alert && fuelStop && (
+                      <Button type="button" variant="ghost" className="mt-2 w-full text-tint" onClick={fuelStop.add} data-testid="fuel-short-add-stop">
+                        Add fuel stop at {fuelStop.idents.join(", ")}
+                      </Button>
+                    )}
                   </ResponsivePopoverContent>
                 </ResponsivePopover>
               ) : f.name === "To" && stops && !local ? (

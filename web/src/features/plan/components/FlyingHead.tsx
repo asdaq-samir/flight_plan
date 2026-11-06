@@ -86,7 +86,11 @@ export default function FlyingHead({ run, rows }: { run: DryRun | null; rows: Na
       data-testid="flying-head"
       className={cn(
         GLASS,
-        "pointer-events-none absolute inset-x-3 top-[max(0.75rem,env(safe-area-inset-top))] z-[1000] flex items-center gap-3.5 rounded-[18px] px-4 py-3",
+        // Clear of the panel where it covers the map's side or top (the
+        // map's insets, MapPage): over a wide screen it ran on under the
+        // panel, its next point hidden there (the owner's screenshot,
+        // 2026-11-06); on a phone's bottom sheet both are 0.
+        "pointer-events-none absolute right-3 left-[calc(0.75rem+var(--map-inset-left,0px))] top-[calc(max(0.75rem,env(safe-area-inset-top))+var(--map-inset-top,0px))] z-[1000] flex items-center gap-3.5 rounded-[18px] px-4 py-3",
         // In as the flight starts; not where the pilot asks for less motion.
         "motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-4 motion-safe:duration-300",
       )}

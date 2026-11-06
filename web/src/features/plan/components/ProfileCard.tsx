@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
+import { TriangleAlert } from "lucide-react";
+import { cn } from "cn";
 import { CardHead } from "../../../components/PanelCard";
+import { TEXT } from "../../../lib/text";
 
 /**
  * The route from the side, a card over FPL as the Brief and the nav log
@@ -11,7 +14,7 @@ import { CardHead } from "../../../components/PanelCard";
  * Share menu, as the Brief's and the nav log's are, at the owner's ask
  * ("Profile needs the share instead of the back button like brief").
  */
-export default function ProfileCard({ name, line, corner, onClose, children }: {
+export default function ProfileCard({ name, line, corner, cautions = [], onClose, children }: {
   /** Its head, as the Brief's is: the route's name, and under it where
    *  from and to, the airplane, the altitude and when -- the tab bar over
    *  it says "Profile" already (the owner's "titles appear twice"). */
@@ -21,6 +24,13 @@ export default function ProfileCard({ name, line, corner, onClose, children }: {
    *  of its own, at the owner's ask ("Vfr switch can be on the top right
    *  corner, don't need the label flight rules"). */
   corner?: ReactNode;
+  /** What the pilot's own altitude breaks, the planner's words with their
+   *  rules (own_altitude_caution: over the airplane's service ceiling, the
+   *  oxygen 14 CFR 91.211 asks): said here under the head, where the
+   *  Profile button's mark points, and in sight through a dry run, which
+   *  puts the route's box and its altitude away. A warning, never a
+   *  limit (the owner, 2026-10-23). */
+  cautions?: string[];
   onClose: () => void;
   /** The side view, with its Dry run. */
   children: ReactNode;
@@ -31,6 +41,16 @@ export default function ProfileCard({ name, line, corner, onClose, children }: {
     // graph's max-h-full is the room in sight only with the card held to it.
     <div className="flex min-h-0 flex-1 flex-col px-4 pt-[var(--corner-inset,0.75rem)] in-data-[panel=half]:max-h-(--half-body) print:hidden" data-testid="profile-card">
       <CardHead name={name} line={line} nameTestId="profile-name" onClose={onClose} onShare="profile" closeTestId="profile-close">{corner}</CardHead>
+      {cautions.length > 0 && (
+        <ul className={cn("mt-2 shrink-0 space-y-1 rounded-lg bg-caution-wash px-2.5 py-2 text-caution-ink", TEXT.detail)} data-testid="profile-cautions">
+          {cautions.map(reason => (
+            <li key={reason} className="flex gap-1.5">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span>{reason}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       {/* As tall as the card has room for over the route's figures, no
           taller: held at 160, it ran under them where the name took two
           lines at the owner's larger text, the graph's foot behind the
