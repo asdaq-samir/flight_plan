@@ -26,7 +26,7 @@ numpy==2.5.3        # wingtip.geo, wingtip.features, wingtip.osm, wingtip.weathe
 pandas==3.0.6       # wingtip.airports, wingtip.faa_data, wingtip.features, wingtip.pipeline
 requests==2.34.2    # every external source (wingtip.retry), wingtip.model_client, wingtip.planner_client
 cachetools==7.2.1   # wingtip.sua's day cache of special-use airspace; planning-service's own caches
-pyarrow==25.0.1     # wingtip.faa_data's Parquet cache of the obstacle table; the pipeline's feature store
+pyarrow==26.0.0     # wingtip.faa_data's Parquet cache of the obstacle table; the pipeline's feature store
 shapely==2.1.2      # wingtip.airspace polygons, wingtip.weather's hazards, wingtip.osm's representative points
 pyshp==3.1.6        # wingtip.airspace reads the FAA Class Airspace shapefile
 pyproj==3.8.0       # wingtip.geo -- PROJ's distance/azimuth, scalar and vectorised over a whole corridor
