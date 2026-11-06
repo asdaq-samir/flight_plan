@@ -39,8 +39,8 @@ route, the nav log, the weather and the brief.
 
 ## The build
 
-`tv/package.sh`, run by `.github/workflows/tv.yml` on every change to
-`tv/`:
+`tv/package.sh`, run by hand (its workflow is off until the TV apps are
+taken up again, the owner's word of 2026-11-06), makes:
 
 - LG's app as `app.wingtipmaps.tv_<version>_all.ipk`, from the webOS
   CLI's `ares-package`. LG signs it when it is submitted.

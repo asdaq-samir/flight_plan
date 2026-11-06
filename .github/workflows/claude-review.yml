@@ -6,14 +6,15 @@ name: Claude review
 # review (no secret set, a failed run) still merges on a green CI. On
 # Claude's own pull requests (a claude/ branch) a second job then puts
 # right what the review found and pushes, at most twice a branch; on the
-# owner's it only comments. Needs what claude.yml needs: the Claude
-# GitHub App and ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN. Without
-# either it says so and stops. It reviews a pull request once, when it
+# owner's it only comments. Needs, outside this file: the Claude GitHub
+# App on the repository (https://github.com/apps/claude, or
+# /install-github-app in Claude Code) and one secret, ANTHROPIC_API_KEY
+# (an API account's) or CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`, a
+# Claude subscription's). Without either it says so and stops. It reviews a pull request once, when it
 # opens or leaves draft, not again at every push: a review and a fix at
 # each push, the fix's own push starting the next, were the bulk of the
 # repository's automated traffic, and GitHub suspended the owner's account
-# in October 2026 after a burst of it. "@claude review" (claude.yml) asks
-# for another.
+# in October 2026 after a burst of it.
 
 on:
   pull_request:
