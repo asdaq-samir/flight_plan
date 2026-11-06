@@ -47,10 +47,12 @@ export const TEXT = {
    *  size a bit bigger so it fits nicely"; the tabs to "pop out more",
    *  2026-10-22). */
   tab: "text-[0.8125rem] leading-[1.0625rem]",
-  /** The tab bar's words: 12 on 14, a size under the 13 they were, for a
+  /** The tab bar's words: 12, a size under the 13 they were, for a
    *  slimmer bar with room round its tabs (the owner, 2026-11-04: 49
-   *  points "seems too congested and small"). */
-  tabBar: "text-[0.75rem] leading-[0.875rem]",
+   *  points "seems too congested and small"), on iOS's own 16 for 12
+   *  (Caption 1, 12/16; the iOS audit's P3). 14 failed the audit on every
+   *  screen with the tabs; the tab is 50 tall, so the bar keeps its height. */
+  tabBar: "text-[0.75rem] leading-[1rem]",
   /** A figure's name, an ident, a chip's word in the display face
    *  (index.css --display: Barlow Condensed in the Chart ink look, the
    *  body's own face in the others): a note's 13 on 17, semibold, in

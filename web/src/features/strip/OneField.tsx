@@ -197,11 +197,12 @@ export default function OneField({ suggestions, flying = false, onLine, onFocus,
             // top of the map 44, the bar's own height.
             className={cn(top ? "h-11" : "h-13", "rounded-full border-0 pl-11 shadow-none", micShown ? "pr-12" : "pr-4", GLASS, TEXT.row)}
           />
-          {/* The microphone, the field's one button. */}
+          {/* The microphone, the field's one button: an icon button as every
+              other, 36 with a 20 glyph (the iOS audit's P18). */}
           <div className={cn("absolute inset-y-0 flex items-center gap-1.5", top ? "right-0.5" : "right-1.5")}>
             {micShown && (
               <IconButton
-                label={listens ? "Listening" : "Say it"} size="icon-lg" onClick={hear} disabled={listens}
+                label={listens ? "Listening" : "Say it"} size="icon" onClick={hear} disabled={listens}
                 className="rounded-full text-tint" data-testid="strip-mic"
               >
                 <Mic className={cn("size-5", listens && "animate-pulse")} strokeWidth={2.25} />

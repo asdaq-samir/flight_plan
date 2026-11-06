@@ -371,7 +371,9 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
           data-testid="tab-title" hidden={cardNamesItself && size?.size !== "peek"}
           className={cn(
             "relative flex h-8 min-w-0 max-w-[calc(100%-7rem)] items-center gap-1.5 rounded-full px-3 font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            "after:absolute after:-inset-x-2 after:-inset-y-1.5 after:content-['']", overPicture ? "text-white" : title ? "text-foreground" : "text-tint", TEXT.row,
+            // Its 44 points run down rather than up: the grabber's own region
+            // takes the top 3 (the iOS audit's P1, "lost 3", 2026-11-05).
+            "after:absolute after:-inset-x-2 after:-top-1.5 after:-bottom-3 after:content-['']", overPicture ? "text-white" : title ? "text-foreground" : "text-tint", TEXT.row,
             overPicture && pillLine && "h-auto flex-col justify-center gap-0 leading-tight",
           )}
         >
