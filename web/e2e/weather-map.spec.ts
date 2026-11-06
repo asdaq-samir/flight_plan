@@ -39,11 +39,14 @@ test("the map's button turns the weather on and off, and an area's card says how
   await page.getByTestId("weather-pireps-toggle").click();
   await page.getByTestId("weather-winds").click();
   await page.getByTestId("weather-winds-9000").click();
-  await page.keyboard.press("Escape");
-  // Gone before the button is tapped again: on a phone the sheet slides
-  // away, and a tap while it went closed it (runs 42219994020 and
-  // 42221133228, the second open never seen).
-  await expect(page.getByTestId("map-settings")).toHaveCount(0);
+  // Put away, and gone before the map's button is tapped again. One
+  // Escape was not always enough after the winds' menu: the settings
+  // stayed open (run 42221930776), so the next tap on the map's button
+  // found them open, as runs 42219994020 and 42221133228 did.
+  await expect(async () => {
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("map-settings")).toHaveCount(0, { timeout: 1000 });
+  }).toPass({ timeout: slow(10000) });
   // The SIGMET in its colour, the PIREP at its level, the wind at MSN.
   const area = page.locator('path.leaflet-interactive[stroke="#c2410c"]');
   await expect(area).toHaveCount(1, { timeout: slow(30000) });
