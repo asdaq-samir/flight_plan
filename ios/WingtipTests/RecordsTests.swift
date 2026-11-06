@@ -94,7 +94,10 @@ struct RecordsTests {
     }
 
     @Test func theRoutesPlannedAreKeptNewestFirstWithoutRepeats() throws {
-        let context = try Records.inMemory().mainContext
+        // The container held for the test: its context alone keeps no hold
+        // on it, and SwiftData traps once it is freed.
+        let container = try Records.inMemory()
+        let context = container.mainContext
         let route = RouteState(dep: "KMSN", dest: "KDPA", stops: ["KJVL", "KRFD"], ownAltitudeFt: 4500)
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         PlanHistory.planned(route, at: start, in: context)
