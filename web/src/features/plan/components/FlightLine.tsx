@@ -105,7 +105,11 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
           <div key={f.name} className="min-w-0 text-center">
             {/* Its names and units a grey that reads on the pill's glass
                 over any chart (WCAG's 4.5:1), where the muted one did not. */}
-            <dt className={cn(GROUP_HEADING, nameType, "truncate text-foreground/65")}>{f.name}</dt>
+            {/* The fuel named as what it is, the fuel required (the legs, the
+                start and taxi, the reserve): beside the route's rows' fuel in
+                the tanks, "Fuel" read as the fuel burnt, 16.6 against the 13
+                gone from 40 to 27 (the owner's screenshot, 2026-11-06). */}
+            <dt className={cn(GROUP_HEADING, nameType, "truncate text-foreground/65")}>{f.name === "Fuel" ? "Fuel req" : f.name}</dt>
             <dd ref={i === 0 ? room : undefined} className={cn(valueType, "truncate font-semibold tabular-nums")} data-testid={f.testId}>
               {f.name === "Fuel" && breakdown ? (
                 <ResponsivePopover>
@@ -121,7 +125,10 @@ export default function FlightLine({ totals, estimate, destination, depart, loca
                       {/* Short said by a mark too, not the red alone (WCAG 1.4.1). */}
                       {f.alert && <TriangleAlert className="mr-0.5 size-[0.8em] self-center" aria-hidden data-testid="fuel-short-mark" />}
                       <span style={sized("value")} data-fitted={fitted}>{f.value}</span>
-                      {f.unit && <span className={cn(unitType, "font-normal")} style={sized("unit")} data-fitted={fitted}> {f.unit}</span>}
+                      {/* Its space a no-break one: a flex item drops a
+                          leading plain one, and it read "16.6gal" (the
+                          owner's screenshot, 2026-11-06). */}
+                      {f.unit && <span className={cn(unitType, "font-normal")} style={sized("unit")} data-fitted={fitted}>{"\u00a0"}{f.unit}</span>}
                     </button>
                   </ResponsivePopoverTrigger>
                   <ResponsivePopoverContent title={`Fuel to ${breakdown.to}`} className="w-72 p-3" side="top" align="end">

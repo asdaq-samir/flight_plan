@@ -488,7 +488,7 @@ test("a procedure picked lengthens the plan by its path: the fuel and the time t
   // where the dry run flew 1053 by BENKY6 into O'Hare: the planner flies
   // the leg in by the approach picked, its miles more in the figures.
   const figures = async () => {
-    await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d gal$/, { timeout: slow(120_000) });
+    await expect(page.getByTestId("navlog-fuel")).toHaveText(/^\d+\.\d\s?gal$/, { timeout: slow(120_000) });
     return { fuel: parseFloat((await page.getByTestId("navlog-fuel").textContent())!), ete: (await page.getByTestId("navlog-ete").textContent())! };
   };
   const minutes = (ete: string) => {

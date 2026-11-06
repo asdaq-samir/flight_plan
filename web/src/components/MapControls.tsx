@@ -7,6 +7,7 @@ import MyPositionButton from "./MyPositionButton";
 import MapSettingsButton from "./MapSettingsButton";
 import RadioButton from "./RadioButton";
 import { useAtcRadio } from "../lib/atcRadio";
+import { useIsMobile } from "../hooks/use-mobile";
 import { FLYING_BUTTON, FLYING_STACK, GLASS, useFlying } from "./mapChrome";
 
 /**
@@ -44,6 +45,41 @@ export default function MapControls() {
   // next to close button on top", 2026-11-04); while it listens the mic
   // stays, its waveform saying so.
   const pillDone = useAtcRadio(s => s.pill !== null && !s.pill.listening);
+  // On a phone the mic at the left over the tabs; from md up a button of
+  // its own over the map's buttons at the right (the owner, 2026-11-06:
+  // "move the headset button as a separate button on the right above
+  // other floating buttons"), where it was a circle alone at the chart's
+  // foot past the panel's edge. One of the two drawn, never both: the
+  // radio's state is the one mic's.
+  const onPhone = useIsMobile();
+  const mic = (
+    <div
+      data-map-food=""
+      className={cn(
+        "z-[1000] flex items-end rounded-[26px] p-1",
+        onPhone
+          ? "absolute bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] max-w-[min(28rem,calc(100vw-5rem))]"
+          // In the column at the right edge: widening to the left into
+          // the pill, its mic staying where it was.
+          : "max-w-[min(28rem,calc(100vw-30rem))] flex-row-reverse",
+        GLASS,
+      )}
+      data-testid="mic-circle" data-listening={pill || undefined}
+      // Riding the sheet's top (MapPanel's ride rule), on a phone.
+      data-rides={onPhone || undefined}
+    >
+      {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
+          the pill's chips. */}
+      <span className={cn("flex shrink-0 [&_button]:rounded-full", flying && "[&_button]:size-[60px]", pillDone && !flying && "hidden")}>
+        <RadioButton />
+      </span>
+      <div className="grid min-w-0 transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none" style={{ gridTemplateColumns: pill ? "1fr" : "0fr" }}>
+        <div className="min-w-0 overflow-hidden">
+          {pill && <Suspense fallback={null}><RadioPill /></Suspense>}
+        </div>
+      </div>
+    </div>
+  );
   return (
     <>
     {/* z-[1000]: over Leaflet's own panes, the level Leaflet gives its
@@ -55,7 +91,8 @@ export default function MapControls() {
         inset is what the sheet covers at rest (MapPanel), and they move
         with it in the sheet's time; all the way up they give way
         (index.css). Clear of the chart credit under them. */}
-    <div data-map-controls="" data-flying={flying || undefined} className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto z-[1000]">
+    <div data-map-controls="" data-flying={flying || undefined} className="absolute right-[max(0.5rem,env(safe-area-inset-right))] bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] md:nav-bottom:top-[max(0.5rem,env(safe-area-inset-top))] md:nav-bottom:bottom-auto z-[1000] flex flex-col items-end gap-2">
+      {!onPhone && mic}
       <div
         className={cn(
           // A capsule of Liquid Glass, as Maps' buttons are on iOS 26 and
@@ -117,30 +154,7 @@ export default function MapControls() {
         owner's ask (2026-11-04, "Move the mic back to the left side, above
         the tabs"); tapped, it widens to the right into the pill. In the
         air it grows to 60 points there. */}
-    {(
-    <div
-      data-map-food=""
-      className={cn(
-        "absolute z-[1000] flex items-end rounded-[26px] p-1",
-        "bottom-[calc(max(env(safe-area-inset-bottom),var(--sheet-cover,var(--map-inset-bottom,0px)))+1.5rem)] left-[calc(max(0.5rem,env(safe-area-inset-left))+var(--map-inset-left,0px))] max-w-[min(28rem,calc(100vw-5rem))]",
-        GLASS,
-      )}
-      data-testid="mic-circle" data-listening={pill || undefined}
-      // Riding the sheet's top (MapPanel's ride rule).
-      data-rides=""
-    >
-      {/* In flight the mic alone grows to 60 points (FLYING_BUTTON), not
-          the pill's chips. */}
-      <span className={cn("flex shrink-0 [&_button]:rounded-full", flying && "[&_button]:size-[60px]", pillDone && !flying && "hidden")}>
-        <RadioButton />
-      </span>
-      <div className="grid min-w-0 transition-[grid-template-columns] duration-300 ease-out motion-reduce:transition-none" style={{ gridTemplateColumns: pill ? "1fr" : "0fr" }}>
-        <div className="min-w-0 overflow-hidden">
-          {pill && <Suspense fallback={null}><RadioPill /></Suspense>}
-        </div>
-      </div>
-    </div>
-    )}
+    {onPhone && mic}
     </>
   );
 }
