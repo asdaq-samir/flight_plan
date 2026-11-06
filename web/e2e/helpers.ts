@@ -118,6 +118,29 @@ export async function grabberTo(page: Page, state: "peek" | "half" | "full") {
   await settled(panel);
 }
 
+/** A row of the sheet's in sight before it is tapped. Half way the sheet's
+ *  body is cut off at its edge, as Apple Maps' is, and a row under that
+ *  edge is reached by pulling the sheet up, not by scrolling (the owner,
+ *  2026-11-05); a click there landed on the map. All the way up when it
+ *  is under the edge, then scrolled to, as a pilot's finger would. */
+export async function inSheet(page: Page, locator: Locator) {
+  const panel = sideDrawer(page);
+  await locator.waitFor();
+  const under = await locator.evaluate(el => {
+    const sheet = el.closest("[data-slot=map-panel]");
+    if (!sheet || sheet.getAttribute("data-panel") === "full") return false;
+    const box = sheet.getBoundingClientRect();
+    // A bottom sheet's edge is the screen's foot; a top sheet's, its own;
+    // either way above the route's figures pinned at its foot.
+    const foot = sheet.querySelector("[data-testid=panel-foot]")?.getBoundingClientRect();
+    const edge = Math.min(box.top < 0 ? box.bottom : window.innerHeight, foot && foot.height > 0 ? foot.top : Infinity);
+    return el.getBoundingClientRect().bottom > edge + 1;
+  });
+  if (under) await grabberTo(page, "full");
+  await settled(panel);
+  await locator.scrollIntoViewIfNeeded();
+}
+
 /** The route's controls in sight -- its box, the airplane, the time,
  *  Share -- all the way up, where the pill has them too (MapPanel), with
  *  room for what a chip opens. */

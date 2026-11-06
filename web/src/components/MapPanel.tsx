@@ -589,6 +589,38 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     return () => panel.removeEventListener("keydown", onKey);
   }, [panel, expanded, ask]);
 
+  // Half way the body is laid out at its full height and cut off at the
+  // sheet's edge, as Apple Maps' is: what is under that edge is reached
+  // by pulling the sheet up, not by scrolling (the owner, 2026-11-05). A
+  // row reached by the keyboard or VoiceOver under the edge would be
+  // focused out of sight, so focus there brings the sheet all the way up;
+  // so does a row the page asks to show (a "sheetreveal" event from it,
+  // as the Stops' row of a pin tapped on the map).
+  // Measured against where the sheet is going (sizeRef, set as a settle
+  // starts), not where it is this frame: a pin's tap sends it up from the
+  // pill and asks for its row in the same moment. A bottom sheet's content
+  // goes with it, so the row is measured from its top; a top sheet's
+  // content stays put (pin) and its edge is the height from the screen's top.
+  // Half's figures are pinned over the body at its foot: a row behind them
+  // is out of sight too.
+  const halfEdge = detents.half - (footShown ? footHalf : 0);
+  useEffect(() => {
+    if (!panel) return;
+    const reveal = (event: Event) => {
+      if (sizeRef.current !== "half") return;
+      if (!(event.target instanceof Element) || !event.target.closest("[data-panel-body]")) return;
+      const row = event.target.getBoundingClientRect().bottom;
+      const below = fromBottom ? row - panel.getBoundingClientRect().top : row;
+      if (below > halfEdge + 1) ask("full", true);
+    };
+    panel.addEventListener("focusin", reveal);
+    panel.addEventListener("sheetreveal", reveal);
+    return () => {
+      panel.removeEventListener("focusin", reveal);
+      panel.removeEventListener("sheetreveal", reveal);
+    };
+  }, [panel, fromBottom, ask, halfEdge]);
+
   // Scrolled up, a page's content runs on under the head and is seen
   // through it (--head-room, the under-head utility); while there is
   // content under the head, the head is frosted over it (data-under).
