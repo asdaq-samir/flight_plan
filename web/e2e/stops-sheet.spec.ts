@@ -105,10 +105,12 @@ test("with a course drawn, the Stops along it, each with a line for each kind it
   await expect(page.getByTitle("KAAA: Fuel, Food, Repair, Training")).toHaveCount(1);
 
   // A field's pin tapped with the sheet at its pill: its row picked, the
-  // sheet half way up to show it, and no card opened over the list.
+  // sheet up to show it, and no card opened over the list -- half way, or
+  // all the way where the row is under half's edge, which is not scrolled
+  // but pulled up (the owner, 2026-11-05: "pull up, like Apple Maps").
   await grabberTo(page, "peek");
   await page.getByTitle("KBBB: Fuel").click();
-  await expect(sideDrawer(page)).toHaveAttribute("data-panel", "half");
+  await expect(sideDrawer(page)).toHaveAttribute("data-panel", /^(half|full)$/);
   await expect(rows.nth(1)).toHaveAttribute("aria-current", "true");
   await expect(rows.nth(0)).not.toHaveAttribute("aria-current", "true");
   await expect(rows.nth(1)).toBeInViewport();

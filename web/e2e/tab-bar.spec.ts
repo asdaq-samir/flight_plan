@@ -75,8 +75,11 @@ test("a route rests as its figures in the tabs' place, the pill's own height, an
   // phone's home indicator adds its own inset). The sheet is laid out at
   // its full height and slid, so its box is that height: its pill is the
   // first of its three heights (data-detents).
+  // The sheet is laid out at its full height and slid, so its box is that
+  // height: the pill is the first of its three heights (data-detents). A
+  // desktop's top sheet has eight more, its grabber's band under the row.
   const [pill] = (await panel.getAttribute("data-detents"))!.split(",").map(Number);
-  expect(pill).toBeLessThan(72);
+  expect(pill).toBeLessThan((page.viewportSize()?.width ?? 0) < 768 ? 72 : 80);
   await panel.getByTestId("panel-foot").click();
   await expect(panel).toHaveAttribute("data-panel", "half");
   // Half way, the tabs still the sheet's first row.
