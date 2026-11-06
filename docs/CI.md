@@ -13,7 +13,8 @@ What runs, when, and how to move it onto the owner's Mac mini.
 
 The Python suites keep the FAA's reference files (`data/raw`) between
 runs, a week at a time, rather than fetching them each run: the planner's
-suite was 159 s with them fetched and is a few seconds warm.
+suite was 131 s with them fetched (#452) and 159 s in one run (#474),
+against 11 s warm.
 
 Promote tags the images after main's push is green. A nightly failure is
 said in its run and does not hold Promote.
