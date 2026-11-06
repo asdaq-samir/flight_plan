@@ -542,7 +542,9 @@ export default function MapPanel({ label, top, kept, controls, compact, children
 
   // At rest after a commit: put where its size is -- eased there where it
   // has grown or shrunk at rest (the route's figures come to the pill,
-  // the keyboard up), at once on the first measure.
+  // the keyboard up), at once on the first measure. `floating` is a
+  // dependency for the clip place writes, which must follow a turn across
+  // md even where no detent moves.
   const settledOnce = useRef(false);
   useLayoutEffect(() => {
     fullRef.current = detents.full;
@@ -555,7 +557,7 @@ export default function MapPanel({ label, top, kept, controls, compact, children
     }
     if (pillHeight !== null || !atPill) settledOnce.current = true;
     place(target, "");
-  }, [detents, size, pillHeight, atPill, footShown, fromBottom, place, settle]);
+  }, [detents, size, pillHeight, atPill, footShown, fromBottom, floating, place, settle]);
   // The page's own size, come as a prop: gone to.
   useEffect(() => {
     if (pageState !== sizeRef.current) settle(pageState, false, false);
