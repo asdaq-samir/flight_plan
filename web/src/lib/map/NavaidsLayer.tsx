@@ -14,7 +14,7 @@ import { usePointActions } from "./pointActions";
 import { api } from "../api/client";
 import type { FixPin, VorPin } from "../api/types";
 import { usePreferences } from "../preferences";
-import { airportBox, overlaps, ownShipBox, useDrawnAirports, vorTagBoxes, vorTagSide, type TagSide } from "./declutter";
+import { airportBox, fieldTapped, overlaps, ownShipBox, useDrawnAirports, vorTagBoxes, vorTagSide, type TagSide } from "./declutter";
 import { useOwnShipNear } from "./ownShip";
 import { useAhead, useLiveZoom } from "./useView";
 import { hovers, type Box } from "./view";
@@ -193,14 +193,15 @@ function NavaidMarks({ marks, vors, fixes }: { marks: NavaidMark[]; vors: VorPin
     click: (e: L.LeafletMouseEvent) => {
       const target = e.originalEvent.target as Element | null;
       if (target?.closest(".leaflet-marker-icon, .leaflet-popup, path.leaflet-interactive")) return;
-      const near = layer.nearest(e.containerPoint, TAP_PX)?.mark ?? null;
+      // A field's tap is the field's (declutter's fieldTapped).
+      const near = fieldTapped(map, e.containerPoint) ? null : layer.nearest(e.containerPoint, TAP_PX)?.mark ?? null;
       setPicked(was => {
         if (!near) return null;
         if (was?.mark.key === near.key) return was;
         return { mark: near, vor: pins.current.vors.get(near.key), fix: pins.current.fixes.get(near.key) };
       });
     },
-  }), [layer]));
+  }), [layer, map]));
   const closed = useMemo<L.LeafletEventHandlerFnMap>(() => ({ remove: () => setPicked(null) }), []);
   return (
     <>

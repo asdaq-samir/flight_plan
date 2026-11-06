@@ -1,3 +1,4 @@
+import type L from "leaflet";
 import { create } from "zustand";
 import { AIRPORT_MARK } from "./airportMark";
 
@@ -68,3 +69,18 @@ const NO_FIELDS: DrawnField[] = [];
  *  (NavaidsLayer), at the owner's ask ("on the app vors show up first",
  *  2026-11-05: the rings, then the airports, then the navaids). */
 export const useDrawnAirports = create<{ fields: DrawnField[]; airportsIn: boolean }>(() => ({ fields: NO_FIELDS, airportsIn: false }));
+
+/** How near a tap is a field's, in screen px: half a finger's 44 points
+ *  (AirportsLayer's own reach). */
+export const FIELD_TAP_PX = 22;
+
+/** Whether a tap at `at` is a drawn field's. The field wins a tap near
+ *  its mark over a VOR, a fix or a waypoint by it, as its mark is drawn
+ *  over them (the owner, 2026-10-30: "When I try to select airport, it
+ *  selects the airspace or vor if they are overlapping"). AirportsLayer
+ *  stops the browser's click there, but on a touch screen Leaflet makes
+ *  its own click from the touch, which still reached the others: one tap
+ *  on O'Hare opened its card and a VFR waypoint's 0.7 nm off over it. */
+export function fieldTapped(map: L.Map, at: L.Point): boolean {
+  return useDrawnAirports.getState().fields.some(f => map.latLngToContainerPoint([f.lat, f.lon]).distanceTo(at) <= FIELD_TAP_PX);
+}
