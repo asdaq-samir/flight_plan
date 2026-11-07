@@ -198,13 +198,6 @@ enum AirportWords {
         return words ?? text
     }
 
-    /// A name the FAA writes in capitals, written as a name is ("O'Hare"):
-    /// the engine's `title_case`.
-    static func titleCase(_ text: String) -> String {
-        let words: String? = try? Engine.call("title_case", ["text": text])
-        return words ?? text
-    }
-
     // MARK: Airspace
 
     /// "CHICAGO, DUPAGE AIRPORT CLASS D" as "Chicago, Dupage Airport":

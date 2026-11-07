@@ -147,14 +147,6 @@ class Tracking private constructor(
         }
     }
 
-    fun forgetRecent(hex: String) {
-        scope.launch {
-            val had = dao.keptAirplane(hex.lowercase()) ?: return@launch
-            keep(had.copy(recent = false, recentAt = null))
-            Records.sync?.changed("recents")
-        }
-    }
-
     /** Signing out: the Favorites are the pilot's own, the Recents the
      *  device's. */
     fun forgetFavorites() {

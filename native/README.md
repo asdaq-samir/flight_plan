@@ -122,14 +122,14 @@ Then the callers switch to the name and the old copy is deleted.
   drill (PA.VI.C), a hold's entry and its legs in the wind (AIM 5-3-8)
   and lost communications' altitudes (14 CFR 91.185), with their words.
   app.figures only carries the dicts across; the phones get the
-  planner's very answers from `wt_debrief`, `wt_diversion`, `wt_holding`
-  and `wt_lost_comms`.
+  planner's very answers from `wt_call` (`debrief`, `diversion`,
+  `holding`, `lost_comms`).
 - The Brief's Go / No-Go is the engine's too (`crates/brief`): the seven
   findings and the line over them, the pilot's minimums, icing under IFR,
   the risk assessment and the airplane's airworthiness, the runway check,
   the weight and balance and the pass times (the web's lib/verdict and
   the modules it is fed from). Each is a name in `call.rs`
-  (`gonogo_verdict`, `gonogo_risk`, `gonogo_runway_checks` ...), asked by
+  (`gonogo_verdict_items`, `gonogo_risk`, `gonogo_runway_checks` ...), asked by
   the web app (callEngine), the planner's app.gonogo (wingtip_native.call)
   and the phones (wt_call).
 - Runways, the wind on them and the traffic pattern are the engine's too

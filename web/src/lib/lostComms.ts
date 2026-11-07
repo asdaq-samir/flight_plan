@@ -7,7 +7,7 @@
  *
  * Worked out by the shared engine (native/crates/figures/src/figures/lost_comms.rs,
  * through lib/engine), the very code behind the planner's /api/lost-comms
- * and the phones' wt_lost_comms. ROUTES stays here as the page's labels
+ * and the phones' wt_call("lost_comms"). ROUTES stays here as the page's labels
  * and the type of its pick; lostComms.test.ts holds it to the engine's.
  */
 import { callEngine, type EngineAnswer } from "./engine/engine";

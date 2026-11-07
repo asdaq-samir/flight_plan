@@ -15,7 +15,7 @@
  *
  * Worked out by the shared engine (native/crates/figures/src/figures/debrief.rs,
  * through lib/engine), the very code behind the planner's /api/debrief and
- * the phones' wt_debrief. The tolerances stay here too, for the page's
+ * the phones' wt_call("debrief"). The tolerances stay here too, for the page's
  * headings and marks; debrief.test.ts holds them to the engine's.
  */
 import type { Flight } from "./api/types";

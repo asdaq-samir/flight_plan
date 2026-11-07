@@ -2376,59 +2376,6 @@
       ],
       "additionalProperties": false
     },
-    "gonogo_verdict": {
-      "description": "POST /api/go-no-go's line and items: each tab's finding, the IFR alternate's in the weather's (14 CFR 91.169), and the line over them. The findings are the planner's; the decision is the pilot in command's (14 CFR 91.3).",
-      "type": "object",
-      "properties": {
-        "input": {
-          "title": "GonogoVerdictInput",
-          "type": "object",
-          "properties": {
-            "verdict": {
-              "$ref": "#/definitions/VerdictInput"
-            },
-            "alternate": {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/GonogoAlternateData"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "description": "/api/alternate's answer; null or left out under VFR."
-            }
-          },
-          "required": [
-            "verdict"
-          ]
-        },
-        "answer": {
-          "title": "GonogoVerdictAnswer",
-          "type": "object",
-          "properties": {
-            "line": {
-              "$ref": "#/definitions/GonogoLine"
-            },
-            "items": {
-              "type": "array",
-              "items": {
-                "$ref": "#/definitions/GonogoItem"
-              }
-            }
-          },
-          "required": [
-            "line",
-            "items"
-          ]
-        }
-      },
-      "required": [
-        "input",
-        "answer"
-      ],
-      "additionalProperties": false
-    },
     "gonogo_verdict_items": {
       "description": "Each tab's finding, in the order a pilot goes through them (AIM 7-1-5(b)), each with where it is shown in full.",
       "type": "object",
@@ -9805,7 +9752,6 @@
     "magnetic_variation",
     "weather_expires_at",
     "weather_in_force",
-    "gonogo_verdict",
     "gonogo_verdict_items",
     "gonogo_verdict_line",
     "gonogo_alternate_finding",

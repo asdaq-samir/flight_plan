@@ -64,11 +64,11 @@
 //! modules it is fed from), each from the planner's and the web's own
 //! objects in snake_case:
 //!
-//! - `gonogo_verdict`: POST /api/go-no-go's `line` and `items`, from
-//!   `{"verdict": VerdictInput, "alternate"?: /api/alternate's answer}`;
-//!   `gonogo_verdict_items` from a VerdictInput, `gonogo_verdict_line`
-//!   from `{"items"}`, `gonogo_alternate_finding` from `{"data"?}`,
-//!   `gonogo_with_alternate` from `{"items", "found"?}`. A VerdictInput
+//! - POST /api/go-no-go's `items` and `line`, a step each:
+//!   `gonogo_verdict_items` from a VerdictInput, `gonogo_alternate_finding`
+//!   from `{"data"?}` (/api/alternate's answer), `gonogo_with_alternate`
+//!   from `{"items", "found"?}` and `gonogo_verdict_line` from
+//!   `{"items"}`. A VerdictInput
 //!   is `{"weather": {"pending", "failed"?, "vfr_not_recommended",
 //!   "under_minimums", "icing"?, "hazards", "unchecked", "worst"?},
 //!   "airspace": {"pending", "unchecked", "in_force", "near",

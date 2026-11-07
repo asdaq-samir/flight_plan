@@ -149,9 +149,6 @@ interface RecordsDao {
     @Query("SELECT * FROM planned_routes ORDER BY plannedAt DESC")
     suspend fun plannedRoutes(): List<PlannedRoute>
 
-    @Query("SELECT * FROM planned_routes ORDER BY plannedAt DESC")
-    fun plannedRoutesFlow(): Flow<List<PlannedRoute>>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun putRoute(route: PlannedRoute)
 

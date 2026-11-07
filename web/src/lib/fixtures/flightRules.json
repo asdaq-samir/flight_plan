@@ -1,5 +1,5 @@
 {
- "_note": "Written by the planner's Python (scratch make_fixture.py, 2026-11-02): the wind triangle (web lib/diversion), 14 CFR 91.159's cruising altitudes (wingtip.altitude), 91.151/91.167's reserves, density altitude (wingtip.performance), pressure altitude (PHAK ch. 4), WMM-2025 variation (pygeomag) and offline weather expiry. The engine (native/engine/tests/flight_rules.rs), the planner (tests/test_flight_rules.py), the web (lib/flightRules.test.ts) and the iOS app (FlightRulesTests) are held to it.",
+ "_note": "Written by the planner's Python (scratch make_fixture.py, 2026-11-02): the wind triangle (web lib/diversion), 14 CFR 91.159's cruising altitudes (wingtip.altitude), 91.151/91.167's reserves, density altitude (wingtip.performance), pressure altitude (PHAK ch. 4), WMM-2025 variation (pygeomag) and offline weather expiry. The engine (native/engine/tests/flight_rules.rs), the planner (tests/test_flight_rules.py), the web (lib/flightRules.test.ts) and the iOS app through wt_call (BridgeFixturesTests) are held to it.",
  "windTriangle": [
   {
    "tc": 90,

@@ -574,18 +574,6 @@ pub fn read(text: &str) -> Clearance {
 }
 
 impl Clearance {
-    /// Whether anything of a clearance was heard at all.
-    pub fn heard_any(&self) -> bool {
-        self.limit.is_some()
-            || !self.route.is_empty()
-            || self.as_filed
-            || self.maintain_ft.is_some()
-            || self.expect_ft.is_some()
-            || self.frequency.is_some()
-            || self.squawk.is_some()
-            || self.class_b
-    }
-
     /// The words of each run of places, in order, for them to be found.
     pub fn place_runs(&self) -> Vec<&str> {
         self.route.iter().filter_map(|i| if let Item::Places(s) = i { Some(s.as_str()) } else { None }).collect()

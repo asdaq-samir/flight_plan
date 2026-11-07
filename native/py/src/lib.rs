@@ -102,6 +102,7 @@ fn shape_holds(content: PyBuffer<u8>, lon: f64, lat: f64) -> PyResult<bool> {
         .ok_or_else(|| PyValueError::new_err("a shapefile record cut short"))
 }
 
+/// Tests only: an oracle for the pack's shapes in tests/test_native.py.
 #[pyfunction]
 fn wkb_holds(wkb: PyBuffer<u8>, lon: f64, lat: f64) -> PyResult<bool> {
     airspace::wkb_holds(bytes_of(&wkb)?, lon, lat).ok_or_else(|| PyValueError::new_err("not a WKB polygon"))
@@ -120,7 +121,8 @@ fn read_pack(bytes: &[u8]) -> PyResult<pack::Pack<'_>> {
 }
 
 /// The pack's header and sections: {"cycle", "built_at", "crc32",
-/// "sections"} (pack::Pack::read).
+/// "sections"} (pack::Pack::read). Tests only: tests/test_native.py's
+/// oracle.
 #[pyfunction]
 fn pack_header(py: Python<'_>, data: PyBuffer<u8>) -> PyResult<Py<PyAny>> {
     let p = read_pack(bytes_of(&data)?)?;
@@ -132,6 +134,7 @@ fn pack_header(py: Python<'_>, data: PyBuffer<u8>) -> PyResult<Py<PyAny>> {
     Ok(header.into_any().unbind())
 }
 
+/// Tests only: tests/test_native.py's oracle.
 #[pyfunction]
 fn pack_verify(data: PyBuffer<u8>) -> PyResult<bool> {
     Ok(read_pack(bytes_of(&data)?)?.verify())
@@ -147,7 +150,8 @@ fn pack_holding(data: PyBuffer<u8>, layer: &str, lon: f64, lat: f64) -> PyResult
 }
 
 /// The planner's AirspaceAt for the point as JSON, from a phone's pack
-/// (phone::airspace_at): what the phones answer with no network.
+/// (phone::airspace_at): what the phones answer with no network. Tests
+/// only: tests/test_phone_pack.py's oracle.
 #[pyfunction]
 #[pyo3(signature = (data, lat, lon, ground_ft=None))]
 fn airspace_at_json(data: Option<PyBuffer<u8>>, lat: f64, lon: f64, ground_ft: Option<f64>) -> PyResult<String> {
@@ -239,12 +243,7 @@ fn product(name: &str) -> PyResult<validity::Product> {
     })
 }
 
-#[pyfunction]
-#[pyo3(signature = (product_name, observed=None, last_routine=None, valid_to=None))]
-fn weather_expires_at(product_name: &str, observed: Option<i64>, last_routine: Option<i64>, valid_to: Option<i64>) -> PyResult<Option<i64>> {
-    Ok(validity::expires_at(product(product_name)?, observed, last_routine, valid_to))
-}
-
+/// Tests only: an oracle for tests/test_flight_rules.py.
 #[pyfunction]
 #[pyo3(signature = (product_name, now, observed=None, last_routine=None, valid_from=None, valid_to=None))]
 fn weather_in_force(product_name: &str, now: i64, observed: Option<i64>, last_routine: Option<i64>,
@@ -255,6 +254,7 @@ fn weather_in_force(product_name: &str, now: i64, observed: Option<i64>, last_ro
 // The products as sent, read by the engine: each answer JSON in the
 // planner's own names, None where the text is no such product.
 
+/// Tests only: metar_json and taf_json are tests/test_parsers.py's oracles.
 #[pyfunction]
 fn metar_json(raw: &str) -> Option<String> {
     metar::parse(raw).map(|m| metar::to_json(&m))
@@ -280,17 +280,14 @@ fn tfr_detail_json(text: &str) -> PyResult<Option<String>> {
     Ok(tfr::parse_detail(text).map(|d| tfr::to_json(&d)))
 }
 
-#[pyfunction]
-fn notams_json(text: &str) -> String {
-    notam::to_json(&notam::from_fns(text))
-}
-
+/// Tests only: an oracle for tests/test_parsers.py.
 #[pyfunction]
 fn notam_text_json(raw: &str) -> Option<String> {
     notam::from_text(raw).map(|n| notam::to_json(&[n]))
 }
 
-/// The alerts ahead from phone packs (wingtip_engine::ahead), JSON.
+/// The alerts ahead from phone packs (wingtip_engine::ahead), JSON. Tests
+/// only: tests/test_phone_pack.py's oracle.
 #[pyfunction]
 #[pyo3(signature = (packs, lat, lon, track_deg, gs_kt, alt_ft, vs_fpm, now, tfr_lines=None, tfrs_at=None))]
 #[allow(clippy::too_many_arguments)]
@@ -528,9 +525,9 @@ fn wingtip_native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         wrap_pyfunction!(is_eastbound, m)?, wrap_pyfunction!(lowest_vfr_cruising_altitude, m)?, wrap_pyfunction!(reserve_min, m)?,
         wrap_pyfunction!(isa_temp_c, m)?, wrap_pyfunction!(density_ratio, m)?, wrap_pyfunction!(density_altitude_ft, m)?,
         wrap_pyfunction!(pressure_altitude_ft, m)?, wrap_pyfunction!(declination, m)?,
-        wrap_pyfunction!(weather_expires_at, m)?, wrap_pyfunction!(weather_in_force, m)?,
+        wrap_pyfunction!(weather_in_force, m)?,
         wrap_pyfunction!(ahead_json, m)?, wrap_pyfunction!(metar_json, m)?, wrap_pyfunction!(taf_json, m)?, wrap_pyfunction!(winds_json, m)?,
-        wrap_pyfunction!(tfr_detail_json, m)?, wrap_pyfunction!(notams_json, m)?, wrap_pyfunction!(notam_text_json, m)?,
+        wrap_pyfunction!(tfr_detail_json, m)?, wrap_pyfunction!(notam_text_json, m)?,
         wrap_pyfunction!(figures_bearing, m)?, wrap_pyfunction!(figures_wind_correction, m)?,
         wrap_pyfunction!(holding_entry, m)?, wrap_pyfunction!(holding_entry_name, m)?, wrap_pyfunction!(holding_approach_relative, m)?,
         wrap_pyfunction!(holding_leg_minutes, m)?, wrap_pyfunction!(holding_wind_json, m)?, wrap_pyfunction!(holding_entry_steps, m)?,

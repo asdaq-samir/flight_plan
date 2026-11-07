@@ -114,7 +114,6 @@ fn members(v: Option<&Value>) -> &[(String, Value)] {
 pub fn call(name: &str, v: &Value) -> Option<R<String>> {
     let i = In { name };
     Some(match name {
-        "gonogo_verdict" => verdict_rule(i, v),
         "gonogo_verdict_items" => verdict_input(i, v).map(|input| verdict::items_json(&verdict::verdict_items(&input))),
         "gonogo_verdict_line" => items(i, v, "items").map(|items| {
             let (finding, words) = verdict::verdict_line(&items);
@@ -327,11 +326,6 @@ fn alternates(i: In, data: Option<&Value>) -> R<Option<Alternates>> {
         }),
     };
     Ok(Some(Alternates { required, alternate }))
-}
-
-fn verdict_rule(i: In, v: &Value) -> R<String> {
-    let input = verdict_input(i, i.obj(v, "verdict")?.map_or_else(|| i.err("verdict", "is missing"), Ok)?)?;
-    Ok(verdict::verdict_json(&input, alternates(i, v.get("alternate"))?.as_ref()))
 }
 
 fn with_alternate_rule(i: In, v: &Value) -> R<String> {
