@@ -1,13 +1,13 @@
 # The production stack: one EC2 server behind CloudFront
 # (infra/cloudformation/template.yaml, docs/README-AWS.md). A file of its
 # own rather than an overlay on docker-compose.yml, which is the
-# development stack -- source mounted, Mailpit, Airflow, the agents' dev
+# development stack -- source mounted, Mailpit, the training run, the agents' dev
 # ports -- none of which a production server should inherit by accident.
 #
 # What is not here, on purpose:
 # - Mailpit: sign-in mail goes through Amazon SES (MAIL_* below).
 # - crewai-agent: the same briefing nav-log-agent writes.
-# - Airflow and the pipelines: retraining runs on the owner's machine.
+# - The pipelines and the training run: retraining runs on the owner's machine.
 # - web-build and dev-services: development tools.
 # - Chart tile drawing: CHARTS_AUTO_REFRESH=0. A scheduled Fargate Spot
 #   task draws each 56-day cycle once and publishes it to S3, and the
@@ -68,17 +68,6 @@ services:
     volumes:
       - /srv/wingtip/postgres:/var/lib/postgresql
 
-  model-service:
-    <<: *restart
-    image: ${IMAGE_REGISTRY}/model-service:${IMAGE_TAG:-latest}
-    volumes:
-      - /srv/wingtip/data/models/chart/current:/opt/ml/chart-model:ro
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-
   planning-service:
     <<: *restart
     image: ${IMAGE_REGISTRY}/planning-service:${IMAGE_TAG:-latest}
@@ -87,8 +76,10 @@ services:
     # sit in CloudWatch for a month (docs/privacy-inventory.md). The
     # planner's own log says what it did.
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
-    # FAA data, the corridor's chart sheets for reading checkpoints, and
-    # the planner's caches: on the server's disk, kept across deploys.
+    # FAA data, the corridor's chart sheets for reading checkpoints, the
+    # chart model deploy.sh syncs into data/models (scored in-process,
+    # app.chart_scorer), and the planner's caches: on the server's disk,
+    # kept across deploys.
     volumes:
       - /srv/wingtip/data:/workspace/data
       # The stock aircraft profiles are the repository's, so they follow
@@ -96,7 +87,6 @@ services:
       # server's own.
       - ./data/aircraft:/workspace/data/aircraft:ro
     environment:
-      MODEL_SERVICE_URL: http://model-service:8000
       NAV_LOG_AGENT_URL: http://nav-log-agent:8000
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       # The map's Google overlay (routers/basemaps), where the owner has a key.
@@ -121,9 +111,6 @@ services:
       CHARTS_AUTO_REFRESH: "0"
       CHART_TILES_URL: https://${PUBLIC_HOST}/tiles
       TZ: America/Chicago
-    depends_on:
-      model-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
       interval: 10s

@@ -26,8 +26,8 @@ variable "PUSH" {
 # Every image, for a bake with no target named -- and the list the
 # Promote workflow walks, promoting each this commit built.
 group "default" {
-  targets = ["ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
-             "nav-log-agent", "crewai-agent", "planning-service", "model-service", "webapp"]
+  targets = ["ml", "pipeline-processing", "pipeline-training",
+             "nav-log-agent", "crewai-agent", "planning-service", "webapp"]
 }
 
 function "image" {
@@ -72,24 +72,6 @@ target "pipeline-training" {
   output     = image("pipeline-training").output
 }
 
-target "airflow" {
-  context    = "."
-  dockerfile = "docker/Dockerfile.airflow"
-  tags       = image("airflow").tags
-  cache-from = image("airflow").cache-from
-  cache-to   = image("airflow").cache-to
-  output     = image("airflow").output
-}
-
-target "airflow-aws" {
-  context    = "."
-  dockerfile = "docker/Dockerfile.airflow.aws"
-  tags       = image("airflow-aws").tags
-  cache-from = image("airflow-aws").cache-from
-  cache-to   = image("airflow-aws").cache-to
-  output     = image("airflow-aws").output
-}
-
 target "nav-log-agent" {
   context    = "."
   dockerfile = "nav-log-agent/Dockerfile"
@@ -115,18 +97,6 @@ target "planning-service" {
   cache-from = image("planning-service").cache-from
   cache-to   = image("planning-service").cache-to
   output     = image("planning-service").output
-}
-
-# Its own directory as the context, where every other image reads from
-# the repository root (the webapp builds web/ into its first stage, the
-# Python images copy src/).
-target "model-service" {
-  context    = "model-service"
-  dockerfile = "Dockerfile"
-  tags       = image("model-service").tags
-  cache-from = image("model-service").cache-from
-  cache-to   = image("model-service").cache-to
-  output     = image("model-service").output
 }
 
 target "webapp" {

@@ -5,9 +5,9 @@ import threading
 
 import pandas as pd
 from fastapi.testclient import TestClient
-from wingtip import chartlabels, chartmodel, chartvision, model_client
+from wingtip import chartlabels, chartmodel, chartvision
 
-from app import chart_model
+from app import chart_model, chart_scorer
 from app.main import app
 from app.routers import chart
 
@@ -76,7 +76,7 @@ def test_the_training_pages_points_carry_the_chart_models_scores(monkeypatch, me
     monkeypatch.setattr(chart, "faa_airports", lambda *args, **kwargs: [])
     monkeypatch.setattr(chartlabels, "load_picks", lambda route=None: [])
     sent = []
-    monkeypatch.setattr(model_client, "score_detections", lambda rows: sent.append(rows) or [0.4, 3.9])
+    monkeypatch.setattr(chart_scorer, "score_detections", lambda rows: sent.append(rows) or [0.4, 3.9])
 
     lines = messages(client.get("/api/detect/stream", params={"dep": "C81", "dest": "KDLH"}))
 

@@ -10,7 +10,7 @@ type RouteTfr = Briefing["tfrs"][number];
  * How the FAA's own words are written -- its capitals in sentence case
  * with its codes kept, names, the advisories' intensities and hazards, a
  * special-use area's limits -- is the shared engine's
- * (native/engine/src/wording, through lib/engine): the very rules the
+ * (native/crates/wording/src/wording, through lib/engine): the very rules the
  * planner's Go / No-Go and the iPhone write them by. Only how a figure
  * is printed and a date laid out are made here.
  */
@@ -20,7 +20,8 @@ type RouteTfr = Briefing["tfrs"][number];
  *  facility's, an airspace's -- where its prose is set in sentence case
  *  (faaWords). */
 export function titleCase(text: string): string {
-  return callEngine<string>("title_case", { text });
+  // One text answers one string (a list of texts answers a list).
+  return callEngine("title_case", { text }) as string;
 }
 
 /** The first letter a capital, the rest as it is: "road or rail" as "Road
@@ -39,7 +40,8 @@ export function capitalised(text: string): string {
  * as sent.
  */
 export function faaWords(text: string | null | undefined): string {
-  return text ? callEngine<string>("faa_words", { text }) : "";
+  // One text answers one string (a list of texts answers a list).
+  return text ? (callEngine("faa_words", { text }) as string) : "";
 }
 
 /** A place's name as it is written, each word capitalised: the FAA's and
@@ -49,16 +51,17 @@ export function faaWords(text: string | null | undefined): string {
  *  "La crosse" (the owner's screenshot, 2026-10-26). A name already in
  *  mixed case is kept as it is. */
 export function placeWords(text: string | null | undefined): string {
-  return text ? callEngine<string>("place_name", { text }) : "";
+  // One text answers one string (a list of texts answers a list).
+  return text ? (callEngine("place_name", { text }) as string) : "";
 }
 
 /** A SIGMET's hazard in words: "Convective", "Mountain obscuration". */
 export const sigmetHazard = (hazard: string | null | undefined, kind?: string | null) =>
-  callEngine<string>("sigmet_hazard", { hazard: hazard ?? null, kind: kind ?? null });
+  callEngine("sigmet_hazard", { hazard: hazard ?? null, kind: kind ?? null });
 
 /** A G-AIRMET's hazard and how bad: "Icing, moderate". */
 export function gairmetTitle(g: GAirmet): string {
-  return callEngine<string>("gairmet_title", { hazard: g.hazard, severity: g.severity ?? null });
+  return callEngine("gairmet_title", { hazard: g.hazard, severity: g.severity ?? null });
 }
 
 /** How high a G-AIRMET reaches: "Freezing level to 22,000 ft",
@@ -73,7 +76,7 @@ export function gairmetAltitudes(g: GAirmet): string | null {
 /** What a PIREP reports of the turbulence and icing, in words:
  *  "Turbulence moderate · No icing". */
 export function pirepConditions(p: Pirep): string | null {
-  return callEngine<string | null>("pirep_conditions", { turbulence: p.turbulence ?? null, icing: p.icing ?? null });
+  return callEngine("pirep_conditions", { turbulence: p.turbulence ?? null, icing: p.icing ?? null });
 }
 
 /** How high a TFR reaches: "Surface to 10,000 ft MSL", "Surface to
@@ -114,7 +117,7 @@ export function suaAltitudes(
   a: { floor_ft?: number | null; floor_ref?: string | null; ceiling_ft?: number | null; ceiling_ref?: string | null },
   { midSentence = false }: { midSentence?: boolean } = {},
 ): string {
-  return callEngine<string>("sua_altitudes", {
+  return callEngine("sua_altitudes", {
     floor_ft: a.floor_ft ?? null, floor_ref: a.floor_ref ?? null, ceiling_ft: a.ceiling_ft ?? null, ceiling_ref: a.ceiling_ref ?? null,
     mid_sentence: midSentence,
   });

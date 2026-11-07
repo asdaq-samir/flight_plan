@@ -22,13 +22,13 @@
  * A sketch of the pattern to fly by, not a procedure: the size of a
  * pattern is the pilot's, flown as the field and its traffic need.
  *
- * Drawn by the shared engine (native/engine/src/runway/circuit.rs,
+ * Drawn by the shared engine (native/crates/brief/src/runway/circuit.rs,
  * through lib/engine), from the very corners the planner flies the
  * pattern by (wingtip.pattern) and the phones draw it from: the legs and
  * their sources live there. Only the shapes the map reads are made here.
  */
 import type { Runway } from "./api/types";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { LatLon } from "./geo";
 import { isFixIdent } from "./identSchema";
 
@@ -57,19 +57,13 @@ export interface TrafficPattern {
   entry: { from: LatLon; to: LatLon; name: string };
 }
 
-/** A pattern as the engine draws it. */
-interface Drawn {
-  kind: "arrival" | "departure";
-  ident: string;
-  runway: string;
-  traffic: "left" | "right";
-  altitude_ft: number | null;
-  legs: { name: LegName; from: LatLon; to: LatLon }[];
-  entry: { from: LatLon; to: LatLon; name: string };
-}
-
-const drawn = (d: Drawn | null): TrafficPattern | null =>
-  d && { kind: d.kind, ident: d.ident, runway: d.runway, traffic: d.traffic, altitudeFt: d.altitude_ft, legs: d.legs, entry: d.entry };
+// The engine says the traffic its end was given back as it was given: the
+// planner's runway ends are "left" or "right", so the drawing's is too.
+const drawn = (d: EngineAnswer<"traffic_pattern">): TrafficPattern | null =>
+  d && {
+    kind: d.kind, ident: d.ident, runway: d.runway, traffic: d.traffic === "right" ? "right" : "left", altitudeFt: d.altitude_ft, legs: d.legs,
+    entry: d.entry,
+  };
 
 /** The runway as the engine reads it: its length and its ends. */
 const runwayOf = (runway: Runway) => ({ length_ft: runway.length_ft ?? null, runway_ends: runway.runway_ends ?? [] });
@@ -80,7 +74,7 @@ const runwayOf = (runway: Runway) => ({ length_ft: runway.length_ft ?? null, run
  * the runway's length where it alone is missing).
  */
 export function trafficPattern(ident: string, runway: Runway, endIdent: string, altitudeFt: number | null): TrafficPattern | null {
-  return drawn(callEngine<Drawn | null>("traffic_pattern", { ident, runway: runwayOf(runway), end_ident: endIdent, altitude_ft: altitudeFt }));
+  return drawn(callEngine("traffic_pattern", { ident, runway: runwayOf(runway), end_ident: endIdent, altitude_ft: altitudeFt }));
 }
 
 /**
@@ -94,7 +88,7 @@ export function trafficPattern(ident: string, runway: Runway, endIdent: string, 
  * also drawing a visual pattern?").
  */
 export function departurePattern(ident: string, runway: Runway, endIdent: string, altitudeFt: number | null, toward: LatLon | null): TrafficPattern | null {
-  return drawn(callEngine<Drawn | null>("departure_pattern", {
+  return drawn(callEngine("departure_pattern", {
     ident, runway: runwayOf(runway), end_ident: endIdent, altitude_ft: altitudeFt, toward: toward ? { lat: toward.lat, lon: toward.lon } : null,
   }));
 }

@@ -1,4 +1,4 @@
-"""The developer console's one door onto Docker: which of four services
+"""The developer console's one door onto Docker: which of three services
 are running, and starting one that is not.
 
 This is the only process that holds the Docker socket for the console,
@@ -100,7 +100,7 @@ def start(name: str, project: str, allowed=ALLOWED, api=docker) -> tuple:
         return 404, {"detail": f"not a service this may start: {name}"}
     container = find(name, project, api)
     if container is None:
-        return 409, {"detail": f"{name} has no container yet -- run `docker compose up -d {name}` once to create it"}
+        return 409, {"detail": f"{name} has no container yet -- run `docker compose create {name}` once to create it"}
     if container["State"] == "running":
         return 200, {"name": name, "state": "running", "started": False}
     status, body = api("POST", f"/containers/{container['Id']}/start")

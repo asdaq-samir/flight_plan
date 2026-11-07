@@ -111,7 +111,7 @@ describe("a flight debriefed", () => {
 
 describe("the page's tolerances are the engine's", () => {
   test("PA.VI.A's and the pattern's, the same figures", () => {
-    const { tolerances } = callEngine<{ tolerances: Record<string, number> }>("debrief", { checkpoints: [], points: [] });
+    const { tolerances } = callEngine("debrief", { checkpoints: [], points: [] });
     expect(tolerances).toEqual({
       altitude_ft: ALTITUDE_FT, course_deg: COURSE_DEG, off_route_nm: OFF_ROUTE_NM, eta_min: ETA_MIN, pattern_nm: PATTERN_NM, pattern_ft: PATTERN_FT,
     });

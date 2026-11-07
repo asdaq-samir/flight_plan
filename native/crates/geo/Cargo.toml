@@ -1,0 +1,13 @@
+[package]
+name = "wingtip-geo"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The ground the engine's other crates stand on: great-circle sums, magnetic variation, the grid's straight lines, the wind triangle and the atmosphere, UTC dates, and the small JSON and XML readers"
+
+[lib]
+name = "wingtip_geo"
+
+# None: the bottom of the engine's crates (native/README.md), plain Rust,
+# so the phones carry it as it is.
+[dependencies]

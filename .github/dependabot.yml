@@ -41,7 +41,6 @@ updates:
       - /
       - /crewai-agent
       - /docker
-      - /model-service
       - /nav-log-agent
       - /planning-service
       - /src
@@ -55,7 +54,6 @@ updates:
     directories:
       - /crewai-agent
       - /docker
-      - /model-service
       - /nav-log-agent
       - /planning-service
       - /springboot-app

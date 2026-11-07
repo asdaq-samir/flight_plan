@@ -6,7 +6,7 @@ import type { Fix } from "./ownShip";
  * (POH figure 3-1), no ring under 500 ft over the ground or slower than
  * 40 kt, and a field in reach where the airplane arrives over it at its
  * pattern height (AC 90-66C's 1,000 ft). The rules and their sources are
- * the shared engine's (native/engine/src/motion/glide.rs), the debrief's
+ * the shared engine's (native/crates/route/src/motion/glide.rs), the debrief's
  * airborne speed with them, asked through lib/engine.
  */
 
@@ -15,7 +15,7 @@ import type { Fix } from "./ownShip";
  *  knows the ground -- in nm; null on the ground or with no altitude. */
 export function glideRangeNm(fix: Fix | null, groundFt: number | null | undefined): number | null {
   if (!fix) return null;
-  return callEngine<number | null>("glide_range", { altitude_ft: fix.altitudeFt, speed_kt: fix.speedKt, ground_ft: groundFt ?? null });
+  return callEngine("glide_range", { altitude_ft: fix.altitudeFt, speed_kt: fix.speedKt, ground_ft: groundFt ?? null });
 }
 
 /** Whether own ship can glide, in still air, to `field` and arrive over it
@@ -24,12 +24,12 @@ export function glideRangeNm(fix: Fix | null, groundFt: number | null | undefine
  *  the airplane's height. False where either height is not known. */
 export function reachesField(fix: Fix | null, field: { distance_nm: number; elevation_ft?: number | null }): boolean {
   if (!fix) return false;
-  return callEngine<boolean>("glide_reaches", {
+  return callEngine("glide_reaches", {
     altitude_ft: fix.altitudeFt, speed_kt: fix.speedKt, distance_nm: field.distance_nm, elevation_ft: field.elevation_ft ?? null,
   });
 }
 
 /** Own ship moving at flying speed: in the air, or about to be. */
 export function underway(fix: Fix | null): boolean {
-  return callEngine<boolean>("underway", { speed_kt: fix?.speedKt ?? null });
+  return callEngine("underway", { speed_kt: fix?.speedKt ?? null });
 }

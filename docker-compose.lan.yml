@@ -3,7 +3,7 @@
 #   docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d
 #
 # docker-compose.yml binds every port to 127.0.0.1 on purpose: Jupyter,
-# Airflow, the database and both services answer without
+# the database and both services answer without
 # authentication, webapp takes planner writes from anyone while no
 # sign-in is configured, and publishing any of them on 0.0.0.0 makes
 # `docker compose up` unsafe on a shared or internet-reachable host.
@@ -19,7 +19,6 @@
 #   - Jupyter here runs with no token or password. Anyone who can reach
 #     port 8888 can execute code as the container's user, with this
 #     whole repository mounted.
-#   - Airflow's web UI can trigger the training DAG.
 #   - webapp's sign-in inbox (mailpit) stays on loopback here, so
 #     sign in on this machine, or use docker-compose.phone.yml, which
 #     opens the inbox to the Wi-Fi behind a password.
@@ -42,17 +41,9 @@ services:
     ports: !override
       - "8888:8888"
 
-  airflow:
-    ports: !override
-      - "8081:8080"
-
   planning-service:
     ports: !override
       - "8084:8000"
-
-  model-service:
-    ports: !override
-      - "8000:8000"
 
   nav-log-agent:
     ports: !override

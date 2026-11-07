@@ -16,16 +16,16 @@
  * do not hold the fuel, an annual past due -- is high whatever else is.
  *
  * The rules, their points and their sources are the shared engine's
- * (native/engine/src/gonogo/frat.rs, through lib/engine), the planner's
+ * (native/crates/brief/src/gonogo/frat.rs, through lib/engine), the planner's
  * and the phones' own; SELF_CHECKS, the levels and their words stay here
  * as the page's labels, held to the engine's by gonogoEngine.test.ts.
  */
 import { create } from "zustand";
 import type { Currency, Inspections, Squawk } from "./api/types";
-import { inspectionsInput, riskFactor, squawksInput, type EngineFactor } from "./airworthiness";
-import { callEngine } from "./engine/engine";
+import { inspectionsInput, riskFactor, squawksInput } from "./airworthiness";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
-export type RiskLevel = "low" | "caution" | "high";
+export type RiskLevel = EngineAnswer<"gonogo_risk">["level"];
 
 export interface RiskFactor {
   key: string;
@@ -95,7 +95,7 @@ export interface Assessment {
  *  points, and the level they make. */
 export function assess(input: FratInput): Assessment {
   const c = input.currency;
-  const a = callEngine<{ score: number; level: RiskLevel; factors: EngineFactor[] }>("gonogo_risk", {
+  const a = callEngine("gonogo_risk", {
     vfr_not_recommended: input.vfrNotRecommended, under_minimums: input.underMinimums, tfr_on_route: input.tfrOnRoute,
     hazards: input.hazards, night: input.night, fuel_margin_gal: input.fuelMarginGal, ifr: input.ifr ?? false,
     // Left out for a stock profile, which has none; null for the pilot's

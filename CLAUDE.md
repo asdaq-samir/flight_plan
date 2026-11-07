@@ -7,27 +7,45 @@ It is headed for an iOS app. README.md has the services and the layout.
 ## Architecture
 
 Functional core, imperative shell: one core every app shares, and a thin
-shell per app round it (the owner, 2026-11-03).
+shell per app round it (the owner, 2026-11-03). Four layers, each with
+one job (the owner kept both server languages on this split, 2026-11-06):
 
-- **The core is the Rust engine** (`native/engine`, wingtip-engine). Every
-  aviation rule or figure lives there once: altitudes, winds, runways,
-  fuel, weather limits, Go / No-Go, holds, procedures, the clearance
-  reader, currency, the debrief. No network, no screen, no clock of its
-  own. Each rule is a name in `native/engine/src/call.rs`, JSON in and out.
+- **The Rust engine** (`native/engine`, wingtip-engine, a facade over
+  nine domain crates in `native/crates`, layered as native/README.md
+  says). Every aviation rule or figure lives there once: altitudes,
+  winds, runways, fuel, weather limits, Go / No-Go, holds, procedures,
+  the clearance reader, the debrief (currency is to join them, #482). No network, no screen, no
+  clock of its own. Each rule is a name in `native/engine/src/call.rs`,
+  JSON in and out, typed in `native/contract/engine.schema.json`.
+- **The planner** (FastAPI, `planning-service` over `src/wingtip`) works
+  out a flight: it fetches the FAA and weather data, runs the chart
+  model and the assistant, and asks the engine every rule
+  (`wingtip_native.call`).
+- **Spring Boot** (`springboot-app`) is who the pilot is and what they
+  saved: accounts, sign-in, records, the public API, scheduled mail. It
+  should hold no aviation logic and ask the planner over HTTP for a
+  figure, which asks the engine. Today it does not: currency (14 CFR
+  61.56, 61.57) is still worked out in Java (`CurrencyService`), and
+  #482 moves it into the engine. Add no new rule there.
 - **Each app is a shell that gets data, keeps state and draws**, and asks
   the engine the rest by name: the web through `callEngine`
-  (web/src/lib/engine, the engine built to WebAssembly), the planner
-  through `wingtip_native.call`, the iPhone through `wt_call`. A rule found in
-  a component, a hook, a Swift view or a route handler is a bug: move it
-  into the engine and delete the copy.
+  (web/src/lib/engine, the engine built to WebAssembly), the iPhone
+  through `wt_call`, Android through its JNI shim over `wt_call`. A rule
+  found in a component, a hook, a Swift view, a Java service or a route
+  handler is a bug: move it into the engine and delete the copy. What
+  has not moved yet, and in what order, is issue #482.
 - **Screens are view and view model** (MVVM): the view draws, one hook (web)
-  or observable model (iOS) per screen holds its state and makes its
-  calls. How a figure is written on the screen stays with each app.
+  or observable model (iOS, Android) per screen holds its state and makes
+  its calls. How a figure is written on the screen stays with each app.
 - **Data comes in at the edges**: the planner's endpoints and the cycle
   packs feed the engine; the engine never fetches.
-- Changing a rule: the engine, its test against the shared fixtures
-  (web/src/lib/fixtures), `scripts/build-engine-wasm.sh` (the `.wasm` is
-  committed and CI checks it matches), and the planner's image rebuilt.
+- Adding or changing a rule: the Rust in the lowest crate that can hold
+  it, its name in `call.rs`, its entry in the contract
+  (`engine.schema.json`), `npm run types` in web (and
+  `scripts/engine-contract-apps.sh` when a phone decodes it), its test
+  against the shared fixtures (web/src/lib/fixtures),
+  `scripts/build-engine-wasm.sh` (the `.wasm` is committed and CI checks
+  it matches), and the planner's image rebuilt.
 
 ## Branches
 
@@ -61,6 +79,11 @@ shell per app round it (the owner, 2026-11-03).
 
 ## Checks — run what covers your change
 
+Run the checks that cover a change before committing it, on the Mac mini
+(the owner, 2026-11-06: it is fast enough; the old "code changes only"
+rule was for the 2016 MacBook). Whole suites, the full browser suite and
+long measurements still wait for the owner's ask; CI runs everything.
+
 | Changed | Run, from that directory |
 |---|---|
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
@@ -69,14 +92,15 @@ shell per app round it (the owner, 2026-11-03).
 | `native/` (Rust, `wingtip_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same wingtip-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
-| `ios/` (the native app) | CI only: `native-ios.yml` makes the project with XcodeGen and runs `xcodebuild test` on the macOS runner (docs/NATIVE.md) |
+| `ios/` (the native app) | On the Mac mini (Xcode and XcodeGen are there): `xcodegen` in `ios/`, then `xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -destination "platform=iOS Simulator,name=<newest iPhone>" test` through `scripts/one-at-a-time.sh`; `native-ios.yml` runs the same, iPad included (docs/NATIVE.md) |
 | `android/` (the native app) | CI only: `native-android.yml` builds the engine for each ABI, runs the unit tests, lint and a debug APK, then the instrumented tests on an emulator (docs/NATIVE-ANDROID.md) |
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
 
 An API that changes changes its document, which the web app's types come
 from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn
--B test` in springboot-app; then `npm run types` in web; commit all three.
+-B test` in springboot-app; then `npm run types` in web and
+`scripts/api-models-apps.sh` for the phones' models; commit them all.
 
 The browser tests (Playwright, `web/e2e`) need the whole stack and run in
 CI; write or update the spec for a change a pilot sees, and let CI run it.

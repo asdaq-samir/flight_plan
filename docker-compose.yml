@@ -5,7 +5,7 @@
 name: wingtip
 
 # Shared, not copy-pasted into each service below -- three of the
-# Python services (planning-service, model-service, crewai-agent) had
+# Python services (planning-service, crewai-agent and, once, model-service) had
 # byte-identical healthcheck timing and the identical required-env
 # line for ANTHROPIC_API_KEY, which meant a change to either (say, a
 # longer start_period, or a reworded failure message) only actually
@@ -37,7 +37,7 @@ x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:-}
 
 services:
   # Jupyter, for the notebooks: on demand, behind its own profile, so a
-  # plain `docker compose up` leaves its 7 GB image and its memory alone.
+  # plain `docker compose up` leaves its image and its memory alone.
   # `docker compose up ml` (a service named on the command line starts
   # whatever its profile), or the developer console's System tab, which
   # starts its container once it has one (dev-services).
@@ -63,8 +63,8 @@ services:
   # the training image's default command is a full all-core retrain,
   # which then overwrote the candidate model the registry compares next.
   # Naming one still works as before: `docker compose run --rm
-  # pipeline-training retrain`, `docker compose build pipeline-processing
-  # pipeline-training` (the images the Airflow DAG runs).
+  # pipeline-training retrain`, or the whole training run, every stage in
+  # order: `docker compose run --rm pipeline-training run`.
   pipeline-processing:
     build:
       context: .
@@ -81,41 +81,23 @@ services:
     volumes:
       - .:/workspace
 
-  airflow:
-    restart: unless-stopped
+  # The training run (`python -m wingtip.pipeline run`: both models'
+  # stages in order, each promoted only if it beats the one serving), as
+  # a container the developer console's Retrain starts through
+  # dev-services -- which can start a container but never create one, so
+  # `docker compose create retrain` makes it once. Behind the `pipeline`
+  # profile and with no restart, so `docker compose up` never starts a
+  # run; started again, it runs again. It replaced Airflow (the owner,
+  # 2026-11-06): a scheduler, a web server and a metadata database for
+  # a DAG that had no schedule and was only ever started from here.
+  retrain:
     build:
       context: .
-      dockerfile: docker/Dockerfile.airflow
-    ports:
-      - "127.0.0.1:8081:8080"
+      dockerfile: docker/Dockerfile.training
+    profiles: ["pipeline"]
+    command: ["run"]
     volumes:
-      # data/ only -- promotion writes data/models -- and never the code:
-      # the DAGs and src are baked into the image (docker/Dockerfile.airflow),
-      # because this container holds the host's Docker socket and the
-      # repo is writable from ml, the pipeline jobs, planning-service and
-      # the agents. Code read from the repo here would run whatever any
-      # of them had written.
-      - ./data:/opt/project/data
-      # airflow_home_v3, not airflow_home: the 2.x airflow.cfg this volume
-      # held has no [api_auth]/jwt_secret -- a value Airflow 3's api-server
-      # requires and refuses to autogenerate into an existing cfg file. A
-      # fresh volume gets a fresh cfg with the new default.
-      - airflow_home_v3:/opt/airflow
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      # Where the DAG and wingtip are is the image's to say (it put them there).
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      # DockerOperator launches sibling containers via the mounted host
-      # socket -- their -v mounts are resolved by the HOST's Docker daemon,
-      # so they need the HOST's path to this project, not a path inside
-      # this container.
-      PROJECT_HOST_PATH: ${PWD}
-      # The DAG's DockerOperator tasks run the pipeline images Compose
-      # built for this project -- named <project>-pipeline-processing
-      # and <project>-pipeline-training, the project being this
-      # directory's name unless COMPOSE_PROJECT_NAME says otherwise.
-      PIPELINE_IMAGE_PREFIX: ${COMPOSE_PROJECT_NAME}
-    command: standalone
+      - .:/workspace
 
   db:
     restart: unless-stopped
@@ -144,9 +126,9 @@ services:
       - pgdata_pg18:/var/lib/postgresql
 
   # The developer console's one door onto Docker (docker/dev-services):
-  # which of four services are running, and starting one that is not.
+  # which of the services it may start are running, and starting one.
   # It holds the socket so planning-service doesn't, and answers those
-  # two requests for those four names in this project, nothing else --
+  # two requests for those names in this project, nothing else --
   # no create, no exec, no other container.
   #
   # It replaced tecnativa/docker-socket-proxy with CONTAINERS and POST
@@ -161,7 +143,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.dev-services
     environment:
-      DEV_SERVICES: ml,airflow,model-service,nav-log-agent
+      DEV_SERVICES: ml,retrain,nav-log-agent
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [docker-control]
@@ -174,8 +156,9 @@ services:
     # Serves no pages -- the front end is built into webapp's jar, and the
     # browser reaches this only through webapp's /api/planner/* proxy.
     # Mounts the project so it can write a new corridor's candidates and
-    # features into data/processed, the same directory model-service reads
-    # its feature stores from.
+    # features into data/processed, and read the chart model a retrain
+    # promotes into data/models/chart/current, which it scores with
+    # in-process (app.chart_scorer) and reads again when it changes.
     build:
       context: .
       dockerfile: planning-service/Dockerfile
@@ -186,15 +169,11 @@ services:
     networks: [default, docker-control]
     volumes:
       - .:/workspace
-      # Airflow's own home, read-only, for the one file /api/retrain
-      # needs: the admin password Airflow's standalone mode generates.
-      - airflow_home_v3:/airflow-home:ro
     environment:
       PYTHONPATH: /workspace/src
-      MODEL_SERVICE_URL: http://model-service:8000
       # Not the host's Docker socket -- the dev-services sidecar above,
-      # which routers/devservices.py asks which of four services are up
-      # and to start one.
+      # which routers/devservices.py asks which services are up and to
+      # start one, the training run (retrain) among them.
       DEV_SERVICES_URL: http://dev-services:8000
       # The clock the chart refresh's night-time window (see
       # planning-service/app/main.py) is read against: the desk this
@@ -221,37 +200,16 @@ services:
       SWIM_HOST_TFMS: ${SWIM_HOST_TFMS:-}
       SWIM_VPN_TFMS: ${SWIM_VPN_TFMS:-}
       SWIM_QUEUE_TFMS: ${SWIM_QUEUE_TFMS:-}
-      # /api/status probes these; /api/retrain starts the training DAG.
-      # All optional -- the AWS task sets none of them.
+      # /api/status probes these. Optional -- the AWS task sets neither.
       NAV_LOG_AGENT_URL: http://nav-log-agent:8000
       CREWAI_AGENT_URL: http://crewai-agent:8000
-      AIRFLOW_URL: http://airflow:8080
-      AIRFLOW_PASSWORDS_FILE: /airflow-home/simple_auth_manager_passwords.json.generated
       # Traces to Jaeger, with the tracing profile up and TRACING=1 (see
       # the jaeger service below); unset, the planner sends none.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${TRACING:+http://jaeger:4318}
       OTEL_SERVICE_NAME: planner
-    depends_on:
-      model-service:
-        condition: service_healthy
     healthcheck:
       <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-
-  model-service:
-    restart: unless-stopped
-    build: ./model-service
-    ports:
-      - "127.0.0.1:8000:8000"
-    # The chart reader's scorer (wingtip.chartmodel), as a retrain promotes
-    # it. Read-only -- serving never writes to it.
-    volumes:
-      - ./data/models/chart/current:/opt/ml/chart-model:ro
-    # No curl/wget in the python:3.14-slim base -- a stdlib urllib call
-    # needs neither.
-    healthcheck:
-      <<: *python-healthcheck
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
 
   nav-log-agent:
     restart: unless-stopped
@@ -488,7 +446,7 @@ services:
       APP_HSTS: "false"
 
   # Traces of a request from the webapp down through the planner to every
-  # source it asks (aviationweather.gov, the FAA, the USGS, model-service),
+  # source it asks (aviationweather.gov, the FAA, the USGS),
   # in Jaeger's UI on http://localhost:16686:
   #
   #   TRACING=true docker compose --profile tracing up -d jaeger webapp planning-service
@@ -509,6 +467,5 @@ networks:
 
 volumes:
   pgdata_pg18:
-  airflow_home_v3:
   # webapp's JVM class-data archive -- see JAVA_TOOL_OPTIONS on webapp.
   webapp-cds:

@@ -24,6 +24,9 @@ COPY web/ ./
 # and webapp-schema.d.ts, not committed).
 COPY planning-service/openapi.json /planning-service/openapi.json
 COPY springboot-app/openapi.json /springboot-app/openapi.json
+# The engine's contract, from which it generates the engine calls' types
+# (web/src/lib/engine/contract.ts, committed, made again here).
+COPY native/contract/engine.schema.json /native/contract/engine.schema.json
 RUN npm run types && npx vite build --outDir /web/dist --emptyOutDir
 
 # 25, not the truly-latest 26: spring-boot-maven-plugin 3.5.3's bundled

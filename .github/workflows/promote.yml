@@ -104,6 +104,11 @@ jobs:
     strategy:
       matrix:
         include:
+          # The three images the production server runs
+          # (docker-compose.prod.yml). crewai-agent and the pipeline stay
+          # out of production: the same briefing nav-log-agent writes, and
+          # retraining runs on the owner's machine (docs/README-AWS.md).
+          #
           # Repo root as context, for the same reason as images.hcl:
           # the Dockerfile builds web/ as its first stage.
           - service: webapp
@@ -118,14 +123,6 @@ jobs:
             ecrRepo: nav-log-agent
             context: .
             dockerfile: nav-log-agent/Dockerfile
-          # The four images the production server runs
-          # (docker-compose.prod.yml). crewai-agent and Airflow stay out
-          # of production: the same briefing nav-log-agent writes, and
-          # retraining run on the owner's machine (docs/README-AWS.md).
-          - service: model-service
-            ecrRepo: model-service
-            context: model-service
-            dockerfile: model-service/Dockerfile
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:

@@ -1,16 +1,9 @@
-import { callEngine } from "../../../../lib/engine/engine";
+import { callEngine, type EngineAnswer } from "../../../../lib/engine/engine";
 import type { NavLogRow } from "./rows";
 
-export interface ProfilePoint {
-  along_nm: number;
-  plan_ft: number;
-}
-
-export interface ProfileMark {
-  kind: "TOC" | "TOD";
-  along_nm: number;
-  plan_ft: number;
-}
+export type PlanProfile = EngineAnswer<"plan_profile">;
+export type ProfilePoint = PlanProfile["points"][number];
+export type ProfileMark = PlanProfile["marks"][number];
 
 /**
  * The plan's altitudes as a line over the ground, from the nav log's
@@ -19,9 +12,9 @@ export interface ProfileMark {
  * a mile out and the field -- and up again from a stop. Distances are the
  * legs' own, checkpoint to checkpoint; a row whose leg is not in yet ends
  * the line there. Worked out by the shared engine
- * (native/engine/src/motion/profile.rs), which the dry run flies.
+ * (native/crates/route/src/motion/profile.rs), which the dry run flies.
  */
-export function planProfile(rows: NavLogRow[]): { points: ProfilePoint[]; marks: ProfileMark[]; length_nm: number } {
+export function planProfile(rows: NavLogRow[]): PlanProfile {
   return callEngine("plan_profile", { rows });
 }
 

@@ -15,9 +15,9 @@ export function minimumsLine(m: VfrMinimums): string {
 }
 
 /** "CHICAGO, DUPAGE AIRPORT CLASS D" as "Chicago, Dupage Airport": the
- *  shared engine's (native/engine/src/wording), the iPhone's same. */
+ *  shared engine's (native/crates/wording/src/wording), the iPhone's same. */
 export function shortAirspaceName(name: string): string {
-  return callEngine<string>("short_airspace_name", { name });
+  return callEngine("short_airspace_name", { name });
 }
 
 

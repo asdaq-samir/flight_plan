@@ -1,14 +1,24 @@
 # src/
 
-`wingtip` — the domain library. Every aviation fact this project knows lives
-here: great-circle geometry, dead reckoning, airspace, terrain, weather,
-and reading checkpoints off a raster sectional chart.
+`wingtip` — the planner's Python. It does what needs the network and
+the big files: fetching the FAA's data and the weather, reading
+checkpoints off a raster sectional chart, drawing the chart's tiles,
+the training pipeline and the model registry, and putting a flight
+together from them.
+
+The aviation rules themselves belong to the Rust engine
+([`native/`](../native/README.md)), the lowest of the project's four
+layers, which this package reaches through `wingtip_native.call` by a
+rule's name. Some rules are still written here -- the cruise altitude,
+the nav log's legs and fuel, the weather's reading along a route, route
+options -- and issue #482 moves them into the engine, in that order;
+a new rule goes into the engine, not here (native/README.md says how).
 
 Nothing here serves HTTP, and nothing here imports a web framework.
-`planning-service`, the pipeline containers, Airflow and both Gen AI
-agents are all callers. That separation is the point — the same
-`navlog.py` runs inside a FastAPI request, a notebook cell, an Airflow
-task and a LangGraph tool, unchanged.
+`planning-service`, the pipeline containers and both Gen AI agents are
+all callers. That separation is the point — the same `navlog.py` runs
+inside a FastAPI request, a notebook cell, a pipeline container and a
+LangGraph tool, unchanged.
 
 ## Contents
 
@@ -109,7 +119,8 @@ question the previous rung raises.
 
 7. **Make it repeatable** (`pipeline.py`, `model_registry.py`). Wrap
    collect → engineer → retrain → evaluate → promote as callable
-   functions, so a notebook, a container and a DAG all run the same code.
+   functions, so a notebook, a container and the training run
+   (`python -m wingtip.pipeline run`) all run the same code.
 
 ### The method
 
@@ -145,12 +156,12 @@ Grouped by what they are for, not alphabetically.
 | `elevation.py` | USGS 3DEP point elevations. |
 | `terrain.py` | Terrain and obstacle floor for a route. |
 | `airports.py` | Identifier → coordinates, and the route form's search. |
-| `model_client.py` | model-service's `/score-detections`, the chart model's scores. The one client planning-service scores through -- a persistent `requests.Session`, not one connection per call. |
 | `planner_client.py` | planning-service's `/api/plan` and `/api/checkpoints`, for the two agents: the nav log they brief is the planner's own, not one they assemble. `requests` only, so importing it pulls in none of this package's other dependencies. |
 | `narrative.py` | What both narrative agents write from: the request they accept (`NarrativeRequest`) and the one briefing prompt, so the framework comparison is on one task. Its pydantic is on wingtip's list like any other dependency; the agents get theirs with their frameworks. |
 | `retry.py` | The one retry loop the four modules above share for their requests, and `upstream_detail`, the one reader of a service's reason in an error response (planner_client, and the planner's dev-services proxy). |
 
-**Deciding things**
+**Deciding things** — rules still written here, each to move into the
+engine (#482).
 
 | Module | What it decides |
 |---|---|
@@ -166,10 +177,9 @@ Grouped by what they are for, not alphabetically.
 |---|---|
 | `pipeline.py` | collect → engineer → retrain, callable and non-interactive. |
 | `model_registry.py` | Evaluate a retrained model, promote it if better. |
-| `model_candidates.py`, `torch_model.py` | The same regression in PyTorch, TensorFlow and Spark MLlib, each a re-runnable entry point that persists an artifact. |
 | `chartlabels.py` | Checkpoints marked by hand on the chart. |
 | `chartfeatures.py` | Features for the chart reader's detections. |
-| `chartmodel.py` | The chart model: the training page's 0-5 ratings on detections, trained in the training image, scored by model-service, ranking the planner's checkpoints. |
+| `chartmodel.py` | The chart model: the training page's 0-5 ratings on detections, trained in the training image, scored in the planner (`planning-service/app/chart_scorer.py`), ranking the planner's checkpoints. |
 | `chartlabels_join.py` | Ratings carried onto detections by position. |
 | `features.py` | Feature engineering for the tabular model. |
 | `config.py` | Paths and thresholds, free of heavy imports. |

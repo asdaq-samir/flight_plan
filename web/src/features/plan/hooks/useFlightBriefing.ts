@@ -8,6 +8,7 @@ import { ceilingAndVisibility, PLAN_NAME, reportedWind } from "../format";
 import { feetRange, flightLevel, grouped } from "../../../lib/units";
 import { isAirwayToken } from "../../../lib/identSchema";
 import { useLoad } from "./useLoad";
+import { armText } from "../../../lib/weightBalance";
 import { underMinimums } from "../../../lib/minimums";
 import { usePreferences } from "../../../lib/preferences";
 import { faaWords, gairmetTitle, sigmetHazard, suaAltitudes } from "../../../lib/advisories";
@@ -267,7 +268,7 @@ export function useFlightBriefing({
     balance: {
       pending: !nav, worked: !!loading && !!loaded,
       problems: loaded?.problems ?? [],
-      takeoff: loaded ? `${grouped(loaded.takeoff.weightLb)} lb at ${loaded.takeoff.armIn.toFixed(1)} in` : null,
+      takeoff: loaded ? `${grouped(loaded.takeoff.weightLb)} lb at ${armText(loaded.takeoff)}` : null,
     },
     risk: assessment ? { level: assessment.level, line: riskLine(assessment) } : null,
   });

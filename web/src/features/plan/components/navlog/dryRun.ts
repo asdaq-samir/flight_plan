@@ -60,16 +60,13 @@ export interface DryRun {
  * instead of landing: its missed approach and once round its hold,
  * climbing at the standard gradient (missedHeights).
  *
- * Worked out by the shared engine (native/engine/src/motion/dry_run.rs,
+ * Worked out by the shared engine (native/crates/route/src/motion/dry_run.rs,
  * through lib/engine), once a route: the rules and their sources live
  * there. The run's figures between its points below are asked every
  * frame as it plays, and stay here.
  */
 export function dryRunOf(rows: NavLogRow[], startS: number, line?: [number, number][], missed = false): DryRun {
-  const run = callEngine<{
-    points: PastFlightPoint[]; along_nm: number[]; fuel_gal: number[]; row_t: number[]; bends: DryRun["bends"];
-    missable: boolean; final: { from: number; to: number } | null; landings: DryRun["landings"];
-  }>("dry_run", { rows, start_s: startS, line: line ?? null, missed });
+  const run = callEngine("dry_run", { rows, start_s: startS, line: line ?? null, missed });
   if (!run.row_t.length) return { points: [], alongNm: [], fuelGal: [], rowT: [], bends: [], landings: [] };
   return {
     points: run.points, alongNm: run.along_nm, fuelGal: run.fuel_gal, rowT: run.row_t, bends: run.bends, missable: run.missable,

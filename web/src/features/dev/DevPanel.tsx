@@ -13,7 +13,7 @@ import { Progress } from "../../components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import { api, errorMessage } from "../../lib/api/client";
 import { statusQuery } from "../../lib/queryClient";
-import type { ModelComparisonEntry, Status } from "../../lib/api/types";
+import type { Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
@@ -74,12 +74,8 @@ export function DevPanel() {
   );
 }
 
-/** Every algorithm anyone has actually trained for this problem, not
- *  just the sklearn family retrain() grid-searches -- PyTorch/
- *  TensorFlow/Spark's own candidates (wingtip.model_candidates) show up
- *  here too once trained. Sorted best-first; each row names its own
- *  metric rather than implying they're all on the same footing (see
- *  the backend's own reasoning in planning-service's docstring). */
+/** The scikit-learn models retrain() grid-searched for the one
+ *  serving, each by its 5-fold CV error, sorted best-first. */
 const modelComparisonChartConfig = {
   score: { label: "MAE", color: "var(--chart-1)" },
 } satisfies ChartConfig;
@@ -91,7 +87,7 @@ const PROMOTED_BAR_COLOR = "#10b981";
 
 function ModelComparison() {
   const { data, error } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison });
-  // A candidate whose metrics file has no score sorts last, not first.
+  // A model with no score sorts last, not first.
   const rows = data ? [...data.models].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)) : null;
 
   // A group of its own, the chart its one row and what it shows in the
@@ -128,9 +124,7 @@ function ModelComparison() {
                       <span className="text-muted-foreground">MAE</span>
                       <div className="ml-auto flex items-baseline gap-1 font-mono font-medium text-foreground tabular-nums">
                         {mae(Number(value))}
-                        <span className="font-sans font-normal text-muted-foreground">
-                          {(item.payload as ModelComparisonEntry).metric === "cv_mae" ? "CV" : "held-out"}
-                        </span>
+                        <span className="font-sans font-normal text-muted-foreground">CV</span>
                       </div>
                     </div>
                   )}
@@ -271,29 +265,56 @@ function ChartModelGroup({ chart }: { chart: NonNullable<Status["model"]>["chart
   );
 }
 
+/** What a stage of the run is called on the page. */
+const STAGE_NAMES: Record<string, string> = {
+  landmarks_ready: "Landmark ratings",
+  collect: "Collect landmarks",
+  feature_engineer: "Landmark features",
+  retrain: "Train the landmark model",
+  evaluate: "Weigh it against the one serving",
+  promote: "Promote it",
+  chart_retrain: "Train the chart model",
+  chart_evaluate: "Weigh it against the one serving",
+  chart_promote: "Promote it",
+};
+
+const STAGE_STATES: Record<string, string> = {
+  pending: "Waiting", running: "Running", success: "Done", skipped: "Skipped", failed: "Failed",
+};
+
 /**
- * The pipeline that would replace the models: whether Airflow, which
- * Retrain starts, is running, how its last run went as a badge beside the
- * heading, and how to retrain by hand without it. Retrain itself is the
- * head's (PerfHead). (Airflow is a link in Status's Elsewhere in the
- * stack.)
+ * The training run that would replace the models: how its last run went
+ * as a badge beside the heading, then a row a stage -- the one under way,
+ * and what each came to or why it was skipped -- from the file the run
+ * writes as it goes. Where the planner cannot start one, why and the
+ * command to run it by hand. Retrain itself is the head's (PerfHead).
  */
 function TrainingGroup() {
   const { pipeline, lastRun, running } = useRetrain();
+  const stages = lastRun?.stages ?? [];
   return (
     <ListGroup
       title="Training"
-      badge={pipeline?.airflow_reachable && (lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
-      footer={!pipeline?.airflow_reachable
-        ? <>Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose run --rm pipeline-training chart-retrain</code>.</>
+      badge={(lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
+      footer={!pipeline?.startable
+        ? <>{pipeline?.detail ?? "The planner cannot start a run from here."} Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose up retrain</code>.</>
         : undefined}
     >
-      <ListRow
-        title="Airflow"
-        description={pipeline?.airflow_reachable ? "The training DAG, which Retrain starts" : pipeline?.detail ?? "Not reachable from here"}
-        value={pipeline?.airflow_reachable ? "Running" : "Not running"}
-        data-testid="airflow-row"
-      />
+      {!lastRun && (
+        <ListRow muted title={running ? "Starting the run…" : "No run yet"} data-testid="run-row" />
+      )}
+      {lastRun?.error && (
+        <ListRow title={<span className="text-destructive-ink">{lastRun.error}</span>} data-testid="run-error" />
+      )}
+      {stages.map(s => (
+        <ListRow
+          key={s.name}
+          title={STAGE_NAMES[s.name] ?? s.name}
+          description={s.detail ?? undefined}
+          value={STAGE_STATES[s.state] ?? s.state}
+          data-testid={`stage-${s.name}`}
+        />
+      ))}
     </ListGroup>
   );
 }
@@ -304,10 +325,7 @@ function TrainingGroup() {
  *  from the Model group's count. */
 function Versions({ model }: { model: NonNullable<Status["model"]> }) {
   return (
-    <ListGroup
-      title="Newest first"
-      footer={model.candidates.length > 0 && `Also trained, not promoted: ${model.candidates.map(c => `${c.name} (${agoOrDate(c.trained_at)})`).join(", ")}.`}
-    >
+    <ListGroup title="Newest first">
       {model.versions.map((v, i, all) => {
         const older = all[i + 1];
         const delta = v.cv_mae != null && older?.cv_mae != null ? v.cv_mae - older.cv_mae : null;
@@ -498,9 +516,9 @@ function useOnMap(corridors: Status["corridors"]) {
  *  what loads a route. It offered to collect one first, from
  *  OpenStreetMap, before the chart was read instead. This planner cannot
  *  train in-process (no scikit-learn of its own, on purpose), so the
- *  retrain goes through Airflow, the same DAG the AWS trigger Lambda
- *  starts; without Airflow reachable the Performance tab says how to run
- *  the pipeline by hand instead. */
+ *  retrain is a container of its own (`python -m wingtip.pipeline run`)
+ *  the planner starts; where it cannot, the Performance tab says how to
+ *  run it by hand instead. */
 function TrainingTab() {
   return (
     <div className="space-y-6">
@@ -639,17 +657,10 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
   // pool, timed out at ten seconds, and read "no answer" for a gateway
   // that had just served the page.
   const services = status?.services;
-  const modelService = services?.model_service;
   const rows: { name: string; health: Health; detail: string }[] = [
     { name: "webapp (Spring Boot)", health: reported(services?.webapp, failed), detail: "the gateway, sessions, aircraft and flights" },
     { name: "db (Postgres + pgvector)", health: reported(services?.db, failed), detail: "application data and the agent's memory" },
-    { name: "planning-service", health: reported(status ? { up: true } : null, failed), detail: "course, checkpoints, nav log, briefing, chart reading" },
-    {
-      name: "model-service", health: reported(modelService, failed),
-      detail: modelService?.up
-        ? modelService.trained_at ? `serving the chart model trained ${agoOrDate(modelService.trained_at)}` : "no chart model promoted yet"
-        : modelService?.detail ?? "scores the chart's detections",
-    },
+    { name: "planning-service", health: reported(status ? { up: true } : null, failed), detail: "course, checkpoints and the chart model's scores, nav log, briefing, chart reading" },
     { name: "nav-log-agent (LangGraph, MCP)", health: reported(services?.nav_log_agent, failed), detail: "the briefing narrative, with memory" },
     { name: "crewai-agent", health: reported(services?.crewai_agent, failed), detail: "the same narrative, in CrewAI" },
   ];
@@ -657,9 +668,7 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
   const links: { label: string; href: string; localOnly?: boolean; service?: string; note?: string }[] = [
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
-    { label: "model-service API docs", href: `http://${host}:8000/docs`, localOnly: true, service: "model-service" },
     { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true, service: "ml" },
-    { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true, service: "airflow" },
     // The sidecar can start it; its one page is the MCP stream, which
     // answers 401 without the bearer token -- enough to see it is up.
     {

@@ -1647,7 +1647,7 @@ export function usePlanWorkspace({ panel, setPanel }: Pick<WorkspaceProps, "pane
     listAway("favorites");
     focusQuietly(() => searchInput.current?.focus());
   };
-  // Home's, My Plane's or the airplane Favorites' Add on the pill: the
+  // Home's, My Airplane's or the airplane Favorites' Add on the pill: the
   // search asked for it, focused within the tap, the panel where it is.
   const addFromPill = (what: "home" | "mine" | "airplane") => {
     if (what === "home") {

@@ -82,7 +82,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
     return () => window.clearTimeout(later);
   }, [wanted, asked, isFetching]);
   const fix = useOwnFix();
-  // My Plane's Add asked for the pilot's own airplane: the one picked --
+  // My Airplane's Add asked for the pilot's own airplane: the one picked --
   // found, its FAA record, a Favorite, a recent -- is kept as theirs
   // rather than opened, as the airport search's Home is.
   const pickingMine = useTabSearch(s => s.pickingMine);
@@ -177,7 +177,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
       {/* Asked for the pilot's own airplane: what to do. */}
       {pickingMine && (
         <p className={cn("px-1 text-foreground", TEXT.detail)} data-testid="aircraft-picking-mine">
-          Search for your airplane by its N-number, or tap it below, to keep it as your Plane.
+          Search for your airplane by its N-number, or tap it below, to keep it as your Airplane.
         </p>
       )}
       {pickingFavorite && (
@@ -204,7 +204,7 @@ export default function AircraftCard({ onPick, onPickHex, strip }: {
  *  small tiles -- each its name and type -- opening its card. */
 export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
   onOpen: (hex: string) => void;
-  /** My Plane's Add: the panel up and the search asked for it. */
+  /** My Airplane's Add: the panel up and the search asked for it. */
   onAddMine: () => void;
   /** The Favorites' Add, at the strip's end: the search asked for one. */
   onAddFavorite: () => void;
@@ -213,10 +213,10 @@ export function AircraftFavoriteStrip({ onOpen, onAddMine, onAddFavorite }: {
   const mine = usePreferences(s => s.myAircraft);
   return (
     <PillStrip testId="pill-aircraft-favorites">
-      {/* My Plane first, with Add until one is kept, as Home is. */}
+      {/* My Airplane first, with Add until one is kept, as Home is. */}
       <SmallTile
-        mark={<SmallMark icon={<HomePlane kind={mine ? keptKind(mine) : "high"} />} className={PLANE_TILE} />} title="Plane" detail={mine?.name ?? "Add"}
-        label={mine ? `Plane, ${mine.name}` : "Add your Plane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
+        mark={<SmallMark icon={<HomePlane kind={mine ? keptKind(mine) : "high"} />} className={PLANE_TILE} />} title="Airplane" detail={mine?.name ?? "Add"}
+        label={mine ? `Airplane, ${mine.name}` : "Add your Airplane"} onClick={mine ? () => onOpen(mine.hex) : onAddMine} testId="pill-aircraft-mine"
       />
       {favorites.map(a => <KeptAircraftTile key={a.hex} aircraft={a} onClick={() => onOpen(a.hex)} testId="pill-aircraft-favorite" />)}
       <SmallTile

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { callEngine } from "./engine/engine";
-import { leaveLimit, ROUTES, segmentAltitudes, type LostCommsAnswer } from "./lostComms";
+import { leaveLimit, ROUTES, segmentAltitudes } from "./lostComms";
 import lostCommsFixture from "./fixtures/lostComms.json";
 
 describe("two-way radio failure, 91.185", () => {
@@ -42,6 +42,6 @@ describe("the shared lost-comms fixture", () => {
 
 describe("the page's routes are the engine's", () => {
   test("the same keys, labels and rules, in 91.185(c)(1)'s order", () => {
-    expect(callEngine<LostCommsAnswer>("lost_comms", { segments: [] }).routes).toEqual(ROUTES);
+    expect(callEngine("lost_comms", { segments: [] }).routes).toEqual(ROUTES);
   });
 });

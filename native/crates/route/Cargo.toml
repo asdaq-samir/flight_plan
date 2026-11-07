@@ -1,0 +1,15 @@
+[package]
+name = "wingtip-route"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The route and what flies it: the pilot's own points, holds and procedures picked, the things that move (traffic, the glide, the profile and its dry run, a flown track) and instrument approaches taught and debriefed"
+
+[lib]
+name = "wingtip_route"
+
+# Only the engine's own crates, below this one (native/README.md):
+# plain Rust, so the phones carry it as it is.
+[dependencies]
+wingtip-geo = { path = "../geo" }
+wingtip-figures = { path = "../figures" }

@@ -95,8 +95,3 @@ services:
       # 16 GB for the whole stack and the browsers; the default of two is
       # for a machine of one's own.
       CHARTS_PREPARE_AT_ONCE: "1"
-  model-service:
-    image: wingtip-model-service:ci
-    healthcheck:
-      start_period: 60s
-      start_interval: 1s

@@ -9,45 +9,19 @@
  */
 import { heardThrough, useAtcRadio } from "./atcRadio";
 import { holdForListening } from "./audioInput";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 import { listen } from "./listen";
 import { altFt } from "./units";
 
-export interface AtisWind {
-  from_deg: number | null;
-  kt: number | null;
-  gust_kt: number | null;
-  variable: boolean;
-}
-
-export interface AtisLayer {
-  cover: "clear" | "few" | "scattered" | "broken" | "overcast" | "obscured";
-  base_ft: number | null;
-}
-
-export interface AtisReading {
-  /** The information letter, "C". */
-  information: string | null;
-  /** "1852Z". */
-  time_z: string | null;
-  wind: AtisWind | null;
-  visibility_sm: number | null;
-  sky: AtisLayer[];
-  temp_c: number | null;
-  dewpoint_c: number | null;
-  altimeter_inhg: number | null;
-  /** "ILS runway 19R", "visual". */
-  approach: string | null;
-  runways: { landing: string[]; departing: string[] };
-  /** What else was said, a clause each. */
-  remarks: string[];
-  /** The transcript as heard. */
-  raw: string;
-}
+/** A broadcast's figures as the engine reads them (read_atis): a figure
+ *  not heard is null. The shapes are the engine's contract's. */
+export type AtisReading = EngineAnswer<"read_atis">;
+export type AtisWind = NonNullable<AtisReading["wind"]>;
+export type AtisLayer = AtisReading["sky"][number];
 
 /** The broadcast read by the engine (the rule read_atis). */
 export function readAtis(text: string): AtisReading {
-  return callEngine<AtisReading>("read_atis", { text });
+  return callEngine("read_atis", { text });
 }
 
 /** Whether anything of a broadcast was heard at all. */

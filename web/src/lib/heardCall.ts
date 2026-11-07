@@ -10,7 +10,7 @@
  * else's: AIM 4-2-4 a.1 warns of exactly that. What it asks of us is read
  * as a clearance is (lib/clearance), and a "direct" to a place besides.
  *
- * The hearing is the shared engine's (native/engine/src/clearance.rs,
+ * The hearing is the shared engine's (native/crates/radio/src/clearance.rs,
  * asked through lib/engine as our_call, direct_of and call_pattern), held
  * to fixtures/heardCalls.json as this module's tests are.
  */
@@ -21,14 +21,14 @@ import { callEngine } from "./engine/engine";
  *  the engine's our_call, the runs of letters and figures heard against
  *  the registration's forms within the first words. */
 export function ourCall(text: string, tail: string): boolean {
-  return callEngine<boolean>("our_call", { text, tail });
+  return callEngine("our_call", { text, tail });
 }
 
 /** The place a "direct" sends us to, as words for the planner to find
  *  ("gopher", "KDLH"), or null where none was said: the engine's
  *  direct_of. */
 export function directOf(text: string): string | null {
-  return callEngine<string | null>("direct_of", { text });
+  return callEngine("direct_of", { text });
 }
 
 /** A transmission heard, and what it asks of us. */
@@ -49,5 +49,5 @@ export function callOf(text: string, tail: string | null): Call {
  *  where `tail` is no registration. The engine's call_pattern, so the
  *  phone can ask for it through wt_call too. */
 export function callPattern(tail: string): string | null {
-  return callEngine<string | null>("call_pattern", { tail });
+  return callEngine("call_pattern", { tail });
 }

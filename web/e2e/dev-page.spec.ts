@@ -114,13 +114,13 @@ test("a retrain confirmed from the panel's More opens Perf, to follow it", async
     const response = await route.fetch();
     const json = await response.json();
     json.pipeline = {
-      ...json.pipeline, airflow_configured: true, airflow_reachable: true, last_run: null,
+      ...json.pipeline, startable: true, last_run: null,
       training: { usable: 40, needed: 30, ready: true, rated: 45, off_detection: 5, reading: [], message: "40 of the 30 ratings training needs." },
     };
     await route.fulfill({ response, json });
   });
   await page.route("**/api/planner/retrain", route =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ dag_run_id: "manual__test", state: "queued" }) }));
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ started: true, state: "running" }) }));
   await page.goto("/app/dev?dep=C81&dest=KDLH");
   await settle(page);
   await expect(consoleSheet(page)).toHaveCount(0);
@@ -144,7 +144,7 @@ test("Performance: Retrain says why it is off in the planner's words, and the ch
     const response = await route.fetch();
     const json = await response.json();
     json.pipeline = {
-      ...json.pipeline, airflow_configured: true, airflow_reachable: true, last_run: null,
+      ...json.pipeline, startable: true, last_run: null,
       training: {
         usable: 28, needed: 30, ready: false, rated: 32, off_detection: 4, reading: [],
         message: "28 of the 30 ratings training needs. 4 of your 32 are on points the chart reader no longer finds. Rate 2 more.",

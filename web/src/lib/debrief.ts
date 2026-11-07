@@ -13,7 +13,7 @@
  * altimeter's and a ground track is not a heading, so each figure is
  * close to what the examiner sees, not it -- the page says so.
  *
- * Worked out by the shared engine (native/engine/src/figures/debrief.rs,
+ * Worked out by the shared engine (native/crates/figures/src/figures/debrief.rs,
  * through lib/engine), the very code behind the planner's /api/debrief and
  * the phones' wt_debrief. The tolerances stay here too, for the page's
  * headings and marks; debrief.test.ts holds them to the engine's.
@@ -99,27 +99,10 @@ export interface Debrief {
   notes: string[];
 }
 
-/** The engine's "debrief" answer, as /api/debrief gives it: snake_case,
- *  with the marks the native app shows (the web's page makes its own). */
-interface Answer {
-  debrief: {
-    takeoff: number; landing: number; flown_min: number; planned_min: number | null;
-    legs: { from: string; to: string; planned_alt_ft: number | null; altitude_within: number | null; worst_alt_ft: number | null;
-      course_deg: number | null; course_within: number | null; worst_off_nm: number | null }[];
-    passes: { name: string; category: string; due_min: number | null; passed_min: number | null; closest_nm: number | null }[];
-    patterns: { ident: string; alt_ft: number; pattern_ft: number }[];
-    profile: { along_nm: number; alt_ft: number }[];
-    planned: { from_nm: number; to_nm: number; alt_ft: number | null }[];
-    line: { lat: number; lon: number; off: boolean }[];
-    has_altitude: boolean;
-    notes: string[];
-  } | null;
-}
-
 /** A flight debriefed against its track; null where the track never
  *  flew. `patterns` are the fields' pattern altitudes, ft MSL, by ident. */
 export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<string, number> = {}): Debrief | null {
-  const { debrief: d } = callEngine<Answer>("debrief", {
+  const { debrief: d } = callEngine("debrief", {
     checkpoints: flight.checkpoints.map(c => ({
       sequence_no: c.sequenceNo, name: c.name, category: c.category, lat: c.lat, lon: c.lon, along_track_nm: c.alongTrackNm,
       true_course_deg: c.trueCourseDeg, ete_min: c.eteMin, altitude_ft: c.altitudeFt,

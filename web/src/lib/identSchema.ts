@@ -21,7 +21,7 @@ export function identOf(value: string | null | undefined): string {
 /** What a point is by its form, as the shared engine tells it
  *  (crate::route::points, which the planner's query and the phones ask
  *  too): a fix's or a field's ident, the pilot's own point, or null. */
-const pointKind = (ident: string) => callEngine<"fix" | "own" | null>("point_kind", { text: ident });
+const pointKind = (ident: string) => callEngine("point_kind", { text: ident });
 
 /** A stop's ident: an airport's, or a named fix's -- a VFR waypoint
  *  (VPBNG), a GPS waypoint -- two to five letters and digits; or the
@@ -42,13 +42,13 @@ export const isFixIdent = (ident: string) => pointKind(ident) === "fix";
  *  (wingtip.fixes.parse_frd); null for any other, or one whose course is past
  *  360 or whose distance is nothing or past 999 nm. */
 export function frdOf(ident: string): { base: string; course: number; distanceNm: number } | null {
-  const frd = callEngine<{ base: string; course: number; distance_nm: number } | null>("frd_read", { text: ident });
+  const frd = callEngine("frd_read", { text: ident });
   return frd && { base: frd.base, course: frd.course, distanceNm: frd.distance_nm };
 }
 
 /** The pilot's point as the route writes it: "VPBNG/090/30". */
 export const frdIdent = (base: string, course: number, distanceNm: number) =>
-  callEngine<string>("frd_write", { base, course, distance_nm: distanceNm });
+  callEngine("frd_write", { base, course, distance_nm: distanceNm });
 
 /** A present position as a route's departure, "@42.3246,-88.0741" (the
  *  planner's app.common.position_of): Fly Here's Direct-To from where the

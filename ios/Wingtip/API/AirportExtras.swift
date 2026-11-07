@@ -2,42 +2,30 @@ import Foundation
 
 // The planner's answers an airport's card and the map read beyond the
 // card itself (planning-service/openapi.json, app.schemas), as Codable by
-// hand in the document's own names, as Models.swift has them. A property
-// the document may leave out or send as null is optional.
+// hand in the document's own names, as Models.swift has them; those
+// generated from the document (Generated/PlannerModels.swift) are
+// typealiases here. A property the document may leave out or send as
+// null is optional.
 
 /// The nearest station's report, for a field with none of its own
 /// (NearbyMetar, wingtip.weather.nearest_report): within 30 nm, `near` where
 /// within the ten statute miles a report is said of.
-struct NearbyMetar: Codable, Equatable, Sendable {
-    let ident: String
-    let distanceNm: Double
-    let bearingDeg: Int
-    let near: Bool
-    let metar: Metar
-}
+typealias NearbyMetar = APINearbyMetar
 
 /// One of a field's charts in the d-TPP (TerminalChart, wingtip.publications):
 /// `kind` the FAA's chart code -- APD the airport diagram, HOT its hot
 /// spots, LAH land and hold short, IAP an approach, DP and ODP a
 /// departure, STR an arrival, MIN the takeoff or alternate minimums --
 /// `name` its title as the FAA prints it, `url` its PDF.
-struct TerminalChart: Codable, Equatable, Sendable, Identifiable {
-    let kind: String
-    let name: String
-    let url: String
+typealias TerminalChart = APITerminalChart
 
+extension TerminalChart: Identifiable {
     var id: String { url }
 }
 
 /// A runway's end (RunwayEnd): its true heading, and the side its traffic
 /// pattern turns to.
-struct RunwayEnd: Codable, Equatable, Sendable {
-    let ident: String
-    var headingTrueDeg: Double?
-    var lat: Double?
-    var lon: Double?
-    var traffic: String?
-}
+typealias RunwayEnd = APIRunwayEnd
 
 /// The pictures behind the card's diagram (AirportPhotos): the USGS's
 /// aerial of every field, and a free photo from the ground where

@@ -1,6 +1,11 @@
 import type { Frequency, ProcedureDrawing, ProcedureFix, ProcedureMissedLeg } from "./api/types";
-import { callEngine } from "./engine/engine";
+import type { LessonFocus } from "./engine/contract";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { LatLon } from "./geo";
+
+/** What a step of the lesson shows on the map: a fix ringed, a part of
+ *  the procedure's line drawn over (the engine's contract). */
+export type { LessonFocus };
 
 /**
  * An approach taught as an instructor teaches it, at the owner's ask
@@ -10,7 +15,7 @@ import type { LatLon } from "./geo";
  * coded data does not hold -- the minimums above all -- is "See the
  * plate", never a figure made up. A training aid; the plate flies.
  *
- * Worked out by the shared engine (native/engine/src/approach/lesson.rs,
+ * Worked out by the shared engine (native/crates/route/src/approach/lesson.rs,
  * through lib/engine), so the phones teach the same lesson with no
  * signal: the descent rate on the path (the TPP's rate of descent table),
  * the approach category (14 CFR 97.3), the minimums' kind (AIM 5-4-5),
@@ -19,14 +24,7 @@ import type { LatLon } from "./geo";
  * figures. The airplane moved along the line on the map stays the page's.
  */
 
-export type LessonSegment = "transition" | "final" | "missed";
-
-/** What a step of the lesson shows on the map: a fix ringed, a part of
- *  the procedure's line drawn over. */
-export interface LessonFocus {
-  fix: string | null;
-  segment: LessonSegment | null;
-}
+export type LessonSegment = NonNullable<LessonFocus["segment"]>;
 
 export interface LessonInput {
   drawing: ProcedureDrawing;
@@ -46,29 +44,29 @@ export const SEE_THE_PLATE = "See the plate";
  *  `gsKt`, ft/min: GS × 101.3 × tan(angle), the FAA's Rate of Descent
  *  Table in the front of each Terminal Procedures Publication. */
 export function descentFpm(gsKt: number, angleDeg: number): number {
-  return callEngine<number>("approach_descent_fpm", { gs_kt: gsKt, angle_deg: angleDeg });
+  return callEngine("approach_descent_fpm", { gs_kt: gsKt, angle_deg: angleDeg });
 }
 
 /** A descent rate as a pilot sets it on the VSI: to the nearest 10 ft/min. */
-export const roundedFpm = (fpm: number) => callEngine<number>("approach_rounded_fpm", { fpm });
+export const roundedFpm = (fpm: number) => callEngine("approach_rounded_fpm", { fpm });
 
 /** An airplane's approach category by its speed, 14 CFR 97.3: VREF, or
  *  1.3 × VSO where no VREF is specified. Null with neither speed. */
-export function approachCategory(vrefKt: number | null | undefined, vsoKt?: number | null): "A" | "B" | "C" | "D" | "E" | null {
+export function approachCategory(vrefKt: number | null | undefined, vsoKt?: number | null): EngineAnswer<"approach_category"> {
   return callEngine("approach_category", { vref_kt: vrefKt ?? null, vso_kt: vsoKt ?? null });
 }
 
 /** Which minimums an approach is flown to, by its kind (AIM 5-4-5 and
  *  FAA-H-8083-16B, chapter 4): a DA, an MDA, or either on an RNAV (GPS). */
-export type MinimumsKind = "DA" | "MDA" | "DA or MDA";
+export type MinimumsKind = EngineAnswer<"approach_minimums_kind">;
 
 export function minimumsKind(name: string): MinimumsKind {
-  return callEngine<MinimumsKind>("approach_minimums_kind", { name });
+  return callEngine("approach_minimums_kind", { name });
 }
 
 /** A fix as said aloud: a runway's threshold ("RW08") by its runway. */
 export function fixName(ident: string): string {
-  return callEngine<string>("approach_fix_name", { ident });
+  return callEngine("approach_fix_name", { ident });
 }
 
 /** The approach's own fixes in the order flown: its missed approach's left out. */
@@ -77,26 +75,27 @@ export function approachFixes(drawing: ProcedureDrawing): ProcedureFix[] {
 }
 
 type Place = { lat: number; lon: number };
-const places = (path: Place[]): LatLon[] => path.map(p => ({ lat: p.lat, lon: p.lon }));
+const place = (p: Place): LatLon => ({ lat: p.lat, lon: p.lon });
+const places = (path: Place[]): LatLon[] => path.map(place);
 
 /** The procedure's line in the order flown -- its transition, its final,
  *  then its missed approach -- each joint once. */
 export function lessonPath(drawing: ProcedureDrawing): LatLon[] {
-  return callEngine<LatLon[]>("approach_lesson_path", { drawing });
+  return callEngine("approach_lesson_path", { drawing });
 }
 
 /** The procedure's line from `a` on to `b`, each end where it is: the way
  *  the lesson's airplane flies from one fix to the next. Straight between
  *  them where the line has no point near either. */
 export function pathBetween(path: LatLon[], a: LatLon, b: LatLon): LatLon[] {
-  const way = callEngine<LatLon[]>("approach_path_between", { path: places(path), a: places([a])[0], b: places([b])[0] });
+  const way = callEngine("approach_path_between", { path: places(path), a: place(a), b: place(b) });
   // Its ends the very places given, as they were.
   return [a, ...way.slice(1, -1), b];
 }
 
 /** How far along `path` its point nearest `at` is, nm. */
 export function alongNm(path: LatLon[], at: LatLon): number {
-  return callEngine<number>("approach_along_nm", { path: places(path), at: places([at])[0] });
+  return callEngine("approach_along_nm", { path: places(path), at: place(at) });
 }
 
 /** The missed approach as the plate's words say it, from its coded legs:
@@ -104,7 +103,7 @@ export function alongNm(path: LatLon[], at: LatLon): number {
  *  intercept, …, then hold at VTU, left turns, 131° inbound." Null with
  *  none, or where the first leg is one these words do not say. */
 export function missedWords(legs: ProcedureMissedLeg[] | undefined): string | null {
-  return callEngine<string | null>("approach_missed_words", { legs: legs ?? [] });
+  return callEngine("approach_missed_words", { legs: legs ?? [] });
 }
 
 /** A time as a stopwatch says it: "2:05". */
@@ -116,15 +115,10 @@ export function stopwatch(seconds: number): string {
 /** The field's radio a briefing calls, in its order: the weather, approach
  *  control, then the tower, or the CTAF at a field with none. */
 export function briefFrequencies(frequencies: Frequency[] | null | undefined): string[] {
-  return callEngine<string[]>("approach_brief_frequencies", { frequencies: frequencies ?? [] });
+  return callEngine("approach_brief_frequencies", { frequencies: frequencies ?? [] });
 }
 
-export interface BriefItem {
-  key: string;
-  title: string;
-  lines: string[];
-  focus: LessonFocus;
-}
+export type BriefItem = EngineAnswer<"approach_brief">[number];
 
 /**
  * The approach briefing, the way an instructor has a student brief it
@@ -135,7 +129,7 @@ export interface BriefItem {
  * approach. Each shows its fix or its part on the map.
  */
 export function approachBrief(input: LessonInput): BriefItem[] {
-  return callEngine<BriefItem[]>("approach_brief", {
+  return callEngine("approach_brief", {
     drawing: input.drawing, frequencies: input.frequencies ?? [], vref_kt: input.vrefKt ?? null, vso_kt: input.vsoKt ?? null,
   });
 }
@@ -163,7 +157,7 @@ export interface CoachStep {
  * words (14 CFR 91.175(c) and (e)) -- and then the missed approach flown.
  */
 export function coachingSteps(input: LessonInput, gsKt: number): CoachStep[] {
-  const steps = callEngine<(Omit<CoachStep, "altitudeFt"> & { altitude_ft: number | null })[]>("approach_coaching", { drawing: input.drawing, gs_kt: gsKt });
+  const steps = callEngine("approach_coaching", { drawing: input.drawing, gs_kt: gsKt });
   return steps.map(({ altitude_ft, ...step }) => ({ ...step, altitudeFt: altitude_ft }));
 }
 
@@ -184,23 +178,14 @@ export interface ProfileMark {
  * that angle to the missed approach point (`path`), as the plate's profile
  * view draws it.
  */
-export function lessonProfile(drawing: ProcedureDrawing): { marks: ProfileMark[]; path: { from: { nm: number; ft: number }; to: { nm: number; ft: number } } | null } {
-  const { marks, path } = callEngine<{ marks: (Omit<ProfileMark, "alongNm"> & { along_nm: number })[]; path: { from: { nm: number; ft: number }; to: { nm: number; ft: number } } | null }>(
-    "approach_profile", { drawing },
-  );
+export function lessonProfile(drawing: ProcedureDrawing): { marks: ProfileMark[]; path: EngineAnswer<"approach_profile">["path"] } {
+  const { marks, path } = callEngine("approach_profile", { drawing });
   return { marks: marks.map(({ along_nm, ...m }) => ({ ...m, alongNm: along_nm })), path };
 }
 
-export interface QuizQuestion {
-  key: string;
-  prompt: string;
-  choices: string[];
-  /** The right choice's index. */
-  answer: number;
-  /** Where the answer is, said once a choice is made. */
-  explain: string;
-  focus: LessonFocus;
-}
+/** A question: `answer` is the right choice's index, `explain` where the
+ *  answer is, said once a choice is made. */
+export type QuizQuestion = EngineAnswer<"approach_quiz">[number];
 
 /**
  * The lesson asked back, its answers hidden: multiple choice made from the
@@ -210,5 +195,5 @@ export interface QuizQuestion {
  * by knowing the approach. Each answered says where it is.
  */
 export function approachQuiz(input: LessonInput, gsKt: number): QuizQuestion[] {
-  return callEngine<QuizQuestion[]>("approach_quiz", { drawing: input.drawing, gs_kt: gsKt });
+  return callEngine("approach_quiz", { drawing: input.drawing, gs_kt: gsKt });
 }

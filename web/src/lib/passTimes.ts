@@ -4,12 +4,12 @@
  * the briefing lists what is near the route at any time during the
  * flight, and this says whether it is at the time the airplane gets
  * there. The rules are the shared engine's
- * (native/engine/src/gonogo/pass_times.rs, through lib/engine); the time
+ * (native/crates/brief/src/gonogo/pass_times.rs, through lib/engine); the time
  * zones are the browser's, which the engine has no database of.
  */
 import type { Leg } from "./api/types";
 import { clockTime, utcFigures } from "./clock";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
 /** When the flight is `alongNm` along its route: the departure plus the
  *  legs' times to there, the leg it is in taken pro rata. Null where a
@@ -17,13 +17,13 @@ import { callEngine } from "./engine/engine";
 export function passTime(legs: Leg[], departIso: string, alongNm: number): Date | null {
   const depart = new Date(departIso);
   if (!legs.length || Number.isNaN(depart.getTime())) return null;
-  const minutes = callEngine<number | null>("gonogo_pass_minutes", {
+  const minutes = callEngine("gonogo_pass_minutes", {
     legs: legs.map(l => ({ distance_nm: l.distance_nm, ete_min: l.ete_min ?? null })), along_nm: alongNm,
   });
   return minutes == null ? null : new Date(depart.getTime() + minutes * 60_000);
 }
 
-export type TfrWhen = "in-force" | "before" | "after";
+export type TfrWhen = EngineAnswer<"gonogo_tfr_when">;
 
 /** A TFR's window against the pass time, widened by half an hour either way:
  *  one with no start or no end is open that way. */
@@ -36,7 +36,7 @@ export function tfrWhen(t: { effective?: string | null; expires?: string | null 
   return callEngine("gonogo_tfr_when", { at_us: pass.getTime() * 1000, effective_us: us(t.effective), expires_us: us(t.expires) });
 }
 
-export type SuaWhen = "active" | "not-scheduled" | "by-notam" | "unknown";
+export type SuaWhen = EngineAnswer<"gonogo_sua_when">;
 
 const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 

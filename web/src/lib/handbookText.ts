@@ -6,18 +6,18 @@
  * comes with the line it was read from, for the pilot to check against the
  * page; one the page does not label plainly is not guessed.
  *
- * Read by the shared engine (native/engine/src/pilot/handbook.rs, through
+ * Read by the shared engine (native/crates/pilot/src/pilot/handbook.rs, through
  * lib/engine), the code the iPhone app reads a page with too, in knots
  * where the page prints mph: the rules live there.
  */
-import { callEngine } from "./engine/engine";
+import type { HandbookFigure } from "./engine/contract";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
-export type PageFigure = { value: number; words: string };
-export type PageFigures = Partial<Record<
-  "cruiseTasKt" | "cruisePowerPct" | "fuelBurnGph" | "usableFuelGal" | "climbTasKt" | "serviceCeilingFt",
-  PageFigure
->>;
+/** A figure read off the page, and the words it was read from; a page's
+ *  figures, each left out where it was not found (the engine's contract). */
+export type PageFigure = HandbookFigure;
+export type PageFigures = EngineAnswer<"handbook_figures">;
 
 export function figuresOfPage(text: string): PageFigures {
-  return callEngine<PageFigures>("handbook_figures", { text });
+  return callEngine("handbook_figures", { text });
 }

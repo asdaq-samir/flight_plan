@@ -1,0 +1,16 @@
+[package]
+name = "wingtip-airspace"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The airspace and the cycle packs: whether a volume holds a point, the pack's reader, the rules over a point, the map's overlays in view, the alerts ahead and the places a clearance names"
+
+[lib]
+name = "wingtip_airspace"
+
+# Only the engine's own crates, below this one (native/README.md):
+# plain Rust, so the phones carry it as it is.
+[dependencies]
+wingtip-geo = { path = "../geo" }
+wingtip-figures = { path = "../figures" }
+wingtip-radio = { path = "../radio" }

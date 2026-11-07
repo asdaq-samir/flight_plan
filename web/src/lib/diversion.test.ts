@@ -42,7 +42,7 @@ describe("a diversion worked out", () => {
 
 describe("the drill's allowances are the engine's", () => {
   test("the same keys, labels, units and allowances", () => {
-    const { checks } = callEngine<{ checks: { key: string; label: string; unit: string; allowance: number }[] }>("diversion", {
+    const { checks } = callEngine("diversion", {
       true_course_deg: 360, distance_nm: 18, tas_kt: 110, fuel_burn_gph: 8.5, magnetic_variation_deg: -3, wind: null,
     });
     expect(checks.map(({ key, label, unit, allowance }) => ({ key, label, unit, allowance }))).toEqual(ALLOWANCES);

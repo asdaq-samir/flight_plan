@@ -1,7 +1,7 @@
 /**
  * Magnetic variation at a point, from the World Magnetic Model (WMM-2025,
  * NOAA NCEI and the British Geological Survey, valid 2025.0 to 2030.0):
- * the shared engine's (native/engine/src/wmm.rs, through lib/engine), the
+ * the shared engine's (native/crates/geo/src/wmm.rs, through lib/engine), the
  * very code the planner's wingtip.magnetic runs for the nav log's legs and the
  * phones run with no signal, so a course the map's ruler gives and a
  * leg's agree. magnetic.test holds it to the declinations NOAA's
@@ -24,7 +24,7 @@ export type Declination = (lat: number, lon: number) => number;
 export async function loadDeclination(day: Date = new Date()): Promise<Declination> {
   await engineReady;
   const date = day.toISOString().slice(0, 10);
-  return (lat: number, lon: number) => callEngine<number>("magnetic_variation", { lat, lon, date });
+  return (lat: number, lon: number) => callEngine("magnetic_variation", { lat, lon, date });
 }
 
 /** A true direction as a magnetic one, for a variation east positive. */

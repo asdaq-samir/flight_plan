@@ -27,7 +27,7 @@ function figure(x: number | null | undefined): number | null {
 
 /** The category a ceiling and a visibility fall in, by the FAA's own
  *  bounds (AIM 7-1-7, "Categorical Outlooks"; the worse of the two
- *  decides), worked out by the shared engine (native/engine/src/forecast,
+ *  decides), worked out by the shared engine (native/crates/weather/src/forecast,
  *  through lib/engine), the very rule the planner's modelled weather and
  *  the phones use: the bounds and their sources live there. No ceiling is
  *  no limit; with no visibility only a ceiling under 500 ft decides it,
@@ -36,7 +36,7 @@ function figure(x: number | null | undefined): number | null {
  *  none). A METAR from the planner comes with its category; a TAF
  *  period's figures and a METAR's text read here do not. */
 export function categoryOf(ceilingFt: number | null | undefined, visibilitySm: number | null | undefined): string | null {
-  return callEngine<string | null>("flight_category", { ceiling_ft: figure(ceilingFt), visibility_sm: figure(visibilitySm) });
+  return callEngine("flight_category", { ceiling_ft: figure(ceilingFt), visibility_sm: figure(visibilitySm) });
 }
 
 export function colourOf(category: string | null | undefined): string {

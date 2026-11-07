@@ -3,11 +3,9 @@ currently promoted one, and promote it if it wins. Split out of pipeline.py
 deliberately -- this is the closest local analog to a SageMaker Model
 Registry action (approve/reject a Model Package Version), which isn't a
 compute job on AWS at all, just bookkeeping. Kept to the standard library on
-purpose so it stays importable with zero third-party dependencies, in
-particular inside Airflow's own image, which no longer installs pandas/
-scikit-learn now that collect/engineer_features/retrain run in separate
-sibling containers (pipeline-processing and pipeline-training in
-docker-compose.yml, launched by the DAG in airflow/dags).
+purpose so it stays importable with zero third-party dependencies: the
+planner imports it to report the model serving and the last training run,
+and has no scikit-learn of its own.
 """
 import json
 import os
@@ -25,6 +23,10 @@ CURRENT_MODEL_DIR = MODELS_DIR / "current"
 CHART_MODELS_DIR = MODELS_DIR / "chart"
 CHART_CANDIDATE_DIR = CHART_MODELS_DIR / "candidate"
 CHART_CURRENT_DIR = CHART_MODELS_DIR / "current"
+# The training run's own account of itself (wingtip.pipeline.run): each
+# stage and how it ended, rewritten as each one starts and ends. The
+# planner reads it for the developer console's Training group.
+RUN_STATUS_PATH = MODELS_DIR / "run.json"
 
 
 def _reject_remote_uri(path) -> None:
@@ -103,8 +105,9 @@ def evaluate(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURR
 
 
 def _copy_into_place(source: Path, dest: Path) -> None:
-    """Copy beside `dest` and rename over it, so model-service -- which
-    reloads when these files change -- never reads a half-copied one."""
+    """Copy beside `dest` and rename over it, so the planner -- which
+    reloads when these files change (planning-service's app.chart_scorer)
+    -- never reads a half-copied one."""
     tmp = dest.with_name(f".{dest.name}.tmp")
     shutil.copy2(source, tmp)
     os.replace(tmp, dest)

@@ -1,13 +1,15 @@
 """Starting a development service the console links to.
 
-The console offers doors into Jupyter, Airflow and the two other
-services. A door into something that is not running is a dead link, and
-telling a developer to go and type `docker compose up -d ml` is a
-worse answer than doing it.
+The console offers doors into Jupyter and nav-log-agent. A door into
+something that is not running is a dead link, and telling a developer
+to go and type `docker compose up -d ml` is a worse answer than doing it.
+The training run (compose's `retrain`) is started the same way, by
+/api/retrain (routers/system.py), and its container's state is read
+here too.
 
 This service never touches Docker itself. It asks the dev-services
 sidecar (docker/dev-services), the one process holding the socket for
-this, which answers two requests -- which of four services are up, and
+this, which answers two requests -- which of its services are up, and
 start one -- and refuses everything else, including any name not on its
 own list. STARTABLE below only names them for the console; the sidecar
 is what enforces the list. It sits on a network only this service
@@ -32,10 +34,12 @@ router = APIRouter()
 #: database port, and webapp starting itself is a contradiction.
 STARTABLE = {
     "ml": "Jupyter (the notebooks)",
-    "airflow": "Airflow (the training DAG)",
-    "model-service": "model-service API docs",
     "nav-log-agent": "nav-log-agent",
 }
+
+#: The training run's container (docker-compose.yml's `retrain`): started
+#: by /api/retrain rather than linked to, so not among STARTABLE.
+RETRAIN_SERVICE = "retrain"
 
 #: Unset in every deployment that is not the compose stack, which is
 #: how the console knows not to offer a start button at all.
@@ -50,6 +54,16 @@ def _sidecar(method: str, path: str) -> requests.Response | None:
     except requests.RequestException as err:
         log.info("dev-services sidecar unreachable, so services cannot be started from here: %s", err)
         return None
+
+
+def service_state(name: str) -> str | None:
+    """The state of one of the sidecar's services ("running", "exited",
+    "absent" when it has no container yet), or None where there is no
+    sidecar to ask."""
+    response = _sidecar("GET", "/services")
+    if response is None or response.status_code != 200:
+        return None
+    return {s["name"]: s["state"] for s in response.json()}.get(name, "absent")
 
 
 @router.get("/api/dev/services", response_model=DevServices)
@@ -75,7 +89,7 @@ def dev_services() -> DevServices:
 
 @router.post("/api/dev/services/{service}/start", response_model=DevServiceStarted)
 def start_dev_service(service: str) -> DevServiceStarted:
-    """Start one of the four, if it is not already up.
+    """Start one of them, if it is not already up.
 
     Already running is a success, not an error: the console calls this
     on every click so a link always works, and the common case is that

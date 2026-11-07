@@ -6,7 +6,7 @@ import SwiftUI
 enum RouteLine {
     /// "None", for the route as typed before the planner answers or where
     /// it sends no chips.
-    static let none = RouteChip(key: "none", label: "None")
+    static let none = RouteChip(fuel: [], key: "none", label: "None", stops: [])
 
     static func chips(_ routes: RouteOptions?) -> [RouteChip] {
         let sent = routes?.chips ?? []
@@ -94,7 +94,7 @@ struct RouteLineRow: View {
                 ForEach(Array((picked.crosses ?? []).enumerated()), id: \.offset) { _, index in
                     if routes.hazards.indices.contains(index), routes.hazards[index].kind != "fuel" {
                         let hazard = routes.hazards[index]
-                        Label(hazard.title ?? hazard.name ?? hazard.kind ?? "Hazard", systemImage: "exclamationmark.triangle.fill")
+                        Label(hazard.name.isEmpty ? hazard.kind : hazard.name, systemImage: "exclamationmark.triangle.fill")
                             .font(.footnote).foregroundStyle(.orange)
                     }
                 }

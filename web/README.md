@@ -28,10 +28,10 @@ component (`MapPage`) in two modes:
 - `/app/dev` — the developer's page: walk a route's detected waypoints
   on the sectional and rate each one, producing ML training data, with
   the dev console dropping down over the chart in tabs — Model
-  Training (collect a corridor, ratings so far, retrain through
-  Airflow), Performance (every algorithm trained, the promoted one)
+  Training (collect a corridor, ratings so far, retrain: the training
+  run as a container the planner starts), Performance (every algorithm trained, the promoted one)
   and System (which services answer, how fresh the FAA and weather
-  data is, the doors into Jupyter, Airflow and the two agents — each a
+  data is, the doors into Jupyter and the agents — each a
   link that starts the container if it isn't running). `/app/label`
   redirects here (its own query string carried over); `/app/settings`
   redirects to Plan, where everything it used to hold now lives in the
@@ -45,10 +45,15 @@ header, the sidebar panel, the console sheet — so the two pages cannot
 drift in where a control sits or how a drawer opens, only in what they
 hold.
 
-The pages compute nothing themselves. Every course, checkpoint,
-detection and nav log comes from `planning-service`; this front end
-draws it and sends back writes (ratings, picks, corridor builds, filed
-flights, checkpoint notes).
+The pages hold no aviation rules. Every course, checkpoint, detection
+and nav log comes from `planning-service`, and every rule the page
+needs on its own -- a runway's wind, the Go / No-Go, a hold's entry, a
+weather limit -- is asked of the Rust engine by name, built to
+WebAssembly (`lib/engine`, `callEngine`); this front end gets the data,
+keeps the state, draws it and sends back writes (ratings, picks,
+corridor builds, filed flights, checkpoint notes). A rule found in a
+component, a hook or a `lib` file is a bug to move into the engine;
+the ones still here are listed in issue #482.
 
 ## Contents
 
@@ -87,8 +92,8 @@ unless it opens a signed-out one itself. With
 `-e MAILPIT_UI_AUTH=<user:password>`, the value in `.env`.
 
 CI runs the same suite on every push and pull request (the `e2e` job in
-`.github/workflows/ci.yml`): the webapp, the planner and the model
-service built from the commit, under `docker-compose.ci.yml`, with the
+`.github/workflows/ci.yml`): the webapp and the planner built from the
+commit, under `docker-compose.ci.yml`, with the
 planner's reference data kept in the Actions cache between runs. It runs the tests
 in the same Playwright image as above, split over six runners. Failures
 show on the commit's checks, with traces and screenshots as a run
@@ -152,12 +157,12 @@ proxy at `host.docker.internal:8080` or use the build path above.
 
 ```
 web/ (this folder)      the map, the header, the drawers
-  → webapp              :8080  serves the bundle, proxies /api/planner/*, owns auth and the database
-  → planning-service    :8084  sectional tiles, great-circle course, checkpoints, dead reckoning, Class B weather
-  → model-service       :8000  scores candidate checkpoints
+  ↳ lib/engine          the Rust engine as WebAssembly: every rule, asked by name, in the page
+  → webapp              :8080  serves the bundle, proxies /api/planner/*, owns auth and the pilot's records
+  → planning-service    :8084  sectional tiles, great-circle course, checkpoints (scored by the chart model), the nav log, weather
 ```
 
-The front end never calls `planning-service` or `model-service`
+The front end never calls `planning-service`
 directly. Every request goes through `webapp` at `/api/planner/*` (a
 middleware rewrites `/api/x` to that path, so call sites read as if
 they spoke to the planner directly), so there is one origin, one
@@ -181,6 +186,7 @@ src/
   lib/
     api/client.ts             Every network call, one function per endpoint
     api/types.ts               API request/response shapes, re-exported from schema.d.ts and webapp-schema.d.ts
+    engine/                    The Rust engine as WebAssembly: callEngine, and contract.ts generated from its schema
     map/                       Everything the two maps share (see Maps, below)
     preferences.ts             What's remembered per browser (zustand + localStorage): charts, aeroplane, filters
     queryClient.ts             The react-query client; a failed query becomes one toast, keyed by its message
@@ -221,8 +227,20 @@ happen first, with the request queued behind them for a route the URL
 had already named. The component then finds the answer already in
 `react-query`'s cache instead of asking again.
 
-**State.** Plan and Train each have one hook (`usePlan`, `useTraining`)
-holding the page's state as a plain object alongside its actions.
+**The engine.** `lib/engine/engine.ts` loads the engine
+(`wingtip-engine.wasm`, built by `scripts/build-engine-wasm.sh` and
+committed, since this build has no Rust) and `callEngine(name, input)`
+asks it a rule, JSON in and out. The names and the shapes of their
+inputs and answers come from the engine's contract
+(`native/contract/engine.schema.json`), generated into
+`lib/engine/contract.ts` by `npm run types`, so `callEngine` is typed by
+name and a field renamed in the Rust is a compile error here. How a
+figure is written on the screen stays here; the figure is the engine's.
+Adding a rule is native/README.md's list.
+
+**State.** A screen is a view and a view model: Plan and Train each
+have one hook (`usePlan`, `useTraining`) holding the page's state as a
+plain object alongside its actions, and the components draw it.
 `react-query` owns server data everywhere (cached, with its own
 retry/error handling); `zustand` (`lib/preferences.ts`) owns what's
 remembered per browser; there is no other global store.

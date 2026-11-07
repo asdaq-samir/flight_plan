@@ -109,10 +109,9 @@ final class Traffic {
     /// height, drawn amber, the traffic to look for first: a design choice,
     /// the web app's, 1,000 ft being the spacing VFR cruising altitudes
     /// keep between opposite directions (14 CFR 91.159).
-    struct Mark: Decodable, Equatable {
-        let label: String
-        let near: Bool
-    }
+    /// The engine's own answer, its type generated from the engine's
+    /// contract (EngineContract.swift, scripts/engine-contract-apps.sh).
+    typealias Mark = EngineTrafficMarksAnswerElement
 
     /// Each airplane's mark, in one call (the engine's `traffic_marks`,
     /// the web app's trafficLabel, traffic.json); none where the engine

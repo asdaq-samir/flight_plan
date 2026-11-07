@@ -6,7 +6,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "node_modules", "playwright-report", "test-results", "src/lib/api/schema.d.ts"] },
+  { ignores: ["dist", "node_modules", "playwright-report", "test-results", "src/lib/api/schema.d.ts", "src/lib/engine/contract.ts"] },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [

@@ -7,51 +7,27 @@
  * and the route is put in only from the card, the pilot having read it
  * (ClearanceCard): nothing heard goes into the plan on its own.
  *
- * The reading itself is the shared engine's (native/engine/src/clearance.rs,
+ * The reading itself is the shared engine's (native/crates/radio/src/clearance.rs,
  * asked through lib/engine as read_clearance and cleared_route): one
  * reader for the web app, the planner and the phones, held to
  * fixtures/clearances.json as this module's tests are. What stays here
  * is the tokenizer and the place words, which the pilot's own commands
  * (lib/pilotCommand) and the readback check (lib/readback) read with.
  */
-import { callEngine } from "./engine/engine";
+import type { ClearanceFound, ClearanceFoundProcedure, ClearanceItem, ClearanceRoute, HeardToken } from "./engine/contract";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { TypedProcedure } from "./procedures";
 
-/** A part of the route, in the order it was said. */
-export type ClearedItem =
-  | { kind: "vectors" }
-  | { kind: "heading"; degrees: number }
-  | { kind: "airway"; ident: string }
-  | { kind: "departure" | "arrival"; name: string; number: string; transition: string | null }
-  /** Words naming one place or more, for the planner to find. */
-  | { kind: "places"; said: string };
-
-export interface Clearance {
-  /** The clearance limit as said ("Duluth airport"), none where none was. */
-  limit: string | null;
-  route: ClearedItem[];
-  /** "...then as filed", or "as filed" (AIM 5-2-6): the filed route after
-   *  what was said, which leaves out the filed altitude. */
-  asFiled: boolean;
-  maintainFt: number | null;
-  /** "at or below" or "at or above" said before it; a Class B's "maintain
-   *  VFR at or below 4,500" too. */
-  maintainLimit: "at or below" | "at or above" | null;
-  vfr: boolean;
-  expectFt: number | null;
-  /** Minutes after departure the expected altitude comes. */
-  expectMin: number | null;
-  /** "125.35", in the band ATC's VHF voice frequencies are. */
-  frequency: string | null;
-  /** Whose frequency: "departure", "center", "approach". */
-  facility: string | null;
-  squawk: string | null;
-  /** "Cleared into the Class Bravo airspace" (14 CFR 91.131(a)(1)). */
-  classB: boolean;
-}
+/** A clearance read into its items, and a part of its route in the
+ *  order it was said: the engine's contract's shapes (read_clearance). The
+ *  maintain limit is "at or below" or "at or above" said before the
+ *  altitude; the facility whose frequency it is ("departure", "center");
+ *  classB "cleared into the Class Bravo airspace" (14 CFR 91.131(a)(1)). */
+export type Clearance = EngineAnswer<"read_clearance">;
+export type ClearedItem = ClearanceItem;
 
 /** A word, or a number made of the figures said in a row. */
-export interface Token { word: string; num?: string }
+export type Token = HeardToken;
 
 /** The words, with each run of figures one number: "one two five point
  *  three five" is 125.35, "five thousand" 5000, "flight level two one
@@ -60,24 +36,24 @@ export interface Token { word: string; num?: string }
  *  clearance reader's own words, which the pilot's commands
  *  (lib/pilotCommand) are read with too. */
 export function tokens(text: string): Token[] {
-  return callEngine<Token[]>("tokens", { text });
+  return callEngine("tokens", { text });
 }
 
 /** Words for a place as the planner looks them up: a run of the ICAO
  *  alphabet's words is the letters it spells ("kilo delta lima hotel" is
  *  KDLH), other words as said, lower case (the engine's place_words). */
 export function placeWords(toks: Token[]): string {
-  return callEngine<string>("place_words", { tokens: toks });
+  return callEngine("place_words", { tokens: toks });
 }
 
 /** The clearance in what was heard: everything after "cleared" (the
  *  call sign before it left out), its altitudes, frequency and code
  *  wherever they were said -- a squawk alone, as flight following's, is
- *  one too. Read by the shared engine (native/engine/src/clearance.rs,
+ *  one too. Read by the shared engine (native/crates/radio/src/clearance.rs,
  *  the rule read_clearance), the one reader the planner and the phones
  *  have, held to fixtures/clearances.json as this module's tests are. */
 export function readClearance(text: string): Clearance {
-  return callEngine<Clearance>("read_clearance", { text });
+  return callEngine("read_clearance", { text });
 }
 
 /** Whether anything of a clearance was heard at all. */
@@ -85,12 +61,12 @@ export const heardAny = (c: Clearance) =>
   !!(c.limit || c.route.length || c.asFiled || c.maintainFt || c.expectFt || c.frequency || c.squawk || c.classB);
 
 /** The planner's places for the clearance's (ClearancePlaces). */
-export interface FoundPlace { said: string; ident?: string | null; name?: string | null; kind?: string | null; sure?: boolean }
+export type FoundPlace = ClearanceFound & { said: string };
 export interface Found {
   limit?: FoundPlace | null;
   route?: FoundPlace[][];
-  departure?: { id: string; transition?: string | null } | null;
-  arrival?: { id: string; transition?: string | null } | null;
+  departure?: ClearanceFoundProcedure | null;
+  arrival?: ClearanceFoundProcedure | null;
 }
 
 /** What the planner is asked to find: the limit, each run of words for
@@ -117,7 +93,7 @@ export function placesAsked(c: Clearance) {
  * all of them where none is (AIM 5-2-6). The SID and STAR to pick, as the
  * route box's typed ones are (TypedProcedure).
  */
-export function clearedRoute(text: string, found: Found, planned: { dep: string; stops: string[]; dest: string }): { route: { dep: string; stops: string[]; dest: string }; typed: TypedProcedure[] } {
+export function clearedRoute(text: string, found: Found, planned: ClearanceRoute): EngineAnswer<"cleared_route"> {
   // From the words heard, which the engine reads again (0.4 ms), rather
   // than the Clearance read from them: one shape in, the fixtures' own.
   return callEngine("cleared_route", { text, found, planned });

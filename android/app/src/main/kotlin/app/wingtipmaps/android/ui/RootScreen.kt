@@ -179,7 +179,7 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
     // own ship at flying speed, the strip turns to the airplane.
     val layout by rememberLayout()
     if (layout == LayoutPreference.STRIP) {
-        val flying = ownShipOn && (fix?.groundspeedKt ?: 0.0) > OwnShip.MOVING_KT
+        val flying = ownShipOn && OwnShip.underway(fix?.groundspeedKt)
         StripTheme {
             StripLayout(plan = plan, session = session, ownShip = ownShip, flying = flying, map = { mapContent(null) })
         }

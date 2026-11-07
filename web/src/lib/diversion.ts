@@ -11,14 +11,14 @@
  * ALLOWANCES are this drill's own, about what a pilot works out in their
  * head and off the chart while flying the airplane.
  *
- * Worked out by the shared engine (native/engine/src/figures/diversion.rs,
+ * Worked out by the shared engine (native/crates/figures/src/figures/diversion.rs,
  * through lib/engine), the very code behind the planner's /api/diversion
  * and the phones' wt_diversion. ALLOWANCES stays here as the drill's
  * labels and the type of its keys; diversion.test.ts holds it to the
  * engine's. `stopwatch` is a display format, not a rule, and stays too.
  */
 import type { Leg } from "./api/types";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
 /** The figures a student estimates, and how far off is still reasonable. */
 export const ALLOWANCES = [
@@ -46,21 +46,14 @@ export interface Diversion {
  *  true heading and the ground speed; null where the crosswind is more
  *  than the airplane's speed and no heading holds the course. The nav
  *  log's own correction and ground speed, in the engine. */
-export function windTriangle(tc: number, tas: number, windFromDeg: number, windKt: number): { wca: number; th: number; gs: number } | null {
+export function windTriangle(tc: number, tas: number, windFromDeg: number, windKt: number): EngineAnswer<"wind_triangle"> {
   return callEngine("wind_triangle", { tc, tas, wind_from_deg: windFromDeg, wind_kt: windKt });
-}
-
-/** The engine's "diversion" answer: the solution as /api/diversion's
- *  `solved` (its steps and checks, which the drill writes itself, left
- *  out). */
-interface Drilled {
-  solved: { tc: number; distance_nm: number; wca: number; th: number; mh: number; gs: number; ete: number; fuel: number } | null;
 }
 
 /** The diversion from a point on `leg` to a field `distanceNm` away on a
  *  true course of `tcDeg`, flown in the leg's air at its cruise burn. */
 export function divert(leg: Leg, tcDeg: number, distanceNm: number): Diversion | null {
-  const { solved } = callEngine<Drilled>("diversion", {
+  const { solved } = callEngine("diversion", {
     true_course_deg: tcDeg, distance_nm: distanceNm, tas_kt: leg.tas_kt, fuel_burn_gph: leg.fuel_burn_gph,
     magnetic_variation_deg: leg.magnetic_variation_deg, wind: leg.wind ?? null,
   });
@@ -72,7 +65,7 @@ export function divert(leg: Leg, tcDeg: number, distanceNm: number): Diversion |
 /** Whether an estimate is reasonable: within its allowance, a heading
  *  round the compass (358° is 4° from 002°). */
 export function reasonable(key: EstimateKey, typed: number, exact: number): boolean {
-  return callEngine<boolean>("diversion_reasonable", { key, typed, exact });
+  return callEngine("diversion_reasonable", { key, typed, exact });
 }
 
 /** Minutes and seconds, as a stopwatch shows them: "2:07". */

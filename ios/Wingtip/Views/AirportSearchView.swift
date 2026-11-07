@@ -333,12 +333,12 @@ struct NearestRow: View {
 
 private enum PreviewData {
     static let nearest = [
-        NearestAirport(ident: "KDLH", name: "Duluth Intl", lat: 46.842, lon: -92.194, kind: "large_airport", distanceNm: 3.2, bearingDeg: 312,
-                       municipality: "Duluth", flightCategory: "VFR", longestRunwayFt: 10162),
-        NearestAirport(ident: "KSUW", name: "Richard I Bong", lat: 46.690, lon: -92.095, kind: "medium_airport", distanceNm: 8.9, bearingDeg: 174,
-                       municipality: "Superior", flightCategory: "MVFR", longestRunwayFt: 5100),
-        NearestAirport(ident: "KTWM", name: "Richard B Helgeson", lat: 47.049, lon: -91.745, kind: "small_airport", distanceNm: 22.7, bearingDeg: 52,
-                       municipality: "Two Harbors", longestRunwayFt: 4000),
+        NearestAirport(bearingDeg: 312, distanceNm: 3.2, flightCategory: "VFR", ident: "KDLH", kind: "large_airport",
+                       lat: 46.842, lon: -92.194, longestRunwayFt: 10162, municipality: "Duluth", name: "Duluth Intl"),
+        NearestAirport(bearingDeg: 174, distanceNm: 8.9, flightCategory: "MVFR", ident: "KSUW", kind: "medium_airport",
+                       lat: 46.690, lon: -92.095, longestRunwayFt: 5100, municipality: "Superior", name: "Richard I Bong"),
+        NearestAirport(bearingDeg: 52, distanceNm: 22.7, ident: "KTWM", kind: "small_airport", lat: 47.049, lon: -91.745,
+                       longestRunwayFt: 4000, municipality: "Two Harbors", name: "Richard B Helgeson"),
     ]
 }
 

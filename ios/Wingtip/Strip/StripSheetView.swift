@@ -69,7 +69,7 @@ struct StripSheetView: View {
     /// In the air on the route -- moving, within 3 nm of the line -- as
     /// FiguresStrip counts it: a dry run's airplane counts as flying.
     private var flyingFix: OwnShip.Fix? {
-        guard let fix = dryRun.fix ?? ownShip.fix, let gs = fix.groundspeedKt, gs > 30, let course = plan.course,
+        guard let fix = dryRun.fix ?? ownShip.fix, let gs = fix.groundspeedKt, Flight.underway(gs), let course = plan.course,
               Flight.off(fix.coordinate, line: course.coordinates) <= 3 else { return nil }
         return fix
     }

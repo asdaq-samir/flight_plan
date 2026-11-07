@@ -1,0 +1,16 @@
+[package]
+name = "wingtip-wording"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The FAA's own words in the app's: sentence case, names, advisories' intensities, a field's radio and fuel, a VOR's radial and service volume"
+
+[lib]
+name = "wingtip_wording"
+
+# Only the engine's own crates, below this one (native/README.md):
+# plain Rust, so the phones carry it as it is.
+[dependencies]
+wingtip-geo = { path = "../geo" }
+wingtip-figures = { path = "../figures" }
+wingtip-airspace = { path = "../airspace" }
