@@ -15,7 +15,7 @@ interface TabSearch {
   submitNear: (() => void) | null;
   /** Nearest's clear: back to the position, not only an empty field. */
   clearNear: (() => void) | null;
-  /** The Aircraft search asked for the pilot's own airplane (My Plane's
+  /** The Aircraft search asked for the pilot's own airplane (My Airplane's
    *  Add): the one picked is kept as theirs rather than opened. */
   pickingMine: boolean;
   /** Asked for an airplane to keep (the Favorites' Add): the one picked
@@ -30,8 +30,8 @@ export const useTabSearch = create<TabSearch>(() => ({
 }));
 
 /** A kept airplane picked -- a Recent, a Favorite, one found -- kept as the
- *  pilot's Plane or a Favorite where the search was asked for one (My
- *  Plane's or the Favorites' Add), and otherwise opened: one rule wherever
+ *  pilot's Airplane or a Favorite where the search was asked for one (My
+ *  Airplane's or the Favorites' Add), and otherwise opened: one rule wherever
  *  airplanes are picked from (AircraftCard, AircraftPill, the Recents in
  *  full). */
 export function pickKeptAircraft(kept: KeptAircraft, open: (hex: string) => void) {

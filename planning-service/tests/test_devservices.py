@@ -40,7 +40,8 @@ def test_states_come_from_the_sidecar_with_the_consoles_labels(monkeypatch):
     assert body["available"] is True
     by_name = {s["name"]: s for s in body["services"]}
     assert by_name["ml"] == {"name": "ml", "label": "Jupyter (the notebooks)", "state": "running"}
-    assert by_name["airflow"]["state"] == "absent"
+    # Every other door, which the sidecar did not list, reads absent.
+    assert all(s["state"] == "absent" for name, s in by_name.items() if name != "ml")
 
 
 def test_an_unknown_service_is_refused_before_the_sidecar_is_asked(monkeypatch):
@@ -55,19 +56,19 @@ def test_an_unknown_service_is_refused_before_the_sidecar_is_asked(monkeypatch):
 def test_the_sidecars_refusal_is_passed_on(monkeypatch):
     monkeypatch.setattr(
         devservices, "_sidecar",
-        lambda method, path: FakeResponse(409, {"detail": "airflow has no container yet"}),
+        lambda method, path: FakeResponse(409, {"detail": "ml has no container yet"}),
     )
 
-    resp = client.post("/api/dev/services/airflow/start")
+    resp = client.post("/api/dev/services/ml/start")
 
     assert resp.status_code == 409
-    assert resp.json()["detail"] == "airflow has no container yet"
+    assert resp.json()["detail"] == "ml has no container yet"
 
 
 def test_a_refusal_with_no_body_still_says_who_refused(monkeypatch):
     monkeypatch.setattr(devservices, "_sidecar", lambda method, path: FakeResponse(500, ""))
 
-    resp = client.post("/api/dev/services/airflow/start")
+    resp = client.post("/api/dev/services/ml/start")
 
     assert resp.status_code == 500
     assert resp.json()["detail"] == "the dev-services sidecar answered 500"

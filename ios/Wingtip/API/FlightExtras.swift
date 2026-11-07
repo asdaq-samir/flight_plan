@@ -220,10 +220,7 @@ struct NoteLine: Codable, Equatable, Sendable {
 }
 
 /// Flight Service, where the gateway has it connected (FlightServiceStatus).
-struct FlightServiceStatus: Codable, Equatable, Sendable {
-    let connected: Bool
-    let provider: String
-}
+typealias FlightServiceStatus = GWFlightServiceStatus
 
 /// A flight plan as the gateway files it (FlightPlanFilingRequest), its
 /// items as FAA Form 7233-4 writes them (AIM Appendix 4).

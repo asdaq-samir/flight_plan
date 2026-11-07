@@ -50,6 +50,8 @@ export type CallPatternAnswer = string | null;
 export type TokensAnswer = HeardToken[];
 export type PlaceWordsAnswer = string;
 export type MagneticVariationAnswer = number;
+export type WeatherExpiresAtAnswer = number | null;
+export type WeatherInForceAnswer = boolean;
 export type GonogoVerdictItemsAnswer = GonogoItem[];
 export type GonogoAlternateFindingAnswer = {
   finding: "stop" | "caution";
@@ -700,6 +702,20 @@ export interface EngineContract {
   data_cycle: {
     input: DataCycleInput;
     answer: DataCycleAnswer;
+  };
+  /**
+   * When a weather report stops counting, Unix seconds UTC, or null where nothing says: a routine METAR an hour after it was observed (AIM 7-1-28, "METAR-hourly"; FMH-1 ch. 2), a SPECI when the next routine report is due, a TAF, the FB winds or an advisory at the end of the valid time its header gives (AC 00-45H).
+   */
+  weather_expires_at: {
+    input: WeatherExpiresAtInput;
+    answer: WeatherExpiresAtAnswer;
+  };
+  /**
+   * Whether a weather report still counts at now: before it expires (weather_expires_at), and, for a forecast, from when its valid time starts, since a TAF's later hours are not today's weather (AC 00-45H).
+   */
+  weather_in_force: {
+    input: WeatherInForceInput;
+    answer: WeatherInForceAnswer;
   };
   /**
    * POST /api/go-no-go's line and items: each tab's finding, the IFR alternate's in the weather's (14 CFR 91.169), and the line over them. The findings are the planner's; the decision is the pilot in command's (14 CFR 91.3).
@@ -2169,6 +2185,44 @@ export interface DataCycleAnswer {
    * How many editions have come out since the one held; 0 unless expired.
    */
   behind: number;
+}
+export interface WeatherExpiresAtInput {
+  product: "metar" | "speci" | "taf" | "winds" | "advisory";
+  /**
+   * When a METAR or SPECI was observed, Unix seconds.
+   */
+  observed?: number | null;
+  /**
+   * For a SPECI, the last routine report's time, Unix seconds, where it is known.
+   */
+  last_routine?: number | null;
+  /**
+   * For a forecast, the end of its valid time (the FB winds' FOR USE window), Unix seconds.
+   */
+  valid_to?: number | null;
+}
+export interface WeatherInForceInput {
+  product: "metar" | "speci" | "taf" | "winds" | "advisory";
+  /**
+   * The instant asked about, Unix seconds.
+   */
+  now: number;
+  /**
+   * When a METAR or SPECI was observed, Unix seconds.
+   */
+  observed?: number | null;
+  /**
+   * For a SPECI, the last routine report's time, Unix seconds, where it is known.
+   */
+  last_routine?: number | null;
+  /**
+   * For a forecast, the start of its valid time, Unix seconds.
+   */
+  valid_from?: number | null;
+  /**
+   * For a forecast, the end of its valid time, Unix seconds.
+   */
+  valid_to?: number | null;
 }
 export interface GonogoVerdictInput {
   verdict: VerdictInput;

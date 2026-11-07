@@ -129,13 +129,14 @@ pub fn pounds(lb: f64) -> String {
 }
 
 /// A cruising altitude as the owner asked it written, hundreds of feet in
-/// three figures: "FL-045" for 4,500 ft, "FL----" with none yet (lib/units
-/// flightLevel; the owner, 2026-10-27: "make it in the format FL-***").
+/// three figures: "FL-045" for 4,500 ft, "FL-___" with none yet (lib/units
+/// flightLevel; the owner, 2026-10-27: "make it in the format FL-***", and
+/// 2026-11-04: "FL should have three underscores").
 /// The figures padded as String(n).padStart(3, "0") pads them, a minus
 /// sign and all.
 pub fn flight_level(ft: Option<f64>) -> String {
     match ft {
-        None => "FL----".to_owned(),
+        None => "FL-___".to_owned(),
         Some(ft) => {
             let hundreds = js_num(js_round_f(ft / 100.0));
             format!("FL-{}{hundreds}", "0".repeat(3usize.saturating_sub(hundreds.chars().count())))

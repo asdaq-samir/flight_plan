@@ -2,28 +2,12 @@ import CoreLocation
 import Foundation
 
 /// A route's two ends and its stops, as /api/course gives them
-/// (AirportEnd), and the line between them.
-struct CourseEnd: Codable, Equatable, Sendable {
-    let ident: String
-    let name: String
-    let lat: Double
-    let lon: Double
-    var kind: String?
-    var elevationFt: Double?
-}
+/// (AirportEnd), and the line between them as pairs of latitude and
+/// longitude (Generated/PlannerModels.swift).
+typealias CourseEnd = APIAirportEnd
+typealias Course = APICourse
 
-struct Course: Codable, Equatable, Sendable {
-    let departure: CourseEnd
-    let destination: CourseEnd
-    /// Optional in the type: a synthesized Codable does not fall back to
-    /// a `var`'s default when the key is missing (the first build's test).
-    var stops: [CourseEnd]?
-    let distanceNm: Double
-    let bearingDeg: Double
-    /// The great-circle line as pairs of latitude and longitude.
-    let courseLine: [[Double]]
-    var checkpointsReady: Bool? = nil
-
+extension Course {
     var coordinates: [CLLocationCoordinate2D] {
         courseLine.compactMap { $0.count == 2 ? CLLocationCoordinate2D(latitude: $0[0], longitude: $0[1]) : nil }
     }

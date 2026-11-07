@@ -163,13 +163,6 @@ enum StripData {
         return ([dep] + stops + [dest]).joined(separator: " → ")
     }
 
-    /// An altitude as the owner has it written everywhere, "FL045" for
-    /// 4,500 ft (knowingly not the FAA's, which starts flight levels at
-    /// 18,000 ft; the owner's pick, 2026-10-27).
-    static func flightLevel(_ ft: Double) -> String {
-        String(format: "FL%03d", Int((ft / 100).rounded()))
-    }
-
     /// The route's line as the canvas writes it under the verdict: the
     /// route by its points, the airplane, the altitude as FL, when. The
     /// phone's plan leaves at once, so "leaving now" unless a time is given.

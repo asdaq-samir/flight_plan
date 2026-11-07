@@ -2364,6 +2364,131 @@
       ],
       "additionalProperties": false
     },
+    "weather_expires_at": {
+      "description": "When a weather report stops counting, Unix seconds UTC, or null where nothing says: a routine METAR an hour after it was observed (AIM 7-1-28, \"METAR-hourly\"; FMH-1 ch. 2), a SPECI when the next routine report is due, a TAF, the FB winds or an advisory at the end of the valid time its header gives (AC 00-45H).",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "WeatherExpiresAtInput",
+          "type": "object",
+          "properties": {
+            "product": {
+              "type": "string",
+              "enum": [
+                "metar",
+                "speci",
+                "taf",
+                "winds",
+                "advisory"
+              ]
+            },
+            "observed": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "When a METAR or SPECI was observed, Unix seconds."
+            },
+            "last_routine": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "For a SPECI, the last routine report's time, Unix seconds, where it is known."
+            },
+            "valid_to": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "For a forecast, the end of its valid time (the FB winds' FOR USE window), Unix seconds."
+            }
+          },
+          "required": [
+            "product"
+          ]
+        },
+        "answer": {
+          "title": "WeatherExpiresAtAnswer",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "weather_in_force": {
+      "description": "Whether a weather report still counts at now: before it expires (weather_expires_at), and, for a forecast, from when its valid time starts, since a TAF's later hours are not today's weather (AC 00-45H).",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "WeatherInForceInput",
+          "type": "object",
+          "properties": {
+            "product": {
+              "type": "string",
+              "enum": [
+                "metar",
+                "speci",
+                "taf",
+                "winds",
+                "advisory"
+              ]
+            },
+            "now": {
+              "type": "number",
+              "description": "The instant asked about, Unix seconds."
+            },
+            "observed": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "When a METAR or SPECI was observed, Unix seconds."
+            },
+            "last_routine": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "For a SPECI, the last routine report's time, Unix seconds, where it is known."
+            },
+            "valid_from": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "For a forecast, the start of its valid time, Unix seconds."
+            },
+            "valid_to": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "For a forecast, the end of its valid time, Unix seconds."
+            }
+          },
+          "required": [
+            "product",
+            "now"
+          ]
+        },
+        "answer": {
+          "title": "WeatherInForceAnswer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
     "gonogo_verdict": {
       "description": "POST /api/go-no-go's line and items: each tab's finding, the IFR alternate's in the weather's (14 CFR 91.169), and the line over them. The findings are the planner's; the decision is the pilot in command's (14 CFR 91.3).",
       "type": "object",
@@ -9792,6 +9917,8 @@
     "readback_check",
     "magnetic_variation",
     "data_cycle",
+    "weather_expires_at",
+    "weather_in_force",
     "gonogo_verdict",
     "gonogo_verdict_items",
     "gonogo_verdict_line",

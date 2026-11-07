@@ -95,12 +95,15 @@ final class OwnShip: NSObject, CLLocationManagerDelegate {
         if manager.allowsBackgroundLocationUpdates != flying { manager.allowsBackgroundLocationUpdates = flying }
     }
 
-    /// What is ahead, asked of the latest fix every ten seconds while
-    /// moving (the clock's, Ticker): the planner looks five minutes along
-    /// the track (wingtip.alerts). The asking is a task of its own, so the
-    /// next question cancels one still unanswered.
+    /// What is ahead, asked of the latest fix every ten seconds while the
+    /// airplane is at flying speed (the clock's, Ticker): the planner looks
+    /// five minutes along the track (wingtip.alerts). Flying speed is the
+    /// engine's `underway` (Flight.underway), the speed the engine's own
+    /// look ahead starts at, so a taxiing airplane asks nothing it would
+    /// not answer. The asking is a task of its own, so the next question
+    /// cancels one still unanswered.
     private func askAhead() {
-        guard let fix, let track = fix.trackDeg, let gs = fix.groundspeedKt, gs > 20 else { return }
+        guard let fix, let track = fix.trackDeg, let gs = fix.groundspeedKt, Flight.underway(gs) else { return }
         asking?.cancel()
         asking = Task { [weak self] in
             let (lat, lon) = (fix.coordinate.latitude, fix.coordinate.longitude)

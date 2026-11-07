@@ -8,37 +8,19 @@ import kotlinx.serialization.Serializable
 // keeps -- as the planner and the gateway give them (Models.swift,
 // FlightExtras.swift on iOS), by hand as Models.kt has the rest.
 
-/** An airplane ADS-B receivers hear (TrafficAircraft, wingtip.traffic). */
-@Serializable
-data class TrafficAircraft(
-    val hex: String,
-    val lat: Double,
-    val lon: Double,
-    val callsign: String? = null,
-    val registration: String? = null,
-    val type: String? = null,
-    @SerialName("altitude_ft") val altitudeFt: Double? = null,
-    @SerialName("track_deg") val trackDeg: Double? = null,
-    @SerialName("speed_kt") val speedKt: Double? = null,
-    @SerialName("vertical_fpm") val verticalFpm: Double? = null,
-    @SerialName("seen_s") val seenS: Double? = null,
-    /** Its transponder's code, where it sends one: 7500, 7600 and 7700
-     *  said in words on its card (AIM 6-2-2, 6-3-4, 6-4-2). */
-    val squawk: String? = null,
-) {
-    /** What it is called on the screen: its call sign, else its tail,
-     *  else its ICAO address. */
-    val name: String get() = callsign ?: registration ?: hex
-}
+/** An airplane ADS-B receivers hear (TrafficAircraft, wingtip.traffic),
+ *  generated from the planner's document (api/generated): its
+ *  transponder's code, where it sends one, is said in words on its card
+ *  for 7500, 7600 and 7700 (AIM 6-2-2, 6-3-4, 6-4-2). */
+typealias TrafficAircraft = app.wingtipmaps.android.api.generated.TrafficAircraft
 
-/** The airplanes about a point (TrafficAnswer): which receivers' data,
- *  and how old the answer was when sent. */
-@Serializable
-data class TrafficAnswer(
-    val aircraft: List<TrafficAircraft>,
-    val source: String? = null,
-    @SerialName("age_s") val ageS: Double? = null,
-)
+/** What it is called on the screen: its call sign, else its tail, else
+ *  its ICAO address. */
+val TrafficAircraft.name: String get() = callsign ?: registration ?: hex
+
+/** The airplanes about a point (Traffic): which receivers' data, and how
+ *  old the answer was when sent. */
+typealias TrafficAnswer = app.wingtipmaps.android.api.generated.Traffic
 
 /** The field a tracked airplane took off from or landed at (PastFlightField). */
 @Serializable

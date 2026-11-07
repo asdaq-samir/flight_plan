@@ -168,7 +168,7 @@ struct AirportHead: View {
         switch place.military {
         case "military": return "Military, permission required"
         case "joint": return "Joint use"
-        default: return place.`private` == true ? "Private, permission required" : nil
+        default: return place.isPrivate == true ? "Private, permission required" : nil
         }
     }
 
@@ -442,7 +442,7 @@ struct AirportRunwaysTab: View {
             // field (AC 90-66C, 8.4), as the planner gives it.
             if let pattern = place.pattern, let altitude = pattern.altitudeFt {
                 CardRow(badge: RowBadge(systemImage: "arrow.triangle.2.circlepath", colour: Badge.runway), title: "Pattern altitude",
-                        detail: pattern.published ? "As the FAA publishes it" : "1,000 ft above the field: none published") {
+                        detail: pattern.published == true ? "As the FAA publishes it" : "1,000 ft above the field: none published") {
                     Text(AirportWords.feet(altitude)).fontWeight(.semibold).accessibilityLabel(SpokenFigures.feet(altitude))
                 }
             }
@@ -547,30 +547,29 @@ struct AirportChartsTab: View {
 /// few plates.
 private enum PreviewData {
     static let place = AirportPlace(
-        ident: "KDLH", name: "Duluth Intl", lat: 46.8420, lon: -92.1936, kind: "large_airport", towered: true,
-        runways: [
-            Runway(ends: "09/27", lengthFt: 10162, widthFt: 150, surface: "ASPH", lighted: true,
-                   wind: RunwayWind(end: "27", headwindKt: 9, crosswindKt: 4),
-                   runwayEnds: [RunwayEnd(ident: "09", headingTrueDeg: 92, lat: 46.8415, lon: -92.2140),
-                                RunwayEnd(ident: "27", headingTrueDeg: 272, lat: 46.8425, lon: -92.1733, traffic: "right")]),
-            Runway(ends: "03/21", lengthFt: 5719, widthFt: 150, surface: "ASPH", lighted: true,
-                   runwayEnds: [RunwayEnd(ident: "03", headingTrueDeg: 33, lat: 46.8355, lon: -92.2005),
-                                RunwayEnd(ident: "21", headingTrueDeg: 213, lat: 46.8490, lon: -92.1880)]),
-        ],
-        frequencies: [
-            Frequency(type: "ATIS", description: "ATIS", frequencyMhz: 124.1),
-            Frequency(type: "TWR", description: "DULUTH TOWER", frequencyMhz: 118.3),
-            Frequency(type: "GND", description: "GROUND", frequencyMhz: 121.9),
-            Frequency(type: "APP", description: "DULUTH APPROACH", frequencyMhz: 125.45),
-        ],
-        elevationFt: 1428, municipality: "Duluth", region: "US-MN", airspaceClass: "D", phone: "218 555 0100",
-        lighting: ["Runway lights on from dusk to dawn"],
-        metar: Metar(raw: "KDLH 031453Z 27009KT 10SM FEW040 BKN250 04/M03 A3012", observedAt: "2026-11-03T14:53:00Z", flightCategory: "VFR",
-                     windDirTrueDeg: 270, windSpeedKt: 9, visibilitySm: 10, tempC: 4, dewpointC: -3, altimeterInHg: 30.12),
-        pattern: TrafficPattern(altitudeFt: 2428, published: false),
         address: "4701 Grinden Dr, Duluth, MN 55811",
         airportDiagramUrl: "https://aeronav.faa.gov/d-tpp/2511/00126AD.PDF",
+        airspaceClass: "D",
         chartSupplementUrl: "https://aeronav.faa.gov/afd/03nov2026/nc_181_03NOV2026.pdf",
+        elevationFt: 1428,
+        frequencies: [
+            Frequency(description: "ATIS", frequencyMhz: 124.1, type: "ATIS"),
+            Frequency(description: "DULUTH TOWER", frequencyMhz: 118.3, type: "TWR"),
+            Frequency(description: "GROUND", frequencyMhz: 121.9, type: "GND"),
+            Frequency(description: "DULUTH APPROACH", frequencyMhz: 125.45, type: "APP"),
+        ],
+        ident: "KDLH",
+        kind: "large_airport",
+        lat: 46.8420,
+        lighting: ["Runway lights on from dusk to dawn"],
+        lon: -92.1936,
+        metar: Metar(altimeterInHg: 30.12, dewpointC: -3, flightCategory: "VFR", observedAt: "2026-11-03T14:53:00Z",
+                     raw: "KDLH 031453Z 27009KT 10SM FEW040 BKN250 04/M03 A3012", tempC: 4, visibilitySm: 10, windDirTrueDeg: 270,
+                     windSpeedKt: 9),
+        municipality: "Duluth",
+        name: "Duluth Intl",
+        pattern: TrafficPattern(aglFt: 1000, altitudeFt: 2428, published: false),
+        phone: "218 555 0100",
         procedures: [
             TerminalChart(kind: "IAP", name: "ILS OR LOC RWY 09", url: "https://aeronav.faa.gov/d-tpp/2511/00126IL9.PDF"),
             TerminalChart(kind: "IAP", name: "RNAV (GPS) RWY 27", url: "https://aeronav.faa.gov/d-tpp/2511/00126R27.PDF"),
@@ -578,7 +577,17 @@ private enum PreviewData {
             TerminalChart(kind: "MIN", name: "TAKEOFF MINIMUMS", url: "https://aeronav.faa.gov/d-tpp/2511/NC1TO.PDF"),
         ],
         radioNotes: ["A radio check on the CTAF: key the mic three times"],
-        standardKeying: true)
+        region: "US-MN",
+        runways: [
+            Runway(closed: false, ends: "09/27", lengthFt: 10162, lighted: true, runwayEnds: [RunwayEnd(headingTrueDeg: 92, ident: "09", lat: 46.8415, lon: -92.2140),
+                                RunwayEnd(headingTrueDeg: 272, ident: "27", lat: 46.8425, lon: -92.1733, traffic: "right")],
+                   surface: "ASPH", widthFt: 150, wind: RunwayWind(crosswindKt: 4, end: "27", headwindKt: 9)),
+            Runway(closed: false, ends: "03/21", lengthFt: 5719, lighted: true, runwayEnds: [RunwayEnd(headingTrueDeg: 33, ident: "03", lat: 46.8355, lon: -92.2005),
+                                RunwayEnd(headingTrueDeg: 213, ident: "21", lat: 46.8490, lon: -92.1880)],
+                   surface: "ASPH", widthFt: 150),
+        ],
+        standardKeying: true,
+        towered: true)
 }
 
 #Preview("AirportHead") {
