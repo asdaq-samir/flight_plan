@@ -6,5 +6,6 @@
 -r requirements.txt
 # Pillow among them is pinned once, 13.0.0, in src/requirements-charts.txt.
 pytest
+pytest-randomly==5.0.0   # every run in a new random order, --randomly-seed=N repeats one (docs/CI.md, "Flaky tests")
 httpx   # fastapi.testclient.TestClient's transport
 ruff
