@@ -297,7 +297,7 @@ function TrainingGroup() {
       title="Training"
       badge={(lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
       footer={!pipeline?.startable
-        ? <>{pipeline?.detail ?? "The planner cannot start a run from here."} Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose run --rm pipeline-training run</code>.</>
+        ? <>{pipeline?.detail ?? "The planner cannot start a run from here."} Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose up retrain</code>.</>
         : undefined}
     >
       {!lastRun && (

@@ -712,6 +712,10 @@ def _chart_branch() -> list:
     ]
 
 
+class RunGoing(RuntimeError):
+    """Another training run holds the lock."""
+
+
 def run(status_path: Path | None = None, branches: list | None = None) -> dict:
     """One training run, every stage in order: the landmark model's branch
     (landmarks_ready, collect, feature_engineer, retrain, evaluate,
@@ -732,8 +736,10 @@ def run(status_path: Path | None = None, branches: list | None = None) -> dict:
     One run at a time, as the DAG's max_active_runs=1 kept it: evaluate
     reads the candidate and promote copies it later, both from one fixed
     place, so an overlapping run's retrain between the two would promote
-    a model that never passed the gate. A second run waits on the lock
-    for the first to end.
+    a model that never passed the gate. A second run does not queue: it
+    raises RunGoing before touching the status file, which still belongs
+    to the first (a queued run would leave the console showing the
+    previous run's end while one waits).
 
     Each stage's start and end is written to `status_path`
     (model_registry.RUN_STATUS_PATH), which the planner reads for the
@@ -754,7 +760,10 @@ def run(status_path: Path | None = None, branches: list | None = None) -> dict:
     by_name = {stage["name"]: stage for stage in status["stages"]}
     status_path.parent.mkdir(parents=True, exist_ok=True)
     with open(status_path.with_name(f".{status_path.name}.lock"), "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as err:
+            raise RunGoing("A training run is going already.") from err
         for branch in branches:
             skipping = None
             for name, stage_fn in branch:
@@ -783,7 +792,7 @@ def run(status_path: Path | None = None, branches: list | None = None) -> dict:
 
 
 def _cli() -> None:
-    """Run the whole training run (`docker compose run --rm pipeline-training run`)
+    """Run the whole training run (`docker compose up retrain`)
     or one stage standalone, e.g. `docker compose run --rm pipeline-training retrain`
     or `docker compose run --rm pipeline-processing collect`.
 
@@ -842,7 +851,11 @@ def _cli() -> None:
         # run() catches (see chart-retrain below).
         from wingtip import pipeline
 
-        result = pipeline.run()
+        try:
+            result = pipeline.run()
+        except pipeline.RunGoing as err:
+            print(err)
+            raise SystemExit(2) from err
         print(json.dumps(result, indent=2))
         raise SystemExit(1 if result["state"] == "failed" else 0)
     if args.stage == "collect":

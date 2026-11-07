@@ -175,8 +175,10 @@ def _weather_datasets() -> list[WeatherDataset]:
     return [WeatherDataset(name=name, fetched_at=_iso(fetched)) for name, fetched in weather.dataset_status().items()]
 
 
-# How to run the training by hand, where the console cannot start it.
-BY_HAND = "docker compose run --rm pipeline-training run"
+# How to run the training by hand, where the console cannot start it. The
+# compose container, not a one-off `compose run`: the sidecar sees only the
+# former, and the console reads "is a run going" from it.
+BY_HAND = "docker compose up retrain"
 RUN_GOING = "A training run is going already; follow it in Performance."
 
 

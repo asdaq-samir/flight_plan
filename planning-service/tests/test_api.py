@@ -99,7 +99,7 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     assert body["services"]["webapp"] == {"up": True, "detail": "HTTP 200"}
     assert body["services"]["db"] == {"up": False, "detail": "HTTP 503"}
     assert body["pipeline"]["startable"] is False
-    assert "pipeline-training run" in body["pipeline"]["detail"]
+    assert "docker compose up retrain" in body["pipeline"]["detail"]
     # Every weather source, the winds for each forecast period included.
     assert {w["name"] for w in body["weather"]} == {
         "metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24",
@@ -144,7 +144,7 @@ def test_retrain_writes_the_chart_models_table_and_says_how_without_the_sidecar(
     resp = client.post("/api/retrain")
 
     assert resp.status_code == 501
-    assert "docker compose run --rm pipeline-training run" in resp.json()["detail"]
+    assert "docker compose up retrain" in resp.json()["detail"]
     # Written first, so the command it gives trains on the ratings as they are.
     assert written == [True]
 
