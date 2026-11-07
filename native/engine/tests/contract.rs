@@ -227,6 +227,9 @@ fn the_shared_fixtures_answers_are_of_the_contracts_shapes() {
     for case in rules["declination"].as_array().unwrap() {
         c.ask("magnetic_variation", json!({ "lat": case["lat"], "lon": case["lon"], "date": "2026-07-01" }));
     }
+    for case in fixture("dataCycles.json")["cases"].as_array().unwrap() {
+        c.ask("data_cycle", json!({ "kind": case["kind"], "effective": case["effective"], "on": case["on"] }));
+    }
     for case in rules["weatherInForce"].as_array().unwrap() {
         let at = |k: &str| case.get(k).cloned().unwrap_or(Value::Null);
         c.ask("weather_in_force", json!({ "product": case["product"], "now": case["now"], "observed": at("observed"),
