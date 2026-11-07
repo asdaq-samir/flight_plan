@@ -171,6 +171,21 @@ jobs:
       # The API types, generated from planning-service/openapi.json --
       # test-planning-service proves that file matches the running app.
       - run: npm run types
+      # The phones' models of the same two documents (quicktype, in
+      # scripts/api-models-apps.sh), committed because neither app's build
+      # has Node: generated again here, they must be the committed files
+      # byte for byte, or a field a server renamed reaches a phone at
+      # runtime instead of failing its build.
+      - name: The phones' API models are the committed ones
+        working-directory: .
+        run: |
+          scripts/api-models-apps.sh
+          generated="ios/Wingtip/API/Generated android/app/src/main/kotlin/app/wingtipmaps/android/api/generated"
+          if [ -n "$(git status --porcelain -- $generated)" ]; then
+            git status --short -- $generated
+            echo "::error title=Phone API models out of date::the phones' generated API models are not what the OpenAPI documents give: run scripts/api-models-apps.sh and commit the files."
+            exit 1
+          fi
       - run: npx tsc --noEmit
       - run: npx eslint .
       - run: npx vitest run
@@ -426,6 +441,10 @@ jobs:
               - planning-service/openapi.json
               - springboot-app/openapi.json
               - native/contract/**
+              # The phones' models of the two documents, checked there.
+              - scripts/api-models-apps.*
+              - ios/Wingtip/API/Generated/**
+              - android/app/src/main/kotlin/app/wingtipmaps/android/api/generated/**
             test-webapp:
               - springboot-app/**
             test-planning-service:

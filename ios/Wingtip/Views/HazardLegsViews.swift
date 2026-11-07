@@ -103,8 +103,8 @@ extension ChartMap.Coordinator {
 }
 
 private enum PreviewData {
-    static let onRoute = OnRoute(legs: [1, 2], fromNm: 18.5, toNm: 41.0, enter: "2026-11-03T14:20:00Z", leave: "2026-11-03T14:45:00Z",
-                                 validTo: "2026-11-03T15:00:00Z", when: "during", source: "SIGMET")
+    static let onRoute = OnRoute(enter: "2026-11-03T14:20:00Z", fromNm: 18.5, leave: "2026-11-03T14:45:00Z", legs: [1, 2], source: "SIGMET",
+                                 toNm: 41.0, validTo: "2026-11-03T15:00:00Z", when: "during")
 }
 
 #Preview("OnRouteRow") {
@@ -115,8 +115,8 @@ private enum PreviewData {
 #Preview("FieldsBelowVfrSection") {
     List {
         FieldsBelowVfrSection(fields: [
-            FieldBelowVfr(ident: "KHIB", source: "METAR", flightCategory: "IFR", ceilingFt: 600, visibilitySm: 2.5, onRoute: PreviewData.onRoute),
-            FieldBelowVfr(ident: "KGPZ", source: "TAF", flightCategory: "LIFR", ceilingFt: 300, visibilitySm: 0.75, onRoute: PreviewData.onRoute),
+            FieldBelowVfr(ceilingFt: 600, flightCategory: "IFR", ident: "KHIB", onRoute: PreviewData.onRoute, source: "METAR", visibilitySm: 2.5),
+            FieldBelowVfr(ceilingFt: 300, flightCategory: "LIFR", ident: "KGPZ", onRoute: PreviewData.onRoute, source: "TAF", visibilitySm: 0.75),
         ])
     }
     .environment(Plan())

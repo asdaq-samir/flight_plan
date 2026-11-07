@@ -194,12 +194,12 @@ struct ProfileChart: View {
 
 private enum PreviewData {
     static let profile = RouteProfile(
+        airspace: [ProfileAirspace(ceilingFt: 10_000, airspaceClass: "B", floorFt: 1500, fromNm: 0, name: "San Francisco Class B", toNm: 14)],
         lengthNm: 62,
         terrain: [
             ProfileGround(alongNm: 0, groundFt: 5), ProfileGround(alongNm: 20, groundFt: 1800),
             ProfileGround(alongNm: 40, groundFt: 2600), ProfileGround(alongNm: 62, groundFt: 95),
-        ],
-        airspace: [ProfileAirspace(name: "San Francisco Class B", airspaceClass: "B", fromNm: 0, toNm: 14, floorFt: 1500, ceilingFt: 10_000)]
+        ]
     )
     static let legs = [
         Leg(from: "KPAO", to: "KLVK", distanceNm: 28, altitudeFt: 4500, trueCourseDeg: 62, magneticHeadingDeg: 51,

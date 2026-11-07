@@ -26,8 +26,12 @@ owner's word. Its package is `app.wingtipmaps.android.native`.
   - `api/`: the data layer. `Gateway` (the session's cookies, kept by
     `CookieStore`; the CSRF header; a cache the servers' Cache-Control
     fills), `Planner` (the planner through the gateway's proxy),
-    `Models.kt` (the answers' shapes, by hand, in the document's names
-    through `@SerialName`), `NavLog.kt` (the nav log's streamed lines);
+    `Models.kt` (the answers' shapes, in the document's names through
+    `@SerialName`: most are typealiases of `api/generated`, which
+    `scripts/api-models-apps.sh` writes from the planner's and the
+    gateway's OpenAPI documents with quicktype, committed and checked by
+    CI, so a renamed field fails the build; the pilot and AirportPin
+    stay by hand), `NavLog.kt` (the nav log's streamed lines, by hand);
   - `Charts`, `Session`, `Plan`: the models of state, ViewModels with
     their state in flows (which chart, who is signed in, the route and
     what the planner said of it), and `Links` (the site's links the app

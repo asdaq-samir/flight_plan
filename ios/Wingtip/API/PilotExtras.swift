@@ -49,16 +49,12 @@ struct Inspections: Codable, Equatable, Sendable {
     var hundredHourDueAtHours: Double?
 }
 
-/// What the inspections' form saves (InspectionsRequest): a blank is null.
-struct InspectionsRequest: Codable, Equatable, Sendable {
-    var annualOn: String?
-    var staticCheckOn: String?
-    var transponderCheckOn: String?
-    var eltInspectedOn: String?
-    var eltBatteryDueOn: String?
-    var hoursNow: Double?
-    var hundredHourAtHours: Double?
+/// What the inspections' form saves (InspectionsRequest, generated from
+/// the gateway's document as the other requests here are): a blank is
+/// null.
+typealias InspectionsRequest = GWInspectionsRequest
 
+extension InspectionsRequest {
     init(_ i: Inspections?) {
         annualOn = i?.annualOn; staticCheckOn = i?.staticCheckOn; transponderCheckOn = i?.transponderCheckOn
         eltInspectedOn = i?.eltInspectedOn; eltBatteryDueOn = i?.eltBatteryDueOn
@@ -79,18 +75,11 @@ struct Squawk: Codable, Equatable, Sendable, Identifiable {
     var fixNote: String?
 
     var request: SquawkRequest {
-        SquawkRequest(reportedOn: reportedOn, text: text, inoperative: inoperative, deferredFor: deferredFor, fixedOn: fixedOn, fixNote: fixNote)
+        SquawkRequest(deferredFor: deferredFor, fixedOn: fixedOn, fixNote: fixNote, inoperative: inoperative, reportedOn: reportedOn, text: text)
     }
 }
 
-struct SquawkRequest: Codable, Equatable, Sendable {
-    var reportedOn: String
-    var text: String
-    var inoperative: Bool
-    var deferredFor: String?
-    var fixedOn: String?
-    var fixNote: String?
-}
+typealias SquawkRequest = GWSquawkRequest
 
 /// The kinds of flight a 91.213(d) determination can be made for, in the
 /// rule's order (91.205(b)-(d)), as the web app's SquawksPage words them.
@@ -124,12 +113,7 @@ struct VorCheck: Codable, Equatable, Sendable {
     let withinLimit: Bool
 }
 
-struct VorCheckRequest: Codable, Equatable, Sendable {
-    var checkedOn: String
-    var errorDeg: Double
-    var kind: String
-    var place: String?
-}
+typealias VorCheckRequest = GWVorCheckRequest
 
 /// The ways 91.171 lets a VOR be checked, with the largest bearing error
 /// each allows, as the picker names them: 4 degrees at a VOT or a repair
@@ -166,19 +150,7 @@ struct ChecklistItem: Codable, Equatable, Sendable {
 }
 
 /// The airplane as the form saves it (AircraftRequest).
-struct AircraftRequest: Codable, Equatable, Sendable {
-    var tailNumber: String
-    var typeDesignator: String
-    var cruiseTasKt: Double
-    var fuelBurnGph: Double
-    var cruisePowerPct: Double?
-    var climbTasKt: Double?
-    var climbFuelBurnGph: Double?
-    var usableFuelGal: Double?
-    var equipment: String?
-    var surveillance: String?
-    var colour: String?
-}
+typealias AircraftRequest = GWAircraftRequest
 
 /// A flight logged (LogbookEntryRequest): a paper logbook's columns.
 struct LogbookEntryRequest: Codable, Equatable, Sendable {
@@ -239,18 +211,11 @@ struct LogbookEntryRequest: Codable, Equatable, Sendable {
 }
 
 /// The dates the pilot gives the currency (CurrencyDatesRequest).
-struct CurrencyDatesRequest: Codable, Equatable, Sendable {
-    var flightReviewOn: String?
-    var medicalExpiresOn: String?
-    var ipcOn: String?
-}
+typealias CurrencyDatesRequest = GWCurrencyDatesRequest
 
 struct Reminders: Codable, Equatable, Sendable { var on: Bool }
 
-struct LogbookImportResult: Codable, Equatable, Sendable {
-    var added: Int
-    var duplicates: Int
-}
+typealias LogbookImportResult = GWLogbookImportResult
 
 /// An AC 61-65K endorsement as the gateway offers it to sign
 /// (EndorsementKindDto): its words with blanks, the paragraph and the
@@ -310,12 +275,7 @@ struct StudentRow: Codable, Equatable, Sendable, Identifiable {
     var id: Int64 { linkId }
 }
 
-struct InstructorRequest: Codable, Equatable, Sendable {
-    var fullName: String
-    var certificate: String
-    var until: String
-    var untilKind: String
-}
+typealias InstructorRequest = GWInstructorRequest
 
 struct SignRequest: Codable, Equatable, Sendable {
     var code: String

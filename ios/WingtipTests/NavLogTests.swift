@@ -24,7 +24,7 @@ struct NavLogTests {
     }
 
     @Test func theCourseLineBecomesCoordinates() throws {
-        let json = #"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth","lat":46.84,"lon":-92.19},"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[44.5,-90.0],[46.84,-92.19]]}"#
+        let json = #"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth","lat":46.84,"lon":-92.19},"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[44.5,-90.0],[46.84,-92.19]],"chart_cycle":"09-03-2026","chart_layers":[],"min_zoom":5,"max_zoom":12}"#
         let course = try Planner.snakeCase.decode(Course.self, from: Data(json.utf8))
         #expect(course.coordinates.count == 3 && course.coordinates[1].latitude == 44.5 && (course.stops ?? []).isEmpty)
     }
@@ -64,7 +64,7 @@ struct RouteEditTests {
 struct KeptTests {
     @Test func aPlanKeptComesBackAsItWas() throws {
         let file = FileManager.default.temporaryDirectory.appending(path: "kept-\(UUID().uuidString).json")
-        let course = try Planner.snakeCase.decode(Course.self, from: Data(#"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth","lat":46.84,"lon":-92.19},"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[46.84,-92.19]]}"#.utf8))
+        let course = try Planner.snakeCase.decode(Course.self, from: Data(#"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth","lat":46.84,"lon":-92.19},"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[46.84,-92.19]],"chart_cycle":"09-03-2026","chart_layers":[],"min_zoom":5,"max_zoom":12}"#.utf8))
         let kept = Kept(dep: "C81", dest: "KDLH", stops: [], aircraft: "c172", course: course, totals: Totals(distanceNm: 323.5, eteMin: 165), plannedAt: Date(timeIntervalSince1970: 1_800_000_000))
         kept.save(to: file)
         #expect(Kept.load(from: file) == kept)
@@ -113,9 +113,9 @@ struct ProcedureTests {
 /// The dry run's airplane along the plan, flown by the engine's `dry_run`.
 struct DryRunTests {
     @MainActor @Test func theAirplaneFliesTheLegInItsMinutes() throws {
-        let a = CourseEnd(ident: "A", name: "A", lat: 42.0, lon: -88.0, elevationFt: 700)
-        let b = CourseEnd(ident: "B", name: "B", lat: 43.0, lon: -88.0, elevationFt: 700)
-        let course = Course(departure: a, destination: b, distanceNm: 60, bearingDeg: 0, courseLine: [[42.0, -88.0], [43.0, -88.0]])
+        let a = CourseEnd(elevationFt: 700, ident: "A", lat: 42.0, lon: -88.0, name: "A")
+        let b = CourseEnd(elevationFt: 700, ident: "B", lat: 43.0, lon: -88.0, name: "B")
+        let course = Course(bearingDeg: 0, chartCycle: "", chartLayers: [], courseLine: [[42.0, -88.0], [43.0, -88.0]], departure: a, destination: b, distanceNm: 60, maxZoom: 0, minZoom: 0)
         let leg = Leg(from: "A", to: "B", distanceNm: 60, altitudeFt: 4500, trueCourseDeg: 0, magneticHeadingDeg: 0, groundspeedKt: 120, eteMin: 30, fuelGal: 4, tasKt: 110)
         // Its 30 minutes, at its 120 kt, from A to B, landed there; no
         // height where the plan has no climb in it.
@@ -136,7 +136,7 @@ struct DryRunTests {
         #expect(flown.first?.altFt == 700 && flown.first?.gsKt == 85)
         #expect(flown.contains { $0.altFt == 4500 && $0.gsKt == 120 } && flown.last?.altFt == 700)
         // A row a leg, or no run: a checkpoint with no leg to it is not one.
-        let stray = Checkpoint(id: "x", category: "lake", lat: 42.5, lon: -88.0, predictedScore: 1, alongTrackNm: 30)
+        let stray = Checkpoint(alongTrackNm: 30, category: "lake", id: "x", lat: 42.5, lon: -88.0, predictedScore: 1, selected: false)
         #expect(DryRun.run(course: course, checkpoints: [stray], legs: [leg]) == nil)
         let run = DryRun()
         run.start(course: course, checkpoints: [], legs: [leg])

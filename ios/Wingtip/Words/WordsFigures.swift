@@ -56,11 +56,13 @@ enum WordsFigures {
                 out.append(WordsSource(id: "metar:\(ident)", label: "\(ident) METAR", text: "No METAR reported for \(ident)."))
             }
         }
-        for s in b.forecast?.stations ?? [] {
-            guard let ident = s.ident else { continue }
+        // Each TAF station by the planner's names (ForecastStation: icaoId,
+        // and ceiling_ft and visibility_sm, the worst over the flight).
+        for s in b.forecast.stations {
+            let ident = s.icaoId
             var lines: [String] = []
-            let ceiling = s.minCeilingFt.map { "ceiling \(Formats.grouped($0)) ft" } ?? "no ceiling"
-            let visibility = s.minVisibilitySm.map { "visibility \(Formats.number($0, decimals: 1)) sm" } ?? "visibility not reported"
+            let ceiling = s.ceilingFt.map { "ceiling \(Formats.grouped($0)) ft" } ?? "no ceiling"
+            let visibility = s.visibilitySm.map { "visibility \(Formats.number($0, decimals: 1)) sm" } ?? "visibility not reported"
             lines.append("Worst over the flight: \(ceiling), \(visibility).")
             if let raw = s.raw { lines.append(raw) }
             out.append(WordsSource(id: "taf:\(ident)", label: "\(ident) TAF", text: lines.joined(separator: "\n")))

@@ -12,7 +12,7 @@ struct RouteLineTests {
      {"kind":"weather","kinds":["weather"],"title":"Best weather","stops":["CHUUC","KAOV"],"fuel":["KAOV"],"path":[[40.41287,-86.93936],[38.08913,-90.56766],[36.97189,-92.68195],[35.39339,-97.59825]],"distance_nm":596.2,"air_min":329.6,"ground_min":30.0,"fuel_gal":46.1,"landings":1,"crosses":[],"marginal":[],"bands":[{"kind":"vfr","min":329.6}],"tail_kt":-1.4,"floor_ft":2700,"water_nm":0}],
      "own":{"kind":"own","kinds":["own"],"title":"Your Route","stops":["KVIH"],"fuel":["KVIH"],"path":[[40.41287,-86.93936],[38.12743,-91.76951],[35.39339,-97.59825]],"distance_nm":587.9,"air_min":319.9,"ground_min":30.0,"fuel_gal":44.8,"landings":1,"crosses":[],"marginal":[1],"tail_kt":-4.7,"floor_ft":2500,"water_nm":0},
      "direct":[0],"ends":[],"current":[0],"current_marginal":[],
-     "current_along":{},"current_path":[[40.41287,-86.93936],[35.39339,-97.59825]],
+     "current_along":{"bands":[{"kind":"vfr","min":319.9}],"tail_kt":-4.7,"floor_ft":2500,"water_nm":0},"current_path":[[40.41287,-86.93936],[35.39339,-97.59825]],
      "chips":[
       {"key":"none","label":"None","stops":[],"fuel":[],"crosses":[0]},
       {"key":"fuel","label":"Your Route · KVIH","stops":["KVIH"],"fuel":["KVIH"],"crosses":[]},
@@ -43,7 +43,7 @@ struct RouteLineTests {
         #expect(!RouteLine.shows(bare, picked: nil, problem: nil))
         #expect(RouteLine.shows(try Self.routes(), picked: nil, problem: nil))
         // A way flown keeps the line, so "None" can bring the route back.
-        #expect(RouteLine.shows(bare, picked: RouteChip(key: "fuel", label: "Your Route · KVIH", stops: ["KVIH"]), problem: nil))
+        #expect(RouteLine.shows(bare, picked: RouteChip(fuel: [], key: "fuel", label: "Your Route · KVIH", stops: ["KVIH"]), problem: nil))
     }
 
     @MainActor @Test func aChipIsFlownAtOnceAndNoneRestoresTheTypedRoute() throws {
