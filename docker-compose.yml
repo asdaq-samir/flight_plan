@@ -5,7 +5,7 @@
 name: wingtip
 
 # Shared, not copy-pasted into each service below -- three of the
-# Python services (planning-service, model-service, crewai-agent) had
+# Python services (planning-service, crewai-agent and, once, model-service) had
 # byte-identical healthcheck timing and the identical required-env
 # line for ANTHROPIC_API_KEY, which meant a change to either (say, a
 # longer start_period, or a reworded failure message) only actually
@@ -144,9 +144,9 @@ services:
       - pgdata_pg18:/var/lib/postgresql
 
   # The developer console's one door onto Docker (docker/dev-services):
-  # which of four services are running, and starting one that is not.
+  # which of three services are running, and starting one that is not.
   # It holds the socket so planning-service doesn't, and answers those
-  # two requests for those four names in this project, nothing else --
+  # two requests for those three names in this project, nothing else --
   # no create, no exec, no other container.
   #
   # It replaced tecnativa/docker-socket-proxy with CONTAINERS and POST
@@ -161,7 +161,7 @@ services:
       context: .
       dockerfile: docker/Dockerfile.dev-services
     environment:
-      DEV_SERVICES: ml,airflow,model-service,nav-log-agent
+      DEV_SERVICES: ml,airflow,nav-log-agent
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [docker-control]
@@ -174,8 +174,9 @@ services:
     # Serves no pages -- the front end is built into webapp's jar, and the
     # browser reaches this only through webapp's /api/planner/* proxy.
     # Mounts the project so it can write a new corridor's candidates and
-    # features into data/processed, the same directory model-service reads
-    # its feature stores from.
+    # features into data/processed, and read the chart model a retrain
+    # promotes into data/models/chart/current, which it scores with
+    # in-process (app.chart_scorer) and reads again when it changes.
     build:
       context: .
       dockerfile: planning-service/Dockerfile
@@ -191,9 +192,8 @@ services:
       - airflow_home_v3:/airflow-home:ro
     environment:
       PYTHONPATH: /workspace/src
-      MODEL_SERVICE_URL: http://model-service:8000
       # Not the host's Docker socket -- the dev-services sidecar above,
-      # which routers/devservices.py asks which of four services are up
+      # which routers/devservices.py asks which of three services are up
       # and to start one.
       DEV_SERVICES_URL: http://dev-services:8000
       # The clock the chart refresh's night-time window (see
@@ -231,27 +231,9 @@ services:
       # the jaeger service below); unset, the planner sends none.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${TRACING:+http://jaeger:4318}
       OTEL_SERVICE_NAME: planner
-    depends_on:
-      model-service:
-        condition: service_healthy
     healthcheck:
       <<: *python-healthcheck
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-
-  model-service:
-    restart: unless-stopped
-    build: ./model-service
-    ports:
-      - "127.0.0.1:8000:8000"
-    # The chart reader's scorer (wingtip.chartmodel), as a retrain promotes
-    # it. Read-only -- serving never writes to it.
-    volumes:
-      - ./data/models/chart/current:/opt/ml/chart-model:ro
-    # No curl/wget in the python:3.14-slim base -- a stdlib urllib call
-    # needs neither.
-    healthcheck:
-      <<: *python-healthcheck
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ping')"]
 
   nav-log-agent:
     restart: unless-stopped
@@ -488,7 +470,7 @@ services:
       APP_HSTS: "false"
 
   # Traces of a request from the webapp down through the planner to every
-  # source it asks (aviationweather.gov, the FAA, the USGS, model-service),
+  # source it asks (aviationweather.gov, the FAA, the USGS),
   # in Jaeger's UI on http://localhost:16686:
   #
   #   TRACING=true docker compose --profile tracing up -d jaeger webapp planning-service

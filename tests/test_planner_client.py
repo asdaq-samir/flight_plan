@@ -1,6 +1,5 @@
 """wingtip.planner_client: how both agents get a route's nav log from
-planning-service. The HTTP calls are mocked on the module's own Session,
-the same way tests/test_model_client.py does it."""
+planning-service. The HTTP calls are mocked on the module's own Session."""
 import pytest
 import requests
 

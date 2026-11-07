@@ -36,20 +36,20 @@ flowchart LR
     end
     airflow["§3 airflow<br/>(orchestrates the row above)"] -.-> collect
 
-    registry --> model[("model-service<br/>/ping · /score-detections")]
+    registry --> planner[("planning-service<br/>scores with the promoted model")]
 
-    webapp["§4 webapp<br/>(Spring Boot API)"] --> model
+    webapp["§4 webapp<br/>(Spring Boot API)"] --> planner
     webapp --> db[("db<br/>Postgres + pgvector")]
 
-    navlog["§5 nav-log-agent<br/>(LangGraph, MCP)"] --> model
+    navlog["§5 nav-log-agent<br/>(LangGraph, MCP)"] --> planner
     navlog --> db
-    crewai["§5 crewai-agent<br/>(CrewAI, one-shot CLI)"] --> model
+    crewai["§5 crewai-agent<br/>(CrewAI, one-shot CLI)"] --> planner
 
     client([API client]) --> webapp
     mcpclient([MCP client]) --> navlog
 ```
 
-Everything above `db`/`model-service` runs today exactly as drawn; the
+Everything above `db`/`planning-service` runs today exactly as drawn; the
 `§7` CloudFormation template re-provisions this same picture on AWS,
 service for service — see `docs/README-AWS.md`.
 
@@ -75,7 +75,7 @@ install` almost always comes *before* `COPY app ./app` in this repo's
 Dockerfiles: your application code changes constantly, your dependency
 list doesn't, so putting the slow, cacheable step (`pip install`) first
 means it's skipped on rebuild unless `requirements.txt` itself changed.
-Look at [`model-service/Dockerfile`](../model-service/Dockerfile) — that
+Look at [`planning-service/Dockerfile`](../planning-service/Dockerfile) — that
 ordering is deliberate, not incidental.
 
 **Volumes vs. the image filesystem.** Anything `COPY`'d into an image is
@@ -84,8 +84,8 @@ your host machine into the running container, live. This repo uses bind
 mounts heavily — `.:/workspace` shows up in several services in
 [`docker-compose.yml`](../docker-compose.yml) — specifically so you can
 edit Python source on your host and rerun the container without rebuilding
-the image. Compare that to `webapp` and `model-service`, which have *no*
-bind mount: their code is `COPY`'d into the image at build time, so you
+the image. Compare that to `webapp`, which has *no*
+bind mount: its code is `COPY`'d into the image at build time, so you
 must rebuild the image to pick up a change. That split is a real decision:
 interpreted-language dev containers favor mount-and-iterate; compiled/
 packaged services (a Spring Boot JAR, a pip-installed FastAPI app meant to
@@ -95,9 +95,9 @@ they'd actually ship.
 **Networking.** Docker Compose puts every service in the same file on one
 private network, and each service is reachable from any other by its
 *service name* as a hostname — not `localhost`. That's why
-[`docker-compose.yml`](../docker-compose.yml)'s `webapp` has
-`MODEL_SERVICE_URL: http://model-service:8000`, not
-`http://localhost:8000` — `model-service` is DNS-resolvable to the right
+[`docker-compose.yml`](../docker-compose.yml)'s `planning-service` has
+`NAV_LOG_AGENT_URL: http://nav-log-agent:8000`, not
+`http://localhost:8000` — `nav-log-agent` is DNS-resolvable to the right
 container only inside that private network. From your host machine
 (outside Compose's network), you *do* use `localhost:8080` etc., because
 `ports: ["8080:8080"]` punches a hole from the host into the container.
@@ -166,8 +166,7 @@ from its cache.
 | [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.14-slim` | Adds scikit-learn/joblib on top. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
 | [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:3.3.1-python3.13` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
 | [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:3.3.1-python3.13` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
-| [`model-service/Dockerfile`](../model-service/Dockerfile) | `python:3.14-slim` | A plain FastAPI service: install deps, copy `app/`, run `uvicorn`. |
-| [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.14-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely). Bind-mounts the repo, so a `src/wingtip` edit needs a restart, not a rebuild. |
+| [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.14-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely), and the chart model's scikit-learn, pinned to the training image's. Bind-mounts the repo, so a `src/wingtip` edit needs a restart, not a rebuild. |
 | [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:26-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
 | [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.14-slim` (crewai-agent: `python:3.13-slim`, as crewai requires <3.14) | Both set `PYTHONPATH=/workspace/src` so `import wingtip...` resolves inside the container without installing `wingtip` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does (see [the disk lesson](#the-disk-lesson)). |
 
@@ -176,16 +175,16 @@ from its cache.
 A Dockerfile is a recipe; an image is the baked result sitting on your
 disk. `docker images` on a working copy of this repo shows two kinds.
 
-**The nine built from this repo**, named after the project directory
+**The eight built from this repo**, named after the project directory
 (`wingtip-webapp`, `wingtip-ml`, and so on). `ml` is by far the
 largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark
-and a JVM in one place. Only four of the nine run the application — `webapp`,
-`planning-service`, `model-service` and the database's own image below;
+and a JVM in one place. Only three of them run the application — `webapp`,
+`planning-service` and the database's own image below;
 the rest exist for building, training, orchestrating or testing.
 
 **The ones pulled, not built.** These look like clutter and are not;
 deleting one only forces a re-download on the next build. `python:3.14-slim`
-is the base for most of the nine above, stored once, which is why image
+is the base for most of the eight above, stored once, which is why image
 sizes are not additive. `node:26-slim` and `maven:...` are build-only and
 never ship. `pgvector/pgvector` is the database. `postgres` and
 `testcontainers/ryuk` are started by the JUnit suite ([Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)),
@@ -220,8 +219,8 @@ Per service, four keys matter most:
 - `build:` — where the Dockerfile is and what directory is the *build
   context* (everything `COPY` can see). Some services build from `.` (the
   repo root, needed when the Dockerfile has to `COPY src ./src` from
-  outside its own directory); others build from their own subdirectory
-  (`./model-service`) when they're fully self-contained.
+  outside its own directory); a fully self-contained one could build from
+  its own subdirectory instead.
 - `ports: ["8080:8080"]` — `host:container`. The left side is what you
   type into your browser; the right side is what the app inside actually
   binds to.
@@ -408,8 +407,8 @@ itself by quietly matching the mean.
 "candidate" model against whatever's currently "current" (serving), and
 returns `True` only if the candidate wins (or nothing has been promoted
 yet). `promote()` then copies the candidate into the `current/`
-directory — which `model-service` bind-mounts and really does serve
-from — and also stashes a timestamped copy under `versions/` for history.
+directory — which the planner really does score from, reading it
+again when it changes — and also stashes a timestamped copy under `versions/` for history.
 **A new model only goes live if it's measurably better than what's
 already live** — this is the single idea that makes an automated
 retraining pipeline safe to run unattended instead of silently degrading
@@ -537,19 +536,21 @@ rather than one image with a runtime branch.
 
 ## 4. The serving layer
 
-Two services answer real HTTP requests: `model-service` (predictions) and
-`webapp` (the public API, persistence).
+Two services answer real HTTP requests: `planning-service` (the route,
+and the model's predictions) and `webapp` (the public API, persistence).
 
-### model-service (FastAPI)
+### Scoring in the planner
 
-[`model-service/app/main.py`](../model-service/app/main.py) is
-deliberately minimal: two routes, `/ping` (health check) and
-`/score-detections`, the chart model's score for each detection the
-planner reads off the chart. The model loads from `CHART_MODEL_DIR`,
-which docker-compose bind-mounts from `data/models/chart/current`, and is
-read again when a retrain promotes a new one there — no restart. With
-none promoted it answers 503, and the planner ranks the detections by
-the chart palette's constants instead.
+[`planning-service/app/chart_scorer.py`](../planning-service/app/chart_scorer.py)
+is deliberately minimal: one function, `score_detections`, the chart
+model's score for each detection the planner reads off the chart. The
+model loads from `data/models/chart/current` and is read again when a
+retrain promotes a new one there — no restart. With none promoted it
+gives no scores, and the planner ranks the detections by the chart
+palette's constants instead. It was a FastAPI service of its own,
+`model-service`, until 2026-11-06: one container for one call whose only
+caller was the planner, so it moved in-process, with scikit-learn pinned
+to the training image's.
 
 ### Select → the checkpoints actually flown
 
@@ -651,9 +652,8 @@ classDiagram
 Where the model gets called is worth noticing by its absence: nowhere in
 this service. Scoring a route belongs to `planning-service`, which
 `webapp` only proxies (`PlannerProxyController`, `/api/planner/*`), and
-planning-service reaches the model through one shared module,
-[`wingtip.model_client`](../src/wingtip/model_client.py): an HTTP call to
-`model-service`'s `/score-detections`. Only planning-service imports it: the Gen AI agents
+planning-service scores in its own process
+([`app/chart_scorer.py`](../planning-service/app/chart_scorer.py)): the Gen AI agents
 ask planning-service itself for the nav log (through
 [`wingtip.planner_client`](../src/wingtip/planner_client.py)), so there is one
 client to get right and one place a nav log is built.

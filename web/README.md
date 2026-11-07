@@ -153,11 +153,10 @@ proxy at `host.docker.internal:8080` or use the build path above.
 ```
 web/ (this folder)      the map, the header, the drawers
   → webapp              :8080  serves the bundle, proxies /api/planner/*, owns auth and the database
-  → planning-service    :8084  sectional tiles, great-circle course, checkpoints, dead reckoning, Class B weather
-  → model-service       :8000  scores candidate checkpoints
+  → planning-service    :8084  sectional tiles, great-circle course, checkpoints (scored by the chart model), dead reckoning, Class B weather
 ```
 
-The front end never calls `planning-service` or `model-service`
+The front end never calls `planning-service`
 directly. Every request goes through `webapp` at `/api/planner/*` (a
 middleware rewrites `/api/x` to that path, so call sites read as if
 they spoke to the planner directly), so there is one origin, one

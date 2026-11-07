@@ -103,8 +103,9 @@ def evaluate(candidate_dir: Path = CANDIDATE_MODEL_DIR, current_dir: Path = CURR
 
 
 def _copy_into_place(source: Path, dest: Path) -> None:
-    """Copy beside `dest` and rename over it, so model-service -- which
-    reloads when these files change -- never reads a half-copied one."""
+    """Copy beside `dest` and rename over it, so the planner -- which
+    reloads when these files change (planning-service's app.chart_scorer)
+    -- never reads a half-copied one."""
     tmp = dest.with_name(f".{dest.name}.tmp")
     shutil.copy2(source, tmp)
     os.replace(tmp, dest)

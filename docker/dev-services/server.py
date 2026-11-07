@@ -1,4 +1,4 @@
-"""The developer console's one door onto Docker: which of four services
+"""The developer console's one door onto Docker: which of three services
 are running, and starting one that is not.
 
 This is the only process that holds the Docker socket for the console,

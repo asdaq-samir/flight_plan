@@ -21,7 +21,7 @@ docker compose up -d --build webapp
 # http://localhost:8080/swagger-ui/index.html
 ```
 
-`webapp` brings up `db`, `model-service` and `planning-service` with it.
+`webapp` brings up `db` and `planning-service` with it.
 
 ```bash
 # The JUnit suite, including Testcontainers' real Postgres. No native

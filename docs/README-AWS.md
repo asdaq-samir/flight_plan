@@ -35,7 +35,7 @@ pilot ──HTTPS──▶ CloudFront  (app.example.com, ACM certificate)
                         EC2 t3a.medium on Spot, a group of one (Amazon Linux 2023,
                         docker-compose.prod.yml), its fixed address and data disk
                         taken over by whichever server is running
-                          caddy ─▶ webapp ─▶ planning-service ─▶ model-service
+                          caddy ─▶ webapp ─▶ planning-service (the chart model in-process)
                                      │            └──────────▶ nav-log-agent ─▶ Anthropic
                                      └──▶ db (Postgres 18 + pgvector, on the data disk)
                           nightly pg_dump ─▶ S3 server bucket (14 days)

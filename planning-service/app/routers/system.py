@@ -23,7 +23,6 @@ from ..schemas import (
     ChartRefreshStarted,
     CorridorStatus,
     DataFile,
-    ModelServiceStatus,
     ModelSnapshot,
     ModelVersion,
     PipelineRun,
@@ -37,7 +36,6 @@ from ..schemas import (
 
 router = APIRouter()
 
-MODEL_SERVICE_URL = os.environ.get("MODEL_SERVICE_URL", "http://model-service:8000")
 # Both optional: unset (the AWS task, or a compose file that leaves them
 # out) reports the agent as "not configured" rather than down.
 NAV_LOG_AGENT_URL = os.environ.get("NAV_LOG_AGENT_URL")
@@ -92,18 +90,6 @@ def _webapp_status() -> tuple[ServiceStatus, ServiceStatus]:
         except requests.RequestException as err:
             return ServiceStatus(up=False, detail=str(err).split("\n")[0][:160])
     return ask("liveness"), ask("readiness")
-
-
-def _model_service_status() -> ModelServiceStatus:
-    try:
-        resp = requests.get(f"{MODEL_SERVICE_URL}/ping", timeout=PROBE_TIMEOUT_S)
-        body = resp.json() if resp.ok else {}
-        return ModelServiceStatus(
-            up=resp.ok, detail=f"HTTP {resp.status_code}",
-            trained_at=body.get("trained_at"),
-        )
-    except (requests.RequestException, ValueError) as err:
-        return ModelServiceStatus(up=False, detail=str(err).split("\n")[0][:160])
 
 
 def _agent_status(url: str | None) -> ServiceStatus | None:
@@ -316,16 +302,14 @@ def status() -> Status:
     """One snapshot of the whole stack, for Settings' Dev tab. The
     network probes run side by side so a service that is down costs one
     timeout, not one per service."""
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=4) as pool:
         webapp = pool.submit(_webapp_status)
-        model_service = pool.submit(_model_service_status)
         nav_log_agent = pool.submit(_agent_status, NAV_LOG_AGENT_URL)
         crewai_agent = pool.submit(_agent_status, CREWAI_AGENT_URL)
         pipeline = pool.submit(_pipeline_status)
         return Status(
             checked_at=datetime.now(tz=timezone.utc).isoformat(),
             services={
-                "model_service": model_service.result(),
                 "nav_log_agent": nav_log_agent.result(),
                 "crewai_agent": crewai_agent.result(),
                 "webapp": webapp.result()[0],

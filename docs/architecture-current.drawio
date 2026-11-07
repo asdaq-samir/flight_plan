@@ -41,11 +41,8 @@
         <mxCell id="webapp" value="&lt;b&gt;webapp&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Spring Boot API&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="490" y="150" width="300" height="52" as="geometry" />
         </mxCell>
-        <mxCell id="planning-service" value="&lt;b&gt;planning-service&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;FastAPI · charts · checkpoints · nav log&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="planning-service" value="&lt;b&gt;planning-service&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;FastAPI · charts · chart model · checkpoints · nav log&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="490" y="240" width="300" height="52" as="geometry" />
-        </mxCell>
-        <mxCell id="model-service" value="&lt;b&gt;model-service&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;FastAPI · /ping · /score-detections&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="490" y="330" width="300" height="52" as="geometry" />
         </mxCell>
         <mxCell id="db" value="&lt;b&gt;db&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;PostgreSQL + pgvector&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#4A9A5C;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="490" y="420" width="300" height="52" as="geometry" />
@@ -70,7 +67,7 @@
         <mxCell id="ml" value="&lt;b&gt;ml&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Jupyter · notebooks 01-08&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="70" y="670" width="320" height="52" as="geometry" />
         </mxCell>
-        <mxCell id="dev-services" value="&lt;b&gt;dev-services&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Docker sidecar · starts ml/airflow/&lt;br&gt;model-service/nav-log-agent on request&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="dev-services" value="&lt;b&gt;dev-services&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size:11px;color:#555555;&quot;&gt;Docker sidecar · starts ml/airflow/&lt;br&gt;nav-log-agent on request&lt;/span&gt;" style="rounded=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#888888;strokeWidth=1.5;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="420" y="670" width="300" height="66" as="geometry" />
         </mxCell>
 
@@ -90,9 +87,6 @@
         <mxCell id="e-webapp-planningservice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="webapp" target="planning-service">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e-planningservice-modelservice" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;endArrow=classic;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="planning-service" target="model-service">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
         <mxCell id="e-webapp-db" value="JDBC" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#444444;strokeWidth=1.5;startArrow=classic;startFill=1;endArrow=classic;endFill=1;exitX=0;exitY=0.5;entryX=0;entryY=0.5;fontSize=10;fontColor=#555555;verticalAlign=middle;labelBackgroundColor=#EAF7EE;horizontal=0;" edge="1" parent="1" source="webapp" target="db">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
@@ -105,11 +99,11 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
 
-        <mxCell id="e-promote" value="promoted model" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#999999;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=10;fontColor=#666666;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="model-registry" target="model-service">
+        <mxCell id="e-promote" value="promoted model" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#999999;strokeWidth=1.5;dashed=1;dashPattern=6 4;endArrow=classic;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;fontSize=10;fontColor=#666666;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="model-registry" target="planning-service">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
               <mxPoint x="430" y="423" />
-              <mxPoint x="430" y="356" />
+              <mxPoint x="430" y="266" />
             </Array>
           </mxGeometry>
         </mxCell>

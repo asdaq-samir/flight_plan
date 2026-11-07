@@ -39,10 +39,10 @@ def with_retries(
 
 def upstream_detail(response, service: str) -> str:
     """Why `service` answered with an error, in its own words: the
-    `detail` of a JSON body (FastAPI's shape, which model-service and
-    planning-service both send), else the body's text, else just which
-    service answered with which status. wingtip.model_client and
-    wingtip.planner_client both report upstream failures through this."""
+    `detail` of a JSON body (FastAPI's shape, which planning-service and
+    the agents send), else the body's text, else just which
+    service answered with which status. wingtip.planner_client reports
+    upstream failures through this."""
     try:
         detail = response.json().get("detail")
     except (ValueError, AttributeError):

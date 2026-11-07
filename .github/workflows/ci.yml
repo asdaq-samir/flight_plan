@@ -271,24 +271,6 @@ jobs:
       - run: ruff check app tests
       - run: pytest tests/ -v
 
-  # model-service's own suite.
-  test-model-service:
-    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes]
-    if: needs.changes.outputs.test-model-service == 'true'
-    defaults:
-      run:
-        working-directory: model-service
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
-        with:
-          python-version: "3.14"
-      - run: pip install uv
-      - run: uv pip install --system -r requirements-dev.txt
-      - run: ruff check app tests
-      - run: pytest tests/ -v
-
   # The two agents' suites. Each installs its own service's requirements,
   # the way its image does -- nav-log-agent takes the CPU torch wheel
   # first for the same reason its Dockerfile does. The suites mock the
@@ -377,7 +359,6 @@ jobs:
       test-web: ${{ steps.plan.outputs.test-web }}
       test-webapp: ${{ steps.plan.outputs.test-webapp }}
       test-planning-service: ${{ steps.plan.outputs.test-planning-service }}
-      test-model-service: ${{ steps.plan.outputs.test-model-service }}
       test-nav-log-agent: ${{ steps.plan.outputs.test-nav-log-agent }}
       test-crewai-agent: ${{ steps.plan.outputs.test-crewai-agent }}
       docs: ${{ steps.plan.outputs.docs }}
@@ -440,7 +421,7 @@ jobs:
               - tests/**
               - requirements-dev.txt
               # tests/test_requirements.py reads these
-              - model-service/requirements*.txt
+              - planning-service/requirements*.txt
               - docker/requirements*.txt
             test-web:
               - web/**
@@ -453,8 +434,6 @@ jobs:
               - planning-service/**
               - src/**
               - native/**
-            test-model-service:
-              - model-service/**
             test-nav-log-agent:
               - nav-log-agent/**
               - src/**
@@ -509,8 +488,6 @@ jobs:
               - planning-service/**
               - src/**
               - native/**
-            model-service:
-              - model-service/**
             # web/** rather than the files the Dockerfile copies: a file
             # left off a hand-made list would leave the image stale, and
             # a change the image does not read (a spec) is a cache hit.
@@ -531,11 +508,11 @@ jobs:
           # Every image this workflow builds, each a target of
           # .github/images.hcl, which has its context and Dockerfile.
           IMAGES = ("ml", "pipeline-processing", "pipeline-training", "airflow", "airflow-aws",
-                    "nav-log-agent", "crewai-agent", "planning-service", "model-service", "webapp")
+                    "nav-log-agent", "crewai-agent", "planning-service", "webapp")
           due = lambda name: everything or name in changed
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
-          for name in ("test-root", "test-web", "test-webapp", "test-planning-service", "test-model-service",
+          for name in ("test-root", "test-web", "test-webapp", "test-planning-service",
                        "test-nav-log-agent", "test-crewai-agent", "docs", "infra"):
               outputs[name] = "true" if due(name) else "false"
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
@@ -545,7 +522,7 @@ jobs:
           EOF
 
   # The browser suite (web/e2e, Playwright) against the stack a pilot
-  # uses: the webapp, the planner and the model service built from this
+  # uses: the webapp and the planner built from this
   # commit (by e2e-images, below), Postgres and Mailpit as
   # docker-compose.yml runs them, under docker-compose.ci.yml. It is what
   # catches what no unit test can -- a tap lost to a race, a drawer that
@@ -561,7 +538,7 @@ jobs:
   # jobs at once, and eight shards, the seven suites, the docs, the e2e
   # images and the image builds' one job are nineteen. What each runner
   # spends before its first test is the rest, so that is done at once
-  # rather than in turn: the three images and the Playwright, Postgres
+  # rather than in turn: the two images and the Playwright, Postgres
   # and Mailpit images are pulled in the background while the caches
   # below are restored, and each service is started the moment it can
   # be.
@@ -592,7 +569,7 @@ jobs:
   # the run's longest wait, and waiting for `changes` held each of them
   # back 11 or 12 seconds, a tenth of the run. It was due whenever
   # anything the stack runs had changed -- web/, springboot-app/, the
-  # planner, the model service, src/, the compose files -- and of the 150
+  # planner, src/, the compose files -- and of the 150
   # commits before this one, two had changed none of it (candidate data,
   # and dependabot.yml with the editor's settings). So it runs on every
   # commit.
@@ -681,11 +658,7 @@ jobs:
         run: |
           # web/dist: where the page will be built, mounted into the
           # webapp -- made now, so that Docker does not make it, as root.
-          # And the chart model's directory, mounted into model-service, for
-          # the same reason: made by Docker as root where model-service
-          # started first, it failed "The planner's data, ready"'s chmod of
-          # data, before a test had run (shards 7 and 4, 2026-10-07).
-          mkdir -p /tmp/e2e-out web/dist data/models/chart/current
+          mkdir -p /tmp/e2e-out web/dist
           # The caches below are restored into memory, not onto the disk:
           # the planner's data and charts, and the suite's packages, about
           # 1.6 GB. On a runner whose disk writes at most about 230 MB/s
@@ -736,11 +709,11 @@ jobs:
           EOF
           nohup bash /tmp/e2e-out/public.sh > /dev/null 2>&1 < /dev/null &
           nohup bash -c 'bash /tmp/e2e-out/playwright.sh > /tmp/e2e-out/playwright.log 2>&1; r=$?; echo "$(($(date +%s) - T0)) the Playwright image, $(tail -1 /tmp/e2e-out/playwright.log)" >> /tmp/e2e-out/timeline; echo $r > /tmp/e2e-out/playwright.exit' > /dev/null 2>&1 < /dev/null &
-      # Then the three images this commit runs, under the names
+      # Then the two images this commit runs, under the names
       # docker-compose.ci.yml runs them by: each the one e2e-images built
       # for its key (.github/e2e-keys.sh), which nearly always an earlier
       # commit's run did, so it is pulled at once. Each shard used to
-      # build all three itself: the same work six times over, on runners
+      # build them all itself: the same work six times over, on runners
       # restoring caches and starting Postgres at the same time, and when
       # web/ had changed (most commits) that was the webapp's npm install
       # and bundle, six times -- 50 to 70 seconds before a shard could
@@ -750,11 +723,10 @@ jobs:
       # and pulls the new one the moment it is there -- only what changed.
       # If that job ends without it, the shard stops waiting and says so.
       #
-      # Each service is started the moment it can be, not once all three
-      # images are in: the model service as soon as its image is here and
-      # the stack's network is made (Mailpit's start, above), the planner
-      # once its data has been restored too (a later step says so), the
-      # webapp once Postgres is up. Under docker-compose.ci.yml none waits
+      # Each service is started the moment it can be, not once both
+      # images are in: the planner once its image is here, the stack's
+      # network is made (Mailpit's start, above) and its data has been
+      # restored (a later step says so), the webapp once Postgres is up. Under docker-compose.ci.yml none waits
       # on another to start.
       #
       # And once the planner is warm, the corridor's nav log is asked for,
@@ -997,7 +969,7 @@ jobs:
               exit 1
             fi
           done
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build --wait webapp planning-service model-service
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --no-build --wait webapp planning-service
           echo "$(($(date +%s) - T0)) healthy" >> /tmp/e2e-out/timeline
           for _ in $(seq 1 240); do
             curl -sf -o /dev/null http://localhost:8080/app/plan && break
@@ -1163,7 +1135,7 @@ jobs:
       - name: The stack's logs, when the tests did not pass
         if: always() && steps.tests.outcome != 'success'
         run: |
-          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail 300 webapp planning-service model-service
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail 300 webapp planning-service
           docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --no-color --tail 60 planning-service \
             | grep -vE "GET /api/(chart-tile|tiles)|200 OK|404 Not Found" | tail -25 \
             | python3 -c 'import sys; t=sys.stdin.read().replace("%","%25").replace("\n","%0A"); print(f"::warning title=planner log, at the end::{t[:4000]}")'
@@ -1283,10 +1255,8 @@ jobs:
             data/raw/chart_tiles.nosync
           key: ${{ steps.cycle.outputs.key }}
 
-  # The browser suite's three images (.github/ci-images.hcl) -- the
-  # webapp, the planner, and the model service's `slim` stage, without the
-  # torch and tensorflow the suite's scikit-learn fixture never loads --
-  # and the page the webapp serves there. Each is built once per key, a
+  # The browser suite's two images (.github/ci-images.hcl) -- the
+  # webapp and the planner -- and the page the webapp serves there. Each is built once per key, a
   # hash of what decides what it does in the suite's stack
   # (.github/e2e-keys.sh). The images are pushed under `e2e-<key>` and
   # `e2e`, the last pushed; never `latest`, which only the Promote
@@ -1315,7 +1285,7 @@ jobs:
   # seconds into the run, and a key's image, when there is one to build,
   # should be on its way by then. So it runs on every push and every
   # pull request from this repository, the suite due or not; with nothing
-  # to build it is a checkout and four lookups. Not on a fork's or
+  # to build it is a checkout and a few lookups. Not on a fork's or
   # Dependabot's, whose token cannot push: their shards build what they
   # cannot pull. The images with a BuildKit container of
   # setup-buildx's rather than the runner's own builder: it pushes what
@@ -1741,7 +1711,7 @@ jobs:
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, test-model-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra]
     if: always()
     steps:
       - name: Every job passed or was not needed

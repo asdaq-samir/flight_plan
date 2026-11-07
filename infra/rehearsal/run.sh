@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Rehearses the production stack on this machine
-# (docker-compose.rehearsal.yml): builds the four images the server runs,
+# (docker-compose.rehearsal.yml): builds the three images the server runs,
 # seeds a data folder as deploy.sh does, writes a .env of its own and
 # starts docker-compose.prod.yml with the rehearsal's stand-ins for
 # CloudFront and SES, as the project "wingtip-prod" beside the
@@ -22,7 +22,6 @@ export REHEARSAL_DIR=${REHEARSAL_DIR:-$HOME/.wingtip-rehearsal}
 export TILES_DIR=${TILES_DIR:-$PWD/data/raw/chart_tiles.nosync}
 
 if [ "${SKIP_BUILD:-}" != 1 ]; then
-  docker build -t wingtip-local/model-service:rehearsal model-service
   for service in nav-log-agent planning-service; do
     docker build -t "wingtip-local/$service:rehearsal" -f "$service/Dockerfile" .
   done

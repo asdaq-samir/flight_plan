@@ -15,7 +15,7 @@
     <artifactId>wingtip</artifactId>
     <version>0.1.0</version>
     <name>wingtip</name>
-    <description>VFR route planning API -- calls the model-service microservice, persists saved routes.</description>
+    <description>VFR route planning API -- proxies planning-service, persists saved routes.</description>
 
     <properties>
         <!-- 25, not 26: spring-boot-maven-plugin 3.5.3's bundled ASM can't
@@ -138,7 +138,7 @@
         </dependency>
         <!-- Generates an OpenAPI spec + Swagger UI (/swagger-ui.html,
              /v3/api-docs) from the existing controller/DTO annotations;
-             no hand-written spec to keep in sync. model-service (FastAPI)
+             no hand-written spec to keep in sync. planning-service (FastAPI)
              already gets this for free at /docs; this gives webapp the
              same thing. -->
         <dependency>

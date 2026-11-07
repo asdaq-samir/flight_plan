@@ -356,7 +356,7 @@ def ndjson(lines, on_error) -> StreamingResponse:
 
     `on_error` builds the stream's "error" message. Once the first line
     is out the status is fixed at 200, so a failure after that -- a
-    weather fetch, model-service, the corridor read -- cannot become a
+    weather fetch, the corridor read -- cannot become a
     502 any more; left alone it would simply truncate the body, which a
     browser cannot tell from a stream still loading. It becomes the last
     line instead, and the page ends with a message rather than a spinner.
