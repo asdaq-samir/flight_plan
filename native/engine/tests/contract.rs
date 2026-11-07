@@ -227,6 +227,13 @@ fn the_shared_fixtures_answers_are_of_the_contracts_shapes() {
     for case in rules["declination"].as_array().unwrap() {
         c.ask("magnetic_variation", json!({ "lat": case["lat"], "lon": case["lon"], "date": "2026-07-01" }));
     }
+    for case in rules["weatherInForce"].as_array().unwrap() {
+        let at = |k: &str| case.get(k).cloned().unwrap_or(Value::Null);
+        c.ask("weather_in_force", json!({ "product": case["product"], "now": case["now"], "observed": at("observed"),
+            "last_routine": at("lastRoutine"), "valid_from": at("validFrom"), "valid_to": at("validTo") }));
+        c.ask("weather_expires_at", json!({ "product": case["product"], "observed": at("observed"),
+            "last_routine": at("lastRoutine"), "valid_to": at("validTo") }));
+    }
 
     // The approaches at KBUR, as the planner's /api/procedure draws them.
     let kbur = fixture("approachKbur.json");
