@@ -1,13 +1,14 @@
 package com.northflyers.wingtip.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.northflyers.wingtip.domain.Flight;
 import com.northflyers.wingtip.domain.FlightWatch;
 import com.northflyers.wingtip.domain.Pilot;
 import com.northflyers.wingtip.dto.BriefingChangeDto;
 import com.northflyers.wingtip.dto.BriefingSourceDto;
 import com.northflyers.wingtip.dto.FlightWatchDto;
+import com.northflyers.wingtip.planner.model.PlannerChangesWords;
+import com.northflyers.wingtip.planner.model.PlannerSentence;
 import com.northflyers.wingtip.repository.FlightRepository;
 import com.northflyers.wingtip.repository.FlightWatchRepository;
 import com.northflyers.wingtip.repository.PilotRepository;
@@ -41,7 +42,6 @@ import org.springframework.stereotype.Service;
 public class FlightWatchService {
 
     private static final Logger log = LoggerFactory.getLogger(FlightWatchService.class);
-    private static final ObjectMapper JSON = new ObjectMapper();
 
     /** The window a watch is checked in: from two hours past departure
      *  back to 36 hours before it -- the night before and the morning of,
@@ -162,17 +162,17 @@ public class FlightWatchService {
             return false;
         }
         String briefing = briefingOf(flight, watch.getDepartAt());
-        PlannerClient.Changes answer = planner.changes(flight.getDepartureIdent(), flight.getDestinationIdent(),
+        PlannerChangesWords answer = planner.changes(flight.getDepartureIdent(), flight.getDestinationIdent(),
                 flight.getStops(), watch.getBriefingJson(), briefing);
-        if (answer.unavailable() != null) {
+        if (answer.getUnavailable() != null) {
             // The words could not be written, so what changed is not known
             // yet: the baseline stays, and the next check diffs the same
             // one again rather than losing the change.
-            log.warn("Flight {}'s changes could not be put in words: {}", watch.getFlightId(), answer.unavailable());
+            log.warn("Flight {}'s changes could not be put in words: {}", watch.getFlightId(), answer.getUnavailable());
             watches.save(watch.checked(now));
             return false;
         }
-        if (!answer.changed()) {
+        if (!Boolean.TRUE.equals(answer.getChanged())) {
             watches.save(watch.checked(now));
             return false;
         }
@@ -189,7 +189,7 @@ public class FlightWatchService {
                 departAt, flight.getTotalEteMin());
     }
 
-    private void send(Pilot pilot, Flight flight, PlannerClient.Changes answer) {
+    private void send(Pilot pilot, Flight flight, PlannerChangesWords answer) {
         try {
             mail.send(message(pilot, flight, answer, publicBaseUrl));
         } catch (RuntimeException failed) {
@@ -200,13 +200,13 @@ public class FlightWatchService {
     /** The email: what changed, a sentence a line, and where to read the
      *  briefing. The link opens the flight's route on the planner, as the
      *  app's own flight links do (web lib/flightLink). */
-    static SimpleMailMessage message(Pilot pilot, Flight flight, PlannerClient.Changes answer, String publicBaseUrl) {
+    static SimpleMailMessage message(Pilot pilot, Flight flight, PlannerChangesWords answer, String publicBaseUrl) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(pilot.getEmail());
         message.setSubject("Your flight " + flight.getDepartureIdent() + " to " + flight.getDestinationIdent() + ": what changed");
         StringBuilder body = new StringBuilder();
-        for (BriefingChangeDto sentence : answer.sentences() == null ? List.<BriefingChangeDto>of() : answer.sentences()) {
-            body.append(sentence.text()).append('\n');
+        for (PlannerSentence sentence : answer.getSentences() == null ? List.<PlannerSentence>of() : answer.getSentences()) {
+            body.append(sentence.getText()).append('\n');
         }
         body.append("\nOpen the app to see the briefing.");
         if (!publicBaseUrl.isBlank()) {
@@ -225,30 +225,38 @@ public class FlightWatchService {
     }
 
     private FlightWatchDto dto(FlightWatch watch) {
-        PlannerClient.Changes changes = read(watch);
-        List<BriefingChangeDto> sentences = changes == null || changes.sentences() == null ? List.of()
-                : changes.sentences().stream()
-                        .map(c -> new BriefingChangeDto(c.text(), c.sources() == null ? List.<String>of() : c.sources()))
+        // This app's own answer to the browser and the phones, copied out
+        // of the planner's: its shape is this app's API, which outlives
+        // a change to the planner's.
+        PlannerChangesWords changes = read(watch);
+        List<BriefingChangeDto> sentences = changes == null || changes.getSentences() == null ? List.of()
+                : changes.getSentences().stream()
+                        .map(c -> new BriefingChangeDto(c.getText(), c.getSources() == null ? List.<String>of() : c.getSources()))
                         .toList();
-        List<BriefingSourceDto> sources = changes == null || changes.sources() == null ? List.of() : changes.sources();
+        List<BriefingSourceDto> sources = changes == null || changes.getSources() == null ? List.of()
+                : changes.getSources().stream()
+                        .map(s -> new BriefingSourceDto(s.getId(), s.getLabel(), s.getText()))
+                        .toList();
         return new FlightWatchDto(watch.getFlightId(), watch.getDepartAt(), watch.getCheckedAt(), watch.getChangedAt(),
                 sentences, sources);
     }
 
-    private static String write(PlannerClient.Changes answer) {
+    private static String write(PlannerChangesWords answer) {
         try {
-            return JSON.writeValueAsString(answer);
+            return PlannerClient.JSON.writeValueAsString(answer);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("The planner's changes would not write as JSON", e);
         }
     }
 
-    private static PlannerClient.Changes read(FlightWatch watch) {
+    private static PlannerChangesWords read(FlightWatch watch) {
         if (watch.getChangesJson() == null) {
             return null;
         }
         try {
-            return JSON.readValue(watch.getChangesJson(), PlannerClient.Changes.class);
+            // Kept as the planner wrote it, so read as the planner's: the
+            // rows written before these were generated have the same fields.
+            return PlannerClient.JSON.readValue(watch.getChangesJson(), PlannerChangesWords.class);
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Flight " + watch.getFlightId() + "'s kept changes are not JSON", e);
         }

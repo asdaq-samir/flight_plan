@@ -57,6 +57,10 @@ one job (the owner kept both server languages on this split, 2026-11-06):
   "review" label on a pull request asks for one. So run the checks that
   cover a change, and the aviation-check skill for any figure or rule,
   before pushing.
+- A session works only in a worktree of its own (`git worktree add
+  ../wingtip-<topic> -b claude/<topic> origin/main`, or the harness's);
+  the main checkout stays on `main`, and no session switches it or
+  commits on it.
 - Never push to `main`. Never force-push. Merge `main` into a branch to
   bring it up to date; never rebase a pushed one.
 - On a pull request, an asked-for review is put right on the branch

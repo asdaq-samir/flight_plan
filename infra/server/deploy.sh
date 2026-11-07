@@ -5,7 +5,15 @@
 # boot (the stack's UserData) and by every deploy after it -- by hand over
 # SSM Session Manager, or by the GitHub deploy role with ssm send-command.
 # Safe to run again: compose only restarts what changed.
+#
+# deploy.sh <commit>: what promote.yml's deploy runs. The server takes the
+# commit CI passed and that commit's images (`sha-<commit>`, which
+# promote.yml copies to ECR from the images CI tested), not whatever main
+# and `latest` are by the time it runs -- so the compose file and the
+# images always come from the same commit. With no commit (the first
+# boot, or by hand) it takes main and the stack's ImageTag, `latest`.
 set -euo pipefail
+commit=${1:-}
 
 # Written by the stack's UserData: AWS_REGION, IMAGE_REGISTRY, IMAGE_TAG,
 # PUBLIC_HOST, ORIGIN_HOST, SERVER_BUCKET, APP_SECRET_ARN, DB_SECRET_ARN,
@@ -16,7 +24,14 @@ source /etc/wingtip.conf
 REPO=/srv/wingtip/repo
 ENV_FILE=/srv/wingtip/.env
 
-git -C "$REPO" pull --ff-only --quiet
+if [ -n "$commit" ]; then
+  [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "deploy.sh: '$commit' is not a full commit hash" >&2; exit 2; }
+  git -C "$REPO" fetch --quiet --depth 1 origin "$commit"
+  IMAGE_TAG="sha-$commit"
+else
+  git -C "$REPO" fetch --quiet --depth 1 origin main
+fi
+git -C "$REPO" checkout --quiet --detach FETCH_HEAD
 
 secret() { aws secretsmanager get-secret-value --region "$AWS_REGION" --secret-id "$1" --query SecretString --output text; }
 # Fetched before anything is written: a failure inside $(...) in an echo
