@@ -7,8 +7,9 @@ The land and the large lakes are Natural Earth's at 1:50 million (public
 domain: naturalearthdata.com), the Great Lakes, the big reservoirs and
 the oceans among them, read once from the project's GitHub copy and kept
 in data/raw/natural_earth. A point is water where it is off the land or on
-a lake; "out of glide" where water runs on round it for more than
-GLIDE_NM every way.
+a lake; "out of glide" where water runs on round it for more than the
+airplane's still-air glide every way, which the engine works out from its
+height over the water (glide_nm).
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ from pathlib import Path
 import numpy as np
 import requests
 import shapely
+import wingtip_native
 from scipy import ndimage
 from shapely.geometry import shape
 
@@ -32,15 +34,8 @@ SOURCES = {
     "land": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_land.geojson",
     "lakes": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.2/geojson/ne_50m_lakes.geojson",
 }
-#: How far from dry land an engine failure still reaches it, nm: the
-#: planner's own figure, not a rule's -- a light single's best glide of
-#: about 9 to 1 (the C172S's POH, section 3, "Maximum Glide": 1.5 nm a
-#: thousand feet above the ground) from some 4,000 ft over the water.
-#: 14 CFR 91.205(b)(12) draws the same line, flotation gear for a flight
-#: for hire beyond power-off gliding distance from the shore.
-GLIDE_NM = 6.0
 #: How fine water is read, deg: a twentieth of a degree, 3 nm north-south,
-#: half the glide, so a shore is never more than a sample off.
+#: so a shore is never more than a sample off.
 STEP_DEG = 0.05
 
 _LOCK = threading.Lock()
@@ -88,12 +83,29 @@ def is_water(lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
     return ~shapely.contains_xy(land, lons, lats) | shapely.contains_xy(lakes, lons, lats)
 
 
-def out_of_glide(lat0: float, lon0: float, rows: int, cols: int, cell_deg: float) -> np.ndarray:
+def glide_nm(height_ft: float, speed_kt: float) -> float:
+    """How far from dry land an engine failure still reaches it, nm: the
+    engine's still-air glide (motion/glide.rs glide_range, the C172S POH's
+    maximum glide of 1.5 nm a thousand feet above the surface, about 9 to
+    1), the one the map's glide ring and the Nearest card use, from
+    `height_ft` over the water at `speed_kt`. 14 CFR 91.205(b)(12) draws
+    the same line, flotation gear for a flight for hire beyond power-off
+    gliding distance from the shore. 0 where the engine gives no glide (too
+    low or too slow to be flying), so all the water is out of reach."""
+    answer = json.loads(wingtip_native.call("glide_range", json.dumps(
+        {"altitude_ft": float(height_ft), "speed_kt": float(speed_kt), "ground_ft": 0.0})))
+    return float(answer) if answer is not None else 0.0
+
+
+def out_of_glide(lat0: float, lon0: float, rows: int, cols: int, cell_deg: float, *,
+                 height_ft: float, speed_kt: float) -> np.ndarray:
     """For each cell of a grid (its south-west corner at lat0, lon0, `rows`
     by `cols` cells of `cell_deg`), the share of it, 0 to 1, over water
-    more than GLIDE_NM from dry land, read every STEP_DEG.
+    farther from dry land than an airplane `height_ft` over the water at
+    `speed_kt` glides (glide_nm), read every STEP_DEG.
 
     A WaterUnavailable where the land and lakes could not be had."""
+    glide = glide_nm(height_ft, speed_kt)
     per = max(1, int(round(cell_deg / STEP_DEG)))
     step = cell_deg / per
     lats = lat0 + (np.arange(rows * per) + 0.5) * step
@@ -107,5 +119,5 @@ def out_of_glide(lat0: float, lon0: float, rows: int, cols: int, cell_deg: float
     if wet.all():
         far = np.ones_like(wet, dtype=bool)
     else:
-        far = ndimage.distance_transform_edt(wet, sampling=(nm_row, nm_col)) > GLIDE_NM
+        far = ndimage.distance_transform_edt(wet, sampling=(nm_row, nm_col)) > glide
     return far.reshape(rows, per, cols, per).mean(axis=(1, 3))

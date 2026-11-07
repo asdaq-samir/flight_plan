@@ -788,7 +788,11 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         unchecked.append("terrain")
     grid.floor = floor
     try:
-        grid.offshore = water.out_of_glide(grid.lat0, grid.lon0, grid.rows, grid.cols, CELL_DEG)
+        # The glide from the lowest the grid flies a cruise (LOWEST_CRUISE_FT),
+        # taken as the height over the water: where a way is flown higher it
+        # glides further, so the shore's reach errs short, the safe side.
+        grid.offshore = water.out_of_glide(grid.lat0, grid.lon0, grid.rows, grid.cols, CELL_DEG,
+                                           height_ft=LOWEST_CRUISE_FT, speed_kt=tas)
     except (water.WaterUnavailable, OSError, ValueError) as error:
         # The shores not to be had: no way kept over land, and the pilot told.
         logger.warning("route options: water not read (%s)", error)
@@ -979,7 +983,7 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
         # The highest ground with 91.119's 1,000 ft alone: the coarse read's
         # own margin is the planner's to keep, not a figure for the pilot.
         "floor_ft": int(math.ceil(max(0.0, floor - terrain_detour.COARSE_MARGIN_FT) / 100.0) * 100),
-        # Its miles out of glide of dry land (wingtip.water.GLIDE_NM).
+        # Its miles out of glide of dry land (wingtip.water.glide_nm).
         "water_nm": round(water_nm),
     }
 
