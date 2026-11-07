@@ -156,6 +156,34 @@
    }
   },
   {
+   "why": "the charts before 3 Sep 2026 (the schedule's 9 Jul 2026, 56 days back), on their last day",
+   "kind": "chart",
+   "effective": "2026-07-09",
+   "on": "2026-09-02",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-09-03",
+    "current": "2026-07-09",
+    "current_ident": null,
+    "next": "2026-09-03",
+    "behind": 0
+   }
+  },
+  {
+   "why": "1 Oct 2026 is an AIRAC date but not a charting one: 9 Jul's charts are one edition behind, not two",
+   "kind": "chart",
+   "effective": "2026-07-09",
+   "on": "2026-10-01",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-09-03",
+    "current": "2026-09-03",
+    "current_ident": null,
+    "next": "2026-10-29",
+    "behind": 1
+   }
+  },
+  {
    "why": "DOF_260927, released 29 Sep 2026, used until the next release",
    "kind": "dof",
    "effective": "2026-09-27",

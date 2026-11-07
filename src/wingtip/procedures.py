@@ -91,9 +91,9 @@ _LOCK = threading.Lock()
 
 def cifp_start(on: date | None = None) -> date:
     """The date the AIRAC cycle in force on `on` (today, UTC) took
-    effect: the CIFP is on the 28-day AIRAC cycle (the engine's
+    effect (from 0901Z, when it does): the CIFP is on the 28-day AIRAC cycle (the engine's
     `data_cycle`)."""
-    return data_cycles.start_on("airac", on)
+    return data_cycles.start_on("airac", on or data_cycles.in_force_day())
 
 
 def cifp_path(on: date | None = None) -> Path:

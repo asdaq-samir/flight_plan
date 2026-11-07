@@ -6,7 +6,7 @@ Day Product Schedule, the NASR subscription page and the DOF page); the
 module finds each edition on disk and says when one is out of date."""
 import json
 import logging
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -85,3 +85,22 @@ def test_the_owner_is_told_in_the_log_once_a_day(on_disk, caplog, monkeypatch):
         data_cycles.warn_if_out_of_date(entries)
     said = [r.getMessage() for r in caplog.records if "past its cycle" in r.getMessage()]
     assert len(said) == 1 and "Airports, frequencies and navaids (2026-10-01, ended 2026-10-29" in said[0]
+
+
+def test_an_edition_is_chosen_by_the_0901z_it_takes_effect_at(monkeypatch):
+    """The engine counts a cycle from 0000Z (safe for a warning); the
+    d-TPP, Chart Supplement and CIFP chosen to use wait for 0901Z."""
+    class At(datetime):
+        hour, minute = 8, 0
+
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 29, cls.hour, cls.minute, tzinfo=tz)
+
+    monkeypatch.setattr(data_cycles, "datetime", At)
+    assert publications.dtpp_cycle() == "2610"
+    assert publications.dcs_edition() == "03Sep2026"
+    assert procedures.cifp_start() == date(2026, 10, 1)
+    At.hour, At.minute = 9, 2
+    assert publications.dtpp_cycle() == "2611"
+    assert procedures.cifp_start() == date(2026, 10, 29)

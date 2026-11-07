@@ -28,6 +28,8 @@
 //! Dates are UTC days. A simplification, toward the safer side: an edition
 //! takes effect at 0901Z on its date, and here it counts from 0000Z, so an
 //! old one is called out of date up to nine hours before it is, never after.
+//! That is for a warning only: a caller choosing which edition to fetch
+//! and use must not run ahead of 0901Z, and gives the previous day until then.
 
 use crate::json;
 use crate::time::{civil_from_days, days_from_civil, days_in_month};

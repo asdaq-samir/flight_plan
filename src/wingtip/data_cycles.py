@@ -18,7 +18,7 @@ import json
 import logging
 import re
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import wingtip_native
@@ -29,6 +29,15 @@ log = logging.getLogger(__name__)
 def today() -> date:
     """The UTC day: the FAA's editions change on UTC dates."""
     return datetime.now(tz=timezone.utc).date()
+
+
+def in_force_day() -> date:
+    """The UTC day to choose an edition to use by: an edition takes effect
+    at 0901Z on its date (the FAA's schedule; 14 CFR 91.103 wants current
+    information), so before then the previous one is still the one in
+    force. The engine counts from 0000Z, toward the safe side for a
+    warning; choosing what to fetch and show must not run ahead of it."""
+    return (datetime.now(tz=timezone.utc) - timedelta(hours=9, minutes=1)).date()
 
 
 def cycle(kind: str, effective: date | None = None, on: date | None = None) -> dict:
@@ -113,11 +122,29 @@ def _cifp_edition() -> date | None:
     return cifp_effective(held[-1]) if held else None
 
 
+def _charts_edition(charts) -> str | None:
+    """The cycle the map draws, from disk or the held answer only
+    (charts.serving_cycle can fetch, and this is polled): the newest
+    complete sectional pyramid. None when there is none, as the cloud
+    pointer is not read here: a row that would only say the FAA's current
+    cycle is in force says nothing."""
+    try:
+        held = charts._serving_cache["value"]
+        if charts.CHART_TILES_URL and held:
+            return held
+        return next((c for c in charts._cycles_on_disk(charts.CHART_TILE_CACHE_DIR)
+                     if charts.pyramid_complete(c, ("sec",))), None)
+    except Exception:  # noqa: BLE001 -- the status of the others is still worth having
+        log.warning("chart cycle unknown", exc_info=True)
+        return None
+
+
 def status(on: date | None = None) -> list[dict]:
     """Each FAA data set the planner uses, with its edition and whether it
     is in force (today). Reads only what is on disk -- never the network --
     and a set with nothing on disk yet is left out: it is fetched when
-    first asked for, the current one. The d-TPP and the Chart Supplement
+    first asked for, the current one. The charts row needs a complete
+    pyramid on disk. The d-TPP and the Chart Supplement
     are not here: they are fetched for the cycle in force on the day they
     are asked for (wingtip.publications), never kept past it."""
     from . import charts, pack
@@ -128,10 +155,9 @@ def status(on: date | None = None) -> list[dict]:
         if (base / "APT_BASE.csv").exists():
             out.append(entry("nasr", "Airports, frequencies and navaids", "airac", _nasr_edition(base), on))
             break
-    try:
-        out.append(entry("charts", "Charts", "chart", chart_effective(charts.serving_cycle()), on))
-    except Exception:  # noqa: BLE001 -- the status of the others is still worth having
-        log.warning("chart cycle unknown", exc_info=True)
+    served = _charts_edition(charts)
+    if served:
+        out.append(entry("charts", "Charts", "chart", chart_effective(served), on))
     cifp = _cifp_edition()
     if cifp:
         out.append(entry("cifp", "Procedures", "airac", cifp, on))
