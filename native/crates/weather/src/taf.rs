@@ -33,12 +33,9 @@ pub struct Taf {
 }
 
 impl Period {
+    /// The lowest broken, overcast or obscured layer (metar::ceiling_of).
     pub fn ceiling_ft(&self) -> Option<f64> {
-        self.layers
-            .iter()
-            .filter(|l| matches!(l.cover.as_str(), "BKN" | "OVC" | "VV"))
-            .filter_map(|l| l.base_ft_agl)
-            .fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b))))
+        crate::metar::ceiling_of(self.layers.iter().map(|l| (l.cover.as_str(), l.base_ft_agl)), None)
     }
 }
 

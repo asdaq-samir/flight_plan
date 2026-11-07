@@ -213,14 +213,26 @@ pub fn flight_category(ceiling_ft: Option<f64>, visibility_sm: Option<f64>) -> O
     })
 }
 
+/// The ceiling of a report's sky, ft above the ground: the lowest broken,
+/// overcast or obscured layer -- FEW and SCT are no ceiling (14 CFR 1.1,
+/// "ceiling") -- each layer (cover, base). An obscured sky is a ceiling at
+/// its vertical visibility: a raw report writes it VV002, the AWC's feed
+/// marks the layer OVX with its height as the base in a METAR and gives it
+/// only as `vertical_visibility_ft` in a TAF. Counting BKN and OVC alone
+/// left fog at the surface, the lowest ceiling there is, as none at all.
+pub fn ceiling_of<'a>(layers: impl IntoIterator<Item = (&'a str, Option<f64>)>, vertical_visibility_ft: Option<f64>) -> Option<f64> {
+    layers
+        .into_iter()
+        .filter(|(cover, _)| matches!(*cover, "BKN" | "OVC" | "OVX" | "VV"))
+        .filter_map(|(_, base)| base)
+        .chain(vertical_visibility_ft)
+        .fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b))))
+}
+
 impl Metar {
-    /// The lowest broken, overcast or obscured layer (14 CFR 1.1, "ceiling").
+    /// The lowest broken, overcast or obscured layer (ceiling_of).
     pub fn ceiling_ft(&self) -> Option<f64> {
-        self.layers
-            .iter()
-            .filter(|l| matches!(l.cover.as_str(), "BKN" | "OVC" | "VV"))
-            .filter_map(|l| l.base_ft_agl)
-            .fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.min(b))))
+        ceiling_of(self.layers.iter().map(|l| (l.cover.as_str(), l.base_ft_agl)), None)
     }
 }
 

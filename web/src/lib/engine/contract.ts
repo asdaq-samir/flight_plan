@@ -50,6 +50,70 @@ export type CallPatternAnswer = string | null;
 export type TokensAnswer = HeardToken[];
 export type PlaceWordsAnswer = string;
 export type MagneticVariationAnswer = number;
+export type AirspaceColumnAnswer = AirspaceBand[];
+export type ModeCVeilAnswer = {
+  ident: string;
+  name: string | null;
+  distance_nm: number;
+} | null;
+export type NotamsFnsAnswer = {
+  id: string;
+  icao_id: string | null;
+  names: string | null;
+  type: string | null;
+  location: string | null;
+  icao_location: string | null;
+  classification: string | null;
+  issued: string | null;
+  starts: string | null;
+  ends: string | null;
+  estimated: boolean;
+  schedule: string | null;
+  text: string;
+  raw: string;
+}[];
+export type NotamTextAnswer =
+  | {
+      id: string;
+      icao_id: string | null;
+      names: string | null;
+      type: string | null;
+      location: string | null;
+      icao_location: string | null;
+      classification: string | null;
+      issued: string | null;
+      starts: string | null;
+      ends: string | null;
+      estimated: boolean;
+      schedule: string | null;
+      text: string;
+      raw: string;
+    }[]
+  | null;
+export type MetarReadAnswer = {} | null;
+export type TafReadAnswer = {} | null;
+export type WindsReadAnswer = {} | null;
+export type TfrDetailReadAnswer = {} | null;
+export type CeilingFtAnswer = number | null;
+export type ReportFlightCategoryAnswer = "VFR" | "MVFR" | "IFR" | "LIFR" | null;
+export type ReserveMinAnswer = number;
+export type IsaTempCAnswer = number;
+export type DensityRatioAnswer = number;
+export type DensityAltitudeFtAnswer = number;
+export type PressureAltitudeFtAnswer = number;
+export type IsEastboundAnswer = boolean;
+export type LowestVfrCruisingAltitudeAnswer = number;
+export type DistanceNmAnswer = number;
+export type RegionOfAnswer = string;
+export type DescentFtPerNmAnswer = number;
+export type WordsNumAnswer = string;
+export type WordsOneAnswer = number;
+export type WordsToFixedAnswer = string;
+export type WordsGroupedAnswer = string;
+export type WordsAltFtAnswer = string;
+export type WordsFlightLevelAnswer = string;
+export type WordsCeilingAndVisibilityAnswer = string;
+export type GonogoHazardWindowAnswer = "before" | "during" | "after" | null;
 export type WeatherExpiresAtAnswer = number | null;
 export type WeatherInForceAnswer = boolean;
 export type GonogoVerdictItemsAnswer = GonogoItem[];
@@ -697,6 +761,216 @@ export interface EngineContract {
     answer: MagneticVariationAnswer;
   };
   /**
+   * Whether an FAA data set's edition is in force on a day, by its cycle: AIRAC's 28 days (NASR, CIFP, d-TPP), the 56-day charting cycle (sectional, terminal area and IFR enroute charts, the Chart Supplement) or the Digital Obstacle File's 56-day releases, from the FAA's 28 and 56 Day Product Schedule and its DOF page.
+   */
+  data_cycle: {
+    input: DataCycleInput;
+    answer: DataCycleAnswer;
+  };
+  /**
+   * The airspace over a point in bands, from the ground to FL600 (14 CFR 71.33, 71.71): a B, C or D where it is drawn, the most restrictive where they overlap, E from its floor or 14,500 ft, G under it all, A from 18,000 ft, split where 91.155's minimums, 91.117's speed or 91.215's transponder rule changes. The volumes are the caller's, read from the NASR shapefile or a cycle pack.
+   */
+  airspace_column: {
+    input: AirspaceColumnInput;
+    answer: AirspaceColumnAnswer;
+  };
+  /**
+   * The nearest Mode C veil airport (14 CFR part 91 appendix D section 1) within 30 nm of a point (91.215(b)(2), 91.225(d)(2)), the distance to a tenth; null outside every veil. An airport with no place is passed over.
+   */
+  mode_c_veil: {
+    input: ModeCVeilInput;
+    answer: ModeCVeilAnswer;
+  };
+  /**
+   * The NOTAMs of one FAA NOTAM System (FNS) message, AIXM 5.1, as wingtip.notams keeps them: each by its domestic place and number, else its place and ICAO number; `ends` the sooner of its own end and its feature lifetime's. None where the message is not XML.
+   */
+  notams_fns: {
+    input: NotamsFnsInput;
+    answer: NotamsFnsAnswer;
+  };
+  /**
+   * A NOTAM's number, place and times from its text as sent, the domestic form (FAA JO 7930.2) or the ICAO one (Annex 15), as a list of one; null where it is neither.
+   */
+  notam_text: {
+    input: NotamTextInput;
+    answer: NotamTextAnswer;
+  };
+  /**
+   * A METAR or SPECI as sent, read into the planner's metar dict (AC 00-45H); null where the station and time cannot be read.
+   */
+  metar_read: {
+    input: MetarReadInput;
+    answer: MetarReadAnswer;
+  };
+  /**
+   * A TAF as sent, read into the planner's TAF dict (AC 00-45H), its day-and-hour times placed nearest `near` (Unix seconds); null where it cannot be read.
+   */
+  taf_read: {
+    input: TafReadInput;
+    answer: TafReadAnswer;
+  };
+  /**
+   * The winds and temperatures aloft forecast (FB) as sent, read into the planner's stations and its FOR USE window (AC 00-45H), its days placed by `now` (Unix seconds); null where it cannot be read.
+   */
+  winds_read: {
+    input: WindsReadInput;
+    answer: WindsReadAnswer;
+  };
+  /**
+   * A TFR's detail from the FAA's TFR XML: its NOTAM, times, altitudes and areas; null where it holds no NOTAM. Not XML is refused.
+   */
+  tfr_detail_read: {
+    input: TfrDetailReadInput;
+    answer: TfrDetailReadAnswer;
+  };
+  /**
+   * A report's ceiling, ft above the ground: the lowest broken, overcast or obscured layer (14 CFR 1.1), an obscured sky's at its vertical visibility; null where there is none.
+   */
+  ceiling_ft: {
+    input: CeilingFtInput;
+    answer: CeilingFtAnswer;
+  };
+  /**
+   * A report's flight category (AC 00-45H, AIM 7-1-7): LIFR under 500 ft or a mile, IFR under 1,000 ft or 3, MVFR to 3,000 ft or 5, else VFR, a missing figure no limit; null where neither is given.
+   */
+  report_flight_category: {
+    input: ReportFlightCategoryInput;
+    answer: ReportFlightCategoryAnswer;
+  };
+  /**
+   * The least any VFR minimums come to (14 CFR 91.155(c), (d)): no VFR under a 1,000 ft ceiling or in under 3 statute miles in a surface area.
+   */
+  vfr_basic_minimums: {
+    input: VfrBasicMinimumsInput;
+    answer: VfrBasicMinimumsAnswer;
+  };
+  /**
+   * The fuel reserve in minutes at normal cruise: 30 by day and 45 at night under VFR (14 CFR 91.151(a)), 45 under IFR (91.167(a)(3)).
+   */
+  reserve_min: {
+    input: ReserveMinInput;
+    answer: ReserveMinAnswer;
+  };
+  /**
+   * A standard day's temperature at a pressure altitude (ICAO Doc 7488).
+   */
+  isa_temp_c: {
+    input: IsaTempCInput;
+    answer: IsaTempCAnswer;
+  };
+  /**
+   * Sigma, the air's density at a pressure altitude and temperature over a standard day's at sea level (ICAO Doc 7488).
+   */
+  density_ratio: {
+    input: DensityRatioInput;
+    answer: DensityRatioAnswer;
+  };
+  /**
+   * The altitude at which a standard day's air has density sigma.
+   */
+  density_altitude_ft: {
+    input: DensityAltitudeFtInput;
+    answer: DensityAltitudeFtAnswer;
+  };
+  /**
+   * Pressure altitude from a field's elevation and its altimeter setting, a thousand feet an inch from 29.92 (PHAK ch. 4).
+   */
+  pressure_altitude_ft: {
+    input: PressureAltitudeFtInput;
+    answer: PressureAltitudeFtAnswer;
+  };
+  /**
+   * Whether a magnetic course is eastbound, 0 to 179 degrees (14 CFR 91.159(a)).
+   */
+  is_eastbound: {
+    input: IsEastboundInput;
+    answer: IsEastboundAnswer;
+  };
+  /**
+   * The lowest VFR cruising altitude at or above a floor for a magnetic course: odd thousands plus 500 eastbound, even westbound (14 CFR 91.159(a)).
+   */
+  lowest_vfr_cruising_altitude: {
+    input: LowestVfrCruisingAltitudeInput;
+    answer: LowestVfrCruisingAltitudeAnswer;
+  };
+  /**
+   * The geodesic distance between two points on the WGS 84 ellipsoid, nm.
+   */
+  distance_nm: {
+    input: DistanceNmInput;
+    answer: DistanceNmAnswer;
+  };
+  /**
+   * The phone pack's region holding a point, "n40w088": a square of 4 degrees named by its south-west corner.
+   */
+  region_of: {
+    input: RegionOfInput;
+    answer: RegionOfAnswer;
+  };
+  /**
+   * The planned descent: 1,000 ft for every 3 nm, about a 3 degree path (AIM 2-1-2), feet a nautical mile.
+   */
+  descent_ft_per_nm: {
+    input: DescentFtPerNmInput;
+    answer: DescentFtPerNmAnswer;
+  };
+  /**
+   * A number as JavaScript writes it into a string, "null" for none.
+   */
+  words_num: {
+    input: WordsNumInput;
+    answer: WordsNumAnswer;
+  };
+  /**
+   * A number to a tenth, JavaScript's Math.round(n * 10) / 10.
+   */
+  words_one: {
+    input: WordsOneInput;
+    answer: WordsOneAnswer;
+  };
+  /**
+   * JavaScript's toFixed: the nearest, a tie to the larger magnitude, on the float's exact value.
+   */
+  words_to_fixed: {
+    input: WordsToFixedInput;
+    answer: WordsToFixedAnswer;
+  };
+  /**
+   * A whole number with a comma between each three figures, "12,500" (lib/units grouped).
+   */
+  words_grouped: {
+    input: WordsGroupedInput;
+    answer: WordsGroupedAnswer;
+  };
+  /**
+   * An altitude grouped, "12,500"; an em dash for none (lib/units altFt).
+   */
+  words_alt_ft: {
+    input: WordsAltFtInput;
+    answer: WordsAltFtAnswer;
+  };
+  /**
+   * A cruising altitude in hundreds of feet, "FL-045"; "FL-___" for none (lib/units flightLevel).
+   */
+  words_flight_level: {
+    input: WordsFlightLevelInput;
+    answer: WordsFlightLevelAnswer;
+  };
+  /**
+   * Ceiling and visibility as a briefer says them, "3,500 ft · 6 sm", "no ceiling · —".
+   */
+  words_ceiling_and_visibility: {
+    input: WordsCeilingAndVisibilityInput;
+    answer: WordsCeilingAndVisibilityAnswer;
+  };
+  /**
+   * Whether a flight in a hazard from `enter` to `leave` is there while it is valid: "before" it starts, "after" it ends, else "during", its window widened by `margin_min` either way (30, PASS_MARGIN_MIN, where missing: an ETA is an estimate); null where it gives no window.
+   */
+  gonogo_hazard_window: {
+    input: GonogoHazardWindowInput;
+    answer: GonogoHazardWindowAnswer;
+  };
+  /**
    * When a weather report stops counting, Unix seconds UTC, or null where nothing says: a routine METAR an hour after it was observed (AIM 7-1-28, "METAR-hourly"; FMH-1 ch. 2), a SPECI when the next routine report is due, a TAF, the FB winds or an advisory at the end of the valid time its header gives (AC 00-45H).
    */
   weather_expires_at: {
@@ -709,13 +983,6 @@ export interface EngineContract {
   weather_in_force: {
     input: WeatherInForceInput;
     answer: WeatherInForceAnswer;
-  };
-  /**
-   * Whether an FAA data set's edition is in force on a day, by its cycle: AIRAC's 28 days (NASR, CIFP, d-TPP), the 56-day charting cycle (sectional, terminal area and IFR enroute charts, the Chart Supplement) or the Digital Obstacle File's 56-day releases, from the FAA's 28 and 56 Day Product Schedule and its DOF page.
-   */
-  data_cycle: {
-    input: DataCycleInput;
-    answer: DataCycleAnswer;
   };
   /**
    * POST /api/go-no-go's line and items: each tab's finding, the IFR alternate's in the weather's (14 CFR 91.169), and the line over them. The findings are the planner's; the decision is the pilot in command's (14 CFR 91.3).
@@ -2140,44 +2407,6 @@ export interface MagneticVariationInput {
    */
   date: string;
 }
-export interface WeatherExpiresAtInput {
-  product: "metar" | "speci" | "taf" | "winds" | "advisory";
-  /**
-   * When a METAR or SPECI was observed, Unix seconds.
-   */
-  observed?: number | null;
-  /**
-   * For a SPECI, the last routine report's time, Unix seconds, where it is known.
-   */
-  last_routine?: number | null;
-  /**
-   * For a forecast, the end of its valid time (the FB winds' FOR USE window), Unix seconds.
-   */
-  valid_to?: number | null;
-}
-export interface WeatherInForceInput {
-  product: "metar" | "speci" | "taf" | "winds" | "advisory";
-  /**
-   * The instant asked about, Unix seconds.
-   */
-  now: number;
-  /**
-   * When a METAR or SPECI was observed, Unix seconds.
-   */
-  observed?: number | null;
-  /**
-   * For a SPECI, the last routine report's time, Unix seconds, where it is known.
-   */
-  last_routine?: number | null;
-  /**
-   * For a forecast, the start of its valid time, Unix seconds.
-   */
-  valid_from?: number | null;
-  /**
-   * For a forecast, the end of its valid time, Unix seconds.
-   */
-  valid_to?: number | null;
-}
 export interface DataCycleInput {
   /**
    * The schedule the data set is published on.
@@ -2223,6 +2452,209 @@ export interface DataCycleAnswer {
    * How many editions have come out since the one held; 0 unless expired.
    */
   behind: number;
+}
+export interface AirspaceColumnInput {
+  ground_ft?: number | null;
+  /**
+   * Inside a 30 nm Mode C veil (91.215(b)(2)).
+   */
+  in_veil?: boolean | null;
+  volumes: {
+    class: "B" | "C" | "D" | "E";
+    name?: string | null;
+    floor_ft: number;
+    floor_ref: "SFC" | "AGL" | "MSL";
+    /**
+     * Feet MSL.
+     */
+    ceiling_ft: number;
+  }[];
+}
+/**
+ * A band of the airspace over a point, as the planner's AirspaceBand: its floor and ceiling in feet MSL, its class, the volume's name for a B, C or D, 91.155(a)'s minimums by day and night (null in Class A), what it takes to go in, the equipment asked (91.215, 91.225) and the 91.117 speed limit.
+ *
+ * This interface was referenced by `EngineContract`'s JSON-Schema
+ * via the `definition` "AirspaceBand".
+ */
+export interface AirspaceBand {
+  floor_ft: number;
+  ceiling_ft: number;
+  class: "A" | "B" | "C" | "D" | "E" | "G";
+  name: string | null;
+  minimums: {
+    day: {
+      visibility_sm: number;
+      clear_of_clouds: boolean;
+      below_ft: number | null;
+      above_ft: number | null;
+      horizontal_ft: number | null;
+    };
+    night: {
+      visibility_sm: number;
+      clear_of_clouds: boolean;
+      below_ft: number | null;
+      above_ft: number | null;
+      horizontal_ft: number | null;
+    };
+  } | null;
+  entry: string;
+  equipment: string | null;
+  speed_kt: number | null;
+}
+export interface ModeCVeilInput {
+  lat: number;
+  lon: number;
+  airports: {
+    ident: string;
+    name?: string | null;
+    lat?: number | null;
+    lon?: number | null;
+  }[];
+}
+export interface NotamsFnsInput {
+  text: string;
+}
+export interface NotamTextInput {
+  text: string;
+}
+export interface MetarReadInput {
+  raw: string;
+}
+export interface TafReadInput {
+  raw: string;
+  near: number;
+}
+export interface WindsReadInput {
+  text: string;
+  now: number;
+}
+export interface TfrDetailReadInput {
+  text: string;
+}
+export interface CeilingFtInput {
+  layers?:
+    | {
+        cover?: string | null;
+        base_ft?: number | null;
+      }[]
+    | null;
+  vert_vis_ft?: number | null;
+}
+export interface ReportFlightCategoryInput {
+  ceiling_ft?: number | null;
+  visibility_sm?: number | null;
+}
+export interface VfrBasicMinimumsInput {}
+export interface VfrBasicMinimumsAnswer {
+  ceiling_ft: number;
+  visibility_sm: number;
+}
+export interface ReserveMinInput {
+  ifr?: boolean | null;
+  night?: boolean | null;
+}
+export interface IsaTempCInput {
+  altitude_ft: number;
+}
+export interface DensityRatioInput {
+  altitude_ft: number;
+  oat_c: number;
+}
+export interface DensityAltitudeFtInput {
+  sigma: number;
+}
+export interface PressureAltitudeFtInput {
+  elevation_ft: number;
+  altimeter_inhg: number;
+}
+export interface IsEastboundInput {
+  magnetic_course_deg: number;
+}
+export interface LowestVfrCruisingAltitudeInput {
+  floor_ft: number;
+  magnetic_course_deg: number;
+}
+export interface DistanceNmInput {
+  lat1: number;
+  lon1: number;
+  lat2: number;
+  lon2: number;
+}
+export interface RegionOfInput {
+  lat: number;
+  lon: number;
+}
+export interface DescentFtPerNmInput {}
+export interface WordsNumInput {
+  n?: number | null;
+}
+export interface WordsOneInput {
+  n: number;
+}
+export interface WordsToFixedInput {
+  n: number;
+  /**
+   * 0 to 20; 1 where missing.
+   */
+  digits?: number | null;
+}
+export interface WordsGroupedInput {
+  n: number;
+}
+export interface WordsAltFtInput {
+  ft?: number | null;
+}
+export interface WordsFlightLevelInput {
+  ft?: number | null;
+}
+export interface WordsCeilingAndVisibilityInput {
+  ceiling_ft?: number | null;
+  visibility_sm?: number | null;
+}
+export interface GonogoHazardWindowInput {
+  enter: number;
+  leave: number;
+  valid_from?: number | null;
+  valid_to?: number | null;
+  margin_min?: number | null;
+}
+export interface WeatherExpiresAtInput {
+  product: "metar" | "speci" | "taf" | "winds" | "advisory";
+  /**
+   * When a METAR or SPECI was observed, Unix seconds.
+   */
+  observed?: number | null;
+  /**
+   * For a SPECI, the last routine report's time, Unix seconds, where it is known.
+   */
+  last_routine?: number | null;
+  /**
+   * For a forecast, the end of its valid time (the FB winds' FOR USE window), Unix seconds.
+   */
+  valid_to?: number | null;
+}
+export interface WeatherInForceInput {
+  product: "metar" | "speci" | "taf" | "winds" | "advisory";
+  /**
+   * The instant asked about, Unix seconds.
+   */
+  now: number;
+  /**
+   * When a METAR or SPECI was observed, Unix seconds.
+   */
+  observed?: number | null;
+  /**
+   * For a SPECI, the last routine report's time, Unix seconds, where it is known.
+   */
+  last_routine?: number | null;
+  /**
+   * For a forecast, the start of its valid time, Unix seconds.
+   */
+  valid_from?: number | null;
+  /**
+   * For a forecast, the end of its valid time, Unix seconds.
+   */
+  valid_to?: number | null;
 }
 export interface GonogoVerdictInput {
   verdict: VerdictInput;

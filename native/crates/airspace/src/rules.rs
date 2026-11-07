@@ -21,6 +21,13 @@ pub const TRANSPONDER_EXEMPT_AGL_FT: f64 = 2500.0;
 /// The Mode C veil's radius round each airport of part 91 appendix D
 /// section 1 (91.215(b)(2), 91.225(d)(2)), surface to 10,000 ft MSL.
 pub const MODE_C_VEIL_NM: f64 = 30.0;
+/// 14 CFR 91.155(c): no VFR beneath a ceiling lower than 1,000 ft within
+/// the lateral boundaries of a surface area of controlled airspace ...
+pub const SURFACE_AREA_CEILING_FT: f64 = 1000.0;
+/// ... and 91.155(d): nor there with a ground visibility under 3 statute
+/// miles (without a special VFR clearance) -- the least any VFR minimums
+/// come to, and the planner's "VFR flight not recommended" line (AIM 7-1-5).
+pub const SURFACE_AREA_VISIBILITY_SM: f64 = 3.0;
 /// The top of the column: FL600, where Class A ends (71.33).
 const TOP_FT: f64 = 60000.0;
 
@@ -368,6 +375,114 @@ pub fn write_band(out: &mut String, b: &Band) {
     out.push('}');
 }
 
+/// The column as the planner asks it (call.rs `airspace_column`), from
+/// `{"ground_ft"?, "volumes": [{"class", "name"?, "floor_ft", "floor_ref":
+/// "SFC"|"AGL"|"MSL", "ceiling_ft"}], "in_veil"?}`: the bands, each as
+/// the planner's AirspaceBand writes it. The planner reads the volumes
+/// out of its own NASR shapefile or cycle pack (wingtip.airspace_at) and
+/// asks the rules here, the phone's very ones.
+pub fn column_json(v: &json::Value) -> Result<String, String> {
+    use json::Value;
+    let bad = |what: &str| format!("airspace_column: {what}");
+    let num = |o: &Value, key: &str| -> Result<f64, String> {
+        o.get(key).and_then(Value::as_f64).ok_or_else(|| bad(&format!("a volume's \"{key}\" is not a number")))
+    };
+    let ground_ft = match v.get("ground_ft") {
+        None | Some(Value::Null) => 0.0,
+        Some(g) => g.as_f64().ok_or_else(|| bad("\"ground_ft\" is not a number"))?,
+    };
+    let in_veil = match v.get("in_veil") {
+        None | Some(Value::Null) => false,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => return Err(bad("\"in_veil\" is not true or false")),
+    };
+    let listed = match v.get("volumes") {
+        None | Some(Value::Null) => &[][..],
+        Some(l) => l.as_array().ok_or_else(|| bad("\"volumes\" is not a list"))?,
+    };
+    let mut volumes = Vec::with_capacity(listed.len());
+    for o in listed {
+        let class = o.get("class").and_then(Value::as_str).unwrap_or("").trim();
+        let class = match class.chars().next() {
+            Some(c) if class.len() == 1 && matches!(c, 'B' | 'C' | 'D' | 'E') => c,
+            _ => return Err(bad(&format!("a volume's class is B, C, D or E, not {class:?}"))),
+        };
+        let floor_ref = match o.get("floor_ref").and_then(Value::as_str) {
+            Some("SFC") => FloorRef::Sfc,
+            Some("AGL") => FloorRef::Agl,
+            Some("MSL") => FloorRef::Msl,
+            other => return Err(bad(&format!("a volume's floor_ref is SFC, AGL or MSL, not {other:?}"))),
+        };
+        volumes.push(Volume {
+            class,
+            name: o.get("name").and_then(Value::as_str).unwrap_or("").to_owned(),
+            floor_ft: num(o, "floor_ft")?,
+            floor_ref,
+            ceiling_ft: num(o, "ceiling_ft")?,
+        });
+    }
+    let mut out = String::from("[");
+    for (k, band) in column(ground_ft, &volumes, in_veil).iter().enumerate() {
+        if k > 0 {
+            out.push(',');
+        }
+        write_band(&mut out, band);
+    }
+    out.push(']');
+    Ok(out)
+}
+
+/// The nearest of the Mode C veil airports (14 CFR part 91 appendix D
+/// section 1), each (lat, lon, ident, name), within MODE_C_VEIL_NM of the
+/// point: (ident, name, distance in nm); None outside every veil.
+pub fn nearest_veil(lat: f64, lon: f64, airports: impl IntoIterator<Item = (f64, f64, String, String)>) -> Option<(String, String, f64)> {
+    let mut best: Option<(String, String, f64)> = None;
+    for (a_lat, a_lon, ident, name) in airports {
+        let d = crate::geo::distance_nm(lat, lon, a_lat, a_lon);
+        if d <= MODE_C_VEIL_NM && best.as_ref().is_none_or(|b| d < b.2) {
+            best = Some((ident, name, d));
+        }
+    }
+    best
+}
+
+/// The veil as the planner asks it (call.rs `mode_c_veil`), from `{"lat",
+/// "lon", "airports": [{"ident", "name"?, "lat"?, "lon"?}]}`: `{"ident",
+/// "name", "distance_nm"}` to a tenth, or null. An airport with no place
+/// is passed over.
+pub fn veil_json(v: &json::Value) -> Result<String, String> {
+    use json::Value;
+    let num = |o: &Value, key: &str| match o.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(n) => n.as_f64().map(Some).ok_or_else(|| format!("mode_c_veil: \"{key}\" is not a number")),
+    };
+    let (lat, lon) = match (num(v, "lat")?, num(v, "lon")?) {
+        (Some(lat), Some(lon)) => (lat, lon),
+        _ => return Err("mode_c_veil: \"lat\" and \"lon\" are numbers".to_owned()),
+    };
+    let listed = v.get("airports").and_then(Value::as_array).ok_or_else(|| "mode_c_veil: \"airports\" is not a list".to_owned())?;
+    let mut airports = Vec::new();
+    for a in listed {
+        if let (Some(a_lat), Some(a_lon)) = (num(a, "lat")?, num(a, "lon")?) {
+            let text = |key: &str| a.get(key).and_then(Value::as_str).unwrap_or("").to_owned();
+            airports.push((a_lat, a_lon, text("ident"), text("name")));
+        }
+    }
+    let mut out = String::new();
+    match nearest_veil(lat, lon, airports) {
+        Some((ident, name, d)) => {
+            out.push_str("{\"ident\":");
+            json::string(&mut out, &ident);
+            out.push_str(",\"name\":");
+            json::opt_string(&mut out, Some(name.as_str()).filter(|n| !n.is_empty()));
+            // As Python's round(d, 1): the nearest tenth, correctly rounded.
+            out.push_str(&format!(",\"distance_nm\":{d:.1}}}"));
+        }
+        None => out.push_str("null"),
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,6 +500,43 @@ mod tests {
         assert_eq!((bands[0].floor_ft, bands[0].ceiling_ft), (800.0, 3300.0));
         assert_eq!(bands[0].speed_kt, Some(200));
         assert_eq!(bands.last().unwrap().ceiling_ft, TOP_FT);
+    }
+
+    #[test]
+    fn the_91_117_speed_limit_by_class_and_height() {
+        // 91.117(b): 200 kt at or below 2,500 ft above the surface in a
+        // Class C or D; (a): 250 kt below 10,000 ft MSL; (c): 200 kt under
+        // a Class B. (Moved from tests/test_airspace_at.py, #482.)
+        for (class, floor, agl, under_b, limit) in [
+            ('D', 640.0, 0.0, false, Some(200)),
+            ('C', 640.0, 2499.0, false, Some(200)),
+            ('C', 3140.0, 2500.0, false, Some(250)),
+            ('D', 3140.0, 2500.0, false, Some(250)),
+            ('E', 640.0, 0.0, false, Some(250)),
+            ('G', 640.0, 0.0, false, Some(250)),
+            ('B', 3000.0, 2000.0, false, Some(250)),
+            ('E', 640.0, 0.0, true, Some(200)),
+            ('E', 10000.0, 9000.0, false, None),
+            ('A', 18000.0, 17000.0, false, None),
+        ] {
+            assert_eq!(speed_kt(class, floor, under_b, agl), limit, "{class} {floor} {agl} {under_b}");
+        }
+    }
+
+    #[test]
+    fn the_91_155_minimums_by_class() {
+        for (class, floor, agl, day_vis, clear) in [
+            ('B', 3000.0, 2000.0, 3.0, true),
+            ('C', 0.0, 0.0, 3.0, false),
+            ('D', 0.0, 0.0, 3.0, false),
+            ('E', 5000.0, 4000.0, 3.0, false),
+            ('E', 11000.0, 9000.0, 5.0, false),
+            ('G', 1000.0, 500.0, 1.0, true),
+        ] {
+            let day = minimums(class, floor, agl).unwrap().day;
+            assert_eq!((day.visibility_sm, day.below_ft.is_none()), (day_vis, clear), "{class} {floor}");
+        }
+        assert!(minimums('A', 18000.0, 17000.0).is_none());
     }
 
     #[test]

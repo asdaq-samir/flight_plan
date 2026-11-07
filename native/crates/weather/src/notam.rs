@@ -98,7 +98,104 @@ fn some(s: &str) -> Option<String> {
     (!s.is_empty()).then(|| s.to_string())
 }
 
-/// The NOTAMs of one FNS message; none where it is not XML.
+fn word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
+/// "A1643/26" at `i` of `b`: an upper-case letter, four figures, a slash
+/// and two figures.
+fn icao_number_at(b: &[u8], i: usize) -> bool {
+    b.len() >= i + 8
+        && b[i].is_ascii_uppercase()
+        && b[i + 1..i + 5].iter().all(u8::is_ascii_digit)
+        && b[i + 5] == b'/'
+        && b[i + 6..i + 8].iter().all(u8::is_ascii_digit)
+}
+
+/// The first "A1643/26 NOTAMN" anywhere in an FNS message's text, as a
+/// word of its own, and the number a NOTAMR or NOTAMC after it names:
+/// wingtip.notams' `\b([A-Z]\d{4}/\d{2})\s+NOTAM[NRC]\b(?:\s+([A-Z]\d{4}/\d{2}))?`,
+/// which a number after a bracket or at a line's start matches as well.
+fn fns_icao_id(text: &str) -> Option<(String, Option<String>)> {
+    let b = text.as_bytes();
+    let spaces = |mut j: usize| {
+        let from = j;
+        while j < b.len() && b[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        (j > from).then_some(j)
+    };
+    for i in 0..b.len() {
+        if (i > 0 && word_byte(b[i - 1])) || !icao_number_at(b, i) {
+            continue;
+        }
+        let Some(j) = spaces(i + 8) else { continue };
+        let notam = b.len() >= j + 6
+            && &b[j..j + 5] == b"NOTAM"
+            && matches!(b[j + 5], b'N' | b'R' | b'C')
+            && b.get(j + 6).is_none_or(|c| !word_byte(*c));
+        if !notam {
+            continue;
+        }
+        let names = spaces(j + 6).filter(|&k| icao_number_at(b, k)).map(|k| text[k..k + 8].to_owned());
+        return Some((text[i..i + 8].to_owned(), names));
+    }
+    None
+}
+
+/// "!BJC 10/060", "!KEDG M0061/26": a domestic form's place and number,
+/// as wingtip.notams' `^!(\w+)\s+([A-Z]?\d{1,4}/\d{1,4})` read them (a
+/// military NOTAM's number is its base's own series).
+fn fns_domestic_id(text: &str) -> Option<(String, String)> {
+    let rest = text.strip_prefix('!')?;
+    let place_len = rest.find(|c: char| !(c.is_alphanumeric() || c == '_')).unwrap_or(rest.len());
+    if place_len == 0 {
+        return None;
+    }
+    let after = &rest[place_len..];
+    let number = after.trim_start();
+    if number.len() == after.len() {
+        return None;
+    }
+    let b = number.as_bytes();
+    let mut i = usize::from(b.first().is_some_and(u8::is_ascii_uppercase));
+    let figures = |from: usize| (from..b.len().min(from + 4)).take_while(|&k| b[k].is_ascii_digit()).count();
+    let before = figures(i);
+    if before == 0 || b.get(i + before) != Some(&b'/') {
+        return None;
+    }
+    i += before + 1;
+    let after_slash = figures(i);
+    if after_slash == 0 {
+        return None;
+    }
+    Some((rest[..place_len].to_owned(), number[..i + after_slash].to_owned()))
+}
+
+/// The ICAO form's place, its item A) ("A) KBJC"): four capitals as a
+/// word, after "A)" and any spaces.
+fn icao_place(text: &str) -> Option<String> {
+    let b = text.as_bytes();
+    for i in 0..b.len().saturating_sub(1) {
+        if b[i] != b'A' || b[i + 1] != b')' || (i > 0 && word_byte(b[i - 1])) {
+            continue;
+        }
+        let mut j = i + 2;
+        while j < b.len() && b[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        if b.len() >= j + 4 && b[j..j + 4].iter().all(u8::is_ascii_uppercase) && b.get(j + 4).is_none_or(|c| !word_byte(*c)) {
+            return Some(text[j..j + 4].to_owned());
+        }
+    }
+    None
+}
+
+/// The NOTAMs of one FNS message, as wingtip.notams keeps them: each by
+/// its domestic place and number where it has a domestic form ("BJC
+/// 10/060"), else by its place and ICAO number ("KEDG M0061/26"), an
+/// ICAO number alone being each issuer's own (two bases' were one row,
+/// 2026-11-02). None where it is not XML.
 pub fn from_fns(text: &str) -> Vec<Notam> {
     let Ok(root) = xml::parse(text) else { return Vec::new() };
     let mut out = Vec::new();
@@ -116,18 +213,24 @@ pub fn from_fns(text: &str) -> Vec<Notam> {
             }
         }
         let text = get("text");
-        let found = icao_id(icao.as_deref().unwrap_or(&text));
+        // An empty ICAO form is none, as Python's `icao or text` reads it.
+        let icao_or_text = icao.as_deref().filter(|i| !i.is_empty()).unwrap_or(&text);
+        let found = fns_icao_id(icao_or_text);
         let (series, number, year) = (get("series"), get("number"), get("year"));
         let icao_number = found.as_ref().map(|f| f.0.clone()).or_else(|| {
             (!series.is_empty() && !number.is_empty() && !year.is_empty())
                 .then(|| format!("{series}{number:0>4}/{}", year.chars().rev().take(2).collect::<Vec<_>>().into_iter().rev().collect::<String>()))
         });
-        let key = match domestic.as_deref().and_then(domestic_id) {
-            Some((place, n)) => Some(format!("{place} {n}")),
-            None => icao_number.clone(),
+        let ext = |tag: &str| event.find(&["extension", "EventExtension"]).and_then(|e| e.text_at(&[tag])).and_then(some);
+        let place = icao_place(icao_or_text).or_else(|| ext("icaoLocation")).or_else(|| some(&get("location")));
+        let key = match domestic.as_deref().and_then(fns_domestic_id) {
+            Some((at, n)) => Some(format!("{at} {n}")),
+            None => match (&place, &icao_number) {
+                (Some(at), Some(n)) => Some(format!("{at} {n}")),
+                _ => None,
+            },
         };
         let Some(key) = key else { continue };
-        let ext = |tag: &str| event.find(&["extension", "EventExtension"]).and_then(|e| e.text_at(&[tag])).and_then(some);
         let (starts, _) = utc12(&get("effectiveStart"));
         let (mut ends, mut estimated) = utc12(&get("effectiveEnd"));
         let lifetime = event.find(&["featureLifetime", "TimePeriod", "endPosition"]).and_then(|e| iso_minute(&e.text));
