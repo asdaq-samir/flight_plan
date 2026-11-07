@@ -24,6 +24,6 @@
 set -euo pipefail
 key() { { echo "zstd"; git ls-tree -r HEAD -- "$@"; } | git hash-object --stdin | cut -c1-16; }
 echo "webapp $(key springboot-app/Dockerfile springboot-app/pom.xml springboot-app/src/main)"
-echo "planning-service $(key planning-service/Dockerfile planning-service/requirements.txt src/requirements.txt src/requirements-charts.txt)"
+echo "planning-service $(key planning-service/Dockerfile planning-service/requirements.txt src/requirements.txt src/requirements-charts.txt native)"
 echo "page $(git ls-tree -r HEAD -- web planning-service/openapi.json springboot-app/openapi.json .nvmrc \
   | grep -v $'\tweb/e2e/' | git hash-object --stdin | cut -c1-16)"
