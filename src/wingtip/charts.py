@@ -106,7 +106,13 @@ TILE_PX = 256
 # 2026-11-06: zoom 13 sharpens only past zoom 12, where a 512-pixel zoom
 # 12 is the same pixels, while these sharpen every zoom; and they are a
 # third of zoom 13's files, the uploads being most of the CDN's bill. The
-# Chicago sheet: 8,414 tiles either way, 149 MB at 256 and 419 MB at 512.
+# Chicago sheet: 8,414 tiles either way, 149 MB at 256 and 419 MB at 512;
+# its zoom 13, 24,449 tiles and 292 MB. Screenshots of it at 3x, against
+# the sheet resampled once to the screen's pixels: SSIM 0.89-0.96 at
+# zooms 10-14 with these, 0.77-0.91 without (zoom 13: 0.89 at 13 and 14
+# only). The pipeline's Lanczos kept more line contrast than GDAL's own
+# Lanczos or cubic on the sheet expanded to RGB, at 88 ms a tile to 322
+# and 126.
 TILE_SCALES = (1, 2)
 
 # Web mercator's half-world extent in metres (EPSG:3857) -- the origin
