@@ -185,8 +185,12 @@ def test_totals_say_when_the_plan_was_made_and_the_winds_it_flies(messages, monk
     monkeypatch.setattr(weather, "winds_period", lambda fcst_hr="06": asked.append(fcst_hr) or period)
     t = messages(client.get("/api/navlog", params={"dep": "C81", "dest": "KDLH"}))[-1]["totals"]
     # "Now" is noon in Chicago (conftest): the 6-hour product's period.
-    # The FB's own winds, not the GFS's (modelled, wingtip.modelwinds).
-    assert (t["planned_at"], t["winds"], asked) == ("2026-09-22T17:00:00Z", {**period, "modelled": False}, ["06"])
+    # A period with no model run behind it is not marked as modelled.
+    assert (t["planned_at"], t["winds"], asked) == (
+        "2026-09-22T17:00:00Z",
+        {**period, "modelled": False, "run": None, "forecast_hour": None},
+        ["06"],
+    )
     assert planning.now().isoformat().startswith("2026-09-22T17:00")
 
 
