@@ -1,5 +1,6 @@
-"""FD (winds/temps aloft) group decoding -- formalizes the ad-hoc checks
-run while building wind_at_altitude.
+"""The weather the planner reads: the winds aloft as looked up
+(wind_at_altitude, the freezing level), the GFS's since the FB ended
+(wingtip.modelwinds, tests/test_modelwinds.py).
 
 metar_for_idents and the WeatherServiceError wrapping below cover the
 other half: every aviationweather.gov call in this module was
@@ -21,54 +22,6 @@ from wingtip.weather import (
     hazards_along_route,
     metar_for_idents,
 )
-
-
-FD_HEADER = "FT  3000    6000    9000   12000   18000   24000  30000  34000  39000"
-
-
-def _group(group: str, column: str) -> dict | None:
-    """One FD group, set under its column of a product's header, as the
-    engine reads it (wingtip_engine::winds): its wind and temperature, or
-    None where the group holds no wind."""
-    at = FD_HEADER.index(column)
-    product = weather.parse_fd_text(f"{FD_HEADER}\nDLH{' ' * (at - 3)}{group}\n")
-    return product.get("DLH", {}).get(int(column))
-
-
-def test_decode_wind_normal_group():
-    assert _group("2712", "3000") == {"wind_dir_true_deg": 270.0, "wind_speed_kt": 12.0, "temp_c": None}
-
-
-def test_decode_wind_speed_offset_above_100kt():
-    # dir_code 70 >= 51 -> actual dir (70-50)*10=200, actual speed 20+100=120
-    assert _group("7020", "3000")["wind_speed_kt"] == 120.0
-    assert _group("7020", "3000")["wind_dir_true_deg"] == 200.0
-
-
-def test_decode_wind_light_and_variable():
-    assert _group("9900", "3000") == {"wind_dir_true_deg": None, "wind_speed_kt": 0.0, "temp_c": None}
-
-
-def test_decode_wind_from_a_temp_bearing_group():
-    # first 4 chars are still a valid wind code even when a temp follows
-    assert _group("3028+18", "6000") == {"wind_dir_true_deg": 300.0, "wind_speed_kt": 28.0, "temp_c": 18.0}
-
-
-def test_decode_wind_too_short_returns_none():
-    assert _group("12", "3000") is None
-
-
-def test_decode_temp_c_signed_seven_char_group():
-    assert _group("3028-05", "6000")["temp_c"] == -5.0
-
-
-def test_decode_temp_c_unsigned_six_char_group_is_always_negative():
-    # header states "TEMPS NEG ABV 24000" -- sign is implied, not written
-    assert _group("270162", "30000")["temp_c"] == -62.0
-
-
-def test_decode_temp_c_wind_only_four_char_group_has_no_temp():
-    assert _group("2712", "3000")["temp_c"] is None
 
 
 # --- the cache files -------------------------------------------------------
@@ -143,6 +96,12 @@ AIRSIGMETS = _cache_file(
 def _fresh_datasets(monkeypatch):
     monkeypatch.setattr(weather, "_DATASETS", {})
     monkeypatch.setattr(weather, "_DATASET_FETCHING", {})
+    # The winds aloft are the GFS's, read from NOMADS (tests/test_modelwinds.py):
+    # none of these tests downloads them.
+    from wingtip import modelwinds
+    monkeypatch.setattr(modelwinds, "warm", lambda force=False: None)
+    monkeypatch.setattr(modelwinds, "_HELD", {})
+    monkeypatch.setattr(modelwinds, "_FAILED", {})
 
 
 @patch("wingtip.weather.requests.get", return_value=METARS)
@@ -216,7 +175,7 @@ def test_a_request_refused_as_asked_is_not_retried_and_one_too_many_is(mock_get,
     refused = Mock(status_code=400, text='{"status":"error","error":"Wind/temp tables have been discontinued"}')
     mock_get.return_value = refused
     with pytest.raises(WeatherServiceError, match="refused: 400"):
-        weather._get(weather.WINDTEMP_URL, {"fcst": "06"})
+        weather._get("https://aviationweather.gov/api/data/windtemp", {"fcst": "06"})
     assert mock_get.call_count == 1
     mock_sleep.assert_not_called()
 
@@ -225,21 +184,8 @@ def test_a_request_refused_as_asked_is_not_retried_and_one_too_many_is(mock_get,
     busy.raise_for_status.side_effect = requests.HTTPError("429 Client Error")
     mock_get.return_value = busy
     with pytest.raises(WeatherServiceError, match="after 3 attempts"):
-        weather._get(weather.WINDTEMP_URL, {"fcst": "06"})
+        weather._get("https://aviationweather.gov/api/data/windtemp", {"fcst": "06"})
     assert mock_get.call_count == 3
-
-
-@patch("wingtip.weather.time.sleep")
-@patch("wingtip.weather.requests.get")
-def test_the_modelled_winds_are_read_ahead_where_the_fb_cannot_be_had(mock_get, mock_sleep):
-    """The planner's own refresh reads the GFS's winds for each period the
-    FB failed for, as a plan would, so no pilot's plan waits on NOMADS."""
-    mock_get.return_value = Mock(status_code=400, text="discontinued")
-    asked = []
-    with patch("wingtip.modelwinds.stations", side_effect=lambda hr: asked.append(hr)):
-        with pytest.raises(WeatherServiceError):
-            weather._fetch_each(weather.WIND_PERIODS, force=True)
-    assert sorted(asked) == ["06", "12", "24"]
 
 
 def test_a_routes_weather_is_read_ahead_off_the_request_and_a_failure_is_left_to_the_plan():
@@ -249,10 +195,14 @@ def test_a_routes_weather_is_read_ahead_off_the_request_and_a_failure_is_left_to
         fetched.append((names, force))
         raise WeatherServiceError("METARs unavailable from aviationweather.gov just now")
 
-    with patch("wingtip.weather._fetch_each", side_effect=fetch):
+    winds = []
+    with patch("wingtip.weather._fetch_each", side_effect=fetch), \
+            patch("wingtip.weather._fd_stations", side_effect=winds.append):
         weather.read_ahead("12").join(timeout=5)
-    # Not forced: a held copy still good is not downloaded again.
-    assert fetched == [(("metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-12"), False)]
+    # Not forced: a held copy still good is not downloaded again. The
+    # winds are the GFS's (_fd_stations), read even when a report fails.
+    assert fetched == [(("metars", "tafs", "airsigmets", "pireps", "gairmets"), False)]
+    assert winds == ["12"]
 
 
 @patch("wingtip.weather.time.sleep")
@@ -561,14 +511,6 @@ def _text(body: str) -> Mock:
     return response
 
 
-FD = _text(
-    "DATA BASED ON 200000Z\n"
-    "VALID 200600Z   FOR USE 0200-0900Z. TEMPS NEG ABV 24000\n\n"
-    "FT  3000    6000    9000   12000   18000   24000  30000  34000  39000\n"
-    "DLH 2714 2725-02 2735-08 2745-13 2760-25 2775-37 780049 780159 780969\n"
-)
-
-
 @patch("wingtip.weather.time.sleep")
 @patch("wingtip.weather.requests.get")
 def test_a_failure_with_nothing_held_is_the_answer_for_a_minute(mock_get, mock_sleep):
@@ -589,71 +531,6 @@ def test_a_failure_with_nothing_held_is_the_answer_for_a_minute(mock_get, mock_s
     mock_get.side_effect, mock_get.return_value = None, METARS
     with patch("wingtip.weather.time.time", return_value=T0200Z + 61):
         assert metar_for_idents(["KORD"])["KORD"]["flight_category"] == "IFR"
-
-
-# The FD product above is for use 0200-0900Z on the 20th.
-T0900Z = datetime(2026, 9, 20, 9, 0, tzinfo=timezone.utc).timestamp()
-
-
-@patch("wingtip.weather.time.sleep")
-@patch("wingtip.weather.requests.get")
-def test_a_copy_too_old_to_serve_is_not_fetched_again_within_the_minute(mock_get, mock_sleep):
-    mock_get.return_value = FD
-    with patch("wingtip.weather.time.time", return_value=T0200Z):
-        weather._fd_stations("06")
-    mock_get.return_value, mock_get.side_effect = None, requests.ConnectionError("no route to host")
-    # The source itself: _fd_stations would go on to the GFS's winds
-    # (wingtip.modelwinds), a fetch of its own.
-    with patch("wingtip.weather.time.time", return_value=T0900Z + 60):
-        with pytest.raises(WeatherServiceError):
-            weather._dataset("winds-06")
-    attempts = mock_get.call_count
-    with patch("wingtip.weather.time.time", return_value=T0900Z + 90):
-        with pytest.raises(WeatherServiceError):
-            weather._dataset("winds-06")
-    assert mock_get.call_count == attempts
-
-
-@patch("wingtip.weather.requests.get", return_value=FD)
-def test_the_winds_are_parsed_once_and_held(mock_get):
-    assert weather._fd_stations("06")["DLH"][9000]["temp_c"] == -8.0
-    weather._fd_stations("06")
-    assert mock_get.call_count == 1
-    assert mock_get.call_args.kwargs["params"]["fcst"] == "06"
-
-
-@patch("wingtip.weather.time.sleep")
-@patch("wingtip.weather.requests.get")
-def test_a_winds_body_with_no_header_is_a_failed_fetch_not_a_crash(mock_get, mock_sleep):
-    """It raised StopIteration, which no caller catches -- and the text
-    was cached before it was parsed, so it stayed "valid" for 15 min."""
-    mock_get.return_value = FD
-    with patch("wingtip.weather.time.time", return_value=T0200Z):
-        weather._fd_stations("06")
-    mock_get.return_value = _text("<html>Service Unavailable</html>")
-    with patch("wingtip.weather.time.time", return_value=T0200Z + 5 * 60):
-        assert weather._dataset("winds-06", force=True)["DLH"][9000]["temp_c"] == -8.0   # the held copy
-    with patch("wingtip.weather.time.time", return_value=T0900Z + 60):
-        with pytest.raises(WeatherServiceError, match="Winds aloft") as raised:
-            weather._dataset("winds-06")                                   # past its for-use window: not
-    assert "no altitude header" in str(raised.value.__cause__)
-
-
-@patch("wingtip.weather.time.sleep")
-@patch("wingtip.weather.requests.get")
-def test_winds_answering_204_serve_the_held_product_to_the_end_of_its_for_use_window(mock_get, mock_sleep):
-    """2026-11-04: the windtemp API answered 204 with no body all
-    afternoon, and a copy held only 15 minutes left no winds at all. A
-    product is for use in its FOR USE window (AC 00-45H), so it is served
-    to the end of that, and its fetch time says how old it is."""
-    mock_get.return_value = FD
-    with patch("wingtip.weather.time.time", return_value=T0200Z):
-        weather._fd_stations("06")
-    mock_get.return_value = _text("")
-    mock_get.return_value.status_code = 204
-    with patch("wingtip.weather.time.time", return_value=T0200Z + 5 * 3600):
-        assert weather._fd_stations("06")["DLH"][9000]["temp_c"] == -8.0
-        assert weather.dataset_status()["winds-06"] == T0200Z
 
 
 @patch("wingtip.weather.time.sleep")
@@ -707,30 +584,51 @@ def test_a_refresh_tries_every_source_and_raises_the_first_failure(mock_get, moc
     def answer(url, params=None, headers=None, timeout=None):
         if "metars" in url:
             raise requests.ConnectionError("metars down")
-        return FD if url == weather.WINDTEMP_URL else (TAFS if "tafs" in url else AIRSIGMETS)
+        return TAFS if "tafs" in url else AIRSIGMETS
 
     mock_get.side_effect = answer
     with pytest.raises(WeatherServiceError, match="METARs unavailable") as raised:
         weather.refresh()
     assert "metars down" in str(raised.value.__cause__)
     fetched = {name for name, at in weather.dataset_status().items() if at is not None}
-    assert fetched == {"tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24"}
+    assert fetched == {"tafs", "airsigmets", "pireps", "gairmets"}
 
 
-@patch("wingtip.weather.requests.get")
-def test_preload_and_refresh_hold_every_winds_period(mock_get):
-    # A plan for later in the day reads the 12- or 24-hour winds: held
-    # from the start and refreshed with the rest, never fetched under it.
-    mock_get.side_effect = lambda url, params=None, headers=None, timeout=None: (
-        FD if url == weather.WINDTEMP_URL else METARS if "metars" in url else TAFS if "tafs" in url else AIRSIGMETS)
-    weather.preload()
-    winds = sorted(c.kwargs["params"]["fcst"] for c in mock_get.call_args_list if c.args[0] == weather.WINDTEMP_URL)
-    assert winds == ["06", "12", "24"]
-    mock_get.reset_mock()
+def test_no_code_path_asks_for_the_discontinued_fb(monkeypatch):
+    """The FB's windtemp API answers 400 since the NAM ended (NWS Service
+    Change Notice 26-47): preload, refresh and every winds lookup read
+    the GFS (wingtip.modelwinds) and never ask aviationweather.gov for it."""
+    from wingtip import modelwinds
 
-    weather.refresh()
-    winds = sorted(c.kwargs["params"]["fcst"] for c in mock_get.call_args_list if c.args[0] == weather.WINDTEMP_URL)
-    assert winds == ["06", "12", "24"]
+    asked = []
+    monkeypatch.setattr(weather.requests, "get", lambda url, **kw: asked.append(url) or METARS)
+    warmed = []
+    monkeypatch.setattr(modelwinds, "warm", lambda force=False: warmed.append(force))
+    stations = weather.FdStations({"DLH": {9000: {"wind_dir_true_deg": 270.0, "wind_speed_kt": 30.0, "temp_c": -8.0}}})
+    stations.period, stations.modelled = {"valid_at": "x", "use_from": "x", "use_to": "x"}, True
+    monkeypatch.setattr(modelwinds, "stations", lambda fcst_hr="06": stations)
+    for name in ("preload", "refresh"):
+        try:
+            getattr(weather, name)()
+        except WeatherServiceError:
+            pass
+    assert weather.winds_period("06")["modelled"] is True
+    assert warmed == [True, False]
+    assert not [u for u in asked if "windtemp" in u]
+    assert not hasattr(weather, "WINDTEMP_URL") and not hasattr(weather, "parse_fd_text")
+    assert not [name for name in weather._SOURCES if name.startswith("winds")]
+
+
+def test_winds_nomads_cannot_give_are_a_weather_service_error_in_a_pilots_words(monkeypatch):
+    from wingtip import modelwinds
+
+    def down(fcst_hr="06"):
+        raise modelwinds.ModelWindsUnavailable("NOMADS answered 503")
+
+    monkeypatch.setattr(modelwinds, "stations", down)
+    with pytest.raises(WeatherServiceError, match="Winds aloft"):
+        weather._fd_stations("06")
+    assert weather.winds_period("06") is None
 
 
 # --- PIREPs and G-AIRMETs ---
@@ -875,26 +773,6 @@ def test_the_nearest_report_is_a_current_one(monkeypatch):
     assert weather.nearest_report(42.3, -88.0, exclude="KNEW") is None
 
 
-# --- the period a winds product is for ---
-
-def test_a_winds_product_says_the_period_it_is_for():
-    """Its header's "VALID 200600Z FOR USE 0200-0900Z", as dates: for a
-    nav log to say which winds it flies, and when they are out of date."""
-    stations = weather.parse_fd_text(FD.text, now=datetime(2026, 10, 20, 2, 30, tzinfo=timezone.utc))
-    assert stations["DLH"][3000]["wind_speed_kt"] == 14
-    assert stations.period == {"valid_at": "2026-10-20T06:00:00Z", "use_from": "2026-10-20T02:00:00Z", "use_to": "2026-10-20T09:00:00Z"}
-
-
-def test_a_24_hour_products_period_runs_through_midnight_and_a_month_turns_where_the_day_says():
-    text = "VALID 010000Z   FOR USE 1800-0600Z. TEMPS NEG ABV 24000\nFT  3000\nDLH 2714\n"
-    period = weather.parse_fd_text(text, now=datetime(2026, 10, 31, 20, 0, tzinfo=timezone.utc)).period
-    assert period == {"valid_at": "2026-11-01T00:00:00Z", "use_from": "2026-10-31T18:00:00Z", "use_to": "2026-11-01T06:00:00Z"}
-
-
-def test_a_product_whose_header_does_not_say_has_no_period():
-    assert weather.parse_fd_text("FT  3000\nDLH 2714\n").period is None
-
-
 # --- the wind forecast at a field for a time ---
 
 WINDY_TAFS = _cache_file(
@@ -942,12 +820,12 @@ def test_sources_status_names_each_source_and_says_which_is_served_on(monkeypatc
     # The pilot's Status page: each source in a pilot's words, its copy's
     # age, to when a held copy is used, and which source is failing.
     monkeypatch.setattr(weather, "_DATASETS", {})
-    failed = weather.WeatherServiceError("Winds aloft (6-hour forecast) unavailable from aviationweather.gov just now")
-    monkeypatch.setitem(weather._DATASETS, "winds-06", weather._Record(at=100.0, data={}, attempted=200.0, error=failed, until=900.0))
+    failed = weather.WeatherServiceError("TAFs unavailable from aviationweather.gov just now")
+    monkeypatch.setitem(weather._DATASETS, "tafs", weather._Record(at=100.0, data={}, attempted=200.0, error=failed, until=900.0))
     monkeypatch.setitem(weather._DATASETS, "metars", weather._Record(at=150.0, data={}, attempted=150.0, error=None, until=float("inf")))
     by_name = {s["name"]: s for s in weather.sources_status()}
-    assert by_name["Winds aloft (6-hour forecast)"] == {
-        "name": "Winds aloft (6-hour forecast)", "fetched_at": 100.0, "kept_until": 900.0, "failing": True,
-    }
+    assert by_name["TAFs"] == {"name": "TAFs", "fetched_at": 100.0, "kept_until": 900.0, "failing": True}
     assert by_name["METARs"] == {"name": "METARs", "fetched_at": 150.0, "kept_until": None, "failing": False}
-    assert by_name["TAFs"]["fetched_at"] is None and not by_name["TAFs"]["failing"]
+    # The winds aloft, modelled, each period to the end of its own window.
+    winds = by_name["Winds aloft, modelled (GFS), 6-hour"]
+    assert winds["fetched_at"] is None and not winds["failing"]
