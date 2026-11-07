@@ -695,6 +695,13 @@ export interface EngineContract {
     answer: MagneticVariationAnswer;
   };
   /**
+   * Whether an FAA data set's edition is in force on a day, by its cycle: AIRAC's 28 days (NASR, CIFP, d-TPP), the 56-day charting cycle (sectional, terminal area and IFR enroute charts, the Chart Supplement) or the Digital Obstacle File's 56-day releases, from the FAA's 28 and 56 Day Product Schedule and its DOF page.
+   */
+  data_cycle: {
+    input: DataCycleInput;
+    answer: DataCycleAnswer;
+  };
+  /**
    * POST /api/go-no-go's line and items: each tab's finding, the IFR alternate's in the weather's (14 CFR 91.169), and the line over them. The findings are the planner's; the decision is the pilot in command's (14 CFR 91.3).
    */
   gonogo_verdict: {
@@ -2116,6 +2123,52 @@ export interface MagneticVariationInput {
    * YYYY-MM-DD.
    */
   date: string;
+}
+export interface DataCycleInput {
+  /**
+   * The schedule the data set is published on.
+   */
+  kind: "airac" | "chart" | "dof";
+  /**
+   * YYYY-MM-DD: the date the edition held is named by (its effective date; a DOF file's last day of changes). Missing or null where nothing says.
+   */
+  effective?: string | null;
+  /**
+   * YYYY-MM-DD: the UTC day it is used on.
+   */
+  on: string;
+}
+export interface DataCycleAnswer {
+  kind: "airac" | "chart" | "dof";
+  /**
+   * The cycle's length, 28 or 56 days.
+   */
+  cycle_days: number;
+  /**
+   * YYYY-MM-DD: the day the edition in force on `on` took effect (a DOF's release).
+   */
+  current: string;
+  /**
+   * The AIRAC cycle's number, YYNN ("2611"); null off AIRAC.
+   */
+  current_ident: string | null;
+  /**
+   * YYYY-MM-DD: the day the next edition takes its place.
+   */
+  next: string;
+  /**
+   * YYYY-MM-DD: the day the edition held counts from; null where unknown.
+   */
+  effective: string | null;
+  /**
+   * YYYY-MM-DD: the first day the edition held no longer counts; null where unknown.
+   */
+  expires: string | null;
+  state: "in_force" | "expired" | "not_yet" | "unknown";
+  /**
+   * How many editions have come out since the one held; 0 unless expired.
+   */
+  behind: number;
 }
 export interface GonogoVerdictInput {
   verdict: VerdictInput;

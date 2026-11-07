@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 import pytest
 from shapely.geometry import box
+from wingtip import data_cycles
 
 from app import exposure
 
@@ -164,6 +165,7 @@ def test_the_maps_layers_say_when_their_data_was_fetched(monkeypatch):
     ])
     monkeypatch.setattr(tfr, "fetched_at", lambda: None)
     monkeypatch.setattr(tfr, "failing", lambda: False)
+    monkeypatch.setattr(data_cycles, "held", lambda: [])
     # And each source kept through an outage, for the pilot's Status page.
     assert TestClient(app).get("/api/map/ages").json() == {
         "metars_at": "2026-10-04T14:00:00Z", "tfrs_at": None,
@@ -172,7 +174,32 @@ def test_the_maps_layers_say_when_their_data_was_fetched(monkeypatch):
             {"name": "TAFs", "fetched_at": None, "kept_until": None, "failing": True},
             {"name": "TFRs", "fetched_at": None, "kept_until": None, "failing": False},
         ],
+        "data_cycles": [],
     }
+
+
+def test_the_maps_ages_say_which_faa_data_is_past_its_cycle(monkeypatch):
+    """Each FAA data set's edition, from wingtip.data_cycles, the engine's
+    rule: NASR of 1 Oct 2026 is a cycle behind on 6 Nov 2026 (the next
+    took effect 29 Oct, the FAA's NASR subscription page), the charts of
+    29 Oct are in force until 24 Dec (the 56-day cycle)."""
+    from datetime import date
+
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    on = date(2026, 11, 6)
+    entries = [
+        data_cycles.entry("nasr", "Airports, frequencies and navaids", "airac", date(2026, 10, 1), on),
+        data_cycles.entry("charts", "Charts", "chart", date(2026, 10, 29), on),
+    ]
+    monkeypatch.setattr(data_cycles, "held", lambda: entries)
+    got = TestClient(app).get("/api/map/ages").json()["data_cycles"]
+    assert got[0] == {"key": "nasr", "name": "Airports, frequencies and navaids", "kind": "airac", "edition": "2026-10-01",
+                      "effective": "2026-10-01", "expires": "2026-10-29", "current": "2026-10-29", "state": "expired",
+                      "behind": 1}
+    assert got[1]["state"] == "in_force" and got[1]["expires"] == "2026-12-24"
 
 
 def test_the_briefing_places_its_hazards_on_the_nav_logs_legs(monkeypatch):

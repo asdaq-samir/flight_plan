@@ -227,6 +227,9 @@ fn the_shared_fixtures_answers_are_of_the_contracts_shapes() {
     for case in rules["declination"].as_array().unwrap() {
         c.ask("magnetic_variation", json!({ "lat": case["lat"], "lon": case["lon"], "date": "2026-07-01" }));
     }
+    for case in fixture("dataCycles.json")["cases"].as_array().unwrap() {
+        c.ask("data_cycle", json!({ "kind": case["kind"], "effective": case["effective"], "on": case["on"] }));
+    }
 
     // The approaches at KBUR, as the planner's /api/procedure draws them.
     let kbur = fixture("approachKbur.json");
