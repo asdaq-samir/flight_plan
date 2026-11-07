@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.wingtipmaps.android.Charts
@@ -104,6 +106,10 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
     // Back after a rotation with own ship on: the reading goes on (start
     // is idempotent), and the dot is drawn again.
     LaunchedEffect(ownShipOn) { if (ownShipOn) ownShip.start() }
+    // Back from Settings with the permission changed: read again, so the
+    // note under the buttons goes once precise is allowed, and the reading
+    // stops if it was taken away.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { if (ownShipOn) ownShip.start() }
     // A watch set or traffic near asked for notifications (Notifications
     // .allow): the system's dialog on Android 13 and later, nothing to ask
     // before it.

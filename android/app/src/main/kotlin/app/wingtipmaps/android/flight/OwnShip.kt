@@ -121,7 +121,13 @@ class OwnShip private constructor(private val context: Context) {
             }
             scope.launch {
                 withContext(converting) {
-                    runCatching { AltitudeConverterCompat.addMslAltitudeToLocation(context, last) }
+                    try {
+                        AltitudeConverterCompat.addMslAltitudeToLocation(context, last)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        // No conversion: the fix goes without an altitude.
+                    }
                 }
                 took(fixOf(last))
             }
@@ -145,7 +151,12 @@ class OwnShip private constructor(private val context: Context) {
         val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         _approximate.value = !precise && coarse
         _denied.value = !precise && !coarse
-        if (!precise) return
+        if (!precise) {
+            // Downgraded to approximate (or off) while reading: the
+            // fixes stop with the permission.
+            stop()
+            return
+        }
         if (!reading) {
             reading = true
             // One fix a second at the best accuracy, as the iOS app asks
@@ -179,6 +190,10 @@ class OwnShip private constructor(private val context: Context) {
     private fun took(fix: Fix) {
         // A fix converted after the reading stopped is left out.
         if (!reading) return
+        // A fix converted late can be overtaken by a newer one that needed
+        // no conversion; time does not go backwards for the trail and the
+        // alerts.
+        if (_fix.value.let { it != null && fix.atMs <= it.atMs }) return
         _fix.value = fix
         // The path flown, and the phone's position kept with the screen
         // off only while flying: the service is started as the airplane

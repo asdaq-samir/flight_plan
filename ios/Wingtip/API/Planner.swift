@@ -43,7 +43,8 @@ enum Planner {
     /// phone answers from what it keeps (the cycle packs): five seconds,
     /// not URLSession's sixty. With one bar of signal at altitude a call
     /// that hangs would hold the alert ahead past the next ten-second ask,
-    /// which cancels it, so the packs' answer would never be shown.
+    /// which cancels it, so the packs' answer would never be shown. The
+    /// whole call is bound by it (load), not only the wait for data.
     static let inFlight: TimeInterval = 5
 
     /// A planner call by its path and query; `timeout` for the calls made
@@ -82,7 +83,7 @@ enum Planner {
     /// cookies are the pilot's, and its cache answers what the planner
     /// said may be kept (Gateway.session).
     static func data(for request: URLRequest, ok: ClosedRange<Int> = 200...200) async throws -> Data {
-        let (data, response) = try await Gateway.session.data(for: request)
+        let (data, response) = try await load(request)
         let status = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard ok.contains(status) else {
             // The path names the call (an ident in it is public); the query
@@ -91,6 +92,24 @@ enum Planner {
             throw Failure(status: status, detail: detail(of: data))
         }
         return data
+    }
+
+    /// The call made. A request asked to wait no longer than inFlight is
+    /// bound as a whole: URLRequest.timeoutInterval only counts time with
+    /// no data, so a server trickling bytes would hold the call past the
+    /// next ten-second ask, which cancels it. The race ends it at that
+    /// time whatever arrives.
+    private static func load(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        guard request.timeoutInterval <= inFlight else { return try await Gateway.session.data(for: request) }
+        return try await withThrowingTaskGroup(of: (Data, URLResponse).self) { group in
+            group.addTask { try await Gateway.session.data(for: request) }
+            group.addTask {
+                try await Task.sleep(for: .seconds(inFlight))
+                throw URLError(.timedOut)
+            }
+            defer { group.cancelAll() }
+            return try await group.next()!
+        }
     }
 
     static func fetch<T: Decodable>(_ type: T.Type, _ path: String, _ query: [String: String?] = [:], timeout: TimeInterval? = nil) async throws -> T {

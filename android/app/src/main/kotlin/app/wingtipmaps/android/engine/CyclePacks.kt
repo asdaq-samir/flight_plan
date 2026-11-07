@@ -14,6 +14,8 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 
@@ -72,7 +74,13 @@ class CyclePacks(private val root: File) {
      *  for the air because one fetch failed. Quiet where the planner
      *  cannot be reached: the next keep tries again, and finds the packs
      *  already fetched in the new cycle's folder. */
-    suspend fun keep(wanted: Set<String>) {
+    suspend fun keep(wanted: Set<String>) = keeping.withLock { keepOne(wanted) }
+
+    /** One keep at a time: the launch's refresh and the plan's keep write
+     *  the same .part files and the same index. */
+    private val keeping = Mutex()
+
+    private suspend fun keepOne(wanted: Set<String>) {
         val listing = try {
             Planner.fetch("/api/cycle-packs")
         } catch (e: CancellationException) {
