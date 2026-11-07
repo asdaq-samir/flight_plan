@@ -1,0 +1,156 @@
+name: Native iOS test
+
+# The native iOS app built and tested (ios/, docs/NATIVE.md): the engine's
+# framework, the Xcode project made by XcodeGen from ios/project.yml, and
+# xcodebuild test on the simulators. Called, not triggered: by ci.yml on
+# a pull request that touches what the app builds from, so "CI passed"
+# -- the one check main requires -- waits for it (#499 merged with a phone
+# app not compiling, when the phone builds ran beside CI rather than
+# inside it); and by native-ios.yml on main and on claude/native-*, where
+# TestFlight follows it.
+#
+# Actions are pinned as in ci.yml (its opening comment says why).
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  WINGTIP_URL: ${{ vars.WINGTIP_URL || 'https://wingtipmaps.app/app/plan' }}
+  WINGTIP_BUNDLE_ID: ${{ vars.IOS_BUNDLE_ID || 'app.wingtipmaps.ios' }}
+
+jobs:
+  test:
+    runs-on: ${{ vars.MAC_RUNNER || 'macos-26' }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The engine's framework as the last run that built this engine left
+      # it: the three Apple targets took 148 s of a 284 s job (run
+      # 42110145019), and the engine changes far less often than the app.
+      # Keyed on the engine's own files, 23 MB, so the full Actions cache
+      # loses little to it.
+      - name: The engine, as last built
+        id: engine
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
+      - name: The engine, for the app
+        # wingtip-engine through its C functions (native/ffi), which the app
+        # answers the airspace from with no network. The runner's own
+        # rustup, where the engine changed.
+        if: steps.engine.outputs.cache-hit != 'true'
+        run: native/ffi/build-xcframework.sh
+      # Kept at once, not at the job's end: an app that fails its tests
+      # still built the engine right.
+      - name: The engine, kept
+        if: steps.engine.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ios/Frameworks/WingtipEngine.xcframework
+          key: engine-ios-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
+      - name: The Xcode project, from project.yml
+        run: |
+          # The Mac mini's runner has xcodegen already, and no Homebrew.
+          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen generate --spec ios/project.yml --project ios
+      - name: The newest Xcode on the runner
+        run: |
+          # iPhone Duo's own layout (to the screen's edge, bars down the
+          # side) needs an app built with the iOS 27.1 SDK; an older one is
+          # letterboxed on the inner screen. The runner's default Xcode can
+          # lag its newest.
+          # The Mac mini's runner has the one Xcode.app, already selected,
+          # and no password-less sudo; GitHub's has numbered ones.
+          newest=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -viE 'beta|_rc' | sort -V | tail -1 || true)
+          if [ -n "$newest" ]; then sudo xcode-select -s "$newest"; fi
+          xcodebuild -version
+      - name: The simulators to test on
+        id: sim
+        run: |
+          # The newest iPhone the runner's Xcode has, whatever it is named,
+          # and an iPad -- a Pro where there is one -- for the iPad's own
+          # layout (SplitLayout), each by its id.
+          pick() {
+            xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          kind = sys.argv[1]
+          devices = [d for runtime, ds in json.load(sys.stdin)["devices"].items() if "iOS" in runtime for d in ds if d["name"].startswith(kind)]
+          # iPhone Duo is tested on its own, beside a one-screen iPhone.
+          devices = [d for d in devices if ("Duo" in d["name"]) == (kind == "iPhone Duo")]
+          if not devices:
+              sys.exit(0)
+          pros = [d for d in devices if "Pro" in d["name"]] if kind == "iPad" else []
+          best = sorted(pros or devices, key=lambda d: d["name"])[-1]
+          print(best["udid"] + " " + best["name"])' "$1"
+          }
+          read -r iphone iphone_name <<< "$(pick iPhone)"
+          read -r ipad ipad_name <<< "$(pick iPad)"
+          read -r duo duo_name <<< "$(pick 'iPhone Duo')"
+          echo "iphone=$iphone" >> "$GITHUB_OUTPUT"
+          echo "ipad=$ipad" >> "$GITHUB_OUTPUT"
+          echo "duo=$duo" >> "$GITHUB_OUTPUT"
+          echo "testing on $iphone_name, $ipad_name and ${duo_name:-no iPhone Duo (this Xcode has none)}"
+      - name: Built and tested on the simulator
+        run: |
+          host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")
+          set -o pipefail
+          xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.iphone }}" \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.ipad }}" \
+            ${{ steps.sim.outputs.duo && format('-destination "platform=iOS Simulator,id={0}"', steps.sim.outputs.duo) || '' }} \
+            -derivedDataPath "$RUNNER_TEMP/derived" \
+            -resultBundlePath "$RUNNER_TEMP/Wingtip.xcresult" \
+            CODE_SIGNING_ALLOWED=NO WINGTIP_HOST="$host" WINGTIP_BUNDLE_ID="$WINGTIP_BUNDLE_ID" \
+            test > "$RUNNER_TEMP/xcodebuild.log" 2>&1 || true
+          # The lines that say what happened: each error with what follows
+          # it (a resolution failure names its cause on the next line), the
+          # tests, and the verdict.
+          grep -nE "error:|error\b|Could not|Test (Case|Suite)|Executed|\*\* (BUILD|TEST)" -A6 "$RUNNER_TEMP/xcodebuild.log" | tail -200 || true
+          # Each test's own line, and the verdict.
+          grep -E "✔ Test|✘ Test|Test run with" "$RUNNER_TEMP/xcodebuild.log" || true
+          grep -qE "\*\* TEST SUCCEEDED \*\*" "$RUNNER_TEMP/xcodebuild.log"
+      - name: Each device's first screen
+        # What the app shows on launch on the iPhone, the iPad and iPhone
+        # Duo (where the runner's Xcode has it), for
+        # the pull request's reader: a picture, not a check.
+        continue-on-error: true
+        run: |
+          app="$RUNNER_TEMP/derived/Build/Products/Debug-iphonesimulator/Wingtip.app"
+          mkdir -p "$RUNNER_TEMP/screens"
+          pairs=("iphone:${{ steps.sim.outputs.iphone }}" "ipad:${{ steps.sim.outputs.ipad }}")
+          duo=${{ steps.sim.outputs.duo }}
+          [ -n "$duo" ] && pairs+=("iphone-duo:$duo")
+          for pair in "${pairs[@]}"; do
+            name=${pair%%:*}; id=${pair#*:}
+            xcrun simctl boot "$id" 2>/dev/null || true
+            xcrun simctl bootstatus "$id" -b > /dev/null
+            xcrun simctl install "$id" "$app"
+            xcrun simctl privacy "$id" grant location "$WINGTIP_BUNDLE_ID" || true
+            xcrun simctl launch "$id" "$WINGTIP_BUNDLE_ID"
+            sleep 25
+            xcrun simctl io "$id" screenshot "$RUNNER_TEMP/screens/$name.png"
+          done
+          # And the iPad's Airport tab, its sidebar's search and title.
+          ipad=${{ steps.sim.outputs.ipad }}
+          xcrun simctl terminate "$ipad" "$WINGTIP_BUNDLE_ID" || true
+          xcrun simctl launch "$ipad" "$WINGTIP_BUNDLE_ID" -tab airport
+          sleep 15
+          xcrun simctl io "$ipad" screenshot "$RUNNER_TEMP/screens/ipad-airport.png"
+      - name: The screens
+        if: always()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4
+        with:
+          name: native-ios-screens
+          path: ${{ runner.temp }}/screens
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: The log, on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4
+        with:
+          name: native-ios-log
+          path: ${{ runner.temp }}/xcodebuild.log
+          retention-days: 7
