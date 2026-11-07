@@ -56,7 +56,7 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compo
 
 ## 4. Playwright
 
-**Heavy runs take turns.** On the owner's Mac, run every browser test, test suite, image build and speed measurement through `scripts/one-at-a-time.sh "<who and what>" <command…>`. Several Claude sessions and their agents share the Mac. On the old four-core MacBook two suites at once timed out (2026-10-15), so there was one turn; the Mac mini (12 cores, Docker given 16 GB) has three (`ONE_AT_A_TIME_SLOTS`), at the owner's ask to make full use of it (2026-11-06). **A speed measurement runs with `--alone`**: it waits until no turn is held and then holds them all, so its numbers come from a quiet machine. The script keeps a first-come line, says whose turn it waits for, runs the command, and frees its turns however the command ends. A turn left by a killed run is taken back.
+**Heavy runs take turns.** On the owner's Mac, run every browser test, test suite, image build and speed measurement through `scripts/one-at-a-time.sh "<who and what>" <command…>`. Several Claude sessions and their agents share the Mac. On the old four-core MacBook two suites at once timed out (2026-10-15), so there was one turn; the Mac mini (12 cores, Docker given 16 GB) has four (`ONE_AT_A_TIME_SLOTS`), at the owner's ask to make full use of it (2026-11-06). **A speed measurement runs with `--alone`**: it waits until no turn is held and then holds them all, so its numbers come from a quiet machine. The script keeps a first-come line, says whose turn it waits for, runs the command, and frees its turns however the command ends. A turn left by a killed run is taken back.
 
 ```sh
 scripts/one-at-a-time.sh "session: <spec>" docker run --rm --network host -v "$PWD/web":/w -w /w \
