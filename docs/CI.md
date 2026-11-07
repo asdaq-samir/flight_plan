@@ -166,3 +166,64 @@ mini for free:
 Unset the variables to go back to GitHub's runners. Only once the
 repository is private: on a public one any fork's pull request could run
 its code on the Mac.
+
+## Flaky tests
+
+A flaky test passes and fails on the same code. Each one costs a rerun and
+an hour of someone deciding whether it was their change, so the suites are
+set up to make them show early and in the test that causes them
+(2026-11-06, after a debounce timer in `useAirportSearch.test.tsx` fired
+after its test, and test doubles in `tests/test_traffic.py` leaked into
+the tests after them, #494).
+
+**Random order, every run.** pytest runs with pytest-randomly
+(`requirements-dev.txt` in each Python directory) and vitest with
+`sequence.shuffle` (`web/vite.config.ts`), so a test that passes only after
+another one fails here, not one day in CI. The order comes from a seed
+printed at the top of the run: `pytest --randomly-seed=N` and
+`npx vitest run --sequence.seed=N` repeat it, and `pytest -p no:randomly` runs
+in file order. A test that cannot yet run in any order is marked
+`@pytest.mark.order_dependent` (it runs after the rest, in file order;
+`conftest.py`) or `describe(name, { shuffle: false }, ...)`, and listed to
+be fixed.
+
+**Guards for the usual causes.**
+- Python (`pyproject.toml` of the root, planning-service, crewai-agent and
+  nav-log-agent, each its own rootdir so each repeats the settings, and
+  their `conftest.py`, which all import `pytest_guards.py`): no cache of the last run (`-p no:cacheprovider`), unknown
+  marks are errors (`--strict-markers`), and a test that leaves one of
+  wingtip's or an app's functions replaced -- a test double put on a module
+  by assignment rather than `monkeypatch.setattr` -- fails at its own
+  teardown, naming it.
+- Web (`web/src/test/guards.ts`, before every test file): what Testing
+  Library rendered is unmounted after each test (vitest's globals are off,
+  so it was not), the real timers a jsdom file leaves still to fire are
+  cleared as it ends (one firing after its jsdom is gone was an unhandled
+  error), a test that leaves fake timers on fails, and an unhandled error
+  or rejection fails the run (`dangerouslyIgnoreUnhandledErrors: false`).
+- ESLint (`web/eslint.config.js`): `@vitest/eslint-plugin`'s recommended
+  rules and no `.only` in the unit tests, eslint-plugin-testing-library's
+  for the `*.test.tsx` files (async queries awaited, no side effects in
+  `waitFor`), and no
+  `.only` in the browser specs; Playwright's `forbidOnly` in CI as well.
+
+**Browser tests retry once, in CI only** (`web/playwright.config.ts`). A
+test that passes on its retry is flaky: the run passes, the `github`
+reporter marks it on the commit's checks, and it goes to the nightly issue
+below. A real regression fails both goes.
+
+**The nightly flake hunt** (`ci.yml`: `flake-hunt-python`,
+`flake-hunt-web`, `flake-report`). Every night the root and planner Python
+suites and the web unit suite run five times each in random order; a test
+that failed at least once and passed at least once is flaky. With the
+browser tests that passed only on their retry (that night's run and the
+last day's pull requests), the list goes into one standing issue, "Flaky
+tests (nightly)", kept 14 days after a test was last seen
+(`scripts/flaky_tests.py`). The script makes one GitHub write a night at
+most -- the issue created, or its body edited, never a comment -- and none
+when the list has not changed.
+
+To fix one: take the seed from the run that failed, repeat the order, and
+look at what the test before it left behind (a module global, a mock, fake
+timers, a component still mounted, a file). Fix the test, not the code,
+unless the code is wrong.

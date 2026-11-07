@@ -438,6 +438,8 @@ jobs:
               - .github/ci-images.hcl
               - .dockerignore
               - pyproject.toml
+              # Every Python suite's conftest, as pyproject.toml is its settings.
+              - conftest.py
             test-root:
               - src/**
               - native/**
@@ -1134,13 +1136,31 @@ jobs:
           IOS_AUDIT: ${{ (github.event_name == 'schedule' || inputs.standards) && '1' || '' }}
           SCREENSHOTS: /out/screens
           PROJECTS: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || '--project=mobile --grep @smoke' }}
+          # The JSON report, for the flaky tests below (those that passed
+          # on their retry): listed in the nightly issue, not failing the run.
+          PLAYWRIGHT_JSON_OUTPUT_NAME: /out/results.json
         run: |
           echo "$(($(date +%s) - T0)) the tests" >> /tmp/e2e-out/timeline
           mkdir -p /tmp/e2e-out/screens
-          docker run --rm --network host -e CI=1 -e IOS_AUDIT -e SCREENSHOTS \
+          docker run --rm --network host -e CI=1 -e IOS_AUDIT -e SCREENSHOTS -e PLAYWRIGHT_JSON_OUTPUT_NAME \
             -v "$PWD/web:/w" -v /tmp/e2e-out:/out -w /w \
             "$PLAYWRIGHT_IMAGE" \
-            bash -o pipefail -c "timeout 1800 npx playwright test $PROJECTS --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github 2>&1 | tee /out/playwright.log"
+            bash -o pipefail -c "timeout 1800 npx playwright test $PROJECTS --shard=${{ matrix.shard }}/${{ strategy.job-total }} --reporter=list,github,json 2>&1 | tee /out/playwright.log"
+      # A test that failed and then passed on its retry (playwright.config.ts
+      # retries) passes the run. Kept three days, for the nightly
+      # flake-report job to list in the "Flaky tests (nightly)" issue, a
+      # pull request's runs included.
+      - name: The flaky browser tests, for the nightly issue
+        if: always()
+        run: python3 scripts/flaky_tests.py e2e /tmp/e2e-out/results.json /tmp/e2e-out/flaky.txt
+      - name: Keep the flaky browser tests
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: e2e-flaky-${{ matrix.shard }}
+          path: /tmp/e2e-out/flaky.txt
+          if-no-files-found: ignore
+          retention-days: 3
       - name: How the tests went, as an annotation
         if: always()
         env:
@@ -1825,6 +1845,143 @@ jobs:
           open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(
               "### Tonight's speed lab\n\n" + "\n".join(f"- {k}: {round(v, 3)}" for k, v in sorted(metrics.items())) + "\n")
           EOF
+
+  # The nightly flake hunt (docs/CI.md, "Flaky tests"): the unit suites run
+  # five times each in a new random order, and a test that failed in one
+  # run and passed in another is flaky. Nightly only, and not among the
+  # jobs "CI passed" waits on: a flaky test is work to do, listed in one
+  # standing issue, not a reason to stop a merge. The root suite and the
+  # planner's, the two whose modules hold the state a test can leave
+  # behind; the agents' suites are small and mock everything.
+  flake-hunt-python:
+    name: Flake hunt (${{ matrix.suite }})
+    if: github.event_name == 'schedule'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [root, planning-service]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # The reference data the test jobs keep, restored with the same paths
+      # they save (a cache's paths are part of its key), never saved here.
+      - name: The week, for the reference data's cache
+        id: week
+        run: echo "week=$(date -u +%G-%V)" >> "$GITHUB_OUTPUT"
+      - if: matrix.suite == 'root'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            data/raw/*
+            !data/raw/charts.nosync
+            !data/raw/chart_tiles.nosync
+          key: tests-raw-root-v1-${{ steps.week.outputs.week }}
+          restore-keys: tests-raw-root-v1-
+      - if: matrix.suite == 'planning-service'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: data/raw
+          key: tests-raw-planner-v2-${{ steps.week.outputs.week }}
+          restore-keys: tests-raw-planner-v2-
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        with:
+          python-version: "3.14"
+      - run: pip install uv
+      - run: uv pip install --system -r ${{ matrix.suite == 'root' && '.' || matrix.suite }}/requirements-dev.txt
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      # Each run's seed is at the top of its output ("Using --randomly-seed=N").
+      - name: Five runs in random order
+        working-directory: ${{ matrix.suite == 'root' && '.' || matrix.suite }}
+        run: |
+          mkdir -p "/tmp/flake/${{ matrix.suite }}"
+          for n in 1 2 3 4 5; do
+            pytest tests/ -q -p randomly --junitxml="/tmp/flake/${{ matrix.suite }}/run-$n.xml" || true
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: flake-runs-${{ matrix.suite }}
+          path: /tmp/flake
+          retention-days: 7
+
+  flake-hunt-web:
+    name: Flake hunt (web)
+    if: github.event_name == 'schedule'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run types
+      # vite.config.ts shuffles; each run's seed is at the top of its output.
+      - name: Five runs in random order
+        run: |
+          mkdir -p /tmp/flake/web
+          for n in 1 2 3 4 5; do
+            npx vitest run --reporter=default --reporter=json --outputFile.json="/tmp/flake/web/run-$n.json" || true
+          done
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        if: always()
+        with:
+          name: flake-runs-web
+          path: /tmp/flake
+          retention-days: 7
+
+  # The list, into the one standing issue "Flaky tests (nightly)": the unit
+  # suites' flaky tests from the jobs above, and the browser tests that
+  # passed only on their retry, tonight's and the last day's other runs'
+  # (their e2e-flaky-* artifacts, pull requests' included). One GitHub
+  # write at most -- the issue created, or its body edited, never a
+  # comment -- and none when nothing changed (scripts/flaky_tests.py): a
+  # burst of writes got the owner's account suspended once.
+  flake-report:
+    name: Flake report
+    needs: [flake-hunt-python, flake-hunt-web, e2e]
+    if: always() && github.event_name == 'schedule'
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        continue-on-error: true
+        with:
+          pattern: flake-runs-*
+          path: /tmp/flake
+          merge-multiple: true
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        continue-on-error: true
+        with:
+          pattern: e2e-flaky-*
+          path: /tmp/flake/e2e/tonight
+      # Reads only: each run of the last day, its flaky lists if it kept any.
+      - name: The last day's other runs' flaky browser tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          THIS_RUN: ${{ github.run_id }}
+        run: |
+          since=$(date -u -d yesterday +%Y-%m-%d)
+          for id in $(gh run list --workflow ci.yml --created ">=$since" --json databaseId --jq '.[].databaseId' --limit 200); do
+            [ "$id" = "$THIS_RUN" ] && continue
+            gh run download "$id" --pattern 'e2e-flaky-*' --dir "/tmp/flake/e2e/$id" 2>/dev/null || true
+          done
+      - name: Into the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: python3 scripts/flaky_tests.py report /tmp/flake
 
   # The one check main requires (its ruleset), so the rule holds as jobs
   # come and go: every job above passed, or was not needed -- a job its

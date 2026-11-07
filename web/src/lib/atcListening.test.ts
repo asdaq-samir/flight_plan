@@ -49,6 +49,14 @@ async function load() {
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
+/** The held prompt answered, once the module has asked for it: taken at
+ * once, it failed now and then in a full, loaded run (pending empty) when
+ * the ask was still a few awaits away. */
+async function answerPrompt() {
+  await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0), { timeout: 2000, interval: 5 });
+  pending.shift()!();
+}
+
 beforeEach(() => {
   vi.resetModules();
   order.length = 0;
@@ -67,7 +75,7 @@ describe("listening through the input held", () => {
     const m = await load();
     const card = m.audio.hold();
     const opened = m.audio.choose(PANEL);
-    pending.shift()!();
+    await answerPrompt();
     await opened;
     const held = m.audio.heldTrack();
     expect(held?.label).toBe("GMA 350c");
@@ -93,7 +101,7 @@ describe("listening through the input held", () => {
     // Not yet answered: the recognizer started without it.
     expect(devices.getUserMedia).toHaveBeenCalledTimes(1);
     expect(sessions[0]!.track?.()).toBeNull();
-    pending.shift()!();
+    await answerPrompt();
     await settle();
     expect(sessions[0]!.track?.()?.label).toBe("GMA 350c");
     expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", outside: true, lost: false });
@@ -109,7 +117,7 @@ describe("nothing heard", () => {
     const m = await load();
     m.usePreferences.setState({ listenInput: PANEL });
     await m.listenOnce([]);
-    pending.shift()!();
+    await answerPrompt();
     await settle();
     expect(m.useAtcRadio.getState().pill?.listening).toBe(true);
     sessions[0]!.onEnded();
@@ -122,7 +130,7 @@ describe("nothing heard", () => {
     const m = await load();
     m.usePreferences.setState({ listenInput: PANEL });
     await m.listenOnce([]);
-    pending.shift()!();
+    await answerPrompt();
     await settle();
     expect(m.useAtcRadio.getState().input).toMatchObject({ label: "GMA 350c", lost: false });
     sessions[0]!.onEnded();

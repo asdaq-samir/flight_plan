@@ -5,5 +5,6 @@
 # inside the image that runs this service.
 -r requirements.txt
 pytest
+pytest-randomly==5.0.0   # every run in a new random order, --randomly-seed=N repeats one (docs/CI.md, "Flaky tests")
 httpx   # fastapi.testclient.TestClient's transport
 ruff
