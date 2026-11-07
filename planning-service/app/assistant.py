@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from datetime import datetime, timezone
 from typing import Iterator, Literal
 
@@ -43,6 +42,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from .routers.plan import DEFAULT_AIRCRAFT, PlanQuery
+from .settings import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -53,8 +53,8 @@ UNREACHABLE = "The assistant cannot be reached just now; ask again in a moment."
 #: asks about a real flight, and a wrong reading of the figures is worse
 #: than a slow one. Effort medium: a conversation, not a proof; the
 #: figures are the tools' either way.
-ASSISTANT_MODEL = os.environ.get("ASSISTANT_MODEL", "claude-opus-5-5")
-ASSISTANT_EFFORT = os.environ.get("ASSISTANT_EFFORT", "medium")
+ASSISTANT_MODEL = get_settings().assistant_model
+ASSISTANT_EFFORT = get_settings().assistant_effort
 #: Room for the thinking, a few tool calls and the answer in one turn.
 ASSISTANT_MAX_TOKENS = 8192
 #: At most this many round trips of tools in one answer: a question
@@ -64,7 +64,7 @@ ASSISTANT_MAX_ITERATIONS = 8
 #: `fallbacks: "default"` with its beta): opt-in by the environment,
 #: since the SDK pinned here could not be run against it on the owner's
 #: Mac and an unknown parameter would stop every answer.
-ASSISTANT_FALLBACKS = os.environ.get("ASSISTANT_FALLBACKS") == "1"
+ASSISTANT_FALLBACKS = get_settings().assistant_fallbacks
 #: The conversation the client may send: turns and characters, so a
 #: runaway client cannot bill a book.
 MOST_TURNS = 40

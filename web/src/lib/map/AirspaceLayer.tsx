@@ -295,6 +295,13 @@ function Swatch({ volume }: { volume: AirspaceVolume }) {
 
 function AirspaceCard({ volume }: { volume: AirspaceVolume }) {
   const map = useMap();
+  return <AirspaceCardBody volume={volume} close={() => map.closePopup()} />;
+}
+
+/** A volume's card on whichever map opened it: `close` puts it away
+ *  before the route is planned round the Class B (Leaflet's popup here,
+ *  the WebGL map's sheet card in GlMap). */
+export function AirspaceCardBody({ volume, close }: { volume: AirspaceVolume; close: () => void }) {
   const avoid = usePointActions(s => s.avoidClassB);
   const facts = airspaceFacts(volume);
   const rows: [string, string][] = [["Floor", facts.floor], ["Ceiling", facts.ceiling]];
@@ -326,7 +333,7 @@ function AirspaceCard({ volume }: { volume: AirspaceVolume }) {
         </ListGroup>
       </div>
       {volume.airspace_class === "B" && avoid && (
-        <Button type="button" variant="secondary" className="w-full text-tint" onClick={() => { map.closePopup(); avoid(); }} data-testid="airspace-avoid">
+        <Button type="button" variant="secondary" className="w-full text-tint" onClick={() => { close(); avoid(); }} data-testid="airspace-avoid">
           Route Around Class B
         </Button>
       )}

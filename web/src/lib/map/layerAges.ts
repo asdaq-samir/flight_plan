@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client";
-import type { Traffic } from "../api/types";
+import type { DataCycle, Traffic } from "../api/types";
 import { ago, useMinuteClock } from "../clock";
 
 /** How long ago `at` (ms) was, in a few words: "just now" under a
@@ -16,6 +16,19 @@ export function trafficAt(answers: { data: Traffic | undefined; updatedAt: numbe
   return newest ? newest.updatedAt - (newest.data!.age_s ?? 0) * 1000 : null;
 }
 
+/** The planner's ages of what the map and the plan rest on
+ *  (/api/map/ages), asked again each minute while something shows them:
+ *  one query for the map's settings, the Status page and the Brief. */
+export const mapAgesQuery = {
+  queryKey: ["mapAges"], queryFn: () => api.mapAges(), refetchInterval: 60_000, staleTime: 30_000, meta: { silent: true },
+} as const;
+
+/** Each FAA data set the planner uses and whether its edition is in its
+ *  cycle (lib/dataCycles has the words). */
+export function useDataCycles(): DataCycle[] {
+  return useQuery(mapAgesQuery).data?.data_cycles ?? [];
+}
+
 /**
  * When the data under each of the map's weather layers is from, for the
  * map's settings: the METARs its airports' flight categories come from
@@ -25,7 +38,7 @@ export function trafficAt(answers: { data: Traffic | undefined; updatedAt: numbe
  */
 export function useLayerAges(): { metars: string | null; tfrs: string | null; traffic: string | null } {
   const now = useMinuteClock();
-  const { data } = useQuery({ queryKey: ["mapAges"], queryFn: () => api.mapAges(), refetchInterval: 60_000, staleTime: 30_000, meta: { silent: true } });
+  const { data } = useQuery(mapAgesQuery);
   const client = useQueryClient();
   const traffic = trafficAt(client.getQueryCache().findAll({ queryKey: ["traffic"] })
     .map(q => ({ data: q.state.data as Traffic | undefined, updatedAt: q.state.dataUpdatedAt })));

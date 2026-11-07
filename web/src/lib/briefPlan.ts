@@ -9,7 +9,7 @@
  * on screen, not one remembered.
  */
 import { create } from "zustand";
-import type { FlightToSave } from "../features/plan/components/briefing/FlightBriefingView";
+import type { FlightToSave } from "../features/plan/components/briefing/SaveFlight";
 
 export interface BriefPlan {
   dep: string;
