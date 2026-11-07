@@ -182,25 +182,18 @@ struct ProcedureFix: Codable, Equatable, Sendable, Identifiable {
     /// `altitude_lines`, as the web app draws them; the words are the
     /// app's.
     var charted: String? {
-        let set: AltitudeLines? = try? Engine.call("altitude_lines", json: ["min_ft": minFt, "max_ft": maxFt])
+        // The answer's type is generated from the engine's contract
+        // (EngineContract.swift): which crossing it is, and each line's
+        // feet, underlined or overlined, the top line first.
+        let set: EngineAltitudeLinesAnswer? = try? Engine.call("altitude_lines", json: ["min_ft": minFt, "max_ft": maxFt])
         guard let set, let crossing = set.crossing, let top = set.lines.first else { return nil }
         let feet = { (ft: Double) in "\(Int(ft).formatted()) ft" }
         switch crossing {
-        case "at": return "at \(feet(top.ft))"
-        case "between": return "between \(Int(set.lines.last?.ft ?? top.ft).formatted()) and \(feet(top.ft))"
-        case "at_or_above": return "at or above \(feet(top.ft))"
-        case "at_or_below": return "at or below \(feet(top.ft))"
-        default: return nil
+        case .at: return "at \(feet(top.ft))"
+        case .between: return "between \(Int(set.lines.last?.ft ?? top.ft).formatted()) and \(feet(top.ft))"
+        case .atOrAbove: return "at or above \(feet(top.ft))"
+        case .atOrBelow: return "at or below \(feet(top.ft))"
         }
-    }
-
-    /// A fix's crossing altitudes as the chart sets them (the engine's
-    /// `altitude_lines`): "at", "between", "at_or_above" or "at_or_below",
-    /// and each line's feet, underlined or overlined, the top line first.
-    struct AltitudeLines: Decodable {
-        struct Line: Decodable { let ft: Double; let under: Bool; let over: Bool }
-        let crossing: String?
-        let lines: [Line]
     }
 }
 

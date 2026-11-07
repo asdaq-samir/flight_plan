@@ -67,12 +67,8 @@ export interface FiredAlert {
  * (native/crates/route/src/motion/alerts.rs), the phone's too.
  */
 export function airborneNow(before: boolean | null, now: FlightStatus): boolean | null {
-  return callEngine<boolean | null>("airborne_now", { before, airborne: !!now.airborne, arrived: !!now.arrived, heard_s: now.heard_s ?? null });
+  return callEngine("airborne_now", { before, airborne: !!now.airborne, arrived: !!now.arrived, heard_s: now.heard_s ?? null });
 }
-
-/** The engine's word on an alert (alert_fires): whether it goes off, and,
- *  near something, whether it is that near and how far which way. */
-interface Fires { fires: boolean; inside: boolean | null; nm: number | null; bearing_deg: number | null }
 
 /** "N654FL took off from 10C", "N654FL landed at KDAW", "N654FL is 8 nm
  *  from you": the banner's and the voice's words for one alert, or null
@@ -90,7 +86,7 @@ export function fired(
   const to = nearMe ? me : alert.airport ?? null;
   // When it goes off is the shared engine's (alert_fires); the words are
   // the page's.
-  const go = callEngine<Fires>("alert_fires", {
+  const go = callEngine("alert_fires", {
     kind: alert.kind === "takeoff" || alert.kind === "land" ? alert.kind : "near",
     before_airborne: before.airborne, was_inside: !!before.inside[alertKey(alert)], airborne, arrived: !!now.arrived,
     plane: plane ? { lat: plane.lat, lon: plane.lon } : null, to: to ? { lat: to.lat, lon: to.lon } : null,

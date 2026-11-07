@@ -3,9 +3,9 @@
 //! the planner (wingtip_native.call) and the phones (wt_call) all come in
 //! here, so a rule moved into the engine needs no new function on any of
 //! them -- only a name below. The answers are the planner's endpoints'
-//! own JSON, snake_case, where a rule has an endpoint.
-//!
-//! The names:
+//! own JSON, snake_case, where a rule has an endpoint. Each one's shapes
+//! exactly: native/contract/engine.schema.json, which tests/contract.rs
+//! holds the answers to and the web's types are made from. In short:
 //!
 //! - `holding`: /api/holding's answer (AIM 5-3-8), from `{"inbound",
 //!   "heading", "turns": "right"|"left", "tas_kt"?, "wind_from"?,

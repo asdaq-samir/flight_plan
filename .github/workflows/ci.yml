@@ -428,6 +428,7 @@ jobs:
               - .nvmrc
               - planning-service/openapi.json
               - springboot-app/openapi.json
+              - native/contract/**
             test-webapp:
               - springboot-app/**
             test-planning-service:
@@ -495,6 +496,7 @@ jobs:
               - web/**
               - springboot-app/**
               - planning-service/openapi.json
+              - native/contract/**
       - name: What this run builds and tests
         id: plan
         env:

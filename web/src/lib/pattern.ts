@@ -14,13 +14,13 @@
  * pages read are made here.
  */
 import type { Runway } from "./api/types";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
 
 /** A true bearing as a pilot says a direction: "southwest". */
 export function compassWord(bearingDeg: number): string {
-  return callEngine<string>("compass_word", { bearing_deg: bearingDeg });
+  return callEngine("compass_word", { bearing_deg: bearingDeg });
 }
 
 export interface InUse {
@@ -31,10 +31,7 @@ export interface InUse {
   byWind: boolean;
 }
 
-/** The engine's runway flown, by index. */
-interface Flown { runway: number; end: number; by_wind: boolean }
-
-const inUse = (runways: Runway[], f: Flown | null): InUse | null => {
+const inUse = (runways: Runway[], f: EngineAnswer<"gonogo_runway_flown">): InUse | null => {
   if (!f) return null;
   const runway = runways[f.runway]!;
   return { runway, end: runway.runway_ends![f.end]!, byWind: f.by_wind };
@@ -47,7 +44,7 @@ const inUse = (runways: Runway[], f: Flown | null): InUse | null => {
  *  the longest) first end. Only ends with a heading: a helipad has no
  *  pattern to draw. */
 export function runwayInUse(runways: Runway[]): InUse | null {
-  return inUse(runways, callEngine<Flown | null>("gonogo_runway_in_use", { runways }));
+  return inUse(runways, callEngine("gonogo_runway_in_use", { runways }));
 }
 
 /** The runways the pilot picked in FPL, by field, as the address keeps
@@ -64,7 +61,7 @@ export interface RunwayPicks {
  *  planner); null with no pick. */
 export function pickedEnd(picks: RunwayPicks | null | undefined, ident: string, kind: "takeoff" | "landing", departure: boolean): string | null {
   if (!picks) return null;
-  return callEngine<string | null>("gonogo_picked_end", {
+  return callEngine("gonogo_picked_end", {
     picks: { pattern: [...picks.pattern], takeoff: [...picks.takeoff] }, ident, kind, departure,
   });
 }
@@ -76,7 +73,7 @@ export function pickedEnd(picks: RunwayPicks | null | undefined, ident: string, 
  *  chose their own and never saw the pilot's pick: the runway checked for
  *  length could be a long one while a short one was picked. */
 export function runwayFlown(runways: Runway[], picked: string | null | undefined): InUse | null {
-  return inUse(runways, callEngine<Flown | null>("gonogo_runway_flown", { runways, picked: picked ?? null }));
+  return inUse(runways, callEngine("gonogo_runway_flown", { runways, picked: picked ?? null }));
 }
 
 /** The wind a field's runways are chosen by: the end it favours as
@@ -126,10 +123,7 @@ export interface ReportedWind {
  * 2026-10-20), the report now set aside.
  */
 export function windPick(runways: Runway[], nearby?: ReportedWind | null, forecastAt?: number): WindPick | null {
-  const p = callEngine<{
-    ident: string; headwind_kt: number; crosswind_kt: number; gust_crosswind_kt: number | null; calm: boolean;
-    variable_kt?: number; in_use?: boolean; from: { ident: string; nm: number } | null; forecast_at?: number;
-  } | null>("wind_pick", {
+  const p = callEngine("wind_pick", {
     runways,
     nearby: nearby
       ? { station: nearby.station, distance_nm: nearby.distanceNm, dir_true_deg: nearby.dirTrueDeg ?? null, speed_kt: nearby.speedKt ?? null, gust_kt: nearby.gustKt ?? null }
@@ -147,12 +141,12 @@ export function windPick(runways: Runway[], nearby?: ReportedWind | null, foreca
 /** The true bearing from the runway to its downwind: off the left of
  *  the landing direction for left traffic, the right for right. */
 export function patternSideDeg(end: RunwayEnd): number {
-  return callEngine<number>("pattern_side", { heading_true_deg: end.heading_true_deg ?? null, traffic: end.traffic });
+  return callEngine("pattern_side", { heading_true_deg: end.heading_true_deg ?? null, traffic: end.traffic });
 }
 
 /** A runway end as written: "9" for "09", as a US runway is painted. */
 export function runwayNumber(ident: string): string {
-  return callEngine<string>("gonogo_runway_number", { ident });
+  return callEngine("gonogo_runway_number", { ident });
 }
 
 export interface Entry {
@@ -174,7 +168,7 @@ export interface Entry {
  * straight onto the downwind.
  */
 export function entryFor(end: RunwayEnd, courseDeg: number): Entry {
-  const e = callEngine<{ from: string; pattern_side: boolean; words: string }>("pattern_entry", {
+  const e = callEngine("pattern_entry", {
     end: { ident: end.ident, heading_true_deg: end.heading_true_deg ?? null, traffic: end.traffic }, course_deg: courseDeg,
   });
   return { from: e.from, patternSide: e.pattern_side, words: e.words };
@@ -184,5 +178,5 @@ export function entryFor(end: RunwayEnd, courseDeg: number): Entry {
  *  or a 45° turn the pattern's way once past the departure end at
  *  pattern altitude. */
 export function exitFor(end: RunwayEnd): string {
-  return callEngine<string>("pattern_exit", { traffic: end.traffic });
+  return callEngine("pattern_exit", { traffic: end.traffic });
 }

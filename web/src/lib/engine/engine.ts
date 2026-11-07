@@ -5,7 +5,11 @@
  * Rust, and not again here. The module is native/wasm, built by
  * scripts/build-engine-wasm.sh into wingtip-engine.wasm beside this file
  * (committed: the web build has no Rust); native/engine/src/call.rs lists
- * the rules and their inputs.
+ * the rules, and native/contract/engine.schema.json gives each one's
+ * input and answer, from which contract.ts beside this file is generated
+ * (`npm run types`). So a rule asked by a name the engine has not, with
+ * an input not of its shape, or its answer read as another shape, is a
+ * type error here rather than a surprise on the phone.
  *
  * main.tsx waits for `loadEngine()` before the first render, so no
  * component can ask a rule before it is there, and `callEngine` can
@@ -19,6 +23,14 @@
  * wt_result_free(ptr).
  */
 import wasmUrl from "./wingtip-engine.wasm?url";
+import type { EngineContract } from "./contract";
+
+/** A rule's name, as call.rs dispatches it. */
+export type EngineName = keyof EngineContract;
+/** What the rule `N` takes. */
+export type EngineInput<N extends EngineName> = EngineContract[N]["input"];
+/** What the rule `N` answers. */
+export type EngineAnswer<N extends EngineName> = EngineContract[N]["answer"];
 
 interface Exports {
   memory: WebAssembly.Memory;
@@ -80,7 +92,7 @@ export function engineLoaded(): boolean {
  * (main.tsx waits for it before the first render), and where the engine
  * refuses the input, with its words.
  */
-export function callEngine<T>(name: string, input: unknown): T {
+export function callEngine<N extends EngineName>(name: N, input: EngineInput<N>): EngineAnswer<N> {
   const e = engine;
   if (!e) throw new Error(`The engine is not loaded, so ${name} cannot be worked out.`);
   const nameBytes = encoder.encode(name);
@@ -98,7 +110,7 @@ export function callEngine<T>(name: string, input: unknown): T {
     const status = head.getUint32(0, true), len = head.getUint32(4, true);
     const text = decoder.decode(new Uint8Array(e.memory.buffer, out + 8, len));
     if (status !== 0) throw new Error(`The engine's ${name}: ${text}`);
-    return JSON.parse(text) as T;
+    return JSON.parse(text) as EngineAnswer<N>;
   } finally {
     if (out) e.wt_result_free(out);
     e.wt_free(namePtr, nameBytes.length);

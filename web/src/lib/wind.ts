@@ -13,20 +13,18 @@
 import type { Runway } from "./api/types";
 import { callEngine } from "./engine/engine";
 
-interface Components { headwind_kt: number; crosswind_kt: number }
-
 /** The headwind of a wind from `fromDeg` at `kt` on a heading of
  *  `headingDeg`, the same reference both (true for a METAR's wind and a
  *  runway's true heading): negative for a tailwind -- as the planner's
  *  wingtip.runway_wind.components_kt. */
 export function headwindKt(fromDeg: number, kt: number, headingDeg: number): number {
-  return callEngine<Components>("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).headwind_kt;
+  return callEngine("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).headwind_kt;
 }
 
 /** The crosswind of that wind: positive from the right, negative from
  *  the left, as wingtip.runway_wind.components_kt. */
 export function crosswindKt(fromDeg: number, kt: number, headingDeg: number): number {
-  return callEngine<Components>("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).crosswind_kt;
+  return callEngine("wind_components", { from_deg: fromDeg, kt, heading_deg: headingDeg }).crosswind_kt;
 }
 
 /** The crosswind a wind is judged by, steady or in the gusts, whichever
@@ -34,13 +32,13 @@ export function crosswindKt(fromDeg: number, kt: number, headingDeg: number): nu
  *  that is the one held against the demonstrated crosswind or a personal
  *  minimum -- a design choice that errs toward the stronger wind. */
 export function steadyOrGustKt(steadyKt: number, gustKt: number | null | undefined): number {
-  return callEngine<number>("wind_steady_or_gust", { steady_kt: steadyKt, gust_kt: gustKt ?? null });
+  return callEngine("wind_steady_or_gust", { steady_kt: steadyKt, gust_kt: gustKt ?? null });
 }
 
 /** A runway's wind as the planner works it out (wingtip.runway_wind), judged
  *  by steadyOrGustKt. */
 export function runwayCrosswindKt(wind: Pick<NonNullable<Runway["wind"]>, "crosswind_kt" | "gust_crosswind_kt">): number {
-  return callEngine<number>("runway_crosswind", { wind: { crosswind_kt: wind.crosswind_kt, gust_crosswind_kt: wind.gust_crosswind_kt ?? null } });
+  return callEngine("runway_crosswind", { wind: { crosswind_kt: wind.crosswind_kt, gust_crosswind_kt: wind.gust_crosswind_kt ?? null } });
 }
 
 /**
@@ -49,11 +47,11 @@ export function runwayCrosswindKt(wind: Pick<NonNullable<Runway["wind"]>, "cross
  * wind not reported, never a calm one.
  */
 export function isCalm(speedKt: number | null | undefined): boolean {
-  return callEngine<boolean>("wind_calm", { speed_kt: speedKt ?? null });
+  return callEngine("wind_calm", { speed_kt: speedKt ?? null });
 }
 
 /** Whether a runway's wind from the planner is a calm one: nothing along,
  *  across or in the gusts, which only a speed of 0 leaves. */
 export function calmOnRunway(wind: NonNullable<Runway["wind"]>): boolean {
-  return callEngine<boolean>("runway_calm", { wind });
+  return callEngine("runway_calm", { wind });
 }

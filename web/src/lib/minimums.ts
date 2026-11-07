@@ -1,5 +1,5 @@
 import type { Briefing } from "./api/types";
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
 /**
  * A pilot's personal minimums -- the weather they have decided they will
@@ -40,7 +40,7 @@ export const MINIMUM_CHOICES: Record<keyof Minimums, number[]> = {
 export function bestCrosswind(
   runways: Briefing["airports"][string]["runways"],
   reported?: { speedKt?: number | null; gustKt?: number | null } | null,
-): { end: string | null; kt: number } | null {
+): EngineAnswer<"gonogo_best_crosswind"> {
   return callEngine("gonogo_best_crosswind", {
     runways, reported: reported ? { speed_kt: reported.speedKt ?? null, gust_kt: reported.gustKt ?? null } : null,
   });
@@ -56,7 +56,12 @@ export function underMinimums(m: Minimums, briefing: Briefing, landings: string[
   return callEngine("gonogo_under_minimums", {
     minimums: { ceiling_ft: m.ceilingFt, visibility_sm: m.visibilitySm, crosswind_kt: m.crosswindKt, wind_kt: m.windKt },
     landings, dest, metars: briefing.metars,
-    airports: Object.fromEntries(landings.filter(i => briefing.airports[i]).map(i => [i, briefing.airports[i]])),
+    // Each landing's airport where the briefing has one, so no entry is
+    // undefined (the contract's airports map holds airports only).
+    airports: Object.fromEntries(landings.flatMap(i => {
+      const airport = briefing.airports[i];
+      return airport ? [[i, airport] as const] : [];
+    })),
     forecast: briefing.forecast,
   });
 }

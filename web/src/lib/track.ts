@@ -28,8 +28,8 @@ export class TrackError extends Error {}
  *  (native/crates/route/src/motion/track.rs), the phone's reader too: GPX's
  *  trkpt and KML's gx:Track, times in UTC as GPX 1.1 sets them. */
 export function readTrack(text: string): TrackPoint[] {
-  const read = callEngine<{ points?: { t: number; lat: number; lon: number; alt_ft: number | null }[]; error?: string }>("read_track", { text });
-  if (read.error || !read.points) throw new TrackError(read.error ?? "This file is not a GPX or KML track.");
+  const read = callEngine("read_track", { text });
+  if ("error" in read) throw new TrackError(read.error);
   return read.points.map(p => ({ t: p.t, lat: p.lat, lon: p.lon, altFt: p.alt_ft }));
 }
 
@@ -38,7 +38,9 @@ export function readTrack(text: string): TrackPoint[] {
  *  seven thousand. Even steps through it, which keep its shape at a
  *  light airplane's speeds (the engine's thin_track). */
 export function thin(points: TrackPoint[], most = 4000): TrackPoint[] {
-  return callEngine<TrackPoint[]>("thin_track", { points, most });
+  // The engine hands back the points kept each as it came, which the
+  // contract cannot say is a TrackPoint.
+  return callEngine("thin_track", { points, most }) as TrackPoint[];
 }
 
 type KeptTrack = { source: string; points: TrackPoint[] } | null;

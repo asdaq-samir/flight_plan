@@ -11,16 +11,13 @@
  * (RadioLayer) and never stops anything. How an altitude is written on
  * the screen stays here.
  */
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { Clearance } from "./clearance";
 import { grouped } from "./units";
 
-export interface ReadbackItem {
-  item: "limit" | "route" | "altitude" | "expect" | "frequency" | "squawk";
-  cleared: string;
-  /** What the readback had for it; null where it was not read back. */
-  said: string | null;
-}
+/** A part missed or said differently: what the readback had for it
+ *  (`said`), null where it was not read back (the engine's contract). */
+export type ReadbackItem = EngineAnswer<"readback_check">["items"][number];
 
 /** The parts of a clearance in the order they are read back, each with
  *  its name on the screen (the iPhone's ReadbackCheck.parts). */
@@ -76,6 +73,6 @@ export const altitudeWords = (ft: number) => (ft >= 18000 ? `FL${Math.round(ft /
  *  missed or had differently (none where it matches), and the warning
  *  line for them: "Readback complete.", or "Readback: altitude 4,000 ft
  *  said, 5,000 ft cleared; squawk 4512 not read back." */
-export function readbackCheck(cleared: string, said: string): { items: ReadbackItem[]; words: string } {
+export function readbackCheck(cleared: string, said: string): EngineAnswer<"readback_check"> {
   return callEngine("readback_check", { cleared, said });
 }

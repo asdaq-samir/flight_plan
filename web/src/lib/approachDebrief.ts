@@ -29,8 +29,11 @@
  * made here.
  */
 import type { ProcedureDrawing } from "./api/types";
-import { callEngine } from "./engine/engine";
+import type { ApproachDebrief as Debriefed, ApproachFinding } from "./engine/contract";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { TrackPoint } from "./track";
+
+export type { ApproachFinding };
 
 /** A localizer's full scale either side of its course, degrees: the
  *  engine's LOCALIZER_DEG (FAA-H-8083-15B chapter 9, AIM 1-1-9), which
@@ -40,18 +43,12 @@ export const LOCALIZER_DEG = 2.5;
 /** How the course is flown, by the approach's coded identifier (ARINC
  *  424-18 5.10): a localizer's, a GPS's, or another (VOR, NDB, LDA, back
  *  course), whose course is measured and marked nowhere. */
-export type Guidance = "localizer" | "gps" | "other";
+export type Guidance = EngineAnswer<"approach_guidance">;
 export function guidanceOf(id: string): Guidance {
-  return callEngine<Guidance>("approach_guidance", { id });
+  return callEngine("approach_guidance", { id });
 }
 
-export type Tone = "stop" | "caution" | "ok" | "info";
-export interface ApproachFinding {
-  tone: Tone;
-  text: string;
-  /** The minimums' finding, put in again as the pilot types theirs. */
-  minimums?: true;
-}
+export type Tone = ApproachFinding["tone"];
 
 export interface FixCrossing {
   ident: string;
@@ -112,26 +109,8 @@ export interface ApproachDebrief {
   alsoFits: string[];
 }
 
-/** The engine's debrief (approach::debrief::to_json): ApproachDebrief in
- *  snake_case. */
-interface Debriefed {
-  airport: string; id: string; name: string; transition: string | null; guidance: Guidance;
-  faf_at: number; fit_nm: number; glidepath_fit_ft: number | null;
-  crossings: { ident: string; roles: string[]; min_ft: number | null; max_ft: number | null; t: number; alt_ft: number | null; under_ft: number | null }[];
-  findings: ApproachFinding[];
-  lowest_ft: number | null;
-  plan: ApproachDebrief["plan"];
-  profile: {
-    track: { to_go_nm: number; alt_ft: number; off: boolean }[];
-    fixes: { ident: string; to_go_nm: number; min_ft: number | null; max_ft: number | null }[];
-    glidepath: { from_nm: number; from_ft: number; to_nm: number; to_ft: number } | null;
-  };
-  outcome: { kind: ApproachDebrief["outcome"]["kind"]; seconds_after_map: number | null };
-  has_altitude: boolean;
-  also_fits: string[];
-  way_in: { fixes: number; passed: number };
-}
-
+/** The engine's debrief (approach::debrief::to_json, the contract's
+ *  ApproachDebrief, snake_case) in the page's camelCase. */
 function shaped(d: Debriefed): ApproachDebrief {
   const gp = d.profile.glidepath;
   return {
@@ -155,7 +134,7 @@ const enginePoints = (points: TrackPoint[]) => points.map(p => ({ t: p.t, lat: p
  *  ft MSL: a straight line up from the runway's crossing altitude at its
  *  angle, over the curved earth. */
 export function glidepathFt(gp: NonNullable<ProcedureDrawing["runway_path"]>, nmOut: number): number {
-  return callEngine<number>("glidepath_ft", { runway_path: gp, nm_out: nmOut });
+  return callEngine("glidepath_ft", { runway_path: gp, nm_out: nmOut });
 }
 
 /** Each time the track flew inbound over the approach's final approach
@@ -180,7 +159,7 @@ export interface DebriefOptions {
  * altitude.
  */
 export function debriefApproach(d: ProcedureDrawing, points: TrackPoint[], options: DebriefOptions = {}): ApproachDebrief | null {
-  const flown = callEngine<Debriefed | null>("approach_debrief", {
+  const flown = callEngine("approach_debrief", {
     drawing: d, points: enginePoints(points), attempt: options.attempt ?? null, minimums_ft: options.minimumsFt ?? null,
   });
   return flown && shaped(flown);
@@ -194,7 +173,7 @@ export function debriefApproach(d: ProcedureDrawing, points: TrackPoint[], optio
  * none given, the lowest is said, measured. Again as they are typed.
  */
 export function withMinimums(d: ApproachDebrief, minimumsFt: number | null): ApproachDebrief {
-  const findings = callEngine<ApproachFinding[]>("approach_minimums", {
+  const findings = callEngine("approach_minimums", {
     findings: d.findings, lowest_ft: d.lowestFt, outcome: d.outcome.kind, minimums_ft: minimumsFt,
   });
   return { ...d, findings };
@@ -209,7 +188,7 @@ export function withMinimums(d: ApproachDebrief, minimumsFt: number | null): App
 export function findApproaches(
   drawings: ProcedureDrawing[], points: TrackPoint[], picked: string | null = null, minimumsFt: number | null = null,
 ): ApproachDebrief[] {
-  return callEngine<Debriefed[]>("approach_find", { drawings, points: enginePoints(points), picked, minimums_ft: minimumsFt }).map(shaped);
+  return callEngine("approach_find", { drawings, points: enginePoints(points), picked, minimums_ft: minimumsFt }).map(shaped);
 }
 
 /**
@@ -218,7 +197,7 @@ export function findApproaches(
  * debrief from vectors (`vectors`) where none was flown.
  */
 export function withTransition(vectors: ApproachDebrief, drawings: ProcedureDrawing[], points: TrackPoint[], minimumsFt: number | null = null): ApproachDebrief {
-  const best = callEngine<Debriefed | null>("approach_transition", {
+  const best = callEngine("approach_transition", {
     faf_at: vectors.fafAt, passed: vectors.wayIn.passed, drawings, points: enginePoints(points), minimums_ft: minimumsFt,
   });
   return best ? { ...shaped(best), alsoFits: vectors.alsoFits } : vectors;

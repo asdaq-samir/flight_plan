@@ -18,8 +18,10 @@ export default function EnvelopeChart({ envelope, takeoff, landing }: {
   envelope: [number, number][]; takeoff: Condition; landing: Condition;
 }) {
   const outline = [...envelope, envelope[0]!].map(([arm, weight]) => ({ arm, envelope: weight }));
-  const arms = [...envelope.map(p => p[0]), takeoff.armIn, landing.armIn];
-  const weights = [...envelope.map(p => p[1]), takeoff.weightLb, landing.weightLb];
+  // A point with no centre of gravity (zero weight) has nowhere to sit.
+  const points = [takeoff, landing].filter((c): c is Condition & { armIn: number } => c.armIn !== null);
+  const arms = [...envelope.map(p => p[0]), ...points.map(c => c.armIn)];
+  const weights = [...envelope.map(p => p[1]), ...points.map(c => c.weightLb)];
   return (
     <ChartContainer config={config} className="aspect-auto h-56 w-full" data-testid="envelope-chart">
       <ComposedChart margin={{ top: 12, right: 12, left: 0, bottom: 0 }} accessibilityLayer>
@@ -41,15 +43,19 @@ export default function EnvelopeChart({ envelope, takeoff, landing }: {
         />
         <Line data={outline} dataKey="envelope" type="linear" dot={false} isAnimationActive={false} stroke="var(--color-envelope)" strokeWidth={2} />
         <Line
-          data={[{ arm: landing.armIn, loaded: landing.weightLb }, { arm: takeoff.armIn, loaded: takeoff.weightLb }]}
+          data={[landing, takeoff].flatMap(c => c.armIn === null ? [] : [{ arm: c.armIn, loaded: c.weightLb }])}
           dataKey="loaded" type="linear" dot={false} isAnimationActive={false} stroke="var(--color-loaded)" strokeWidth={2}
         />
         {/* The two points' labels at an axis's 12 (chartTick), as charts
             label things, outside the type scale on purpose. */}
-        <ReferenceDot x={takeoff.armIn} y={takeoff.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
-          label={{ value: "Takeoff", position: "top", className: "text-xs", fill: "currentColor" }} />
-        <ReferenceDot x={landing.armIn} y={landing.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
-          label={{ value: "Landing", position: "bottom", className: "text-xs", fill: "currentColor" }} />
+        {takeoff.armIn !== null && (
+          <ReferenceDot x={takeoff.armIn} y={takeoff.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
+            label={{ value: "Takeoff", position: "top", className: "text-xs", fill: "currentColor" }} />
+        )}
+        {landing.armIn !== null && (
+          <ReferenceDot x={landing.armIn} y={landing.weightLb} r={4.5} fill="var(--color-loaded)" stroke="white"
+            label={{ value: "Landing", position: "bottom", className: "text-xs", fill: "currentColor" }} />
+        )}
       </ComposedChart>
     </ChartContainer>
   );

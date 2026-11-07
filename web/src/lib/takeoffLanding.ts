@@ -7,16 +7,14 @@
 import type { ShortField } from "./api/types";
 import { callEngine } from "./engine/engine";
 
-interface Air { pressure_alt_ft: number; temp_c: number }
-
 /** A standard day's temperature at an altitude: 15 °C at sea level, less
  *  1.98 °C a thousand feet (ICAO Doc 7488). */
-export const isaTempC = (altitudeFt: number) => callEngine<Air>("gonogo_field_air", { elevation_ft: altitudeFt }).temp_c;
+export const isaTempC = (altitudeFt: number) => callEngine("gonogo_field_air", { elevation_ft: altitudeFt }).temp_c;
 
 /** The field's pressure altitude from its elevation and the altimeter
  *  setting reported: a thousand feet for every inch under 29.92. */
 export const pressureAltitudeFt = (elevationFt: number, altimeterInHg: number | null | undefined) =>
-  callEngine<Air>("gonogo_field_air", { elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg ?? null, temp_c: 15 }).pressure_alt_ft;
+  callEngine("gonogo_field_air", { elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg ?? null, temp_c: 15 }).pressure_alt_ft;
 
 export interface Distances {
   groundRollFt: number;
@@ -34,7 +32,7 @@ export interface Distances {
  * ground roll's share more.
  */
 export function shortField(table: ShortField, pressureAltFt: number, tempC: number, weightLb: number, headwindKt: number, grass: boolean): Distances {
-  const d = callEngine<{ ground_roll_ft: number; total_ft: number; caveats: string[] }>("gonogo_short_field", {
+  const d = callEngine("gonogo_short_field", {
     table, pressure_alt_ft: pressureAltFt, temp_c: tempC, weight_lb: weightLb, headwind_kt: headwindKt, grass,
   });
   return { groundRollFt: d.ground_roll_ft, totalFt: d.total_ft, caveats: d.caveats };

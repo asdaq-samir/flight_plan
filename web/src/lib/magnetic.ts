@@ -24,7 +24,7 @@ export type Declination = (lat: number, lon: number) => number;
 export async function loadDeclination(day: Date = new Date()): Promise<Declination> {
   await engineReady;
   const date = day.toISOString().slice(0, 10);
-  return (lat: number, lon: number) => callEngine<number>("magnetic_variation", { lat, lon, date });
+  return (lat: number, lon: number) => callEngine("magnetic_variation", { lat, lon, date });
 }
 
 /** A true direction as a magnetic one, for a variation east positive. */

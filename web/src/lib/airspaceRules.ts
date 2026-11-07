@@ -10,18 +10,16 @@
  * lib/engine), beside the rules of each band of the airspace over a point
  * the planner and the phones answer, from the same figures.
  */
-import { callEngine } from "./engine/engine";
+import { callEngine, type EngineAnswer } from "./engine/engine";
 
-export type AirspaceRule = { rule: string; cite: string };
-
-type Answer = { rules: AirspaceRule[]; call: string[] };
+export type AirspaceRule = EngineAnswer<"airspace_entry_rules">["rules"][number];
 
 export function entryRules(airspaceClass: "B" | "C" | "D"): AirspaceRule[] {
-  return callEngine<Answer>("airspace_entry_rules", { class: airspaceClass }).rules;
+  return callEngine("airspace_entry_rules", { class: airspaceClass }).rules;
 }
 
 /** The frequencies to call before entering, from the primary airport's
  *  (NASR FRQ): approach for a Class B or C, the tower for a Class D. */
 export function callTypes(airspaceClass: "B" | "C" | "D"): string[] {
-  return callEngine<Answer>("airspace_entry_rules", { class: airspaceClass }).call;
+  return callEngine("airspace_entry_rules", { class: airspaceClass }).call;
 }

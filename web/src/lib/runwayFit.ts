@@ -51,9 +51,7 @@ export function endFit({ aircraft, runway, end, wind, elevationFt, altimeterInHg
   weightLb: number | null;
   kind: "takeoff" | "landing";
 }): EndFit {
-  const fit = callEngine<{
-    crosswind_kt: number; crosswind_over: boolean; needed_ft: number | null; length_ft: number | null; short: boolean; close: boolean;
-  }>("runway_end_fit", {
+  const fit = callEngine("runway_end_fit", {
     aircraft: aircraft ? { takeoff: aircraft.takeoff ?? null, landing: aircraft.landing ?? null, crosswind: aircraft.crosswind ?? null } : null,
     runway, end: { heading_true_deg: end.heading_true_deg ?? null },
     wind: wind ? { dir_true_deg: wind.dirTrueDeg ?? null, speed_kt: wind.speedKt ?? null, gust_kt: wind.gustKt ?? null } : null,

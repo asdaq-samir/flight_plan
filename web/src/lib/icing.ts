@@ -24,7 +24,7 @@ export interface IcingAtAltitude {
 export function icingAtAltitude(
   selection: AltitudeBreakdown, flownFt: number[], pireps: Briefing["pireps"],
 ): IcingAtAltitude | null {
-  const found = callEngine<{ altitude_ft: number; freezing_level_ft: number; at_or_below: boolean; reports: number } | null>("gonogo_icing", {
+  const found = callEngine("gonogo_icing", {
     selection: {
       freezing_level_ft: selection.freezing_level_ft ?? null, icing_possible: selection.icing_possible ?? null,
       freezing_level_at_or_below: selection.freezing_level_at_or_below ?? null,

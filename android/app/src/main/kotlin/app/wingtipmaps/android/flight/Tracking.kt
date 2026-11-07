@@ -6,6 +6,7 @@ import app.wingtipmaps.android.api.PathPoint
 import app.wingtipmaps.android.api.Planner
 import app.wingtipmaps.android.api.TrafficAircraft
 import app.wingtipmaps.android.api.flightStatus
+import app.wingtipmaps.android.engine.AlertFiresAnswer
 import app.wingtipmaps.android.engine.Engine
 import app.wingtipmaps.android.notify.Notifications
 import app.wingtipmaps.android.records.AirplaneWatch
@@ -282,15 +283,12 @@ class Tracking private constructor(
             val arrived: Boolean,
         )
 
-        @Serializable
-        private class Fires(val fires: Boolean)
-
         /** The words a watch goes off with, or null where it has not: "N654FL
          *  took off from 10C", "N654FL landed at KDAW". Whether it goes off
          *  is the engine's (`alert_fires`); the words are the app's. */
         fun fired(name: String, kind: WatchKind, before: Boolean?, now: Boolean?, status: FlightStatus): String? {
             val go = runCatching {
-                Engine.call<FiresAsk, Fires>("alert_fires", FiresAsk(kind.word, before, now, status.arrived != null))
+                Engine.call<FiresAsk, AlertFiresAnswer>("alert_fires", FiresAsk(kind.word, before, now, status.arrived != null))
             }.getOrNull()
             if (go?.fires != true) return null
             return when (kind) {

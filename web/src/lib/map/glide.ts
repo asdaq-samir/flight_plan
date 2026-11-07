@@ -15,7 +15,7 @@ import type { Fix } from "./ownShip";
  *  knows the ground -- in nm; null on the ground or with no altitude. */
 export function glideRangeNm(fix: Fix | null, groundFt: number | null | undefined): number | null {
   if (!fix) return null;
-  return callEngine<number | null>("glide_range", { altitude_ft: fix.altitudeFt, speed_kt: fix.speedKt, ground_ft: groundFt ?? null });
+  return callEngine("glide_range", { altitude_ft: fix.altitudeFt, speed_kt: fix.speedKt, ground_ft: groundFt ?? null });
 }
 
 /** Whether own ship can glide, in still air, to `field` and arrive over it
@@ -24,12 +24,12 @@ export function glideRangeNm(fix: Fix | null, groundFt: number | null | undefine
  *  the airplane's height. False where either height is not known. */
 export function reachesField(fix: Fix | null, field: { distance_nm: number; elevation_ft?: number | null }): boolean {
   if (!fix) return false;
-  return callEngine<boolean>("glide_reaches", {
+  return callEngine("glide_reaches", {
     altitude_ft: fix.altitudeFt, speed_kt: fix.speedKt, distance_nm: field.distance_nm, elevation_ft: field.elevation_ft ?? null,
   });
 }
 
 /** Own ship moving at flying speed: in the air, or about to be. */
 export function underway(fix: Fix | null): boolean {
-  return callEngine<boolean>("underway", { speed_kt: fix?.speedKt ?? null });
+  return callEngine("underway", { speed_kt: fix?.speedKt ?? null });
 }

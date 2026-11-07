@@ -20,19 +20,11 @@ export type Turns = "right" | "left";
 
 interface Leg { heading: number; wca: number; gs: number }
 
-/** The engine's "holding" answer, as /api/holding gives it. */
-interface Held {
-  entry: Entry;
-  either: Entry | null;
-  approach_relative: number;
-  wind: { leg_min: number; inbound: Leg; outbound: Leg; outbound_sec: number; rule_sec: number } | null;
-}
-
 /** The inbound leg's time at an altitude, minutes: "At or below 14,000
  *  feet MSL: 1 minute. Above 14,000 feet MSL: 1 1/2 minutes" (AIM 5-3-8
  *  j.4(a)), as the planner's wingtip.holds times a hold with none given. */
 export function legMinutes(altitudeFt: number): number {
-  return callEngine<number>("holding_leg_minutes", { altitude_ft: altitudeFt });
+  return callEngine("holding_leg_minutes", { altitude_ft: altitudeFt });
 }
 
 /**
@@ -45,14 +37,14 @@ export function legMinutes(altitudeFt: number): number {
  * use either entry ("+/- 5 degrees in heading", AIM 5-3-8 j.8(d)).
  */
 export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turns): { entry: Entry; either: Entry | null } {
-  const held = callEngine<Held>("holding", { inbound: inboundDeg, heading: headingDeg, turns });
+  const held = callEngine("holding", { inbound: inboundDeg, heading: headingDeg, turns });
   return { entry: held.entry, either: held.either };
 }
 
 /** The bearing from the fix the airplane comes from, against the inbound
  *  course, for drawing: where it is on the page round the fix. */
 export function approachRelative(inboundDeg: number, headingDeg: number): number {
-  return callEngine<Held>("holding", { inbound: inboundDeg, heading: headingDeg }).approach_relative;
+  return callEngine("holding", { inbound: inboundDeg, heading: headingDeg }).approach_relative;
 }
 
 export interface HoldingWind {
@@ -75,7 +67,7 @@ export interface HoldingWind {
  *  courses and the wind in the same reference (magnetic, as a clearance
  *  gives the course). Null where the wind is stronger than the airplane. */
 export function holdingWind(inboundDeg: number, tasKt: number, windFromDeg: number, windKt: number, altitudeFt: number): HoldingWind | null {
-  const { wind } = callEngine<Held>("holding", {
+  const { wind } = callEngine("holding", {
     inbound: inboundDeg, heading: inboundDeg, tas_kt: tasKt, wind_from: windFromDeg, wind_kt: windKt, altitude_ft: altitudeFt,
   });
   if (!wind) return null;

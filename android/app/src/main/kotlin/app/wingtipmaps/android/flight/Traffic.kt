@@ -10,6 +10,7 @@ import app.wingtipmaps.android.api.Planner
 import app.wingtipmaps.android.api.TrafficAircraft
 import app.wingtipmaps.android.api.traffic
 import app.wingtipmaps.android.engine.Engine
+import app.wingtipmaps.android.engine.TrafficMarksAnswerElement
 import app.wingtipmaps.android.notify.Notifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -27,6 +28,9 @@ import kotlin.math.roundToInt
 /** The app's settings file (Jetpack DataStore), for the few switches a
  *  flight piece keeps: the traffic layer on or off. */
 private val Context.settings: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+/** An airplane's mark: the engine's `traffic_marks` answer, one per airplane. */
+typealias Mark = TrafficMarksAnswerElement
 
 /**
  * The airplanes ADS-B receivers hear about the map, from the planner
@@ -154,9 +158,8 @@ class Traffic private constructor(private val context: Context, private val tick
      *  And whether it is near, within 1,000 ft of own ship's height,
      *  drawn amber: a design choice, the web app's, 1,000 ft being the
      *  spacing VFR cruising altitudes keep between opposite directions
-     *  (14 CFR 91.159). All the engine's; the app draws it. */
-    @Serializable
-    data class Mark(val label: String, val near: Boolean)
+     *  (14 CFR 91.159). All the engine's, its type generated from the
+     *  engine's contract (engine/EngineContract.kt); the app draws it. */
 
     companion object {
         /** The planner asks adsb.lol about a region at most every five

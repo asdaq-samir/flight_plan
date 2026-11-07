@@ -270,8 +270,7 @@ final class Tracking {
     /// and is in the air, down where it was in the air and has arrived at a
     /// field); the words are the app's.
     static func fired(_ watch: AirplaneWatch, before: Bool?, now: Bool?, status: FlightStatus) -> String? {
-        struct Fires: Decodable { let fires: Bool }
-        let go: Fires? = try? Engine.call("alert_fires", json: [
+        let go: EngineAlertFiresAnswer? = try? Engine.call("alert_fires", json: [
             "kind": watch.kind.rawValue, "before_airborne": before, "airborne": now, "arrived": status.arrived != nil,
         ])
         guard go?.fires == true else { return nil }
