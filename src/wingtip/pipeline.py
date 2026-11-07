@@ -38,6 +38,7 @@ from wingtip.config import (  # noqa: F401  (re-exported: callers import these f
     MIN_LABELED_ROWS,
     PROJECT_ROOT,
     corridor_paths,
+    get_settings,
 )
 
 RANDOM_STATE = 42
@@ -621,15 +622,16 @@ def _retrain_defaults() -> dict:
     there -- only takes effect when this script actually runs as a
     SageMaker Training Job entry point.
     """
+    settings = get_settings()
     features_path = FEATURES_PATH
-    if channel := os.environ.get("SM_CHANNEL_FEATURES"):
+    if channel := settings.sm_channel_features:
         features_path = _find_one(channel, "*.parquet")
 
     labels_path = LABELS_PATH
-    if channel := os.environ.get("SM_CHANNEL_LABELS"):
+    if channel := settings.sm_channel_labels:
         labels_path = _find_one(channel, "*.csv")
 
-    out_dir = Path(os.environ["SM_MODEL_DIR"]) if "SM_MODEL_DIR" in os.environ else CANDIDATE_MODEL_DIR
+    out_dir = Path(settings.sm_model_dir) if settings.sm_model_dir is not None else CANDIDATE_MODEL_DIR
 
     return {"features_path": features_path, "labels_path": labels_path, "out_dir": out_dir}
 

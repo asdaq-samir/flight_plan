@@ -2,14 +2,48 @@
 often adsb.lol is asked, with adsb.lol stubbed in its own shape (readsb's
 JSON, `ac`) and the clock stood in for."""
 import json
+import sys
 import threading
+import types
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
 
 from wingtip import traffic
+from wingtip.config import get_settings
 
+
+class _OnePackage(types.ModuleType):
+    """wingtip.traffic as these tests knew it when it was one module: a name
+    the package does not re-export (a clock, a cache, a helper) is read from
+    the part that has it, and one set on the package -- monkeypatch's stand-ins
+    and its undoing of them -- is set in every part holding that same object,
+    so `_clock` stands in for the whole package's clock, as it did."""
+
+    def __getattr__(self, name):
+        for part in _parts():
+            if name in vars(part):
+                return vars(part)[name]
+        raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        was = getattr(self, name, _UNSET)
+        if was is not _UNSET:
+            for part in _parts():
+                if vars(part).get(name, _UNSET) is was:
+                    setattr(part, name, value)
+        super().__setattr__(name, value)
+
+
+_UNSET = object()
+
+
+def _parts() -> list[types.ModuleType]:
+    return [module for name, module in list(sys.modules.items()) if name.startswith("wingtip.traffic.")]
+
+
+traffic.__class__ = _OnePackage
 CESSNA = {"hex": "a128b9", "type": "adsr_icao", "flight": "N174HA  ", "r": "N174HA", "t": "C172", "alt_baro": 1200,
           "alt_geom": 1325, "gs": 93.7, "track": 320.19, "baro_rate": -512, "geom_rate": -384, "lat": 42.301282,
           "lon": -88.145246, "seen_pos": 0.291}
@@ -50,6 +84,7 @@ def clock(monkeypatch, tmp_path):
     monkeypatch.setattr(traffic, "_GLOBE", {"blocked_until": -1e9})
     # adsb.fi not asked over the network here: its own test turns it on.
     monkeypatch.setenv("ADSBFI_OPEN_DATA", "0")
+    get_settings.cache_clear()
     monkeypatch.setattr(traffic, "_RECORDED", {})
     monkeypatch.setattr(traffic, "_ELSEWHERE", {})
     monkeypatch.setattr(traffic, "_FOLLOWED", set())
@@ -767,6 +802,7 @@ def test_the_bases_asked_for_are_given_as_they_are_found(clock, monkeypatch):
 def adsbx(clock, monkeypatch, tmp_path):
     """ADS-B Exchange keyed, its month's count kept in a scratch file."""
     monkeypatch.setenv("ADSBX_RAPIDAPI_KEY", "test-key")
+    get_settings.cache_clear()
     monkeypatch.setattr(traffic, "ADSBX_USAGE_FILE", tmp_path / "adsbx_usage.json")
     monkeypatch.setattr(traffic, "_ADSBX", {"last": -1e9})
     monkeypatch.setattr(traffic, "_FROM_ADSBX", set())
@@ -813,6 +849,7 @@ def test_a_search_adsb_lol_cannot_take_now_is_asked_of_ads_b_exchange_at_once(ad
 
 def test_without_a_key_ads_b_exchange_is_never_asked(clock, monkeypatch):
     monkeypatch.delenv("ADSBX_RAPIDAPI_KEY", raising=False)
+    get_settings.cache_clear()
     get, asked = _routed({"api.adsb.lol": _turned_away()})
     with patch("wingtip.traffic.requests.get", side_effect=get), pytest.raises(traffic.TrafficUnavailable):
         traffic.near(42.3, -88.1, 25)
@@ -1015,6 +1052,7 @@ def test_a_watched_airplane_adsb_lol_does_not_hear_is_asked_of_adsb_fi_before_ad
     ADS-B Exchange's paid month, no more than once a second, credited on
     the map; turned away, left alone for ADSBFI_BACKOFF_S."""
     monkeypatch.setenv("ADSBFI_OPEN_DATA", "1")
+    get_settings.cache_clear()
     monkeypatch.setattr(traffic, "_wall", lambda: 1791800000.0)
     monkeypatch.setattr(traffic, "_TRACES", {})
     monkeypatch.setattr(traffic, "_paced", lambda url: {"ac": []})
@@ -1047,6 +1085,7 @@ def test_a_watched_airplane_adsb_lol_does_not_hear_is_asked_of_adsb_fi_before_ad
     # And off where the stack says so (production, until adsb.fi agrees).
     clock.now += traffic.ADSBFI_BACKOFF_S
     monkeypatch.setenv("ADSBFI_OPEN_DATA", "0")
+    get_settings.cache_clear()
     with patch("wingtip.traffic.requests.get", side_effect=get):
         assert traffic._adsbfi("a128b9") == [] and len(urls) == 1
 
@@ -1057,6 +1096,7 @@ def test_a_followed_airplane_is_asked_of_adsb_fi_in_the_background_and_stays_fol
     and its following lost to a restart. Followed, it is asked of adsb.fi
     each round, card open or not, and stays followed by its file."""
     monkeypatch.setenv("ADSBFI_OPEN_DATA", "1")
+    get_settings.cache_clear()
     monkeypatch.setattr(traffic, "_wall", lambda: 1791800000.0)
     traffic.follow("a128b9")
     assert (tmp_path / "watched_tracks" / "a128b9.json").exists()
