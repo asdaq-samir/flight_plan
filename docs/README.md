@@ -2,12 +2,10 @@
 
 ![Python](https://img.shields.io/badge/Python%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
-![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-![Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=flat-square&logo=apacheairflow&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square)
 ![Claude](https://img.shields.io/badge/Claude%20API-D97757?style=flat-square&logo=anthropic&logoColor=white)
 
@@ -53,15 +51,15 @@ explicit path to production on AWS.
   predict-the-mean baseline by 5-fold cross-validation and keeps the
   best; the planner scores checkpoints with the promoted model. Notebook
   03 adds nested cross-validation and permutation importance.
-- **Orchestrated ML pipeline.** An Apache Airflow DAG automates data
-  collection, feature engineering, training, evaluation, and model
-  promotion — a new model only goes live if it beats the currently
-  deployed one on held-out metrics.
-- **Container architecture that mirrors its cloud target.** Compute is
-  split along the same boundaries it will occupy on AWS: a
-  Processing-Job-shaped container, a Training-Job-shaped container, and
-  Airflow launching both as isolated, independently-versioned tasks — the
-  same orchestration pattern used against managed services like SageMaker.
+- **A repeatable training run.** One command
+  (`python -m wingtip.pipeline run`) runs data collection, feature
+  engineering, training, evaluation, and model promotion in order — a new
+  model only goes live if it beats the currently deployed one on
+  held-out metrics. The developer console's Retrain starts it as a
+  container and follows it stage by stage. It replaced an Apache Airflow
+  DAG (2026-11-06): the DAG had no schedule and was only ever started by
+  hand, and a scheduler, a web server and a metadata database for that
+  were not worth running.
 - **Domain-accurate flight planning.** Dead-reckoning leg calculations
   (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel
   burn) built from FAA-standard formulas against live NOAA winds-aloft and
@@ -127,14 +125,13 @@ Java, and some in the web and phone apps -- and issue #482 moves them
 in, in phases: copies the engine already has, small rules, weather parsing,
 altitude selection, the nav log, then route options.
 
-The system runs today as seven Docker services:
+The system runs today as these Docker services (`retrain` is the training image run as the whole training run, not an image of its own):
 
 | Service | Role |
 |---|---|
 | `webapp` | Spring Boot — accounts, sign-in, the pilot's records, the public API and scheduled mail; serves the React app and proxies the planner |
-| `db` | PostgreSQL — application data |
-| `airflow` | Orchestrates the ML training pipeline |
-| `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
+| `db` | PostgreSQL + pgvector — application data |
+| `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as one-off jobs; `retrain` is the whole training run (`python -m wingtip.pipeline run`) in the training image, the container the developer console's Retrain starts |
 | `ml` | Jupyter environment for model development and experimentation -- on demand, behind the `notebooks` profile: `docker compose up ml` |
 | `planning-service` | FastAPI: works out a flight for the apps -- course, checkpoints scored by the chart model in-process, nav log, weather, and the Claude features (the written briefing, checkpoint notes, words, the assistant) -- with the engine inside it for every rule |
 
@@ -153,12 +150,11 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=flat-square&logo=scikitlearn&logoColor=white)
 ![pandas](https://img.shields.io/badge/pandas-150458?style=flat-square&logo=pandas&logoColor=white)
 
-**Backend & orchestration**
+**Backend**
 
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=flat-square&logo=apacheairflow&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 
 **Front end**
 
@@ -178,8 +174,7 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS%3A%20SageMaker%20%C2%B7%20Fargate%20%C2%B7%20RDS%20%C2%B7%20CloudFormation-232F3E?style=flat-square)
-![Go](https://img.shields.io/badge/Go%20Lambda-00ADD8?style=flat-square&logo=go&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS%3A%20EC2%20%C2%B7%20CloudFront%20%C2%B7%20Fargate%20%C2%B7%20CloudFormation-232F3E?style=flat-square)
 
 **Live data sources** (no logos, but they're where the domain accuracy
 comes from): the FAA's own VFR Sectional tile service — which the
@@ -239,7 +234,8 @@ service discovery at `planning-service.wingtip.internal`.
 - `/api/status`, `/api/retrain`, `/api/aircraft-profiles` — the Dev
   drawer's own snapshot of the stack (services, FAA and weather data
   freshness, the model registry, collected corridors and their labels),
-  a retrain run through Airflow, and the stock aircraft profiles the nav
+  a retrain (the training run's container, started through the
+  dev-services sidecar), and the stock aircraft profiles the nav
   log's aircraft picker offers
 - Cruise altitudes — the nav log works the floor and ceiling out leg by
   leg (a Class B shelf caps only the legs under it)
@@ -376,12 +372,12 @@ $29 a month) and the runbook.
 | `db` | Postgres on the same server, dumped to S3 nightly |
 | Chart tiles | A Fargate Spot task per 56-day cycle, published to S3, served by CloudFront |
 | Mailpit | Amazon SES |
-| `airflow`, the pipelines, `ml`, `dev-services` | Development only |
+| The pipelines and the training run, `ml`, `dev-services` | Development only |
 | CI/CD | GitHub Actions → GHCR + ECR, then `deploy.sh` on the server over SSM |
 
 ### Status
 
-The ML pipeline, orchestration layer, dead-reckoning engine, altitude
+The ML pipeline and its training run, dead-reckoning engine, altitude
 selection logic, the Claude-written briefing, and CI are built, integrated, and
 working end to end. The AWS side is fully written and validated
 (`cfn-lint` clean, every image builds) — see
@@ -408,7 +404,7 @@ an engineering gap:
   now.
 
   The OSM landmark model, its collection and its feature stores still
-  train in the DAG and are compared on Performance; nothing in the
+  train in the training run and are compared on Performance; nothing in the
   planner asks them any more.
 
 - **A second route.** Every label so far comes from one corridor, so
@@ -464,11 +460,10 @@ Nothing else to install natively; every service builds its own image.
 data/             raw/processed/labels/aircraft/models — see Appendix for detail
 notebooks/        numbered, run-in-order exploratory notebooks (01-08)
 src/wingtip/          shared Python package — pipeline.py, model_registry.py, navlog.py, altitude.py, etc.
-airflow/dags/     the wingtip_pipeline DAG (local) and wingtip_pipeline_aws_dag.py (AWS, see README-AWS.md)
-docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training / airflow
+docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training
                   (each including wingtip's own list, src/requirements.txt)
 springboot-app/   Spring Boot API (webapp) — routes, DB, proxies planning-service
-infra/            CloudFormation template + Go Lambda for the AWS target architecture
+infra/            CloudFormation template and the production server's files
 tests/            pytest suite for src/wingtip
 docs/             this file, README-AWS.md, LEARNING-GUIDE.md, architecture diagrams
 ```
@@ -480,7 +475,6 @@ bring up only what you need. Full command reference is in the
 ```bash
 docker compose up webapp                           # UI + API at :8080; brings up db, planning-service
 docker compose up ml                               # Jupyter at :8888 (token "wingtip")
-docker compose up airflow                          # DAG UI at :8081
 ```
 
 **On a phone, on the same Wi-Fi:** the webapp's ports are on this
@@ -532,7 +526,6 @@ stack. Anything not listed here does not exist.
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
 | Planning + chart-vision API docs | [`localhost:8084/docs`](http://localhost:8084/docs) | `planning-service` |
-| Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
 | Jupyter | [`localhost:8888`](http://localhost:8888) (token `wingtip`) | `ml` |
 
 All three pages are served by `webapp`, not by `planning-service`: the
@@ -558,7 +551,7 @@ Despite its name, `planning-service` serves no pages; see [Services in detail](#
 
 Notebooks 01-03 walk through what `pipeline.py` automates, and call it:
 01 and 02 run `collect` and `engineer_features` and read the tables back,
-so a notebook and the DAG can never write two different data files; 03
+so a notebook and the training run can never write two different data files; 03
 takes its labelled table and holdout from `pipeline.labeled_split`, the
 one every trainer uses. 08 walks the altitude selection one step at a time with `wingtip.altitude`'s
 own pieces and checks its answer against the planner's. Run them via `docker
@@ -647,7 +640,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |
 | `docker compose run --rm pipeline-training python -m wingtip.model_registry evaluate` | Runs `evaluate`/`promote` | — |
-| `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
+| `docker compose run --rm pipeline-training run` | The whole training run, every stage in order (`pipeline.run()`); each model promoted only if it beats the one serving. The console's Retrain starts the same thing as the `retrain` container (`docker compose create retrain` once) | — |
 | `docker compose up planning-service` | Planning + chart-vision API; `webapp` proxies to it and starts it | `8084` |
 
 Notes:
@@ -657,11 +650,12 @@ Notes:
   not services, behind the `pipeline` profile: a plain `docker compose up`
   leaves them out (the training image's default command is a full
   retrain), and naming one in `run` or `build` works as it always did.
-- `airflow`'s DAG launches Collect/Feature-Engineer/Retrain as sibling
-  containers via `DockerOperator`; build them first
-  (`docker compose build pipeline-processing pipeline-training`).
+- The training run writes each stage's start and end to
+  `data/models/run.json`, which the planner reads, beside the `retrain`
+  container's state from the dev-services sidecar, for the console's
+  Training group. One run at a time: a second waits on the first's lock.
 - Full port list: `webapp` 8080, `db` 5432
-  (`wingtip`/`wingtip`/`wingtip`), `airflow` 8081,
+  (`wingtip`/`wingtip`/`wingtip`),
   `planning-service` 8084, `ml` 8888. Addresses are in
   [Where things live](#where-things-live).
 
@@ -709,7 +703,7 @@ empty commit:
 | `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp and the planner built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from. Its images and the page are built once for each content key by `build (e2e)` and pulled by all eight shards, on a push and on a pull request from one of this repository's branches; only a fork's or Dependabot's pull request, whose token cannot push, has each shard build its own. |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/wingtip` ones |
 | `docs` | Regenerates Javadoc + godoc on every push/PR. wingtip's `pdoc` is made by the `test` job from the packages its tests have just installed, and uploaded as `pdoc-wingtip`. Output uploads as a `documentation` artifact. |
-| `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
+| `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
 | `push-ecr` | Pushes the two images the CloudFormation stack deploys (`webapp`, `planning-service`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
 `build-images` gates on the test jobs, so a failing test never produces a
@@ -728,12 +722,6 @@ Non-obvious things worth knowing up front:
 - **`docker compose up <service>` reuses a stale container** if the image
   was rebuilt but the container wasn't recreated. Use
   `docker compose up -d --force-recreate <service>`.
-- **`DockerOperator` in Airflow resolves volume mounts against the host's
-  filesystem**, outside the `airflow` container's own view of it.
-  `PROJECT_HOST_PATH` (`docker-compose.yml`) supplies the host's real path.
-- **`aws-lambda-go` v1.55.0+ requires a newer Go toolchain than
-  `golang:1.25-alpine` ships.** `infra/lambda-retrain-trigger/go.mod` pins
-  `v1.47.0` deliberately.
 - **A Maven `pom.xml` XML comment containing a literal `--`** breaks
   Maven's POM parser with an opaque `Non-parseable POM` error.
 - **Recent numpy/pandas/scipy/pyarrow wheels have dropped Intel-macOS

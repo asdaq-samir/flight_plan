@@ -149,6 +149,12 @@ describe("plannedWords and windsOutOfDate", () => {
     expect(windsOutOfDate({ ...totals, winds: null }, Date.parse("2026-10-21T00:00:00Z"))).toBe(false);
   });
 
+  it("has winds with no end out of date only before their start", () => {
+    const open = { ...totals, winds: { ...totals.winds!, use_to: "" } } as Totals;
+    expect(windsOutOfDate(open, Date.parse("2026-10-20T08:00:00Z"))).toBe(true);
+    expect(windsOutOfDate(open, Date.parse("2026-10-21T00:00:00Z"))).toBe(false);
+  });
+
   it("has them out of date for a departure outside their period, though now is in it", () => {
     const now = Date.parse("2026-10-20T14:00:00Z");
     expect(windsOutOfDate(totals, now, "2026-10-20T17:00:00Z")).toBe(false);

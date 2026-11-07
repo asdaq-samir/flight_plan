@@ -27,8 +27,6 @@ IMAGES = [
     "docker/Dockerfile.ml",
     "docker/Dockerfile.processing",
     "docker/Dockerfile.training",
-    "docker/Dockerfile.airflow",
-    "docker/Dockerfile.airflow.aws",
 ]
 
 

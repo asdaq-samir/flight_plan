@@ -95,10 +95,9 @@ offers one.
 
 | Left out | Why | In production |
 |---|---|---|
-| Airflow, the pipelines, SageMaker | Retraining runs on the owner's machine | The console's retrain button says Airflow is not configured; a new model is uploaded (below) |
+| The pipelines and the training run | Retraining runs on the owner's machine (`python -m wingtip.pipeline run`) | The console's retrain button says there is no sidecar to start it, and gives the command; a new model is uploaded (below) |
 | Mailpit | A development mailer | Sign-in mail goes through Amazon SES |
 | dev-services, Jupyter | Development tools | The console's service buttons say there is no sidecar |
-| The Go retrain Lambda and API Gateway | Triggered Airflow, which is not here | — |
 
 ## What it costs
 
@@ -269,7 +268,15 @@ under it.
 ### The chart model
 
 The planner ranks checkpoints with the chart model when one is there,
-and by its own rules when not. To serve the one trained on the Mac:
+and by its own rules when not. It is trained on the Mac, by the
+development console's Retrain or by hand:
+
+```bash
+docker compose run --rm pipeline-training run
+```
+
+which promotes it into `data/models/chart/current` only if it beats the
+one there on the held-out ratings. To serve it:
 
 ```bash
 aws s3 sync data/models/chart/current s3://<ServerBucketName>/models/chart/current/

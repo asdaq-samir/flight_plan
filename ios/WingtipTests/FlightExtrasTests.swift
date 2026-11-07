@@ -198,15 +198,15 @@ struct TrafficExtrasTests {
         #expect(FlightWords.against(480) == "500 ft above" && FlightWords.against(-1240) == "1,200 ft below" && FlightWords.against(20) == "level")
         #expect(AirportWords.compassPoint(44) == "NE" && AirportWords.compassPoint(359) == "N")
         #expect(FlightWords.squawks["7700"] == "emergency")
-        #expect(TrafficFindView.named(TrafficAircraft(hex: "a128b9", lat: 0, lon: 0, callsign: "N174HA", registration: "N174HA"), "N174"))
+        #expect(TrafficFindView.named(TrafficAircraft(callsign: "N174HA", hex: "a128b9", lat: 0, lon: 0, registration: "N174HA"), "N174"))
     }
 
     @Test func theTrackedAirplanesPathGrowsWithItsReports() {
         let tracking = Tracking()
-        let plane = TrafficAircraft(hex: "A128B9", lat: 42, lon: -88, altitudeFt: 3000)
+        let plane = TrafficAircraft(altitudeFt: 3000, hex: "A128B9", lat: 42, lon: -88)
         tracking.track("a128b9")
         tracking.reported(plane, at: Date(timeIntervalSince1970: 100))
-        tracking.reported(TrafficAircraft(hex: "a128b9", lat: 42.1, lon: -88, altitudeFt: 3100), at: Date(timeIntervalSince1970: 105))
+        tracking.reported(TrafficAircraft(altitudeFt: 3100, hex: "a128b9", lat: 42.1, lon: -88), at: Date(timeIntervalSince1970: 105))
         // An older report than the last is not a point of the path.
         tracking.reported(plane, at: Date(timeIntervalSince1970: 90))
         #expect(tracking.path.count == 2 && tracking.latest?.lat == 42.1)

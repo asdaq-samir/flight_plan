@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import app.wingtipmaps.android.api.Planner
 import app.wingtipmaps.android.api.TrafficAircraft
+import app.wingtipmaps.android.api.name
 import app.wingtipmaps.android.api.traffic
 import app.wingtipmaps.android.engine.Engine
 import app.wingtipmaps.android.engine.TrafficMarksAnswerElement
@@ -15,6 +16,7 @@ import app.wingtipmaps.android.notify.Notifications
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +30,32 @@ import kotlin.math.roundToInt
 /** The app's settings file (Jetpack DataStore), for the few switches a
  *  flight piece keeps: the traffic layer on or off. */
 private val Context.settings: DataStore<Preferences> by preferencesDataStore(name = "settings")
+
+/**
+ * The traffic layer's switch, kept in the app's settings file under
+ * "traffic" so it holds across launches. On until the pilot turns it
+ * off, as the app has always started with traffic on (the iOS app's
+ * Traffic.on starts the same way). Its own small piece, apart from
+ * Traffic's polling, so its wiring is tested on a plain DataStore.
+ */
+class TrafficSwitch(private val store: DataStore<Preferences>, private val scope: CoroutineScope) {
+    private val _on = MutableStateFlow(true)
+    val on: StateFlow<Boolean> = _on.asStateFlow()
+
+    /** The kept value read once; a choice made before it lands wins. */
+    val loaded: Job = scope.launch { store.data.first()[KEY]?.let { _on.value = it } }
+
+    /** Turns the layer on or off now and keeps it; the write's job. */
+    fun set(on: Boolean): Job {
+        loaded.cancel()
+        _on.value = on
+        return scope.launch { store.edit { it[KEY] = on } }
+    }
+
+    companion object {
+        val KEY = booleanPreferencesKey("traffic")
+    }
+}
 
 /** An airplane's mark: the engine's `traffic_marks` answer, one per airplane. */
 typealias Mark = TrafficMarksAnswerElement
@@ -43,9 +71,10 @@ typealias Mark = TrafficMarksAnswerElement
  * engine's (`traffic_marks`), in one call for the whole answer.
  */
 class Traffic private constructor(private val context: Context, private val ticker: Ticker, private val scope: CoroutineScope) {
-    private val _on = MutableStateFlow(true)
-    /** Whether the layer is on; kept across launches. */
-    val on: StateFlow<Boolean> = _on.asStateFlow()
+    private val switch = TrafficSwitch(context.settings, scope)
+    /** Whether the layer is on; kept across launches (TrafficSwitch),
+     *  turned on and off from Setup's Map section. */
+    val on: StateFlow<Boolean> = switch.on
 
     private val _planes = MutableStateFlow<List<TrafficAircraft>>(emptyList())
     val planes: StateFlow<List<TrafficAircraft>> = _planes.asStateFlow()
@@ -71,17 +100,12 @@ class Traffic private constructor(private val context: Context, private val tick
     private var nearHexes: Set<String> = emptySet()
     private var every: Ticker.Registration? = null
 
-    init {
-        scope.launch { _on.value = context.settings.data.first()[ON] ?: true }
-    }
-
     fun setOn(on: Boolean) {
-        _on.value = on
+        switch.set(on)
         if (!on) {
             _planes.value = emptyList()
             _marks.value = emptyList()
         }
-        scope.launch { context.settings.edit { it[ON] = on } }
     }
 
     /** Asked again and again while the map is shown, on the app's one
@@ -98,7 +122,7 @@ class Traffic private constructor(private val context: Context, private val tick
 
     /** One answer about a point, where traffic is on and there is one. */
     private suspend fun ask(fix: OwnShip.Fix?) {
-        if (!_on.value) return
+        if (!on.value) return
         val at = fix?.let { it.lat to it.lon } ?: mapCentre ?: return
         val radius = mapRadiusNm.coerceIn(10.0, 60.0)
         val answer = try {
@@ -108,7 +132,7 @@ class Traffic private constructor(private val context: Context, private val tick
         } catch (e: Exception) {
             return
         }
-        if (!_on.value) return
+        if (!on.value) return
         val age = answer.ageS ?: 0.0
         val planes = answer.aircraft.filter { (it.seenS ?: 0.0) + age <= STALE_S }
         _planes.value = planes
@@ -176,8 +200,6 @@ class Traffic private constructor(private val context: Context, private val tick
          *  pilot looks for now, so the bound keeps an airplane 40 nm off
          *  quiet. */
         const val TELL_WITHIN_NM = 5.0
-
-        private val ON = booleanPreferencesKey("traffic")
 
         @Volatile
         private var shared: Traffic? = null

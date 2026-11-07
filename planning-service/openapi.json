@@ -11140,19 +11140,8 @@
         "type": "object"
       },
       "PipelineRun": {
-        "description": "A run of the training DAG. `error`, for one that failed: the\nexception its failed task ended on, from that task's own log.",
+        "description": "The last training run, as it wrote itself down\n(model_registry.RUN_STATUS_PATH): \"running\", \"success\" or \"failed\",\nthe stage under way, every stage, and for one that failed the first\nstage's error (\"collect: RuntimeError: ...\").",
         "properties": {
-          "dag_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dag Run Id"
-          },
           "error": {
             "anyOf": [
               {
@@ -11163,6 +11152,58 @@
               }
             ],
             "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "stages": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PipelineStage"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
           },
           "state": {
             "anyOf": [
@@ -11177,23 +11218,45 @@
           }
         },
         "required": [
-          "dag_run_id",
+          "run_id",
           "state"
         ],
         "title": "PipelineRun",
         "type": "object"
       },
-      "PipelineStatus": {
-        "description": "configured: this planner knows where Airflow is and how to sign\nin; reachable: it answered just now. `training`: whether the ratings\nare enough to retrain on, None where it could not be worked out.",
+      "PipelineStage": {
+        "description": "One stage of a training run (wingtip.pipeline.run): its name, as\n\"chart_retrain\", and \"pending\", \"running\", \"success\", \"skipped\" or\n\"failed\", with what it came to or why in `detail`.",
         "properties": {
-          "airflow_configured": {
-            "title": "Airflow Configured",
-            "type": "boolean"
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
           },
-          "airflow_reachable": {
-            "title": "Airflow Reachable",
-            "type": "boolean"
+          "name": {
+            "title": "Name",
+            "type": "string"
           },
+          "state": {
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state"
+        ],
+        "title": "PipelineStage",
+        "type": "object"
+      },
+      "PipelineStatus": {
+        "description": "startable: this planner can start a training run -- the compose\nstack's dev-services sidecar answered and the run's container exists\n(`detail` says why not). `training`: whether the ratings are enough\nto retrain on, None where it could not be worked out.",
+        "properties": {
           "detail": {
             "anyOf": [
               {
@@ -11215,6 +11278,10 @@
               }
             ]
           },
+          "startable": {
+            "title": "Startable",
+            "type": "boolean"
+          },
           "training": {
             "anyOf": [
               {
@@ -11227,8 +11294,7 @@
           }
         },
         "required": [
-          "airflow_configured",
-          "airflow_reachable",
+          "startable",
           "last_run",
           "detail"
         ],
@@ -12432,17 +12498,11 @@
         "type": "object"
       },
       "RetrainStarted": {
+        "description": "The training run's container as the sidecar left it: `started`\nfalse when it was running already.",
         "properties": {
-          "dag_run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dag Run Id"
+          "started": {
+            "title": "Started",
+            "type": "boolean"
           },
           "state": {
             "anyOf": [
@@ -12457,7 +12517,7 @@
           }
         },
         "required": [
-          "dag_run_id",
+          "started",
           "state"
         ],
         "title": "RetrainStarted",
@@ -18370,7 +18430,7 @@
     },
     "/api/dev/services/{service}/start": {
       "post": {
-        "description": "Start one of the three, if it is not already up.\n\nAlready running is a success, not an error: the console calls this\non every click so a link always works, and the common case is that\nthere was nothing to do.",
+        "description": "Start one of them, if it is not already up.\n\nAlready running is a success, not an error: the console calls this\non every click so a link always works, and the common case is that\nthere was nothing to do.",
         "operationId": "start_dev_service_api_dev_services__service__start_post",
         "parameters": [
           {
@@ -20530,7 +20590,7 @@
     },
     "/api/retrain": {
       "post": {
-        "description": "Starts one run of the training DAG through Airflow's own API -- the\nsame thing the AWS retrain-trigger Lambda does: the chart model\n(retrain, evaluate, promote) and the landmark model where it has the\nratings (collect, engineer features, retrain, evaluate, promote).\nThis service has no scikit-learn of its own on purpose (see\nrequirements.txt), so it cannot train in-process; without Airflow\nreachable the answer says how to run the pipeline by hand.\n\nChecked first (app.chart_model.readiness): with too few ratings to\nlearn from, it says so and what to do, a 409, rather than starting a\nrun that ends in Airflow minutes later with the same news in its\nlog. Then the chart model's table is written from the ratings as\nthey are now, which the run trains on.",
+        "description": "Starts one training run (`python -m wingtip.pipeline run`): the\nchart model (retrain, evaluate, promote) and the landmark model where\nit has the ratings (collect, engineer features, retrain, evaluate,\npromote), each promoted only if it beats the one serving. The run is\ncompose's `retrain` container, started through the dev-services\nsidecar, the one door onto Docker (routers/devservices.py). This\nservice has no scikit-learn of its own on purpose (see\nrequirements.txt), so it cannot train in-process; without the\nsidecar the answer says how to run it by hand.\n\nChecked first (app.chart_model.readiness): with too few ratings to\nlearn from, it says so and what to do, a 409, rather than starting a\nrun that ends minutes later with the same news in its log. Then the\nchart model's table is written from the ratings as they are now,\nwhich the run trains on.",
         "operationId": "retrain_api_retrain_post",
         "responses": {
           "200": {

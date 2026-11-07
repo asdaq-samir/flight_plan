@@ -383,8 +383,9 @@ export const api = {
   /** The whole stack in one snapshot -- the developer console. */
   status: () => planner.GET("/api/status").then(data<Status>),
 
-  /** One run of the training DAG through Airflow; 501 with the CLI
-   *  alternative when the planner has no Airflow to reach. */
+  /** Starts the training run (`python -m wingtip.pipeline run`); 501
+   *  with the command to run by hand where the planner cannot start it,
+   *  409 while a run is going. */
   retrain: () => planner.POST("/api/retrain").then(data<RetrainStarted>),
 
   /** Fetch and render the FAA's current chart cycle now, in the

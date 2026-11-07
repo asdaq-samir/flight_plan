@@ -2634,12 +2634,28 @@ class ModelRegistry(BaseModel):
     chart: ChartModelSnapshot | None = None
 
 
-class PipelineRun(BaseModel):
-    """A run of the training DAG. `error`, for one that failed: the
-    exception its failed task ended on, from that task's own log."""
+class PipelineStage(BaseModel):
+    """One stage of a training run (wingtip.pipeline.run): its name, as
+    "chart_retrain", and "pending", "running", "success", "skipped" or
+    "failed", with what it came to or why in `detail`."""
 
-    dag_run_id: str | None
+    name: str
+    state: str
+    detail: str | None = None
+
+
+class PipelineRun(BaseModel):
+    """The last training run, as it wrote itself down
+    (model_registry.RUN_STATUS_PATH): "running", "success" or "failed",
+    the stage under way, every stage, and for one that failed the first
+    stage's error ("collect: RuntimeError: ...")."""
+
+    run_id: str | None
     state: str | None
+    stage: str | None = None
+    started_at: str | None = None
+    finished_at: str | None = None
+    stages: list[PipelineStage] = []
     error: str | None = None
 
 
@@ -2661,12 +2677,12 @@ class TrainingReadiness(BaseModel):
 
 
 class PipelineStatus(BaseModel):
-    """configured: this planner knows where Airflow is and how to sign
-    in; reachable: it answered just now. `training`: whether the ratings
-    are enough to retrain on, None where it could not be worked out."""
+    """startable: this planner can start a training run -- the compose
+    stack's dev-services sidecar answered and the run's container exists
+    (`detail` says why not). `training`: whether the ratings are enough
+    to retrain on, None where it could not be worked out."""
 
-    airflow_configured: bool
-    airflow_reachable: bool
+    startable: bool
     last_run: PipelineRun | None
     detail: str | None
     training: TrainingReadiness | None = None
@@ -2758,7 +2774,10 @@ class Status(BaseModel):
 
 
 class RetrainStarted(BaseModel):
-    dag_run_id: str | None
+    """The training run's container as the sidecar left it: `started`
+    false when it was running already."""
+
+    started: bool
     state: str | None
 
 
