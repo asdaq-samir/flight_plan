@@ -1,30 +1,15 @@
-// The entries' words are also the planner's (app/figures/holding.py, for the native app): the two change together.
+// The entries' and the legs' words are the engine's (holding.rs), the very words the planner and the phones give.
 import { useId, useState } from "react";
 import { cn } from "cn";
 import FieldHit from "../../components/FieldHit";
 import { ListGroup, ListRow } from "../../components/GroupedList";
 import Segmented from "../../components/Segmented";
 import { Input } from "../../components/ui/input";
-import { approachRelative, holdingEntry, holdingWind, legMinutes, type Entry, type Turns } from "../../lib/holding";
-import { bearing, windCorrection } from "../../lib/units";
+import { approachRelative, entrySteps, holdingEntry, holdingWind, type Entry, type Turns } from "../../lib/holding";
+import { bearing } from "../../lib/units";
 import { TEXT } from "../../lib/text";
 
 const ENTRY_NAME: Record<Entry, string> = { direct: "Direct", teardrop: "Teardrop", parallel: "Parallel" };
-
-/** AIM 5-3-8's words for each entry, for the turns given: the outbound
- *  minute is a minute and a half above 14,000 ft MSL (lib/holding's
- *  legMinutes). */
-function entrySteps(entry: Entry, inbound: number, turns: Turns, altitudeFt: number): string {
-  const leg = legMinutes(altitudeFt) === 1 ? "one minute" : "a minute and a half";
-  const outbound = (inbound + 180) % 360;
-  const away = turns === "right" ? "left" : "right";
-  if (entry === "direct") return `Fly to the fix and turn ${turns} to follow the pattern: outbound on ${bearing(outbound)}.`;
-  if (entry === "teardrop") {
-    const tear = turns === "right" ? outbound - 30 : outbound + 30;
-    return `Fly to the fix, then turn to ${bearing(tear)}, 30° into the holding side, for ${leg}; turn ${turns} to intercept the inbound course, ${bearing(inbound)}.`;
-  }
-  return `At the fix, turn to ${bearing(outbound)}, parallel to the holding course on the non-holding side, for ${leg}; then turn ${away}, toward the holding side, through more than 180° to intercept the inbound course or return to the fix.`;
-}
 
 /** A point `r` from the fix at a bearing `deg` measured on the page, up
  *  being the inbound course. */
@@ -148,7 +133,7 @@ export default function HoldingPage() {
               70° line on the holding side; within 5° of a line between two,
               either entry is allowed, said in a row of its own. */}
           <ListGroup>
-            <ListRow title={<span className="font-semibold">{ENTRY_NAME[found.entry]} entry</span>} description={entrySteps(found.entry, i, turns, num(altitude))} data-testid="hold-entry" />
+            <ListRow title={<span className="font-semibold">{ENTRY_NAME[found.entry]} entry</span>} description={entrySteps(i, h, turns, num(altitude))} data-testid="hold-entry" />
             {found.either && (
               <ListRow
                 title={`Or ${ENTRY_NAME[found.either].toLowerCase()}`} description="Within 5° of the line between the two"
@@ -173,11 +158,11 @@ export default function HoldingPage() {
         // a half above (AIM 5-3-8); outbound timing from over or abeam the
         // fix, whichever is later.
         <ListGroup>
-          <ListRow title="Inbound heading" description={`${windCorrection(wind.inbound.wca)} for the wind, ${Math.round(wind.inbound.gs)} kt over the ground`} value={bearing(wind.inbound.heading)} data-testid="hold-in-heading" />
-          <ListRow title="Outbound heading" description={`Three times the inbound correction, ${windCorrection(wind.outbound.wca)}, the turns' drift taken up too`} value={bearing(wind.outbound.heading)} data-testid="hold-out-heading" />
+          <ListRow title="Inbound heading" description={wind.words.inbound} value={bearing(wind.inbound.heading)} data-testid="hold-in-heading" />
+          <ListRow title="Outbound heading" description={wind.words.outbound} value={bearing(wind.outbound.heading)} data-testid="hold-out-heading" />
           <ListRow
             title="Outbound time"
-            description={`So the inbound leg takes ${wind.legMin === 1 ? "a minute" : "a minute and a half"} at ${Math.round(wind.inbound.gs)} kt; by the rule of a second a knot, ${Math.round(wind.ruleSec)} s`}
+            description={wind.words.time}
             value={`${Math.round(wind.outboundSec)} s`} data-testid="hold-out-time"
           />
         </ListGroup>

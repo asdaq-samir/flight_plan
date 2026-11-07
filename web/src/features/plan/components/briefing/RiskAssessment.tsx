@@ -2,7 +2,7 @@ import FindingIcon from "../../../../components/FindingIcon";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "../../../../components/GroupedList";
 import {
-  HIGH_FROM, LEVEL_TONE, LEVEL_WORDS, SELF_CHECKS, riskLine, useRisk, type Assessment,
+  LEVEL_TONE, riskLine, selfChecks, useRisk, type Assessment,
 } from "../../../../lib/frat";
 import { TEXT } from "../../../../lib/text";
 
@@ -15,14 +15,15 @@ import { TEXT } from "../../../../lib/text";
 export default function RiskAssessment({ assessment }: { assessment: Assessment }) {
   const ticked = useRisk(s => s.ticked);
   const tick = useRisk(s => s.tick);
-  const selfKeys = new Set(SELF_CHECKS.map(c => c.key));
+  const checks = selfChecks();
+  const selfKeys = new Set(checks.map(c => c.key));
   const raised = assessment.factors.filter(f => !selfKeys.has(f.key));
-  const groups = [...new Set(SELF_CHECKS.map(c => c.group))];
+  const groups = [...new Set(checks.map(c => c.group))];
   return (
     <div className="space-y-4">
       <div className={TEXT.prose}>
         <p className={cn("font-semibold", LEVEL_TONE[assessment.level])} data-testid="risk-level">{riskLine(assessment)}</p>
-        <p>{LEVEL_WORDS[assessment.level]}</p>
+        <p>{assessment.words}</p>
       </div>
       <ListGroup title="From the briefing and your logbook">
         {raised.length === 0 ? (
@@ -30,7 +31,7 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
         ) : raised.map(f => (
           <ListRow
             key={f.key}
-            media={<FindingIcon finding={f.stop || f.points >= HIGH_FROM ? "stop" : "caution"} />}
+            media={<FindingIcon finding={f.finding ?? "caution"} />}
             title={f.label} description={f.why} value={f.stop ? "No-go" : `+${f.points}`}
             data-testid="risk-found"
           />
@@ -38,7 +39,7 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
       </ListGroup>
       {groups.map(group => (
         <ListGroup key={group} title={group}>
-          {SELF_CHECKS.filter(c => c.group === group).map(c => (
+          {checks.filter(c => c.group === group).map(c => (
             <ListRow
               key={c.key} checkbox={{ checked: !!ticked[c.key], onChange: on => tick(c.key, on) }}
               title={c.label} description={c.why} value={c.stop ? "No-go" : `+${c.points}`}
@@ -48,8 +49,8 @@ export default function RiskAssessment({ assessment }: { assessment: Assessment 
         </ListGroup>
       ))}
       {/* After the FAA Risk Management Handbook's PAVE and IMSAFE
-          (FAA-H-8083-2): amber from CAUTION_FROM points and red from
-          HIGH_FROM are the planner's own guide, not a rule (91.3, 91.103). */}
+          (FAA-H-8083-2): where it turns amber and red is the engine's
+          (frat.rs), the planner's own guide, not a rule (91.3, 91.103). */}
     </div>
   );
 }

@@ -17,8 +17,9 @@
  *
  * The rules, their points and their sources are the shared engine's
  * (native/crates/brief/src/gonogo/frat.rs, through lib/engine), the planner's
- * and the phones' own; SELF_CHECKS, the levels and their words stay here
- * as the page's labels, held to the engine's by gonogoEngine.test.ts.
+ * and the phones' own: the self checks, the points where it turns amber
+ * and red, each factor's mark and each level's words are the engine's
+ * answers, not copies here.
  */
 import { create } from "zustand";
 import type { Currency, Inspections, Squawk } from "./api/types";
@@ -36,25 +37,21 @@ export interface RiskFactor {
   /** A factor that makes the flight unlawful as planned: high, whatever
    *  the points. */
   stop?: boolean;
+  /** Its mark beside what the briefing raised, the engine's: a stop
+   *  where it makes the flight unlawful or is high on its own, else a
+   *  caution; none for a self check. */
+  finding?: "stop" | "caution" | null;
 }
 
-/** What only the pilot can say, ticked where it is so: the IMSAFE
- *  checklist and PAVE's pressures and unfamiliarity. */
-export const SELF_CHECKS: (RiskFactor & { group: string })[] = [
-  { key: "illness", group: "You", label: "Ill, or not over it yet", why: "IMSAFE: illness", points: 5 },
-  { key: "medication", group: "You", label: "On a medication that could impair you", why: "61.53, IMSAFE: medication", points: 5 },
-  { key: "stress", group: "You", label: "Under stress: work, home or money", why: "IMSAFE: stress", points: 3 },
-  { key: "alcohol", group: "You", label: "Alcohol in the last 8 hours, or still feeling it", why: "91.17", points: 0, stop: true },
-  { key: "fatigue", group: "You", label: "Under 8 hours' sleep, or a long day already", why: "IMSAFE: fatigue", points: 4 },
-  { key: "eating", group: "You", label: "Hungry or thirsty", why: "IMSAFE: eating", points: 1 },
-  { key: "pressure", group: "The day", label: "Somewhere to be by a time, or people counting on it", why: "PAVE: external pressures", points: 3 },
-  { key: "unfamiliar", group: "The day", label: "A field or a route new to you", why: "PAVE: environment", points: 2 },
-  { key: "rusty", group: "The day", label: "Not flown this airplane in 30 days", why: "PAVE: aircraft", points: 3 },
-];
+let selfChecksAsked: (RiskFactor & { group: string })[] | null = null;
 
-/** At these points the assessment is amber, and at these red. */
-export const CAUTION_FROM = 6;
-export const HIGH_FROM = 12;
+/** What only the pilot can say, ticked where it is so: the IMSAFE
+ *  checklist and PAVE's pressures and unfamiliarity, as the engine lists
+ *  them (gonogo_self_checks), asked once the engine is loaded. */
+export function selfChecks(): (RiskFactor & { group: string })[] {
+  selfChecksAsked ??= callEngine("gonogo_self_checks", {}).map(f => ({ ...riskFactor(f), group: f.group ?? "" }));
+  return selfChecksAsked;
+}
 
 export interface FratInput {
   vfrNotRecommended: boolean;
@@ -87,6 +84,8 @@ export interface FratInput {
 export interface Assessment {
   score: number;
   level: RiskLevel;
+  /** What to do at this level, the engine's words. */
+  words: string | null;
   /** What raised it, the briefing's and the logbook's first. */
   factors: RiskFactor[];
 }
@@ -111,7 +110,7 @@ export function assess(input: FratInput): Assessment {
     },
     day: input.day, ticked: input.ticked,
   });
-  return { score: a.score, level: a.level, factors: a.factors.map(riskFactor) };
+  return { score: a.score, level: a.level, words: a.words, factors: a.factors.map(riskFactor) };
 }
 
 export const LEVEL_TONE: Record<RiskLevel, string> = {
@@ -125,12 +124,6 @@ export const LEVEL_TONE: Record<RiskLevel, string> = {
 export function riskLine(a: { level: string; score: number }): string {
   return callEngine("gonogo_risk_line", { level: a.level, score: a.score });
 }
-
-export const LEVEL_WORDS: Record<RiskLevel, string> = {
-  low: "Go, with the usual care.",
-  caution: "Bring it down where you can (a later time, a shorter leg, an instructor along), or talk it over.",
-  high: "Don't go as planned.",
-};
 
 /**
  * The assessment for the flight on screen, shared between the briefing

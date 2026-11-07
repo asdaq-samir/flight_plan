@@ -1,4 +1,5 @@
 import type { MapPirep, WeatherArea } from "./api/types";
+import { callEngine } from "./engine/engine";
 import { bearingDeg, destination, distanceNm, type LatLon } from "./geo";
 
 /** Each area's colour by what it warns of, as aviationweather.gov's own
@@ -35,16 +36,13 @@ export function altitudeWords(feet: number): string {
  *  SIGMET") and its altitudes ("Freezing level to FL160"). */
 export function areaWords(area: WeatherArea): { title: string; altitudes: string | null } {
   const kind = area.kind === "gairmet" ? "G-AIRMET" : area.kind === "convective" ? "Convective SIGMET" : area.kind === "airmet" ? "AIRMET" : "SIGMET";
-  const hazard = area.kind === "convective" ? null : area.hazard ? hazardWords(area.hazard) : null;
+  // A SIGMET's or AIRMET's hazard code in the engine's words (faa.rs
+  // sigmet_hazard), the briefing's own; a G-AIRMET's come in words already.
+  const hazard = area.kind === "convective" ? null : area.hazard
+    ? area.kind === "gairmet" ? area.hazard : callEngine("sigmet_hazard", { hazard: area.hazard, kind: null }) : null;
   const low = area.from_freezing_level ? "Freezing level" : area.low_ft == null ? "Surface" : altitudeWords(area.low_ft);
   const high = area.high_ft == null ? null : altitudeWords(area.high_ft);
   return { title: hazard ? `${kind} · ${hazard}` : kind, altitudes: high ? `${low} to ${high}` : area.low_ft != null ? `${low} and up` : null };
-}
-
-/** A SIGMET's hazard code in words; a G-AIRMET's come in words already. */
-function hazardWords(hazard: string): string {
-  const words: Record<string, string> = { TURB: "Turbulence", ICE: "Icing", IFR: "IFR conditions", "MTN OBSCN": "Mountains obscured", ASH: "Volcanic ash" };
-  return words[hazard] ?? hazard;
 }
 
 /** Whether a point is inside an area's outline ([lat, lon] pairs), by

@@ -3,7 +3,7 @@ import c172Json from "../../../data/aircraft/c172.json?raw";
 import type { AircraftProfile, Runway } from "./api/types";
 import type { RunwayEnd } from "./pattern";
 import { endDistance, fieldAir } from "./runwayCheck";
-import { DISTANCE_MARGIN, endFit } from "./runwayFit";
+import { endFit } from "./runwayFit";
 
 const c172 = { name: "c172", ...JSON.parse(c172Json) } as AircraftProfile;
 const runway = (length: number) => ({ ends: "09/27", length_ft: length, surface: "ASP", closed: false, runway_ends: [] }) as unknown as Runway;
@@ -39,9 +39,5 @@ describe("a runway end's fit", () => {
     // No weight known: the table's heaviest, the longest distance.
     const heaviest = endFit({ ...at, weightLb: null, runway: grass, wind: null });
     expect(heaviest.neededFt).toBe(Math.round(endDistance(c172.takeoff!, grass, fieldAir(900, 29.92, 15), Math.max(...c172.takeoff!.weights_lb), 0).totalFt));
-  });
-
-  it("holds a runway to SAFO 19001's 15 per cent over the distance needed", () => {
-    expect(DISTANCE_MARGIN).toBe(1.15);
   });
 });

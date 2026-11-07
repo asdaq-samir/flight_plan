@@ -16,7 +16,9 @@ import { wordsState } from "../plan/components/briefing/wordsState";
  *  use and would be sent with every ask. */
 const forWords = (d: Debrief) => ({
   takeoff: d.takeoff, landing: d.landing, flown_min: d.flownMin, planned_min: d.plannedMin,
-  legs: d.legs, passes: d.passes, patterns: d.patterns, has_altitude: d.hasAltitude, notes: d.notes,
+  legs: d.legs.map(({ ok: _ok, ...leg }) => leg),
+  passes: d.passes.map(({ landed: _landed, lateMin: _late, ok: _ok, ...pass }) => pass),
+  patterns: d.patterns.map(({ offFt: _off, ok: _ok, ...pattern }) => pattern), has_altitude: d.hasAltitude, notes: d.notes,
 });
 
 /**

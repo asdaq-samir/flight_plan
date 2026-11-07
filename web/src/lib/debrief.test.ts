@@ -2,7 +2,7 @@
 import { describe, expect, test } from "vitest";
 import type { Flight } from "./api/types";
 import { callEngine } from "./engine/engine";
-import { airborne, ALTITUDE_FT, COURSE_DEG, debrief, ETA_MIN, OFF_ROUTE_NM, PATTERN_FT, PATTERN_NM } from "./debrief";
+import { airborne, debrief } from "./debrief";
 import { readTrack, thin, TrackError, type TrackPoint } from "./track";
 
 /** A flight due north along 88° W: A at 42° N, a lake 30 nm on, B 30 nm
@@ -110,10 +110,8 @@ describe("a flight debriefed", () => {
 });
 
 describe("the page's tolerances are the engine's", () => {
-  test("PA.VI.A's and the pattern's, the same figures", () => {
+  test("PA.VI.A's and the pattern's (ACS PA.VI.A S5-S7, PA.III.B S5)", () => {
     const { tolerances } = callEngine("debrief", { checkpoints: [], points: [] });
-    expect(tolerances).toEqual({
-      altitude_ft: ALTITUDE_FT, course_deg: COURSE_DEG, off_route_nm: OFF_ROUTE_NM, eta_min: ETA_MIN, pattern_nm: PATTERN_NM, pattern_ft: PATTERN_FT,
-    });
+    expect(tolerances).toEqual({ altitude_ft: 200, course_deg: 15, off_route_nm: 3, eta_min: 5, pattern_nm: 1.5, pattern_ft: 100 });
   });
 });

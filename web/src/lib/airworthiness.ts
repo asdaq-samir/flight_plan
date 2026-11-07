@@ -8,8 +8,8 @@ export type EngineFactor = GonogoFactor;
 
 /** A factor as the pages read it: `stop` only where it is one, the mark
  *  theirs to draw (RiskAssessment), a self check's group kept. */
-export function riskFactor({ key, label, why, points, stop, group }: EngineFactor): RiskFactor & { group?: string } {
-  return { key, label, ...(why != null ? { why } : {}), points, ...(stop ? { stop } : {}), ...(group ? { group } : {}) };
+export function riskFactor({ key, label, why, points, stop, group, finding }: EngineFactor): RiskFactor & { group?: string } {
+  return { key, label, ...(why != null ? { why } : {}), points, ...(stop ? { stop } : {}), ...(group ? { group } : {}), ...(finding ? { finding } : {}) };
 }
 
 /** The inspections as the engine reads them, in snake_case. */

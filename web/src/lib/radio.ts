@@ -18,7 +18,7 @@ import { capitalised, titleCase } from "./advisories";
 import type { Briefing, Frequency, Leg } from "./api/types";
 import { compassWord, exitFor, pickedEnd, runwayFlown, runwayNumber, type RunwayEnd, type RunwayPicks } from "./pattern";
 import { ctafOf, frequencyOf, mhzText } from "./frequencies";
-import { DESCENT_FT_PER_NM } from "./geo";
+import { callEngine } from "./engine/engine";
 
 type Facilities = Briefing["airports"][string];
 
@@ -209,10 +209,10 @@ function departure(input: RadioInput, i: number): RadioPhase {
 }
 
 /** About where a 3:1 descent to pattern altitude has the airplane ten
- *  miles out, no higher than its cruise: as the nav log flies it. */
+ *  miles out, no higher than its cruise: as the nav log flies it (the
+ *  engine's descent_altitude, profile.rs). */
 function tenMilesOutFt(cruiseFt: number, patternFt: number | null | undefined): number {
-  if (patternFt == null) return cruiseFt;
-  return Math.min(cruiseFt, Math.round((patternFt + 10 * DESCENT_FT_PER_NM) / 100) * 100);
+  return callEngine("descent_altitude", { cruise_ft: cruiseFt, pattern_ft: patternFt ?? null, nm_out: 10 });
 }
 
 function arrival(input: RadioInput, i: number): RadioPhase {

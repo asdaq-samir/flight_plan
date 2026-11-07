@@ -4,6 +4,7 @@ import { api } from "../../../lib/api/client";
 import type { TrafficAircraft } from "../../../lib/api/types";
 import { type AircraftFilter, filtering, inEmergency, keptFilter, matches, relationTo, sameField } from "../../../lib/fbo";
 import { distanceNm, type LatLon } from "../../../lib/geo";
+import { squawkMeaning } from "../../../lib/squawks";
 import { nmAway } from "../../../lib/useAway";
 import { usePreferences } from "../../../lib/preferences";
 import { grouped } from "../../../lib/units";
@@ -121,7 +122,7 @@ export function strip(q: Question, planes: TrafficAircraft[], from: LatLon | nul
   const rows = planes.map(plane => {
     if (q === "near") return { plane, key: nm(from, plane), detail: miles(nm(from, plane)) };
     if (q === "emergency") {
-      const code = ["7500", "7600", "7700"].includes(plane.squawk ?? "") ? plane.squawk! : inEmergency(plane) ? "Emergency" : "";
+      const code = squawkMeaning(plane.squawk) ? plane.squawk! : inEmergency(plane) ? "Emergency" : "";
       const away = miles(nm(from, plane));
       return { plane, key: nm(from, plane), detail: away ? `${code} · ${away}` : code };
     }

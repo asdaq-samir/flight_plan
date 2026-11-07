@@ -32,7 +32,8 @@ export function heardAny(r: AtisReading): boolean {
 
 /** The wind as a pilot says it back: "210° at 12 kt, gusts 18". */
 export function windWords(w: AtisWind): string {
-  if (w.kt === 0) return "Calm";
+  // Calm is a speed of 0 (AIM 7-1-28), the engine's wind_calm.
+  if (callEngine("wind_calm", { speed_kt: w.kt })) return "Calm";
   const speed = w.kt != null ? `${w.kt} kt` : null;
   const gusts = w.gust_kt != null ? `gusts ${w.gust_kt}` : null;
   const head = w.from_deg != null ? `${String(w.from_deg).padStart(3, "0")}°${w.variable ? " variable" : ""}` : w.variable ? (speed ? "Variable" : "Light and variable") : null;
@@ -46,14 +47,22 @@ export function visibilityWords(sm: number): string {
   return `${whole || !part ? whole : ""}${part} sm`;
 }
 
+/** The ATIS's covers as a METAR codes them, for the engine's ceiling. */
+const METAR_COVER: Record<string, string> = { clear: "CLR", few: "FEW", scattered: "SCT", broken: "BKN", overcast: "OVC", obscured: "VV" };
+
 /**
- * The layers as said, the ceiling marked: the lowest broken or overcast
- * layer, or an obscuration, is the ceiling (14 CFR 1.1's definition),
- * which is what the field's flight category hangs on.
+ * The layers as said, the ceiling marked: the engine's ceiling
+ * (ceiling_visibility, 14 CFR 1.1's definition: the lowest broken or
+ * overcast layer, or an obscuration), which is what the field's flight
+ * category hangs on.
  */
 export function skyWords(sky: AtisLayer[]): string {
   if (!sky.length) return "—";
-  const ceiling = sky.find(l => l.cover === "broken" || l.cover === "overcast" || l.cover === "obscured");
+  const { ceiling_ft } = callEngine("ceiling_visibility", {
+    layers: sky.map(l => ({ cover: METAR_COVER[l.cover] ?? l.cover, base_ft: l.base_ft })),
+  });
+  const ceiling = ceiling_ft == null ? undefined
+    : [...sky].reverse().find(l => l.base_ft === ceiling_ft);
   return sky.map(l => {
     const cover = l.cover[0]!.toUpperCase() + l.cover.slice(1);
     return `${cover}${l.base_ft != null ? ` ${altFt(l.base_ft)} ft` : ""}${l === ceiling ? " (ceiling)" : ""}`;

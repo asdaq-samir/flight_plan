@@ -18,10 +18,8 @@ import { callEngine, type EngineAnswer } from "./engine/engine";
 
 export type RunwayEnd = NonNullable<Runway["runway_ends"]>[number];
 
-/** A true bearing as a pilot says a direction: "southwest". */
-export function compassWord(bearingDeg: number): string {
-  return callEngine("compass_word", { bearing_deg: bearingDeg });
-}
+/** A true bearing as a pilot says a direction: "southwest" (lib/compass). */
+export { compassWord } from "./compass";
 
 export interface InUse {
   runway: Runway;

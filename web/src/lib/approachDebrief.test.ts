@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { ProcedureDrawing } from "./api/types";
 import {
-  attemptsAt, debriefApproach, findApproaches, glidepathFt, guidanceOf, LOCALIZER_DEG, withMinimums, withTransition,
+  attemptsAt, debriefApproach, findApproaches, glidepathFt, guidanceOf, withMinimums, withTransition,
 } from "./approachDebrief";
 import { bearingDeg, destination, distanceNm, FT_PER_NM, rad } from "./geo";
 import type { TrackPoint } from "./track";
@@ -100,7 +100,7 @@ describe("the figures it is held to", () => {
   test("the localizer's full scale is 350 ft at the threshold, opening at 2.5°", () => {
     // AIM 1-1-9: 700 ft full fly-left to full fly-right at the threshold.
     // At 5 nm out: 350 + 30,381 × tan 2.5° = 1,676 ft, 0.28 nm.
-    const half = (350 + 5 * FT_PER_NM * Math.tan(rad(LOCALIZER_DEG))) / FT_PER_NM;
+    const half = (350 + 5 * FT_PER_NM * Math.tan(rad(2.5))) / FT_PER_NM;
     expect(half).toBeCloseTo(0.276, 2);
   });
 });

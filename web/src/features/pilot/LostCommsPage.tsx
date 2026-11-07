@@ -1,4 +1,4 @@
-// The page's words are also the planner's (app/figures/lost_comms.py, for the native app): the two change together.
+// 91.185's words on this page are the engine's (lost_comms.rs), the very words the planner and the phones give.
 import { useId, useState } from "react";
 import { Plus } from "lucide-react";
 import { cn } from "cn";
@@ -7,12 +7,9 @@ import { ListGroup, ListRow } from "../../components/GroupedList";
 import Segmented from "../../components/Segmented";
 import { Input } from "../../components/ui/input";
 import TogglePill from "../../components/TogglePill";
-import { leaveLimit, ROUTES, segmentAltitudes, type RouteKey, type Segment } from "../../lib/lostComms";
+import { leaveLimit, lostCommsWords, segmentAltitudes, type RouteKey, type Segment } from "../../lib/lostComms";
 import { TEXT } from "../../lib/text";
-import { altFt } from "../../lib/units";
 import { RemoveMinus } from "../../components/Favorites";
-
-const BECAUSE = { assigned: "assigned", minimum: "the minimum", expected: "expected" } as const;
 
 /** A route to start from, made up: a clearance to 4,000, expecting 6,000
  *  from the second segment on, over an MEA of 5,000 there. */
@@ -40,6 +37,7 @@ export default function LostCommsPage() {
   const [approachFix, setApproachFix] = useState(false);
   const [efc, setEfc] = useState("");
   const [eta, setEta] = useState("1435Z");
+  const { routes, vfr } = lostCommsWords();
   const flown = segmentAltitudes(
     segments.map(s => ({ name: s.name || "Segment", minimumFt: feet(s.minimum) })),
     { assignedFt: feet(assigned), expectedFt: feet(expected), expectedFrom },
@@ -49,18 +47,15 @@ export default function LostCommsPage() {
 
   return (
     <div className="space-y-4">
-      <p className={cn(TEXT.prose)}>
-        In VFR conditions, or on meeting them after the failure: continue VFR and land as soon as practicable (91.185(b)).
-        In IFR conditions, the rest of this page.
-      </p>
+      <p className={cn(TEXT.prose)}>{vfr}</p>
 
       <ListGroup title="Route">
         <ListRow title="Which applies first">
           <Segmented label="Route" value={route} onChange={v => setRoute(v as RouteKey)} testId="lost-route"
-            options={ROUTES.map(r => ({ value: r.key, label: r.label }))} />
+            options={routes.map(r => ({ value: r.key, label: r.label }))} />
         </ListRow>
         {/* The rule for the route picked, a row of its own: it was a footnote. */}
-        <ListRow title={<span className={TEXT.detail}>{ROUTES.find(r => r.key === route)!.rule}</span>} data-testid="lost-route-rule" />
+        <ListRow title={<span className={TEXT.detail}>{routes.find(r => r.key === route)!.rule}</span>} data-testid="lost-route-rule" />
       </ListGroup>
 
       <ListGroup title="The clearance">
@@ -107,7 +102,7 @@ export default function LostCommsPage() {
             </ListRow>,
             <ListRow
               key={`fly-${i}`}
-              title={<span className={i >= expectedFrom ? "text-foreground" : "text-tint"}>{f.fly == null ? "No altitude known" : `Fly ${altFt(f.fly)} ft: ${BECAUSE[f.because!]}`}</span>}
+              title={<span className={i >= expectedFrom ? "text-foreground" : "text-tint"}>{f.words}</span>}
               onClick={() => setExpectedFrom(i)} data-testid="lost-segment-fly"
             />,
           ];

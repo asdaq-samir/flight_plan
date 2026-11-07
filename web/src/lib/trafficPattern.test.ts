@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import type { Runway } from "./api/types";
 import { bearingDeg, distanceNm } from "./geo";
-import { DOWNWIND_NM, departurePattern, patternsOf, patternsParam, trafficPattern } from "./trafficPattern";
+import { departurePattern, patternsOf, patternsParam, trafficPattern } from "./trafficPattern";
 
 // A runway 09/27 a mile long on the equator: 09 lands east, 27 west.
 const RUNWAY = {
@@ -24,6 +24,10 @@ describe("a runway's traffic pattern", () => {
   });
 
   test("has its downwind three-quarters of a mile out, and turns to base 45° from the approach end", () => {
+    // Three-quarters of a statute mile, in nm: the middle of the handbook's
+    // half a mile to a mile out, as the engine draws it: its
+    // DOWNWIND_NM (circuit.rs).
+    const DOWNWIND_NM = 0.75 * 0.868976;
     const p = trafficPattern("KTST", RUNWAY, "09", 1800)!;
     const downwind = p.legs.find(l => l.name === "Downwind")!;
     expect(distanceNm({ lat: 0, lon: 0 }, { lat: downwind.to.lat, lon: 0 })).toBeCloseTo(DOWNWIND_NM, 2);

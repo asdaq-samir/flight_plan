@@ -1,4 +1,4 @@
-// The debrief's marks are also the planner's (app/figures/debrief.py marked, for the native app): the two change together.
+// The debrief's tolerances and marks are the engine's (debrief.rs), the very ones the planner and the phones give.
 import { Suspense, lazy, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -9,7 +9,7 @@ import ConsoleClose from "../../components/ConsoleClose";
 import { api } from "../../lib/api/client";
 import type { Flight, FlightSummary } from "../../lib/api/types";
 import {
-  ALTITUDE_FT, COURSE_DEG, debrief, ETA_MIN, OFF_ROUTE_NM, PATTERN_FT, type Debrief,
+  debrief, type Debrief,
 } from "../../lib/debrief";
 import { LEVEL_TONE, riskLine, type RiskLevel } from "../../lib/frat";
 import { TEXT } from "../../lib/text";
@@ -86,6 +86,7 @@ function Profile({ d }: { d: Debrief }) {
 /** The debrief's findings: the flight in a line, then leg by leg, the
  *  checkpoints and the patterns, each against its ACS tolerance. */
 function Findings({ d }: { d: Debrief }) {
+  const t = d.tolerances;
   return (
     <div className="space-y-4">
       {d.notes.length > 0 && (
@@ -103,27 +104,25 @@ function Findings({ d }: { d: Debrief }) {
       </ListGroup>
 
       {/* PA.VI.A's tolerances in the title, where they were a footnote:
-          within OFF_ROUTE_NM of the route, and ALTITUDE_FT and COURSE_DEG in
+          within its distance of the route, and its altitude and course in
           the cruise, the climb and the descent left out. GPS altitude is not
           the altimeter's, and a ground track is not a heading. */}
-      <ListGroup title={`Leg by leg · within ${OFF_ROUTE_NM} nm, ${ALTITUDE_FT} ft, ${COURSE_DEG}°`}>
+      <ListGroup title={`Leg by leg · within ${t.offRouteNm} nm, ${t.altitudeFt} ft, ${t.courseDeg}°`}>
         {d.legs.map((leg, i) => {
-          const altOk = leg.worstAltFt == null || Math.abs(leg.worstAltFt) <= ALTITUDE_FT;
-          const routeOk = leg.worstOffNm == null || Math.abs(leg.worstOffNm) <= OFF_ROUTE_NM;
           return (
             <ListRow
-              key={i} media={<Mark ok={altOk && routeOk} />}
+              key={i} media={<Mark ok={leg.ok} />}
               title={`${leg.from} → ${leg.to}`}
               description={(
                 <>
                   <span className="block">
                     {leg.altitudeWithin == null
                       ? d.hasAltitude ? "Altitude: no cruise on this leg" : "Altitude: the file has none"
-                      : `Altitude: ${Math.round(leg.altitudeWithin * 100)}% within ${ALTITUDE_FT} ft of ${feet(leg.plannedAltFt)}${leg.worstAltFt != null ? `, at most ${signed(leg.worstAltFt, " ft")}` : ""}`}
+                      : `Altitude: ${Math.round(leg.altitudeWithin * 100)}% within ${t.altitudeFt} ft of ${feet(leg.plannedAltFt)}${leg.worstAltFt != null ? `, at most ${signed(leg.worstAltFt, " ft")}` : ""}`}
                   </span>
                   {leg.courseWithin != null && leg.courseDeg != null && (
                     <span className="block">
-                      Course: {Math.round(leg.courseWithin * 100)}% within {COURSE_DEG}° of {bearing(leg.courseDeg)}
+                      Course: {Math.round(leg.courseWithin * 100)}% within {t.courseDeg}° of {bearing(leg.courseDeg)}
                       {leg.worstOffNm != null && `, at most ${Math.abs(leg.worstOffNm).toFixed(1)} nm ${leg.worstOffNm >= 0 ? "right" : "left"} of the line`}
                     </span>
                   )}
@@ -135,14 +134,13 @@ function Findings({ d }: { d: Debrief }) {
         })}
       </ListGroup>
 
-      {/* PA.VI.A: each within ETA_MIN minutes of its estimate, from the takeoff. */}
-      <ListGroup title={`Checkpoints · within ${ETA_MIN} min`}>
+      {/* PA.VI.A: each within its minutes of its estimate, from the takeoff. */}
+      <ListGroup title={`Checkpoints · within ${t.etaMin} min`}>
         {d.passes.map((p, i) => {
-          const landed = p.category === "destination" || p.category === "stop";
-          const late = p.dueMin != null && p.passedMin != null ? p.passedMin - p.dueMin : null;
+          const { landed, lateMin: late } = p;
           return (
             <ListRow
-              key={i} media={late != null ? <Mark ok={Math.abs(late) <= ETA_MIN} /> : undefined}
+              key={i} media={p.ok != null ? <Mark ok={p.ok} /> : undefined}
               title={p.name}
               description={[
                 p.dueMin != null && `Due ${hm(p.dueMin)}`,
@@ -156,14 +154,14 @@ function Findings({ d }: { d: Debrief }) {
       </ListGroup>
 
       {d.patterns.length > 0 && (
-        // PA.III.B: pattern altitude within PATTERN_FT, read PATTERN_NM from
-        // the field, about where the downwind starts.
-        <ListGroup title={`Into the pattern · within ${PATTERN_FT} ft`}>
+        // PA.III.B: pattern altitude within its feet, read its distance from
+        // the field, about where the downwind starts (the engine's tolerances).
+        <ListGroup title={`Into the pattern · within ${t.patternFt} ft`}>
           {d.patterns.map(p => (
             <ListRow
-              key={p.ident} media={<Mark ok={Math.abs(p.altFt - p.patternFt) <= PATTERN_FT} />}
+              key={p.ident} media={<Mark ok={p.ok} />}
               title={p.ident} description={`Pattern altitude ${feet(p.patternFt)}`}
-              value={`${altFt(p.altFt)} ft (${signed(p.altFt - p.patternFt)})`} data-testid="debrief-pattern"
+              value={`${altFt(p.altFt)} ft (${signed(p.offFt)})`} data-testid="debrief-pattern"
             />
           ))}
         </ListGroup>

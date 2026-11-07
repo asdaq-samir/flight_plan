@@ -7,20 +7,24 @@
  *
  * Worked out by the shared engine (native/crates/figures/src/figures/lost_comms.rs,
  * through lib/engine), the very code behind the planner's /api/lost-comms
- * and the phones' wt_lost_comms. ROUTES stays here as the page's labels
- * and the type of its pick; lostComms.test.ts holds it to the engine's.
+ * and the phones' wt_lost_comms: the routes' labels and rules, VFR's words
+ * and each segment's line too, so the page writes none of 91.185's words
+ * itself.
  */
 import { callEngine, type EngineAnswer } from "./engine/engine";
 
-/** 91.185(c)(1): the route, in the rule's order -- the first that applies. */
-export const ROUTES = [
-  { key: "assigned", label: "Assigned", rule: "The route assigned in the last ATC clearance received." },
-  { key: "vectored", label: "Vectored", rule: "Being radar vectored: direct from the point of radio failure to the fix, route or airway specified in the vector clearance." },
-  { key: "expected", label: "Expected", rule: "No route assigned: the route ATC has advised may be expected in a further clearance." },
-  { key: "filed", label: "Filed", rule: "Neither assigned nor expected: the route filed in the flight plan." },
-] as const;
+/** The engine's "lost_comms" answer, as /api/lost-comms gives it. */
+export type LostCommsAnswer = EngineAnswer<"lost_comms">;
 
-export type RouteKey = (typeof ROUTES)[number]["key"];
+export type RouteKey = LostCommsAnswer["routes"][number]["key"];
+
+/** 91.185(c)(1): the routes, in the rule's order -- the first that
+ *  applies -- each its key, label and the rule's words; and 91.185(b)'s
+ *  words for VFR conditions. The engine's, asked with no segments. */
+export function lostCommsWords(): Pick<LostCommsAnswer, "routes" | "vfr"> {
+  const { routes, vfr } = callEngine("lost_comms", { segments: [] });
+  return { routes, vfr };
+}
 
 export interface Segment {
   name: string;
@@ -40,19 +44,17 @@ export interface Clearance {
 
 export type Because = "assigned" | "minimum" | "expected";
 
-/** The engine's "lost_comms" answer, as /api/lost-comms gives it. */
-export type LostCommsAnswer = EngineAnswer<"lost_comms">;
-
 /** 91.185(c)(2): on each segment, the highest of the altitude assigned,
  *  the minimum for IFR operations, and the altitude ATC said to expect --
  *  and which it was. Null where none is known. A segment with no name is
  *  "Segment", as the planner names it. */
-export function segmentAltitudes(segments: Segment[], c: Clearance): { name: string; fly: number | null; because: Because | null }[] {
+export function segmentAltitudes(segments: Segment[], c: Clearance): { name: string; fly: number | null; because: Because | null; words: string }[] {
   const answer = callEngine("lost_comms", {
     segments: segments.map(s => ({ name: s.name, minimum_ft: s.minimumFt })),
     assigned_ft: c.assignedFt, expected_ft: c.expectedFt, expected_from: c.expectedFrom,
   });
-  return answer.segments.map(({ name, fly, because }) => ({ name, fly, because }));
+  // `words` the page's line for it: "Fly 6,000 ft: expected".
+  return answer.segments.map(({ name, fly, because, words }) => ({ name, fly, because, words }));
 }
 
 /** 91.185(c)(3): when to leave the clearance limit, in words. */
