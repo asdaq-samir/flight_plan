@@ -302,6 +302,18 @@ def test_out_of_glide_is_the_water_beyond_a_glide_of_land():
     assert stopped[:, 4].min() == 1.0 and stopped[:, 0].max() == 0.0
 
 
+def test_the_options_judge_water_from_the_lowest_cruise_and_the_airplanes_speed(monkeypatch, sky):
+    seen = {}
+
+    def spy(lat0, lon0, rows, cols, cell, height_ft, speed_kt):
+        seen.update(height_ft=height_ft, speed_kt=speed_kt)
+        return np.zeros((rows, cols))
+    monkeypatch.setattr(water, "out_of_glide", spy)
+    route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    assert seen["height_ft"] == route_options.LOWEST_CRUISE_FT
+    assert seen["speed_kt"] > 40.0
+
+
 def test_the_glide_to_shore_is_the_engines_by_height():
     # The C172S POH's maximum glide, 1.5 nm a thousand feet (motion/glide.rs):
     # 6 nm from 4,000 ft over the water, 3.75 nm from the 2,500 ft the
