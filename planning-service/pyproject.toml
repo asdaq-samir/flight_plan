@@ -5,3 +5,9 @@
 # (app/main.py's own import) resolves the way it does inside the
 # container (PYTHONPATH=/workspace/src).
 pythonpath = [".", "../src"]
+# The root pyproject.toml is not read from here (this file is the rootdir), so
+# its settings are repeated: no cache of the last run, unknown marks are errors.
+addopts = "-p no:cacheprovider --strict-markers"
+markers = [
+    "order_dependent: passes only in the order it was written in; kept out of the random order (pytest_guards.py), and listed to be fixed",
+]

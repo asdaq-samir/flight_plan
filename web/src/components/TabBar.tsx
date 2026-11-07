@@ -219,7 +219,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
         // A route's point is dragged as a finger slides it (RouteBox's
         // dnd-kit sortables say so with aria-roledescription).
         // A card's pictures (PhotoHead) swipe to their next page.
-        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], [aria-roledescription], [data-point], [data-slot=carousel], .leaflet-container")) return true;
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], [aria-roledescription], [data-point], [data-slot=carousel], .maplibregl-map")) return true;
         const overflow = getComputedStyle(el).overflowX;
         if ((overflow === "auto" || overflow === "scroll") && el.scrollWidth > el.clientWidth + 1) return true;
       }
@@ -276,7 +276,7 @@ export default function TabBar<T extends string>({ tabs, tab, over, title: given
     const g = WHEEL;
     const scrolls = (target: EventTarget | null, dx: number, dy: number) => {
       for (let el = target as HTMLElement | null; el && el !== panel; el = el.parentElement) {
-        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], .leaflet-container")) return true;
+        if (el.matches("input, textarea, select, [contenteditable=true], [role=slider], [data-slot=slider], .maplibregl-map")) return true;
         const style = getComputedStyle(el);
         if (dy !== 0 && (style.overflowY === "auto" || style.overflowY === "scroll")
           && (dy > 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0)) return true;

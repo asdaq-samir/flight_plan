@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { loadDeclination, type Declination } from "../../../magnetic";
-import { PINCHED_LEVELS, RulerDrawing, placed, useCruiseTas } from "../../MapRuler";
+import { PINCHED_LEVELS, RulerDrawing, placed, useCruiseTas } from "../../RulerDrawing";
 import { HOLD_MS, heldStill } from "../../ruler";
 import { useGlMap } from "../glLayer";
 

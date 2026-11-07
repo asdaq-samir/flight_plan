@@ -21,6 +21,7 @@ import { startSpeedReports } from "./lib/speed";
 import { startLoadLog } from "./lib/loadLog";
 import MapPage from "./features/page/MapPage";
 import { prefetchRouteMap } from "./features/plan/routeMapChunk";
+import { prefetchRouteBox } from "./features/plan/routeBoxChunk";
 import "./index.css";
 // Barlow, the face of both looks (lib/brand), in the first stylesheet
 // rather than fetched once the app has drawn: drawn first in the system's
@@ -50,8 +51,10 @@ followDynamicType();
 const tv = tvPlatform();
 if (tv) startTv(tv);
 
-// The map's chunk (routeMapChunk),fetched while the page draws.
+// The map's chunk (routeMapChunk) and the search's (routeBoxChunk),
+// fetched while the page draws.
 prefetchRouteMap();
+prefetchRouteBox();
 
 // What goes wrong on the pilot's device, to the owner's log
 // (lib/errorReports): before anything else can throw.
