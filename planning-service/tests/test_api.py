@@ -101,6 +101,9 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     }
     for corridor in body["corridors"]:
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
+    # Each FAA data set on disk, with whether it is in its cycle.
+    for cycle in body["data_cycles"]:
+        assert cycle["state"] in {"in_force", "expired", "not_yet", "unknown"} and cycle["current"]
 
 
 class FakeSidecar:
@@ -246,6 +249,33 @@ def test_the_briefing_says_why_vfr_is_not_recommended(monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json()["vfr_not_recommended"] == ["forecast ceiling as low as 800 ft along the route"]
+
+
+def test_the_briefing_carries_a_ceiling_of_unknown_height_through(monkeypatch):
+    """OVC/// reported at the departure and forecast at the destination
+    (wingtip.weather._sky_ceiling): not known, not none, so the briefing
+    says so where it would say no ceiling."""
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: {
+        "min_ceiling_ft": None, "min_visibility_sm": 10.0, "ceiling_unknown_at": ["KDLH"], "stations": [
+            {"icaoId": "KDLH", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1424, "ceiling_ft": None,
+             "ceiling_unknown": True, "visibility_sm": 10.0}]})
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: (
+        {"raw": "KC81 251755Z AUTO 10SM OVC///", "flight_category": None, "ceiling_ft": None, "ceiling_unknown": True,
+         "visibility_sm": 10.0} if ident in ("C81", "KC81") else None) for ident in idents})
+    monkeypatch.setattr(weather, "tafs_over", lambda asked: {
+        "KDLH": {"ceiling_ft": None, "ceiling_unknown": True, "visibility_sm": 10.0, "raw": "TAF KDLH ..."}})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+
+    body = client.get("/api/briefing", params={"dep": "C81", "dest": "KDLH"}).json()
+
+    assert body["forecast"]["ceiling_unknown_at"] == ["KDLH"]
+    station = body["forecast"]["stations"][0]
+    assert (station["ceiling_unknown"], station["eta_ceiling_unknown"]) == (True, True)
+    assert body["metars"]["C81"]["ceiling_unknown"] is True
+    assert body["vfr_not_recommended"] == [
+        "C81 currently reporting a ceiling of unknown height", "forecast ceiling of unknown height at KDLH"]
 
 
 def test_the_briefing_forecast_is_read_over_the_flight(monkeypatch):

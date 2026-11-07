@@ -9,14 +9,15 @@ import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
 import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
-import { USGS_URL } from "../lib/map/OverlayTiles";
+import { USGS_URL } from "../lib/map/imagery";
 import { useGoogleSession } from "../lib/map/googleSession";
 import { OWN_SHIP_LOOKS, ownShipSvg, type OwnShipLook } from "../lib/map/ownShipLook";
 import { tileUrl } from "../lib/map/tiles";
 import { cn } from "../lib/utils";
 import { GROUP_HEADING, TEXT } from "../lib/text";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
-import { useLayerAges } from "../lib/map/layerAges";
+import { useDataCycles, useLayerAges } from "../lib/map/layerAges";
+import { cycleWarning } from "../lib/dataCycles";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 
@@ -50,6 +51,10 @@ export default function MapSettings() {
   const { data: chart } = useQuery(chartQuery);
   // How old each weather layer's data is, beside where it comes from.
   const ages = useLayerAges();
+  // The edition drawn past its 56-day cycle, said under the Charts row
+  // (the engine's data_cycle; lib/dataCycles): still drawn, never hidden.
+  const chartsCycle = useDataCycles().find(c => c.key === "charts");
+  const chartsWarning = chartsCycle ? cycleWarning(chartsCycle) : null;
   const sec = prefs.base === "sec";
   const [alertMode, setAlertMode] = useAlertMode();
   return (
@@ -197,7 +202,10 @@ export default function MapSettings() {
           colours and the TFRs as the planner fetched them, the traffic as
           the map last heard it. */}
       <ListGroup title="Sources">
-        <ListRow title="Charts" value={<span className="text-foreground">{chart ? `FAA, ${editionOf(chart.chart_cycle)}` : "FAA"}</span>} data-testid="chart-edition" />
+        <ListRow
+          title="Charts" value={<span className="text-foreground">{chart ? `FAA, ${editionOf(chart.chart_cycle)}` : "FAA"}</span>} data-testid="chart-edition"
+          description={chartsWarning ? <span className={cn("text-destructive-ink", TEXT.detail)} data-testid="chart-edition-out-of-date">{chartsWarning}</span> : undefined}
+        />
         <ListRow title="METARs" value={<span className="text-foreground">{ages.metars ? `aviationweather.gov · ${ages.metars}` : "aviationweather.gov"}</span>} data-testid="metars-age" />
         <ListRow title="TFRs" value={<span className="text-foreground">{ages.tfrs ? `tfr.faa.gov · ${ages.tfrs}` : "tfr.faa.gov"}</span>} data-testid="tfrs-age" />
         <ListRow

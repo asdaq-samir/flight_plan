@@ -156,7 +156,9 @@ export default defineConfig({
         navigateFallbackDenylist: [/\/(privacy|terms|support)\.html$/],
         // wasm: the shared engine (lib/engine), which the page waits for
         // before it draws, so it must be there with no network.
-        globPatterns: ["**/*.{js,css,html,svg,woff2,wasm}"],
+        // mjs: MapLibre's worker (lib/map/gl/worker), without which the map
+        // parses no source, so a route reopened with no connection has a map.
+        globPatterns: ["**/*.{js,mjs,css,html,svg,woff2,wasm}"],
         // Not kept ahead for every pilot, at the first load and after each
         // deploy: Inter's non-Latin subsets (170 KB), fetched by the browser
         // only for a glyph they hold, the developer's pages (77 KB), and the
@@ -382,7 +384,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (id.includes("node_modules/leaflet/")) return "leaflet";
+          // The map's engine (lib/map/gl), with the map's own chunk (routeMapChunk).
+          if (id.includes("node_modules/maplibre-gl/")) return "maplibre";
           // TanStack's query client alone: its table (the nav log's and the
           // kneeboard's, both lazy) stays with them, out of the first load.
           if (/node_modules\/(react|react-dom|react-router|react-router-dom|@tanstack\/(react-query|query-core)|scheduler)\//.test(id)) return "react";
@@ -404,6 +407,26 @@ export default defineConfig({
   //
   // The shared engine's WebAssembly is loaded before every test file
   // (lib/engine/vitestSetup.ts), as main.tsx loads it before the first
-  // render, so a rule that asks the engine answers in a test too.
-  test: { environment: "node", exclude: ["**/node_modules/**", "e2e/**"], setupFiles: ["src/lib/engine/vitestSetup.ts"] },
+  // render, so a rule that asks the engine answers in a test too. Then
+  // the guards against flaky tests (src/test/guards.ts).
+  //
+  // Files and the tests in them run in a new random order every run, so
+  // a test that only passes after another one fails here rather than one
+  // day in CI (docs/CI.md, "Flaky tests"). The order comes from the seed
+  // vitest prints at the start ("Running tests with seed"): npx vitest run
+  // --sequence.seed=<it> repeats it. A
+  // test that must keep its order says so with describe(name, { shuffle:
+  // false }, ...) and is listed to be fixed.
+  //
+  // An error nobody awaited, or a timer firing after its test's
+  // environment is gone, fails the run (dangerouslyIgnoreUnhandledErrors,
+  // false is vitest's default, said here so nobody turns it on to get a
+  // green run).
+  test: {
+    environment: "node",
+    exclude: ["**/node_modules/**", "e2e/**"],
+    setupFiles: ["src/lib/engine/vitestSetup.ts", "src/test/guards.ts"],
+    sequence: { shuffle: true },
+    dangerouslyIgnoreUnhandledErrors: false,
+  },
 });

@@ -1,0 +1,243 @@
+{
+ "_note": "The FAA data sets' cycles, by hand from the FAA's own pages (2026-11-06): the \"28 and 56 Day Product Schedule 2025-2049\" (aeronav.faa.gov/content/aeronav/DOLES/Product_Schedule.pdf), the \"28 Day NASR Subscription\" page's effective dates (26 Nov 2026 preview, 29 Oct 2026 current, 1 Oct 2026 ...), and the Digital Obstacle File page (DOF_260927.zip: changes to 27 Sep 2026, released 29 Sep 2026; the next, changes to 22 Nov 2026, released 24 Nov 2026). The engine (native/engine/tests/data_cycles.rs), the planner (tests/test_data_cycles.py) and the web (lib/dataCycles.test.ts) are held to it. Each case asks data_cycle with {kind, effective, on} and expects its state, expires, current, current_ident, next and behind.",
+ "cases": [
+  {
+   "why": "NASR current on the subscription page",
+   "kind": "airac",
+   "effective": "2026-10-29",
+   "on": "2026-11-06",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-11-26",
+    "current": "2026-10-29",
+    "current_ident": "2611",
+    "next": "2026-11-26",
+    "behind": 0
+   }
+  },
+  {
+   "why": "its last day",
+   "kind": "airac",
+   "effective": "2026-10-29",
+   "on": "2026-11-25",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-11-26",
+    "current": "2026-10-29",
+    "current_ident": "2611",
+    "next": "2026-11-26",
+    "behind": 0
+   }
+  },
+  {
+   "why": "the preview's effective date",
+   "kind": "airac",
+   "effective": "2026-10-29",
+   "on": "2026-11-26",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-11-26",
+    "current": "2026-11-26",
+    "current_ident": "2612",
+    "next": "2026-12-24",
+    "behind": 1
+   }
+  },
+  {
+   "why": "one cycle behind",
+   "kind": "airac",
+   "effective": "2026-10-01",
+   "on": "2026-11-06",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-10-29",
+    "current": "2026-10-29",
+    "current_ident": "2611",
+    "next": "2026-11-26",
+    "behind": 1
+   }
+  },
+  {
+   "why": "two cycles behind",
+   "kind": "airac",
+   "effective": "2026-09-03",
+   "on": "2026-11-06",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-10-01",
+    "current": "2026-10-29",
+    "current_ident": "2611",
+    "next": "2026-11-26",
+    "behind": 2
+   }
+  },
+  {
+   "why": "the preview, before it takes effect",
+   "kind": "airac",
+   "effective": "2026-11-26",
+   "on": "2026-11-06",
+   "expected": {
+    "state": "not_yet",
+    "expires": "2026-12-24",
+    "current": "2026-10-29",
+    "current_ident": "2611",
+    "next": "2026-11-26",
+    "behind": 0
+   }
+  },
+  {
+   "why": "no edition known; the schedule's first 2026 date is 2601",
+   "kind": "airac",
+   "effective": null,
+   "on": "2026-01-22",
+   "expected": {
+    "state": "unknown",
+    "expires": null,
+    "current": "2026-01-22",
+    "current_ident": "2601",
+    "next": "2026-02-19",
+    "behind": 0
+   }
+  },
+  {
+   "why": "the last 2025 cycle (the schedule's 25-Dec)",
+   "kind": "airac",
+   "effective": "2025-12-25",
+   "on": "2026-01-21",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-01-22",
+    "current": "2025-12-25",
+    "current_ident": "2513",
+    "next": "2026-01-22",
+    "behind": 0
+   }
+  },
+  {
+   "why": "the sectionals' 3 Sep 2026 edition, its last day",
+   "kind": "chart",
+   "effective": "2026-09-03",
+   "on": "2026-10-28",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-10-29",
+    "current": "2026-09-03",
+    "current_ident": null,
+    "next": "2026-10-29",
+    "behind": 0
+   }
+  },
+  {
+   "why": "the 56-day cycle's next date",
+   "kind": "chart",
+   "effective": "2026-09-03",
+   "on": "2026-10-29",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-10-29",
+    "current": "2026-10-29",
+    "current_ident": null,
+    "next": "2026-12-24",
+    "behind": 1
+   }
+  },
+  {
+   "why": "the charts current on 6 Nov 2026",
+   "kind": "chart",
+   "effective": "2026-10-29",
+   "on": "2026-11-06",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-12-24",
+    "current": "2026-10-29",
+    "current_ident": null,
+    "next": "2026-12-24",
+    "behind": 0
+   }
+  },
+  {
+   "why": "the charts before 3 Sep 2026 (the schedule's 9 Jul 2026, 56 days back), on their last day",
+   "kind": "chart",
+   "effective": "2026-07-09",
+   "on": "2026-09-02",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-09-03",
+    "current": "2026-07-09",
+    "current_ident": null,
+    "next": "2026-09-03",
+    "behind": 0
+   }
+  },
+  {
+   "why": "1 Oct 2026 is an AIRAC date but not a charting one: 9 Jul's charts are one edition behind, not two",
+   "kind": "chart",
+   "effective": "2026-07-09",
+   "on": "2026-10-01",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-09-03",
+    "current": "2026-09-03",
+    "current_ident": null,
+    "next": "2026-10-29",
+    "behind": 1
+   }
+  },
+  {
+   "why": "DOF_260927, released 29 Sep 2026, used until the next release",
+   "kind": "dof",
+   "effective": "2026-09-27",
+   "on": "2026-11-06",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-11-24",
+    "current": "2026-09-29",
+    "current_ident": null,
+    "next": "2026-11-24",
+    "behind": 0
+   }
+  },
+  {
+   "why": "the next DOF's release day",
+   "kind": "dof",
+   "effective": "2026-09-27",
+   "on": "2026-11-24",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-11-24",
+    "current": "2026-11-24",
+    "current_ident": null,
+    "next": "2027-01-19",
+    "behind": 1
+   }
+  },
+  {
+   "why": "DOF_260802, released 4 Aug 2026",
+   "kind": "dof",
+   "effective": "2026-08-02",
+   "on": "2026-09-28",
+   "expected": {
+    "state": "in_force",
+    "expires": "2026-09-29",
+    "current": "2026-08-04",
+    "current_ident": null,
+    "next": "2026-09-29",
+    "behind": 0
+   }
+  },
+  {
+   "why": "superseded by DOF_260927's release",
+   "kind": "dof",
+   "effective": "2026-08-02",
+   "on": "2026-09-29",
+   "expected": {
+    "state": "expired",
+    "expires": "2026-09-29",
+    "current": "2026-09-29",
+    "current_ident": null,
+    "next": "2026-11-24",
+    "behind": 1
+   }
+  }
+ ]
+}

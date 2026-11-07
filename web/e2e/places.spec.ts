@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { airportMark, airportMarks, clearTheRoute, closeCard, consoleSheet, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart } from "./helpers";
+import { airportMark, airportMarks, clearTheRoute, closeCard, consoleSheet, drawn, expectDrawerClosed, grabberTo, mapStill, openConsole, openMapSettings, openPanel, settle, showTabs, sideDrawer, slow, tapNear, tapTheChart } from "./helpers";
 
 /**
  * Airports as places, as Maps has them: a tap on one on the chart opens
@@ -432,16 +432,8 @@ async function withPrivateFields(page: Page) {
 async function airportToTap(page: Page) {
   // Once the map has stopped: the panel coming back to rest fits the route
   // again (MapShell), and a wheel turned while it flies is lost to it.
-  let was = "";
-  await expect(async () => {
-    const now = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".leaflet-map-pane, .leaflet-tile-container")]
-      .map(el => el.style.transform).join("|"));
-    const still = now === was;
-    was = now;
-    await page.waitForTimeout(300);
-    expect(still).toBe(true);
-  }).toPass({ timeout: slow(10_000) });
-  const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
+  await mapStill(page);
+  const departure = page.locator(".maplibregl-marker", { hasText: "C81" }).first();
   await expect(departure).toBeVisible({ timeout: slow(30000) });
   // The departure to the middle of the map first: with the whole route
   // fitted to a phone it sits just above the capsule, and the airports
@@ -485,11 +477,10 @@ async function airportToTap(page: Page) {
         // The chart under it, or a line a tap passes through to the map
         // (the course line's): no marker, control, popup or panel, which
         // would take the tap.
-        // The chart's tiles take no pointer (Leaflet's own rule), so the
-        // map's own box answers where nothing is drawn over it.
+        // The map's canvas answers where nothing is drawn over it.
         const hit = document.elementFromPoint(x, y);
-        if (hit?.closest(".leaflet-container") && !hit.closest(
-          ".leaflet-marker-icon, .leaflet-popup, .leaflet-tooltip, .leaflet-control, [data-slot=map-panel], [data-map-controls]",
+        if (hit?.closest(".maplibregl-map") && !hit.closest(
+          ".maplibregl-marker, .maplibregl-ctrl, [data-slot=map-panel], [data-map-controls]",
         )) return { x, y };
       }
       return null;
@@ -628,28 +619,23 @@ test("the airport whose card is open wears a ring round its mark, clear of it on
   await settle(page);
   // Its card at the pill's size, the chart over it in sight.
   await grabberTo(page, "peek");
-  const ring = page.locator("[data-selected-airport]");
+  // The ring on the map's canvas, under the airports' marks and idents (its
+  // layer is drawn before theirs: AirportsGl), as its probe says.
+  const ring = async () => (await drawn(page, "selected-airport"))[0] as { x: number; y: number } | undefined;
   await expect.poll(async () => (await airportMark(page, "C81"))?.chip, { timeout: slow(15000) }).toBe(true);
-  await expect(ring).toBeVisible();
-  // Measured once the map has stopped moving the two together. The mark
-  // is 26 across (AIRPORT_MARK), drawn on the airports' canvas.
+  await expect.poll(async () => !!(await ring())).toBe(true);
+  // Round the mark itself, once the map has stopped moving the two together.
   await expect(async () => {
-    const c = (await airportMark(page, "C81"))!, r = (await ring.boundingBox())!;
-    expect(Math.abs(c.x - (r.x + r.width / 2))).toBeLessThan(1);
-    expect(Math.abs(c.y - (r.y + r.height / 2))).toBeLessThan(1);
-    // Its red-orange 3 wide and clear of the mark: the circle it was,
-    // smaller than the chip it went round, lay under it all but a sliver.
-    expect(r.width - 26).toBeGreaterThanOrEqual(11);
-    expect(r.height - 26).toBeGreaterThanOrEqual(11);
+    const r = (await ring())!;
+    const c = (await airportMark(page, "C81"))!;
+    const map = (await page.locator(".maplibregl-map").boundingBox())!;
+    expect(Math.abs(c.x - (map.x + r.x))).toBeLessThan(1);
+    expect(Math.abs(c.y - (map.y + r.y))).toBeLessThan(1);
   }).toPass({ timeout: slow(10000) });
-  // The ident beside the mark is over the ring, not hidden under it: the
-  // airports' canvas in a pane over the ring's.
-  const z = (pane: string) => page.locator(`.leaflet-${pane}-pane`).evaluate(el => Number(getComputedStyle(el).zIndex));
-  expect(await z("airports")).toBeGreaterThan(await z("selected-airport"));
 
   // Put away, the ring goes with the card.
   await closeCard(page, "place-close");
-  await expect(ring).toHaveCount(0);
+  await expect.poll(async () => !!(await ring())).toBe(false);
 });
 
 test("the chart's airports are marked by their airspace -- B, C, D, E, G -- a military field with an M, a private one with an R, each with its weather's dot", async ({ page }) => {
@@ -723,7 +709,7 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   await page.goto("/app/plan?dep=C81&dest=KDLH");
   await settle(page);
   const chips = { count: async () => (await airportMarks(page)).filter(m => m.chip).length };
-  await expect(page.locator(".leaflet-marker-icon", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
+  await expect(page.locator(".maplibregl-marker", { hasText: "KDLH" }).first()).toBeVisible({ timeout: slow(30000) });
   // At the whole route's zoom on a phone, past the sectional's scale, only
   // the biggest fields that report wear their marks, each with its room
   // round it (AirportsLayer's OUT_APART_PX, 80 px), where a state's worth
@@ -746,7 +732,7 @@ test("closer in, the airports that report wear their weather's colour, and a tap
   // them, as tapTheChart waits: turned while the route was still being
   // fitted, a wheel's zoom can be undone by the fit. On a loaded machine
   // the chips never came, three runs of 2026-10-09.
-  const departure = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
+  const departure = page.locator(".maplibregl-marker", { hasText: "C81" }).first();
   for (let notch = 0; notch < 3; notch++) {
     await mapStill(page);
     const box = (await departure.boundingBox())!;
@@ -766,7 +752,7 @@ test("closer in, the airports that report wear their weather's colour, and a tap
     const at = await page.evaluate(marks => {
       for (const m of marks) {
         const hit = document.elementFromPoint(m.x, m.y);
-        if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return m;
+        if (hit?.matches("canvas.maplibregl-canvas")) return m;
       }
       return null;
     }, drawn);
@@ -790,7 +776,7 @@ test("a tap a little off an airport's mark opens its card, the route's own as an
   await settle(page);
   await expect(card(page)).toBeVisible({ timeout: slow(15000) });
   // The departure's chip, the route's (the marker pane), not the chart's.
-  await tapNear(page, page.locator(".leaflet-marker-pane .leaflet-marker-icon", { hasText: "C81" }).first(), /[?&]place=C81(&|$)/);
+  await tapNear(page, page.locator(".maplibregl-marker", { hasText: "C81" }).first(), /[?&]place=C81(&|$)/);
   await tapNear(page, () => airportMark(page, "KUGN"), /[?&]place=KUGN(&|$)/);
 });
 

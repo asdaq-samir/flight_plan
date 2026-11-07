@@ -12,7 +12,7 @@ from pathlib import Path
 
 import requests
 from fastapi import APIRouter, HTTPException
-from wingtip import chartlabels, charts, checkpoint_notes, model_registry, retry, weather
+from wingtip import chartlabels, charts, checkpoint_notes, data_cycles, model_registry, retry, weather
 from wingtip.terrain import DEFAULT_FAA_CACHE_DIR
 
 from .. import chart_model, chart_refresh, errors
@@ -219,6 +219,10 @@ def status() -> Status:
     with ThreadPoolExecutor(max_workers=2) as pool:
         webapp = pool.submit(_webapp_status)
         pipeline = pool.submit(_pipeline_status)
+        # Each FAA data set's cycle, from the disk; one out of date is
+        # logged too (once a day), for the owner.
+        cycles = data_cycles.status()
+        data_cycles.warn_if_out_of_date(cycles)
         return Status(
             checked_at=datetime.now(tz=timezone.utc).isoformat(),
             services={
@@ -233,6 +237,7 @@ def status() -> Status:
             pipeline=pipeline.result().model_copy(update={"training": _training()}),
             corridors=_corridors(),
             recent_errors=errors.recent(),
+            data_cycles=cycles,
         )
 
 

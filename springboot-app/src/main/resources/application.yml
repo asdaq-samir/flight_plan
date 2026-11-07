@@ -87,10 +87,13 @@ server:
   # chart tiles are PNG and already as small as they get, and the
   # planner's NDJSON streams (application/x-ndjson) are left out so a
   # line the planner flushes reaches the browser the moment it is
-  # written, not when a gzip block fills.
+  # written, not when a gzip block fills. And the engine's WebAssembly
+  # (web/src/lib/engine), which the first render waits for: left out, it
+  # went as 735 KB where gzip makes it 276 KB, and Lighthouse's phone LCP
+  # went from 9.0 s to 13.7 s the night it grew to that (issue #214).
   compression:
     enabled: true
-    mime-types: text/html,text/css,text/javascript,application/javascript,application/json,image/svg+xml
+    mime-types: text/html,text/css,text/javascript,application/javascript,application/json,image/svg+xml,application/wasm
     min-response-size: 1024
 
 management:

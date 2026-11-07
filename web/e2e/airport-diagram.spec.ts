@@ -71,7 +71,7 @@ test("an airport's card has its diagram as a row, and a tap shows it full screen
   // Nothing in it leads out of the app.
   await expect(viewer.locator("a[href^='http']")).toHaveCount(0);
   // The whole sheet in sight, inside the screen.
-  const sheet = viewer.locator(".leaflet-image-layer");
+  const sheet = viewer.locator("[data-pages]");
   await expect(sheet).toBeVisible();
   const box = (await sheet.boundingBox())!;
   const screen = page.viewportSize()!;
@@ -147,7 +147,7 @@ test("where the diagram's picture cannot be had, the card links the FAA's PDF", 
   await expect(row).not.toHaveAttribute("href", /.*/);
   await withChartPages(page);
   await row.click();
-  await expect(page.getByTestId("airport-diagram-viewer").locator(".leaflet-image-layer")).toHaveCount(2);
+  await expect(page.getByTestId("airport-diagram-viewer").locator("[data-pages]")).toHaveAttribute("data-pages", "2");
 });
 
 test("where the picture cannot be had and the FAA gives no PDF, the row says the diagram could not be loaded", async ({ page }) => {
@@ -194,7 +194,7 @@ test("the Charts tab's charts and the Chart Supplement open in the app, the fiel
   await panel.getByTestId("terminal-chart").click();
   const viewer = page.getByTestId("airport-diagram-viewer");
   await expect(viewer.getByRole("heading", { name: "TAKEOFF MINIMUMS" })).toBeVisible();
-  await expect(viewer.locator(".leaflet-image-layer")).toHaveCount(2);
+  await expect(viewer.locator("[data-pages]")).toHaveAttribute("data-pages", "2");
   await viewer.getByTestId("airport-diagram-close").click();
 
   await panel.getByTestId("chart-supplement").click();

@@ -722,7 +722,7 @@ empty commit:
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/wingtip` ones |
 | `docs` | Regenerates Javadoc + godoc on every push/PR. wingtip's `pdoc` is made by the `test` job from the packages its tests have just installed, and uploaded as `pdoc-wingtip`. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
-| `push-ecr` | Pushes the two images the CloudFormation stack deploys (`webapp`, `planning-service`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
+| `push-ecr` | Copies the two images the CloudFormation stack deploys (`webapp`, `planning-service`) from GHCR to ECR as `sha-<commit>` and `latest` via OIDC, the images CI tested rather than a rebuild, in the `production` environment the deploy role trusts; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
 `build-images` gates on the test jobs, so a failing test never produces a
 published image. A cold run (every cache empty, every path filter

@@ -70,13 +70,11 @@ MIN_LABELED_ROWS = 30
 # data, which had no tile cache and no chart west of Duluth.)
 #
 # Chart editions are listed on the products page, each under a
-# cycle-dated URL; the anchor date is one such cycle, from which the
-# others are 56-day arithmetic when the page cannot be reached.
+# cycle-dated URL; when the page cannot be reached, the cycle is the
+# engine's 56-day arithmetic (wingtip.data_cycles).
 FAA_VFR_PRODUCTS_PAGE = "https://www.faa.gov/air_traffic/flight_info/aeronav/digital_products/vfr/"
 FAA_VISUAL_ZIP_URL = "https://aeronav.faa.gov/visual/{cycle}/{folder}/{name}.zip"
 FAA_ENROUTE_ZIP_URL = "https://aeronav.faa.gov/enroute/{cycle}/{name}.zip"
-FAA_CHART_CYCLE_ANCHOR = "2026-09-03"
-FAA_CHART_CYCLE_DAYS = 56
 
 # --- The environment ---
 
@@ -102,8 +100,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 
     # wingtip
-    #: The planner's address, for wingtip.planner_client's callers.
-    planning_service_url: str = "http://planning-service:8000"
     #: The CloudFront base (with key prefix) the map's tiles come from on AWS; None locally.
     chart_tiles_url: str | None = None
     #: The S3 bucket a chart refresh publishes the cycle's tiles to; None locally.

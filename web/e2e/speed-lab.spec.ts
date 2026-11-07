@@ -92,9 +92,9 @@ test("the nightly speed lab", async ({ page }, info) => {
     await page.goto("/app/plan");
     await page.getByTestId("tab-bar").first().waitFor({ timeout: 60_000 });
     keep("open_app", await page.evaluate(() => (window as unknown as { __search: number }).__search));
-    await page.locator("img.leaflet-tile").first().waitFor({ state: "attached", timeout: 60_000 });
+    await page.locator("[data-chart-zoom]").first().waitFor({ state: "attached", timeout: 60_000 });
     await page.waitForTimeout(3000);
-    const map = (await page.locator(".leaflet-container").boundingBox())!;
+    const map = (await page.locator(".maplibregl-map").boundingBox())!;
     await page.mouse.move(map.x + map.width / 2, map.y + 250);
     let from = await now(page);
     await page.mouse.wheel(0, -300);

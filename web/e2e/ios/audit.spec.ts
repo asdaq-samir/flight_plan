@@ -85,7 +85,7 @@ for (const screen of SCREENS) {
     if (process.env.IOS_AUDIT && reference) {
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa"])
-        .exclude(".leaflet-pane")
+        .exclude(".maplibregl-canvas-container")
         .disableRules(["meta-viewport", "target-size"])
         .analyze();
       wcag22 = results.violations

@@ -51,8 +51,19 @@ pub struct Distances {
     pub ground_roll_ft: f64,
     pub total_ft: f64,
     /// What could not be had from the table: beyond its altitudes or
-    /// temperatures (where its edge is taken), or a tailwind past ten.
+    /// temperatures (where its edge is taken), heavier than its heaviest
+    /// weight (where that weight's is taken), or a tailwind past ten.
     pub caveats: Vec<&'static str>,
+}
+
+impl Distances {
+    /// Read past the POH's table, so the figures are its edge's rather
+    /// than the airplane's: every caveat is one. The distance is then not
+    /// one a runway can be judged against with the confidence 14 CFR
+    /// 91.103(b) asks for, so the check says so rather than "within".
+    pub fn beyond(&self) -> bool {
+        !self.caveats.is_empty()
+    }
 }
 
 struct At {
@@ -100,8 +111,15 @@ pub fn short_field(table: &ShortField, pressure_alt_ft: f64, temp_c: f64, weight
     if col.beyond {
         caveats.push("the temperature is beyond the table's");
     }
-    // Weights heaviest first; read between the two either side.
+    // Weights heaviest first; read between the two either side. An
+    // airplane heavier than the heaviest table is read at that table,
+    // which is shorter than it will need: the POH gives no figures past
+    // its maximum weight (FAA-H-8083-25C, chapter 11, performance charts
+    // are valid only within their stated conditions), so it is a caveat.
     let weights = &table.weights_lb;
+    if weights.iter().copied().fold(f64::NEG_INFINITY, f64::max) < weight_lb {
+        caveats.push("the airplane is heavier than the table's heaviest weight");
+    }
     let read = |grids: &[Vec<Vec<f64>>]| -> f64 {
         let values: Vec<f64> = grids.iter().map(|g| bilinear(g, &row, &col)).collect();
         if weights.len() == 1 || weight_lb >= weights[0] {
@@ -163,7 +181,10 @@ pub fn field_air(elevation_ft: f64, altimeter_in_hg: Option<f64>, temp_c: Option
 /// weight (the table's heaviest, the longest distance, where none is
 /// known), with the headwind on that end (a tailwind negative) and the
 /// correction for a soft surface; and whether it is longer than the
-/// runway.
+/// runway -- false where the runway or its length is not known, which the
+/// caller must tell from a fit (its length_ft is None) and never read as
+/// "within" (14 CFR 91.103(b): the runway lengths are among what a pilot
+/// must know).
 pub fn end_distance(table: &ShortField, runway: Option<&Runway>, air: (f64, f64), weight_lb: Option<f64>, headwind_kt: f64)
                     -> (Distances, bool) {
     let heaviest = table.weights_lb.iter().copied().fold(f64::NEG_INFINITY, f64::max);
@@ -205,6 +226,12 @@ pub struct EndFit {
     /// Longer than the runway; or within its margin (DISTANCE_MARGIN).
     pub short: bool,
     pub close: bool,
+    /// The distance or the runway's length is not known, so whether it
+    /// fits is not either: never taken as fitting (14 CFR 91.103(b) asks
+    /// for both).
+    pub unknown: bool,
+    /// The distance was read past the POH's table (Distances::beyond).
+    pub beyond: bool,
 }
 
 /// JavaScript's truth of a number: there, and not 0 or NaN.
@@ -216,7 +243,10 @@ fn said(kt: Option<f64>) -> Option<f64> {
 /// setting and temperature reported, each None where not.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct FieldReport {
-    pub elevation_ft: f64,
+    /// None where the field's elevation is not known: its distances are
+    /// then not worked out (no sea-level guess, which reads short at a
+    /// high field).
+    pub elevation_ft: Option<f64>,
     pub altimeter_in_hg: Option<f64>,
     pub temp_c: Option<f64>,
 }
@@ -246,11 +276,23 @@ pub fn end_fit(table: Option<&ShortField>, demonstrated_kt: Option<f64>, runway:
     };
     let crosswind = js_round(steady_or_gust_kt(across(wind.and_then(|w| w.speed_kt)), Some(across(wind.and_then(|w| w.gust_kt)))));
     let length_ft = runway.length_ft;
-    let needed_ft = table.map(|t| {
-        let air = field_air(field.elevation_ft, field.altimeter_in_hg, field.temp_c);
-        js_round(end_distance(t, Some(runway), air, weight_lb, js_round(headwind)).0.total_ft)
+    // No elevation, no distance: a field taken as at sea level needs less
+    // runway than it will, the higher it is (FAA-H-8083-25C, chapter 11).
+    let distances = table.zip(field.elevation_ft).map(|(t, elevation_ft)| {
+        let air = field_air(elevation_ft, field.altimeter_in_hg, field.temp_c);
+        end_distance(t, Some(runway), air, weight_lb, js_round(headwind)).0
     });
+    let needed_ft = distances.as_ref().map(|d| js_round(d.total_ft));
     let short = matches!((needed_ft, length_ft), (Some(n), Some(l)) if n > l);
     let close = !short && matches!((needed_ft, length_ft), (Some(n), Some(l)) if n * DISTANCE_MARGIN > l);
-    EndFit { crosswind_kt: crosswind, crosswind_over: demonstrated_kt.is_some_and(|d| crosswind > d), needed_ft, length_ft, short, close }
+    EndFit {
+        crosswind_kt: crosswind,
+        crosswind_over: demonstrated_kt.is_some_and(|d| crosswind > d),
+        needed_ft,
+        length_ft,
+        short,
+        close,
+        unknown: needed_ft.is_none() || length_ft.is_none(),
+        beyond: distances.as_ref().is_some_and(Distances::beyond),
+    }
 }

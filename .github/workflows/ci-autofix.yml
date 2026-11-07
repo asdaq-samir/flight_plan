@@ -30,6 +30,11 @@ permissions:
   pull-requests: write
   issues: write
   actions: write
+  # For claude-code-action alone: it trades this job's OIDC token for the
+  # Claude app's, which is how its pushes start CI. The token says "main"
+  # (a workflow_run runs as the default branch) while the job runs a
+  # branch's code, so nothing outside GitHub may trust "main" alone: AWS's
+  # deploy role trusts only the production environment (template.yaml).
   id-token: write
 
 concurrency:
