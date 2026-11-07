@@ -5,7 +5,7 @@
 - [Overview](#overview)
 - [1. Docker fundamentals](#1-docker-fundamentals)
 - [2. The ML pipeline](#2-the-ml-pipeline)
-- [3. Orchestration with Airflow](#3-orchestration-with-airflow)
+- [3. Running the pipeline](#3-running-the-pipeline)
 - [4. The serving layer](#4-the-serving-layer)
 - [5. The Gen AI layer](#5-the-gen-ai-layer)
 - [6. Database migrations](#6-database-migrations)
@@ -34,7 +34,7 @@ logic of its own. The apps (web, iOS, Android) get data, keep state and
 draw, and ask the engine the rest. §4 says why it is cut this way.
 
 The services, one picture. Each box is a Docker service, except the
-apps, `model_registry` (code run by Airflow) and the engine, which runs
+apps, `model_registry` (code the training run calls) and the engine, which runs
 inside the planner and inside each app; every arrow is covered by name
 in the section noted next to it:
 
@@ -45,7 +45,7 @@ flowchart LR
         engineer --> retrain[pipeline-training<br/>retrain]
         retrain --> registry[model_registry<br/>evaluate / promote]
     end
-    airflow["§3 airflow<br/>(orchestrates the row above)"] -.-> collect
+    run["§3 retrain<br/>(the training run: the row above, in order)"] -.-> collect
 
     registry --> planner[("planning-service<br/>scores with the promoted model")]
 
@@ -176,9 +176,7 @@ from its cache.
 |---|---|---|
 | [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.14-slim` | Jupyter and scikit-learn over `wingtip`'s own list, for notebooks 01–03 and 08, and nothing else: the PyTorch, TensorFlow, Spark and sentence-transformers comparison notebooks, and the JDK and CUDA-free torch wheel they needed, went on 2026-11-06, since only scikit-learn reaches a pilot. Carries no source; compose bind-mounts the checkout. |
 | [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `python:3.14-slim` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
-| [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.14-slim` | Adds scikit-learn/joblib on top. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
-| [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:3.3.1-python3.13` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
-| [`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) | `apache/airflow:3.3.1-python3.13` | The AWS-hosted counterpart: `apache-airflow-providers-amazon` instead of `-docker`, and it `COPY`s the AWS DAG and `src/` in rather than relying on a bind mount that Fargate has no way to provide. See [Section 3](#the-same-dag-twice-local-and-aws). |
+| [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.14-slim` | Adds scikit-learn/joblib on top, so it can run every stage: the training run (`python -m wingtip.pipeline run`, compose's `retrain`) runs in it. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
 | [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.14-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely), and the chart model's scikit-learn, pinned to the training image's. Bind-mounts the repo, so a `src/wingtip` edit needs a restart, not a rebuild. |
 | [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:26-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
 | [`nav-log-agent/Dockerfile`](../nav-log-agent/Dockerfile) / [`crewai-agent/Dockerfile`](../crewai-agent/Dockerfile) | `python:3.14-slim` (crewai-agent: `python:3.13-slim`, as crewai requires <3.14) | Both set `PYTHONPATH=/workspace/src` so `import wingtip...` resolves inside the container without installing `wingtip` as a package — the bind-mounted repo is just put on the path directly. `nav-log-agent` also installs the CPU-only PyTorch wheel before its requirements, for the reason `Dockerfile.ml` does (see [the disk lesson](#the-disk-lesson)). |
@@ -188,18 +186,17 @@ from its cache.
 A Dockerfile is a recipe; an image is the baked result sitting on your
 disk. `docker images` on a working copy of this repo shows two kinds.
 
-**The eight built from this repo**, named after the project directory
+**The ones built from this repo**, named after the project
 (`wingtip-webapp`, `wingtip-ml`, and so on). Only three of them run the application — `webapp`,
 `planning-service` and the database's own image below;
-the rest exist for building, training, orchestrating or testing.
+the rest exist for building, training or testing.
 
 **The ones pulled, not built.** These look like clutter and are not;
 deleting one only forces a re-download on the next build. `python:3.14-slim`
-is the base for most of the eight above, stored once, which is why image
+is the base for most of those above, stored once, which is why image
 sizes are not additive. `node:26-slim` and `maven:...` are build-only and
 never ship. `pgvector/pgvector` is the database. `postgres` and
-`testcontainers/ryuk` are started by the JUnit suite ([Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)),
-and `golang:1.25-alpine` builds the Lambda ([Section 7](#7-infrastructure-as-code-cloudformation)).
+`testcontainers/ryuk` are started by the JUnit suite ([Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)).
 Intermediate build stages such as `eclipse-temurin:25-jre` do not appear
 in the list at all under the containerd image store.
 
@@ -275,7 +272,7 @@ flowchart LR
     evaluate -.->|loses| stop([stays candidate-only])
 ```
 
-This is the exact shape Section 3's Airflow DAG automates, task for task.
+This is the exact shape Section 3's training run automates, stage for stage.
 
 ### Two ways to find a checkpoint, and why the second one exists
 
@@ -443,105 +440,61 @@ Notice this module has **zero third-party dependencies** — no pandas, no
 scikit-learn, just `json`/`shutil`/`pathlib` from the standard library.
 That's deliberate: `evaluate`/`promote` are pure bookkeeping (compare two
 numbers, copy two files), not real computation, so they don't need a
-heavy environment — which is exactly why they can run in-process inside
-Airflow itself rather than needing their own container (next section).
+heavy environment — the planner imports this module too, to report
+the model serving, without pandas or scikit-learn of its own.
 
 ---
 
-## 3. Orchestration with Airflow
+## 3. Running the pipeline
 
-A **DAG** (Directed Acyclic Graph) is just a set of tasks with dependency
-edges between them, and no cycles. Airflow's job is to run each task, in
-dependency order, and give you retries/logging/scheduling/a UI for free.
-Open [`airflow/dags/wingtip_pipeline_dag.py`](../airflow/dags/wingtip_pipeline_dag.py):
+The five stages run in order, every time, from one command:
 
-```python
-collect >> feature_engineer >> retrain >> evaluate >> promote()
+```bash
+docker compose run --rm pipeline-training run    # python -m wingtip.pipeline run
 ```
 
-That `>>` operator *is* the dependency graph — "run `feature_engineer`
-only after `collect` succeeds," and so on down the chain. That's the
-entire DAG structure; everything else in the file is building the task
-objects that go on either side of those `>>`s.
+Open `run()` in [`src/wingtip/pipeline.py`](../src/wingtip/pipeline.py).
+It is a list of stages per model -- the landmark model's
+`landmarks_ready`, `collect`, `feature_engineer`, `retrain`, `evaluate`,
+`promote`, then the chart model's `chart_retrain`, `chart_evaluate`,
+`chart_promote` -- run one after another. Three rules carry the
+weight:
 
-**Operators** are Airflow's unit of "how a task actually runs":
-`DockerOperator` launches a task as its own Docker container;
-`PythonOperator`/the `@task` decorator runs a task as a plain Python
-function inside the Airflow worker itself; `ShortCircuitOperator` is a
-`PythonOperator` variant that stops the whole downstream chain if its
-callable returns falsy — that's exactly `evaluate` here: if the candidate
-model doesn't beat the current one, `promote()` never even runs.
+- **A stage with nothing to do skips the rest of its branch.** Too few
+  ratings, or a candidate that does not beat the model serving
+  (`model_registry.evaluate()` false): promote never runs, the promoted
+  model keeps serving, and the run is still a success.
+- **A stage that fails fails its branch, not the other model's.** The
+  run carries on to the chart model and ends "failed".
+- **One run at a time.** `evaluate` reads the candidate and `promote`
+  copies it later, from one fixed place; a second run's `retrain` in
+  between would promote a model that never passed the gate. A lock file
+  beside the status file makes a second run wait for the first.
 
-**Why `Collect`/`Feature-Engineer`/`Retrain` launch as separate
-*containers*, not Python functions inside Airflow itself:** because on
-AWS, they won't be Airflow-hosted compute at all — they'll be SageMaker
-Processing/Training Jobs, run by SageMaker's own infrastructure, with
-Airflow only responsible for *starting* them and waiting for a result.
-`DockerOperator` is the local stand-in for that same separation of
-concerns: Airflow orchestrates, something else does the actual compute.
-Look at `_docker_task()` in the DAG file — it talks to the **host's**
-Docker daemon over a mounted socket
-(`docker_url="unix://var/run/docker.sock"`, and that socket is bind-mounted
-into the `airflow` container in `docker-compose.yml`), which is what lets a
-process running *inside* a container launch a sibling container next to
-it, rather than a nested one inside itself.
+As it goes, the run writes each stage's state to `data/models/run.json`.
+That file is how the developer console follows it: the console's
+Retrain asks the planner (`POST /api/retrain`), which asks the
+dev-services sidecar -- the one process holding the Docker socket -- to
+start compose's `retrain` container, and `/api/status` reads the file
+beside the container's state.
 
-One sharp edge worth understanding, not just copying: `DockerOperator`'s
-mounts are resolved by the **host's** Docker daemon, not by paths as seen
-from inside the `airflow` container. `PROJECT_HOST_PATH` (an env var
-Compose passes through as `${PWD}`) exists solely to give the DAG the
-*host's* real filesystem path to this project, since a path *inside* the
-`airflow` container means nothing to the host daemon receiving the mount
-request. (The DAGs and `src` themselves are baked into the Airflow image at
-`/opt/project`, not read from the repo: that container holds the host's
-Docker socket, and the repo is writable from most other containers.)
+**Why not an orchestrator.** This ran as an Apache Airflow DAG until
+2026-11-06. The DAG had no schedule: it was started by hand, from the
+same Retrain button. For that, the stack ran Airflow's scheduler, web
+server and metadata database, and two images of its own (one with
+`DockerOperator` launching the pipeline images as sibling containers
+over the host's Docker socket, one launching SageMaker jobs for AWS).
+Nine functions in a fixed order do not need a scheduler; a plain
+function and a container give the same order, the same promotion gate
+and the same one-at-a-time rule, with nothing to run between runs. An
+orchestrator earns its place when there is a schedule, fan-out, retries
+across machines or many pipelines to watch; reach for one then.
 
-### The same DAG, twice: local and AWS
-
-There are two DAG files, and the reason is worth understanding because
-it's a constraint you'll hit any time an orchestrator moves to managed
-infrastructure.
-
-[`wingtip_pipeline_dag.py`](../airflow/dags/wingtip_pipeline_dag.py) is the local
-one described above: `DockerOperator` launching sibling containers over
-the host's Docker socket. On Fargate there *is* no host Docker socket to
-mount and no sibling containers to launch — that whole mechanism is a
-local-development affordance, not something that ports.
-
-[`wingtip_pipeline_aws_dag.py`](../airflow/dags/wingtip_pipeline_aws_dag.py) is
-the AWS counterpart. Same five tasks, same order, same
-`ShortCircuitOperator` gate on Evaluate — but Collect/Feature-Engineer
-become `SageMakerProcessingOperator` jobs and Retrain becomes a
-`SageMakerTrainingOperator` job. Airflow's role shrinks to exactly what it
-should be on AWS: submit the job, poll for completion, move on. The
-compute happens on SageMaker's infrastructure, not Airflow's.
-
-Three details in that file worth calling out, because each is a real
-constraint rather than a style choice:
-
-- **Processing Jobs let you override the container's entrypoint and
-  arguments; Training Jobs don't.** `AppSpecification.ContainerEntrypoint`
-  /`ContainerArguments` exist for Processing, so Collect and
-  Feature-Engineer pass `collect` / `engineer-features` explicitly. A
-  Training Job just runs the image's own `ENTRYPOINT`/`CMD` unchanged —
-  which is exactly why [`docker/Dockerfile.training`](../docker/Dockerfile.training)
-  carries `CMD ["retrain"]`. The Dockerfile has that line *because of* how
-  SageMaker invokes it.
-- **Configuration comes from Airflow Variables, not hardcoded values.**
-  The S3 bucket, the job role ARN, and the two image URIs are per-account
-  facts a DAG file shouldn't contain, so they're read via
-  `Variable.get(...)` and set once after deploy.
-- **Evaluate/Promote stay in-process**, exactly as locally, for the same
-  reason: `wingtip.model_registry` is pure standard library, so there's no
-  compute to hand off to anything.
-
-Because the two DAGs can't coexist (the local one would fail to parse on
-Fargate — it reads `PROJECT_HOST_PATH`, which doesn't exist there),
-[`docker/Dockerfile.airflow.aws`](../docker/Dockerfile.airflow.aws) bakes
-in *only* the AWS DAG plus `apache-airflow-providers-amazon`, while the
-local [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) relies
-on the Compose bind mount for its own. Two images, one per environment,
-rather than one image with a runtime branch.
+`pipeline-processing` and `pipeline-training` stay separate images, and
+each stage still runs alone (`docker compose run --rm pipeline-processing
+collect`): the split mirrors SageMaker's Processing and Training Jobs,
+which is why `retrain()` still reads `SM_CHANNEL_*` and `SM_MODEL_DIR`
+when they are set.
 
 ---
 
@@ -978,15 +931,6 @@ problem you'll meet in any real deployment
   first-deploy failure, and the error message rarely says "PassRole"
   plainly.
 
-The Go Lambda ([`infra/lambda-retrain-trigger/main.go`](../infra/lambda-retrain-trigger/main.go))
-is no longer deployed — it triggered Airflow, which stays on the owner's
-machine — but it is still a small, complete example of the standard
-Lambda shape: a `handler` function with the signature Lambda expects,
-registered via `lambda.Start(handler)` in `main()`. Worth reading end to
-end — at ~120 lines it's short enough to see the whole request lifecycle:
-parse the incoming event, fetch a secret from Secrets Manager, make an
-outbound HTTP call, shape a response.
-
 ---
 
 ## 8. What gets tested, and what deliberately doesn't
@@ -1074,8 +1018,10 @@ how this repo itself was actually built):
    around them (see [Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)).
 4. **Put those functions behind Docker**, one image per differently-shaped
    compute need (not one giant image).
-5. **Add an orchestrator** (Airflow) once you have more than one manual
-   step to sequence.
+5. **Chain them in one entry point** (`python -m wingtip.pipeline run`),
+   and add an orchestrator only when there is a schedule or fan-out to
+   manage -- this repo ran Airflow for a pipeline that had neither, and
+   took it out.
 6. **Add the serving layer** — a thin inference API first, then whatever
    calls it.
 7. **Add the AI/agent layer last**, once the deterministic parts it leans
