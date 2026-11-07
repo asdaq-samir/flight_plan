@@ -7,7 +7,7 @@ import Segmented from "./Segmented";
 import { Switch } from "./ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
-import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapEngine, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { USGS_URL } from "../lib/map/OverlayTiles";
 import { useGoogleSession } from "../lib/map/googleSession";
@@ -16,7 +16,8 @@ import { tileUrl } from "../lib/map/tiles";
 import { cn } from "../lib/utils";
 import { GROUP_HEADING, TEXT } from "../lib/text";
 import { chartQuery, googleMapsQuery } from "../lib/queryClient";
-import { useLayerAges } from "../lib/map/layerAges";
+import { useDataCycles, useLayerAges } from "../lib/map/layerAges";
+import { cycleWarning } from "../lib/dataCycles";
 import { keepingAvailable } from "../lib/map/keepRoute";
 import { ALERT_MODES, useAlertMode, type AlertMode } from "../lib/alertMode";
 
@@ -50,6 +51,10 @@ export default function MapSettings() {
   const { data: chart } = useQuery(chartQuery);
   // How old each weather layer's data is, beside where it comes from.
   const ages = useLayerAges();
+  // The edition drawn past its 56-day cycle, said under the Charts row
+  // (the engine's data_cycle; lib/dataCycles): still drawn, never hidden.
+  const chartsCycle = useDataCycles().find(c => c.key === "charts");
+  const chartsWarning = chartsCycle ? cycleWarning(chartsCycle) : null;
   const sec = prefs.base === "sec";
   const [alertMode, setAlertMode] = useAlertMode();
   return (
@@ -153,6 +158,16 @@ export default function MapSettings() {
             testId="chart-night-select" options={[{ value: "normal", label: "Normal" }, { value: "dimmed", label: "Dimmed" }]}
           />
         </ListRow>
+        {/* What draws the map, for the owner to compare on the phone (the
+            MapLibre spike, 2026-11-06): Leaflet as it has been, or one
+            WebGL map with the chart, the airspace, the route and own ship
+            in it (lib/map/gl). Two choices, segmented. */}
+        <ListRow title="Map Engine">
+          <Segmented
+            label="Map engine" value={prefs.mapEngine} onChange={v => prefs.setMapEngine(v as MapEngine)}
+            testId="map-engine-select" options={[{ value: "leaflet", label: "Leaflet" }, { value: "maplibre", label: "MapLibre" }]}
+          />
+        </ListRow>
         {/* The chart in bright sunlight (lib/sunlight): from the phone's
             light sensor where the browser has one, or by hand. */}
         <ListRow title="Sunlight">
@@ -197,7 +212,10 @@ export default function MapSettings() {
           colours and the TFRs as the planner fetched them, the traffic as
           the map last heard it. */}
       <ListGroup title="Sources">
-        <ListRow title="Charts" value={<span className="text-foreground">{chart ? `FAA, ${editionOf(chart.chart_cycle)}` : "FAA"}</span>} data-testid="chart-edition" />
+        <ListRow
+          title="Charts" value={<span className="text-foreground">{chart ? `FAA, ${editionOf(chart.chart_cycle)}` : "FAA"}</span>} data-testid="chart-edition"
+          description={chartsWarning ? <span className={cn("text-destructive-ink", TEXT.detail)} data-testid="chart-edition-out-of-date">{chartsWarning}</span> : undefined}
+        />
         <ListRow title="METARs" value={<span className="text-foreground">{ages.metars ? `aviationweather.gov · ${ages.metars}` : "aviationweather.gov"}</span>} data-testid="metars-age" />
         <ListRow title="TFRs" value={<span className="text-foreground">{ages.tfrs ? `tfr.faa.gov · ${ages.tfrs}` : "tfr.faa.gov"}</span>} data-testid="tfrs-age" />
         <ListRow

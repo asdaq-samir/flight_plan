@@ -1,5 +1,7 @@
 """app.swim: SWIM's STDDS terminal radar messages read into wingtip.traffic's
 airplanes, from a message in the feed's own shape (TATrackAndFlightPlan)."""
+from wingtip.config import get_settings
+
 from app import swim
 
 MESSAGE = (
@@ -39,8 +41,10 @@ def test_each_feed_is_off_without_its_settings(monkeypatch):
     for name in (*swim.SETTINGS, "SWIM_VPN_STDDS", "SWIM_QUEUE_STDDS", "SWIM_VPN_FNS", "SWIM_QUEUE_FNS"):
         monkeypatch.setenv(name, "set")
     monkeypatch.delenv("SWIM_QUEUE_FNS")
+    get_settings.cache_clear()
     assert swim.configured("STDDS") and not swim.configured("FNS")
     monkeypatch.delenv("SWIM_PASSWORD")
+    get_settings.cache_clear()
     assert not swim.configured("STDDS")
 
 
@@ -100,8 +104,10 @@ def test_tfms_flight_plans_go_to_the_filed_routes_and_the_feed_is_off_without_it
     for name in (*swim.SETTINGS, "SWIM_VPN_TFMS"):
         monkeypatch.setenv(name, "set")
     monkeypatch.delenv("SWIM_QUEUE_TFMS", raising=False)
+    get_settings.cache_clear()
     assert not swim.configured("TFMS")
     monkeypatch.setenv("SWIM_QUEUE_TFMS", "set")
+    get_settings.cache_clear()
     assert swim.configured("TFMS")
 
 
@@ -109,6 +115,7 @@ def test_a_feed_on_another_broker_connects_there(monkeypatch):
     monkeypatch.setenv("SWIM_HOST", "tcps://ems2.swim.faa.gov:55443")
     monkeypatch.delenv("SWIM_HOST_FNS", raising=False)
     monkeypatch.setenv("SWIM_HOST_TFMS", "tcps://ems1.swim.faa.gov:55443")
+    get_settings.cache_clear()
     assert swim._host("TFMS") == "tcps://ems1.swim.faa.gov:55443"
     assert swim._host("FNS") == "tcps://ems2.swim.faa.gov:55443"
 
@@ -145,7 +152,7 @@ def test_the_reader_imports_nothing_of_the_planners():
     # A spawned process starts by importing it: none of wingtip or pandas.
     import subprocess
     import sys
-    code = "import sys, app.swim_reader; print(sorted(m for m in sys.modules if m.split('.')[0] in ('vfr', 'pandas', 'numpy')))"
+    code = "import sys, app.swim_reader; print(sorted(m for m in sys.modules if m.split('.')[0] in ('wingtip', 'pandas', 'numpy')))"
     assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "[]"
 
 

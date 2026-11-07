@@ -23,7 +23,7 @@ import { TEXT } from "../text";
  *  scatter over every city's airspace. */
 const FROM_ZOOM = 10;
 
-type Waypoint = { ident: string; lat: number; lon: number; description?: string | null };
+export type Waypoint = { ident: string; lat: number; lon: number; description?: string | null };
 
 /**
  * The chart's VFR waypoints (VPBNG), from zoom 10 in, drawn as the GPS
@@ -110,7 +110,7 @@ function WaypointMarks({ waypoints }: { waypoints: Waypoint[] }) {
  *  (2026-10-30). No name of its own: what it is beside its ident, and where
  *  it is on a line of its own (the planner's wingtip.places) -- on one line the
  *  card ran the screen's width. */
-function WaypointCard({ waypoint: w }: { waypoint: Waypoint }) {
+export function WaypointCard({ waypoint: w }: { waypoint: Waypoint }) {
   const stations = usePointActions(s => s.stations);
   const frd = fixRadialDistance(w, stations);
   return (

@@ -383,6 +383,9 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           if (id.includes("node_modules/leaflet/")) return "leaflet";
+          // The MapLibre spike's engine (lib/map/gl), loaded only once a
+          // pilot picks it in the map's settings.
+          if (id.includes("node_modules/maplibre-gl/")) return "maplibre";
           // TanStack's query client alone: its table (the nav log's and the
           // kneeboard's, both lazy) stays with them, out of the first load.
           if (/node_modules\/(react|react-dom|react-router|react-router-dom|@tanstack\/(react-query|query-core)|scheduler)\//.test(id)) return "react";

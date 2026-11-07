@@ -26,6 +26,12 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+      # rustup's tools on the PATH wherever they are: GitHub's macOS image
+      # has them already; the Mac mini's runner keeps them in ~/.cargo/bin,
+      # which its service PATH did not carry (rustup: command not found,
+      # 2026-11-07).
+      - name: rustup on the PATH
+        run: '[ -d "$HOME/.cargo/bin" ] && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH" || true'
       # The engine's framework as the last run that built this engine left
       # it: the three Apple targets took 148 s of a 284 s job (run
       # 42110145019), and the engine changes far less often than the app.
