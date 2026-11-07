@@ -171,3 +171,21 @@ def test_the_reader_ends_when_the_planner_does():
     wanted_out.close()
     process.join(timeout=30)
     assert process.exitcode == 0
+
+
+def test_a_followed_airplane_is_found_by_its_address_in_either_case_and_only_there():
+    names = swim.swim_reader._names_one
+    assert names(MESSAGE, {"a3c858"}) and names(MESSAGE, {"a6ed61"})
+    assert not names(MESSAGE, {"abcdef"}) and not names(MESSAGE, set())
+    # The address in another field is not a track of it.
+    assert not names("<acid>A3C858</acid>", {"a3c858"})
+    assert names("<acAddress> a3c858 </acAddress>", {"a3c858"})
+
+
+def test_only_tfms_messages_with_a_route_of_flight_go_to_the_planner():
+    worth = swim.swim_reader.worth_sending
+    assert worth("TFMS", b'<nxcm:newRouteOfFlight legacyFormat="KDLH V2 C81"/>')
+    assert worth("TFMS", "<routeOfFlight/>")
+    assert not worth("TFMS", b"<fdm:trackInformation><nxcm:qualifiedAircraftId/></fdm:trackInformation>")
+    # Every NOTAM goes on.
+    assert worth("FNS", "!ORD 10/123 ORD RWY 10L/28R CLSD")
