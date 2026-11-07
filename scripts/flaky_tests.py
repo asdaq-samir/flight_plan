@@ -32,6 +32,17 @@ DATA = re.compile(r"<!-- flaky-tests (\{.*\}) -->", re.S)
 SUITES = {"root": "Python (tests/)", "planning-service": "Python (planning-service)", "web": "Web (vitest)", "e2e": "Browser (Playwright)"}
 
 
+def clean(name: str) -> str:
+    """A test's name made safe to print in the issue. Names come from the
+    tests' own code, a pull request's included, and the browser lists of
+    other runs are read too: a backtick would end the code span the name is
+    shown in (and with it, links, images and @mentions would render), and
+    `-->` would end the hidden comment that holds the list. So no backticks,
+    angle brackets or control characters, and no more than 300 characters."""
+    name = re.sub(r"[`<>\x00-\x1f\x7f]+", " ", name)
+    return re.sub(r" {2,}", " ", name).strip()[:300]
+
+
 def e2e(results: Path, out: Path) -> None:
     flaky = []
 
@@ -67,7 +78,7 @@ def outcomes(runs: Path) -> dict:
             if case.find("skipped") is not None:
                 continue
             failed = case.find("failure") is not None or case.find("error") is not None
-            seen[(path.parent.name, f"{case.get('classname')}::{case.get('name')}")]["failed" if failed else "passed"] += 1
+            seen[(path.parent.name, clean(f"{case.get('classname')}::{case.get('name')}"))]["failed" if failed else "passed"] += 1
     for path in sorted(runs.glob("web/run-*.json")):
         try:
             report = json.loads(path.read_text())
@@ -78,7 +89,7 @@ def outcomes(runs: Path) -> dict:
             file = result.get("name", "").rsplit("/web/", 1)[-1]
             for test in result.get("assertionResults", []):
                 if test.get("status") in ("passed", "failed"):
-                    seen[("web", f"{file} › {test.get('fullName')}")][test["status"]] += 1
+                    seen[("web", clean(f"{file} › {test.get('fullName')}"))][test["status"]] += 1
     return seen
 
 
@@ -90,8 +101,8 @@ def report(runs: Path, dry_run: bool) -> None:
             tonight[f"{suite}|{test}"] = f"failed {counts['failed']} of {counts['passed'] + counts['failed']}"
     for path in sorted(runs.glob("e2e/**/*.txt")):
         for line in path.read_text().splitlines():
-            if line.strip():
-                tonight[f"e2e|{line.strip()}"] = "passed on its retry"
+            if clean(line):
+                tonight[f"e2e|{clean(line)}"] = "passed on its retry"
 
     issue = find_issue()
     old = {}
