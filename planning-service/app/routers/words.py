@@ -425,11 +425,13 @@ def _debrief_sources(d: Debrief, t: DebriefTolerances) -> list[Source]:
     return out
 
 
-def _category(ceiling_ft: float | None, visibility_sm: float | None) -> str | None:
+def _category(ceiling_ft: float | None, visibility_sm: float | None, ceiling_unknown: bool = False) -> str | None:
     """The flight category of a ceiling and visibility, as the engine sets
     it from the AWC's lines (wingtip_engine::metar::flight_category, the
-    one copy the web and the phones share); None with neither."""
-    return engine("flight_category", ceiling_ft=ceiling_ft, visibility_sm=visibility_sm)
+    one copy the web and the phones share); None with neither, or with a
+    ceiling forecast with no height ("OVC///") the visibility does not
+    settle (14 CFR 1.1: not known, not none)."""
+    return engine("flight_category", ceiling_ft=ceiling_ft, visibility_sm=visibility_sm, ceiling_unknown=ceiling_unknown)
 
 
 def _hazard_key(h: Hazard) -> str:
@@ -477,7 +479,8 @@ def briefing_changes(then: Briefing, now: Briefing) -> list[Source]:
         # The forecast for the flight's time there where both readings
         # placed the station; else the worst over the flight.
         at = lambda x: (x.eta_ceiling_ft, x.eta_visibility_sm) if x.eta and before.eta else (x.ceiling_ft, x.visibility_sm)  # noqa: E731
-        was, is_ = _category(*at(before)), _category(*at(s))
+        unknown = lambda x: x.eta_ceiling_unknown if x.eta and before.eta else x.ceiling_unknown  # noqa: E731
+        was, is_ = _category(*at(before), unknown(before)), _category(*at(s), unknown(s))
         if was != is_:
             out.append(Source(id=f"taf:{s.icaoId}", label=f"{s.icaoId} TAF, {was or 'none'} to {is_ or 'none'}",
                               text=f"Was: {ceiling_and_visibility(*at(before))}\n{before.raw or ''}\n"

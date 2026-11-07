@@ -12,7 +12,7 @@ const zulu = (ms: number) => zuluTime(new Date(ms));
 
 const VFR_METAR: Metar = {
   raw: "KDLH 291753Z 27010KT 10SM FEW050 12/04 A3001", observed_at: "2026-10-29T17:53:00Z", flight_category: "VFR",
-  ceiling_ft: null, visibility_sm: 10, wind_dir_true_deg: 270, wind_speed_kt: 10, wind_gust_kt: null,
+  ceiling_ft: null, ceiling_unknown: false, visibility_sm: 10, wind_dir_true_deg: 270, wind_speed_kt: 10, wind_gust_kt: null,
   altimeter_in_hg: 30.01, temp_c: 12, dewpoint_c: 4,
 };
 

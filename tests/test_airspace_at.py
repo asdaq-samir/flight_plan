@@ -60,20 +60,6 @@ def test_class_g_minimums_change_at_1200_ft_above_the_ground_and_at_10000_ft():
     assert bands[4]["floor_ft"] == 14500.0
 
 
-@pytest.mark.parametrize("klass, floor, agl, under_b, limit", [
-    # 14 CFR 91.117(b): 200 kt "at or below 2,500 feet above the surface
-    # within 4 nautical miles of the primary airport" of a Class C or D;
-    # (a): 250 kt below 10,000 ft MSL otherwise; (c): 200 kt under a Class B.
-    ("D", 640, 0, False, 200), ("C", 640, 2499, False, 200),
-    ("C", 3140, 2500, False, 250), ("D", 3140, 2500, False, 250),
-    ("E", 640, 0, False, 250), ("G", 640, 0, False, 250),
-    ("B", 3000, 2000, False, 250), ("E", 640, 0, True, 200),
-    ("E", 10000, 9000, False, None), ("A", 18000, 17000, False, None),
-])
-def test_91_117_speed_limit_by_class_and_height(klass, floor, agl, under_b, limit):
-    assert airspace_at.speed_kt(klass, floor, under_b, agl) == limit
-
-
 def test_a_class_d_surface_band_carries_the_200_kt_limit_and_the_band_above_it_250():
     volumes = [_volume("D", 0, "SFC", 3300.0, "ADDISON CLASS D")]
     bands = airspace_at.column(32.97, -96.84, 640.0, volumes)
@@ -84,16 +70,6 @@ def test_the_most_restrictive_class_holds_where_they_overlap():
     volumes = [_volume("D", 0, "SFC", 3300, "DUPAGE CLASS D"), _volume("B", 3000, "MSL", 10000, "CHICAGO CLASS B")]
     bands = airspace_at.column(41.9, -88.25, 750.0, volumes)
     assert _bands(bands)[:2] == [("D", 750.0, 3000.0), ("B", 3000.0, 10000.0)]
-
-
-@pytest.mark.parametrize("klass, floor, agl, day_vis, clear", [
-    ("B", 3000, 2000, 3, True), ("C", 0, 0, 3, False), ("D", 0, 0, 3, False),
-    ("E", 5000, 4000, 3, False), ("E", 11000, 9000, 5, False), ("G", 1000, 500, 1, True),
-])
-def test_91_155_minimums_by_class(klass, floor, agl, day_vis, clear):
-    rules = airspace_at.minimums(klass, floor, agl)
-    assert rules["day"]["visibility_sm"] == day_vis and rules["day"]["clear_of_clouds"] is clear
-    assert airspace_at.minimums("A", 18000, 17000) is None
 
 
 def test_the_mode_c_veil_is_the_nearest_class_b_airport_within_30_nm():

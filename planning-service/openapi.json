@@ -6157,6 +6157,14 @@
       },
       "Forecast": {
         "properties": {
+          "ceiling_unknown_at": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Ceiling Unknown At",
+            "type": "array"
+          },
           "min_ceiling_ft": {
             "anyOf": [
               {
@@ -6220,6 +6228,11 @@
             ],
             "title": "Ceiling Ft"
           },
+          "ceiling_unknown": {
+            "default": false,
+            "title": "Ceiling Unknown",
+            "type": "boolean"
+          },
           "eta": {
             "anyOf": [
               {
@@ -6241,6 +6254,11 @@
               }
             ],
             "title": "Eta Ceiling Ft"
+          },
+          "eta_ceiling_unknown": {
+            "default": false,
+            "title": "Eta Ceiling Unknown",
+            "type": "boolean"
           },
           "eta_visibility_sm": {
             "anyOf": [
@@ -8381,6 +8399,11 @@
               }
             ],
             "title": "Ceiling Ft"
+          },
+          "ceiling_unknown": {
+            "default": false,
+            "title": "Ceiling Unknown",
+            "type": "boolean"
           },
           "dewpoint_c": {
             "anyOf": [
