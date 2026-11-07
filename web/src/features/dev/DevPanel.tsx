@@ -776,11 +776,11 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
         elsewhere: {
           title: "Elsewhere in the stack",
           content: (
-            // docker-compose publishes the local ones on 127.0.0.1; its lan
-            // overlay publishes them to the network, Jupyter with no
-            // password, which is why the file is to be read first.
+            // docker-compose publishes the local ones on 127.0.0.1;
+            // DEV_PUBLISH_ADDRESS publishes them to the network, Jupyter
+            // with no password, which is why the file is to be read first.
             <ListGroup
-              footer={<>Each in a new tab. Those on this machine's ports open only where the stack runs; <span className="font-mono">docker-compose.lan.yml</span> publishes them (read it first).</>}
+              footer={<>Each in a new tab. Those on this machine's ports open only where the stack runs; <span className="font-mono">DEV_PUBLISH_ADDRESS</span> in docker-compose.yml publishes them (read it first).</>}
             >
               {shown.map(l => <StackLink key={l.href} link={l} />)}
             </ListGroup>

@@ -8,7 +8,7 @@ description: Find and prove speed problems in the planner the way they show up o
 Profile before guessing. Every speed claim needs a before number, an after number and the method behind both.
 
 ## Method
-- **Measure the production build,** not vite's dev server. The web-dev overlay serves `web/dist`, which `web-build` keeps current.
+- **Measure the production build,** not vite's dev server. The web-dev setup (`WEB_DIST_MOUNT`, docker-compose.yml) serves `web/dist`, which `web-build` keeps current.
 - **Throttle the CPU to look like a phone:** CDP `Emulation.setCPUThrottlingRate` at 4 for interactions, 6 for a cold load. This Mac is a 2016 i7 in Docker, so at 4x it is slower than an iPhone. Compare runs with each other, not with a phone.
 - **Take the median of five or six runs.** Single samples of the same build spread by about 20%, which is enough to invent an improvement that isn't there.
 - **Keep it quiet:** nothing heavy beside the measurement, such as a chart re-render, an image build or the test suite.

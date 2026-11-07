@@ -43,14 +43,14 @@ To rewrite `springboot-app/openapi.json`, run the same command with `-e WRITE_OP
 
 ## 3. The running stack
 
-The stack runs with three compose files. Name the services, so that only these start:
+The stack is `docker-compose.yml` alone; the phone (`PUBLISH_ADDRESS`, `PHONE_BASE_URL`, `MAILPIT_UI_AUTH`) and front-end work (`COMPOSE_PROFILES=web-dev`, `WEB_DIST_MOUNT`) are settings in the main checkout's `.env`, so run it from `~/Developer/wingtip`, where compose reads that `.env`:
 ```sh
-docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compose.web-dev.yml up -d webapp planning-service web-build db mailpit dev-services
+docker compose up -d
 ```
-- Pass all three `-f` files on every `up` that touches the webapp. Without `web-dev` it serves the bundle baked into its image, so a fix seems "not to work". Without `phone`, the iPhone loses the app. To check what the running webapp was started with: `docker inspect wingtip-webapp-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'`.
+- From another directory (a worktree), pass `--env-file ~/Developer/wingtip/.env -p wingtip`, or the stack comes up on loopback with the image's bundle: the iPhone loses the app and a web fix seems "not to work". To check what the running webapp has: `docker port wingtip-webapp-1` (0.0.0.0 for the phone) and `docker inspect wingtip-webapp-1 --format '{{range .Mounts}}{{.Destination}} {{end}}'` (`/app/static/app` for web/dist).
 - **Web change:** `web-build` (vite `--watch`) rewrites `web/dist` about 2 s after a save, and the webapp serves it on the next request. Nothing needs restarting.
 - **Python change in `src/` or the planner:** run `docker compose restart planning-service`, then wait until `curl -s localhost:8084/` shows `"warm":true`.
-- **Java or dependency change:** run `up -d --build --no-deps <service>` with the same three files. Then wait until `curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app/plan` prints 200, which takes 20 to 30 s after the container starts. Read `docker compose logs --tail=30 <service>` for import errors: a container can show "running" and still fail to import its own code. To prove a service imports what it uses, run `docker compose run --rm --no-deps -T --entrypoint python3 <service> -c "from wingtip import …"` with that service's real list, from `grep -rh "from wingtip import" <service>/app`.
+- **Java or dependency change:** run `docker compose up -d --build --no-deps <service>`. A change to `src/requirements.txt` or `native/` rebuilds wingtip's base image (`docker/Dockerfile.base`, compose's `base` service) first, by itself. Then wait until `curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/app/plan` prints 200, which takes 20 to 30 s after the container starts. Read `docker compose logs --tail=30 <service>` for import errors: a container can show "running" and still fail to import its own code. To prove a service imports what it uses, run `docker compose run --rm --no-deps -T --entrypoint python3 <service> -c "from wingtip import …"` with that service's real list, from `grep -rh "from wingtip import" <service>/app`.
 - **Before building images:** check `df -h /System/Volumes/Data` and run `docker builder prune` when under about 20 GB is free. Docker's VM is capped at 6 GB, so never run a second stack or a heavy job beside the suite: build through `scripts/one-at-a-time.sh` (section 4).
 
 ## 4. Playwright

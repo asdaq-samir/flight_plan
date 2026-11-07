@@ -31,9 +31,43 @@ x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:-}
 
 # Every long-running service below restarts with Docker (restart:
 # unless-stopped): after a reboot, Docker Desktop brings back whatever
-# was running -- the phone overlay's ports included, since it is the
-# same container -- and a service someone stopped stays stopped. The
+# was running -- the phone's ports included, since it is the same
+# container -- and a service someone stopped stays stopped. The
 # pipeline jobs are one-shot and have none.
+#
+# One file for every way the stack runs on a machine of one's own; the
+# phone, the LAN and front-end work used to be overlays of their own
+# (docker-compose.phone.yml, .lan.yml, .web-dev.yml), which every `up`
+# had to name again, and an `up` that forgot one quietly took the phone's
+# ports away or served the image's bundle. They are settings now, read
+# from .env (or the shell), so the stack is whatever .env says it is:
+#
+#   The phone, over the Wi-Fi (https://<this Mac's LAN address>:8443):
+#     PUBLISH_ADDRESS=0.0.0.0     webapp's two ports and the sign-in inbox
+#                                 on every interface, not loopback
+#     PHONE_BASE_URL=https://<this Mac's LAN address>:8443
+#                                 where the emailed sign-in link points
+#     MAILPIT_UI_AUTH=<user>:<password>
+#                                 the inbox's password: it holds sign-in
+#                                 links, the developer's among them
+#     The last two are required once PUBLISH_ADDRESS is set; compose
+#     refuses to start without them. See infra/local-https for the
+#     certificate.
+#   The developer's doors from another device:
+#     DEV_PUBLISH_ADDRESS=0.0.0.0 the planner's port (8084) and Jupyter's
+#                                 (8888), which answer without
+#                                 authentication -- Jupyter runs code --
+#                                 so a network you control, for as long as
+#                                 you need it. The database is never
+#                                 published beyond loopback.
+#   Front-end work without rebuilding the image:
+#     COMPOSE_PROFILES=web-dev    starts web-build (vite --watch into
+#                                 web/dist)
+#     WEB_DIST_MOUNT=/app/static/app
+#                                 and the webapp serves web/dist in place
+#                                 of the bundle in its image
+#
+# Unset, every port is on 127.0.0.1 and the webapp serves its own bundle.
 
 services:
   # wingtip's Python base (docker/Dockerfile.base): Python, wingtip's own
@@ -69,7 +103,7 @@ services:
       # localhost keeps `docker compose up` safe to run on a shared or
       # internet-reachable host without also publishing an
       # unauthenticated Jupyter/DB/service port to it.
-      - "127.0.0.1:8888:8888"
+      - "${DEV_PUBLISH_ADDRESS:-127.0.0.1}:8888:8888"
     volumes:
       - .:/workspace
 
@@ -186,7 +220,7 @@ services:
       additional_contexts:
         wingtip-base: service:base
     ports:
-      - "127.0.0.1:8084:8000"
+      - "${DEV_PUBLISH_ADDRESS:-127.0.0.1}:8084:8000"
     # docker-control as well as the default network: the only service
     # besides dev-services itself that can reach the sidecar.
     networks: [default, docker-control]
@@ -237,15 +271,18 @@ services:
   # signing in possible, so the local stack runs the way a deployment
   # does (SignInOptions' SIGN_IN): writes need a session, the training
   # workspace and the developer console need the developer role
-  # (APP_DEVELOPER_EMAILS below). docker-compose.phone.yml opens the
-  # inbox to the Wi-Fi, behind a password, for signing in on the phone.
+  # (APP_DEVELOPER_EMAILS below). PUBLISH_ADDRESS opens the inbox to the
+  # Wi-Fi, behind MAILPIT_UI_AUTH's password, for signing in on the phone.
   # Set MAIL_HOST and the rest in .env to send real mail instead.
   mailpit:
     restart: unless-stopped
     image: axllent/mailpit:v1.31.3@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
     ports:
-      - "127.0.0.1:8025:8025"
+      - "${PUBLISH_ADDRESS:-127.0.0.1}:8025:8025"
     environment:
+      # The inbox's password, required once PUBLISH_ADDRESS opens it to
+      # the network (the inner :? is read only then); none on loopback.
+      MP_UI_AUTH: ${PUBLISH_ADDRESS:+${MAILPIT_UI_AUTH:?set MAILPIT_UI_AUTH=<user>:<password> in .env -- the inbox holds sign-in links}}
       # The webapp always authenticates to its mail host
       # (application.yml): take whatever it sends, over the plain
       # connection, since nothing leaves this machine.
@@ -257,7 +294,7 @@ services:
       # sign-in link arrives where you read mail. Everything else, the
       # e2e suite's addresses included, stays here. Relaying from the
       # inbox by hand is held to the same addresses, since the inbox is
-      # open to the Wi-Fi in the phone overlay. The From is rewritten to
+      # open to the Wi-Fi for the phone. The From is rewritten to
       # the relay account, which iCloud and most providers require.
       MP_SMTP_RELAY_HOST: ${MAILPIT_RELAY_HOST:-}
       MP_SMTP_RELAY_PORT: ${MAILPIT_RELAY_PORT:-587}
@@ -276,19 +313,24 @@ services:
     build:
       context: .
       dockerfile: springboot-app/Dockerfile
-    # This machine only, like everything else here. A phone on the LAN
-    # adds docker-compose.phone.yml, which publishes these two on every
-    # interface, and the inbox behind a password, and says what that
-    # opens.
+    # This machine only, like everything else here, unless
+    # PUBLISH_ADDRESS (the top of this file) publishes these two on
+    # every interface for a phone on the LAN, and the inbox behind a
+    # password.
     ports:
-      - "127.0.0.1:8080:8080"
+      - "${PUBLISH_ADDRESS:-127.0.0.1}:8080:8080"
       # HTTPS, for a phone on the same Wi-Fi: only answers once
       # infra/local-https/make-certs.sh has written the certificate
       # (see HttpsConnectorConfig); otherwise the port is simply closed.
-      - "127.0.0.1:8443:8443"
+      - "${PUBLISH_ADDRESS:-127.0.0.1}:8443:8443"
     volumes:
       - webapp-cds:/cds
       - ./infra/local-https/certs:/certs:ro
+      # The bundle vite builds into web/dist, served in place of the
+      # image's where WEB_DIST_MOUNT=/app/static/app (the web-dev
+      # profile's web-build keeps it built); otherwise mounted aside,
+      # where the webapp never reads it.
+      - ./web/dist:${WEB_DIST_MOUNT:-/web-dist}:ro
     depends_on:
       db:
         condition: service_healthy
@@ -360,9 +402,11 @@ services:
       # Where the emailed sign-in link points. Required once a mail host
       # is set -- the webapp will not start without it -- because a link
       # built from the request's own Host header points wherever the
-      # caller said. docker-compose.phone.yml points it at this Mac's
-      # LAN address so the link opens on the phone.
-      APP_PUBLIC_BASE_URL: ${APP_PUBLIC_BASE_URL:-http://localhost:8080}
+      # caller said. PHONE_BASE_URL points it at this Mac's LAN address
+      # so the link opens on the phone, and is required once
+      # PUBLISH_ADDRESS publishes the webapp (the :? inside is read
+      # only then).
+      APP_PUBLIC_BASE_URL: ${PHONE_BASE_URL:-${PUBLISH_ADDRESS:+${PHONE_BASE_URL:?set PHONE_BASE_URL=https://<this Mac's LAN address>:8443 in .env}}${APP_PUBLIC_BASE_URL:-http://localhost:8080}}
       # Whose pilot is a developer: the address the e2e suite signs in
       # as (web/e2e/auth.setup.ts), and whichever APP_DEVELOPER_EMAILS in
       # .env adds -- yours, comma-separated.
@@ -387,6 +431,31 @@ services:
       # make-certs.sh writes it with.
       APP_HTTPS_KEYSTORE: ${APP_HTTPS_KEYSTORE:-/certs/webapp.p12}
       APP_HSTS: "false"
+
+  # Front-end work without the image: vite in watch mode keeping web/dist
+  # built as the source changes, which the webapp serves where
+  # WEB_DIST_MOUNT=/app/static/app (above) -- read per request
+  # (APP_STATIC_LOCATION, see WebMvcConfig), so a build is served the
+  # moment vite has written it, no image, no restart. A saved file is
+  # rebuilt in a second or two (`docker compose logs -f web-build` shows
+  # each build). The image build (the bundle, then the jar) and the JVM's
+  # start were the minute and a half between a change and a test. `npm run
+  # types` first when an API schema changed. The image is still what
+  # ships; CI builds its own. Behind the `web-dev` profile:
+  # COMPOSE_PROFILES=web-dev in .env, or `--profile web-dev`.
+  web-build:
+    profiles: ["web-dev"]
+    image: node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072
+    working_dir: /w
+    volumes:
+      - ./web:/w
+    # VITE_KEEP_OUTDIR (read by vite.config.ts): watch mode would
+    # otherwise clear the directory the webapp is serving from at every
+    # rebuild, and a page loading that instant would get nothing.
+    environment:
+      VITE_KEEP_OUTDIR: "1"
+    command: ["npx", "--no-install", "vite", "build", "--watch", "--outDir", "dist"]
+    restart: unless-stopped
 
   # Traces of a request from the webapp down through the planner to every
   # source it asks (aviationweather.gov, the FAA, the USGS),

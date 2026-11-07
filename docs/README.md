@@ -460,7 +460,9 @@ Nothing else to install natively; every service builds its own image.
 data/             raw/processed/labels/aircraft/models — see Appendix for detail
 notebooks/        numbered, run-in-order exploratory notebooks (01-08)
 src/wingtip/          shared Python package — pipeline.py, model_registry.py, navlog.py, altitude.py, etc.
-docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training
+docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training,
+                  and Dockerfile.base, the Python base (wingtip's requirements and its
+                  Rust extension) every image that imports wingtip is built FROM
                   (each including wingtip's own list, src/requirements.txt)
 springboot-app/   Spring Boot API (webapp) — routes, DB, proxies planning-service
 infra/            CloudFormation template and the production server's files
@@ -479,9 +481,12 @@ docker compose up ml                               # Jupyter at :8888 (token "wi
 
 **On a phone, on the same Wi-Fi:** the webapp's ports are on this
 machine's loopback by default, because with no sign-in configured every
-planner write is open to whoever can reach them. `docker-compose.phone.yml`
-publishes webapp alone on every interface, for as long as you are
-testing on a network you trust. `http://<your Mac's address>:8080/app/plan`
+planner write is open to whoever can reach them. `PUBLISH_ADDRESS=0.0.0.0`
+in `.env` publishes webapp (and the sign-in inbox, behind
+`MAILPIT_UI_AUTH`'s password) on every interface, for as long as you are
+testing on a network you trust; `PHONE_BASE_URL` points the emailed
+sign-in link at the phone's address, and compose refuses to start
+without either once the ports are open. `http://<your Mac's address>:8080/app/plan`
 then works for planning, but the two things a pilot wants in the air --
 their own position on the chart, and the route's charts with no
 connection -- the browser grants only to a secure origin. So the webapp
@@ -489,9 +494,22 @@ also listens on HTTPS once it has a certificate:
 
 ```bash
 infra/local-https/make-certs.sh 192.168.1.42   # your Mac's LAN address; writes infra/local-https/certs/
-docker compose -f docker-compose.yml -f docker-compose.phone.yml up -d webapp
-                                               # now also https://192.168.1.42:8443
+cat >> .env <<'EOF'
+PUBLISH_ADDRESS=0.0.0.0
+PHONE_BASE_URL=https://192.168.1.42:8443
+MAILPIT_UI_AUTH=<user>:<password>
+# and, for front-end work, web/dist served as vite rebuilds it:
+COMPOSE_PROFILES=web-dev
+WEB_DIST_MOUNT=/app/static/app
+EOF
+docker compose up -d                           # now also https://192.168.1.42:8443
 ```
+
+The developer console's other doors (the planner's port, Jupyter) stay
+on loopback unless `DEV_PUBLISH_ADDRESS=0.0.0.0` publishes them too;
+both answer without a password, Jupyter runs code, and the database is
+never published. The top of `docker-compose.yml` lists every such
+setting.
 
 Install `certs/ca.pem` on the phone once (the script prints the steps
 for iPhone and Android), then open `https://<address>:8443/app/plan`.
