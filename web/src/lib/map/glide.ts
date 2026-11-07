@@ -6,7 +6,7 @@ import type { Fix } from "./ownShip";
  * (POH figure 3-1), no ring under 500 ft over the ground or slower than
  * 40 kt, and a field in reach where the airplane arrives over it at its
  * pattern height (AC 90-66C's 1,000 ft). The rules and their sources are
- * the shared engine's (native/engine/src/motion/glide.rs), the debrief's
+ * the shared engine's (native/crates/route/src/motion/glide.rs), the debrief's
  * airborne speed with them, asked through lib/engine.
  */
 

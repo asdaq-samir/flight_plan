@@ -1,7 +1,7 @@
 /**
  * Magnetic variation at a point, from the World Magnetic Model (WMM-2025,
  * NOAA NCEI and the British Geological Survey, valid 2025.0 to 2030.0):
- * the shared engine's (native/engine/src/wmm.rs, through lib/engine), the
+ * the shared engine's (native/crates/geo/src/wmm.rs, through lib/engine), the
  * very code the planner's wingtip.magnetic runs for the nav log's legs and the
  * phones run with no signal, so a course the map's ruler gives and a
  * leg's agree. magnetic.test holds it to the declinations NOAA's

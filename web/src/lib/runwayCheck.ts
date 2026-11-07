@@ -7,7 +7,7 @@
  * distances (lib/takeoffLanding) against that runway's length -- the
  * runway lengths and takeoff and landing distances 14 CFR 91.103(b)
  * asks a pilot to know. Worked out by the shared engine
- * (native/engine/src/gonogo/runways.rs, through lib/engine), the very
+ * (native/crates/brief/src/gonogo/runways.rs, through lib/engine), the very
  * code behind the planner's Go / No-Go and the phones'.
  */
 import type { AircraftProfile, Airport, Briefing, Course, Runway, ShortField } from "./api/types";

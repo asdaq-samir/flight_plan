@@ -10,7 +10,7 @@ import type { TrafficAircraft } from "./api/types";
  * inbound, departing, based or just about -- and what: its kind, its
  * height, its operator, an emergency. Each a plain test on an airplane
  * the planner gives (wingtip.traffic), so the list and its tests agree --
- * worked out by the shared engine (native/engine/src/aircraft, through
+ * worked out by the shared engine (native/crates/pilot/src/aircraft, through
  * lib/engine), with their sources there; only the filter's own shape and
  * what is asked of it stay here.
  */

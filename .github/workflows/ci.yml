@@ -112,8 +112,9 @@ jobs:
       # light `ci` profile (the image's is the release one; the sums are
       # the same either way, as nothing here is built for fast maths).
       - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
-      # The engine's own tests, on the shared fixtures the Python reads too.
-      - run: cargo test --profile ci --manifest-path native/Cargo.toml -p wingtip-engine
+      # The engine's own tests, on the shared fixtures the Python reads too:
+      # the facade's and each of its crates' (native/crates).
+      - run: cargo test --profile ci --manifest-path native/Cargo.toml -p wingtip-engine -p wingtip-geo -p wingtip-weather -p wingtip-figures -p wingtip-radio -p wingtip-airspace -p wingtip-wording -p wingtip-brief -p wingtip-route -p wingtip-pilot
       # The web app's copy of the engine (web/src/lib/engine), committed
       # because the web build has no Rust: built again in the script's
       # pinned image, it must be the committed file byte for byte, or the

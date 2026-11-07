@@ -16,7 +16,7 @@ enum Registered {
 
     /// The planner profile for a registered airplane, or nil where the
     /// planner has no figures for its type: the engine's
-    /// `registered_profile` (native/engine/src/aircraft/registry.rs), the
+    /// `registered_profile` (native/crates/pilot/src/aircraft/registry.rs), the
     /// web app's profileOfRegistered.
     static func profile(manufacturer: String?, model: String?, year: Int?) -> String? {
         do {

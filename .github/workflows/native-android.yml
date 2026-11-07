@@ -15,6 +15,7 @@ on:
     paths:
       - android/**
       - native/engine/**
+      - native/crates/**
       - native/ffi/**
       - native/Cargo.*
       - web/src/lib/fixtures/**
@@ -26,6 +27,7 @@ on:
     paths:
       - android/**
       - native/engine/**
+      - native/crates/**
       - native/ffi/**
       - native/Cargo.*
       - web/src/lib/fixtures/**
@@ -78,7 +80,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: android/app/engine
-          key: engine-android-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+          key: engine-android-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
         # wingtip-engine through its C functions (native/ffi), for each
         # ABI, with the runner's own rustup and NDK, where the engine changed.
@@ -91,7 +93,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: android/app/engine
-          key: engine-android-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+          key: engine-android-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The site's host
         id: site
         run: echo "host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")" >> "$GITHUB_OUTPUT"
@@ -139,7 +141,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: android/app/engine
-          key: engine-android-${{ hashFiles('native/engine/**', 'native/ffi/**', 'native/Cargo.*') }}
+          key: engine-android-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
       - name: The engine, for the app
         # wingtip-engine through its C functions (native/ffi), for each
         # ABI, with the runner's own rustup and NDK, where the engine changed.

@@ -9,7 +9,7 @@
  * The findings are the planner's; the decision is the pilot in command's
  * (14 CFR 91.3), and the line says so.
  *
- * Worked out by the shared engine (native/engine/src/gonogo/verdict.rs,
+ * Worked out by the shared engine (native/crates/brief/src/gonogo/verdict.rs,
  * through lib/engine), the very code behind the planner's POST
  * /api/go-no-go and the phones' wt_call: the rules, their words and
  * their sources live there. Only the shapes are made here.

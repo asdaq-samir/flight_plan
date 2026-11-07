@@ -6,7 +6,7 @@ import { normalizeDeg, type LatLon } from "./geo";
  * the airplane is on and the course to fly to the station, the station's
  * Morse identifier, its service volume, and a fix's place off the nearest
  * VOR, as a controller gives it -- the shared engine's
- * (native/engine/src/wording/navaid.rs, through lib/engine), the
+ * (native/crates/wording/src/wording/navaid.rs, through lib/engine), the
  * phones' too. How a direction and a declination are printed stays here.
  */
 

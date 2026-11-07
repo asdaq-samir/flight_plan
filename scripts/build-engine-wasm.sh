@@ -2,8 +2,9 @@
 # Builds the engine's WebAssembly (native/wasm, wingtip-wasm) into
 # web/src/lib/engine/wingtip-engine.wasm, which is committed: the web
 # app's build and CI's web jobs have no Rust. Run it after any change
-# under native/engine or native/wasm, and commit the .wasm with it; CI's
-# `test` job runs it again and fails where the committed file differs.
+# under native/engine, native/crates or native/wasm, and commit the .wasm
+# with it; CI's `test` job runs it again and fails where the committed
+# file differs.
 #
 #   scripts/build-engine-wasm.sh
 #

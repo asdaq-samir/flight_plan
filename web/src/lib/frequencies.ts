@@ -11,7 +11,7 @@ export type FrequencyKind = "tower" | "ground" | "weather" | "approach" | "traff
 /*
  * What each frequency is called and what it is for, which is the CTAF and
  * the kneeboard's list are the shared engine's
- * (native/engine/src/wording/radio.rs, through lib/engine), the iPhone's
+ * (native/crates/wording/src/wording/radio.rs, through lib/engine), the iPhone's
  * same rules; only the frequency's figures are written here (mhzText).
  */
 

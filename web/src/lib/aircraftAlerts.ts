@@ -64,7 +64,7 @@ export interface FiredAlert {
  * for half an hour or ever (parked out of the receivers' hearing); else
  * what was known, as an airplane gone quiet in the pattern has not landed
  * until it is known to have. The shared engine's rule
- * (native/engine/src/motion/alerts.rs), the phone's too.
+ * (native/crates/route/src/motion/alerts.rs), the phone's too.
  */
 export function airborneNow(before: boolean | null, now: FlightStatus): boolean | null {
   return callEngine<boolean | null>("airborne_now", { before, airborne: !!now.airborne, arrived: !!now.arrived, heard_s: now.heard_s ?? null });

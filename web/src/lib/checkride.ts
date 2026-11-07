@@ -6,7 +6,7 @@
  * -- AC 61-65K's samples, their 14 CFR sections and how long each is good
  * for -- are the webapp's (EndorsementKind), sent with the record.
  *
- * The words and the codes are the shared engine's (native/engine/src/
+ * The words and the codes are the shared engine's (native/crates/pilot/src/
  * pilot/endorsements.rs, through lib/engine), as the iPhone app's are.
  */
 import { callEngine } from "./engine/engine";

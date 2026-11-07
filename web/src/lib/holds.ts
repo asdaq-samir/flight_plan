@@ -19,7 +19,7 @@ export interface Hold {
 import { callEngine } from "./engine/engine";
 import { bearing } from "./units";
 
-/** A hold as the engine reads and writes it (native/engine/src/route,
+/** A hold as the engine reads and writes it (native/crates/route/src/route,
  *  the planner's wingtip.holds too): flat, the legs and the length each one
  *  of two, the other null. */
 interface EngineHold {
