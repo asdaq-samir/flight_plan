@@ -15,7 +15,9 @@ import { kindCycle, tileUrl } from "./tiles";
  * from its cache before the network, connection or none.
  *
  * Sized for a phone: a 300 nm route at zooms 8 to 12 is about a
- * thousand tiles, fifteen megabytes. The fetches run a few at a time
+ * thousand tiles, fifteen megabytes, or some forty-five as the 512-pixel
+ * tiles a 2x or 3x screen draws (tileDensity), each about 2.7 times a
+ * 256-pixel one's bytes (the Chicago sheet, 2026-11-06). The fetches run a few at a time
  * so the map itself stays responsive while they land.
  *
  * The route's airports' diagrams come with them (airport-diagrams in

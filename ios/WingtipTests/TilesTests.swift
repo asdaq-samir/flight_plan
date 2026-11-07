@@ -1,6 +1,7 @@
 import CoreLocation
 import Foundation
 import Testing
+import UIKit
 @testable import Wingtip
 
 /// The tile addresses and the store, as the web app's tiles.test.ts pins
@@ -18,6 +19,35 @@ struct TilesTests {
         #expect(url.host() == Config.host)
         #expect(url.path() == "/api/planner/chart-tile/sec/8/62/93.png")
         #expect(url.query() == "c=09-03-2026&r=0")
+    }
+
+    @Test func theSharpTilesAreTheSameAddressWithAt2x() {
+        let cdn = TileTemplate(cycle: "09-03-2026", revision: 2, tilesBase: "https://tiles.example.com/tiles", kind: "sec", scale: 2)
+        #expect(cdn.url(z: 8, x: 62, y: 93).absoluteString == "https://tiles.example.com/tiles/09-03-2026/sec/8/62/93@2x.png?r=2")
+        let planner = TileTemplate(cycle: "09-03-2026", revision: 0, tilesBase: nil, kind: "sec", scale: 2)
+        #expect(planner.url(z: 8, x: 62, y: 93).path() == "/api/planner/chart-tile/sec/8/62/93@2x.png")
+    }
+
+    @Test func theStoreKeepsTheTwoDensitiesApart() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: "tiles-\(UUID().uuidString)")
+        let store = TileStore(root: root)
+        store.write(Data([1]), cycle: "09-03-2026", kind: "sec", z: 8, x: 62, y: 93)
+        store.write(Data([2, 2]), cycle: "09-03-2026", kind: "sec", z: 8, x: 62, y: 93, scale: 2)
+        #expect(store.read(cycle: "09-03-2026", kind: "sec", z: 8, x: 62, y: 93) == Data([1]))
+        #expect(store.read(cycle: "09-03-2026", kind: "sec", z: 8, x: 62, y: 93, scale: 2) == Data([2, 2]))
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    @Test func aTileOfTheSharpChildrenIsTwiceThePixels() throws {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let child = UIGraphicsImageRenderer(size: CGSize(width: 512, height: 512), format: format).image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 512, height: 512))
+        }
+        let data = try #require(ChartTileOverlay.compose([child, nil, nil, child], scale: 2))
+        let image = try #require(UIImage(data: data))
+        #expect(image.size.width * image.scale == 1024)
     }
 
     @Test func plannerPathsAreRewrittenUnderTheGatewaysProxy() {

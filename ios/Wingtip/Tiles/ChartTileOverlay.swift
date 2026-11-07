@@ -13,6 +13,12 @@ import UIKit
 /// ask, 2026-11-03: the native app fast and sharp). The pyramid on disk
 /// and on the CDN is unchanged.
 ///
+/// Where the pyramid was drawn at twice the pixels too (TileTemplate's
+/// `scale` 2), the children are its 512-pixel tiles and the 512-point
+/// tile is 1024 pixels, two to a point: a 3x screen stretches it half
+/// again rather than three times, and the chart's lettering, drawn from
+/// the FAA's sheet at that size, stays crisp.
+///
 /// A tile is answered from memory (TileCache, the composed tiles), else
 /// composed from the children in the store on disk, else from the
 /// network, the children kept on disk as they come so the chart a pilot
@@ -64,7 +70,7 @@ final class ChartTileOverlay: MKTileOverlay {
 
     override func loadTile(at path: MKTileOverlayPath, result: @escaping (Data?, (any Error)?) -> Void) {
         let (z, x, y) = (path.z, path.x, path.y)
-        let key = TileCache.key(cycle: template.cycle, kind: template.kind, z: z, x: x, y: y)
+        let key = TileCache.key(cycle: template.cycle, kind: template.kind, z: z, x: x, y: y, scale: template.scale)
         let signpostID = signposter.makeSignpostID()
         let interval = signposter.beginInterval("tile", id: signpostID, "\(z)/\(x)/\(y)")
         if let kept = cache.read(key) {
@@ -93,7 +99,7 @@ final class ChartTileOverlay: MKTileOverlay {
             await withTaskGroup(of: (Int, Data?, Bool).self) { group in
                 for (i, (cx, cy)) in children.enumerated() {
                     group.addTask {
-                        if let kept = store.read(cycle: template.cycle, kind: template.kind, z: z + 1, x: cx, y: cy) {
+                        if let kept = store.read(cycle: template.cycle, kind: template.kind, z: z + 1, x: cx, y: cy, scale: template.scale) {
                             return (i, kept, false)
                         }
                         guard let (data, response) = try? await session.data(from: template.url(z: z + 1, x: cx, y: cy)),
@@ -102,7 +108,7 @@ final class ChartTileOverlay: MKTileOverlay {
                             // country's edge) stays blank: no error on the map.
                             return (i, nil, true)
                         }
-                        store.write(data, cycle: template.cycle, kind: template.kind, z: z + 1, x: cx, y: cy)
+                        store.write(data, cycle: template.cycle, kind: template.kind, z: z + 1, x: cx, y: cy, scale: template.scale)
                         return (i, data, true)
                     }
                 }
@@ -111,7 +117,7 @@ final class ChartTileOverlay: MKTileOverlay {
                     if let data { images[i] = UIImage(data: data) }
                 }
             }
-            let composed = images.contains(where: { $0 != nil }) ? ChartTileOverlay.compose(images) : nil
+            let composed = images.contains(where: { $0 != nil }) ? ChartTileOverlay.compose(images, scale: template.scale) : nil
             if let composed { cache.write(composed, for: key) }
             // Where the tile came from, as a value: a signpost's message is
             // an OSLogMessage, which a ternary of literals cannot build.
@@ -126,10 +132,12 @@ final class ChartTileOverlay: MKTileOverlay {
 
     /// One 512-point tile from its four children, each in its quadrant;
     /// a child missing leaves its quadrant clear. Drawn with UIKit's
-    /// renderer at scale 1, so a pixel of the pyramid is a pixel here,
-    /// and encoded as PNG, which MapKit decodes as it does a fetched tile.
-    nonisolated static func compose(_ children: [UIImage?]) -> Data? {
-        let side = CGFloat(ChartTileOverlay.side), half = CGFloat(ChartTileOverlay.childSide)
+    /// renderer at scale 1, so a pixel of the pyramid is a pixel here --
+    /// 512 of them on a side, or 1024 from the 512-pixel children of
+    /// `scale` 2 -- and encoded as PNG, which MapKit decodes as it does a
+    /// fetched tile, laying it out in the overlay's 512 points.
+    nonisolated static func compose(_ children: [UIImage?], scale: Int = 1) -> Data? {
+        let side = CGFloat(ChartTileOverlay.side * scale), half = CGFloat(ChartTileOverlay.childSide * scale)
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false

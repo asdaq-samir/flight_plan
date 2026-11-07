@@ -95,6 +95,24 @@ from .geo import tile_lat_lon, tile_xy
 log = logging.getLogger(__name__)
 
 TILE_PX = 256
+# The pixel densities each tile is drawn at: TILE_PX on a side, and
+# twice that for a phone's 2x and 3x screens, under the same z/x/y with
+# "@2x" in its name (_tile_path) -- the convention MapKit's tile overlays,
+# MapLibre and Leaflet's {r} share. A phone stretched the 256-pixel tile
+# three times and blurred every letter and line on it; the 512-pixel one
+# is drawn from the FAA's sheet at that size by the same Lanczos. Chosen
+# over a zoom 13 at 256 pixels (the earlier claude/sharper-tiles) on
+# 2026-11-06: zoom 13 sharpens only past zoom 12, where a 512-pixel zoom
+# 12 is the same pixels, while these sharpen every zoom; and they are a
+# third of zoom 13's files, the uploads being most of the CDN's bill. The
+# Chicago sheet: 8,414 tiles either way, 149 MB at 256 and 419 MB at 512;
+# its zoom 13, 24,449 tiles and 292 MB. Screenshots of it at 3x, against
+# the sheet resampled once to the screen's pixels: SSIM 0.89-0.96 at
+# zooms 10-14 with these, 0.77-0.91 without (zoom 13: 0.89 at 13 and 14
+# only). The pipeline's Lanczos kept more line contrast than GDAL's own
+# Lanczos or cubic on the sheet expanded to RGB, at 88 ms a tile to 322
+# and 126.
+TILE_SCALES = (1, 2)
 
 # Web mercator's half-world extent in metres (EPSG:3857) -- the origin
 # the standard {z}/{x}/{y} tile grid is laid out from -- and the sphere
@@ -931,17 +949,19 @@ def _warp_smooth(src, bbox_3857: tuple, width: int, height: int, upsample: float
     return np.clip(out + 0.5, 0, 255).astype(np.uint8), coverage
 
 
-def _tile_lats(y: int, zoom: int) -> np.ndarray:
-    """The latitude at the centre of each pixel row of tile row `y`."""
+def _tile_lats(y: int, zoom: int, px: int = TILE_PX) -> np.ndarray:
+    """The latitude at the centre of each pixel row of tile row `y`, `px`
+    pixels high."""
     _, ymin, _, ymax = tile_bbox_3857(0, y, zoom)
-    ys = ymax - (np.arange(TILE_PX) + 0.5) / TILE_PX * (ymax - ymin)
+    ys = ymax - (np.arange(px) + 0.5) / px * (ymax - ymin)
     return np.degrees(2 * np.arctan(np.exp(ys / _EARTH_RADIUS_M)) - np.pi / 2)
 
 
-def _tile_lons(x: int, zoom: int) -> np.ndarray:
-    """The longitude at the centre of each pixel column of tile column `x`."""
+def _tile_lons(x: int, zoom: int, px: int = TILE_PX) -> np.ndarray:
+    """The longitude at the centre of each pixel column of tile column `x`,
+    `px` pixels wide."""
     xmin, _, xmax, _ = tile_bbox_3857(x, 0, zoom)
-    return (xmin + (np.arange(TILE_PX) + 0.5) / TILE_PX * (xmax - xmin)) / _MERCATOR_ORIGIN_M * 180.0
+    return (xmin + (np.arange(px) + 0.5) / px * (xmax - xmin)) / _MERCATOR_ORIGIN_M * 180.0
 
 
 def _face_mask(face: Box, lats: np.ndarray, lons: np.ndarray) -> np.ndarray:
@@ -971,20 +991,21 @@ def _composite(rgba: np.ndarray, rgb: np.ndarray, coverage: np.ndarray) -> np.nd
     return rgba
 
 
-def render_tile(rasters: list, x: int, y: int, zoom: int) -> np.ndarray | None:
-    """The tile as (TILE_PX, TILE_PX, 4) RGBA, composited from every
-    raster whose face covers part of it -- first raster wins where
+def render_tile(rasters: list, x: int, y: int, zoom: int, scale: int = 1) -> np.ndarray | None:
+    """The tile as (TILE_PX, TILE_PX, 4) RGBA -- `scale` times that on a
+    side for a high-density screen's (TILE_SCALES) -- composited from
+    every raster whose face covers part of it -- first raster wins where
     faces overlap -- and transparent where none does. None when the
     whole tile is uncovered."""
+    px = TILE_PX * scale
     bbox = tile_bbox_3857(x, y, zoom)
-    lats, lons = _tile_lats(y, zoom), _tile_lons(x, zoom)
-    out = np.zeros((TILE_PX, TILE_PX, 4), dtype=np.uint8)
+    lats, lons = _tile_lats(y, zoom, px), _tile_lons(x, zoom, px)
+    out = np.zeros((px, px, 4), dtype=np.uint8)
     for raster in rasters:
         covered = _face_mask(raster.face, lats, lons) & (out[:, :, 3] < 255)
         if not covered.any():
             continue
-        rgb, coverage = _warp_rgb(raster.path, bbox, TILE_PX, TILE_PX, float(lats[TILE_PX // 2]), raster.mask,
-                                  raster.face)
+        rgb, coverage = _warp_rgb(raster.path, bbox, px, px, float(lats[px // 2]), raster.mask, raster.face)
         out = _composite(out, rgb, coverage * covered)
     return out if out[:, :, 3].any() else None
 
@@ -1031,8 +1052,11 @@ RENDERER_VERSION = 3
 _NONE_TTL_S = 3600
 
 
-def _tile_path(kind: ChartKind, cycle: str, x: int, y: int, zoom: int) -> Path:
-    return CHART_TILE_CACHE_DIR / cycle / kind.key / str(zoom) / str(x) / f"{y}.png"
+def _tile_path(kind: ChartKind, cycle: str, x: int, y: int, zoom: int, scale: int = 1, root: Path | None = None) -> Path:
+    """Where a tile lives under the cache (`root`, the cache itself by
+    default): {y}.png, or {y}@2x.png for a high-density one."""
+    name = f"{y}.png" if scale == 1 else f"{y}@{scale}x.png"
+    return (root or CHART_TILE_CACHE_DIR) / cycle / kind.key / str(zoom) / str(x) / name
 
 
 def _draw_order(names) -> list:
@@ -1069,19 +1093,19 @@ def rasters_covering(kind: ChartKind, bbox: Box, cycle: str | None = None) -> tu
     return rasters, complete
 
 
-def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
+def tile_png(x: int, y: int, zoom: int, kind: str = "sec", scale: int = 1) -> bytes | None:
     """The tile's PNG bytes -- from the pyramid when there is one, else
     rendered on first request and cached on disk for the cycle; None
     where no chart of this kind covers it (a 404 for the map's tile
-    layer to leave blank)."""
+    layer to leave blank). `scale` 2 is the high-density tile."""
     chart_kind = KINDS[kind]
     # Whole numbers, whatever the caller handed in: the tile's file is
     # named by them under the cache (CodeQL's py/path-injection).
-    x, y, zoom = int(x), int(y), int(zoom)
-    if not (chart_kind.min_zoom <= zoom <= chart_kind.max_zoom):
+    x, y, zoom, scale = int(x), int(y), int(zoom), int(scale)
+    if not (chart_kind.min_zoom <= zoom <= chart_kind.max_zoom) or scale not in TILE_SCALES:
         return None
     cycle = serving_cycle_of(kind)
-    path = _tile_path(chart_kind, cycle, x, y, zoom)
+    path = _tile_path(chart_kind, cycle, x, y, zoom, scale)
     none_marker = path.with_suffix(".none")
     try:
         if path.exists():
@@ -1094,7 +1118,7 @@ def tile_png(x: int, y: int, zoom: int, kind: str = "sec") -> bytes | None:
     rasters, complete = rasters_covering(chart_kind, tile_bbox_wgs84(x, y, zoom), cycle)
     if not complete and not FETCH_FOR_TILES:
         return None  # where tiles do not fetch, part of a tile is not drawn (FETCH_FOR_TILES)
-    rgba = render_tile(rasters, x, y, zoom) if rasters else None
+    rgba = render_tile(rasters, x, y, zoom, scale) if rasters else None
     path.parent.mkdir(parents=True, exist_ok=True)
     if rgba is None:
         if complete:
@@ -1177,7 +1201,7 @@ def _cycles_on_disk(root: Path) -> list[str]:
     return [name for _, name in sorted(found, reverse=True)]
 
 
-_serving_cache: dict = {"value": None, "at": 0.0}
+_serving_cache: dict = {"value": None, "at": 0.0, "pointer": None}
 _SERVING_TTL_S = 60
 
 
@@ -1192,10 +1216,11 @@ def serving_cycle() -> str:
     there says. Held for a minute: this is asked once per tile."""
     if _serving_cache["value"] and time.time() - _serving_cache["at"] < _SERVING_TTL_S:
         return _serving_cache["value"]
-    value = _published_cycle() if CHART_TILES_URL else None
+    pointer = _published_pointer() if CHART_TILES_URL else None
+    value = pointer and pointer["cycle"]
     value = value or next((c for c in _cycles_on_disk(CHART_TILE_CACHE_DIR) if pyramid_complete(c, ("sec",))), None)
     value = value or current_cycle()
-    _serving_cache.update(value=value, at=time.time())
+    _serving_cache.update(value=value, at=time.time(), pointer=pointer)
     return value
 
 
@@ -1223,14 +1248,35 @@ def serving_cycle_of(kind: str) -> str:
     return value
 
 
-def _published_cycle() -> str | None:
-    """The cycle the published pyramid's own pointer names, or None
-    when it cannot be read (and the planner falls back to its disk)."""
+def _published_pointer() -> dict | None:
+    """The published pyramid's own pointer -- the cycle it names, and the
+    scales each kind was drawn at -- or None when it cannot be read (and
+    the planner falls back to its disk)."""
     try:
         resp = requests.get(f"{CHART_TILES_URL}/serving.json", headers=REQUEST_HEADERS, timeout=5)
-        return resp.json()["cycle"] if resp.ok else None
-    except (requests.RequestException, ValueError, KeyError):
+        pointer = resp.json() if resp.ok else None
+    except (requests.RequestException, ValueError):
         return None
+    return pointer if isinstance(pointer, dict) and pointer.get("cycle") else None
+
+
+def tile_scales(kind: str) -> list[int]:
+    """The densities of a kind's tiles the map may ask for (TILE_SCALES):
+    those its served pyramid was drawn at, which the map takes the
+    high-density tiles from only when 2 is among them. A pyramid drawn
+    before there were any, on disk or published (a pointer that does not
+    say), has its 256-pixel tiles alone -- and asked for the others, the
+    CDN has nothing to answer with and this planner would draw every one
+    on request. With no pyramid of the kind at all every tile is drawn
+    on request anyway, at any scale."""
+    if CHART_TILES_URL:
+        serving_cycle()  # the pointer, held beside the cycle it names
+        pointer = _serving_cache.get("pointer") or {}
+        return sorted((pointer.get("scales") or {}).get(kind, [1]))
+    record = pyramid_status(serving_cycle_of(kind)).get(kind)
+    if record is None:
+        return list(TILE_SCALES)
+    return sorted(s for s in record.get("scales", [1]) if s in TILE_SCALES)
 
 
 def tiles_base_url() -> str | None:
@@ -1356,10 +1402,16 @@ def _render_row(args: tuple) -> int:
     too: a half-drawn seam tile was served, and kept by browsers for
     weeks, while the pass went on. `since`, for a pass under a new
     renderer, is when it began: a tile on disk from before then is drawn
-    again rather than kept."""
-    path, face, kind_key, cycle, zoom, y, x0, x1, mask, since = args
+    again rather than kept. `scale` is the tiles' density (TILE_SCALES),
+    and `root` the tile cache the pass writes into, handed over rather
+    than read from the module: a worker under Python 3.14's forkserver
+    imports this module afresh, and a staging folder set by `--tiles-dir`
+    was not in it."""
+    path, face, kind_key, cycle, zoom, y, x0, x1, mask, since, scale, root = args
     kind = KINDS[kind_key]
-    lats = _tile_lats(y, zoom)
+    root = Path(root)
+    px = TILE_PX * scale
+    lats = _tile_lats(y, zoom, px)
 
     def current(p: Path) -> bool:
         return p.exists() and (since is None or p.stat().st_mtime >= since)
@@ -1368,10 +1420,10 @@ def _render_row(args: tuple) -> int:
     # repeated render most rows owe nothing, and the warp is the cost.
     owed = []
     for x in range(x0, x1 + 1):
-        covered = _face_mask(face, lats, _tile_lons(x, zoom))
+        covered = _face_mask(face, lats, _tile_lons(x, zoom, px))
         if not covered.any():
             continue
-        tile_path = _tile_path(kind, cycle, x, y, zoom)
+        tile_path = _tile_path(kind, cycle, x, y, zoom, scale, root)
         partial = tile_path.with_suffix(".partial")
         source = partial if current(partial) else tile_path if current(tile_path) else None
         rgba = None
@@ -1381,7 +1433,7 @@ def _render_row(args: tuple) -> int:
             except OSError:
                 rgba = None
         if rgba is None:
-            rgba = np.zeros((TILE_PX, TILE_PX, 4), dtype=np.uint8)
+            rgba = np.zeros((px, px, 4), dtype=np.uint8)
         fill = covered & (rgba[:, :, 3] < 255)
         if fill.any():
             owed.append((x, tile_path, rgba, fill))
@@ -1390,13 +1442,13 @@ def _render_row(args: tuple) -> int:
 
     xmin = tile_bbox_3857(x0, y, zoom)[0]
     _, ymin, xmax, ymax = tile_bbox_3857(x1, y, zoom)
-    width = (x1 - x0 + 1) * TILE_PX
-    strip, coverage = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, TILE_PX, float(lats[TILE_PX // 2]),
+    width = (x1 - x0 + 1) * px
+    strip, coverage = _warp_rgb(Path(path), (xmin, ymin, xmax, ymax), width, px, float(lats[px // 2]),
                                 Path(mask) if mask else None, face)
 
     written = 0
     for x, tile_path, rgba, fill in owed:
-        columns = slice((x - x0) * TILE_PX, (x - x0 + 1) * TILE_PX)
+        columns = slice((x - x0) * px, (x - x0 + 1) * px)
         share = coverage[:, columns] * fill
         if not (share > 0).any():
             continue  # the face runs past this sheet's own edge here; the neighbour draws it
@@ -1497,7 +1549,7 @@ def pyramid_due(cycle: str, kinds: tuple = tuple(KINDS)) -> tuple:
 
 
 def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4, charts: list | None = None,
-                   cycle: str | None = None) -> int:
+                   cycle: str | None = None, scales: tuple | None = None) -> int:
     """Every tile of every prepared chart of `kind` in `cycle` (the
     FAA's current one by default), at each zoom of the kind's own
     range, written into the tile cache. Sheets are done one at a time
@@ -1507,8 +1559,12 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
     alone, so an interrupted render resumes where it stopped (an
     already-rendered sheet costs a scan) -- unless the last finished
     pass was under another RENDERER_VERSION, when every tile is drawn
-    again and the cycle's revision bumped at the end."""
+    again and the cycle's revision bumped at the end. Each tile is drawn
+    at every one of `scales` (TILE_SCALES): a pass of `scales=(2,)` adds
+    the high-density tiles to a pyramid drawn before they were, leaving
+    the others as they are."""
     zooms = tuple(zooms or range(kind.min_zoom, kind.max_zoom + 1))
+    scales = tuple(sorted(set(scales or TILE_SCALES)))
     if charts is None:
         cycle = cycle or current_cycle()
         charts = prepared_charts(cycle)
@@ -1551,8 +1607,8 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
                 x0, x1, y0, y1 = _tile_range(raster.face, zoom)
                 jobs = [
                     (str(raster.path), raster.face, kind.key, chart.cycle, zoom, y, x0, x1,
-                     str(raster.mask) if raster.mask else None, since)
-                    for y in range(y0, y1 + 1)
+                     str(raster.mask) if raster.mask else None, since, scale, str(CHART_TILE_CACHE_DIR))
+                    for scale in scales for y in range(y0, y1 + 1)
                 ]
                 if pool is None:
                     sheet_tiles += sum(map(_render_row, jobs))
@@ -1569,10 +1625,13 @@ def render_pyramid(kind: ChartKind, zooms: tuple | None = None, workers: int = 4
     promoted = _promote_partials(kind, cycle, since)
     # The permanent part, at the end of the pass only: the sheets it
     # rendered join those before it.
+    # The scales too, which the map asks for only once a pass has drawn
+    # them (tile_scales): a pass of the high-density tiles alone joins
+    # them to the ones drawn before.
     record.update(
         sheets=sorted(set(record["sheets"]) | {c.name for c in charts}),
         finished_at=datetime.now(tz=timezone.utc).isoformat(), tiles=record["tiles"] + total, current_pass=None,
-        renderer=RENDERER_VERSION,
+        renderer=RENDERER_VERSION, scales=sorted(set(before.get("scales", [1])) | set(scales)),
     )
     _write_pyramid_status(cycle, record)
     if since is not None:
@@ -1606,8 +1665,10 @@ def tiles_revision(cycle: str) -> int:
 def _rerender_tile(args: tuple) -> bool:
     """One cached tile rendered again from the sheets as they are now,
     the same way `tile_png` would render it, and written over the old
-    one. A top-level function because it runs in a worker process."""
-    kind_key, cycle, x, y, zoom = args
+    one. A top-level function because it runs in a worker process, so
+    the tile cache it writes into comes with the job (_render_row says
+    why)."""
+    kind_key, cycle, x, y, zoom, scale, root = args
     kind = KINDS[kind_key]
     rasters, complete = rasters_covering(kind, tile_bbox_wgs84(x, y, zoom), cycle)
     if not complete:
@@ -1617,8 +1678,8 @@ def _rerender_tile(args: tuple) -> bool:
         # caches such a tile either. The old tile stays until a run that
         # has every sheet.
         return False
-    rgba = render_tile(rasters, x, y, zoom) if rasters else None
-    path = _tile_path(kind, cycle, x, y, zoom)
+    rgba = render_tile(rasters, x, y, zoom, scale) if rasters else None
+    path = _tile_path(kind, cycle, x, y, zoom, scale, Path(root))
     if rgba is None:
         path.unlink(missing_ok=True)
         return False
@@ -1632,14 +1693,17 @@ def rerender_tiles(kind: ChartKind, boxes: list, cycle: str, workers: int = 2) -
     the cycle's revision bumped so browsers ask for them afresh, and the
     tiles struck off the publish ledger so the next `publish` uploads
     them again. Tiles not yet cached are left to render on demand.
-    Returns the number rewritten."""
+    Returns the number rewritten. Every scale of a tile cached at it
+    (TILE_SCALES) is drawn again."""
     tiles = set()
     for zoom in range(kind.min_zoom, kind.max_zoom + 1):
         for box in boxes:
             x0, x1, y0, y1 = _tile_range(box, zoom)
-            tiles.update((x, y, zoom) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)
-                         if _tile_path(kind, cycle, x, y, zoom).exists())
-    jobs = [(kind.key, cycle, x, y, zoom) for x, y, zoom in sorted(tiles, key=lambda t: (t[2], t[1], t[0]))]
+            tiles.update((x, y, zoom, scale) for x in range(x0, x1 + 1) for y in range(y0, y1 + 1)
+                         for scale in TILE_SCALES if _tile_path(kind, cycle, x, y, zoom, scale).exists())
+    root = CHART_TILE_CACHE_DIR
+    jobs = [(kind.key, cycle, x, y, zoom, scale, str(root))
+            for x, y, zoom, scale in sorted(tiles, key=lambda t: (t[3], t[2], t[1], t[0]))]
     log.info("%s %s: rendering %d tiles again", cycle, kind.key, len(jobs))
     if workers > 0 and len(jobs) > 1:
         with ProcessPoolExecutor(max_workers=workers) as pool:
@@ -1647,8 +1711,7 @@ def rerender_tiles(kind: ChartKind, boxes: list, cycle: str, workers: int = 2) -
     else:
         written = sum(map(_rerender_tile, jobs))
 
-    root = CHART_TILE_CACHE_DIR / cycle
-    stale = {str(_tile_path(kind, cycle, x, y, zoom).relative_to(root)) for x, y, zoom in tiles}
+    stale = {str(_tile_path(kind, cycle, x, y, zoom, scale).relative_to(root / cycle)) for x, y, zoom, scale in tiles}
     _bump_revision(cycle, strike=stale.__contains__)
     return written
 
@@ -1857,7 +1920,9 @@ def publish(cycle: str, bucket: str, prefix: str = CHART_TILES_PREFIX, workers: 
                 log.info("  %d of %d uploaded", i, len(todo))
     _write_atomically(ledger, json.dumps(sorted(done)).encode())
 
-    pointer = {"cycle": cycle, "kinds": {k: p["tiles"] for k, p in pyramid_status(cycle).items()},
+    progress = pyramid_status(cycle)
+    pointer = {"cycle": cycle, "kinds": {k: p["tiles"] for k, p in progress.items()},
+               "scales": {k: p.get("scales", [1]) for k, p in progress.items()},
                "published_at": datetime.now(tz=timezone.utc).isoformat()}
     client.put_object(
         Bucket=bucket, Key=f"{prefix}/serving.json", Body=json.dumps(pointer).encode(),
@@ -1992,6 +2057,8 @@ def _main(argv: list | None = None) -> int:
                            help="look again at sheets already cleaned, along the borders of what was taken out")
         if name == "pyramid":
             p.add_argument("--zooms", help="e.g. 5-12; the kind's own range by default")
+            p.add_argument("--scales", default=",".join(map(str, TILE_SCALES)),
+                           help="the densities to draw, e.g. 2 to add the high-density tiles to a finished pyramid")
             p.add_argument("--tiles-dir", help="render into this folder instead of the tile cache -- a staging "
                                                "pyramid to swap in whole while the old one keeps serving")
         if name in ("refresh", "publish"):
@@ -2052,7 +2119,9 @@ def _run(args, parser) -> int:
         zooms = tuple(range(int(lo), int(hi or lo) + 1))
     for key in args.kind:
         kind = KINDS[key]
-        count = render_pyramid(kind, zooms=zooms and tuple(z for z in zooms if kind.min_zoom <= z <= kind.max_zoom), workers=args.workers)
+        scales = tuple(int(s) for s in args.scales.split(",") if int(s) in TILE_SCALES)
+        count = render_pyramid(kind, zooms=zooms and tuple(z for z in zooms if kind.min_zoom <= z <= kind.max_zoom),
+                               workers=args.workers, scales=scales)
         log.info("%s: %d tiles written under %s", key, count, CHART_TILE_CACHE_DIR)
     return 0
 

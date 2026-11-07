@@ -17,16 +17,19 @@ final class TileStore: Sendable {
             .appending(path: "chart-tiles", directoryHint: .isDirectory)
     }
 
-    func path(cycle: String, kind: String, z: Int, x: Int, y: Int) -> URL {
-        root.appending(path: "\(cycle)/\(kind)/\(z)/\(x)/\(y).png")
+    /// A tile's file, named as the pyramid names it: {y}@2x.png for the
+    /// 512-pixel tile (TileTemplate.scale), so the two never stand in for
+    /// each other.
+    func path(cycle: String, kind: String, z: Int, x: Int, y: Int, scale: Int = 1) -> URL {
+        root.appending(path: "\(cycle)/\(kind)/\(z)/\(x)/\(y)\(scale == 1 ? "" : "@\(scale)x").png")
     }
 
-    func read(cycle: String, kind: String, z: Int, x: Int, y: Int) -> Data? {
-        try? Data(contentsOf: path(cycle: cycle, kind: kind, z: z, x: x, y: y))
+    func read(cycle: String, kind: String, z: Int, x: Int, y: Int, scale: Int = 1) -> Data? {
+        try? Data(contentsOf: path(cycle: cycle, kind: kind, z: z, x: x, y: y, scale: scale))
     }
 
-    func write(_ data: Data, cycle: String, kind: String, z: Int, x: Int, y: Int) {
-        let file = path(cycle: cycle, kind: kind, z: z, x: x, y: y)
+    func write(_ data: Data, cycle: String, kind: String, z: Int, x: Int, y: Int, scale: Int = 1) {
+        let file = path(cycle: cycle, kind: kind, z: z, x: x, y: y, scale: scale)
         try? FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: file, options: .atomic)
     }
@@ -56,7 +59,9 @@ final class TileStore: Sendable {
 /// (memory, the disk store, the network). An NSCache: it is safe from any
 /// thread and iOS trims it under memory pressure, which is why it holds
 /// the PNG bytes and not decoded images. Up to about 64 MB, some 700
-/// tiles at a typical 90 KB: a few screens at every zoom a flight uses.
+/// tiles at a typical 90 KB: a few screens at every zoom a flight uses
+/// (about a third as many of the 1024-pixel tiles composed from the
+/// pyramid's 512-pixel ones, which iOS trims first under pressure anyway).
 final class TileCache: @unchecked Sendable {
     static let shared = TileCache()
 
@@ -66,8 +71,8 @@ final class TileCache: @unchecked Sendable {
         cache.totalCostLimit = bytes
     }
 
-    static func key(cycle: String, kind: String, z: Int, x: Int, y: Int) -> String {
-        "\(cycle)/\(kind)/\(z)/\(x)/\(y)@\(ChartTileOverlay.side)"
+    static func key(cycle: String, kind: String, z: Int, x: Int, y: Int, scale: Int = 1) -> String {
+        "\(cycle)/\(kind)/\(z)/\(x)/\(y)@\(ChartTileOverlay.side)x\(scale)"
     }
 
     func read(_ key: String) -> Data? {

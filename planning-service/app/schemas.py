@@ -75,6 +75,11 @@ class ChartLayer(BaseModel):
     # own pyramid is finished, so the map's tile URLs carry its own.
     cycle: str | None = None
     revision: int = 0
+    # The pixel densities its tiles were drawn at there
+    # (wingtip.charts.tile_scales): 1, the 256-pixel tiles, and 2 when
+    # the same z/x/y also comes as a 512-pixel tile named {y}@2x.png,
+    # which a 2x or 3x screen draws in its place.
+    scales: list[int] = [1]
 
 
 class ChartInfo(BaseModel):

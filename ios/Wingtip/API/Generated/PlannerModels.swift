@@ -554,6 +554,7 @@ struct APIChartLayer: Codable, Equatable, Sendable {
     var maxZoom, minZoom: Int
     var over: [String]?
     var revision: Int?
+    var scales: [Int]?
     var sheets: [APIChartSheet]?
 }
 
