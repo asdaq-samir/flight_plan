@@ -111,10 +111,11 @@ and the old one removed only once no released app calls it. When a
 break is meant, the pull request adds a line for each change to
 `.github/api-breaks.txt` (oasdiff's `--err-ignore` file): the date, the
 method and path, and oasdiff's words for the change as the failure
-printed them, for example
+printed them -- with backticks round the names, as oasdiff writes them in
+its ignore matching (single quotes do not match) -- for example
 
 ```
-2026-11-06 GET /api/briefing removed the required property 'hazards' from the response with the '200' status -- no released app reads it
+2026-11-06 GET /api/briefing removed the required property `hazards` from the response with the `200` status -- no released app reads it
 ```
 
 The lines stay after the merge, as the record of what was broken when.
