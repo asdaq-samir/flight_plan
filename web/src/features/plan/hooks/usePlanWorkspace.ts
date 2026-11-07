@@ -59,7 +59,6 @@ import { nextLanding } from "../figures";
 import { procedureKind, useRouteEdits } from "./useRouteEdits";
 import { useSuggestedStops, withStopsAfter } from "./useSuggestedStops";
 import type { RouteParts, RouteProcedure } from "../components/RouteBox";
-import type { PointAltitude } from "../components/PointAltitudeDialog";
 import { navlogQuery, usePlan, type PlanParams } from "./usePlan";
 import { useVerdict, type VerdictItem } from "../../../lib/verdict";
 import { mayUse, useEntitlement } from "../../../lib/subscription";
