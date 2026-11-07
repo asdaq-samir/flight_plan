@@ -314,9 +314,9 @@ jobs:
       test-planning-service: ${{ steps.plan.outputs.test-planning-service }}
       docs: ${{ steps.plan.outputs.docs }}
       infra: ${{ steps.plan.outputs.infra }}
-      api: ${{ steps.plan.outputs.api }}
       android: ${{ steps.plan.outputs.android }}
       ios: ${{ steps.plan.outputs.ios }}
+      api: ${{ steps.plan.outputs.api }}
       docs-only: ${{ steps.docsonly.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -1543,6 +1543,27 @@ jobs:
             -v "$PWD/infra/server/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.10-alpine \
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
+  # The phone apps, built and tested as their own workflows build them on
+  # main, here so "CI passed" waits for them: #499 merged with the
+  # Android app not compiling while Native Android ran beside CI, where
+  # the ruleset could not require it (a path-filtered workflow stays
+  # pending on every pull request it skips). Only where the pull request
+  # touches what the app builds from (`changes`); skipped otherwise.
+  # Android on GitHub's Linux runner: the engine, unit tests, lint and an
+  # APK, about 5 min; its emulator tests stay nightly. iOS on MAC_RUNNER
+  # or GitHub's macOS runner, ten times a Linux minute's price on a
+  # private repository (docs/CI.md).
+  android:
+    name: Native Android
+    needs: [changes]
+    if: needs.changes.outputs.android == 'true'
+    uses: ./.github/workflows/native-android-build.yml
+
+  ios:
+    name: Native iOS
+    needs: [changes]
+    if: needs.changes.outputs.ios == 'true'
+    uses: ./.github/workflows/native-ios-test.yml
   # Nothing a phone already calls may break. An iPhone app in the App
   # Store keeps calling these servers for months after a release, from
   # every phone that has not updated, so a field or an endpoint removed
@@ -1590,28 +1611,6 @@ jobs:
             echo "::error title=API break::A change above breaks the phones already in pilots' hands. Make it additive (a new field or endpoint beside the old), or, if no released app calls it, add oasdiff's line for it to .github/api-breaks.txt (docs/CI.md)."
           fi
           exit $status
-
-  # The phone apps, built and tested as their own workflows build them on
-  # main, here so "CI passed" waits for them: #499 merged with the
-  # Android app not compiling while Native Android ran beside CI, where
-  # the ruleset could not require it (a path-filtered workflow stays
-  # pending on every pull request it skips). Only where the pull request
-  # touches what the app builds from (`changes`); skipped otherwise.
-  # Android on GitHub's Linux runner: the engine, unit tests, lint and an
-  # APK, about 5 min; its emulator tests stay nightly. iOS on MAC_RUNNER
-  # or GitHub's macOS runner, ten times a Linux minute's price on a
-  # private repository (docs/CI.md).
-  android:
-    name: Native Android
-    needs: [changes]
-    if: needs.changes.outputs.android == 'true'
-    uses: ./.github/workflows/native-android-build.yml
-
-  ios:
-    name: Native iOS
-    needs: [changes]
-    if: needs.changes.outputs.ios == 'true'
-    uses: ./.github/workflows/native-ios-test.yml
 
   # Lighthouse's report against the industry's thresholds: Google's
   # "good" Core Web Vitals (web.dev/vitals -- LCP within 2.5 s, CLS 0.1 at
@@ -1741,7 +1740,7 @@ jobs:
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, e2e, e2e-images, build-images, docs, infra, api-compat, android, ios]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, e2e, e2e-images, build-images, docs, infra, android, ios, api-compat]
     if: always()
     steps:
       - name: Every job passed or was not needed

@@ -14,3 +14,6 @@
 2026-11-07 GET /api/subscription added the new `WORDS` enum value to the `uses/items/feature` response property for the response status `200` -- the same
 2026-11-07 POST /api/subscription/trial added the new `ASSISTANT` enum value to the `uses/items/feature` response property for the response status `200` -- the same
 2026-11-07 POST /api/subscription/trial added the new `WORDS` enum value to the `uses/items/feature` response property for the response status `200` -- the same
+2026-11-07 GET /api/status removed the required property `services/crewai_agent` from the response with the `200` status -- the agent services were removed (#495); only the Dev panel reads /api/status
+2026-11-07 GET /api/status removed the required property `services/nav_log_agent` from the response with the `200` status -- the agent services were removed (#495); only the Dev panel reads /api/status
+2026-11-07 POST /api/comparison api path removed without deprecation -- the LangGraph/CrewAI comparison was a web Dev screen; no phone calls it (#495)
