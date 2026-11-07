@@ -375,6 +375,8 @@ jobs:
       test-crewai-agent: ${{ steps.plan.outputs.test-crewai-agent }}
       docs: ${{ steps.plan.outputs.docs }}
       infra: ${{ steps.plan.outputs.infra }}
+      android: ${{ steps.plan.outputs.android }}
+      ios: ${{ steps.plan.outputs.ios }}
       docs-only: ${{ steps.docsonly.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -462,6 +464,27 @@ jobs:
               - infra/cloudformation/**
               - infra/server/**
               - docker-compose.prod.yml
+            # The phone apps, each by what it builds from: its own tree
+            # (with its API models, scripts/api-models-apps.* makes them),
+            # the engine it links (native/**), the shared fixtures its
+            # tests read and its build's workflow. On a pull request only
+            # (the plan, below): main's pushes and the nights run them in
+            # native-android.yml and native-ios.yml.
+            android:
+              - android/**
+              - native/**
+              - web/src/lib/fixtures/**
+              - scripts/api-models-apps.*
+              - .github/workflows/native-android-build.yml
+            # And the web's files ios/project.yml bundles.
+            ios:
+              - ios/**
+              - native/**
+              - web/src/lib/fixtures/**
+              - web/src/lib/acs.json
+              - tests/fixtures/native/**
+              - scripts/api-models-apps.*
+              - .github/workflows/native-ios-test.yml
             # Javadoc; each Python suite's job makes its pdoc.
             docs:
               - springboot-app/**
@@ -507,6 +530,7 @@ jobs:
         env:
           CHANGED: ${{ steps.filter.outputs.changes }}
           ALL: ${{ steps.base.outputs.all }}
+          EVENT: ${{ github.event_name }}
         run: |
           python3 - <<'EOF'
           import json, os
@@ -522,6 +546,13 @@ jobs:
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service",
                        "test-nav-log-agent", "test-crewai-agent", "docs", "infra"):
               outputs[name] = "true" if due(name) else "false"
+          # The phones' builds gate a merge: a pull request, or a run
+          # started by hand on one's branch. Main's pushes and the nights
+          # have native-android.yml and native-ios.yml for them, so they
+          # are not run twice there.
+          gate = os.environ["EVENT"] in ("pull_request", "workflow_dispatch")
+          for name in ("android", "ios"):
+              outputs[name] = "true" if gate and due(name) else "false"
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
               for key, value in outputs.items():
                   out.write(f"{key}={value}\n")
@@ -1579,6 +1610,28 @@ jobs:
             -v "$PWD/infra/server/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2.10-alpine \
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
 
+  # The phone apps, built and tested as their own workflows build them on
+  # main, here so "CI passed" waits for them: #499 merged with the
+  # Android app not compiling while Native Android ran beside CI, where
+  # the ruleset could not require it (a path-filtered workflow stays
+  # pending on every pull request it skips). Only where the pull request
+  # touches what the app builds from (`changes`); skipped otherwise.
+  # Android on GitHub's Linux runner: the engine, unit tests, lint and an
+  # APK, about 5 min; its emulator tests stay nightly. iOS on MAC_RUNNER
+  # or GitHub's macOS runner, ten times a Linux minute's price on a
+  # private repository (docs/CI.md).
+  android:
+    name: Native Android
+    needs: [changes]
+    if: needs.changes.outputs.android == 'true'
+    uses: ./.github/workflows/native-android-build.yml
+
+  ios:
+    name: Native iOS
+    needs: [changes]
+    if: needs.changes.outputs.ios == 'true'
+    uses: ./.github/workflows/native-ios-test.yml
+
   # Lighthouse's report against the industry's thresholds: Google's
   # "good" Core Web Vitals (web.dev/vitals -- LCP within 2.5 s, CLS 0.1 at
   # most; TBT within 200 ms standing in for INP, which needs a real tap)
@@ -1701,12 +1754,13 @@ jobs:
 
   # The one check main requires (its ruleset), so the rule holds as jobs
   # come and go: every job above passed, or was not needed -- a job its
-  # paths did not touch is skipped, which counts as passing.
-  # auto-merge-agents.yml merges a pull request on it.
+  # paths did not touch is skipped, which counts as passing. The phone
+  # builds (android, ios) among them, on the pull requests that touch
+  # the phones. auto-merge-agents.yml merges a pull request on it.
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra, android, ios]
     if: always()
     steps:
       - name: Every job passed or was not needed
