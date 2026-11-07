@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Check, Copy, MapPinPlus } from "lucide-react";
-import { useMap } from "react-leaflet";
+import { CardCloseContext } from "./cardClose";
 import { cn } from "cn";
 import { CardAction } from "../../components/CardAction";
 import DirectToIcon from "../../components/DirectToIcon";
@@ -17,11 +17,11 @@ export function PointActions({ point, copy, addTestId = "point-add" }: {
   /** Its Add to Route's test id where a spec had one before (a VFR waypoint's). */
   addTestId?: string;
 }) {
-  const map = useMap();
+  const close = useContext(CardCloseContext);
   const { addToRoute, directTo } = usePointActions();
   const [copied, setCopied] = useState(false);
   if (!addToRoute && !directTo && !copy) return null;
-  const done = (act: (p: ChartPoint) => void) => () => { map.closePopup(); act({ ident: point.ident, lat: point.lat, lon: point.lon }); };
+  const done = (act: (p: ChartPoint) => void) => () => { close(); act({ ident: point.ident, lat: point.lat, lon: point.lon }); };
   return (
     // As many columns as tiles, as the airport card's row fills its width.
     <div className={cn("grid gap-2", [directTo, addToRoute, copy].filter(Boolean).length === 3 ? "grid-cols-3" : "grid-cols-2")} data-testid="point-actions">

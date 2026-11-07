@@ -1,11 +1,13 @@
 import L from "leaflet";
 import type { LeafletEventHandlerFnMap } from "leaflet";
-import { useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { Popup, useMap } from "react-leaflet";
 import { MapInsetsContext } from "../../components/mapChrome";
 import { SheetCard } from "../../components/SheetCard";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { CardHalo } from "./Halo";
+import { CardCloseContext } from "./cardClose";
+
 
 /**
  * Every popup a marker opens, on either map.
@@ -120,6 +122,7 @@ export function MapPopup(props: Props) {
 
 function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = true, children, ...props }: Props) {
   const popup = useRef<L.Popup>(null);
+  const close = useCallback(() => { popup.current?.close(); }, []);
   // Open, and where its thing is.
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState<{ lat: number; lon: number } | null>(null);
@@ -148,7 +151,11 @@ function PopupCard({ eventHandlers, panOnce: _panOnce, ring = true, panCard = tr
       <Popup ref={popup} {...props} className="hidden" autoPan={false} closeButton={false} eventHandlers={handlers} />
       {open && at && pans && <PanClear at={at} />}
       {open && at && ring && <CardHalo at={at} />}
-      {open && <SheetCard onClose={() => popup.current?.close()}>{children}</SheetCard>}
+      {open && (
+        <SheetCard onClose={() => popup.current?.close()}>
+          <CardCloseContext.Provider value={close}>{children}</CardCloseContext.Provider>
+        </SheetCard>
+      )}
     </>
   );
 }
@@ -192,6 +199,8 @@ function PanClear({ at }: { at: { lat: number; lon: number } }) {
 }
 
 function PopupOver({ eventHandlers, panOnce = false, ring: _ring, panCard: _panCard, ...props }: Props) {
+  const map = useMap();
+  const close = useMemo(() => () => { map.closePopup(); }, [map]);
   // Opened, it pans the map to be in sight past the panel over the map
   // (MapPanel), not just inside the map, which runs under the panel.
   const insets = useContext(MapInsetsContext);
@@ -223,6 +232,8 @@ function PopupOver({ eventHandlers, panOnce = false, ring: _ring, panCard: _panC
       closeButton={false}
       {...props}
       eventHandlers={handlers}
-    />
+    >
+      <CardCloseContext.Provider value={close}>{props.children}</CardCloseContext.Provider>
+    </Popup>
   );
 }

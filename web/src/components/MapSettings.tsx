@@ -7,7 +7,7 @@ import Segmented from "./Segmented";
 import { Switch } from "./ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 import { clearOwnTrail, useOwnTrail } from "../lib/map/ownTrail";
-import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapOverlay, type OverlayStrength } from "../lib/preferences";
+import { BASE_CHARTS, usePreferences, type BaseChart, type ChartLight, type ChartNight, type MapEngine, type MapOverlay, type OverlayStrength } from "../lib/preferences";
 import { useShownOverlay } from "../lib/map/useShownOverlay";
 import { USGS_URL } from "../lib/map/OverlayTiles";
 import { useGoogleSession } from "../lib/map/googleSession";
@@ -156,6 +156,16 @@ export default function MapSettings() {
           <Segmented
             label="Chart at night" value={prefs.chartNight} onChange={v => prefs.setChartNight(v as ChartNight)}
             testId="chart-night-select" options={[{ value: "normal", label: "Normal" }, { value: "dimmed", label: "Dimmed" }]}
+          />
+        </ListRow>
+        {/* What draws the map, for the owner to compare on the phone (the
+            MapLibre spike, 2026-11-06): Leaflet as it has been, or one
+            WebGL map with the chart, the airspace, the route and own ship
+            in it (lib/map/gl). Two choices, segmented. */}
+        <ListRow title="Map Engine">
+          <Segmented
+            label="Map engine" value={prefs.mapEngine} onChange={v => prefs.setMapEngine(v as MapEngine)}
+            testId="map-engine-select" options={[{ value: "leaflet", label: "Leaflet" }, { value: "maplibre", label: "MapLibre" }]}
           />
         </ListRow>
         {/* The chart in bright sunlight (lib/sunlight): from the phone's
