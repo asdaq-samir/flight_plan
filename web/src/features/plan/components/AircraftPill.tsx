@@ -73,7 +73,7 @@ export default function AircraftPill({ onOpen, onAddMine, onAddFavorite, onPick,
   const rows = strip(question, found, from, field).slice(0, STRIP_MOST);
   const map = useTrafficFocus(s => s.on);
   // The airplanes left on the map, as the strip's change: the Favorites
-  // and the Plane, the Recents, or the question's answer.
+  // and the Airplane, the Recents, or the question's answer.
   const only = shows === "favorites"
     ? [...(mine ? [mine.hex] : []), ...favoriteList.map(a => a.hex)].join(",")
     : shows === "recents" ? recentList.map(a => a.hex).join(",")
