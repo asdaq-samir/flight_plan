@@ -310,7 +310,7 @@ for (const path of PAGES) {
     // anything about it redrawing. `settle` waits a fixed 1.5s, which
     // is plenty when the planner is idle and not always enough when
     // three other workers are asking it for chart tiles.
-    await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
+    await expect(page.locator("[data-chart-zoom]").first()).toBeAttached();
     // Drawn only where it would work: Chromium allows it, an iPad
     // does, an iPhone does not and the button is absent there rather
     // than present and refusing (see `FullscreenButton`).
@@ -323,7 +323,7 @@ for (const path of PAGES) {
     await expect(button).toHaveAttribute("aria-label", "Leave full screen");
     // The map re-measured rather than keeping its old size: it is
     // still drawing tiles (`ResizeAware` watches the container).
-    await expect(page.locator("img.leaflet-tile").first()).toBeAttached();
+    await expect(page.locator("[data-chart-zoom]").first()).toBeAttached();
 
     await button.click();
     await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);

@@ -1,13 +1,9 @@
-import { Fragment, memo, useMemo } from "react";
-import L from "leaflet";
-import { Marker, Pane, Polyline } from "react-leaflet";
-import type { ProcedureDrawing, ProcedureFix } from "../api/types";
+import type { ProcedureFix } from "../api/types";
 import { altitudeLines, decorationOf, speedWords } from "../procedures";
 import { altFt } from "../units";
 import { BADGE } from "../rowBadges";
-import { LINE_CASING, MAP_BLUE } from "./chartColors";
-import { made } from "./icons";
-import { useLiveZoom } from "./useView";
+import { MAP_BLUE } from "./chartColors";
+import { divIcon, made } from "./icons";
 
 /**
  * The instrument procedures the pilot picked (the route's Procedures), on
@@ -28,10 +24,7 @@ import { useLiveZoom } from "./useView";
 export const PROCEDURE_INK = BADGE.approach;
 /** A procedure of an old cycle: grey, not the approaches' indigo. */
 export const STALE_INK = "#6b6b6b";
-const lineOf = (ink: string): L.PathOptions => ({ color: ink, weight: 3.5, opacity: 1, lineJoin: "round" });
-const missedOf = (ink: string): L.PathOptions => ({ color: ink, weight: 3, opacity: 1, dashArray: "8,7" });
-const holdOf = (ink: string): L.PathOptions => ({ color: ink, weight: 2.5, opacity: 1, lineJoin: "round" });
-const HOLD_CASING: L.PathOptions = { color: "#ffffff", weight: 5.5, opacity: 0.9, lineJoin: "round" };
+
 /** From this zoom in, the fixes' names and altitudes: further out an
  *  approach is a short line by its field, and its words would cover it. */
 export const PROCEDURE_WORDS_FROM_ZOOM = 9;
@@ -61,7 +54,7 @@ export const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, 
   // A box twice the diamond's size, the diamond at its middle: a mark to
   // tap for the fix's card (FixMark), where 14 points was a third of a
   // finger's 44.
-  return L.divIcon({
+  return divIcon({
     className: "", iconSize: [28, 28], iconAnchor: [14, 14],
     html: `<span class="absolute inset-0 flex items-center justify-center" data-procedure-fix="${esc(fix.ident)}">` +
       `<svg viewBox="-7 -7 14 14" width="14" height="14" aria-hidden="true" style="overflow:visible">${direct ? `<circle r="10" fill="none" stroke="${MAP_BLUE}" stroke-width="2.5"/>` : ""}<path d="M0 -5.5 L5.5 0 L0 5.5 L-5.5 0 Z" fill="${fix.missed ? "#fff" : ink}" stroke="${fix.missed ? ink : "#fff"}" stroke-width="1.8"/></svg>` +
@@ -69,62 +62,3 @@ export const fixIcon = made(function fixIcon(fix: ProcedureFix, words: boolean, 
   });
 });
 
-/** No altitudes of the pilot's own: one object, kept. */
-const NO_CROSSINGS: Record<string, number> = {};
-
-/** A fix's mark, tapped for its card where it is one of the procedure's
- *  own (not its missed approach's or a threshold), its handler made once. */
-const FixMark = memo(function FixMark({ drawing, fix, words, own, direct, onFix }: {
-  drawing: ProcedureDrawing; fix: ProcedureFix; words: boolean; own: number | null; direct: boolean;
-  onFix?: (field: string, kind: ProcedureDrawing["kind"], fix: string) => void;
-}) {
-  const tappable = !!onFix && !fix.missed && !/^RW\d/.test(fix.ident);
-  const handlers = useMemo(() => (tappable ? { click: () => onFix!(drawing.airport, drawing.kind, fix.ident) } : {}),
-    [tappable, onFix, drawing.airport, drawing.kind, fix.ident]);
-  return (
-    <Marker
-      position={[fix.lat, fix.lon]} icon={fixIcon(fix, words, !!drawing.stale, own, direct)} interactive={tappable} keyboard={false} pane="procedures"
-      eventHandlers={handlers} bubblingMouseEvents={false}
-    />
-  );
-});
-
-export const ProcedureLayer = memo(function ProcedureLayer({ drawings, crossings = NO_CROSSINGS, directs = "", onFix }: {
-  drawings: ProcedureDrawing[];
-  crossings?: Record<string, number>;
-  directs?: string;
-  onFix?: (field: string, kind: ProcedureDrawing["kind"], fix: string) => void;
-}) {
-  // The names from their zoom as a pinch passes it, not once it ends.
-  const zoom = useLiveZoom();
-  if (drawings.length === 0) return null;
-  const words = zoom >= PROCEDURE_WORDS_FROM_ZOOM;
-  return (
-    <Pane name="procedures" style={{ zIndex: 432 }}>
-      {drawings.map(d => {
-        const ink = d.stale ? STALE_INK : PROCEDURE_INK;
-        return (
-        <Fragment key={`${d.airport}-${d.id}-${d.transition ?? ""}`}>
-          {d.lines.map((line, i) => <Polyline key={`c${i}`} positions={line.points} pathOptions={LINE_CASING} interactive={false} />)}
-          {d.holds.map((hold, i) => <Polyline key={`hc${i}`} positions={hold.points} pathOptions={HOLD_CASING} interactive={false} />)}
-          {d.lines.map((line, i) => (
-            <Polyline
-              key={`l${i}`} positions={line.points} pathOptions={line.role === "missed" ? missedOf(ink) : lineOf(ink)} interactive={false}
-              className={line.role === "missed" ? "instrument-procedure-missed" : "instrument-procedure"}
-            />
-          ))}
-          {d.holds.map((hold, i) => (
-            <Polyline key={`h${i}`} positions={hold.points} pathOptions={hold.missed ? { ...holdOf(ink), dashArray: "6,6" } : holdOf(ink)} interactive={false} className="instrument-procedure-hold" />
-          ))}
-          {d.fixes.map(fix => (
-            <FixMark
-              key={fix.ident} drawing={d} fix={fix} words={words} own={fix.missed ? null : crossings[fix.ident] ?? null}
-              direct={directs.split(",").includes(`${d.airport}:${d.id}:${fix.ident}`)} onFix={onFix}
-            />
-          ))}
-        </Fragment>
-        );
-      })}
-    </Pane>
-  );
-});

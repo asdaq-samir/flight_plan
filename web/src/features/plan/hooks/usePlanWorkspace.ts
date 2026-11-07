@@ -40,7 +40,7 @@ import { holdsOf, holdsParam, type Hold } from "../../../lib/holds";
 import { FIELD_LIST_KEYS, fieldListParams, fieldListsOf, prunedFieldLists, renamedFieldLists } from "../../../lib/fieldLists";
 import { picksOf, planHrefOf, recentHrefOf } from "../../../lib/flightLink";
 import { runwayNumber } from "../../../lib/pattern";
-import type { RouteWay } from "../../../lib/map/RouteWaysLayer";
+import type { RouteWay } from "../../../lib/map/routeWays";
 import { gridScale, sameStops, wayTime } from "../../../lib/routeWays";
 import { useRouteLineOpen } from "../../../lib/routeLine";
 import { useStripShows } from "./useStripShows";

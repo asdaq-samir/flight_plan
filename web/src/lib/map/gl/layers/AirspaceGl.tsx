@@ -2,10 +2,11 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { AirspaceVolume } from "../../../api/types";
 import { usePreferences } from "../../../preferences";
-import { AirspaceCardBody, airspaceQuery } from "../../AirspaceLayer";
+import { AirspaceCardBody, airspaceQuery } from "../../AirspaceCard";
 import { useGlData, useGlLayer, useGlMap, useGlTap } from "../glLayer";
 import { AIRSPACE_LINE_LAYERS, AIRSPACE_SOURCE, airspaceFeatures, airspaceLayers } from "../glStyle";
 import { useGlView } from "../useGlView";
+import { useGlProbe } from "../useGlProbe";
 import { GL_FONT, TAP } from "./common";
 
 const SOURCES = { [AIRSPACE_SOURCE]: { type: "geojson" as const, data: { type: "FeatureCollection" as const, features: [] }, tolerance: 0.5 } };
@@ -32,6 +33,10 @@ export function AirspaceGl() {
   useGlLayer("lines", SOURCES, LAYERS);
   const features = useMemo(() => airspaceFeatures(volumes), [volumes]);
   useGlData(AIRSPACE_SOURCE, features);
+  // What is drawn, for the specs and the load log (AirspaceLinesCanvas' and
+  // AirspaceLabelsCanvas' records were these).
+  useGlProbe("airspace-lines", AIRSPACE_LINE_LAYERS, f => ({ id: f.properties.id, cls: f.properties.cls }));
+  useGlProbe("airspace-edge-labels", ["airspace-labels"], f => ({ id: f.properties.id, text: f.properties.label }));
   const byId = useMemo(() => new Map(volumes.map(v => [v.id, v])), [volumes]);
   const { openCard } = useGlMap();
   useGlTap(AIRSPACE_LINE_LAYERS, TAP.line, TAP.rank.line, feature => {

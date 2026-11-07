@@ -23,7 +23,7 @@ async function violations(page: Page, within?: string) {
   await atRest(page);
   let axe = new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
-    .exclude(".leaflet-pane")
+    .exclude(".maplibregl-canvas-container")
     // maximum-scale=1 is deliberate: it keeps iOS from zooming the page
     // in on a field a finger taps (checkpoints.spec), and iOS lets a
     // pinch zoom it all the same.
