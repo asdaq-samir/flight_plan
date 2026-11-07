@@ -22,28 +22,6 @@ MINIMUM_CHOICES = {
 }
 
 
-def steady_or_gust_kt(steady_kt: float, gust_kt: float | None) -> float:
-    """The crosswind a wind is judged by, steady or in the gusts,
-    whichever is more, unsigned (lib/wind steadyOrGustKt): a pilot meets
-    the gust's crosswind in the flare -- a design choice that errs toward
-    the stronger wind. The engine's (wingtip_engine::runway::wind)."""
-    return ask("wind_steady_or_gust", steady_kt=steady_kt, gust_kt=gust_kt)
-
-
-def runway_crosswind_kt(wind: dict) -> float:
-    """A runway's wind as the planner works it out (wingtip.runway_wind),
-    judged by steady_or_gust_kt."""
-    return ask("runway_crosswind", wind={"crosswind_kt": wind["crosswind_kt"], "gust_crosswind_kt": wind.get("gust_crosswind_kt")})
-
-
-def best_crosswind(runways: list[dict], reported: dict | None = None) -> dict | None:
-    """The crosswind on the field's best open runway for the wind -- the
-    least, the gusts' where they are more -- and that runway's favoured
-    end; a wind reported with no direction (VRB, `reported`: speed_kt,
-    gust_kt) all of it, with no end."""
-    return ask("gonogo_best_crosswind", runways=runways, reported=reported)
-
-
 def under_minimums(m: dict, briefing: dict, landings: list[str], dest: str) -> list[str]:
     """Where the briefing's weather is under the minimums, each a
     sentence: every airport landed at's current report (ceiling,

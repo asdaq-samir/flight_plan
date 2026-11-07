@@ -12,7 +12,9 @@
 # - Chart tile drawing: CHARTS_AUTO_REFRESH=0. A scheduled Fargate Spot
 #   task draws each 56-day cycle once and publishes it to S3, and the
 #   map fetches tiles from CloudFront (CHART_TILES_URL), so this 4 GB
-#   server never draws the whole country.
+#   server never draws the whole country. The FAA's NASR and obstacle
+#   files are still fetched as each edition comes out
+#   (FAA_DATA_AUTO_REFRESH, on).
 #
 # Run on the server, from /srv/wingtip with its .env beside this
 # file (infra/server/env.example lists every key):
@@ -109,6 +111,10 @@ services:
       SWIM_VPN_TFMS: ${SWIM_VPN_TFMS:-}
       SWIM_QUEUE_TFMS: ${SWIM_QUEUE_TFMS:-}
       CHARTS_AUTO_REFRESH: "0"
+      # But the NASR files (airports, frequencies, navaids, Class B/C/D)
+      # and the obstacle file are fetched again as each new edition comes
+      # out (app.main check_faa_editions): their own switch, on.
+      FAA_DATA_AUTO_REFRESH: "1"
       CHART_TILES_URL: https://${PUBLIC_HOST}/tiles
       TZ: America/Chicago
     healthcheck:

@@ -48,21 +48,6 @@ def self_checks() -> list[dict]:
 SELF_CHECKS = [{k: v for k, v in _unmarked(c).items() if k != "stop" or v} for c in self_checks()]
 
 
-def inspection_factors(i: dict, day: str, ifr: bool) -> list[dict]:
-    """Whether the pilot's own airplane may be flown on the day, by the
-    inspections and tests its owner has recorded (14 CFR 91.409(a) and
-    (b), 91.207(c) and (d), 91.411(a), 91.413(a)): each recorded one past
-    its last good day is a factor."""
-    return [_unmarked(f) for f in ask("gonogo_inspection_factors", inspections=i, day=day, ifr=bool(ifr))]
-
-
-def squawk_factors(open_: list[dict], night: bool, ifr: bool) -> list[dict]:
-    """The airplane's open squawks on the day: an inoperative item not
-    deferred for this kind of flight stops it (91.213(d)); the others are
-    a caution to read before flight (91.7(b))."""
-    return [_unmarked(f) for f in ask("gonogo_squawk_factors", squawks=open_, night=bool(night), ifr=bool(ifr))]
-
-
 def assessment(f: dict) -> dict:
     """The whole assessment as the Go / No-Go answers it: its points, its
     level, its line ("Raised · 8 points") and what to do at that level,
@@ -73,15 +58,3 @@ def assessment(f: dict) -> dict:
     web's undefined) is not the same as None (the pilot's own airplane
     with none recorded)."""
     return ask("gonogo_risk", **f)
-
-
-def assess(f: dict) -> dict:
-    """The factors found and the ones ticked (`ticked`, the self checks'
-    keys), their points, and the level they make."""
-    a = assessment(f)
-    return {"score": a["score"], "level": a["level"], "factors": [_unmarked(x) for x in a["factors"]]}
-
-
-def risk_line(a: dict) -> str:
-    """An assessment in a few words: "Raised · 8 points"."""
-    return ask("gonogo_risk_line", level=a["level"], score=a["score"])

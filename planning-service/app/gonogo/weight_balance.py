@@ -14,12 +14,6 @@ def default_load(loading: dict, fuel_gal: float) -> dict:
     return ask("gonogo_default_load", loading=loading, fuel_gal=fuel_gal)
 
 
-def in_envelope(envelope: list, arm: float, weight: float) -> bool:
-    """Whether an (arm, weight) point is within the envelope, its edges
-    included: the POH's sample loading sits on its top, at 2,550 lb."""
-    return ask("gonogo_in_envelope", envelope=envelope, arm=arm, weight=weight)
-
-
 def balance(loading: dict, load: dict, trip_fuel_gal: float | None) -> dict:
     """The weight and centre of gravity at takeoff -- the ramp's, less the
     start and taxi fuel -- and at landing, less the trip's fuel, each

@@ -14,5 +14,3 @@ export interface WordsState {
 export const wordsState = (q: { data?: WordsAnswer | null; error: unknown }): WordsState =>
   ({ answer: q.data, error: q.error, pending: !q.data && !q.error });
 
-/** The reading in one paragraph, for a test or a voice. */
-export const sentencesText = (answer: WordsAnswer) => answer.sentences.map(s => s.text).join(" ");

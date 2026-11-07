@@ -5,10 +5,33 @@ runwayFlown.test.ts's cases, on the stock profile itself
 import pytest
 from wingtip.aircraft import load_aircraft_profile
 
-from app.gonogo.runways import (
-    density_altitude_ft, field_air, picked_end, runway_checks, runway_flown, short_field, soft_surface,
-)
-from app.gonogo.weight_balance import balance, default_load, in_envelope
+from app.gonogo import ask
+from app.gonogo.runways import density_altitude_ft, runway_checks, runway_flown
+from app.gonogo.weight_balance import balance, default_load
+
+
+# The engine's names runway_checks and balance ask inside the engine,
+# asked by name as the native app's Go / No-Go would.
+def short_field(table: dict, pressure_alt_ft: float, temp_c: float, weight_lb: float, headwind_kt: float, grass: bool) -> dict:
+    return ask("gonogo_short_field", table=table, pressure_alt_ft=pressure_alt_ft, temp_c=temp_c, weight_lb=weight_lb,
+               headwind_kt=headwind_kt, grass=grass)
+
+
+def soft_surface(runway: dict | None) -> bool:
+    return ask("gonogo_soft_surface", surface=(runway or {}).get("surface"))
+
+
+def field_air(elevation_ft: float, altimeter_in_hg: float | None, temp_c: float | None) -> dict:
+    return ask("gonogo_field_air", elevation_ft=elevation_ft, altimeter_in_hg=altimeter_in_hg, temp_c=temp_c)
+
+
+def picked_end(picks: dict | None, ident: str, kind: str, departure: bool) -> str | None:
+    return ask("gonogo_picked_end", picks=picks or None, ident=ident, kind=kind, departure=departure)
+
+
+def in_envelope(envelope: list, arm: float, weight: float) -> bool:
+    return ask("gonogo_in_envelope", envelope=envelope, arm=arm, weight=weight)
+
 
 C172 = {"name": "c172", **load_aircraft_profile("c172")}
 LOADING = C172["loading"]

@@ -78,6 +78,13 @@ EDITIONS_CHECK_EVERY_S = 6 * 3600
 #: Whether the FAA's aircraft registry is downloaded and read here
 #: (wingtip.registry): on, but on a test stack (docker-compose.ci.yml).
 REGISTRY_REFRESH = get_settings().registry_refresh
+#: Whether a new edition of the FAA's NASR files (airports, frequencies,
+#: navaids, Class B/C/D) and its obstacle file is fetched here
+#: (check_faa_editions): on, but on a test stack. Its own switch, not the
+#: charts': production draws no charts (CHARTS_AUTO_REFRESH=0), and gated
+#: on that, it went on reading the edition it first fetched, cycle after
+#: cycle -- a changed frequency or a redrawn Class D unseen.
+FAA_DATA_AUTO_REFRESH = get_settings().faa_data_auto_refresh
 #: Whether the cycle pack (wingtip.pack) is built here, from the files the
 #: planner holds, once a cycle: on, but on a test stack, which reads the
 #: files themselves and need not write 400 MB a run.
@@ -110,6 +117,32 @@ def _prepare_corridor_charts() -> None:
             # for the tests that switch to one.
             charts.prepare_for_bbox((min(lons), min(lats), max(lons), max(lats)),
                                     kinds=("sec", "tac", "ifr_low", "ifr_area"))
+
+
+def check_faa_editions(last_check: float) -> float:
+    """The FAA's files fetched again a new edition at a time
+    (wingtip.faa_data.refresh_editions) where FAA_DATA_AUTO_REFRESH is on
+    and the last check is EDITIONS_CHECK_EVERY_S old -- a cycle starts on
+    a known day, and a check is three page reads -- and what changed read
+    again here rather than under a pilot's request (the airspace's shapes
+    alone are half a minute). When it last checked, for the next call."""
+    if not FAA_DATA_AUTO_REFRESH or time.time() - last_check < EDITIONS_CHECK_EVERY_S:
+        return last_check
+    checked = time.time()
+    try:
+        refreshed = faa_data.refresh_editions(altitude.DEFAULT_FAA_CACHE_DIR)
+        if refreshed:
+            log.info("FAA files refreshed: %s", ", ".join(refreshed))
+            airspace.preload(altitude.DEFAULT_FAA_CACHE_DIR)
+            faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)
+            remarks.preload()
+            fixes.preload()
+            if CYCLE_PACK:
+                cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
+                cycle_pack.ensure_phone()
+    except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
+        log.warning("FAA editions not checked", exc_info=True)
+    return checked
 
 
 def _warm_reference_data() -> None:
@@ -261,10 +294,8 @@ def _warm_reference_data() -> None:
     # logged and the held copies go on being served. Once an hour, the
     # chart cycle is checked (app.chart_refresh decides what that starts).
     last_cycle_check = time.time()
-    # The FAA's files a new edition at a time (wingtip.faa_data.refresh_editions):
-    # checked now, and four times a day -- a cycle starts on a known day,
-    # and a check is three page reads. Off with the charts' own refresh
-    # (CHARTS_AUTO_REFRESH=0: a test stack).
+    # The FAA's files a new edition at a time (check_faa_editions): checked
+    # now, and four times a day.
     last_editions_check = 0.0
     # 0.0 as above: a startup read that failed is tried again on the first
     # pass, and after a good one refresh() sees a fresh file and does nothing.
@@ -282,23 +313,7 @@ def _warm_reference_data() -> None:
                 data_cycles.warn_if_out_of_date()
             except Exception:  # noqa: BLE001 -- the next check tries again
                 log.warning("FAA data cycles not checked", exc_info=True)
-        if chart_refresh.AUTO_REFRESH and time.time() - last_editions_check >= EDITIONS_CHECK_EVERY_S:
-            last_editions_check = time.time()
-            try:
-                refreshed = faa_data.refresh_editions(altitude.DEFAULT_FAA_CACHE_DIR)
-                if refreshed:
-                    log.info("FAA files refreshed: %s", ", ".join(refreshed))
-                    # Read again here rather than under a pilot's request:
-                    # the airspace's shapes alone are half a minute.
-                    airspace.preload(altitude.DEFAULT_FAA_CACHE_DIR)
-                    faa_data.preload_obstacles(altitude.DEFAULT_FAA_CACHE_DIR)
-                    remarks.preload()
-                    fixes.preload()
-                    if CYCLE_PACK:
-                        cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
-                        cycle_pack.ensure_phone()
-            except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
-                log.warning("FAA editions not checked", exc_info=True)
+        last_editions_check = check_faa_editions(last_editions_check)
         # The aircraft registry, read again once it is a day old (each
         # check a look at the file's age).
         if REGISTRY_REFRESH and time.time() - last_registry_check >= EDITIONS_CHECK_EVERY_S:

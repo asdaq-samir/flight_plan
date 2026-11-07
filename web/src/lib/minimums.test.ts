@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Briefing } from "./api/types";
-import { bestCrosswind, NO_MINIMUMS, underMinimums } from "./minimums";
+import { callEngine } from "./engine/engine";
+import { NO_MINIMUMS, underMinimums } from "./minimums";
+
+// The crosswind on the best open runway, as gonogo_under_minimums takes it
+// inside the engine, asked by name through the .wasm.
+const bestCrosswind = (runways: Briefing["airports"][string]["runways"], reported?: { speedKt?: number | null; gustKt?: number | null } | null) =>
+  callEngine("gonogo_best_crosswind", { runways, reported: reported ? { speed_kt: reported.speedKt ?? null, gust_kt: reported.gustKt ?? null } : null });
 
 const briefing = {
   metars: { C81: { ceiling_ft: 2500, visibility_sm: 10, wind_speed_kt: 12, wind_gust_kt: 22 }, KDLH: null },

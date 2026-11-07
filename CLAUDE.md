@@ -82,10 +82,11 @@ one job (the owner kept both server languages on this split, 2026-11-06):
 
 ## Checks — run what covers your change
 
-Run the checks that cover a change before committing it, on the Mac mini
-(the owner, 2026-11-06: it is fast enough; the old "code changes only"
-rule was for the 2016 MacBook). Whole suites, the full browser suite and
-long measurements still wait for the owner's ask; CI runs everything.
+Before pushing, run the quick checks that cover a change (type check,
+lint, the unit tests it touches) on the Mac mini. Lengthy runs -- whole
+suites, browser tests, iOS and Android builds, image builds -- are left to
+CI, which runs on the Mac mini's runners, unless one is needed to debug a
+failure; no test holds up a code change (the owner, 2026-11-06).
 
 On the Mac, run them with `scripts/check.sh all-changed` (the areas the
 branch and its uncommitted files touch, in parallel) or `scripts/check.sh
@@ -128,8 +129,10 @@ rest run every night (docs/CI.md). Tag a test `@smoke` only when it is the
 one that proves a journey end to end.
 On the owner's Mac run only the specs a change touches, and every browser
 run, test suite, image build and measurement through
-`scripts/one-at-a-time.sh`: up to four run at once on the Mac mini, and a
+`scripts/one-at-a-time.sh`: up to three run at once on the Mac mini, and a
 speed measurement takes `--alone`, the whole machine (the `checks` skill).
+A quick check -- one type check, lint or unit run of a minute or two --
+runs outside it, so it isn't stuck behind long builds.
 
 ## The app on the phone
 

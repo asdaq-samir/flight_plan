@@ -10,7 +10,7 @@
  * (native/crates/brief/src/gonogo/runways.rs, through lib/engine), the very
  * code behind the planner's Go / No-Go and the phones'.
  */
-import type { AircraftProfile, Airport, Briefing, Course, Runway, ShortField } from "./api/types";
+import type { AircraftProfile, Airport, Briefing, Course, Runway } from "./api/types";
 import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { RunwayPicks } from "./pattern";
 import type { Distances } from "./takeoffLanding";
@@ -32,39 +32,6 @@ const distances = (d: EngineDistances): Distances & { over: boolean } =>
  */
 export function densityAltitudeFt(pressureAltFt: number, tempC: number): number {
   return callEngine("gonogo_density_altitude", { pressure_alt_ft: pressureAltFt, temp_c: tempC });
-}
-
-/** A runway with a soft surface -- turf, grass, dirt or gravel, as
- *  OurAirports and NASR code it -- for the POH's correction to the ground
- *  roll on dry grass (lib/takeoffLanding). */
-export function softSurface(runway: Runway | undefined): boolean {
-  return callEngine("gonogo_soft_surface", { surface: runway?.surface ?? null });
-}
-
-/** The air a field's distances are worked out in: its pressure altitude
- *  from the altimeter reported (a standard 29.92 without one) and the
- *  temperature reported, else a standard day's at its elevation. */
-export function fieldAir(elevationFt: number, altimeterInHg: number | null | undefined, tempC: number | null | undefined) {
-  const air = callEngine("gonogo_field_air", {
-    elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg ?? null, temp_c: tempC ?? null,
-  });
-  return { pressureAltFt: air.pressure_alt_ft, tempC: air.temp_c };
-}
-
-/**
- * One runway end's short-field distance over a 50 ft obstacle, from the
- * POH's table for the takeoff or the landing: in the field's air, at the
- * weight (the table's heaviest, the longest distance, where none is
- * known), with the headwind on that end (a tailwind negative) and the
- * correction for a soft surface; and whether it is longer than the
- * runway. The one evaluator the runway check here and FPL's runway chips
- * (lib/runwayFit) both go by.
- */
-export function endDistance(table: ShortField, runway: Runway | undefined, air: { pressureAltFt: number; tempC: number },
-  weightLb: number | null | undefined, headwindKt: number): Distances & { over: boolean } {
-  return distances(callEngine("gonogo_end_distance", {
-    table, runway: runway ?? null, pressure_alt_ft: air.pressureAltFt, temp_c: air.tempC, weight_lb: weightLb ?? null, headwind_kt: headwindKt,
-  }));
 }
 
 export interface RunwayDistance extends Distances {

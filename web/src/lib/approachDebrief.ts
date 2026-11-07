@@ -44,9 +44,6 @@ export const LOCALIZER_DEG = 2.5;
  *  424-18 5.10): a localizer's, a GPS's, or another (VOR, NDB, LDA, back
  *  course), whose course is measured and marked nowhere. */
 export type Guidance = EngineAnswer<"approach_guidance">;
-export function guidanceOf(id: string): Guidance {
-  return callEngine("approach_guidance", { id });
-}
 
 export type Tone = ApproachFinding["tone"];
 
@@ -129,13 +126,6 @@ function shaped(d: Debriefed): ApproachDebrief {
 }
 
 const enginePoints = (points: TrackPoint[]) => points.map(p => ({ t: p.t, lat: p.lat, lon: p.lon, alt_ft: p.altFt }));
-
-/** The glidepath's height at a distance from its runway's threshold, nm,
- *  ft MSL: a straight line up from the runway's crossing altitude at its
- *  angle, over the curved earth. */
-export function glidepathFt(gp: NonNullable<ProcedureDrawing["runway_path"]>, nmOut: number): number {
-  return callEngine("glidepath_ft", { runway_path: gp, nm_out: nmOut });
-}
 
 /** Each time the track flew inbound over the approach's final approach
  *  fix: the attempts at it, as point indices -- from the last one's end,

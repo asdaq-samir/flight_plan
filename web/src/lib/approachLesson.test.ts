@@ -1,9 +1,19 @@
 import { describe, expect, it } from "vitest";
-import type { Frequency, ProcedureDrawing } from "./api/types";
+import type { Frequency, ProcedureDrawing, ProcedureMissedLeg } from "./api/types";
 import {
-  alongNm, approachBrief, approachCategory, approachQuiz, briefFrequencies, coachingSteps, descentFpm, fixName, lessonPath,
-  lessonProfile, minimumsKind, missedWords, pathBetween, roundedFpm, SEE_THE_PLATE, stopwatch,
+  alongNm, approachBrief, approachCategory, approachQuiz, coachingSteps, lessonPath, lessonProfile, pathBetween, stopwatch,
 } from "./approachLesson";
+import { callEngine } from "./engine/engine";
+
+// The engine's names behind the lesson's sentences, asked through the
+// .wasm as approach_brief asks them inside the engine.
+const descentFpm = (gsKt: number, angleDeg: number) => callEngine("approach_descent_fpm", { gs_kt: gsKt, angle_deg: angleDeg });
+const roundedFpm = (fpm: number) => callEngine("approach_rounded_fpm", { fpm });
+const minimumsKind = (name: string) => callEngine("approach_minimums_kind", { name });
+const fixName = (ident: string) => callEngine("approach_fix_name", { ident });
+const missedWords = (legs: ProcedureMissedLeg[] | undefined) => callEngine("approach_missed_words", { legs: legs ?? [] });
+const briefFrequencies = (frequencies: Frequency[] | null) => callEngine("approach_brief_frequencies", { frequencies: frequencies ?? [] });
+const SEE_THE_PLATE = "See the plate";
 
 /** KDLH's ILS 09 via DLH as the CIFP of 29 Oct 2026 codes it: DL the IAF
  *  (a hold in lieu), CFBSJ the final approach course fix, PYKLA the FAF at

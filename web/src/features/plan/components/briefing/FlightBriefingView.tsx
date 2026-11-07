@@ -15,7 +15,6 @@ import AirportSections from "./AirportSections";
 import WeatherAlongRoute from "./WeatherAlongRoute";
 import AlternateSection from "./AlternateSection";
 import type { FiledProcedure } from "../../../../lib/flightPlanForm";
-import { PLANNING_AID } from "../../../../lib/limits";
 import type { BriefingPart } from "./sections";
 import { Pending } from "./BriefingBits";
 import PreflightPart from "./PreflightPart";
@@ -230,16 +229,3 @@ export function BriefingNotices({ briefing: state }: { briefing: BriefingState }
   );
 }
 
-/**
- * The reminder a planning aid owes its pilot, at the foot of the drawer
- * and of the printed page: always there, never in the way. As a toast it
- * covered the nav log's last rows each time the drawer opened, and hid
- * the one warning that mattered behind it.
- */
-export function PlanningAidNote() {
-  return (
-    <p className={cn("py-3 text-muted-foreground", TEXT.note)} data-testid="planning-aid-note">
-      {PLANNING_AID}
-    </p>
-  );
-}

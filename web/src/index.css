@@ -113,9 +113,8 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
    still wins. */
 @media (pointer: coarse) {
   :root {
-  /* The glass of every button (mapChrome's GLASS_BUTTON,
-     AIRSPACE_PILL): one shape, lit along its top edge, a half-point edge
-     and a soft shade, as iOS's glass is; only these colours are the
+  /* The glass of every button (mapChrome's GLASS_BUTTON): one shape,
+     lit along its top edge, a half-point edge and a soft shade, as iOS's glass is; only these colours are the
      theme's (the owner's "shouldn't it be common code between light and
      dark?"). */
   --glass-sheen: rgb(255 255 255 / 0.75);
@@ -436,7 +435,7 @@ body[data-map-sheet][data-map-panel="full"] :is([data-map-controls], [data-map-f
    edge, 18-point corners and a soft shade (the rule after the Sunlight
    block); the chart's magenta for the course and an ident at a head, its
    brown for the checkpoints' marks, its green for a field (--ink-*, the
-   tokens and the ink-* colour utilities; chartColors' courseColour and
+   tokens and the ink-* colour utilities; chartColors'
    checkpointColour for what Leaflet and a canvas take as a value). What
    can be tapped stays the app's own blue by day: the canvas's #0a84ff
    reads 3.7:1 on white, under WCAG's 4.5 (the iOS audit's P15), and so

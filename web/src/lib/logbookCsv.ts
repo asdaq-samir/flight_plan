@@ -23,14 +23,6 @@ import { callEngine, type EngineAnswer } from "./engine/engine";
  * file with too: the rules live there.
  */
 
-/** RFC 4180's CSV, papaparse's reading of it: commas (or the delimiter
- *  the first rows show), quotes doubled inside quotes, and a quoted
- *  field's own commas and line breaks; a row to each record, empty ones
- *  kept so a row's place is its line. */
-export function parseCsv(text: string): string[][] {
-  return callEngine("csv_rows", { text });
-}
-
 /** The logbook as a CSV file, oldest flight first, in ForeFlight's
  *  column names where it has the field. */
 export function logbookCsv(entries: LogbookEntry[]): string {

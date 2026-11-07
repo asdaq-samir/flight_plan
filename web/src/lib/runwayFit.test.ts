@@ -1,8 +1,21 @@
 import { describe, expect, it } from "vitest";
 import c172Json from "../../../data/aircraft/c172.json?raw";
-import type { AircraftProfile, Runway } from "./api/types";
+import type { AircraftProfile, Runway, ShortField } from "./api/types";
 import type { RunwayEnd } from "./pattern";
-import { endDistance, fieldAir } from "./runwayCheck";
+import { callEngine } from "./engine/engine";
+
+// The engine's one evaluator of a runway end's distance (runways.rs), the
+// runway check's and FPL's chips', asked by name through the .wasm.
+const fieldAir = (elevationFt: number, altimeterInHg: number, tempC: number) => {
+  const air = callEngine("gonogo_field_air", { elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg, temp_c: tempC });
+  return { pressureAltFt: air.pressure_alt_ft, tempC: air.temp_c };
+};
+const endDistance = (table: ShortField, runway: Runway | undefined, air: { pressureAltFt: number; tempC: number }, weightLb: number, headwindKt: number) => {
+  const d = callEngine("gonogo_end_distance", {
+    table, runway: runway ?? null, pressure_alt_ft: air.pressureAltFt, temp_c: air.tempC, weight_lb: weightLb, headwind_kt: headwindKt,
+  });
+  return { totalFt: d.total_ft, over: d.over };
+};
 import { DISTANCE_MARGIN, endFit } from "./runwayFit";
 
 const c172 = { name: "c172", ...JSON.parse(c172Json) } as AircraftProfile;

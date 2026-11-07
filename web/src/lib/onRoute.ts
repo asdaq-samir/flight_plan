@@ -53,10 +53,6 @@ export function onRouteLine(on: OnRoute): string {
   return [legWords(on.legs), [when, valid].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 }
 
-/** Whether the airplane is there while the hazard holds: the planner's
- *  "during", or a report or forecast for the place, which has no window. */
-export const metWhileValid = (on: OnRoute) => on.when !== "before" && on.when !== "after";
-
 export type LatLon = { lat: number; lon: number };
 
 /** The stretches of the route the legs make, each a line of fixes: legs

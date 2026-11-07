@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { TrafficAircraft } from "./api/types";
-import { NO_FILTER, bandOf, filtering, inEmergency, keptFilter, kindOf, matches, operatorOf, relationTo, sameField } from "./fbo";
+import { callEngine } from "./engine/engine";
+import { NO_FILTER, filtering, inEmergency, keptFilter, kindOf, matches, relationTo, sameField } from "./fbo";
+
+// Two of the engine's names the phones' traffic lists ask, through the .wasm.
+const bandOf = (altitudeFt: number | null) => callEngine("altitude_band", { altitude_ft: altitudeFt });
+const operatorOf = (plane: Pick<TrafficAircraft, "callsign">) => callEngine("operator_of", { callsign: plane.callsign ?? null });
 
 const LWM = { lat: 42.7172, lon: -71.1234, elevationFt: 148 };
 

@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import c172Json from "../../../data/aircraft/c172.json?raw";
 import type { Loading, ShortField } from "./api/types";
-import { shortField } from "./takeoffLanding";
-import { balance, defaultLoad, inEnvelope } from "./weightBalance";
+import { callEngine } from "./engine/engine";
+import { balance, defaultLoad } from "./weightBalance";
+
+// Two of the engine's names the phones' weight and balance and the runway
+// check ask inside the engine, asked by name through the .wasm.
+const inEnvelope = (envelope: [number, number][], arm: number, weight: number) => callEngine("gonogo_in_envelope", { envelope, arm, weight });
+function shortField(table: ShortField, pressureAltFt: number, tempC: number, weightLb: number, headwindKt: number, grass: boolean) {
+  const d = callEngine("gonogo_short_field", { table, pressure_alt_ft: pressureAltFt, temp_c: tempC, weight_lb: weightLb, headwind_kt: headwindKt, grass });
+  return { groundRollFt: d.ground_roll_ft, totalFt: d.total_ft, caveats: d.caveats };
+}
 
 // The stock profile itself (data/aircraft), the 172S's POH figures in it.
 const c172 = JSON.parse(c172Json);

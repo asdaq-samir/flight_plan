@@ -1,5 +1,5 @@
 import type { Briefing } from "./api/types";
-import { callEngine, type EngineAnswer } from "./engine/engine";
+import { callEngine } from "./engine/engine";
 
 /**
  * A pilot's personal minimums -- the weather they have decided they will
@@ -28,23 +28,6 @@ export const MINIMUM_CHOICES: Record<keyof Minimums, number[]> = {
   crosswindKt: [5, 8, 10, 12, 15, 17, 20],
   windKt: [10, 15, 20, 25, 30, 35],
 };
-
-/** The crosswind on the field's best open runway for the wind -- the
- *  least, the gusts' where they are more -- and that runway's favoured
- *  end. A closed runway is not landed on, so its wind is not counted
- *  (the planner puts one on every runway): a closed runway into the wind
- *  passed a field whose open one had it all across. A wind reported with
- *  no direction -- variable, VRB, which gives no runway a component --
- *  may blow across any of them, so all of it, gusts included, is taken as
- *  crosswind, with no end (`reported`, the field's METAR wind). */
-export function bestCrosswind(
-  runways: Briefing["airports"][string]["runways"],
-  reported?: { speedKt?: number | null; gustKt?: number | null } | null,
-): EngineAnswer<"gonogo_best_crosswind"> {
-  return callEngine("gonogo_best_crosswind", {
-    runways, reported: reported ? { speed_kt: reported.speedKt ?? null, gust_kt: reported.gustKt ?? null } : null,
-  });
-}
 
 /**
  * Where the briefing's weather is under the minimums, each a sentence:

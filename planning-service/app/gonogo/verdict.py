@@ -15,17 +15,7 @@ A finding (lib/status) is "ok", "caution", "stop", "unknown" or
 "pending"; the input is the web's VerdictInput in snake case."""
 from . import ask
 
-#: The worst first (lib/status worstOf).
-WORST_FIRST = ("stop", "caution", "unknown", "pending")
-
 RISK_FINDING = {"low": "ok", "caution": "caution", "high": "stop"}
-
-
-def worst_of(findings: list[str]) -> str:
-    for f in WORST_FIRST:
-        if f in findings:
-            return f
-    return "ok"
 
 
 def verdict_items(v: dict) -> list[dict]:

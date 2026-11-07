@@ -12,48 +12,10 @@ fields it answers by index are put back here as the dicts they were."""
 from . import ask
 
 
-def pressure_altitude_ft(elevation_ft: float, altimeter_in_hg: float | None) -> float:
-    """The field's pressure altitude from its elevation and the altimeter
-    setting reported (FAA-H-8083-25C, chapter 11)."""
-    return field_air(elevation_ft, altimeter_in_hg, 15.0)["pressure_alt_ft"]
-
-
 def density_altitude_ft(pressure_alt_ft: float, temp_c: float) -> float:
     """Density altitude in the engine's standard atmosphere, the one the
     nav log's cruise and climb are flown in (FAA-H-8083-25C, chapter 11)."""
     return ask("gonogo_density_altitude", pressure_alt_ft=pressure_alt_ft, temp_c=temp_c)
-
-
-def short_field(table: dict, pressure_alt_ft: float, temp_c: float, weight_lb: float, headwind_kt: float, grass: bool) -> dict:
-    """A POH's short-field distances (ShortField) at a pressure altitude,
-    temperature and weight, with its notes for the wind and dry grass
-    (the Cessna 172S POH, section 5's takeoff and landing notes)."""
-    return ask("gonogo_short_field", table=table, pressure_alt_ft=pressure_alt_ft, temp_c=temp_c, weight_lb=weight_lb,
-               headwind_kt=headwind_kt, grass=bool(grass))
-
-
-def soft_surface(runway: dict | None) -> bool:
-    """A runway with a soft surface -- turf, grass, dirt or gravel, as
-    OurAirports and NASR code it -- for the POH's correction on dry grass."""
-    return ask("gonogo_soft_surface", surface=(runway or {}).get("surface"))
-
-
-def field_air(elevation_ft: float, altimeter_in_hg: float | None, temp_c: float | None) -> dict:
-    """The air a field's distances are worked out in: its pressure
-    altitude, and the temperature reported, else a standard day's."""
-    return ask("gonogo_field_air", elevation_ft=elevation_ft, altimeter_in_hg=altimeter_in_hg, temp_c=temp_c)
-
-
-def end_distance(table: dict, runway: dict | None, air: dict, weight_lb: float | None, headwind_kt: float) -> dict:
-    """One runway end's short-field distance over a 50 ft obstacle, and
-    whether it is longer than the runway."""
-    return ask("gonogo_end_distance", table=table, runway=runway, pressure_alt_ft=air["pressure_alt_ft"], temp_c=air["temp_c"],
-               weight_lb=weight_lb, headwind_kt=headwind_kt)
-
-
-def runway_number(ident: str) -> str:
-    """A runway end as painted: "9" for "09"."""
-    return ask("gonogo_runway_number", ident=ident)
 
 
 def _flown(runways: list[dict], found: dict | None) -> dict | None:
@@ -74,15 +36,6 @@ def runway_flown(runways: list[dict], picked: str | None) -> dict | None:
     """The runway end flown at a field (lib/pattern runwayFlown): the
     pilot's pick where they made one, else runway_in_use."""
     return _flown(runways, ask("gonogo_runway_flown", runways=runways, picked=picked))
-
-
-def picked_end(picks: dict | None, ident: str, kind: str, departure: bool) -> str | None:
-    """The end the pilot picked at `ident` for a "takeoff" or a "landing",
-    by the field's ICAO or FAA ident alike (lib/pattern pickedEnd, with
-    lib/procedures sameField's matching): `picks["pattern"]` holds the
-    departure's runway out and every other field's runway in,
-    `picks["takeoff"]` a stop's runway out."""
-    return ask("gonogo_picked_end", picks=picks or None, ident=ident, kind=kind, departure=bool(departure))
 
 
 def runway_checks(aircraft: dict | None, briefing: dict | None, fields: list[dict] | None,

@@ -1,6 +1,26 @@
 """app.gonogo.frat, with web/src/lib/frat.test.ts's and
 airworthiness.test.ts's cases."""
-from app.gonogo.frat import assess, inspection_factors, squawk_factors
+from app.gonogo import ask
+
+
+# The engine's names, asked as the native app's Go / No-Go asks them
+# inside gonogo_risk, without the finding marks the pages draw.
+def _unmarked(f: dict) -> dict:
+    return {k: v for k, v in f.items() if k != "finding"}
+
+
+def inspection_factors(i: dict, day: str, ifr: bool) -> list[dict]:
+    return [_unmarked(f) for f in ask("gonogo_inspection_factors", inspections=i, day=day, ifr=ifr)]
+
+
+def squawk_factors(open_: list[dict], night: bool, ifr: bool) -> list[dict]:
+    return [_unmarked(f) for f in ask("gonogo_squawk_factors", squawks=open_, night=night, ifr=ifr)]
+
+
+def assess(f: dict) -> dict:
+    a = ask("gonogo_risk", **f)
+    return {"score": a["score"], "level": a["level"], "factors": [_unmarked(x) for x in a["factors"]]}
+
 
 DAY = "2026-10-05"
 QUIET = {

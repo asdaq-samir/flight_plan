@@ -1,4 +1,3 @@
-import { GLASS_EDGE } from "./glass";
 import { useEffect, type CSSProperties } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePreferences, type AirspaceClass, type RecentAirport } from "./preferences";
@@ -47,15 +46,6 @@ const AIRSPACE: Record<Space, { name: string; style: CSSProperties }> = {
   E: { name: "Class E", style: { outline: `2.5px dashed ${MAGENTA}`, outlineOffset: -2.5, backgroundColor: `${MAGENTA}1f`, color: "var(--airspace-magenta-ink)" } },
   G: { name: "Class G", style: { background: `radial-gradient(circle closest-side, ${MAGENTA}00 58%, ${MAGENTA}70 82%, ${MAGENTA}10 100%)`, color: "var(--airspace-magenta-ink)" } },
 };
-
-/** A field's pill, as the route's box draws one (RouteBox) and the
- *  airport's card before its name: the sheet's own pill, under its
- *  airspace's look -- its fill that look's or its weather's
- *  colour, so of the buttons' glass (GLASS_BUTTON) only the white rim and
- *  the soft shadow, at the owner's pick of the sketches ("B"). */
-export const AIRSPACE_PILL =
-  "inline-flex shrink-0 items-center rounded-full bg-background/80 dark:bg-background/50 " +
-  GLASS_EDGE;
 
 /** A kept airport's airspace class: the one remembered with it, so the
  *  tile is drawn right as the sheet opens, and its card's own answer,

@@ -1,5 +1,13 @@
 """app.gonogo.minimums, with web/src/lib/minimums.test.ts's cases."""
-from app.gonogo.minimums import NO_MINIMUMS, best_crosswind, under_minimums
+from app.gonogo import ask
+from app.gonogo.minimums import NO_MINIMUMS, under_minimums
+
+
+def best_crosswind(runways: list[dict], reported: dict | None = None) -> dict | None:
+    """The engine's crosswind on the best open runway, as under_minimums
+    takes it inside the engine."""
+    return ask("gonogo_best_crosswind", runways=runways, reported=reported)
+
 
 BRIEFING = {
     "metars": {"C81": {"ceiling_ft": 2500, "visibility_sm": 10, "wind_speed_kt": 12, "wind_gust_kt": 22}, "KDLH": None},

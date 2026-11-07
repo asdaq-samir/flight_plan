@@ -1,15 +1,21 @@
 import { describe, expect, test } from "vitest";
 import type { ProcedureDrawing } from "./api/types";
 import {
-  attemptsAt, debriefApproach, findApproaches, glidepathFt, guidanceOf, LOCALIZER_DEG, withMinimums, withTransition,
+  attemptsAt, debriefApproach, findApproaches, LOCALIZER_DEG, withMinimums, withTransition,
 } from "./approachDebrief";
 import { bearingDeg, destination, distanceNm, FT_PER_NM, rad } from "./geo";
+import { callEngine } from "./engine/engine";
 import type { TrackPoint } from "./track";
 import KBUR from "./fixtures/approachKbur.json";
 
 // KBUR's ILS Y RWY 08 and RNAV (GPS) Z RWY 08 as the planner draws them
 // from the CIFP of 1 Oct 2026 (tests/cifp, wingtip.procedures.procedure_drawing).
 const drawings = KBUR as unknown as Record<string, ProcedureDrawing>;
+
+// Two of the engine's names only the phones ask, through the .wasm.
+const glidepathFt = (gp: NonNullable<ProcedureDrawing["runway_path"]>, nmOut: number) =>
+  callEngine("glidepath_ft", { runway_path: gp, nm_out: nmOut });
+const guidanceOf = (id: string) => callEngine("approach_guidance", { id });
 const ILS = drawings["I08-Y"]!;
 const ILS_LAX = drawings["I08-Y:LAX"]!;
 const RNAV = drawings["R08-Z"]!;

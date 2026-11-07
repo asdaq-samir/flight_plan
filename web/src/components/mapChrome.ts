@@ -215,7 +215,6 @@ export const usePanelDragging = create<{ dragging: boolean }>(() => ({ dragging:
  *  in the tint -- a target for a hand in turbulence, where the 36-point
  *  glyphs are a desk's. One size for the whole stack, the microphone's
  *  circle included, set on the stack rather than each button. */
-export const FLYING_BUTTON_PX = 60;
 export const FLYING_STACK = "gap-3 [&_button]:size-[60px]";
 export const FLYING_BUTTON = "rounded-full font-bold text-tint";
 

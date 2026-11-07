@@ -71,14 +71,6 @@ WEATHER_SOURCE_LABEL = {
 # phones' very rules: the verdict's lines are compared word for word.
 
 
-def faa_words(text: str | None) -> str:
-    """The FAA's capitalised text in sentence case, its codes kept
-    (lib/advisories faaWords): a word with a figure in it is a code, an
-    airspace's class is "Class B" (AIM 3-2-1); text with any lower case
-    is someone's own writing and is left as it is."""
-    return ask("faa_words", text=text) if text else ""
-
-
 def sigmet_hazard(hazard: str | None, kind: str | None = None) -> str:
     """"Convective", "Mountain obscuration" (lib/advisories sigmetHazard)."""
     return ask("sigmet_hazard", hazard=hazard, kind=kind)
