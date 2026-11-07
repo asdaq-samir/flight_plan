@@ -11,9 +11,13 @@
 #                     sources. Not web/: the suite's stack serves the
 #                     page below, mounted over the image's
 #                     (docker-compose.ci.yml).
-#   planning-service  its packages: the Dockerfile and the requirements
-#                     it installs. Not its code, which the stack mounts
-#                     from the checkout over the image's
+#   planning-service  its packages: the Dockerfile, the requirements
+#                     it installs and native/, the engine its
+#                     wingtip-native stage builds into the image (a rule
+#                     added there is missing from an image keyed without
+#                     it: the planner answered "the engine has no rule
+#                     called data_cycle"). Not its Python code, which the
+#                     stack mounts from the checkout over the image's
 #                     (docker-compose.yml).
 #   page              the page: web/ but its browser suite (web/e2e),
 #                     the two API documents its types are made from, and
