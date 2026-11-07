@@ -53,10 +53,17 @@ on:
 
 # A new push to an open PR should replace the run already queued for its
 # previous commit, not queue behind it -- otherwise every fixup push pays
-# for a run whose result nobody will read.
+# for a run whose result nobody will read. Only on a pull request: on
+# main each push's run is what Promote deploys and what build-images
+# pushes images from, so a merge right behind another must not cancel
+# it, and the night's run (same ref) must not cancel a push's or be
+# cancelled by one. The event is in the group for that reason; main's
+# runs queue instead (GitHub keeps one waiting, so of three quick merges
+# the middle one's run can still be replaced -- the next run builds
+# everything changed since the last green one, so nothing is lost).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Stated here rather than left to the repository's own default, which is
 # a setting outside this file that can change without a commit touching
@@ -382,6 +389,14 @@ jobs:
               # tests/test_requirements.py reads these
               - planning-service/requirements*.txt
               - docker/requirements*.txt
+              # the shared fixtures the engine's rules are tested against
+              # (test_flight_rules.py and the rest)
+              - web/src/lib/fixtures/**
+              # test_dockerfiles.py: every image's wingtip-native stage
+              - '*/Dockerfile'
+              - docker/Dockerfile.*
+              # test_dev_services_sidecar.py
+              - docker/dev-services/**
             test-web:
               - web/**
               - .nvmrc
@@ -1587,6 +1602,7 @@ jobs:
     needs: [changes]
     if: needs.changes.outputs.ios == 'true'
     uses: ./.github/workflows/native-ios-test.yml
+
   # Nothing a phone already calls may break. An iPhone app in the App
   # Store keeps calling these servers for months after a release, from
   # every phone that has not updated, so a field or an endpoint removed
