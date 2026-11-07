@@ -19,3 +19,7 @@ flate2 = "1.1"
 # needs nightly.
 proptest = { version = "1.7", default-features = false, features = ["std"] }
 serde_json = { version = "1.0", features = ["float_roundtrip"] }
+# The calls held to their contract (tests/contract.rs,
+# native/contract/engine.schema.json): JSON Schema's own validator, with
+# no fetching of remote schemas, which the contract has none of.
+jsonschema = { version = "0.30", default-features = false }
