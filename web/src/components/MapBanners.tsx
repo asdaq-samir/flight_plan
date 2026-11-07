@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import type L from "leaflet";
+import type { Map as GlMap } from "maplibre-gl";
 import AircraftAlerts from "./AircraftAlerts";
 import AlertsBanner from "./AlertsBanner";
 import ProblemBanner from "./ProblemBanner";
@@ -33,7 +33,7 @@ const RadioLayer = lazy(() => import("./RadioLayer"));
  * The radio's (RadioLayer) after what is ahead: a call to us with its
  * actions, and the captions while the app listens, once it first has.
  */
-export default function MapBanners({ map }: { map: L.Map | null }) {
+export default function MapBanners({ map }: { map: GlMap | null }) {
   // The microphone's pill too, which stays with what it heard or why it
   // heard nothing until put away: with nothing heard it went with the
   // listening, a few seconds after the tap (the owner's report, 2026-11-02).

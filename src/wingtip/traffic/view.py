@@ -3,6 +3,7 @@ watched airplanes and the FAA's radar merged, set on the nearest altimeter setti
 from __future__ import annotations
 
 import numpy as np
+import wingtip_native
 
 from .. import weather
 from .common import TrafficUnavailable, _LOCK, _NM_PER_DEG, _clock
@@ -96,6 +97,9 @@ def on_altimeter(planes: list[dict], lat: float, lon: float) -> list[dict]:
     setting = ((near or {}).get("metar") or {}).get("altimeter_in_hg")
     if not setting:
         return planes
-    shift = (setting - 29.92) * 1000
+    # Pressure altitude is the field's height plus a thousand feet an inch
+    # under 29.92 (the engine's pressure_altitude_ft): at a field at sea
+    # level it is the setting's own shift, the other way.
+    shift = -wingtip_native.pressure_altitude_ft(0.0, setting)
     return [{**p, "altitude_ft": round(p["altitude_ft"] + shift), "pressure_altitude": False}
             if p.get("pressure_altitude") and p.get("altitude_ft") is not None else p for p in planes]

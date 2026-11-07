@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { grabberTo, openMapSettings, openSection, openTab, settle, sideDrawer, slow } from "./helpers";
+import { drawn, grabberTo, openMapSettings, openSection, openTab, settle, sideDrawer, slow } from "./helpers";
 
 /**
  * Each hazard in the Brief says which legs of the route it is on and when
@@ -38,13 +38,14 @@ test("a SIGMET says its legs and times, and a tap shows the legs on the map", as
   const row = sideDrawer(page).getByTestId("on-route").first();
   await expect(row).toHaveText(/^Legs 1–2 · \d\d:\d\d–\d\d:\d\d, valid till \d\d:\d\d$/, { timeout: slow(90000) });
 
-  const highlight = page.locator('.leaflet-overlay-pane path[stroke="#ff9500"]');
-  await expect(highlight).toHaveCount(0);
+  // The legs in the orange band on the map's canvas (LegHighlightGl's probe).
+  const highlighted = async () => (await drawn(page, "leg-highlight")).length;
+  await expect.poll(highlighted).toBe(0);
   await row.click();
-  await expect(highlight).toHaveCount(1);
+  await expect.poll(highlighted).toBeGreaterThan(0);
   await expect(row).toHaveAttribute("data-shown", "true");
   await row.click();
-  await expect(highlight).toHaveCount(0);
+  await expect.poll(highlighted).toBe(0);
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
 

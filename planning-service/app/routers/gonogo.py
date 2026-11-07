@@ -15,7 +15,7 @@ from .. import planning as planning_module
 from ..common import load_route
 from ..gonogo.frat import assessment as risk_assessment, self_checks
 from ..gonogo.icing import icing_at_altitude, icing_line
-from ..gonogo.minimums import under_minimums
+from ..gonogo.minimums import ceiling_unknown_at, under_minimums
 from ..gonogo.pass_times import pass_time, sua_when, tfr_when
 from ..gonogo.runways import runway_checks
 from ..gonogo.schemas import GoNoGo, GoNoGoAsk
@@ -161,6 +161,7 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
     # 91.169), not VFR's minimums.
     vnr = [] if ifr else list((briefing or {}).get("vfr_not_recommended") or [])
     under_mine = under_minimums(ask.minimums.model_dump(), briefing, landings, dest) if briefing else []
+    unknown_ceilings = ceiling_unknown_at(briefing, landings) if briefing else []
 
     def pass_at(along_nm: float):
         return pass_time(legs, depart, along_nm)
@@ -229,7 +230,11 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
             "pending": not briefing and not failed, "failed": failed,
             "vfr_not_recommended": vnr, "under_minimums": under_mine, "icing": icing and icing_line(icing),
             "hazards": hazard_names,
-            "unchecked": [WEATHER_SOURCE_LABEL[w] for w in (briefing or {}).get("weather_unavailable") or [] if w != "tfrs"],
+            "unchecked": [WEATHER_SOURCE_LABEL[w] for w in (briefing or {}).get("weather_unavailable") or [] if w != "tfrs"]
+            # A ceiling reported or forecast with no height is not checked
+            # against the minimums, the pilot's or 91.155's: not met, not
+            # missed (minimums.ceiling_unknown_at).
+            + ([f"the ceiling at {', '.join(unknown_ceilings)}"] if unknown_ceilings else []),
             "worst": ceiling_and_visibility(briefing["forecast"].get("min_ceiling_ft"), briefing["forecast"].get("min_visibility_sm"))
             if briefing and (briefing["forecast"].get("min_ceiling_ft") is not None
                              or briefing["forecast"].get("min_visibility_sm") is not None) else None,
@@ -259,6 +264,9 @@ def go_no_go(ask: GoNoGoAsk) -> GoNoGo:
             "worked": not nav or (bool(nav["aircraft"].get("takeoff")) and bool(nav["aircraft"].get("landing"))),
             "short": list(dict.fromkeys(c["field"]["ident"] for c in checks if any(d["over"] for d in c["distances"]))),
             "crosswind": list(dict.fromkeys(c["field"]["ident"] for c in checks if c["crosswind_over"])),
+            "beyond": list(dict.fromkeys(c["field"]["ident"] for c in checks if any(d["beyond"] for d in c["distances"]))),
+            "unchecked": list(dict.fromkeys(c["field"]["ident"] for c in checks
+                                            if c["unchecked"] or any(d["unknown"] for d in c["distances"]))),
         },
         "balance": {
             "pending": not nav, "worked": bool(nav_loaded),

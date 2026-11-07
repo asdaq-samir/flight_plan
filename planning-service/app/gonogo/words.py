@@ -1,70 +1,53 @@
 """How a figure or the FAA's text is written in the Go / No-Go's words, as
 the web app writes them (lib/units, lib/advisories, features/plan/format):
 the verdict's lines are compared word for word with the web's."""
-import math
-from decimal import ROUND_HALF_UP, Decimal
-
 from . import ask
 
 
-def js_round(n: float) -> int:
-    """JavaScript's Math.round: halves up, toward +infinity, where
-    Python's round() takes them to the even one."""
-    return math.floor(n + 0.5)
+# How a figure is written is the engine's (figures::words, through
+# wingtip_native.call), JavaScript's rounding and number text as the web's
+# lib/units writes them, so a line here reads as the web's word for word.
 
 
 def num(n) -> str:
     """A number as JavaScript writes it into a string: 28 for 28.0, 2.3
     for 2.3, and "null" for none (a template literal's)."""
-    if n is None:
-        return "null"
-    if isinstance(n, bool):
-        return "true" if n else "false"
-    if isinstance(n, float) and n.is_integer():
-        return str(int(n))
-    return str(n)
+    return ask("words_num", n=n)
 
 
 def to_fixed(n: float, digits: int = 1) -> str:
     """JavaScript's toFixed: the nearest, a tie to the larger, on the
-    float's exact value (Python's format takes a tie to the even)."""
-    quantum = Decimal(1).scaleb(-digits)
-    return str(Decimal(n).quantize(quantum, rounding=ROUND_HALF_UP))
+    float's exact value."""
+    return ask("words_to_fixed", n=n, digits=digits)
 
 
 def one(n: float) -> float:
     """To a tenth, as lib/verdict's `one`."""
-    return js_round(n * 10) / 10
+    return ask("words_one", n=n)
 
 
 def grouped(n: float) -> str:
     """A whole number with a comma between each three figures, "12,500",
-    as the FAA writes altitudes and weights (lib/units grouped): rounded
-    on the magnitude, halves away from zero."""
-    magnitude = math.floor(abs(n) + 0.5)
-    digits = f"{magnitude:,}"
-    return f"-{digits}" if n < 0 and magnitude > 0 else digits
+    as the FAA writes altitudes and weights (lib/units grouped)."""
+    return ask("words_grouped", n=n)
 
 
 def alt_ft(ft: float | None) -> str:
     """"12,500"; an em dash for none (lib/units altFt)."""
-    return "—" if ft is None else grouped(ft)
+    return ask("words_alt_ft", ft=ft)
 
 
 def flight_level(ft: float | None) -> str:
     """A cruising altitude as the owner asked it written, hundreds of feet
-    in three figures: "FL-045" for 4,500 ft, "FL----" with none yet
-    (lib/units flightLevel; the owner, 2026-10-27: "make it in the format
-    FL-***"), padded as String(n).padStart(3, "0") pads a minus sign."""
-    return "FL----" if ft is None else f"FL-{str(js_round(ft / 100)).rjust(3, '0')}"
+    in three figures: "FL-045" for 4,500 ft, "FL-___" with none yet
+    (lib/units flightLevel)."""
+    return ask("words_flight_level", ft=ft)
 
 
 def ceiling_and_visibility(ceiling_ft: float | None, visibility_sm: float | None) -> str:
     """Ceiling and visibility the way a briefer says them
     (features/plan/format ceilingAndVisibility)."""
-    ceiling = "no ceiling" if ceiling_ft is None else f"{alt_ft(ceiling_ft)} ft"
-    visibility = "—" if visibility_sm is None else f"{num(visibility_sm)} sm"
-    return f"{ceiling} · {visibility}"
+    return ask("words_ceiling_and_visibility", ceiling_ft=ceiling_ft, visibility_sm=visibility_sm)
 
 
 #: An altitude plan's name (features/plan/format PLAN_NAME): the planner's

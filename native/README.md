@@ -166,6 +166,15 @@ Then the callers switch to the name and the old copy is deleted.
   answers it (`wt_airspace_in_view`, `wt_airports_in_view`,
   `wt_navaids_in_view`), with what a pack cannot hold -- a live METAR's
   flight category, a navaid's remarks -- answered null or empty.
+- The planner's own copies are going (#482 phase 0): the airspace column
+  and the Mode C veil (`airspace_column`, `mode_c_veil`), an FNS message's
+  NOTAMs (`notams_fns`), a report's ceiling and category (`ceiling_ft`,
+  `report_flight_category`, `vfr_basic_minimums`), a hazard's window
+  (`gonogo_hazard_window`), the reserve, the atmosphere and the descent
+  (`reserve_min`, `isa_temp_c`, `descent_ft_per_nm` ...) and a figure in
+  the web's words (`words_*`) are asked by name from wingtip and
+  app.gonogo, held to the planner's answers from before the move in
+  `web/src/lib/fixtures/plannerRules.json`.
 - `ffi/` (`wingtip-ffi`): the engine's C functions for the phones
   (`ffi/include/wingtip_engine.h`), a static library: the airspace over a
   point from a phone's cycle pack, as the planner's /api/airspace/at

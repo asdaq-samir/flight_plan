@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import type { FeatureCollection, Geometry } from "geojson";
 import type { FillLayerSpecification, LineLayerSpecification } from "maplibre-gl";
 import { useMemo } from "react";
 import { usePreferences } from "../../../preferences";
 import { tfrsQuery } from "../../../queryClient";
-import { TFR_RED, TfrCard, inForce } from "../../TfrLayer";
+import { TFR_RED, TfrCard, inForce } from "../../TfrCard";
 import { useGlData, useGlLayer, useGlMap, useGlTap } from "../glLayer";
 import { TAP } from "./common";
 
@@ -37,9 +38,9 @@ export function TfrGl() {
   const show = usePreferences(s => s.tfrs);
   const { data, dataUpdatedAt: now } = useQuery({ ...tfrsQuery, enabled: show });
   useGlLayer("areas", SOURCES, [FILL, LINE, LINE_LATER]);
-  const features = useMemo<GeoJSON.FeatureCollection | null>(() => (show && data ? {
+  const features = useMemo<FeatureCollection | null>(() => (show && data ? {
     type: "FeatureCollection",
-    features: data.map(tfr => ({ type: "Feature", properties: { id: tfr.notam_id, active: inForce(tfr, now) }, geometry: tfr.geometry as unknown as GeoJSON.Geometry })),
+    features: data.map(tfr => ({ type: "Feature", properties: { id: tfr.notam_id, active: inForce(tfr, now) }, geometry: tfr.geometry as unknown as Geometry })),
   } : null), [show, data, now]);
   useGlData(SOURCE, features);
   const { openCard } = useGlMap();

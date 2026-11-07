@@ -513,3 +513,16 @@ fn a_rule_not_known_or_input_not_of_its_shape_is_an_error_not_a_panic() {
     assert!(call("departure_circuit", r#"{"runway": {}, "end_ident": "9", "toward": [1]}"#).is_err());
     assert!(call("runway_end_fit", r#"{"runway": {}, "elevation_ft": 0}"#).is_err());
 }
+
+#[test]
+fn a_fit_with_no_elevation_or_no_length_is_unknown_and_one_past_the_table_beyond() {
+    // 14 CFR 91.103(b): no elevation, no distance -- not a sea-level one.
+    let f = fit(5000.0, "ASP", json!(null), json!({"elevation_ft": null}));
+    assert_eq!((f["needed_ft"].clone(), f["unknown"].clone(), f["short"].clone()), (json!(null), json!(true), json!(false)));
+    let f = fit(5000.0, "ASP", json!(null), json!({"runway": {"length_ft": null, "surface": "ASP", "closed": false, "runway_ends": []}}));
+    assert_eq!((f["unknown"].clone(), f["short"].clone(), f["close"].clone()), (json!(true), json!(false), json!(false)));
+    let f = fit(5000.0, "ASP", json!(null), json!({}));
+    assert_eq!((f["unknown"].clone(), f["beyond"].clone()), (json!(false), json!(false)));
+    // Heavier than the 172's heaviest table, 2,550 lb.
+    assert_eq!(fit(5000.0, "ASP", json!(null), json!({"weight_lb": 2600}))["beyond"], json!(true));
+}

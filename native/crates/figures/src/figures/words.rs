@@ -97,8 +97,10 @@ pub fn to_fixed(n: f64, digits: usize) -> String {
 /// the FAA writes altitudes (lib/units grouped): rounded on the
 /// magnitude, halves away from zero.
 pub fn grouped(n: f64) -> String {
-    let magnitude = js_round_f(n.abs()) as u64;
-    let plain = magnitude.to_string();
+    let magnitude = js_round_f(n.abs());
+    // The whole number's exact digits, past a u64's reach too (1e21 is
+    // 22 figures, as toLocaleString writes them).
+    let plain = format!("{magnitude:.0}");
     let mut digits = String::new();
     for (i, c) in plain.chars().enumerate() {
         if i > 0 && (plain.len() - i) % 3 == 0 {
@@ -106,7 +108,7 @@ pub fn grouped(n: f64) -> String {
         }
         digits.push(c);
     }
-    if n < 0.0 && magnitude > 0 {
+    if n < 0.0 && magnitude > 0.0 {
         format!("-{digits}")
     } else {
         digits

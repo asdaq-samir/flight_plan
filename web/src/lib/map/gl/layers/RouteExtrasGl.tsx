@@ -14,9 +14,9 @@ import { COURSE_MAGENTA, MAP_BLUE } from "../../chartColors";
 import { colourOf } from "../../flightCategory";
 import { airportMarkIcon, fixMarkIcon, trafficIcon } from "../../icons";
 import { useLessonMap } from "../../lessonMap";
-import { PATTERN_WORDS_FROM_ZOOM, TEAL, arrowIcon, labelIcon } from "../../PatternLayer";
-import { PROCEDURE_INK, PROCEDURE_WORDS_FROM_ZOOM, STALE_INK, fixIcon } from "../../ProcedureLayer";
-import { WAY_SHARES, wayAt, wayIcon, type RouteWay } from "../../RouteWaysLayer";
+import { PATTERN_WORDS_FROM_ZOOM, TEAL, arrowIcon, labelIcon } from "../../patternMarks";
+import { PROCEDURE_INK, PROCEDURE_WORDS_FROM_ZOOM, STALE_INK, fixIcon } from "../../procedureMarks";
+import { WAY_SHARES, wayAt, wayIcon, type RouteWay } from "../../routeWays";
 import { BREAK_PIN, FUEL_PIN, stackedPin, type StopPin } from "../../stopPins";
 import { useGlData, useGlLayer, useGlMap } from "../glLayer";
 import { leafletZoomOf } from "../glStyle";
@@ -59,7 +59,7 @@ const along = (a: LatLon, b: LatLon, f: number): LatLon => ({ lat: a.lat + (b.la
  *  casing, its entry dashed, arrows and words from zoom 11. */
 export function PatternsGl({ patterns }: { patterns: TrafficPattern[] }) {
   const level = useGlLevel();
-  const circuits = useMemo<GlRun[]>(() => patterns.map(p => ({ points: [p.legs[0]!.from, ...p.legs.map(l => l.to)].map(pair), colour: TEAL, width: 3.5 })), [patterns]);
+  const circuits = useMemo<GlRun[]>(() => patterns.map(p => ({ points: [p.legs[0]!.from, ...p.legs.map(l => l.to)].map(pair), colour: TEAL, width: 3.5, name: `${p.kind === "departure" ? "departure" : "pattern"}-at-${p.ident}` })), [patterns]);
   const entries = useMemo<GlRun[]>(() => patterns.map(p => ({ points: [pair(p.entry.from), pair(p.entry.to)], colour: TEAL, width: 3 })), [patterns]);
   useGlLines("patterns", "route", circuits, { colour: "#ffffff", width: 7, opacity: 0.9 });
   useGlLines("pattern-entries", "route", entries, { colour: "#ffffff", width: 7, opacity: 0.9 }, [7 / 3, 2]);

@@ -30,11 +30,11 @@ export const TAPPABLE = [
  *  control's segments keep iOS's own 32-point track. */
 // The map panel's grabber is the mark of where to drag, as iOS's is: the
 // whole head drags, and tapping it is a keyboard's and VoiceOver's way.
-export const HIT_EXEMPT = [".leaflet-marker-icon", "[data-slot=tabs-trigger]", "[data-testid=sidebar-trigger-button]"].join(", ");
+export const HIT_EXEMPT = [".maplibregl-marker", "[data-slot=tabs-trigger]", "[data-testid=sidebar-trigger-button]"].join(", ");
 
 /** P3's: a marker's number or ident, centred in its dot or chip as a
  *  glyph is (icons.ts), not a line of text. */
-export const LEADING_EXEMPT = ".leaflet-marker-icon";
+export const LEADING_EXEMPT = ".maplibregl-marker";
 
 /** iOS's text styles at the default text size: size → leading. */
 export const IOS_TYPE: Record<number, number> = {
@@ -154,7 +154,7 @@ export function hitAreaMisses(page: Page, scope = "body", size = 44): Promise<Hi
       }).length;
       if (!lost) continue;
       const name = (el.getAttribute("aria-label") ?? el.getAttribute("title") ?? el.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 40);
-      const id = el.dataset.testid ?? el.dataset.slot ?? [...el.classList].find(c => c.startsWith("leaflet-")) ?? "";
+      const id = el.dataset.testid ?? el.dataset.slot ?? [...el.classList].find(c => c.startsWith("maplibregl-")) ?? "";
       misses.push({ control: `${el.tagName.toLowerCase()}${id ? `[${id}]` : ""} "${name}"`, box: `${Math.round(r.width)}×${Math.round(r.height)}`, lost, by: [...new Set(takers)].join(", ") });
     }
     return misses;
@@ -200,7 +200,7 @@ export function typeFindings(page: Page, scope = "body"): Promise<{ offScale: Ty
         const want = Math.abs(size - Math.round(size)) <= 0.25 ? (type[Math.round(size)] ?? null) : null;
         let where = el.tagName.toLowerCase();
         for (let a: HTMLElement | null = el; a; a = a.parentElement) {
-          const leaflet = [...a.classList].find(c => c.startsWith("leaflet-") && c !== "leaflet-container");
+          const leaflet = [...a.classList].find(c => c.startsWith("maplibregl-") && c !== "maplibregl-map");
           const id = a.dataset.testid ? `#${a.dataset.testid}` : a.dataset.slot ?? leaflet;
           if (id) { where = id; break; }
         }
@@ -246,7 +246,7 @@ export function roleFindings(page: Page, scope = "body"): Promise<RoleFinding[]>
     for (const el of root.querySelectorAll<HTMLElement>("p, li, h1, h2, h3, h4")) {
       const r = el.getBoundingClientRect();
       if (r.width < 2 || r.height < 2 || el.closest(".sr-only")) continue;
-      if (el.closest('[role="status"], [data-slot^="item"], [data-slot="section-summary"], [data-slot="accordion-trigger"], [data-sonner-toaster], .leaflet-pane')) continue;
+      if (el.closest('[role="status"], [data-slot^="item"], [data-slot="section-summary"], [data-slot="accordion-trigger"], [data-sonner-toaster], .maplibregl-canvas-container')) continue;
       const cs = getComputedStyle(el);
       // A group's header is grey by design: iOS's small capitals over a
       // grouped list (13, semibold, uppercase), as the settings' are.
@@ -314,7 +314,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
     const radius = parseFloat(getComputedStyle(theme).borderTopLeftRadius);
     theme.remove();
     const floats = ['[data-slot="sheet-content"][data-side="bottom"]', '[data-slot="console-sheet"]', '[data-slot="map-panel"]', '[data-slot="popover-content"]', '[data-slot="dialog-content"]',
-      '[data-slot="alert-dialog-content"]', ".leaflet-popup-content-wrapper", '[data-slot="item-group"].border', "[data-sonner-toast]"].join(", ");
+      '[data-slot="alert-dialog-content"]', ".maplibregl-popup-content", '[data-slot="item-group"].border', "[data-sonner-toast]"].join(", ");
     for (const box of document.querySelectorAll(floats)) {
       if (!on(box)) continue;
       // A sheet from the top of the screen is rounded at its bottom only.
@@ -341,7 +341,7 @@ export function componentFindings(page: Page): Promise<ComponentFinding[]> {
       // is no photo, is the picture. Nor the Ask row's round 48-point
       // microphone, Stop and Send beside its 48-point field (data-composer),
       // drawn as the canvas's Ask screen at the owner's ask (46502903).
-      if (!svg || !on(button) || button.closest('header, .leaflet-marker-icon, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-disclosure], [data-point-mark], [data-picture-head], [data-composer]')) continue;
+      if (!svg || !on(button) || button.closest('header, .maplibregl-marker, [data-sonner-toaster], [data-slot="tabs-trigger"], [data-testid="place-runway-sketch"], [data-slot="clear-button"], [data-disclosure], [data-point-mark], [data-picture-head], [data-composer]')) continue;
       const words = [...button.querySelectorAll("*"), button].some(n => [...n.childNodes].some(c => c.nodeType === 3 && c.textContent!.trim() && !(n as Element).closest(".sr-only")));
       // A button named by words laid over it -- a section's title over its
       // row-wide accordion trigger (AccordionSection) -- has words: it is
@@ -460,7 +460,7 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
       const text = (n.textContent ?? "").trim();
       const el = n.parentElement;
-      if (!text || !el || el.closest(".sr-only, [disabled], [aria-disabled='true'], [data-disabled], .leaflet-tile-pane")) continue;
+      if (!text || !el || el.closest(".sr-only, [disabled], [aria-disabled='true'], [data-disabled], .maplibregl-canvas-container")) continue;
       const box = el.getBoundingClientRect();
       if (box.width < 2 || box.height < 2) continue;
       const cs = getComputedStyle(el);
@@ -494,7 +494,7 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
       for (let a: Element | null = el; a; a = a.parentElement) {
         const s = getComputedStyle(a);
         opacity *= parseFloat(s.opacity);
-        if (s.backgroundImage !== "none" || a.classList.contains("leaflet-container")) { unknown = true; break; }
+        if (s.backgroundImage !== "none" || a.classList.contains("maplibregl-map")) { unknown = true; break; }
         const bg = rgba(s.backgroundColor);
         if (bg[3] >= 0.999) { base = bg; break; }
         if (bg[3] > 0) layers.push(bg);
@@ -504,7 +504,7 @@ export function contrastFindings(page: Page, scope = "body"): Promise<ContrastFi
       // fades one out over 0.2 s before it takes it away, and the course
       // line's, at no opacity under a pointer the map had moved from, read
       // 1:1 on CI's phones.
-      if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster], .leaflet-tooltip, .leaflet-popup"))) continue;
+      if (unknown || (opacity < 0.99 && el.closest("[data-sonner-toaster], .maplibregl-popup, .maplibregl-popup"))) continue;
       let bg = base ?? [255, 255, 255, 1];
       for (const layer of layers.reverse()) bg = over(layer, bg);
       if (drawnOn) bg = drawnOn;
@@ -587,7 +587,7 @@ export function outsideSafeArea(page: Page, insets: Insets): Promise<InsetFindin
     const found: { control: string; box: string }[] = [];
     for (const el of document.querySelectorAll<HTMLElement>(tappable)) {
       const r = el.getBoundingClientRect();
-      if (r.width < 2 || r.height < 2 || el.closest(".leaflet-pane") || !pinned(el)) continue;
+      if (r.width < 2 || r.height < 2 || el.closest(".maplibregl-canvas-container") || !pinned(el)) continue;
       const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
       if (!hit || !(hit === el || el.contains(hit))) continue;
       const toEdge = !!el.closest("[data-to-edge]");

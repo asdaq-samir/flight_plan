@@ -89,10 +89,10 @@ test("a checkpoint tapped on the chart opens its card in the sheet, ringed on th
   await settle(page);
   const panel = sideDrawer(page);
   await settled(panel);
-  const marker = page.locator(".leaflet-marker-icon", { hasText: /^\d+$/ }).first();
+  const marker = page.locator(".maplibregl-marker", { hasText: /^\d+$/ }).first();
   await expect(marker).toBeVisible({ timeout: slow(60000) });
   // The ring a picked point wears (Halo's orange).
-  const rings = page.locator('.leaflet-container path[stroke="#ff3b00"]');
+  const rings = page.locator('.maplibregl-map path[stroke="#ff3b00"]');
   const before = await rings.count();
   // Its own click, not one at its place: neighbouring checkpoints stack
   // on a phone's fitted route (map.spec).
@@ -108,7 +108,7 @@ test("a checkpoint tapped on the chart opens its card in the sheet, ringed on th
   await expect(checkpoint).toBeVisible();
   await expect(panel).not.toHaveAttribute("data-panel", "peek");
   // Not a popup over the chart.
-  await expect(page.locator(".leaflet-popup:visible")).toHaveCount(0);
+  await expect(page.locator(".maplibregl-popup:visible")).toHaveCount(0);
   await expect.poll(() => rings.count()).toBeGreaterThan(before);
   const ringed = await rings.count();
 

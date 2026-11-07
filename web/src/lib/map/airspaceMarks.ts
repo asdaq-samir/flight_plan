@@ -1,4 +1,5 @@
-import L from "leaflet";
+/** A line's look: its ink, width, opacity and dash (the card's swatch). */
+export interface LineLook { color: string; weight: number; opacity: number; dashArray?: string; lineCap?: "butt" | "round"; interactive?: boolean }
 import type { AirspaceVolume } from "../api/types";
 
 type Class = AirspaceVolume["airspace_class"];
@@ -20,7 +21,7 @@ const AIRSPACE_MAGENTA = "#c43fc0";
  * and its line whole and as heavy as a B's: at 2 px and .85 it was lost
  * in the chart's own dashed ring under it (the owner, 2026-10-29).
  */
-export const AIRSPACE_LINE: Record<Class, L.PathOptions> = {
+export const AIRSPACE_LINE: Record<Class, LineLook> = {
   // ForeFlight's inks (above), a little heavier than the chart's own: in
   // the chart's blue the line sank into the printed ring under it
   // ("airspace blue is hard to see", the owner, 2026-10-30).

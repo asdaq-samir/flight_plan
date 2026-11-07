@@ -1,6 +1,6 @@
 import { fromChunk } from "../../lib/fromChunk";
 
-// The map, with Leaflet (149 KB, 43 KB gzipped) and its layers, on a chunk
+// The map, with MapLibre (its own chunk, ~1 MB and a 0.5 MB worker) and its layers, on a chunk
 // of its own: the panel and its search draw without waiting on a script
 // only the map needs. That wait was the page's first paint and its Largest
 // Contentful Paint (the search's placeholder, 4.3 s under Lighthouse's
