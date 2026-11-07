@@ -64,6 +64,9 @@ export default function GlMapShell({ course, focus, focusZoom, place, children }
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const insets = useContext(MapInsetsContext);
   const insetsRef = useRef(insets);
+  // Where a point picked is being flown to (flyTo below), for the sheet
+  // turning under the flight to aim it again rather than stop it.
+  const flying = useRef<{ center: [number, number]; zoom: number } | null>(null);
   const { data: chartOnly } = useQuery({ ...chartQuery, enabled: !course });
   const known = !!(course ?? chartOnly);
 
@@ -233,6 +236,16 @@ export default function GlMapShell({ course, focus, focusZoom, place, children }
     const was = insetsRef.current;
     insetsRef.current = to;
     if (!map || (was.top === to.top && was.bottom === to.bottom && was.left === to.left)) return;
+    // A point still being flown to (a checkpoint tapped, whose card is what
+    // turned the sheet): the flight aimed again with the new padding. A
+    // second camera move stops MapLibre's first where it is, so an ease of
+    // the padding alone left the map near the route's whole view, never
+    // in to the point.
+    const aim = flying.current;
+    if (aim && map.isMoving()) {
+      map.flyTo({ ...aim, padding: padOf(to), duration: prefersReducedMotion() ? 0 : SHEET_SECONDS * 1000 });
+      return;
+    }
     // Half way to all the way up and back the map stays put (MapShell).
     if (to.up !== was.up && to.out === was.out) {
       map.setPadding(padOf(to));
@@ -258,7 +271,20 @@ export default function GlMapShell({ course, focus, focusZoom, place, children }
     if (!map || !point) return;
     const ownShip = useOwnShip.getState();
     if (ownShip.enabled && ownShip.follow) ownShip.setFollow(false);
-    map.flyTo({ center: [point.lon, point.lat], zoom: Math.max(map.getZoom(), glZoom(zoom)), duration: flight() });
+    flying.current = { center: [point.lon, point.lat], zoom: Math.max(map.getZoom(), glZoom(zoom)) };
+    map.flyTo({ ...flying.current, duration: flight() });
+  }, [map]);
+  // The flight's aim is let go once the map is at rest, or the pilot moves
+  // it by hand. Not at the moveend a flight aimed again fires: MapLibre
+  // stops the old one and starts the new in the same call, so the map is
+  // moving again by the next microtask.
+  useEffect(() => {
+    if (!map) return;
+    const rested = () => queueMicrotask(() => { if (!map.isMoving()) flying.current = null; });
+    const byHand = (e: { originalEvent?: unknown }) => { if (e.originalEvent) flying.current = null; };
+    map.on("moveend", rested);
+    map.on("movestart", byHand);
+    return () => { map.off("moveend", rested); map.off("movestart", byHand); };
   }, [map]);
   useEffect(() => { flyTo(focus, focusZoom); }, [flyTo, focus, focusZoom]);
   useEffect(() => { flyTo(place, PLACE_ZOOM); }, [flyTo, place]);
