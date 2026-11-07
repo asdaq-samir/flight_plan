@@ -99,9 +99,9 @@ test("each tab half way shows its own: Airport its Favorites and Nearest, Aircra
   // A finger's 44 points.
   expect((await tile.boundingBox())!.height).toBeGreaterThanOrEqual(44);
 
-  // Aircraft, with no airplane kept: Plane all the same, with Add.
+  // Aircraft, with no airplane kept: Airplane all the same, with Add.
   await pickHalf(page, "tab-aircraft");
-  await expect(panel.getByTestId("pill-aircraft-mine")).toHaveText(/Plane\s*Add/);
+  await expect(panel.getByTestId("pill-aircraft-mine")).toHaveText(/Airplane\s*Add/);
   await expect(panel.getByTestId("aircraft-search")).toBeVisible();
 
   // One strip, the owner's "one row, it can have the favorites with the
@@ -312,14 +312,14 @@ test("on a phone, a tap anywhere on the tabs' minimized line shows the tabs, but
   await expect(page).not.toHaveURL(/[?&]place=/);
 });
 
-test("Plane, the pilot's own, is first among the Aircraft card's Favorites, with Add until one is kept, and kept from the search's pick", async ({ page }) => {
+test("Airplane, the pilot's own, is first among the Aircraft card's Favorites, with Add until one is kept, and kept from the search's pick", async ({ page }) => {
   await keep(page, { recentAircraft: [{ hex: "a1c2d3", name: "N200XY", type: "C172" }] });
   await page.goto("/app/plan?aircraft=1");
   await settle(page);
   const card = page.getByTestId("aircraft-card");
-  // The pill's strip, where it is at the pill's size, Plane first.
+  // The pill's strip, where it is at the pill's size, Airplane first.
   const mine = card.getByTestId("pill-aircraft-mine");
-  await expect(mine).toContainText("Plane");
+  await expect(mine).toContainText("Airplane");
   await expect(mine).toContainText("Add");
   // Add: the search asked for the pilot's own airplane, and a recent tapped is kept as it.
   await mine.click();

@@ -37,15 +37,15 @@ export default function AircraftFavoritesList({ onBack, onOpen, onChangeMine, on
         title="Favorites" backLabel="Back to the airplanes" onBack={onBack} testId="aircraft-favorites-page"
         action={<EditToggle editing={editing} onToggle={() => setEditing(e => !e)} testId="aircraft-favorites-edit" />}
       />
-      <ListGroup title="Plane">
+      <ListGroup title="Airplane">
         {!mine ? (
-          <ListRow media={<Plus className="size-5" />} title="Add your Plane" onClick={onChangeMine} data-testid="aircraft-favorites-mine" />
+          <ListRow media={<Plus className="size-5" />} title="Add your Airplane" onClick={onChangeMine} data-testid="aircraft-favorites-mine" />
         ) : (
           // Taken off as every kept list's rows are (SwipeToDelete).
-          <SwipeToDelete label={`Remove ${mine.name} as your Plane`} onDelete={() => setMine(null)} share={planeLink(mine)}>
+          <SwipeToDelete label={`Remove ${mine.name} as your Airplane`} onDelete={() => setMine(null)} share={planeLink(mine)}>
             {editing ? (
               <ListRow
-                media={<RemoveMinus label={`Remove ${mine.name} as your Plane…`} testId="aircraft-favorites-mine-remove" />}
+                media={<RemoveMinus label={`Remove ${mine.name} as your Airplane…`} testId="aircraft-favorites-mine-remove" />}
                 title={name(mine)} description={mine.type ?? undefined}
               />
             ) : (

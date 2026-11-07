@@ -25,7 +25,7 @@ const STRIP_MOST = 12;
 /**
  * The Aircraft tab's pill, the owner's picks of the redesign: under the
  * search bar one strip (the owner's "one row, it can have the favorites
- * with the filter"): the Favorites (Plane first), the airplanes opened
+ * with the filter"): the Favorites (Airplane first), the airplanes opened
  * last, or the nearest, those around, inbound to, departing or based at
  * an airport, or emergencies -- the airport a pill of its own beside the
  * title to change -- picked from the filter menu at the row's right, as
