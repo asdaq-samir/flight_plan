@@ -105,6 +105,25 @@ def out_of_glide(lat0: float, lon0: float, rows: int, cols: int, cell_deg: float
     `speed_kt` glides (glide_nm), read every STEP_DEG.
 
     A WaterUnavailable where the land and lakes could not be had."""
+    return cell_shares(out_of_glide_samples(lat0, lon0, rows, cols, cell_deg, height_ft=height_ft, speed_kt=speed_kt),
+                       rows, cols)
+
+
+def cell_shares(far: np.ndarray, rows: int, cols: int) -> np.ndarray:
+    """out_of_glide_samples' answer as each cell's share out of glide, 0 to 1."""
+    per = far.shape[0] // rows
+    return far.reshape(rows, per, cols, per).mean(axis=(1, 3))
+
+
+def out_of_glide_samples(lat0: float, lon0: float, rows: int, cols: int, cell_deg: float, *,
+                         height_ft: float, speed_kt: float) -> np.ndarray:
+    """The same grid read at every sample, `cell_deg` / STEP_DEG of them a
+    cell each way (rows from the south, columns from the west): True where
+    the sample is water out of glide of dry land. A cell on a shore is part
+    in glide and part not, and a line along its shore side is in glide
+    though the cell's share says otherwise; a line is judged by these.
+
+    A WaterUnavailable where the land and lakes could not be had."""
     glide = glide_nm(height_ft, speed_kt)
     per = max(1, int(round(cell_deg / STEP_DEG)))
     step = cell_deg / per
@@ -117,7 +136,5 @@ def out_of_glide(lat0: float, lon0: float, rows: int, cols: int, cell_deg: float
     mid = np.radians((lats[0] + lats[-1]) / 2)
     nm_row, nm_col = step * 60.0, step * 60.0 * max(0.2, float(np.cos(mid)))
     if wet.all():
-        far = np.ones_like(wet, dtype=bool)
-    else:
-        far = ndimage.distance_transform_edt(wet, sampling=(nm_row, nm_col)) > glide
-    return far.reshape(rows, per, cols, per).mean(axis=(1, 3))
+        return np.ones_like(wet, dtype=bool)
+    return ndimage.distance_transform_edt(wet, sampling=(nm_row, nm_col)) > glide

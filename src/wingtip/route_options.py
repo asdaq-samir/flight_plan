@@ -180,6 +180,9 @@ class _Grid:
         self.dear = np.zeros((self.rows, self.cols))
         #: The share of each cell out of glide of dry land, 0 to 1 (wingtip.water).
         self.offshore = np.zeros((self.rows, self.cols))
+        #: The same at every sample (water.out_of_glide_samples), True out of
+        #: glide; None where the water was not read.
+        self.far: np.ndarray | None = None
         self.hazards: list[dict] = []
         #: Each cell's floor, ft (_ground), once read.
         self.floor: np.ndarray | None = None
@@ -791,8 +794,9 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         # The glide from the lowest the grid flies a cruise (LOWEST_CRUISE_FT),
         # taken as the height over the water: where a way is flown higher it
         # glides further, so the shore's reach errs short, the safe side.
-        grid.offshore = water.out_of_glide(grid.lat0, grid.lon0, grid.rows, grid.cols, CELL_DEG,
-                                           height_ft=LOWEST_CRUISE_FT, speed_kt=tas)
+        grid.far = water.out_of_glide_samples(grid.lat0, grid.lon0, grid.rows, grid.cols, CELL_DEG,
+                                              height_ft=LOWEST_CRUISE_FT, speed_kt=tas)
+        grid.offshore = water.cell_shares(grid.far, grid.rows, grid.cols)
     except (water.WaterUnavailable, OSError, ValueError) as error:
         # The shores not to be had: no way kept over land, and the pilot told.
         logger.warning("route options: water not read (%s)", error)
@@ -945,6 +949,23 @@ def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], land
 _WEATHER_OF = {"storm": "storm", "weather": "ifr", "sigmet": "ifr", "marginal": "mvfr"}
 
 
+def _far_nm(grid: _Grid, a: tuple, b: tuple) -> float:
+    """The miles of the line from `a` to `b` out of glide of dry land, read
+    at the water's own samples (grid.far) every half sample, not by its
+    cells' shares: a way along a shore cell's dry side is in glide though
+    the cell is partly far out, and would be counted out of it."""
+    nm = float(geo.distance_nm(a[0], a[1], b[0], b[1]))
+    if grid.far is None or nm <= 0:
+        return 0.0
+    rows, cols = grid.far.shape
+    step = CELL_DEG * grid.rows / rows
+    n = max(2, int(math.ceil(nm / (step * 60.0 / 2))) + 1)
+    t = (np.arange(n) + 0.5) / n
+    r = np.clip(((a[0] + (b[0] - a[0]) * t - grid.lat0) / step).astype(int), 0, rows - 1)
+    c = np.clip(((a[1] + (b[1] - a[1]) * t - grid.lon0) / step).astype(int), 0, cols - 1)
+    return nm * float(grid.far[r, c].mean())
+
+
 def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dict:
     """What a way through `path` meets, cell by cell in the order it flies
     them: the weather as a strip of runs ({"kind": vfr|mvfr|ifr|storm,
@@ -963,7 +984,7 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
         if not cells or minutes <= 0:
             continue
         each = minutes / len(cells)
-        water_nm += float(geo.distance_nm(a[0], a[1], b[0], b[1])) / len(cells) * sum(float(grid.offshore[c]) for c in cells)
+        water_nm += _far_nm(grid, a, b)
         bearing = math.atan2((b[1] - a[1]) * math.cos(math.radians((a[0] + b[0]) / 2)), b[0] - a[0])
         k = _step_index(round(math.cos(bearing)), round(math.sin(bearing)))
         for c in cells:
