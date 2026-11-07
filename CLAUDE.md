@@ -79,10 +79,11 @@ one job (the owner kept both server languages on this split, 2026-11-06):
 
 ## Checks — run what covers your change
 
-Run the checks that cover a change before committing it, on the Mac mini
-(the owner, 2026-11-06: it is fast enough; the old "code changes only"
-rule was for the 2016 MacBook). Whole suites, the full browser suite and
-long measurements still wait for the owner's ask; CI runs everything.
+Before pushing, run the quick checks that cover a change (type check,
+lint, the unit tests it touches) on the Mac mini. Lengthy runs -- whole
+suites, browser tests, iOS and Android builds, image builds -- are left to
+CI, which runs on the Mac mini's runners, unless one is needed to debug a
+failure; no test holds up a code change (the owner, 2026-11-06).
 
 | Changed | Run, from that directory |
 |---|---|
