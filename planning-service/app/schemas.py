@@ -862,6 +862,9 @@ class ForecastStation(BaseModel):
     icaoId: str
     ceiling_ft: float | None
     visibility_sm: float | None
+    #: A ceiling forecast with no height ("OVC///") over the flight: the
+    #: worst ceiling is not known, whatever `ceiling_ft` says (14 CFR 1.1).
+    ceiling_unknown: bool = False
     lat: float | None = None
     lon: float | None = None
     along_track_nm: float | None = None
@@ -869,6 +872,7 @@ class ForecastStation(BaseModel):
     #: time at that distance along.
     eta: str | None = None
     eta_ceiling_ft: float | None = None
+    eta_ceiling_unknown: bool = False
     eta_visibility_sm: float | None = None
     raw: str | None = None
 
@@ -876,6 +880,9 @@ class ForecastStation(BaseModel):
 class Forecast(BaseModel):
     min_ceiling_ft: float | None
     min_visibility_sm: float | None
+    #: The stations forecasting a ceiling with no height: the worst
+    #: ceiling along the route is not known there.
+    ceiling_unknown_at: list[str] = []
     stations: list[ForecastStation]
 
 
@@ -885,6 +892,9 @@ class Metar(BaseModel):
     observed_at: str | None = None
     flight_category: str | None = None
     ceiling_ft: float | None = None
+    #: The lowest broken or overcast layer was reported with no height
+    #: ("OVC///"): the ceiling is not known, not absent (14 CFR 1.1).
+    ceiling_unknown: bool = False
     visibility_sm: float | None = None
     wind_dir_true_deg: float | None = None
     wind_speed_kt: float | None = None

@@ -213,6 +213,19 @@ pub fn call(name: &str, v: &Value) -> Option<R<String>> {
             let at = i.num(v, "at_us")? as i64;
             Ok(format!("\"{}\"", pass_times::tfr_when(at, us("effective_us")?, us("expires_us")?)))
         })(),
+        "gonogo_hazard_window" => (|| {
+            let margin_min = i.opt_num(v, "margin_min")?.unwrap_or(pass_times::PASS_MARGIN_MIN as f64);
+            let when = pass_times::window_when(
+                i.num(v, "enter")?,
+                i.num(v, "leave")?,
+                i.opt_num(v, "valid_from")?,
+                i.opt_num(v, "valid_to")?,
+                margin_min * 60.0,
+            );
+            let mut out = String::new();
+            json::opt_string(&mut out, when);
+            Ok(out)
+        })(),
         "gonogo_sua_when" => (|| {
             let clock = |key: &str| -> R<Option<(u32, u32)>> {
                 match v.get(key) {
