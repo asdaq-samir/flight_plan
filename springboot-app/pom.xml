@@ -180,10 +180,62 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <!-- The planner's answers this app reads itself (PlannerClient),
+                 generated at build time from the planner's committed
+                 OpenAPI document rather than written out by hand, so a
+                 field the planner renames or drops fails this build
+                 instead of reading as null in production. Models only:
+                 PlannerClient asks with java.net.http, pinned to
+                 HTTP/1.1 for the reason StreamingProxy gives, which a
+                 generated client would replace. Only the schemas read
+                 here are generated (modelsToGenerate), prefixed Planner
+                 so "Source" and "Sentence" do not read as this app's own;
+                 the browser's pass-through proxies read nothing and need
+                 none. The Dockerfile copies the document to the same
+                 place relative to the pom. -->
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <version>7.26.0</version>
+                <executions>
+                    <execution>
+                        <id>planner-models</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.basedir}/../planning-service/openapi.json</inputSpec>
+                            <generatorName>spring</generatorName>
+                            <modelPackage>com.northflyers.wingtip.planner.model</modelPackage>
+                            <modelNamePrefix>Planner</modelNamePrefix>
+                            <modelsToGenerate>ChangesWords,Sentence,Source</modelsToGenerate>
+                            <generateApis>false</generateApis>
+                            <generateSupportingFiles>false</generateSupportingFiles>
+                            <generateModelTests>false</generateModelTests>
+                            <generateModelDocumentation>false</generateModelDocumentation>
+                            <!-- FastAPI writes an optional field as anyOf
+                                 [type, null] (OpenAPI 3.1): read as a plain
+                                 nullable field, not a wrapper type. -->
+                            <openapiNormalizer>SIMPLIFY_ONEOF_ANYOF=true</openapiNormalizer>
+                            <configOptions>
+                                <useSpringBoot3>true</useSpringBoot3>
+                                <openApiNullable>false</openApiNullable>
+                                <useBeanValidation>false</useBeanValidation>
+                                <documentationProvider>none</documentationProvider>
+                                <annotationLibrary>none</annotationLibrary>
+                                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
                 <configuration>
+                    <!-- Generated, and documented by the planner's own
+                         document instead. -->
+                    <excludePackageNames>com.northflyers.wingtip.planner.model</excludePackageNames>
                     <!-- Still catches malformed {@link}s, bad HTML, and
                          unknown tags; just doesn't demand a comment on
                          every trivial getter/DI constructor, where one
