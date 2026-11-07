@@ -234,6 +234,9 @@ fn the_shared_fixtures_answers_are_of_the_contracts_shapes() {
         c.ask("weather_expires_at", json!({ "product": case["product"], "observed": at("observed"),
             "last_routine": at("lastRoutine"), "valid_to": at("validTo") }));
     }
+    for case in fixture("dataCycles.json")["cases"].as_array().unwrap() {
+        c.ask("data_cycle", json!({ "kind": case["kind"], "effective": case["effective"], "on": case["on"] }));
+    }
 
     // The approaches at KBUR, as the planner's /api/procedure draws them.
     let kbur = fixture("approachKbur.json");
