@@ -18,12 +18,29 @@ they say the model cannot be reached. The full setup is in
 
 ## Where a change goes
 
+The project is four layers, each with one job:
+
 - **Aviation rules and figures** (altitudes, winds, fuel, weather minimums,
-  Go / No-Go, holds, procedures) live once, in the Rust engine in
-  [`native/engine`](native/engine). Every app asks the engine by name; a rule
-  copied into a component, a view or a route handler is a bug.
+  Go / No-Go, holds, procedures; currency is still to move, #482) live once, in the Rust engine:
+  [`native/engine`](native/engine), a facade over the domain crates in
+  [`native/crates`](native/crates). A new rule goes into the lowest crate
+  that can hold it, gets a name in `native/engine/src/call.rs` and an
+  entry in the contract (`native/contract/engine.schema.json`), and then
+  the generated types, a fixture test and the WebAssembly build follow;
+  [native/README.md](native/README.md) has the steps.
+- **Working out a flight** (fetching FAA and weather data, the chart and
+  its model, the assistant) is the planner: [`planning-service`](planning-service)
+  over [`src/wingtip`](src). It asks the engine every rule.
+- **Who the pilot is and what they saved** (accounts, sign-in, records,
+  the public API, scheduled mail) is Spring Boot:
+  [`springboot-app`](springboot-app). It should hold no aviation logic and ask
+  the planner when it needs a figure; the currency rules are still Java (#482).
 - **Each app** ([`web`](web), [`ios`](ios), [`android`](android)) gets the
-  data, keeps the state and draws the screen.
+  data, keeps the state (a view model per screen) and draws, and asks the
+  engine the rest by name. A rule copied into a component, a view, a Java
+  service or a route handler is a bug.
+- Some rules are still outside the engine; issue #482 moves them in, in
+  order. Don't add to them.
 - Every aviation figure or rule names its source in a comment beside the
   code: the 14 CFR part and section, the AIM paragraph or the FAA data set.
 

@@ -2539,12 +2539,10 @@ class RouteOptions(BaseModel):
 
 
 class ModelComparisonEntry(BaseModel):
-    """`metric` names which number `score` is: cv_mae for the sklearn
-    family and Spark, held_out_mae for PyTorch/TensorFlow. Lower is
-    better either way."""
+    """One of the scikit-learn models retrain() compared; `score` is its
+    5-fold CV MAE, lower is better."""
 
     name: str
-    metric: Literal["cv_mae", "held_out_mae"]
     score: float | None
     promoted: bool
 
@@ -2614,14 +2612,6 @@ class ModelVersion(BaseModel):
     cv_mae: float | None
 
 
-class CandidateModel(BaseModel):
-    name: str
-    model_type: str | None
-    trained_at: str | None
-    metric: str | None
-    score: float | None
-
-
 class ChartModelSnapshot(BaseModel):
     """The promoted chart model (wingtip.chartmodel), against what it has to
     beat on the ratings it held out: the palette's constants
@@ -2641,7 +2631,6 @@ class ChartModelSnapshot(BaseModel):
 class ModelRegistry(BaseModel):
     current: ModelSnapshot | None
     versions: list[ModelVersion]
-    candidates: list[CandidateModel]
     chart: ChartModelSnapshot | None = None
 
 

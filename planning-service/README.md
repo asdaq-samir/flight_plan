@@ -1,13 +1,21 @@
 # planning-service/
 
-The aviation work, over HTTP. Reads FAA sectional tiles, walks great
-circles, selects checkpoints and computes the dead-reckoning nav log.
+The planner: it works out a flight, over HTTP. Fetches the FAA's data
+and the weather, reads FAA sectional tiles, scores the checkpoints with
+the chart model in its own process, puts the nav log together and runs
+the AI assistant, and asks the Rust engine every aviation rule by name
+(`wingtip_native.call`; [`native/README.md`](../native/README.md)). It
+is one of four layers: under it the engine, beside it Spring Boot
+(accounts and saved records, which asks this service when it needs a
+figure), above it the apps. Rules still written in Python here or in
+`src/wingtip` move into the engine, in the order issue #482 sets; a new
+one goes into the engine.
 
 It serves no pages. The front end is in [`web/`](../web) and ships inside
 `webapp`'s jar; the browser reaches this service only through `webapp`'s
 `/api/planner/*` proxy. On AWS it has no load-balancer route at all.
 
-Almost all of the thinking lives in [`src/wingtip`](../src). This is a thin
+The Python behind it lives in [`src/wingtip`](../src). This is a thin
 HTTP layer over it: `app/main.py` builds the app, `app/routers/` holds
 the endpoints one module per concern (plan, chart, classb, build,
 briefing, notes, devml, devservices, system), and the work they share -- resolving a route

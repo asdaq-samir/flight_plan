@@ -35,7 +35,7 @@ def test_model_comparison_is_empty_when_nothing_has_been_promoted(tmp_path, monk
     assert resp.json() == {"models": [], "trained_at": None, "n_labeled": None}
 
 
-def test_model_comparison_lists_the_promoted_model_and_any_trained_candidates(tmp_path, monkeypatch):
+def test_model_comparison_lists_the_sklearn_models_retrain_compared(tmp_path, monkeypatch):
     current_dir = tmp_path / "current"
     current_dir.mkdir()
     (current_dir / "metrics.json").write_text(json.dumps({
@@ -43,12 +43,6 @@ def test_model_comparison_lists_the_promoted_model_and_any_trained_candidates(tm
         "trained_at": "2026-09-10T00:00:00Z",
         "n_labeled": 206,
         "cv_mae_by_model": {"random_forest": 0.41, "ridge": 0.52},
-    }))
-    candidates_dir = tmp_path / "candidates" / "pytorch"
-    candidates_dir.mkdir(parents=True)
-    (candidates_dir / "metrics.json").write_text(json.dumps({
-        "model_type": "pytorch_mlp",
-        "held_out_mae": 0.47,
     }))
     monkeypatch.setattr(model_registry, "CURRENT_MODEL_DIR", current_dir)
     monkeypatch.setattr(model_registry, "MODELS_DIR", tmp_path)
@@ -61,7 +55,8 @@ def test_model_comparison_lists_the_promoted_model_and_any_trained_candidates(tm
     names = {m["name"]: m for m in body["models"]}
     assert names["random_forest"]["promoted"] is True
     assert names["ridge"]["promoted"] is False
-    assert names["pytorch_mlp"]["metric"] == "held_out_mae"
+    assert names["ridge"]["score"] == 0.52
+    assert set(names) == {"random_forest", "ridge"}
 
 
 # --- /api/checkpoints: the chart's read failing as an HTTP status ---

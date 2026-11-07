@@ -1,10 +1,24 @@
 # springboot-app/
 
-`webapp` — the public surface. It is the only service a browser talks to:
-it serves the React bundle, proxies the planner, holds pilots and flights
-in Postgres, and owns sign-in.
+`webapp` — who the pilot is and what they saved. It is the only service
+a browser talks to: it owns sign-in, holds the pilot's records in
+Postgres (aircraft, flights, the logbook, endorsements, an instructor's
+students), serves the React bundle, proxies the planner, and sends the
+scheduled mail (reminders, the flight watch).
 
 Everything else in this repo sits behind it on a private network.
+
+It is one of the project's four layers, and the one that should have no
+aviation logic. A figure it needs should come from the planner over HTTP
+(`PlannerClient`, which today asks for a flight's briefing and what
+changed in it), which asks the Rust engine; Spring keeps identity and persistence, the
+things it is good at. The owner kept Java here on that line on
+2026-11-06 rather than folding it into the Python: the HTTP boundary is
+already clean and a merge would give a pilot nothing. Some rules are
+still in this app -- currency (14 CFR 61.56, 61.57), the 61.109
+checklist, endorsements and an instructor's dates -- and issue #482
+moves them into the engine, so a reminder will ask the planner whether
+a pilot is current rather than work it out; add no new ones here.
 
 ## Contents
 
@@ -141,14 +155,14 @@ One job per class.
 | Package | What lives there |
 |---|---|
 | `controller/` | HTTP endpoints. `PlannerProxyController` forwards `/api/planner/*` to `planning-service`; `GlobalExceptionHandler` turns exceptions into JSON; `MagicLinkController` is the email sign-in flow's own two steps (request, verify). |
-| `service/` | Business logic: `PilotService`, `AircraftService`, `FlightService`, each scoped to the signed-in pilot. |
+| `service/` | The records' logic: `PilotService`, `AircraftService`, `FlightService`, `LogbookService` and the rest, each scoped to the signed-in pilot; `PlannerClient`, the planner asked on this app's own behalf; `ReminderService` and `FlightWatchService`, the scheduled mail. |
 | `repository/` | Spring Data interfaces. No implementations — Spring writes them. |
-| `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `MagicLink`. |
+| `domain/` | JPA entities: `Pilot`, `Aircraft`, `Flight`, `FlightCheckpoint`, `MagicLink`, `LogbookEntry`, `Endorsement` and the rest. |
 | `dto/` | Request and response shapes, kept separate from entities so the API and the schema can change independently. |
 | `security/` | `SecurityConfig` (what is public), `OAuthClientsConfig` (builds Google/Apple's client registrations in Java, not YAML — Apple's own secret is a signed JWT no static property could hold), `MagicLinkAuthenticationToken` (the session's own principal after a magic-link sign-in), `DeveloperOnly` (whether the caller holds the developer role, read from their row on every request), `SignInOptions` (whether anyone can sign in here at all), and `CsrfCookieFilter` (forces the `XSRF-TOKEN` cookie to actually be written — see below). |
 | `config/` | `WebMvcConfig` — static-resource and SPA routing. |
 
-Five migrations, in `resources/db/migration/`: routes, then normalised
+Thirty-one migrations, in `resources/db/migration/`. The first five: routes, then normalised
 checkpoints, then pilots/aircraft/flights, then Apple's own subject
 column plus the magic-link table, then dropping the routes pair again
 once `planning-service` owned scoring and nothing here read them.

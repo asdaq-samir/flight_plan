@@ -27,7 +27,7 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 ## Capabilities
 
 - **Checkpoints a pilot can see on the chart.** Candidates come from OpenStreetMap and the FAA's own data along the corridor, and a model trained on ratings made against the sectional scores which ones a pilot could actually spot. Picks made on the chart itself in the training workspace — where a chart-vision detector reads features straight off the sectional's raster tiles — become training labels for the candidates they land on.
-- **Four-way model selection.** scikit-learn (Ridge, Random Forest, Gradient Boosting), PyTorch, TensorFlow/Keras, and Spark MLlib are trained and benchmarked on the same feature set, with nested cross-validation and permutation importance for the baseline.
+- **scikit-learn model selection.** Each retrain grid-searches Ridge, Random Forest and Gradient Boosting against a predict-the-mean baseline on the same feature set, by 5-fold cross-validation, and keeps the best; the planner scores checkpoints with the promoted model. Notebook 03 adds nested cross-validation and permutation importance.
 - **Orchestrated training pipeline.** An Airflow DAG runs collection, feature engineering, training, evaluation, and promotion; a new model goes live only if it beats the currently deployed one on held-out metrics.
 - **FAA-accurate flight planning.** Dead-reckoning legs (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel burn) from live NOAA winds-aloft and magnetic-declination data. Cruising-altitude selection accounts for terrain/obstacle clearance (FAA MEF methodology), live Class B/C/D airspace, and current METAR/TAF/SIGMET data.
 - **Claude in the planner.** The written briefing, the checkpoint descriptions, the plain-words readings and the pilot's assistant are each a direct call through the Anthropic Python SDK from `planning-service`, over the planner's own figures: the briefing streams as it is written (`POST /api/briefing/narrative`), and the assistant runs the SDK's tool runner over the planner's functions.
@@ -35,10 +35,26 @@ Demo route: **Campbell Airport (C81)** → **Duluth International (KDLH)**.
 
 ## Architecture
 
+Four layers, each with one job, so a rule is written once and every app
+gets the same answer:
+
+| Layer | Where | Its job |
+|---|---|---|
+| The engine | [`native/`](native) (Rust) | Every aviation rule and figure, once: altitudes, winds, runways, fuel, weather limits, Go / No-Go, holds, procedures (currency is to join them, #482). No network, no screen, no clock. A facade (`wingtip-engine`) over nine domain crates; each rule is a name in `native/engine/src/call.rs`, JSON in and out, typed by a contract (`native/contract/engine.schema.json`) the apps' types are generated from. |
+| The planner | [`planning-service/`](planning-service) over [`src/wingtip`](src) (FastAPI) | Works out a flight: fetches the FAA and weather data, reads the chart and scores its checkpoints with the chart model, runs the AI assistant, and asks the engine every rule. |
+| Spring Boot | [`springboot-app/`](springboot-app) | Who the pilot is and what they saved: accounts, sign-in, records, the public API, scheduled mail. Should hold no aviation logic, asking the planner (which asks the engine) for a figure; the currency rules are still Java until #482 moves them. |
+| The apps | [`web/`](web), [`ios/`](ios), [`android/`](android) | Get data, keep state, draw (a view model per screen), and ask the engine the rest: the web as WebAssembly, the phones through its C interface. |
+
+Two server languages stay, on that line (the owner, 2026-11-06): the
+boundary between them is plain HTTP, merging them would give a pilot
+nothing, and Spring is good at identity and persistence. Some rules still
+live outside the engine, in the Python, the Java and the apps; issue #482
+moves them in, in order.
+
 | Service | Role |
 |---|---|
-| `webapp` | Spring Boot — public API, auth, and the React front end |
-| `planning-service` | FastAPI — sectional chart vision, the chart model's scores, checkpoint selection, dead reckoning |
+| `webapp` | Spring Boot: accounts, sign-in, the pilot's records, the public API and scheduled mail; serves the React front end and proxies the planner |
+| `planning-service` | FastAPI: works out a flight (charts, checkpoints scored by the chart model in-process, the nav log, weather, the written briefing, the assistant), the engine inside it |
 | `db` | PostgreSQL — application data |
 | `airflow` | Orchestrates the training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and training, as isolated jobs |
@@ -70,10 +86,10 @@ Everything else — `ml`, `airflow`, and the full prerequisite/setup guide — i
 | [`web/`](web) | React 19 + TypeScript + Leaflet front end |
 | [`ios/`](ios) | The native iOS app: SwiftUI over the shared Rust engine (docs/NATIVE.md) |
 | [`android/`](android) | The native Android app: Kotlin, Compose and MapLibre over the shared Rust engine (docs/NATIVE-ANDROID.md) |
-| [`native/`](native) | The shared Rust engine, every aviation rule once, and its Python, C and WebAssembly faces |
-| [`planning-service/`](planning-service) | Route planning and chart-vision API |
-| [`springboot-app/`](springboot-app) | Public API, authentication, database |
-| [`src/`](src) | Shared Python package — pipeline, model registry, nav-log math |
+| [`native/`](native) | The shared Rust engine: every aviation rule once, in nine crates behind one facade, its contract, and its Python, C and WebAssembly faces |
+| [`planning-service/`](planning-service) | The planner's HTTP layer: route planning, chart vision, the chart model, the assistant |
+| [`springboot-app/`](springboot-app) | Accounts, sign-in, the pilot's records, the public API |
+| [`src/`](src) | The planner's Python package (`wingtip`): data, charts, pipeline, model registry, and the nav log until it moves into the engine |
 | [`airflow/`](airflow) | Training-pipeline DAGs |
 | [`infra/`](infra) | AWS CloudFormation and Lambda |
 | [`notebooks/`](notebooks) | Numbered, run-in-order exploratory notebooks |

@@ -3153,67 +3153,6 @@
         "title": "Candidate",
         "type": "object"
       },
-      "CandidateModel": {
-        "properties": {
-          "metric": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Metric"
-          },
-          "model_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model Type"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          },
-          "trained_at": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trained At"
-          }
-        },
-        "required": [
-          "name",
-          "model_type",
-          "trained_at",
-          "metric",
-          "score"
-        ],
-        "title": "CandidateModel",
-        "type": "object"
-      },
       "ChangesAsk": {
         "description": "A briefing read twice, as GET /api/briefing answered it then and\nnow.",
         "properties": {
@@ -8558,16 +8497,8 @@
         "type": "object"
       },
       "ModelComparisonEntry": {
-        "description": "`metric` names which number `score` is: cv_mae for the sklearn\nfamily and Spark, held_out_mae for PyTorch/TensorFlow. Lower is\nbetter either way.",
+        "description": "One of the scikit-learn models retrain() compared; `score` is its\n5-fold CV MAE, lower is better.",
         "properties": {
-          "metric": {
-            "enum": [
-              "cv_mae",
-              "held_out_mae"
-            ],
-            "title": "Metric",
-            "type": "string"
-          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -8590,7 +8521,6 @@
         },
         "required": [
           "name",
-          "metric",
           "score",
           "promoted"
         ],
@@ -8599,13 +8529,6 @@
       },
       "ModelRegistry": {
         "properties": {
-          "candidates": {
-            "items": {
-              "$ref": "#/components/schemas/CandidateModel"
-            },
-            "title": "Candidates",
-            "type": "array"
-          },
           "chart": {
             "anyOf": [
               {
@@ -8636,8 +8559,7 @@
         },
         "required": [
           "current",
-          "versions",
-          "candidates"
+          "versions"
         ],
         "title": "ModelRegistry",
         "type": "object"
@@ -19517,7 +19439,7 @@
     },
     "/api/model-comparison": {
       "get": {
-        "description": "Every algorithm anyone has actually trained for this problem,\nnot just the sklearn family retrain() grid-searches: the promoted\nmodel's own comparison against Ridge/GradientBoosting/a dummy\n\"predict the mean\" baseline, plus PyTorch/TensorFlow/Spark's own\ncandidates (wingtip.model_candidates), when they exist.\n\nEach entry names its own metric rather than pretending they are\nall the same number: the sklearn family's own selection already\nruns 5-fold CV (cv_mae), while the new candidates report a single\nheld-out split's MAE (held_out_mae) -- except Spark, whose own\nCrossValidator gives it a real cv_mae too. Blending these into one\nunlabeled column would overstate how comparable they actually are.",
+        "description": "The scikit-learn models retrain() grid-searched for the promoted\none, side by side: Ridge, RandomForest, GradientBoosting and the\n\"predict the mean\" baseline, each by its 5-fold CV MAE, as\nwingtip.pipeline wrote them into the promoted model's metrics.json.\nThese are the only models that reach a pilot; the comparison\nagainst other frameworks went with them (2026-11-06).",
         "operationId": "model_comparison_api_model_comparison_get",
         "responses": {
           "200": {

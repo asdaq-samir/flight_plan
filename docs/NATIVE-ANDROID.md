@@ -47,8 +47,16 @@ owner's word. Its package is `app.wingtipmaps.android.native`.
 - A rule the pilot needs offline in flight is computed on the phone by
   the shared engine (`native/engine`), the same Rust the web app, the
   planner and the iOS app run, asked by name through `Engine.call`
-  (`native/engine/src/call.rs` lists every name and its input). The
-  Kotlin keeps the words and the formatting, not the rule. Every other
+  (`native/engine/src/call.rs` lists every name, and
+  `native/contract/engine.schema.json` types each input and answer). An
+  answer the app decodes can use a class generated from that contract,
+  `engine/EngineContract.kt` (`scripts/engine-contract-apps.sh`,
+  committed), rather than an `@Serializable` written by hand; callers
+  move over one name at a time. The Kotlin keeps the words and the
+  formatting, not the rule. This app is one of the four layers
+  native/README.md describes: the planner works out the flight, the
+  gateway (Spring Boot) holds the pilot's account and records, and the
+  engine answers every rule. Every other
   figure comes from the planner; the app shows the server's answer and
   computes none of its own.
 - The shared fixtures in `web/src/lib/fixtures` are the test APK's

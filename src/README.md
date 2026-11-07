@@ -1,8 +1,18 @@
 # src/
 
-`wingtip` — the domain library. Every aviation fact this project knows lives
-here: great-circle geometry, dead reckoning, airspace, terrain, weather,
-and reading checkpoints off a raster sectional chart.
+`wingtip` — the planner's Python. It does what needs the network and
+the big files: fetching the FAA's data and the weather, reading
+checkpoints off a raster sectional chart, drawing the chart's tiles,
+the training pipeline and the model registry, and putting a flight
+together from them.
+
+The aviation rules themselves belong to the Rust engine
+([`native/`](../native/README.md)), the lowest of the project's four
+layers, which this package reaches through `wingtip_native.call` by a
+rule's name. Some rules are still written here -- the cruise altitude,
+the nav log's legs and fuel, the weather's reading along a route, route
+options -- and issue #482 moves them into the engine, in that order;
+a new rule goes into the engine, not here (native/README.md says how).
 
 Nothing here serves HTTP, and nothing here imports a web framework.
 `planning-service`, the pipeline containers and Airflow are all
@@ -145,7 +155,8 @@ Grouped by what they are for, not alphabetically.
 | `airports.py` | Identifier → coordinates, and the route form's search. |
 | `retry.py` | The one retry loop the four modules above share for their requests, and `upstream_detail`, the one reader of a service's reason in an error response (the planner's dev-services proxy). |
 
-**Deciding things**
+**Deciding things** — rules still written here, each to move into the
+engine (#482).
 
 | Module | What it decides |
 |---|---|
@@ -161,7 +172,6 @@ Grouped by what they are for, not alphabetically.
 |---|---|
 | `pipeline.py` | collect → engineer → retrain, callable and non-interactive. |
 | `model_registry.py` | Evaluate a retrained model, promote it if better. |
-| `model_candidates.py`, `torch_model.py` | The same regression in PyTorch, TensorFlow and Spark MLlib, each a re-runnable entry point that persists an artifact. |
 | `chartlabels.py` | Checkpoints marked by hand on the chart. |
 | `chartfeatures.py` | Features for the chart reader's detections. |
 | `chartmodel.py` | The chart model: the training page's 0-5 ratings on detections, trained in the training image, scored in the planner (`planning-service/app/chart_scorer.py`), ranking the planner's checkpoints. |

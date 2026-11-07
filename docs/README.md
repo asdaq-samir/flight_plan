@@ -33,8 +33,9 @@ Route: Campbell Airport (C81, Grayslake, IL) → Duluth International
 (KDLH, MN).
 
 Built as a full-lifecycle platform engineering project — model training and
-selection, orchestrated data pipelines, a microservices architecture, and
-Claude-written briefings over the planner's own figures — designed from the outset with an
+selection, orchestrated data pipelines, services and apps over one Rust
+engine that holds the aviation rules, and Claude-written briefings over
+the planner's own figures — designed from the outset with an
 explicit path to production on AWS.
 
 ### Highlights
@@ -47,10 +48,11 @@ explicit path to production on AWS.
   chart*", so reading the chart makes the ground truth and the training
   signal the same thing rather than filtering an OSM extract down to
   approximate it.
-- **Model selection across four frameworks.** Ridge regression, Random
-  Forest, and Gradient Boosting (scikit-learn) benchmarked against PyTorch,
-  TensorFlow/Keras, and Spark MLlib on the same feature set, with nested
-  cross-validation and permutation importance for the sklearn baseline.
+- **scikit-learn model selection.** Each retrain grid-searches Ridge
+  regression, Random Forest and Gradient Boosting against a
+  predict-the-mean baseline by 5-fold cross-validation and keeps the
+  best; the planner scores checkpoints with the promoted model. Notebook
+  03 adds nested cross-validation and permutation importance.
 - **Orchestrated ML pipeline.** An Apache Airflow DAG automates data
   collection, feature engineering, training, evaluation, and model
   promotion — a new model only goes live if it beats the currently
@@ -86,16 +88,55 @@ explicit path to production on AWS.
 
 ### Architecture
 
+Four layers, each with one job:
+
+- **The engine** ([`native/`](../native), Rust): every aviation rule and
+  figure, once. No network, no screen, no clock of its own. A facade,
+  `wingtip-engine`, over nine domain crates in `native/crates` (geo,
+  weather, figures, radio, pilot, brief, route, airspace, wording), each
+  of which may use only the ones under it. Each rule is a name in
+  `native/engine/src/call.rs`, JSON in and JSON out, and its input and
+  answer are typed in `native/contract/engine.schema.json`, from which
+  the web's and the phones' types are generated.
+- **The planner** (`planning-service` over `src/wingtip`, FastAPI):
+  works out a flight. It fetches the FAA's and the weather's data, reads
+  the chart and scores the checkpoints with the chart model in its own
+  process, runs the AI features (the assistant, the written briefing) with the
+  Anthropic SDK, and asks the engine every rule through
+  `wingtip_native.call`.
+- **Spring Boot** (`springboot-app`, the `webapp` service): who the pilot
+  is and what they saved -- accounts, sign-in, aircraft, flights,
+  logbook and endorsements, the public API, scheduled mail. It holds no
+  aviation logic: where it needs a figure, such as currency for a
+  reminder email, it asks the planner over HTTP (`PlannerClient`), and
+  the planner asks the engine.
+- **The apps** (`web/`, `ios/`, `android/`): get the data, keep the
+  state and draw, with one view model per screen (a hook on the web, an
+  observable model on the phones), and ask the engine the rest by name:
+  the web through `callEngine` (the engine built to WebAssembly), the
+  iPhone through `wt_call`, Android through a JNI shim over `wt_call`.
+
+The owner kept both server languages on this split (2026-11-06). The
+boundary between them is plain HTTP and already clean, merging them would
+give a pilot nothing, and Spring is good at identity and persistence;
+the aviation belongs in the engine, not in either server.
+
+That is the target. Some rules still live outside the engine -- about
+7,000 lines in `src/wingtip`, the currency and endorsement rules in the
+Java, and some in the web and phone apps -- and issue #482 moves them
+in, in phases: copies the engine already has, small rules, weather parsing,
+altitude selection, the nav log, then route options.
+
 The system runs today as seven Docker services:
 
 | Service | Role |
 |---|---|
-| `webapp` | Spring Boot API — the public-facing route-planning service |
+| `webapp` | Spring Boot — accounts, sign-in, the pilot's records, the public API and scheduled mail; serves the React app and proxies the planner |
 | `db` | PostgreSQL — application data |
 | `airflow` | Orchestrates the ML training pipeline |
 | `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
 | `ml` | Jupyter environment for model development and experimentation -- on demand, behind the `notebooks` profile: `docker compose up ml` |
-| `planning-service` | FastAPI server for the React app in `web/`: course, checkpoints scored by the chart model in-process, nav log, rating spottability against FAA sectional charts, and the Claude features (the written briefing, checkpoint notes, words, assistant) |
+| `planning-service` | FastAPI: works out a flight for the apps -- course, checkpoints scored by the chart model in-process, nav log, weather, and the Claude features (the written briefing, checkpoint notes, words, the assistant) -- with the engine inside it for every rule |
 
 ![Current local architecture](architecture-current.svg)
 
@@ -110,11 +151,7 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 **ML / Data**
 
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=flat-square&logo=scikitlearn&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)
-![TensorFlow](https://img.shields.io/badge/TensorFlow%2FKeras-FF6F00?style=flat-square&logo=tensorflow&logoColor=white)
-![Spark](https://img.shields.io/badge/Spark%20MLlib-E25A1C?style=flat-square&logo=apachespark&logoColor=white)
 ![pandas](https://img.shields.io/badge/pandas-150458?style=flat-square&logo=pandas&logoColor=white)
-![Hugging Face](https://img.shields.io/badge/sentence--transformers-FFD21E?style=flat-square&logo=huggingface&logoColor=black)
 
 **Backend & orchestration**
 
@@ -157,8 +194,10 @@ for the tabular feature pipeline.
 
 ### Services in detail
 
-**`planning-service`** — chart vision, checkpoint selection and the nav
-log. Serves no pages: the front end lives in [`web/`](../web) and is built
+**`planning-service`** — chart vision, checkpoint selection, the nav log
+and the assistant; it asks the engine (`wingtip_native`) for the rules
+the engine holds, and #482 moves the rest of its Python rules there.
+Serves no pages: the front end lives in [`web/`](../web) and is built
 into `webapp`'s jar, which proxies here for every computation. Publishes no
 port on AWS either — it sits behind `webapp` in a private subnet, found by
 service discovery at `planning-service.wingtip.internal`.
@@ -194,9 +233,9 @@ service discovery at `planning-service.wingtip.internal`.
   where something moved, for `webapp`'s flight watch
   (`/api/flights/{id}/watch`: a saved flight re-briefed every half hour
   up to departure, what changed mailed to the pilot)
-- `/api/model-comparison` — every trained algorithm's accuracy side by
-  side: the dev console charts it, and Plan's info popover names the
-  promoted one from it
+- `/api/model-comparison` — the scikit-learn models the last retrain
+  compared, each by its cross-validated error: the dev console charts
+  it, and Plan's info popover names the promoted one from it
 - `/api/status`, `/api/retrain`, `/api/aircraft-profiles` — the Dev
   drawer's own snapshot of the stack (services, FAA and weather data
   freshness, the model registry, collected corridors and their labels),
@@ -237,7 +276,7 @@ service discovery at `planning-service.wingtip.internal`.
   one call, until 2026-11-06; scikit-learn and joblib are now pinned in
   the planner's requirements, exactly as the training image pins them
 
-**`springboot-app` (webapp)** — the public-facing route-planning API.
+**`springboot-app` (webapp)** — accounts, sign-in and the pilot's saved records, and the public API. No aviation logic: a figure it needs comes from the planner.
 
 - Schema owned by Flyway migrations; JPA's `ddl-auto` only validates against them
 - Actuator health probes at `/actuator/health/liveness` and `/actuator/health/readiness`
@@ -503,12 +542,13 @@ browser reaches the Python service only through `webapp`'s
 `planning-service` with it. Hitting port 8084 directly works and is
 useful when debugging, but nothing in the front end does it.
 
-A request crosses three services, each with one job:
+A request crosses three services, each with one job, and the engine
+answers the rules on either side:
 
 ```
-browser (web/)   the map, the keyboard, the rows
+browser (web/)   the map, the keyboard, the rows; asks the engine (WebAssembly) for what it draws
   -> webapp        :8080  serves the page, proxies /api/planner/*, owns auth and the database
-  -> planning-service    :8084  reads sectional tiles, scores them with the chart model, great-circle geometry, checkpoint selection, nav log
+  -> planning-service    :8084  reads sectional tiles, scores them with the chart model, checkpoint selection, nav log; asks the engine every rule
   -> db            :5432  pilots, flights
 ```
 
@@ -518,10 +558,9 @@ Despite its name, `planning-service` serves no pages; see [Services in detail](#
 
 Notebooks 01-03 walk through what `pipeline.py` automates, and call it:
 01 and 02 run `collect` and `engineer_features` and read the tables back,
-so a notebook and the DAG can never write two different data files; 03-05
-take their labelled table and holdout from `pipeline.labeled_split`, the
-one every trainer uses. 06-08 are standalone comparison/domain exercises;
-08 walks the altitude selection one step at a time with `wingtip.altitude`'s
+so a notebook and the DAG can never write two different data files; 03
+takes its labelled table and holdout from `pipeline.labeled_split`, the
+one every trainer uses. 08 walks the altitude selection one step at a time with `wingtip.altitude`'s
 own pieces and checks its answer against the planner's. Run them via `docker
 compose up ml`. Full per-notebook breakdown is in the
 [Appendix](#appendix).
@@ -601,9 +640,9 @@ CI job breakdown is in the [Appendix](#appendix).
 
 | Command | What it does | Port |
 |---|---|---|
-| `docker compose up db` | PostgreSQL + pgvector | `5432` |
+| `docker compose up db` | PostgreSQL | `5432` |
 | `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db` and `planning-service` too | `8080` |
-| `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `wingtip`) |
+| `docker compose up ml` | Jupyter, for notebooks 01-03 and 08 | `8888` (token `wingtip`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()`: downloads a corridor's candidates once, and again only with `--refresh` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |
@@ -646,12 +685,11 @@ data/
 | 01 | `data_collection` | Pulls candidate checkpoints along the route corridor (OSM + FAA NASR) | `pipeline.collect` |
 | 02 | `feature_engineering` | Builds the model feature table | `pipeline.engineer_features` |
 | 03 | `sklearn_baseline` | Hand-labeling + Ridge/RandomForest/GradientBoosting selection, nested CV | `pipeline.retrain` |
-| 04 | `pytorch_tensorflow` | PyTorch + Keras MLP vs. the sklearn baseline | Comparison only |
-| 05 | `huggingface_embeddings` | Sentence-transformer embeddings as engineered features | Comparison only |
-| 06 | `spark_mllib` | Spark MLlib GBTRegressor, same comparison | Comparison only |
 | 08 | `altitude_selection` | Terrain/obstacle floor, Class B/C/D airspace, weather, aircraft ceiling → recommended cruise altitude | `wingtip.altitude` |
 
-(There is no 07.)
+(Numbers 04 to 07 are unused: 04, 05 and 06 compared PyTorch, Keras,
+sentence-transformers and Spark MLlib with the scikit-learn baseline,
+and went on 2026-11-06, since only scikit-learn reaches a pilot.)
 
 ### CI, in full
 
@@ -670,7 +708,7 @@ empty commit:
 | `test-webapp` | `mvn test` — webapp's JUnit suite, including the Testcontainers Postgres test |
 | `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp and the planner built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from. Its images and the page are built once for each content key by `build (e2e)` and pulled by all eight shards, on a push and on a pull request from one of this repository's branches; only a fork's or Dependabot's pull request, whose token cannot push, has each shard build its own. |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/wingtip` ones |
-| `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only when `changes` says `src/wingtip` actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
+| `docs` | Regenerates Javadoc + godoc on every push/PR. wingtip's `pdoc` is made by the `test` job from the packages its tests have just installed, and uploaded as `pdoc-wingtip`. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
 | `push-ecr` | Pushes the two images the CloudFormation stack deploys (`webapp`, `planning-service`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 

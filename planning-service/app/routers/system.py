@@ -18,7 +18,6 @@ from .. import chart_model, chart_refresh, errors
 from ..common import PROCESSED_DIR, paths
 from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
 from ..schemas import (
-    CandidateModel,
     ChartModelSnapshot,
     ChartRefreshStarted,
     CorridorStatus,
@@ -50,7 +49,6 @@ PROBE_TIMEOUT_S = 3.0
 
 # The FAA downloads a nav log depends on, wherever wingtip keeps them.
 FAA_FILES = ("DOF.DAT", "NAV_BASE.csv", "APT_BASE.csv", "Shape_Files/Class_Airspace.shp")
-CANDIDATE_FRAMEWORKS = ("pytorch", "tensorflow", "spark")
 
 
 def _iso(unix: float | None) -> str | None:
@@ -113,22 +111,6 @@ def _versions() -> list[ModelVersion]:
         out.append(ModelVersion(
             name=directory.name, model_type=metrics.get("model_type"),
             trained_at=metrics.get("trained_at"), cv_mae=metrics.get("cv_mae"),
-        ))
-    return out
-
-
-def _candidates() -> list[CandidateModel]:
-    """The other frameworks' own models (wingtip.model_candidates), which the
-    registry compares against but never promotes."""
-    out = []
-    for name in CANDIDATE_FRAMEWORKS:
-        metrics = _read_metrics(model_registry.MODELS_DIR / "candidates" / name)
-        if metrics is None:
-            continue
-        metric = "cv_mae" if "cv_mae" in metrics else ("held_out_mae" if "held_out_mae" in metrics else None)
-        out.append(CandidateModel(
-            name=name, model_type=metrics.get("model_type"), trained_at=metrics.get("trained_at"),
-            metric=metric, score=metrics.get(metric) if metric else None,
         ))
     return out
 
@@ -292,7 +274,7 @@ def status() -> Status:
             faa_files=_faa_files(),
             weather=_weather_datasets(),
             charts={**charts.status(), "refresh_window": CHARTS_REFRESH_WINDOW, "refresh_workers": CHARTS_REFRESH_WORKERS},
-            model={"current": _current_model(), "versions": _versions(), "candidates": _candidates(),
+            model={"current": _current_model(), "versions": _versions(),
                    "chart": _chart_model()},
             pipeline=pipeline.result().model_copy(update={"training": _training()}),
             corridors=_corridors(),

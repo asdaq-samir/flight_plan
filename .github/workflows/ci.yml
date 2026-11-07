@@ -129,14 +129,11 @@ jobs:
       - run: ruff check src/wingtip tests
       - run: pytest tests/ -v
       # wingtip's API documentation, from its docstrings. pdoc imports every
-      # module, so one that stops importing fails the job here. It needs
-      # wingtip's own list, installed above, and the CPU torch wheel for
-      # wingtip.torch_model -- the one module that imports a framework at its
-      # top; the rest import theirs inside the functions that use them.
+      # module, so one that stops importing fails the job here. wingtip's
+      # own list, installed above, is all it needs.
       # After the tests, so they run with the packages they always had.
       - name: pdoc (src/wingtip)
         run: |
-          uv pip install --system torch --index-url https://download.pytorch.org/whl/cpu
           uv pip install --system pdoc
           PYTHONPATH=src python -m pdoc src/wingtip -o /tmp/pdoc-wingtip --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7

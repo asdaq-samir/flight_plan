@@ -13,7 +13,7 @@ import { Progress } from "../../components/ui/progress";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "../../components/ui/chart";
 import { api, errorMessage } from "../../lib/api/client";
 import { statusQuery } from "../../lib/queryClient";
-import type { ModelComparisonEntry, Status } from "../../lib/api/types";
+import type { Status } from "../../lib/api/types";
 import RatingGuide from "../train/components/RatingGuide";
 import { TEXT } from "../../lib/text";
 import { useRetrain } from "./useRetrain";
@@ -72,12 +72,8 @@ export function DevPanel() {
   );
 }
 
-/** Every algorithm anyone has actually trained for this problem, not
- *  just the sklearn family retrain() grid-searches -- PyTorch/
- *  TensorFlow/Spark's own candidates (wingtip.model_candidates) show up
- *  here too once trained. Sorted best-first; each row names its own
- *  metric rather than implying they're all on the same footing (see
- *  the backend's own reasoning in planning-service's docstring). */
+/** The scikit-learn models retrain() grid-searched for the one
+ *  serving, each by its 5-fold CV error, sorted best-first. */
 const modelComparisonChartConfig = {
   score: { label: "MAE", color: "var(--chart-1)" },
 } satisfies ChartConfig;
@@ -89,7 +85,7 @@ const PROMOTED_BAR_COLOR = "#10b981";
 
 function ModelComparison() {
   const { data, error } = useQuery({ queryKey: ["modelComparison"], queryFn: api.modelComparison });
-  // A candidate whose metrics file has no score sorts last, not first.
+  // A model with no score sorts last, not first.
   const rows = data ? [...data.models].sort((a, b) => (a.score ?? Infinity) - (b.score ?? Infinity)) : null;
 
   // A group of its own, the chart its one row and what it shows in the
@@ -126,9 +122,7 @@ function ModelComparison() {
                       <span className="text-muted-foreground">MAE</span>
                       <div className="ml-auto flex items-baseline gap-1 font-mono font-medium text-foreground tabular-nums">
                         {mae(Number(value))}
-                        <span className="font-sans font-normal text-muted-foreground">
-                          {(item.payload as ModelComparisonEntry).metric === "cv_mae" ? "CV" : "held-out"}
-                        </span>
+                        <span className="font-sans font-normal text-muted-foreground">CV</span>
                       </div>
                     </div>
                   )}
@@ -302,10 +296,7 @@ function TrainingGroup() {
  *  from the Model group's count. */
 function Versions({ model }: { model: NonNullable<Status["model"]> }) {
   return (
-    <ListGroup
-      title="Newest first"
-      footer={model.candidates.length > 0 && `Also trained, not promoted: ${model.candidates.map(c => `${c.name} (${agoOrDate(c.trained_at)})`).join(", ")}.`}
-    >
+    <ListGroup title="Newest first">
       {model.versions.map((v, i, all) => {
         const older = all[i + 1];
         const delta = v.cv_mae != null && older?.cv_mae != null ? v.cv_mae - older.cv_mae : null;

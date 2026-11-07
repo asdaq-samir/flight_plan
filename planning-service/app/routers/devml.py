@@ -1,6 +1,6 @@
 """Lookups the pages need around the planner itself: the route form's
-airport search, and every trained
-algorithm side by side (Settings' Dev ML panel, and the one line in
+airport search, and the scikit-learn
+models retrain() compared side by side (Settings' Dev ML panel, and the one line in
 Plan's own info popover naming the model that scored the checkpoints).
 Nothing the planner's own scoring path depends on."""
 import json
@@ -103,42 +103,21 @@ def airport_search(response: Response, q: str = "", fixes: bool = False, near: s
 
 @router.get("/api/model-comparison")
 def model_comparison() -> ModelComparison:
-    """Every algorithm anyone has actually trained for this problem,
-    not just the sklearn family retrain() grid-searches: the promoted
-    model's own comparison against Ridge/GradientBoosting/a dummy
-    "predict the mean" baseline, plus PyTorch/TensorFlow/Spark's own
-    candidates (wingtip.model_candidates), when they exist.
-
-    Each entry names its own metric rather than pretending they are
-    all the same number: the sklearn family's own selection already
-    runs 5-fold CV (cv_mae), while the new candidates report a single
-    held-out split's MAE (held_out_mae) -- except Spark, whose own
-    CrossValidator gives it a real cv_mae too. Blending these into one
-    unlabeled column would overstate how comparable they actually are.
-    """
+    """The scikit-learn models retrain() grid-searched for the promoted
+    one, side by side: Ridge, RandomForest, GradientBoosting and the
+    "predict the mean" baseline, each by its 5-fold CV MAE, as
+    wingtip.pipeline wrote them into the promoted model's metrics.json.
+    These are the only models that reach a pilot; the comparison
+    against other frameworks went with them (2026-11-06)."""
     # Nothing promoted yet is an empty comparison, not an error: it was a
     # 404, and a fresh stack's Performance tab toasted it as a failure.
     metrics_path = model_registry.CURRENT_MODEL_DIR / "metrics.json"
     current_metrics = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
 
     models = [
-        {"name": name, "metric": "cv_mae", "score": score, "promoted": name == current_metrics.get("model_type")}
+        {"name": name, "score": score, "promoted": name == current_metrics.get("model_type")}
         for name, score in (current_metrics.get("cv_mae_by_model") or {}).items()
     ]
-
-    candidates_dir = model_registry.MODELS_DIR / "candidates"
-    for algo_dir in ("pytorch", "tensorflow", "spark"):
-        candidate_metrics_path = candidates_dir / algo_dir / "metrics.json"
-        if not candidate_metrics_path.exists():
-            continue
-        candidate_metrics = json.loads(candidate_metrics_path.read_text())
-        metric_name = "cv_mae" if "cv_mae" in candidate_metrics else "held_out_mae"
-        models.append({
-            "name": candidate_metrics.get("model_type", algo_dir),
-            "metric": metric_name,
-            "score": candidate_metrics.get(metric_name),
-            "promoted": False,
-        })
 
     return {
         "models": models,

@@ -24,8 +24,19 @@ idea, then shows exactly where in this repo that idea shows up.
 Read it top to bottom the first time; come back to individual sections
 later as a refresher while you build.
 
-The whole system, one picture. Every box is a Docker service; every arrow
-is covered by name in the section noted next to it:
+The project has four layers, each with one job. The Rust engine
+(`native/`) holds every aviation rule and figure once, with no network,
+no screen and no clock. The planner (`planning-service` over
+`src/wingtip`, FastAPI) works out a flight: it fetches the data, runs the
+chart model and the assistant, and asks the engine every rule. Spring
+Boot (`webapp`) is who the pilot is and what they saved, with no aviation
+logic of its own. The apps (web, iOS, Android) get data, keep state and
+draw, and ask the engine the rest. §4 says why it is cut this way.
+
+The services, one picture. Each box is a Docker service, except the
+apps, `model_registry` (code run by Airflow) and the engine, which runs
+inside the planner and inside each app; every arrow is covered by name
+in the section noted next to it:
 
 ```mermaid
 flowchart LR
@@ -38,12 +49,14 @@ flowchart LR
 
     registry --> planner[("planning-service<br/>scores with the promoted model")]
 
-    webapp["§4 webapp<br/>(Spring Boot API)"] --> planner
+    webapp["§4 webapp<br/>(Spring Boot: accounts, records)"] --> planner
     webapp --> db[("db<br/>Postgres")]
+    planner --> engine[["§4 engine (Rust)<br/>every aviation rule"]]
+    apps([web · iOS · Android]) --> webapp
+    apps --> engine
 
     planner -->|"§5 the written briefing<br/>(Anthropic SDK)"| claude([Claude API])
 
-    client([API client]) --> webapp
 ```
 
 Everything above `db`/`planning-service` runs today exactly as drawn; the
@@ -158,7 +171,7 @@ from its cache.
 
 | Dockerfile | Base | Why it looks like this |
 |---|---|---|
-| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.13-slim` + a JDK | PySpark (notebook 06) needs a JVM even from Python, hence `apt-get install default-jdk-headless`. Installs the CPU-only PyTorch wheel explicitly (`--index-url .../cpu`) — the default wheel bundles several GB of CUDA libraries this machine has no GPU to use. |
+| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.14-slim` | Jupyter and scikit-learn over `wingtip`'s own list, for notebooks 01–03 and 08, and nothing else: the PyTorch, TensorFlow, Spark and sentence-transformers comparison notebooks, and the JDK and CUDA-free torch wheel they needed, went on 2026-11-06, since only scikit-learn reaches a pilot. Carries no source; compose bind-mounts the checkout. |
 | [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `python:3.14-slim` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
 | [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.14-slim` | Adds scikit-learn/joblib on top. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
 | [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:3.3.1-python3.13` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
@@ -171,16 +184,14 @@ from its cache.
 A Dockerfile is a recipe; an image is the baked result sitting on your
 disk. `docker images` on a working copy of this repo shows two kinds.
 
-**The seven built from this repo**, named after the project directory
-(`wingtip-webapp`, `wingtip-ml`, and so on). `ml` is by far the
-largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark
-and a JVM in one place. Only three of them run the application — `webapp`,
+**The six built from this repo**, named after the project directory
+(`wingtip-webapp`, `wingtip-ml`, and so on). Only three of them run the application — `webapp`,
 `planning-service` and the database's own image below;
 the rest exist for building, training, orchestrating or testing.
 
 **The ones pulled, not built.** These look like clutter and are not;
 deleting one only forces a re-download on the next build. `python:3.14-slim`
-is the base for most of the seven above, stored once, which is why image
+is the base for most of the six above, stored once, which is why image
 sizes are not additive. `node:26-slim` and `maven:...` are build-only and
 never ship. `pgvector/pgvector` is the database. `postgres` and
 `testcontainers/ryuk` are started by the JUnit suite ([Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)),
@@ -531,8 +542,37 @@ rather than one image with a runtime branch.
 
 ## 4. The serving layer
 
-Two services answer real HTTP requests: `planning-service` (the route,
-and the model's predictions) and `webapp` (the public API, persistence).
+Two services answer real HTTP requests: `planning-service` (working out
+a flight, and the model's predictions) and `webapp` (who the pilot is
+and what they saved). Under both, and under every app, is the engine.
+
+### Four layers, and why
+
+- **The engine** ([`native/`](../native/README.md)) is a Rust library
+  with no network, no screen and no clock: give it JSON by a rule's
+  name (`native/engine/src/call.rs`), get JSON back. It is a facade over
+  nine crates, each allowed to use only the ones under it, so the
+  compiler keeps geography from reaching for the Go / No-Go. The same
+  bytes run in the planner (PyO3), in the browser (WebAssembly) and on
+  both phones (a C interface), so a pilot's figure is the same offline
+  in the air as on the planner's desk. A JSON Schema per name
+  (`native/contract/engine.schema.json`) types the boundary, and each
+  app's types are generated from it.
+- **The planner** does what needs the network and the big data: the
+  FAA's files, the weather, the chart tiles, the chart model, Claude.
+- **Spring Boot** does identity and persistence: sign-in, sessions,
+  Flyway's schema, the pilot's records, scheduled mail. When it needs a
+  figure it asks the planner, which asks the engine.
+- **The apps** are view and view model per screen, and hold no rules.
+
+Why two server languages, rather than one: the owner weighed folding
+one into the other on 2026-11-06 and kept both. The line between them
+is plain HTTP and already clean, a merge would change nothing a pilot
+sees, and Spring is good at what it does here. What made the old shape
+hard was rules written several times over -- in Python, Java,
+TypeScript and Swift -- and that is fixed by moving them into the
+engine, not by changing servers. Issue #482 lists what has not moved
+yet, in the order it moves.
 
 ### Scoring in the planner
 
