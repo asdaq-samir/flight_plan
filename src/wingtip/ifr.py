@@ -42,11 +42,6 @@ CLEARANCE_FT = 1000.0
 #: ... and (i): 2,000 ft over a mountainous area Part 95 designates.
 MOUNTAINOUS_CLEARANCE_FT = 2000.0
 
-#: 14 CFR 91.167(a)(3): after the alternate (or the destination, where
-#: 91.169 asks for none), 45 minutes at normal cruising speed -- an
-#: airplane's; a helicopter's is 30.
-RESERVE_MIN = 45.0
-
 #: The terrain tiles' zoom: 76 m a pixel, and within 20 ft of the
 #: published summits of Rainier (14,396 ft against 14,411), Whitney
 #: (14,486 against 14,505), Mitchell (6,671 against 6,684) and Pikes Peak
