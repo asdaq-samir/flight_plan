@@ -60,7 +60,7 @@ import zipfile
 from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -74,8 +74,6 @@ from .config import (
     CHART_TILES_PREFIX,
     CHART_TILES_URL,
     CHARTS_DIR,
-    FAA_CHART_CYCLE_ANCHOR,
-    FAA_CHART_CYCLE_DAYS,
     FAA_ENROUTE_ZIP_URL,
     FAA_VFR_PRODUCTS_PAGE,
     FAA_VISUAL_ZIP_URL,
@@ -394,11 +392,12 @@ _cycle_lock = threading.Lock()
 
 
 def cycle_from_anchor(today: date) -> str:
-    """The cycle date in effect on `today`, by 56-day arithmetic from
-    the anchor -- what the FAA's page would say, without asking it."""
-    anchor = date.fromisoformat(FAA_CHART_CYCLE_ANCHOR)
-    cycles = (today - anchor).days // FAA_CHART_CYCLE_DAYS
-    return (anchor + timedelta(days=cycles * FAA_CHART_CYCLE_DAYS)).strftime("%m-%d-%Y")
+    """The cycle date in effect on `today`, by the 56-day charting cycle
+    (the engine's `data_cycle`, from the FAA's 28 and 56 Day Product
+    Schedule) -- what the FAA's page would say, without asking it."""
+    from .data_cycles import start_on
+
+    return start_on("chart", today).strftime("%m-%d-%Y")
 
 
 def cycle_from_products_page(html: str, today: date) -> str | None:

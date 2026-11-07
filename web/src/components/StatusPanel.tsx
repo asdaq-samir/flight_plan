@@ -2,11 +2,11 @@ import { useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { ListGroup, ListRow } from "./GroupedList";
-import { api } from "../lib/api/client";
 import type { MapLayerAges } from "../lib/api/types";
 import { useMinuteClock, zuluTime } from "../lib/clock";
+import { cycleWarning, dayWords } from "../lib/dataCycles";
 import { savedWords, useSaved } from "../lib/fromCache";
-import { ageWords, useLayerAges } from "../lib/map/layerAges";
+import { ageWords, mapAgesQuery, useLayerAges } from "../lib/map/layerAges";
 import { TEXT } from "../lib/text";
 
 /**
@@ -29,9 +29,7 @@ export default function StatusPanel() {
   const saved = savedWords(Object.values(useSaved(s => s.saved)), now);
   // The map's settings ask the same question (useLayerAges), one answer
   // for both.
-  const { data, isError } = useQuery({
-    queryKey: ["mapAges"], queryFn: () => api.mapAges(), refetchInterval: 60_000, staleTime: 30_000, meta: { silent: true },
-  });
+  const { data, isError } = useQuery(mapAgesQuery);
   const { traffic } = useLayerAges();
   return (
     <div className="space-y-5 pb-1" data-testid="status-panel">
@@ -53,6 +51,24 @@ export default function StatusPanel() {
           <ListRow muted title={isError ? "The planner could not be reached" : "Checking…"} data-testid="status-sources-none" />
         )}
       </ListGroup>
+
+      {/* Each FAA data set the plan rests on, by its edition, and where one
+          is past its cycle, said under it in the row's own words (the
+          engine's data_cycle, lib/dataCycles): an old edition reads as if
+          nothing were wrong, so this is where a pilot checks. */}
+      {!!data?.data_cycles?.length && (
+        <ListGroup title="FAA Data">
+          {data.data_cycles.map(c => {
+            const warning = cycleWarning(c);
+            return (
+              <ListRow
+                key={c.key} title={c.name} value={dayWords(c.edition)} data-testid="status-data-cycle" data-cycle={c.state}
+                description={warning ? <span className={cn("text-destructive-ink", TEXT.detail)}>{warning}</span> : undefined}
+              />
+            );
+          })}
+        </ListGroup>
+      )}
 
       <ListGroup title="Traffic">
         <ListRow title="Airplanes nearby" value={traffic ?? "None heard"} data-testid="status-traffic" />
