@@ -112,7 +112,16 @@ itself there, since it needs Advanced Security. The rest run on the Mac
 mini for free:
 
 - **Linux jobs (`mini-linux`):** a Lima VM, `wingtip-ci`, running Ubuntu
-  with its own Docker and the runners. It must be a VM, not a container:
+  with its own Docker and the runners. Its setup (`~/.config/wingtip-ci/wingtip-ci.yaml`,
+  copied into Lima's instance and re-run at every boot) gives it what the
+  jobs take from GitHub's image: Docker CE with Compose and Buildx, gh,
+  jq, shellcheck, Temurin 25 and Maven, rustup's tools on the PATH,
+  Docker Hub through mirror.gcr.io, and amd64 through Rosetta for
+  `scripts/build-engine-wasm.sh`. A job-started hook gives each runner
+  back a clean Python before every job, as a fresh GitHub machine would;
+  the jobs write to `$RUNNER_TEMP`, not `/tmp`, since three runners share
+  the VM, and `hub-mirror` leaves its Docker alone when the mirror is
+  already set. It must be a VM, not a container:
   the jobs use `sudo`, `localhost` and `--network host` as on GitHub's
   machines, and their ports would otherwise meet the live stack's.
 - **iOS (`mini`):** a runner on the Mac itself, which has Xcode, rustup
