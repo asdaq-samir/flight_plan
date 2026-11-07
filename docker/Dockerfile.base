@@ -1,0 +1,62 @@
+# syntax=docker/dockerfile:1
+
+# The one Python base every image that imports wingtip is built FROM
+# (planning-service, the pipeline stages, the notebooks): Python, wingtip's
+# own dependencies (src/requirements.txt) and wingtip's Rust extension
+# (wingtip_native), installed once, here. Each image names it by the build
+# context `wingtip-base` and adds only what it needs on top:
+#
+#   docker compose build           compose's `base` service, a
+#                                  `service:base` context of each image
+#   docker buildx bake             .github/images.hcl, `target:base`
+#   docker build -f <Dockerfile> --build-context wingtip-base=docker-image://<a built base> .
+#
+# It replaced a byte-identical wingtip-native stage in each image's own
+# Dockerfile (tests/test_dockerfiles.py kept the copies the same, 2026-11-05
+# to 11-06): one stage now, built once, its layers stored once on disk
+# and in the registry, where four copies each installed the same
+# requirements into layers of their own.
+#
+# The wheel alone, as before:
+#   docker build -f docker/Dockerfile.base --target native -o out .
+
+# Every image here and its sources pinned by digest, the tag kept beside
+# it for a reader and for Dependabot (.github/dependabot.yml, docker),
+# which moves both together: a tag alone is whatever was pushed under it
+# last, so the same commit could build on a different Python or Rust from
+# one day to the next, and the cache keyed on it would miss.
+#
+# wingtip's Rust extension (native/py, over wingtip-engine in
+# native/engine), which wingtip imports at module level since the shared
+# engine (2026-11-03): built here, with Rust copied in from its own image,
+# so the base carries the wheel and none of the toolchain.
+FROM python:3.14-slim@sha256:af8a5aa14780025dbfbcfbc81bd8a91ebd87711dd5b0f48ed71090949dd7cb1d AS native
+COPY --from=rust:1.89-slim-bookworm@sha256:d7fc7de78bb8c1469933aeecbf801314d30d7d6e9f0578bba4cfa285bfa37fe6 /usr/local/cargo /usr/local/cargo
+COPY --from=rust:1.89-slim-bookworm@sha256:d7fc7de78bb8c1469933aeecbf801314d30d7d6e9f0578bba4cfa285bfa37fe6 /usr/local/rustup /usr/local/rustup
+ENV PATH=/usr/local/cargo/bin:$PATH CARGO_HOME=/usr/local/cargo RUSTUP_HOME=/usr/local/rustup
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean \
+    && apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev
+RUN --mount=type=cache,target=/root/.cache/pip pip install maturin==1.9.4
+COPY native /native
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    maturin build --release --compatibility linux -m /native/py/Cargo.toml -o /wheels
+
+FROM python:3.14-slim@sha256:af8a5aa14780025dbfbcfbc81bd8a91ebd87711dd5b0f48ed71090949dd7cb1d AS base
+
+# wingtip's own list, before the wheel: it changes far less often than
+# native/, so an engine change rebuilds one small layer, not this one.
+COPY src/requirements.txt /tmp/wingtip-requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r /tmp/wingtip-requirements.txt \
+    && rm /tmp/wingtip-requirements.txt
+# The engine's wheel from the native stage above, mounted rather than
+# copied, so no layer keeps it.
+RUN --mount=type=bind,from=native,source=/wheels,target=/tmp/wheels \
+    pip install --no-cache-dir --no-deps /tmp/wheels/*.whl
+# The user every image runs as. Each image switches to it once its own
+# files are in.
+RUN useradd -m appuser
+# The build fails here if wingtip's own dependencies or its extension do
+# not import, rather than each image that builds on this.
+RUN python -B -c "import wingtip_native, numpy, pandas, requests, cachetools, pyarrow.parquet, shapely.ops, shapefile, pyproj, pydantic_settings, scipy.spatial, pygeomag, astral"

@@ -47,7 +47,7 @@ services:
       APP_PAID_CALLS_PER_DAY: "500"
 
   cdn:
-    image: caddy:2.10-alpine
+    image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     restart: unless-stopped
     ports: ["127.0.0.1:9443:9443"]
     environment:
@@ -60,7 +60,7 @@ services:
     depends_on: [caddy]
 
   mailpit:
-    image: axllent/mailpit:v1.31.3
+    image: axllent/mailpit:v1.31.3@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
     restart: unless-stopped
     ports: ["127.0.0.1:9025:8025"]
     environment:

@@ -58,3 +58,16 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
+
+  # The images the compose files run as they are (Postgres, Mailpit,
+  # Jaeger, Caddy, Node for web-build), pinned by digest like the
+  # Dockerfiles' bases above, and moved the same way.
+  - package-ecosystem: docker-compose
+    directories:
+      - /
+      - /infra/rehearsal
+    multi-ecosystem-group: monthly
+    patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

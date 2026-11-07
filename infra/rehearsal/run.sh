@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Rehearses the production stack on this machine
-# (docker-compose.rehearsal.yml): builds the two images the server runs,
+# (docker-compose.rehearsal.yml): builds the two images the server runs
+# (the planner on wingtip's base),
 # seeds a data folder as deploy.sh does, writes a .env of its own and
 # starts docker-compose.prod.yml with the rehearsal's stand-ins for
 # CloudFront and SES, as the project "wingtip-prod" beside the
@@ -22,7 +23,10 @@ export REHEARSAL_DIR=${REHEARSAL_DIR:-$HOME/.wingtip-rehearsal}
 export TILES_DIR=${TILES_DIR:-$PWD/data/raw/chart_tiles.nosync}
 
 if [ "${SKIP_BUILD:-}" != 1 ]; then
-  docker build -t wingtip-local/planning-service:rehearsal -f planning-service/Dockerfile .
+  # The planner is built FROM wingtip's base (docker/Dockerfile.base).
+  docker build -t wingtip-local/base:rehearsal -f docker/Dockerfile.base --target base .
+  docker build -t wingtip-local/planning-service:rehearsal -f planning-service/Dockerfile \
+    --build-context wingtip-base=docker-image://wingtip-local/base:rehearsal .
   docker build -t wingtip-local/webapp:rehearsal -f springboot-app/Dockerfile .
 fi
 

@@ -1,7 +1,26 @@
-__pycache__/
-*.pyc
-.ipynb_checkpoints/
-.git/
+# An allow-list: nothing at the top of the repository reaches a build
+# context but the six directories a Dockerfile copies from. The
+# exclusions below it came one leak at a time -- data/raw tarred into
+# every build, a conflict copy of a Java class, a spec edit rebuilding
+# the bundle -- and every new top-level folder was in every context
+# until someone noticed: .claude/worktrees (whole copies of the repo),
+# data/labels (the owner's ratings), .env (the keys),
+# infra/local-https/certs (the phone's certificate key), ios/, android/.
+# None of them is read by a Dockerfile; now none of them is sent.
+*
+!src/
+!native/
+!planning-service/
+!docker/
+!web/
+!springboot-app/
+
+# Inside those: what no Dockerfile reads.
+planning-service/tests/
+**/__pycache__/
+**/*.pyc
+**/node_modules/
+**/target/
 # ~600MB (FAA NASR/DOF, OSM, elevation/magnetic-variation caches) -- not
 # needed at build time (services mount the project dir at runtime), but was
 # being tarred into the build context on every `docker compose build` for

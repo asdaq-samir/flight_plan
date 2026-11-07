@@ -36,6 +36,19 @@ x-anthropic-api-key: &anthropic-api-key ${ANTHROPIC_API_KEY:-}
 # pipeline jobs are one-shot and have none.
 
 services:
+  # wingtip's Python base (docker/Dockerfile.base): Python, wingtip's own
+  # requirements and its Rust extension, built once and named by every
+  # image that imports wingtip as its `wingtip-base` context
+  # (`service:base` below), so `docker compose build planning-service`
+  # builds it first, from this checkout, with nothing pulled from a
+  # registry. Never run: behind a profile of its own, it is only built.
+  base:
+    profiles: ["base"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.base
+      target: base
+
   # Jupyter, for the notebooks: on demand, behind its own profile, so a
   # plain `docker compose up` leaves its image and its memory alone.
   # `docker compose up ml` (a service named on the command line starts
@@ -46,6 +59,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.ml
+      additional_contexts:
+        wingtip-base: service:base
     ports:
       # 127.0.0.1-bound, not 0.0.0.0 -- this and every other non-webapp
       # port below are local-debugging conveniences, not a public surface
@@ -69,6 +84,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.processing
+      additional_contexts:
+        wingtip-base: service:base
     profiles: ["pipeline"]
     volumes:
       - .:/workspace
@@ -77,6 +94,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.training
+      additional_contexts:
+        wingtip-base: service:base
     profiles: ["pipeline"]
     volumes:
       - .:/workspace
@@ -94,6 +113,8 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.training
+      additional_contexts:
+        wingtip-base: service:base
     profiles: ["pipeline"]
     command: ["run"]
     volumes:
@@ -101,7 +122,7 @@ services:
 
   db:
     restart: unless-stopped
-    image: pgvector/pgvector:pg18
+    image: pgvector/pgvector:pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
     environment:
       POSTGRES_DB: wingtip
       POSTGRES_USER: wingtip
@@ -162,6 +183,8 @@ services:
     build:
       context: .
       dockerfile: planning-service/Dockerfile
+      additional_contexts:
+        wingtip-base: service:base
     ports:
       - "127.0.0.1:8084:8000"
     # docker-control as well as the default network: the only service
@@ -219,7 +242,7 @@ services:
   # Set MAIL_HOST and the rest in .env to send real mail instead.
   mailpit:
     restart: unless-stopped
-    image: axllent/mailpit:v1.31.3
+    image: axllent/mailpit:v1.31.3@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
     ports:
       - "127.0.0.1:8025:8025"
     environment:
@@ -374,7 +397,7 @@ services:
   # Without TRACING neither service sends a span.
   jaeger:
     profiles: ["tracing"]
-    image: jaegertracing/jaeger:2.11.0
+    image: jaegertracing/jaeger:2.11.0@sha256:b585df1b6299bbbd16bf7c679da30389349736e4b6bc8f4f500142a75bf26ca8
     ports:
       - "127.0.0.1:16686:16686"
     restart: unless-stopped

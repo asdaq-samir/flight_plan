@@ -114,10 +114,14 @@ jobs:
             ecrRepo: webapp
             context: .
             dockerfile: ./springboot-app/Dockerfile
+          # Built FROM wingtip's base (docker/Dockerfile.base): the one CI
+          # pushed to GHCR and the job above promoted to `latest`, which
+          # is this commit's wherever this commit changed it.
           - service: planning-service
             ecrRepo: planning-service
             context: .
             dockerfile: planning-service/Dockerfile
+            buildContexts: wingtip-base=docker-image://ghcr.io/${{ github.repository }}/base:latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
@@ -146,6 +150,7 @@ jobs:
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          build-contexts: ${{ matrix.buildContexts }}
           push: true
           tags: ${{ steps.ecr-login.outputs.registry }}/wingtip/${{ matrix.ecrRepo }}:latest
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/${{ matrix.service }}:buildcache

@@ -41,7 +41,7 @@ services:
   # group admits only CloudFront's addresses as well).
   caddy:
     <<: *restart
-    image: caddy:2.10-alpine
+    image: caddy:2.10-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d
     ports: ["80:80", "443:443"]
     environment:
       ORIGIN_HOST: ${ORIGIN_HOST}
@@ -54,7 +54,7 @@ services:
 
   db:
     <<: *restart
-    image: pgvector/pgvector:pg18
+    image: pgvector/pgvector:pg18@sha256:c29f30688a9ad961691bdf0ec1650717cc132a5814619d80f80463d6e4c42e47
     environment:
       POSTGRES_DB: wingtip
       POSTGRES_USER: wingtip

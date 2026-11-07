@@ -17,7 +17,7 @@ services:
     volumes:
       - ./web/dist:/app/static/app:ro
   web-build:
-    image: node:26-slim
+    image: node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072
     working_dir: /w
     volumes:
       - ./web:/w

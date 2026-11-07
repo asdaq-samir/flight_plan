@@ -171,10 +171,11 @@ from its cache.
 
 | Dockerfile | Base | Why it looks like this |
 |---|---|---|
-| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.14-slim` | Jupyter and scikit-learn over `wingtip`'s own list, for notebooks 01–03 and 08, and nothing else: the PyTorch, TensorFlow, Spark and sentence-transformers comparison notebooks, and the JDK and CUDA-free torch wheel they needed, went on 2026-11-06, since only scikit-learn reaches a pilot. Carries no source; compose bind-mounts the checkout. |
-| [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `python:3.14-slim` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
-| [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.14-slim` | Adds scikit-learn/joblib on top, so it can run every stage: the training run (`python -m wingtip.pipeline run`, compose's `retrain`) runs in it. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
-| [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `python:3.14-slim` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely), and the chart model's scikit-learn, pinned to the training image's. Bind-mounts the repo, so a `src/wingtip` edit needs a restart, not a rebuild. |
+| [`docker/Dockerfile.base`](../docker/Dockerfile.base) | `python:3.14-slim` (by digest) | The base the four below are built FROM: wingtip's own requirements (`src/requirements.txt`) and its Rust extension (`wingtip_native`, compiled in a stage of its own with Rust copied in, so the base carries the wheel and no toolchain), installed once. Each image names it as the build context `wingtip-base`: compose's `base` service, a bake's `target:base`. Before it, each image built the engine and installed the same requirements itself, the same layers four times over on disk. |
+| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `wingtip-base` | Jupyter and scikit-learn over `wingtip`'s own list, for notebooks 01–03 and 08, and nothing else: the PyTorch, TensorFlow, Spark and sentence-transformers comparison notebooks, and the JDK and CUDA-free torch wheel they needed, went on 2026-11-06, since only scikit-learn reaches a pilot. Carries no source; compose bind-mounts the checkout. |
+| [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `wingtip-base` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
+| [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `wingtip-base` | Adds scikit-learn/joblib on top, so it can run every stage: the training run (`python -m wingtip.pipeline run`, compose's `retrain`) runs in it. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
+| [`planning-service/Dockerfile`](../planning-service/Dockerfile) | `wingtip-base` | FastAPI plus the chart-vision stack (numpy, Pillow, shapely), and the chart model's scikit-learn, pinned to the training image's. Bind-mounts the repo, so a `src/wingtip` edit needs a restart, not a rebuild. |
 | [`springboot-app/Dockerfile`](../springboot-app/Dockerfile) | `node:26-slim` → `maven:...` → `eclipse-temurin:25-jre` | Multi-stage, see above. |
 
 ### The images those Dockerfiles produce
@@ -189,8 +190,9 @@ the rest exist for building, training or testing.
 
 **The ones pulled, not built.** These look like clutter and are not;
 deleting one only forces a re-download on the next build. `python:3.14-slim`
-is the base for most of those above, stored once, which is why image
-sizes are not additive. `node:26-slim` and `maven:...` are build-only and
+is the base of `wingtip-base`, which is in turn the base of every Python
+image above; each is stored once, which is why image sizes are not
+additive. `node:26-slim` and `maven:...` are build-only and
 never ship. `pgvector/pgvector` is the database. `postgres` and
 `testcontainers/ryuk` are started by the JUnit suite ([Section 8](#8-what-gets-tested-and-what-deliberately-doesnt)).
 Intermediate build stages such as `eclipse-temurin:25-jre` do not appear

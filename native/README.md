@@ -26,11 +26,11 @@ issue #482.
 - `py/` (`wingtip_native`): the engine as wingtip imports it, through PyO3. It
   only carries arrays and mapped files across; every figure is the
   engine's. wingtip imports it at module level, so every image that copies
-  src/ builds it: the planner, the pipeline stages and ML, each with
-  the same wingtip-native stage as
-  docker/Dockerfile.native (tests/test_dockerfiles.py keeps the copies
-  the same, so the engine compiles once per bake and comes from cache
-  after). A new image that reads src/ needs the stage too.
+  src/ needs it: the planner, the pipeline stages and ML are each built
+  FROM wingtip's base image (docker/Dockerfile.base), which compiles it
+  and installs it with wingtip's requirements once for all of them
+  (tests/test_dockerfiles.py holds every such image to it). A new image
+  that reads src/ is built FROM it too.
 
 ## The engine's crates
 
