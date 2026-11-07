@@ -192,7 +192,7 @@ def test_a_dropped_point_is_named_off_the_nearest_fix_a_pilot_knows_and_comes_ba
     assert fixes.frd_near(10.0, 10.0) is None
 
 
-def test_a_vors_card_has_its_channel_service_volume_and_unusable_sectors(tmp_path):
+def test_a_vors_card_has_its_channel_service_volume_and_unusable_sectors(monkeypatch, tmp_path):
     # Joliet's row and remark as NASR files them (NAV_BASE, NAV_RMK, the
     # 2026-10-29 cycle); its receiver checkpoint's remark is not the card's.
     (tmp_path / "NAV_BASE.csv").write_text(
@@ -208,7 +208,8 @@ def test_a_vors_card_has_its_channel_service_volume_and_unusable_sectors(tmp_pat
         '"2026/10/29","JOT","VOR/DME","IL","JOLIET","US","NAVIGATION_AID","GENERAL_REMARK",2,'
         '"VOR UNUSBL 072-090 BYD 34 NM BLW 3000 FT; 130-175 BYD 40 NM."\n'
         '"2026/10/29","JOT","VOR/DME","IL","JOLIET","US","VOR_RECEIVER_CHKPT","AIR_GND_CODE",1,"A CHECKPOINT."\n')
-    fixes._REMARKS = None
+    # Put back afterwards: the remarks read here are this test's, not NASR's.
+    monkeypatch.setattr(fixes, "_REMARKS", None)
     assert fixes.navaid_remarks("JOT", "VOR/DME", cache_dir=tmp_path) == [
         "VOR unusable 072-090 beyond 34 nm below 3000 ft; 130-175 beyond 40 nm."]
     assert fixes.navaid_remarks("OBK", "VOR/DME", cache_dir=tmp_path) == []

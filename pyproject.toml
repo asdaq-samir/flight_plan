@@ -1,5 +1,15 @@
+# The settings of every Python suite here: pytest finds this file above
+# planning-service/ and the agents too, so their tests take it as well
+# (and the rootdir's conftest.py). No cache of the last run's failures,
+# which would carry one run's order into the next (docs/CI.md, "Flaky
+# tests"), and a mark nobody declared is an error rather than a test
+# silently left unmarked.
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+addopts = "-p no:cacheprovider --strict-markers"
+markers = [
+    "order_dependent: passes only in the order it was written in; kept out of the random order (conftest.py), and listed to be fixed",
+]
 
 [tool.ruff]
 line-length = 140
