@@ -29,11 +29,26 @@ enum AirportWords {
         return String(whole == 0 ? 360 : whole).leftPadded(to: 3) + "°"
     }
 
-    /// The eight points of the compass, for "12 nm NE".
+    /// A bearing as one of the eight compass points in words,
+    /// "northeast": the engine's `compass_word`, the web's and Android's.
+    static func compassWord(_ deg: Double) -> String {
+        (try? Engine.call("compass_word", json: ["bearing_deg": deg])) ?? ""
+    }
+
+    /// The eight points of the compass, for "12 nm NE": the engine's
+    /// point, written short.
     static func compassPoint(_ deg: Double) -> String {
-        let points = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
-        let b = (deg.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
-        return points[Int((b / 45).rounded()) % 8]
+        let short = ["north": "N", "northeast": "NE", "east": "E", "southeast": "SE",
+                     "south": "S", "southwest": "SW", "west": "W", "northwest": "NW"]
+        let word = compassWord(deg)
+        return short[word] ?? word
+    }
+
+    /// Whether a wind is calm, a speed of 0 (AIM 7-1-28): the engine's
+    /// `wind_calm`; no speed is not calm.
+    static func calm(_ speedKt: Double?) -> Bool {
+        let calm: Bool? = try? Engine.call("wind_calm", json: ["speed_kt": speedKt])
+        return calm == true
     }
 
     /// "N42°19.0′ W088°05.4′": tenths of a minute first, so 59.96
@@ -76,8 +91,7 @@ enum AirportWords {
         guard let speedKt else { return "Not reported" }
         // A speed of nothing is calm, as 00000KT codes it (AIM 7-1-28): the
         // engine's `wind_calm`.
-        let calm: Bool? = try? Engine.call("wind_calm", json: ["speed_kt": speedKt])
-        if calm == true { return "Calm" }
+        if calm(speedKt) { return "Calm" }
         let from = dirTrueDeg.map(bearing) ?? "Variable"
         let gust = gustKt.map { $0 > 0 ? ", gusts \(Int($0.rounded()))" : "" } ?? ""
         return "\(from) at \(Int(speedKt.rounded())) kt\(gust)"

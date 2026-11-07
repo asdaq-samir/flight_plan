@@ -99,7 +99,8 @@ struct Atis: Codable, Equatable, Sendable {
 
     /// "210° at 12 kt, gusts 18", "Calm", "Light and variable".
     static func windWords(_ w: Wind) -> String {
-        if w.kt == 0 { return "Calm" }
+        // Calm is a speed of 0 (AIM 7-1-28), the engine's wind_calm.
+        if AirportWords.calm(w.kt.map(Double.init)) { return "Calm" }
         let speed = w.kt.map { "\($0) kt" }
         var head: String?
         if let from = w.fromDeg {
@@ -128,11 +129,20 @@ struct Atis: Codable, Equatable, Sendable {
         return "\(whole > 0 || part.isEmpty ? String(whole) : "")\(part) sm"
     }
 
-    /// The layers as said, the ceiling marked: the lowest broken or
-    /// overcast layer, or an obscuration (14 CFR 1.1's definition).
+    /// The ATIS's covers as a METAR codes them, for the engine's ceiling.
+    private static let metarCover = ["clear": "CLR", "few": "FEW", "scattered": "SCT", "broken": "BKN", "overcast": "OVC", "obscured": "VV"]
+
+    /// The engine's answer to ceiling_visibility.
+    private struct CeilingVisibility: Decodable { let ceilingFt: Double? }
+
+    /// The layers as said, the ceiling marked: the engine's ceiling
+    /// (ceiling_visibility, 14 CFR 1.1's definition: the lowest broken or
+    /// overcast layer, or an obscuration), as the web's.
     static func skyWords(_ sky: [Layer]) -> String {
         if sky.isEmpty { return "—" }
-        let ceiling = sky.firstIndex { ["broken", "overcast", "obscured"].contains($0.cover) }
+        let layers: [[String: Any?]] = sky.map { ["cover": metarCover[$0.cover] ?? $0.cover, "base_ft": $0.baseFt] }
+        let found: CeilingVisibility? = try? Engine.call("ceiling_visibility", json: ["layers": layers], decoder: Planner.snakeCase)
+        let ceiling = found?.ceilingFt.flatMap { ft in sky.lastIndex { $0.baseFt.map(Double.init) == ft } }
         return sky.enumerated().map { k, l in
             let cover = l.cover.prefix(1).uppercased() + l.cover.dropFirst()
             let base = l.baseFt.map { " \(AirportWords.feet(Double($0)))" } ?? ""

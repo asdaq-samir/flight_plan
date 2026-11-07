@@ -18,15 +18,22 @@ struct AirplaneFiguresView: View {
     @ScaledMetric(relativeTo: .body) private var fieldWidth = 80.0
     @ScaledMetric(relativeTo: .body) private var unitWidth = 44.0
 
-    private static let rows: [(key: String, label: String, unit: String, min: Double, max: Double)] = [
-        ("cruiseTasKt", "Cruise speed (TAS)", "kt", 30, 400),
-        ("cruisePowerPct", "At power", "%", 40, 100),
-        ("fuelBurnGph", "Fuel burn", "gal/h", 1, 100),
-        ("usableFuelGal", "Usable fuel", "gal", 5, 500),
-        ("climbTasKt", "Climb speed (TAS)", "kt", 30, 300),
-        ("climbFuelBurnGph", "Climb fuel burn", "gal/h", 1, 150),
-        ("serviceCeilingFt", "Service ceiling", "ft", 1000, 30000),
+    private static let rows: [(key: String, label: String, unit: String)] = [
+        ("cruiseTasKt", "Cruise speed (TAS)", "kt"),
+        ("cruisePowerPct", "At power", "%"),
+        ("fuelBurnGph", "Fuel burn", "gal/h"),
+        ("usableFuelGal", "Usable fuel", "gal"),
+        ("climbTasKt", "Climb speed (TAS)", "kt"),
+        ("climbFuelBurnGph", "Climb fuel burn", "gal/h"),
+        ("serviceCeilingFt", "Service ceiling", "ft"),
     ]
+
+    /// Within the bounds the engine reads a handbook's page by
+    /// (handbook_within): outside them a figure is a misreading.
+    private static func within(_ key: String, _ n: Double) -> Bool {
+        let yes: Bool? = try? Engine.call("handbook_within", json: ["key": key, "value": n])
+        return yes == true
+    }
 
     var body: some View {
         Form {
@@ -91,7 +98,7 @@ struct AirplaneFiguresView: View {
     private func save() {
         var figures = Figures()
         for row in Self.rows {
-            guard let text = fields[row.key], let n = Double(text), n >= row.min, n <= row.max else { continue }
+            guard let text = fields[row.key], let n = Double(text), Self.within(row.key, n) else { continue }
             switch row.key {
             case "cruiseTasKt": figures.cruiseTasKt = n
             case "cruisePowerPct": figures.cruisePowerPct = n

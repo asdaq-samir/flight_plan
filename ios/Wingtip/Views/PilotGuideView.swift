@@ -212,7 +212,7 @@ struct LostCommsView: View {
     var body: some View {
         List {
             Section {
-                Text("In VFR conditions, or on meeting them after the failure: continue VFR and land as soon as practicable (91.185(b)). In IFR conditions, the rest of this page.")
+                Text(LostComms.vfr)
             }
             Section("Route") {
                 Picker("Which applies first", selection: $route) {
