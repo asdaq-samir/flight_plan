@@ -56,7 +56,12 @@ export function underMinimums(m: Minimums, briefing: Briefing, landings: string[
   return callEngine("gonogo_under_minimums", {
     minimums: { ceiling_ft: m.ceilingFt, visibility_sm: m.visibilitySm, crosswind_kt: m.crosswindKt, wind_kt: m.windKt },
     landings, dest, metars: briefing.metars,
-    airports: Object.fromEntries(landings.filter(i => briefing.airports[i]).map(i => [i, briefing.airports[i]])),
+    // Each landing's airport where the briefing has one, so no entry is
+    // undefined (the contract's airports map holds airports only).
+    airports: Object.fromEntries(landings.flatMap(i => {
+      const airport = briefing.airports[i];
+      return airport ? [[i, airport] as const] : [];
+    })),
     forecast: briefing.forecast,
   });
 }
