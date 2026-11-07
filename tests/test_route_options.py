@@ -104,6 +104,19 @@ def test_the_pilots_minimums_close_what_the_rules_alone_would_not(sky):
     assert all(o["crosses"] == [] for o in personal["options"])
 
 
+def test_a_ceiling_forecast_with_no_height_is_marked_not_passed_as_vfr(sky):
+    """OVC/// with ten miles (the AWC's layer with no base): a ceiling not
+    known (14 CFR 1.1), so the field is marked as marginal weather is, not
+    left as the clear day it would read as with no ceiling."""
+    station = taf("UNKN", 0.0, 2.0, visibility=10.0)
+    station["fcsts"][0]["clouds"] = [{"cover": "OVC", "base": None}]
+    sky["tafs"].append(station)
+    out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
+    fastest = next(o for o in out["options"] if "fastest" in o["kinds"])
+    marked = [out["hazards"][i]["name"] for i in fastest["marginal"]]
+    assert marked == ["UNKN forecast marginal (ceiling of unknown height, visibility 10 sm)"]
+
+
 def test_minimums_never_go_under_the_rules(sky):
     sky["tafs"].append(taf("FOGG", 0.0, 2.0, ceiling=800))
     out = route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS, min_ceiling_ft=500)

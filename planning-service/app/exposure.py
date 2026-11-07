@@ -23,7 +23,8 @@ from shapely.geometry import LineString, Point, Polygon, shape
 from shapely.ops import nearest_points
 from wingtip import geo
 
-from .gonogo.pass_times import PASS_MARGIN_MIN, instant
+from .gonogo import ask
+from .gonogo.pass_times import instant
 
 #: G-AIRMETs are valid "at discrete times no more than 3 hours apart"
 #: (AIM 7-1-6), and between two of them "the user should assume the
@@ -139,16 +140,10 @@ def _span(legs: Legs, area) -> tuple[list[int], float, float] | None:
 def window_when(enter: float, leave: float, valid_from: float | None, valid_to: float | None) -> str | None:
     """Whether the airplane is in a hazard while it is valid: "during",
     "before" it starts or "after" it ends, its window widened by
-    PASS_MARGIN_MIN either way (an ETA is an estimate). None where the
-    hazard gives no window at all; one open at an end is open that way."""
-    if valid_from is None and valid_to is None:
-        return None
-    margin = PASS_MARGIN_MIN * 60
-    if valid_from is not None and leave < valid_from - margin:
-        return "before"
-    if valid_to is not None and enter > valid_to + margin:
-        return "after"
-    return "during"
+    the engine's 30 minutes either way (an ETA is an estimate). None where the
+    hazard gives no window at all; one open at an end is open that way.
+    The engine's (pass_times.rs, `gonogo_hazard_window`)."""
+    return ask("gonogo_hazard_window", enter=enter, leave=leave, valid_from=valid_from, valid_to=valid_to)
 
 
 def on_route(legs: Legs, crossed: list[int], from_nm: float, to_nm: float, *, source: str,

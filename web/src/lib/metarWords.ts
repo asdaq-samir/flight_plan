@@ -20,7 +20,10 @@ export function metarWords(name: string, m: Metar): string {
     const sm = m.visibility_sm;
     parts.push(`visibility ${sm === 0.25 ? "a quarter" : sm === 0.5 ? "half a" : sm === 0.75 ? "three quarters of a" : sm} mile${sm > 1 ? "s" : ""}`);
   }
-  parts.push(m.ceiling_ft === null || m.ceiling_ft === undefined ? "no ceiling" : `ceiling ${grouped(m.ceiling_ft)} feet`);
+  // A broken or overcast layer reported with no height ("OVC///") is a
+  // ceiling not known, not none (14 CFR 1.1; the planner's ceiling_unknown).
+  parts.push(m.ceiling_unknown ? "ceiling height not known"
+    : m.ceiling_ft === null || m.ceiling_ft === undefined ? "no ceiling" : `ceiling ${grouped(m.ceiling_ft)} feet`);
   if (m.temp_c !== null && m.temp_c !== undefined) {
     parts.push(`temperature ${m.temp_c}${m.dewpoint_c !== null && m.dewpoint_c !== undefined ? `, dew point ${m.dewpoint_c}` : ""}`);
   }
