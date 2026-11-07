@@ -75,8 +75,10 @@
 //!   "special_use": [{"name", "when"}]}, "altitude": {"pending",
 //!   "problem"?, "cautions", "flown"?}, "fuel": {"pending", "margin_gal"?,
 //!   "required_gal"?, "reserve_min"?, "ifr"?}, "runways": {"pending",
-//!   "worked", "short", "crosswind"}, "balance": {"pending", "worked",
-//!   "problems", "takeoff"?}, "risk"?: {"level", "line"}};
+//!   "worked", "short", "crosswind", "beyond"?, "unchecked"?}, "balance":
+//!   {"pending", "worked", "problems", "takeoff"?}, "risk"?: {"level",
+//!   "line"}}; a section that leaves out the lists it is decided by is
+//!   "unknown", never "ok";
 //! - `gonogo_under_minimums`: the sentences where the weather is under the
 //!   pilot's minimums, from `{"minimums": {"ceiling_ft"?, "visibility_sm"?,
 //!   "crosswind_kt"?, "wind_kt"?}, "landings": [ident], "dest", and the
@@ -237,11 +239,12 @@
 //!   end's `{"ident", "heading_true_deg", "traffic"}`, from
 //!   `{"end_headings", "variation_deg", "right": [end key]}`;
 //! - `runway_end_fit`: `{"crosswind_kt", "crosswind_over", "needed_ft",
-//!   "length_ft", "short", "close"}` (SAFO 19001's 15 per cent), from
+//!   "length_ft", "short", "close", "unknown", "beyond"}` (SAFO 19001's
+//!   15 per cent; unknown where the distance or length is not), from
 //!   `{"aircraft"?: {"takeoff"?, "landing"?, "crosswind"?:
 //!   {"demonstrated_kt"?}}, "runway", "end": {"heading_true_deg"?},
-//!   "wind"?: {"dir_true_deg"?, "speed_kt"?, "gust_kt"?}, "elevation_ft",
-//!   "altimeter_in_hg"?, "temp_c"?, "weight_lb"?, "kind"}`;
+//!   "wind"?: {"dir_true_deg"?, "speed_kt"?, "gust_kt"?}, "elevation_ft"
+//!   (null: not known, no distance), "altimeter_in_hg"?, "temp_c"?, "weight_lb"?, "kind"}`;
 //! - `traffic_pattern` and `departure_pattern`: lib/trafficPattern's
 //!   TrafficPattern (snake_case) or null, from `{"ident", "runway",
 //!   "end_ident", "altitude_ft"?, "toward"?: {"lat", "lon"}}`;

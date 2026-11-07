@@ -4935,7 +4935,7 @@
               "items": {
                 "type": "string"
               },
-              "description": "What could not be had from the table: beyond its edges, or a tailwind past ten."
+              "description": "What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten."
             },
             "over": {
               "type": "boolean"
@@ -5372,13 +5372,23 @@
                 "type": "boolean"
               },
               "pressure_alt_ft": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Null where the field's elevation is not known (see unchecked)."
               },
               "density_alt_ft": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "temp_c": {
-                "type": "number"
+                "type": [
+                  "number",
+                  "null"
+                ]
               },
               "reported": {
                 "type": "boolean",
@@ -5397,6 +5407,13 @@
               "grass": {
                 "type": "boolean"
               },
+              "unchecked": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Why the field's distances were not worked out (distances then empty): its elevation not known."
+              },
               "distances": {
                 "type": "array",
                 "items": {
@@ -5414,7 +5431,7 @@
                       "items": {
                         "type": "string"
                       },
-                      "description": "What could not be had from the table: beyond its edges, or a tailwind past ten."
+                      "description": "What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten."
                     },
                     "kind": {
                       "type": "string",
@@ -5425,6 +5442,14 @@
                     },
                     "over": {
                       "type": "boolean"
+                    },
+                    "unknown": {
+                      "type": "boolean",
+                      "description": "No runway, or its length not known: whether it fits is not known (14 CFR 91.103(b))."
+                    },
+                    "beyond": {
+                      "type": "boolean",
+                      "description": "Read past the POH's table: the figures are its edge's, not the airplane's."
                     },
                     "runway": {
                       "type": [
@@ -5445,6 +5470,8 @@
                     "caveats",
                     "kind",
                     "over",
+                    "unknown",
+                    "beyond",
                     "runway",
                     "end"
                   ]
@@ -5465,6 +5492,7 @@
               "crosswind_kt",
               "crosswind_over",
               "grass",
+              "unchecked",
               "distances"
             ]
           }
@@ -6784,7 +6812,11 @@
               }
             },
             "elevation_ft": {
-              "type": "number"
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Null where the field's elevation is not known: no distance is worked out (needed_ft null, unknown true)."
             },
             "altimeter_in_hg": {
               "type": [
@@ -6844,6 +6876,14 @@
             "close": {
               "type": "boolean",
               "description": "Not short, but within SAFO 19001's 15 per cent."
+            },
+            "unknown": {
+              "type": "boolean",
+              "description": "The distance or the runway's length is not known, so whether it fits is not (14 CFR 91.103(b)); never read as fitting."
+            },
+            "beyond": {
+              "type": "boolean",
+              "description": "The distance was read past the POH's table (higher, hotter, heavier or more tailwind than it goes): its edge's figures."
             }
           },
           "required": [
@@ -6852,7 +6892,9 @@
             "needed_ft",
             "length_ft",
             "short",
-            "close"
+            "close",
+            "unknown",
+            "beyond"
           ]
         }
       },
@@ -7125,6 +7167,13 @@
                 "number",
                 "null"
               ]
+            },
+            "ceiling_unknown": {
+              "type": [
+                "boolean",
+                "null"
+              ],
+              "description": "The lowest broken, overcast or obscured layer was sent with no height (OVC///): the ceiling is not known, and only a visibility under a mile says the category (14 CFR 1.1)."
             }
           }
         },
@@ -12468,7 +12517,7 @@
           "items": {
             "type": "string"
           },
-          "description": "What could not be had from the table: beyond its edges, or a tailwind past ten."
+          "description": "What could not be had from the table: beyond its altitudes or temperatures, heavier than its heaviest weight, or a tailwind past ten."
         }
       },
       "required": [
@@ -14177,6 +14226,26 @@
               "items": {
                 "type": "string"
               }
+            },
+            "beyond": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Fields whose distances were read past the POH's table: a caution."
+            },
+            "unchecked": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Fields whose distances could not be held to the runway (its length or the field's elevation not known): unknown, never ok."
             }
           }
         },

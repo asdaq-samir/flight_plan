@@ -74,6 +74,13 @@ def test_asks_for_another_look_at_hazards_an_area_in_use_a_pilots_own_altitude_a
     assert verdict_line(verdict_items(v))["words"] == "Look again at Weather, TFRs & special use, Altitude, Runways"
 
 
+def test_distances_past_the_pohs_tables_are_a_caution_and_a_runway_not_checked_unknown_never_within():
+    assert (finding(quiet(runways={"beyond": ["KLXV"]}), "runways")["finding"],
+            finding(quiet(runways={"unchecked": ["C81"]}), "runways")["finding"]) == ("caution", "unknown")
+    # A section sent with nothing in it checked nothing.
+    assert finding({**quiet(), "weather": {}}, "weather")["finding"] == "unknown"
+
+
 def test_says_what_was_not_worked_out_and_what_is_still_coming():
     unknown = verdict_items(quiet(runways={"worked": False}, balance={"pending": False, "worked": False, "problems": [], "takeoff": None}))
     assert verdict_line(unknown)["words"] == "Nothing found against it; not worked out: Runways, Weight & balance"
