@@ -16101,12 +16101,36 @@
         "type": "object"
       },
       "WindsPeriod": {
-        "description": "A winds and temperatures aloft forecast's period (AC 00-45H, the\nWinds and Temperatures Aloft Forecast (FB)):\nvalid at `valid_at`, for use from `use_from` to `use_to`, ISO UTC;\n`modelled` where the FB could not be had and the GFS's winds stand in\nfor it (wingtip.modelwinds).",
+        "description": "The period of the winds and temperatures aloft a plan flies: the\nGFS model's (wingtip.modelwinds), since the FB ended with the NAM (NWS\nService Change Notice 26-47). Valid at `valid_at`, for use from\n`use_from` to `use_to` (FAA Order JO 7110.10 TBL 9-3-1's windows round\nthe forecast hour), ISO UTC; `run` the GFS run and `forecast_hour` the\nhour of it read; `modelled` always true now.",
         "properties": {
+          "forecast_hour": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Forecast Hour"
+          },
           "modelled": {
             "default": false,
             "title": "Modelled",
             "type": "boolean"
+          },
+          "run": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Run"
           },
           "use_from": {
             "title": "Use From",

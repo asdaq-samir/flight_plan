@@ -51,9 +51,12 @@ export function plannedWords(t: Totals | null): string {
   if (!t?.planned_at) return "";
   const planned = `Planned ${zuluTime(new Date(t.planned_at))}`;
   if (!t.winds) return planned;
-  // The GFS's winds where the FB could not be had (wingtip.modelwinds), said so.
-  const which = t.winds.modelled ? "modelled winds (GFS)" : "winds";
-  return `${planned} · ${which} for use ${zuluTime(new Date(t.winds.use_from)).slice(0, 4)}–${zuluTime(new Date(t.winds.use_to))}`;
+  // The winds are the GFS model's since the FB ended (NWS SCN 26-47):
+  // said so, with the run and forecast hour ("GFS 12Z +6 h").
+  const w = t.winds;
+  const run = w.run ? ` ${zuluTime(new Date(w.run)).slice(0, 2)}Z${w.forecast_hour != null ? ` +${w.forecast_hour} h` : ""}` : "";
+  const which = w.modelled ? `modelled winds (GFS${run})` : "winds";
+  return `${planned} · ${which} for use ${zuluTime(new Date(w.use_from)).slice(0, 4)}–${zuluTime(new Date(w.use_to))}`;
 }
 
 /** Whether the winds a plan flies are not for its flight: the departure
