@@ -360,14 +360,23 @@ _DATASET_WAIT_S = 120
 # kept on its _Record: a TAF set's is a pass over every station's periods.
 
 
+def _expires_at(product: str, valid_to: float | None) -> float | None:
+    """When a forecast stops counting, from the end of its valid time: the
+    engine's (validity.rs, `weather_expires_at`), the rule the web's and
+    the phones' readers ask."""
+    if valid_to is None:
+        return None
+    return json.loads(wingtip_native.call("weather_expires_at", json.dumps({"product": product, "valid_to": valid_to})))
+
+
 def _winds_until(stations, fetched: float) -> float:
     """A winds and temperatures aloft forecast is for use only in the
     window its header gives, "FOR USE 0200-0900Z" (AC 00-45H, Winds and
     Temperatures Aloft Forecast (FB)): served to its end, and no further,
     since the next period's product is the one for after it. A product
     with no such line is held as any other source."""
-    use_to = _unix((getattr(stations, "period", None) or {}).get("use_to"))
-    return use_to if use_to is not None else fetched + _DATASET_STALE_MAX_S
+    until = _expires_at("winds", _unix((getattr(stations, "period", None) or {}).get("use_to")))
+    return until if until is not None else fetched + _DATASET_STALE_MAX_S
 
 
 def _metars_until(metars, fetched: float) -> float:
@@ -388,7 +397,7 @@ def _tafs_until(stations, fetched: float) -> float:
     period covering the time it asks about (_current_forecast_period,
     _periods_in_window), so a station whose own TAF has run out says
     nothing rather than reading an expired forecast as current."""
-    ends = [p["timeTo"] for s in stations for p in s.get("fcsts", ()) if p.get("timeTo") is not None]
+    ends = [_expires_at("taf", p["timeTo"]) for s in stations for p in s.get("fcsts", ()) if p.get("timeTo") is not None]
     return max(ends) if ends else fetched + _DATASET_STALE_MAX_S
 
 
@@ -400,7 +409,7 @@ def _airsigmets_until(advisories, fetched: float) -> float:
     is served to the latest of them. hazards_along_route leaves out each
     one past its own end. A set with none in force says nothing of how
     long that holds, so is held as any other source."""
-    ends = [a["valid_to"] for a in advisories if a.get("valid_to") is not None]
+    ends = [_expires_at("advisory", a["valid_to"]) for a in advisories if a.get("valid_to") is not None]
     return max(ends) if ends else fetched + _DATASET_STALE_MAX_S
 
 
@@ -690,21 +699,15 @@ def _period(el) -> dict:
 
 def _ceiling_ft(period: dict) -> float | None:
     """The lowest broken, overcast or obscured layer -- FEW/SCT don't count
-    as a ceiling by the FAA's own definition.
-
-    An obscured sky is a ceiling at its vertical visibility (14 CFR 1.1).
-    The feed marks it `OVX`, with the height as the layer's base in a
-    METAR and only as `vert_vis_ft` in a TAF; counting BKN and OVC alone
-    left fog at the surface -- VV002, the lowest ceiling there is -- as
-    no ceiling at all.
-    """
-    bases = [
-        c["base"] for c in period.get("clouds", [])
-        if c.get("cover") in ("BKN", "OVC", "OVX") and c.get("base") is not None
-    ]
-    if period.get("vert_vis") is not None:
-        bases.append(period["vert_vis"])
-    return min(bases) if bases else None
+    as a ceiling by the FAA's own definition (14 CFR 1.1) -- an obscured
+    sky's at its vertical visibility: the engine's (metar.rs `ceiling_of`,
+    its `ceiling_ft`). The feed marks an obscured layer `OVX`, with the
+    height as the layer's base in a METAR and only as `vert_vis_ft` in a
+    TAF."""
+    layers = [{"cover": c.get("cover"), "base_ft": c.get("base")} for c in period.get("clouds", [])]
+    found = json.loads(wingtip_native.call("ceiling_ft", json.dumps({"layers": layers, "vert_vis_ft": period.get("vert_vis")})))
+    # A base as the feed gives it, whole feet.
+    return int(found) if isinstance(found, float) and found.is_integer() else found
 
 
 def _visibility_sm(period: dict) -> float | None:
@@ -1114,11 +1117,13 @@ def tafs_over(windows: dict) -> dict:
 
 # 14 CFR 91.155(c) and (d): below a 1,000 ft ceiling or 3 statute miles'
 # visibility in a surface area of controlled airspace,
-# VFR flight is not the default answer. The one place these numbers
-# live -- wingtip.altitude's go/no-go flag and the briefing's "VFR flight not
-# recommended" both read them, and the page shows what they decided.
-VFR_MIN_CEILING_FT = 1000
-VFR_MIN_VISIBILITY_SM = 3
+# VFR flight is not the default answer. The figures are the engine's
+# (rules.rs, `vfr_basic_minimums`); wingtip.altitude's go/no-go flag, the
+# briefing's "VFR flight not recommended" and the route options all read
+# them from here, and the page shows what they decided.
+_VFR_MINIMUMS = json.loads(wingtip_native.call("vfr_basic_minimums", "{}"))
+VFR_MIN_CEILING_FT = int(_VFR_MINIMUMS["ceiling_ft"])
+VFR_MIN_VISIBILITY_SM = int(_VFR_MINIMUMS["visibility_sm"])
 
 
 def below_vfr_minimums(ceiling_ft: float | None, visibility_sm: float | None) -> bool:

@@ -44,6 +44,7 @@ the coarse read here can be wrong, and the plan says so where it is.
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 import time
@@ -83,15 +84,11 @@ FIELD_WX_NM = 10.0
 #: own figure, not a rule's -- a reporting field is some 30 nm from the
 #: next in most of the country, so a marginal report colours the way to it.
 MARGINAL_NM = 30.0
-#: 14 CFR 91.155(a) and (c): 3 sm in Class E under 10,000 ft, and no VFR
-#: under a ceiling below 1,000 ft in a surface area -- the least any
-#: minimums here come to, whatever the pilot's own.
-LEGAL_CEILING_FT = 1000.0
-LEGAL_VISIBILITY_SM = 3.0
-#: AIM 7-1-7's flight categories: at or under these, MVFR (VFR is above
-#: 3,000 ft and 5 sm).
-MVFR_CEILING_FT = 3000.0
-MVFR_VISIBILITY_SM = 5.0
+#: 14 CFR 91.155(c) and (d): no VFR under a ceiling below 1,000 ft or in
+#: under 3 sm in a surface area -- the least any minimums here come to,
+#: whatever the pilot's own (the engine's figures, as wingtip.weather has them).
+LEGAL_CEILING_FT = float(weather.VFR_MIN_CEILING_FT)
+LEGAL_VISIBILITY_SM = float(weather.VFR_MIN_VISIBILITY_SM)
 #: A METAR is read for a flight leaving within this long, s; later, the
 #: TAFs alone, as a report is of now.
 METAR_AHEAD_S = 2 * 3600
@@ -308,6 +305,12 @@ def _weather(grid: _Grid, window: tuple, ceiling_ft: float, visibility_sm: float
                        ceiling_ft, visibility_sm, "reported")
 
 
+def _category(ceiling: float | None, visibility: float | None) -> str | None:
+    """A report's flight category, a missing figure no limit; None where
+    it gives neither."""
+    return json.loads(wingtip_native.call("report_flight_category", json.dumps({"ceiling_ft": ceiling, "visibility_sm": visibility})))
+
+
 def _field_weather(grid: _Grid, ident: str, lat: float, lon: float, ceiling, visibility,
                    min_ceiling_ft: float, min_visibility_sm: float, how: str) -> None:
     low = (ceiling is not None and ceiling < min_ceiling_ft) or (visibility is not None and visibility < min_visibility_sm)
@@ -317,9 +320,10 @@ def _field_weather(grid: _Grid, ident: str, lat: float, lon: float, ceiling, vis
     ) if w)
     if low:
         grid.close(grid.near(lat, lon, FIELD_WX_NM), "weather", f"{ident} {how} under minimums ({words})")
-    # Inclusive: AIM 7-1-7's MVFR is a ceiling of 1,000 to 3,000 ft and/or
-    # visibility 3 to 5 miles, so exactly 3,000 ft or 5 miles is marginal.
-    elif (ceiling is not None and ceiling <= MVFR_CEILING_FT) or (visibility is not None and visibility <= MVFR_VISIBILITY_SM):
+    # Marginal: a report's flight category worse than VFR (AC 00-45H, AIM
+    # 7-1-7: MVFR is a ceiling of 1,000 to 3,000 ft and/or visibility 3 to
+    # 5 miles, inclusive), the engine's (metar.rs flight_category).
+    elif _category(ceiling, visibility) not in (None, "VFR"):
         grid.mark(grid.near(lat, lon, MARGINAL_NM), "marginal", f"{ident} {how} marginal ({words})")
 
 
