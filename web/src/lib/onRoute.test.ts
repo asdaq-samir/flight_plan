@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { OnRoute } from "./api/types";
 import { clockTime } from "./clock";
-import { legLines, legWords, metWhileValid, onRouteLine } from "./onRoute";
+import { legLines, legWords, onRouteLine } from "./onRoute";
 
 const on = (over: Partial<OnRoute>): OnRoute => ({
   legs: [1, 2], from_nm: 40, to_nm: 70, enter: "2026-10-04T14:20:00Z", leave: "2026-10-04T14:45:00Z",
@@ -26,8 +26,6 @@ describe("onRouteLine", () => {
   it("says when the airplane is there before the hazard starts or after it ends", () => {
     expect(onRouteLine(on({ when: "before", valid_from: "2026-10-04T16:00:00Z" }))).toContain(`before it starts at ${t("2026-10-04T16:00:00Z")}`);
     expect(onRouteLine(on({ when: "after" }))).toContain(`after it ends at ${t("2026-10-04T15:00:00Z")}`);
-    expect(metWhileValid(on({ when: "after" }))).toBe(false);
-    expect(metWhileValid(on({ when: null, source: "PIREP" }))).toBe(true);
   });
 
   it("gives a point's one time, and a pilot report's when it was made", () => {

@@ -28,11 +28,6 @@ def bearing(deg: float) -> str:
     return wingtip_native.figures_bearing(deg)
 
 
-def wind_correction(deg: float) -> str:
-    """A correction signed, "+8°", "−3°", none "0°" (lib/units windCorrection)."""
-    return wingtip_native.figures_wind_correction(deg)
-
-
 def holding_entry(inbound_deg: float, heading_deg: float, turns: str) -> dict:
     """The entry for an airplane heading `heading_deg` to the fix of a hold
     on `inbound_deg` with `turns` by AIM 5-3-8's sectors, and `either`, the

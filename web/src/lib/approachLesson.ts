@@ -1,4 +1,4 @@
-import type { Frequency, ProcedureDrawing, ProcedureFix, ProcedureMissedLeg } from "./api/types";
+import type { Frequency, ProcedureDrawing, ProcedureFix } from "./api/types";
 import type { LessonFocus } from "./engine/contract";
 import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { LatLon } from "./geo";
@@ -24,8 +24,6 @@ export type { LessonFocus };
  * figures. The airplane moved along the line on the map stays the page's.
  */
 
-export type LessonSegment = NonNullable<LessonFocus["segment"]>;
-
 export interface LessonInput {
   drawing: ProcedureDrawing;
   /** The field's radio (its card's), where it is in. */
@@ -37,19 +35,6 @@ export interface LessonInput {
   vsoKt?: number | null;
 }
 
-/** "See the plate": what the lesson says where the coded data has nothing. */
-export const SEE_THE_PLATE = "See the plate";
-
-/** The rate of descent that holds a path of `angleDeg` at a ground speed of
- *  `gsKt`, ft/min: GS × 101.3 × tan(angle), the FAA's Rate of Descent
- *  Table in the front of each Terminal Procedures Publication. */
-export function descentFpm(gsKt: number, angleDeg: number): number {
-  return callEngine("approach_descent_fpm", { gs_kt: gsKt, angle_deg: angleDeg });
-}
-
-/** A descent rate as a pilot sets it on the VSI: to the nearest 10 ft/min. */
-export const roundedFpm = (fpm: number) => callEngine("approach_rounded_fpm", { fpm });
-
 /** An airplane's approach category by its speed, 14 CFR 97.3: VREF, or
  *  1.3 × VSO where no VREF is specified. Null with neither speed. */
 export function approachCategory(vrefKt: number | null | undefined, vsoKt?: number | null): EngineAnswer<"approach_category"> {
@@ -59,15 +44,6 @@ export function approachCategory(vrefKt: number | null | undefined, vsoKt?: numb
 /** Which minimums an approach is flown to, by its kind (AIM 5-4-5 and
  *  FAA-H-8083-16B, chapter 4): a DA, an MDA, or either on an RNAV (GPS). */
 export type MinimumsKind = EngineAnswer<"approach_minimums_kind">;
-
-export function minimumsKind(name: string): MinimumsKind {
-  return callEngine("approach_minimums_kind", { name });
-}
-
-/** A fix as said aloud: a runway's threshold ("RW08") by its runway. */
-export function fixName(ident: string): string {
-  return callEngine("approach_fix_name", { ident });
-}
 
 /** The approach's own fixes in the order flown: its missed approach's left out. */
 export function approachFixes(drawing: ProcedureDrawing): ProcedureFix[] {
@@ -98,24 +74,10 @@ export function alongNm(path: LatLon[], at: LatLon): number {
   return callEngine("approach_along_nm", { path: places(path), at: place(at) });
 }
 
-/** The missed approach as the plate's words say it, from its coded legs:
- *  "Climb to 1,800 on course 079°, then right turn to heading 210° to
- *  intercept, …, then hold at VTU, left turns, 131° inbound." Null with
- *  none, or where the first leg is one these words do not say. */
-export function missedWords(legs: ProcedureMissedLeg[] | undefined): string | null {
-  return callEngine("approach_missed_words", { legs: legs ?? [] });
-}
-
 /** A time as a stopwatch says it: "2:05". */
 export function stopwatch(seconds: number): string {
   const whole = Math.round(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
-}
-
-/** The field's radio a briefing calls, in its order: the weather, approach
- *  control, then the tower, or the CTAF at a field with none. */
-export function briefFrequencies(frequencies: Frequency[] | null | undefined): string[] {
-  return callEngine("approach_brief_frequencies", { frequencies: frequencies ?? [] });
 }
 
 export type BriefItem = EngineAnswer<"approach_brief">[number];

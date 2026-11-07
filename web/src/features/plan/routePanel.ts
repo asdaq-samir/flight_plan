@@ -9,7 +9,7 @@
 export { default as NavLogView } from "./components/navlog/NavLogView";
 export { default as ProceduresRoute } from "./components/ProceduresRoute";
 export { RouteLine } from "./components/ProceduresRoute";
-export { default as FlightBriefingView, BriefingNotices, PlanningAidNote, ReviewAskItem, ReviewAskSheet, SaveFlightButton } from "./components/briefing/FlightBriefingView";
+export { default as FlightBriefingView, BriefingNotices, ReviewAskItem, ReviewAskSheet, SaveFlightButton } from "./components/briefing/FlightBriefingView";
 export { default as RouteBox } from "./components/RouteBox";
 export { default as RouteEnds } from "./components/RouteEnds";
 export { default as RouteSplit } from "./components/RouteSplit";

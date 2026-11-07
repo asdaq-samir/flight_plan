@@ -45,12 +45,6 @@ export function defaultLoad(loading: Loading, fuelGal: number): Load {
   return { emptyWeightLb: d.empty_weight_lb, emptyArmIn: d.empty_arm_in, stationsLb: d.stations_lb, fuelGal: d.fuel_gal };
 }
 
-/** Whether a (arm, weight) point is within the envelope, its edges
- *  included: the POH's sample loading sits on its top, at 2,550 lb. */
-export function inEnvelope(envelope: [number, number][], arm: number, weight: number): boolean {
-  return callEngine("gonogo_in_envelope", { envelope, arm, weight });
-}
-
 /**
  * The weight and centre of gravity at takeoff -- the ramp's, less the
  * start and taxi fuel -- and at landing, less the trip's fuel, each

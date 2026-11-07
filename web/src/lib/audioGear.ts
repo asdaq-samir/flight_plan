@@ -1245,11 +1245,6 @@ export function gearFor(label: string | null | undefined): Gear | null {
   return GEAR.find(g => g.names.some(re => re.test(name))) ?? null;
 }
 
-/** The catalogue's panels, headsets or cables, in its order. */
-export function gearByKind(kind: GearKind): Gear[] {
-  return GEAR.filter(g => g.kind === kind);
-}
-
 /** The phone's or computer's own microphone by its label: Safari's
  *  "iPhone Microphone" and "MacBook Pro Microphone", Chrome's "(Built-in)"
  *  and its Android names for the phone's mics ("Speakerphone", "Headset

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test } from "vitest";
 import type { WordsAnswer } from "../../../../lib/api/words";
 import WordsSection from "./WordsSection";
-import { sentencesText, wordsState } from "./wordsState";
+import { wordsState } from "./wordsState";
 
 afterEach(cleanup);
 
@@ -39,7 +39,7 @@ describe("a section of words", () => {
 
   test("the sentences read as one paragraph, each source one chip that opens the report as sent", () => {
     render(<WordsSection title="The weather, in words" testId="w" state={wordsState({ data: ANSWER, error: null })} />);
-    expect(screen.getByTestId("w-words").textContent).toBe(sentencesText(ANSWER));
+    expect(screen.getByTestId("w-words").textContent).toBe(ANSWER.sentences.map(s => s.text).join(" "));
     const chips = screen.getAllByTestId("w-source");
     expect(chips).toHaveLength(1);
     expect(chips[0]!.textContent).toBe("METAR KDLH 1753Z");

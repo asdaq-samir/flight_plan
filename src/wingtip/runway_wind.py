@@ -33,14 +33,6 @@ def end_heading_true_deg(ident: str | None, heading_true_deg: float | None, vari
                 variation_deg=variation_deg)
 
 
-def components_kt(wind_dir_true_deg: float, wind_speed_kt: float, heading_true_deg: float) -> tuple[float, float]:
-    """(headwind, crosswind) of a wind from `wind_dir_true_deg` on a
-    runway heading `heading_true_deg`: the headwind negative for a
-    tailwind, the crosswind positive from the right."""
-    c = _ask("wind_components", from_deg=wind_dir_true_deg, kt=wind_speed_kt, heading_deg=heading_true_deg)
-    return c["headwind_kt"], c["crosswind_kt"]
-
-
 def _ends(ends: list) -> list:
     """[ident, true heading] pairs, a NaN heading none."""
     return [[ident, None if heading is None or heading != heading else heading] for ident, heading in ends]

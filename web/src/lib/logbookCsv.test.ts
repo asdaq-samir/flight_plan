@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { LogbookEntry } from "./api/types";
-import { importLogbook, logbookCsv, parseCsv } from "./logbookCsv";
+import { callEngine } from "./engine/engine";
+import { importLogbook, logbookCsv } from "./logbookCsv";
+
+// RFC 4180's CSV as the engine reads it (csv.rs), through the .wasm.
+const parseCsv = (text: string) => callEngine("csv_rows", { text });
 import logbookFixture from "./fixtures/logbookCsv.json";
 
 /** ForeFlight's export as its guide lays the template out (ForeFlight

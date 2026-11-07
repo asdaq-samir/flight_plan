@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 import c172Json from "../../../data/aircraft/c172.json?raw";
 import type { AircraftProfile, Airport, Briefing, Course } from "./api/types";
-import { densityAltitudeFt, fieldAir, runwayChecks, softSurface } from "./runwayCheck";
+import { callEngine } from "./engine/engine";
+import { densityAltitudeFt, runwayChecks } from "./runwayCheck";
+
+// Two of the engine's names its runway check asks inside the engine,
+// asked by name through the .wasm.
+const fieldAir = (elevationFt: number, altimeterInHg: number | null, tempC: number | null) => {
+  const air = callEngine("gonogo_field_air", { elevation_ft: elevationFt, altimeter_in_hg: altimeterInHg, temp_c: tempC });
+  return { pressureAltFt: air.pressure_alt_ft, tempC: air.temp_c };
+};
+const softSurface = (runway: { surface?: string | null } | undefined) => callEngine("gonogo_soft_surface", { surface: runway?.surface ?? null });
 
 const c172 = { name: "c172", ...JSON.parse(c172Json) } as AircraftProfile;
 

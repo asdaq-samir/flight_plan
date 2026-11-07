@@ -56,18 +56,6 @@ export function keptFilter(f: AircraftFilter): AircraftFilter {
   return (f.kind as string) === "jet" ? { ...f, kind: "large" } : f;
 }
 
-/** Its height's band, ft as the planner gives it: low, mid, high, and
- *  the flight levels from 18,000 MSL up, Class A (14 CFR 71.33(a)). */
-export function bandOf(altitudeFt: number | null | undefined): Exclude<FilterBand, "any"> | null {
-  return callEngine("altitude_band", { altitude_ft: altitudeFt ?? null });
-}
-
-/** The operator's ICAO code, from an airline's callsign ("UAL2088" ->
- *  "UAL"); none for a registration flown as a callsign (N174HA). */
-export function operatorOf(plane: Pick<TrafficAircraft, "callsign">): string | null {
-  return callEngine("operator_of", { callsign: plane.callsign ?? null });
-}
-
 /** Declaring an emergency: 7700, 7500 or 7600 squawked (AIM 6-2-2, 6-3-4,
  *  6-4-2), or an emergency sent in its ADS-B. */
 export function inEmergency(plane: Pick<TrafficAircraft, "squawk" | "emergency">): boolean {

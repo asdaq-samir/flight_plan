@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GEAR, gearByKind, gearFor, hearing } from "./audioGear";
+import { GEAR, gearFor, hearing } from "./audioGear";
 
 describe("gearFor", () => {
   // The names each maker's manual says the phone lists, "#" made digits.
@@ -173,22 +173,6 @@ describe("hearing", () => {
     expect(hearing("Headset Microphone")).toBe("unknown");
     expect(hearing("USB audio")).toBe("unknown");
     expect(hearing("BT 4521")).toBe("unknown");
-  });
-});
-
-describe("gearByKind", () => {
-  it("gives each kind alone, in the catalogue's order", () => {
-    const panels = gearByKind("panel");
-    expect(panels.every(g => g.kind === "panel")).toBe(true);
-    expect(panels[0]?.id).toBe("garmin-gma-350c");
-    expect(gearByKind("headset").map(g => g.id)).toContain("lightspeed-zulu-3-sierra-tango");
-    expect(gearByKind("cable").map(g => g.id)).toEqual([
-      "nflightcam-409c",
-      "pilot-usa-pa-80s",
-      "flight-gear-ga-audio-input",
-      "appareo-stratus-audio",
-    ]);
-    expect(panels.length + gearByKind("headset").length + gearByKind("cable").length).toBe(GEAR.length);
   });
 });
 

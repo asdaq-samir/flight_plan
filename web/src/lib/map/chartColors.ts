@@ -45,13 +45,6 @@ function inkToken(name: "--ink-magenta" | "--ink-brown", light: string): string 
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || light;
 }
 
-/** The course's colour where it is drawn as a value: the chart's magenta,
- *  or the ink look's deeper one. `ink` from a component's useInkLook,
- *  so it draws again as the look changes; read off <html> otherwise. */
-export function courseColour(ink = isInkLook()): string {
-  return ink ? inkToken("--ink-magenta", "#b3338c") : COURSE_MAGENTA;
-}
-
 /** A checkpoint's mark on the map (RouteMap's dots) and in the nav log
  *  (PointMark): its score's colour (format's scoreColor), and in the ink
  *  look the sectional's brown, one ink for every checkpoint as the

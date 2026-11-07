@@ -19,13 +19,6 @@ export function clockTime(at: Date): string {
   return `${two(at.getHours())}:${two(at.getMinutes())}`;
 }
 
-/** Whole seconds as a stopwatch shows them, "2:07": the diversion drill's
- *  timer and the approach lesson's time to the missed approach point, which
- *  each had a copy of it. The caller rounds or floors, as its own time asks. */
-export function stopwatchTime(wholeSeconds: number): string {
-  return `${Math.floor(wholeSeconds / 60)}:${two(wholeSeconds % 60)}`;
-}
-
 /** UTC hours and minutes in four figures, as a flight plan's item 13
  *  takes them: "1505". */
 export function utcFigures(at: Date): string {
