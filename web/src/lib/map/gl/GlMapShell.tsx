@@ -18,6 +18,7 @@ import type { Course } from "../../api/types";
 import { chartQuery } from "../../queryClient";
 import { prefersReducedMotion } from "../../motion";
 import { BUTTONS_CLEAR } from "../clear";
+import { CardCloseContext } from "../cardClose";
 import { COUNTRY_ZOOM, OPEN_ZOOM, useOwnShip } from "../ownShip";
 import { GlMapContext, SLOTS, slotId, type GlMapApi, type GlTap } from "./glLayer";
 import { glZoom } from "./glStyle";
@@ -107,6 +108,7 @@ export default function GlMapShell({ course, focus, focusZoom, place, children }
     return () => { registry.misses.delete(miss); };
   }, [registry]);
   const [card, setCard] = useState<ReactNode | null>(null);
+  const closeCard = useCallback(() => setCard(null), []);
   useEffect(() => {
     if (!map) return;
     const tap = (e: MapMouseEvent) => {
@@ -228,7 +230,11 @@ export default function GlMapShell({ course, focus, focusZoom, place, children }
     <div className="relative h-full w-full">
       <div ref={box} className="h-full w-full bg-slate-100 dark:bg-slate-900" data-testid="gl-map" />
       {api && <GlMapContext.Provider value={api}>{children}</GlMapContext.Provider>}
-      {card && <SheetCard onClose={() => setCard(null)}>{card}</SheetCard>}
+      {card && (
+        <SheetCard onClose={closeCard}>
+          <CardCloseContext.Provider value={closeCard}>{card}</CardCloseContext.Provider>
+        </SheetCard>
+      )}
       <MapBanners map={null} />
       <MapControls />
     </div>
