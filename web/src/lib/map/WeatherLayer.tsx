@@ -12,9 +12,9 @@ import { useWeatherLayers } from "./weatherLayers";
 
 /** IEM's tile cache: the NEXRAD base reflectivity mosaic and the GOES-East
  *  infrared picture, each kept current there, five minutes apart. */
-const IEM = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0";
-const RADAR_URL = `${IEM}/nexrad-n0q-900913/{z}/{x}/{y}.png`;
-const SATELLITE_URL = `${IEM}/goes-east-ir-4km-900913/{z}/{x}/{y}.png`;
+export const IEM = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0";
+export const RADAR_URL = `${IEM}/nexrad-n0q-900913/{z}/{x}/{y}.png`;
+export const SATELLITE_URL = `${IEM}/goes-east-ir-4km-900913/{z}/{x}/{y}.png`;
 /** Past this a radar mosaic is called old: IEM makes one every five
  *  minutes, so three missed ones mean it has stopped. */
 const RADAR_STALE_MIN = 15;
@@ -28,8 +28,7 @@ const GRID_DEG = 2;
 const REFRESH_MS = 5 * 60_000;
 
 /** The part of the chart in sight, rounded out to the grid. */
-function boxOf(map: L.Map) {
-  const b = map.getBounds();
+export function weatherBoxOf(b: Pick<L.LatLngBounds, "getSouth" | "getWest" | "getNorth" | "getEast">) {
   const out = (v: number, up: boolean) => (up ? Math.ceil(v / GRID_DEG) : Math.floor(v / GRID_DEG)) * GRID_DEG;
   return {
     south: Math.max(-90, out(b.getSouth(), false)), north: Math.min(90, out(b.getNorth(), true)),
@@ -54,12 +53,12 @@ export const WeatherLayer = memo(function WeatherLayer({ line, altitudeFt }: {
 }) {
   const { radar, satellite, areas, pireps, winds } = useWeatherLayers();
   const map = useMap();
-  const [box, setBox] = useState(() => boxOf(map));
+  const [box, setBox] = useState(() => weatherBoxOf(map.getBounds()));
   // One handlers object for the map's life: a new one at each render drops
   // the events fired in that commit (react-leaflet's useMapEvents).
   const handlers = useMemo(() => ({
     moveend: () => setBox(prev => {
-      const next = boxOf(map);
+      const next = weatherBoxOf(map.getBounds());
       return next.south === prev.south && next.north === prev.north && next.west === prev.west && next.east === prev.east ? prev : next;
     }),
   }), [map]);
@@ -127,7 +126,7 @@ const AreaShape = memo(function AreaShape({ area, line, altitudeFt }: { area: We
 
 const zulu = (unix: number) => `${new Date(unix * 1000).toISOString().slice(11, 16)}Z`;
 
-function AreaCard({ area, line, altitudeFt }: { area: WeatherArea; line: [number, number][] | null; altitudeFt: number | null }) {
+export function AreaCard({ area, line, altitudeFt }: { area: WeatherArea; line: [number, number][] | null; altitudeFt: number | null }) {
   const { title, altitudes } = areaWords(area);
   const when = area.kind === "gairmet"
     ? area.valid_from != null ? `Forecast for ${zulu(area.valid_from)}` : null
@@ -171,19 +170,35 @@ const PirepMark = memo(function PirepMark({ pirep }: { pirep: MapPirep }) {
   return (
     <Marker position={[pirep.lat, pirep.lon]} icon={pirepIcon(pirep)} keyboard={false}>
       <MapPopup>
-        <MapCard title={pirep.urgent ? "Urgent PIREP" : "PIREP"} subtitle={[pirep.observed_at && `${pirep.observed_at.slice(11, 16)}Z`, pirep.aircraft].filter(Boolean).join(" · ")}>
-          <div className="space-y-1 text-left" data-testid="pirep-card">
-            {pirep.altitude_ft != null && <p>At {altitudeWords(pirep.altitude_ft)}</p>}
-            {pirep.turbulence && <p>Turbulence: {faaWords(pirep.turbulence)}</p>}
-            {pirep.icing && <p>Icing: {faaWords(pirep.icing)}</p>}
-            {/* The report as it was sent, as every raw report stays. */}
-            {pirep.raw && <p className="font-mono text-muted-foreground">{pirep.raw}</p>}
-          </div>
-        </MapCard>
+        <PirepCard pirep={pirep} />
       </MapPopup>
     </Marker>
   );
 });
+
+/** A PIREP's card, on either map. */
+export function PirepCard({ pirep }: { pirep: MapPirep }) {
+  return (
+    <MapCard title={pirep.urgent ? "Urgent PIREP" : "PIREP"} subtitle={[pirep.observed_at && `${pirep.observed_at.slice(11, 16)}Z`, pirep.aircraft].filter(Boolean).join(" · ")}>
+      <div className="space-y-1 text-left" data-testid="pirep-card">
+        {pirep.altitude_ft != null && <p>At {altitudeWords(pirep.altitude_ft)}</p>}
+        {pirep.turbulence && <p>Turbulence: {faaWords(pirep.turbulence)}</p>}
+        {pirep.icing && <p>Icing: {faaWords(pirep.icing)}</p>}
+        {/* The report as it was sent, as every raw report stays. */}
+        {pirep.raw && <p className="font-mono text-muted-foreground">{pirep.raw}</p>}
+      </div>
+    </MapCard>
+  );
+}
+
+/** A station's wind aloft's card, on either map. */
+export function WindCard({ wind, altitudeFt }: { wind: StationWind; altitudeFt: number }) {
+  return (
+    <MapCard title={`${String(Math.round(wind.dir_true_deg)).padStart(3, "0")}° true at ${Math.round(wind.speed_kt)} kt`} subtitle={`${wind.ident} · at ${altitudeWords(altitudeFt)}`}>
+      {wind.temp_c != null && <p className="text-left" data-testid="wind-card">{wind.temp_c > 0 ? "+" : ""}{wind.temp_c} °C</p>}
+    </MapCard>
+  );
+}
 
 const barbOf = new Map<string, L.DivIcon>();
 function barbIcon(w: StationWind): L.DivIcon {
@@ -200,9 +215,7 @@ const WindBarb = memo(function WindBarb({ wind, altitudeFt }: { wind: StationWin
   return (
     <Marker position={[wind.lat, wind.lon]} icon={barbIcon(wind)} keyboard={false} title={`${wind.ident}: ${Math.round(wind.dir_true_deg)}° true at ${Math.round(wind.speed_kt)} kt`}>
       <MapPopup>
-        <MapCard title={`${String(Math.round(wind.dir_true_deg)).padStart(3, "0")}° true at ${Math.round(wind.speed_kt)} kt`} subtitle={`${wind.ident} · at ${altitudeWords(altitudeFt)}`}>
-          {wind.temp_c != null && <p className="text-left" data-testid="wind-card">{wind.temp_c > 0 ? "+" : ""}{wind.temp_c} °C</p>}
-        </MapCard>
+        <WindCard wind={wind} altitudeFt={altitudeFt} />
       </MapPopup>
     </Marker>
   );

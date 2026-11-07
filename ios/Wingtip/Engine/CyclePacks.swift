@@ -68,8 +68,13 @@ final class CyclePacks: @unchecked Sendable {
 
     /// The packs of these regions fetched where the phone has not got
     /// them for the planner's cycle, and the regions already kept fetched
-    /// again where the cycle has turned; an older cycle's removed. Quiet
-    /// where the planner cannot be reached: the next keep tries again.
+    /// again where the cycle has turned. The phone moves to the new cycle,
+    /// and the older one is removed, only once every region it wants of
+    /// the new one is on disk: a pack that failed to come leaves the old
+    /// cycle's packs in use, so a pilot is never left with no airspace
+    /// for the air because one fetch failed. Quiet where the planner
+    /// cannot be reached: the next keep tries again, and finds the packs
+    /// already fetched in the new cycle's folder.
     func keep(regions wanted: Set<String>) async {
         guard let data = try? await Planner.data(for: Planner.get("/api/cycle-packs")),
               let fresh = try? Planner.snakeCase.decode(CyclePackIndex.self, from: data) else { return }
@@ -80,15 +85,22 @@ final class CyclePacks: @unchecked Sendable {
         }
         let listed = Dictionary(uniqueKeysWithValues: fresh.regions.map { ($0.name, $0) })
         try? FileManager.default.createDirectory(at: root.appending(path: fresh.cycle), withIntermediateDirectories: true)
+        var whole = true
         for name in names.sorted() {
             guard listed[name] != nil else { continue }
             let file = path(cycle: fresh.cycle, region: name)
             if FileManager.default.fileExists(atPath: file.path) { continue }
             let address = Config.gateway.appending(path: Config.plannerPath("/api/cycle-pack/\(fresh.cycle)/\(name).pack"))
             guard let (bytes, response) = try? await URLSession.shared.data(from: address),
-                  (response as? HTTPURLResponse)?.statusCode == 200, Engine.verify(bytes) else { continue }
-            try? bytes.write(to: file, options: .atomic)
+                  (response as? HTTPURLResponse)?.statusCode == 200, Engine.verify(bytes),
+                  (try? bytes.write(to: file, options: .atomic)) != nil else {
+                whole = false
+                continue
+            }
         }
+        // The same cycle, or none kept before: what came is used as it is,
+        // with nothing older to fall back on. A new cycle only when whole.
+        if let kept, kept.cycle != fresh.cycle, !whole { return }
         lock.withLock {
             try? data.write(to: indexFile, options: .atomic)
             if let editions = try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil) {
