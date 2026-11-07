@@ -380,3 +380,75 @@ fn the_debrief_answer_sorts_the_track_and_says_the_tolerances() {
     let none: Value = serde_json::from_str(&debrief::answer_json(&checkpoints(), &flown()[..20], &[])).unwrap();
     assert!(none["debrief"].is_null());
 }
+
+fn ask(name: &str, input: serde_json::Value) -> serde_json::Value {
+    serde_json::from_str(&wingtip_engine::call::call(name, &input.to_string()).unwrap()).unwrap()
+}
+
+// --- The strip's fuel, one answer for web, iPhone and Android ---------------
+
+#[test]
+fn the_strip_says_the_fuel_required_to_the_next_landing() {
+    use serde_json::json;
+    // A route with a stop: the first flight's fuel required, the tanks
+    // filled at the stop (app.planning.route_totals); short on the second.
+    let route = json!({"fuel_required_gal": 50.0, "fuel_margin_gal": -3.5, "hops": [
+        {"departure": "C81", "destination": "KMSN", "fuel_required_gal": 20.4, "fuel_margin_gal": 12.0},
+        {"departure": "KMSN", "destination": "KDLH", "fuel_required_gal": 29.6, "fuel_margin_gal": -3.5}]});
+    let a = ask("strip_fuel", route.clone());
+    assert_eq!(a["required_gal"], json!(20.4));
+    assert_eq!(a["short"], json!([{"name": "KMSN → KDLH", "short_gal": 3.5}]));
+    // The second flight, 10 gal burnt; never below nothing.
+    let mut flying = route.clone();
+    flying["hop"] = json!(1);
+    flying["burnt_gal"] = json!(10.0);
+    assert_eq!(ask("strip_fuel", flying.clone())["required_gal"], json!(19.6));
+    flying["burnt_gal"] = json!(40.0);
+    assert_eq!(ask("strip_fuel", flying)["required_gal"], json!(0.0));
+    // No stops: the whole route's.
+    let a = ask("strip_fuel", json!({"fuel_required_gal": 18.0, "fuel_margin_gal": 4.0}));
+    assert_eq!(a, json!({"required_gal": 18.0, "short": []}));
+    assert_eq!(ask("strip_fuel", json!({}))["required_gal"], serde_json::Value::Null);
+}
+
+#[test]
+fn an_estimate_carries_the_taxi_allowance_and_45_minutes() {
+    use serde_json::json;
+    // 120 nm at 120 kt is an hour; at 8 gph, 8 gal; with 1.4 gal to start
+    // and taxi and 45 minutes' reserve (14 CFR 91.151(a)(2), 91.167(a)(3)),
+    // 6 gal, 15.4.
+    let a = ask("fuel_estimate", json!({"distance_nm": 120.0, "cruise_tas_kt": 120.0, "fuel_burn_gph": 8.0}));
+    assert_eq!(a["minutes"], json!(60.0));
+    assert_eq!(a["trip_gal"], json!(8.0));
+    assert!((a["required_gal"].as_f64().unwrap() - 15.4).abs() < 1e-9);
+    let none = ask("fuel_estimate", json!({"distance_nm": 120.0, "cruise_tas_kt": 120.0}));
+    assert_eq!(none["required_gal"], serde_json::Value::Null);
+    assert_eq!(ask("fuel_estimate", json!({"distance_nm": 120.0}))["minutes"], serde_json::Value::Null);
+}
+
+#[test]
+fn the_reserve_is_the_rules() {
+    use serde_json::json;
+    // 14 CFR 91.151(a): 30 minutes by day, 45 at night; 91.167(a)(3): 45.
+    assert_eq!(ask("reserve_min", json!({})), json!(30.0));
+    assert_eq!(ask("reserve_min", json!({"night": true})), json!(45.0));
+    assert_eq!(ask("reserve_min", json!({"ifr": true})), json!(45.0));
+}
+
+#[test]
+fn the_tanks_are_walked_and_filled_at_each_field_landed_at() {
+    use serde_json::json;
+    let a = ask("fuel_in_tanks", json!({"usable_gal": 40.0, "taxi_gal": 1.4, "reserve_gal": 6.0, "points": [
+        {"departure": true}, {"fuel_gal": 10.0}, {"fuel_gal": 20.0, "refuel": true}, {"fuel_gal": 34.0},
+        {"fuel_gal": null}, {"fuel_gal": 1.0}]}));
+    assert_eq!(a[0], json!({"gal": 40.0, "low": false}));
+    assert_eq!(a[1]["low"], json!(false));
+    assert!((a[1]["gal"].as_f64().unwrap() - 28.6).abs() < 1e-9);
+    assert!((a[2]["gal"].as_f64().unwrap() - 8.6).abs() < 1e-9);
+    // Filled at the stop: 40 - 1.4 - 34 = 4.6, under the 6 gal reserve.
+    assert!((a[3]["gal"].as_f64().unwrap() - 4.6).abs() < 1e-9);
+    assert_eq!(a[3]["low"], json!(true));
+    // A leg with no burn known: nothing known after it.
+    assert_eq!(a[4], serde_json::Value::Null);
+    assert_eq!(a[5], serde_json::Value::Null);
+}

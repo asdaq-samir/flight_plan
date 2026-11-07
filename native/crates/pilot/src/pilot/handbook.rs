@@ -183,6 +183,30 @@ fn within(n: Option<f64>, min: f64, max: f64) -> bool {
     n.is_some_and(|n| n.is_finite() && n >= min && n <= max)
 }
 
+/// The bounds a light airplane's figure is believed within, each figure
+/// by its answer's name: a figure read off a page, or typed in, outside
+/// them is a misreading, not the airplane's. Climb fuel burn is not read
+/// off a page, only typed in.
+pub const BOUNDS: [(&str, f64, f64); 7] = [
+    ("cruiseTasKt", 30.0, 400.0),
+    ("cruisePowerPct", 40.0, 100.0),
+    ("fuelBurnGph", 1.0, 100.0),
+    ("usableFuelGal", 5.0, 500.0),
+    ("climbTasKt", 30.0, 300.0),
+    ("climbFuelBurnGph", 1.0, 150.0),
+    ("serviceCeilingFt", 1000.0, 30000.0),
+];
+
+/// Whether a figure, by its name in BOUNDS, is within its bounds; a name
+/// not there has none.
+pub fn figure_within(key: &str, value: f64) -> Option<bool> {
+    BOUNDS.iter().find(|(k, _, _)| *k == key).map(|(_, min, max)| within(Some(value), *min, *max))
+}
+
+fn bounded(n: Option<f64>, key: &str) -> bool {
+    n.is_some_and(|n| figure_within(key, n) == Some(true))
+}
+
 /// "word", any space, "word" (/a\s+b/i with `at_least_one`, /a\s*b/i without).
 fn spaced_ci(c: &[char], a: &str, b: &str, at_least_one: bool) -> bool {
     let n = a.chars().count();
@@ -302,11 +326,11 @@ pub fn figures_of_page(text: &str) -> Figures {
     for line in &lines {
         let c = chars(line);
         let n = figure(line);
-        if found.service_ceiling_ft.is_none() && spaced_ci(&c, "service", "ceiling", true) && within(n, 1000.0, 30000.0) {
+        if found.service_ceiling_ft.is_none() && spaced_ci(&c, "service", "ceiling", true) && bounded(n, "serviceCeilingFt") {
             found.service_ceiling_ft = n.map(|value| Figure { value, words: line.clone() });
         }
         // "Best Rate of Climb Speed (mph) 85": a speed, not the rate itself.
-        if found.climb_tas_kt.is_none() && js::contains_ci(&c, "climb") && js::contains_ci(&c, "speed") && within(n, 30.0, 300.0) {
+        if found.climb_tas_kt.is_none() && js::contains_ci(&c, "climb") && js::contains_ci(&c, "speed") && bounded(n, "climbTasKt") {
             found.climb_tas_kt = n.map(|v| Figure { value: knots(line, v), words: line.clone() });
         }
         // "Usable Fuel (gal) 48" or "Total 56 GAL. usable 53 GAL."
@@ -315,7 +339,7 @@ pub fn figures_of_page(text: &str) -> Figures {
                 Some(after) => Some(number(&after)),
                 None => n,
             };
-            if within(v, 5.0, 500.0) {
+            if bounded(v, "usableFuelGal") {
                 found.usable_fuel_gal = v.map(|value| Figure { value, words: line.clone() });
             }
         }
@@ -331,7 +355,7 @@ pub fn figures_of_page(text: &str) -> Figures {
         let is_cruise = js::contains_ci(&c, "cruis")
             && !(js::contains_ci(&c, "structural") || says_vno(&c))
             && (js::contains_ci(&c, "speed") || js::contains_ci(&c, "knots") || js::has_word_ci(&c, "kt") || js::has_word_ci(&c, "kts") || js::contains_ci(&c, "mph"))
-            && within(figure(l), 30.0, 400.0);
+            && bounded(figure(l), "cruiseTasKt");
         if !is_cruise {
             continue;
         }
@@ -345,14 +369,14 @@ pub fn figures_of_page(text: &str) -> Figures {
             found.cruise_tas_kt = Some(Figure { value: knots(l, v), words: l.clone() });
         }
         let pct = power(l);
-        if within(Some(pct), 40.0, 100.0) {
+        if bounded(Some(pct), "cruisePowerPct") {
             found.cruise_power_pct = Some(Figure { value: pct, words: l.clone() });
         }
     }
 
     // Fuel burn: "Fuel Consumption (gal per hr 75%) 8.4", the one at the
     // cruise's power where the page gives several.
-    let burns: Vec<&String> = lines.iter().filter(|l| says_burn(&chars(l)) && within(figure(l), 1.0, 100.0)).collect();
+    let burns: Vec<&String> = lines.iter().filter(|l| says_burn(&chars(l)) && bounded(figure(l), "fuelBurnGph")).collect();
     let cruise_pct = found.cruise_power_pct.as_ref().map(|f| f.value);
     let burn = burns.iter().find(|l| cruise_pct.is_some_and(|p| power(l) == p)).or(burns.first());
     if let Some(burn) = burn {
@@ -363,7 +387,7 @@ pub fn figures_of_page(text: &str) -> Figures {
             Some(a) => Some(number(&a)),
             None => figure(burn),
         };
-        if within(v, 1.0, 100.0) {
+        if bounded(v, "fuelBurnGph") {
             found.fuel_burn_gph = v.map(|value| Figure { value, words: (*burn).clone() });
         }
     }
