@@ -197,7 +197,7 @@ export function SheetCard({
       // tap, leaves them.
       onPointerDownOutside={event => {
         const at = event.target instanceof Element ? event.target : null;
-        if (!at?.closest(".leaflet-container") || at.closest("[data-map-controls], .leaflet-control")) event.preventDefault();
+        if (!at?.closest(".maplibregl-map") || at.closest("[data-map-controls], .maplibregl-ctrl")) event.preventDefault();
       }}
       // The focus going elsewhere -- the panel, the map -- leaves it open:
       // the card is no modal.

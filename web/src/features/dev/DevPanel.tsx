@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { BrainCircuit, ExternalLink, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../../lib/toast";
 import { showError } from "../../lib/problems";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
@@ -698,6 +698,10 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
     })),
   ];
 
+  // The FAA data sets past their cycle, said at the Reference data row's
+  // end for the owner (wingtip.data_cycles).
+  const staleData = (status?.data_cycles ?? []).filter(c => c.state === "expired").length;
+
   // At the services row's end, what is wrong if anything is: how many
   // are down or did not answer, in red, else how many are up; one the
   // deployment does not run is neither.
@@ -740,18 +744,39 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           content: (
             // When it was fetched -- the one thing looked for -- at the
             // row's end, and the file and its source under its name.
-            <ListGroup footer="The files the planner reads and how old each copy is.">
-              {datasets.map(d => (
-                <ListRow
-                  key={d.file} title={d.name}
-                  description={<><span className="font-mono">{d.file}</span> · {d.source}</>}
-                  value={d.updated ? agoOrDate(d.updated) : "not fetched yet"}
-                />
-              ))}
-              {datasets.length === 0 && (
-                <ListRow muted title={<>{status ? "Nothing on disk yet." : waiting(failed)}</>} />
+            <div className="flex flex-col gap-5">
+              <ListGroup footer="The files the planner reads and how old each copy is.">
+                {datasets.map(d => (
+                  <ListRow
+                    key={d.file} title={d.name}
+                    description={<><span className="font-mono">{d.file}</span> · {d.source}</>}
+                    value={d.updated ? agoOrDate(d.updated) : "not fetched yet"}
+                  />
+                ))}
+                {datasets.length === 0 && (
+                  <ListRow muted title={<>{status ? "Nothing on disk yet." : waiting(failed)}</>} />
+                )}
+              </ListGroup>
+              {/* Each FAA data set's edition against its cycle (the
+                  engine's data_cycle): with the refreshes off in
+                  production, an edition out of date is the owner's to
+                  fetch, and the planner logs it as well. */}
+              {!!status?.data_cycles?.length && (
+                <ListGroup title="FAA cycles">
+                  {status.data_cycles.map(c => (
+                    <ListRow
+                      key={c.key} title={c.name} data-testid="dev-data-cycle"
+                      description={`${c.kind.toUpperCase()} · edition ${c.edition ?? "unknown"} · current ${c.current}`}
+                      value={(
+                        <StatusBadge tone={c.state === "in_force" ? "up" : c.state === "expired" ? "down" : "checking"}>
+                          {c.state === "expired" ? `${c.behind} behind` : c.state.replace("_", " ")}
+                        </StatusBadge>
+                      )}
+                    />
+                  ))}
+                </ListGroup>
               )}
-            </ListGroup>
+            </div>
           ),
         },
         charts: {
@@ -815,7 +840,10 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           <PageRow page="services" title="Services" value={<StatusBadge tone={summary.tone}>{summary.label}</StatusBadge>} />
           {/* The count alone at the row's end: with the oldest's date as
               well the name wrapped on a phone. The page has the dates. */}
-          <PageRow page="data" title="Reference data" value={status ? `${datasets.length} files` : undefined} />
+          <PageRow
+            page="data" title="Reference data"
+            value={!status ? undefined : staleData ? <StatusBadge tone="down">{`${staleData} out of date`}</StatusBadge> : `${datasets.length} files`}
+          />
           <PageRow page="charts" title="Charts" value={status?.charts ? `cycle ${status.charts.cycle}` : undefined} />
           <PageRow page="errors" title="Recent errors" value={status ? (status.recent_errors ?? []).length : undefined} />
           <PageRow page="speed" title="Speed" />

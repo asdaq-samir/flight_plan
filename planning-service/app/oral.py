@@ -23,15 +23,16 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
 import anthropic
 
 from wingtip import references
 
+from .settings import get_settings
+
 #: The model, as CHECKPOINT_NOTE_MODEL names the notes': the most capable,
 #: since a wrong answer about a regulation is worse than a slow one.
-ORAL_MODEL = os.environ.get("ORAL_MODEL", "claude-opus-5-5")
+ORAL_MODEL = get_settings().oral_model
 log = logging.getLogger(__name__)
 VERDICTS = ("satisfactory", "partial", "unsatisfactory")
 

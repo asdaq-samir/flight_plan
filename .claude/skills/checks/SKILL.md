@@ -25,6 +25,18 @@ CLAUDE.md says what to run for each part of the repo; this says how to run it he
 
 ## 2. Commands
 
+**On the Mac, use `scripts/check.sh`.** `scripts/check.sh all-changed` runs every area the branch touches (`git diff origin/main...` plus the uncommitted files, mapped as CI's changes filter maps them), in parallel, each in its own turn of `scripts/one-at-a-time.sh`, each area's log shown whole when it ends. `scripts/check.sh web py engine …` runs named areas: `web`, `py` (root: src/wingtip and tests), `planner`, `nav-log-agent`, `crewai-agent`, `engine` (CI's `cargo test --profile ci` line), `java`, `ios` and `android` (both on the host). It prints `check: <area> exit <code> in <n>s` per area and exits non-zero if any failed. `scripts/check.sh --areas < paths` prints the areas without running anything.
+
+It is fast because nothing starts cold after the first run on the Mac, in any worktree:
+- `wingtip-check-web:<hash of .nvmrc, package.json and package-lock>`: node with web's packages at `/node_modules`, found by walking up from `/repo/web`. A worktree's own `web/node_modules`, if it has one, is hidden behind an empty one.
+- `wingtip-check-py-<dir>:<hash>`: python with that directory's requirements-dev (followed through `-r`) and the wingtip_native wheel built from this `native/`, rebuilt when either changes.
+- Volumes: `wingtip-cargo-registry`, `wingtip-cargo-git`, `wingtip-cargo-target-tests-1.89-<arch>` (the engine tests' build; each worktree is mounted at its own path, so its own crates are never taken for another's), `wingtip-check-raw` (the FAA files the Python tests fetch into `data/raw`), `fp-m2`. BuildKit's caches `wingtip-npm`, `wingtip-uv` and the wheel's target.
+- The phones' engine (xcframework, Android's `app/engine`) under `~/Library/Caches/wingtip-checks`, keyed by the engine's files; Xcode's DerivedData per worktree; Gradle's `~/.gradle`.
+
+`scripts/build-engine-wasm.sh` stays apart: a clean build in its pinned image, so the committed `.wasm` is reproducible. Run it after an engine change, as before. Removing any image or volume above costs one cold run, nothing more.
+
+The commands below are what it runs, for reading a failure or running one by hand.
+
 **Web.** These are CI's steps; node 26 matches `.nvmrc`.
 ```sh
 docker run --rm -v "$PWD":/repo -w /repo/web node:26-slim sh -c 'npm run -s types && npx tsc --noEmit && npx eslint . && npx vitest run'
@@ -56,7 +68,7 @@ docker compose -f docker-compose.yml -f docker-compose.phone.yml -f docker-compo
 
 ## 4. Playwright
 
-**Heavy runs take turns.** On the owner's Mac, run every browser test, test suite, image build and speed measurement through `scripts/one-at-a-time.sh "<who and what>" <command…>`. Several Claude sessions and their agents share the Mac. On the old four-core MacBook two suites at once timed out (2026-10-15), so there was one turn; the Mac mini (12 cores, Docker given 16 GB) has three (`ONE_AT_A_TIME_SLOTS`), at the owner's ask to make full use of it (2026-11-06). **A speed measurement runs with `--alone`**: it waits until no turn is held and then holds them all, so its numbers come from a quiet machine. The script keeps a first-come line, says whose turn it waits for, runs the command, and frees its turns however the command ends. A turn left by a killed run is taken back.
+**Heavy runs take turns.** On the owner's Mac, run every browser test, test suite, image build and speed measurement through `scripts/one-at-a-time.sh "<who and what>" <command…>`. Several Claude sessions and their agents share the Mac. On the old four-core MacBook two suites at once timed out (2026-10-15), so there was one turn; the Mac mini (12 cores, Docker given 16 GB) has four (`ONE_AT_A_TIME_SLOTS`), at the owner's ask to make full use of it (2026-11-06). **A speed measurement runs with `--alone`**: it waits until no turn is held and then holds them all, so its numbers come from a quiet machine. The script keeps a first-come line, says whose turn it waits for, runs the command, and frees its turns however the command ends. A turn left by a killed run is taken back.
 
 ```sh
 scripts/one-at-a-time.sh "session: <spec>" docker run --rm --network host -v "$PWD/web":/w -w /w \
@@ -83,3 +95,11 @@ Rule these out before calling something a regression:
 5. **Safari only:** reproduce in WebKit.
 
 A failure that repeats on a quiet, freshly built stack is real. In the report, say which checks ran, with their counts, and which didn't.
+
+## 6. Flaky tests
+
+The unit suites run in a new random order every time (pytest-randomly, vitest's `sequence.shuffle`); docs/CI.md, "Flaky tests", has the whole setup.
+- **A test that fails here and passed before your change, in code you did not touch,** may be order-dependent. Rerun with the seed printed at the top of the failing run (`pytest --randomly-seed=N`, `npx vitest run --sequence.seed=N`); if it fails again in that order and passes alone (`pytest -p no:randomly <file>`), the test before it left something behind. Fix that test, not yours.
+- **Guards fail a test for what it leaves behind:** a module function replaced without `monkeypatch` (Python), fake timers left on (web). The message names it; use `monkeypatch.setattr` or `vi.useRealTimers()` in an `afterEach`.
+- **Browser tests retry once in CI.** One that passed on its retry is reported, not failed; the nightly issue "Flaky tests (nightly)" lists it with the unit tests the nightly five shuffled runs caught. Take a test from that list as work, like any other issue.
+- **No `.only`:** ESLint fails it in unit tests and specs, and Playwright's `forbidOnly` in CI.

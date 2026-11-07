@@ -51,14 +51,21 @@ one job (the owner kept both server languages on this split, 2026-11-06):
 
 - One flow, for the owner and every session alike: a `claude/<topic>`
   branch from `main`, a pull request to `main`, and it merges by itself
-  once the "CI passed" check is green and Claude's review has run
-  (auto-merge-agents.yml); nothing merges red. The branch is deleted on
-  merge (the repository's setting).
+  once the "CI passed" check is green (auto-merge-agents.yml); nothing
+  merges red. The branch is deleted on merge (the repository's setting).
+- Claude's review is on demand, not a gate (the owner, 2026-11-06): the
+  "review" label on a pull request asks for one. So run the checks that
+  cover a change, and the aviation-check skill for any figure or rule,
+  before pushing.
+- A session works only in a worktree of its own (`git worktree add
+  ../wingtip-<topic> -b claude/<topic> origin/main`, or the harness's);
+  the main checkout stays on `main`, and no session switches it or
+  commits on it.
 - Never push to `main`. Never force-push. Merge `main` into a branch to
   bring it up to date; never rebase a pushed one.
-- On a pull request, Claude's review is put right on the branch ("Address
-  review:" commits) and a CI failure is fixed ("Fix CI:"), each at most
-  twice.
+- On a pull request, an asked-for review is put right on the branch
+  ("Address review:" commits) and a CI failure is fixed ("Fix CI:"), each
+  at most twice.
 - Write to GitHub gently, as the `ship` skill says: one write at a time,
   ten seconds apart, a long list as one issue's checklist. A burst of API
   writes got the owner's account suspended in October 2026.
@@ -84,18 +91,34 @@ Run the checks that cover a change before committing it, on the Mac mini
 rule was for the 2016 MacBook). Whole suites, the full browser suite and
 long measurements still wait for the owner's ask; CI runs everything.
 
+On the Mac, run them with `scripts/check.sh all-changed` (the areas the
+branch and its uncommitted files touch, in parallel) or `scripts/check.sh
+<area>` (web, py, planner, nav-log-agent, crewai-agent, engine, java, ios,
+android). It runs the table's commands in Docker, or on the host for the
+phones, each area in its own turn of `scripts/one-at-a-time.sh`, warm from
+any worktree's first run: ready-made images per lockfile and requirements,
+and shared Cargo, npm, uv and Maven caches (the script's header lists
+them). The table is what it runs:
+
 | Changed | Run, from that directory |
 |---|---|
 | `web/` | `npm run types && npx tsc --noEmit && npx eslint . && npx vitest run` |
 | `planning-service/` | `ruff check app tests && pytest tests/` |
 | `src/wingtip`, `tests/` | `ruff check src/wingtip tests && pytest tests/` (repo root) |
-| `native/` (Rust, `wingtip_native`) | `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same wingtip-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
+| `native/` (Rust, `wingtip_native`) | the engine's `cargo test --profile ci` (`ci.yml`'s line); `maturin build -m native/Cargo.toml` and install the wheel, then `pytest tests/test_native.py` (repo root); every image that copies `src/` builds it with the same wingtip-native stage as `docker/Dockerfile.native` (`tests/test_dockerfiles.py`), and none of them starts without it |
 | `springboot-app/` | `mvn -B test` (needs Docker, for Testcontainers) |
 | other services | `ruff check app tests && pytest tests/` in that service |
 | `ios/` (the native app) | On the Mac mini (Xcode and XcodeGen are there): `xcodegen` in `ios/`, then `xcodebuild -project ios/Wingtip.xcodeproj -scheme Wingtip -destination "platform=iOS Simulator,name=<newest iPhone>" test` through `scripts/one-at-a-time.sh`; `native-ios.yml` runs the same, iPad included (docs/NATIVE.md) |
-| `android/` (the native app) | CI only: `native-android.yml` builds the engine for each ABI, runs the unit tests, lint and a debug APK, then the instrumented tests on an emulator (docs/NATIVE-ANDROID.md) |
+| `android/` (the native app) | On the Mac mini: `./gradlew testDebugUnitTest lintDebug assembleDebug` in `android/` with JetBrains' JDK 21, after `native/ffi/build-android.sh`; `native-android.yml` builds the engine for each ABI, runs the unit tests, lint and a debug APK, then the instrumented tests on an emulator (docs/NATIVE-ANDROID.md) |
 
 Python wants `pip install -r requirements-dev.txt` in that directory first.
+
+A pre-push hook runs the quick ones for what a push changes against
+origin/main: `tsc` and ESLint for `web/`, ruff for Python, `cargo check`
+for `native/` (each skipped with a note where its tool is missing). Install
+it once per clone with `scripts/install-hooks.sh`; skip it with `git push
+--no-verify` or `SKIP_HOOKS=1`. It runs outside the lock and is no
+substitute for the table above.
 
 An API that changes changes its document, which the web app's types come
 from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn
@@ -109,7 +132,7 @@ rest run every night (docs/CI.md). Tag a test `@smoke` only when it is the
 one that proves a journey end to end.
 On the owner's Mac run only the specs a change touches, and every browser
 run, test suite, image build and measurement through
-`scripts/one-at-a-time.sh`: up to three run at once on the Mac mini, and a
+`scripts/one-at-a-time.sh`: up to four run at once on the Mac mini, and a
 speed measurement takes `--alone`, the whole machine (the `checks` skill).
 
 ## The app on the phone

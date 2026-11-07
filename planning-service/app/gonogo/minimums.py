@@ -53,3 +53,16 @@ def under_minimums(m: dict, briefing: dict, landings: list[str], dest: str) -> l
     airports = briefing.get("airports") or {}
     return ask("gonogo_under_minimums", minimums=m, landings=landings, dest=dest, metars=briefing.get("metars") or {},
                airports={i: airports[i] for i in landings if i in airports}, forecast=briefing.get("forecast"))
+
+
+def ceiling_unknown_at(briefing: dict, landings: list[str]) -> list[str]:
+    """Where the briefing's ceiling could not be held against anything:
+    every airport landed at whose current report, and every TAF station
+    along the route whose forecast, has a broken or overcast layer with no
+    height as its lowest ("OVC///", wingtip.weather._sky_ceiling). The
+    ceiling there is not known (14 CFR 1.1), so a ceiling minimum is
+    neither met nor missed: it is not checked, and is said so."""
+    metars = briefing.get("metars") or {}
+    found = [i for i in landings if (metars.get(i) or {}).get("ceiling_unknown")]
+    found += (briefing.get("forecast") or {}).get("ceiling_unknown_at") or []
+    return list(dict.fromkeys(found))

@@ -157,7 +157,7 @@ def test_metar_for_idents_reads_the_newest_report_per_station_from_the_cache_fil
     assert result["KDLH"]["wind_speed_kt"] == 3.0
     assert result["KORD"] == {
         "raw": "KORD 200151Z 09008KT 2SM BR OVC006 14/13 A2998", "observed_at": "2026-09-20T01:51:00.000Z",
-        "flight_category": "IFR", "wx": "", "ceiling_ft": 600, "visibility_sm": 2.0, "wind_dir_true_deg": None,
+        "flight_category": "IFR", "wx": "", "ceiling_ft": 600, "ceiling_unknown": False, "visibility_sm": 2.0, "wind_dir_true_deg": None,
         "wind_speed_kt": None, "wind_gust_kt": None, "altimeter_in_hg": None, "temp_c": None, "dewpoint_c": None,
         "lat": None, "lon": None,
     }
@@ -282,7 +282,8 @@ def test_forecast_along_the_route_reads_each_nearby_stations_current_period(mock
     # Where each station is and how high its field: a ceiling is above
     # the field, and wingtip.altitude keeps a leg under the clouds in MSL.
     assert forecast["stations"] == [{
-        "icaoId": "KDLH", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1424, "ceiling_ft": 1500, "visibility_sm": 3.0,
+        "icaoId": "KDLH", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1424, "ceiling_ft": 1500, "ceiling_unknown": False,
+        "visibility_sm": 3.0,
     }]
     assert forecast["min_ceiling_ft"] == 1500 and forecast["min_visibility_sm"] == 3.0
 
@@ -387,7 +388,7 @@ def test_a_forecast_that_does_not_cover_the_flight_says_nothing_about_it(mock_ge
     """It used to fall back to the TAF's first period -- an expired
     forecast read as current."""
     later = ceiling_visibility_along_route(C81, KDLH, window=(_at(8), _at(10)))
-    assert later == {"min_ceiling_ft": None, "min_visibility_sm": None, "stations": []}
+    assert later == {"min_ceiling_ft": None, "min_visibility_sm": None, "ceiling_unknown_at": [], "stations": []}
 
 
 @patch("wingtip.weather.requests.get", return_value=_taf(
@@ -398,6 +399,69 @@ def test_a_becmg_change_lasts_past_its_own_window(mock_get):
     base period after it, so taking only what overlaps 0600 read VFR."""
     later = ceiling_visibility_along_route(C81, KDLH, window=(_at(6), _at(7)))
     assert later["min_ceiling_ft"] == 800 and later["min_visibility_sm"] == 2.0
+
+
+# A layer a station could not measure ("OVC///", "VV///") comes in the
+# AWC's data API with no base: its sky_condition has no cloud_base_ft_agl.
+UNMEASURED = _cache_file(
+    # OVC/// with ten miles: the AWC's own category says VFR.
+    '<METAR><raw_text>KAAA 200153Z AUTO 00000KT 10SM OVC/// 10/09 A3006</raw_text><station_id>KAAA</station_id>'
+    '<observation_time>2026-09-20T01:53:00.000Z</observation_time><visibility_statute_mi>10+</visibility_statute_mi>'
+    '<sky_condition sky_cover="OVC"/><flight_category>VFR</flight_category></METAR>'
+    # BKN/// above a measured broken layer: the lower one is the ceiling.
+    '<METAR><raw_text>KBBB 200153Z AUTO 00000KT 10SM BKN012 OVC/// 10/09 A3006</raw_text><station_id>KBBB</station_id>'
+    '<observation_time>2026-09-20T01:53:00.000Z</observation_time><visibility_statute_mi>10+</visibility_statute_mi>'
+    '<sky_condition sky_cover="BKN" cloud_base_ft_agl="1200"/><sky_condition sky_cover="OVC"/>'
+    '<flight_category>MVFR</flight_category></METAR>'
+    # BKN/// under a measured overcast: the ceiling is not known.
+    '<METAR><raw_text>KCCC 200153Z AUTO 00000KT 10SM FEW008 BKN/// OVC025 10/09 A3006</raw_text><station_id>KCCC</station_id>'
+    '<observation_time>2026-09-20T01:53:00.000Z</observation_time><visibility_statute_mi>10+</visibility_statute_mi>'
+    '<sky_condition sky_cover="FEW" cloud_base_ft_agl="800"/><sky_condition sky_cover="BKN"/>'
+    '<sky_condition sky_cover="OVC" cloud_base_ft_agl="2500"/><flight_category>MVFR</flight_category></METAR>'
+    # VV/// in fog: the visibility settles LIFR whatever the ceiling.
+    '<METAR><raw_text>KDDD 200153Z AUTO 00000KT 1/4SM FG VV/// 10/10 A3006</raw_text><station_id>KDDD</station_id>'
+    '<observation_time>2026-09-20T01:53:00.000Z</observation_time><visibility_statute_mi>0.25</visibility_statute_mi>'
+    '<sky_condition sky_cover="OVX"/><flight_category>LIFR</flight_category></METAR>'
+)
+
+
+@patch("wingtip.weather.requests.get", return_value=UNMEASURED)
+def test_a_ceiling_reported_with_no_height_is_not_known(mock_get):
+    """14 CFR 1.1: the ceiling is the lowest broken, overcast or obscured
+    layer, so one reported with no height leaves it not known -- not
+    none, and so not VFR."""
+    found = metar_for_idents(["KAAA", "KBBB", "KCCC", "KDDD"])
+    sky = {i: (m["ceiling_ft"], m["ceiling_unknown"], m["flight_category"]) for i, m in found.items()}
+    assert sky == {
+        "KAAA": (None, True, None),
+        "KBBB": (1200, False, "MVFR"),
+        "KCCC": (None, True, None),
+        "KDDD": (None, True, "LIFR"),
+    }
+
+
+@patch("wingtip.weather.requests.get", return_value=UNMEASURED)
+def test_vfr_not_recommended_says_a_ceiling_of_unknown_height(mock_get):
+    metars = metar_for_idents(["KAAA", "KBBB"])
+    forecast = {"min_ceiling_ft": None, "min_visibility_sm": 6.0, "ceiling_unknown_at": ["KDLH"], "stations": []}
+    assert weather.vfr_not_recommended_reasons(["KAAA", "KBBB"], metars, forecast) == [
+        "KAAA currently reporting a ceiling of unknown height",
+        "forecast ceiling of unknown height at KDLH",
+    ]
+
+
+@patch("wingtip.weather.requests.get", return_value=_taf(
+    _fcst("00", "12", vis="6+", sky='<sky_condition sky_cover="BKN" cloud_base_ft_agl="4000"/>')
+    + _fcst("04", "06", change="TEMPO", vis="6+", sky='<sky_condition sky_cover="OVC"/>')))
+def test_a_forecast_ceiling_with_no_height_is_not_known(mock_get):
+    """TEMPO OVC/// under a BKN040 forecast: the worst ceiling the forecast
+    allows is not known, so 4,000 ft is not the whole of it."""
+    during = ceiling_visibility_along_route(C81, KDLH, window=(_at(3), _at(5)))
+    assert (during["min_ceiling_ft"], during["ceiling_unknown_at"]) == (4000, ["KDLH"])
+    assert during["stations"][0]["ceiling_unknown"] is True
+    before = ceiling_visibility_along_route(C81, KDLH, window=(_at(1), _at(2)))
+    assert (before["min_ceiling_ft"], before["ceiling_unknown_at"]) == (4000, [])
+    assert weather.tafs_over({"KDLH": (_at(4), _at(5))})["KDLH"]["ceiling_unknown"] is True
 
 
 def test_a_freezing_level_below_the_lowest_reading_says_so(monkeypatch):
@@ -735,7 +799,7 @@ def test_a_station_is_read_for_when_the_flight_is_there(mock_get):
     """The fog in the TEMPO at 04-06Z is what a pilot arriving at 05Z is
     told, and not one arriving at 01Z: each place over its own hour."""
     assert weather.tafs_over({"KDLH": (_at(4), _at(6))}) == {
-        "KDLH": {"ceiling_ft": 200, "visibility_sm": 0.5, "raw": "TAF KDLH ..."}}
+        "KDLH": {"ceiling_ft": 200, "ceiling_unknown": False, "visibility_sm": 0.5, "raw": "TAF KDLH ..."}}
     assert weather.tafs_over({"KDLH": (_at(0), _at(2))})["KDLH"]["visibility_sm"] == 6.0
     # One with no TAF held is left out; asked for none, nothing is read.
     assert weather.tafs_over({"KXXX": (_at(0), _at(2))}) == {}

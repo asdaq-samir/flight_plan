@@ -75,6 +75,11 @@ export interface RunwayDistance extends Distances {
   end: string | null;
   /** Over that runway's length, 50 ft obstacle included. */
   over: boolean;
+  /** No runway, or its length not known: whether it fits is not known
+   *  (14 CFR 91.103(b)), never "within". */
+  unknown: boolean;
+  /** Read past the POH's table (its caveats say how): its edge's figures. */
+  beyond: boolean;
 }
 
 export interface RunwayCheck {
@@ -86,9 +91,11 @@ export interface RunwayCheck {
   end: string | null;
   /** The pilot picked it in FPL, rather than the wind. */
   picked: boolean;
-  pressureAltFt: number;
-  densityAltFt: number;
-  tempC: number;
+  /** Null where the field's elevation is not known (see `unchecked`). */
+  pressureAltFt: number | null;
+  densityAltFt: number | null;
+  /** The temperature reported, else a standard day's; null with neither. */
+  tempC: number | null;
   /** The temperature and altimeter were reported (a METAR), not a
    *  standard day's. */
   reported: boolean;
@@ -99,6 +106,9 @@ export interface RunwayCheck {
    *  crosswind): not a limitation, but beyond what was flown. */
   crosswindOver: boolean;
   grass: boolean;
+  /** Why the distances were not worked out (none then), where they were
+   *  not: the field's elevation not known. */
+  unchecked: string | null;
   distances: RunwayDistance[];
 }
 
@@ -129,8 +139,8 @@ export function runwayChecks(aircraft: AircraftProfile | null | undefined, brief
     return {
       field, role: c.role, runway: on(c.runway), end: c.end, picked: c.picked, pressureAltFt: c.pressure_alt_ft, densityAltFt: c.density_alt_ft,
       tempC: c.temp_c, reported: c.reported, headwindKt: c.headwind_kt, crosswindKt: c.crosswind_kt, crosswindOver: c.crosswind_over,
-      grass: c.grass,
-      distances: c.distances.map(d => ({ kind: d.kind, ...distances(d), runway: on(d.runway), end: d.end })),
+      grass: c.grass, unchecked: c.unchecked,
+      distances: c.distances.map(d => ({ kind: d.kind, ...distances(d), unknown: d.unknown, beyond: d.beyond, runway: on(d.runway), end: d.end })),
     };
   });
 }

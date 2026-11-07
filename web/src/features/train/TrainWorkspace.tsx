@@ -3,10 +3,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { identOf, routeOf } from "../../lib/identSchema";
 import { statusQuery } from "../../lib/queryClient";
-// Without this Leaflet's tiles, markers and controls have no
-// positioning at all -- this is the library's own stylesheet, not
-// app styling.
-import "leaflet/dist/leaflet.css";
 import { useProgressToast } from "../../lib/useProgressToast";
 import type { WorkspaceProps } from "../page/workspace";
 import { ChartColumn, GraduationCap } from "lucide-react";
@@ -23,7 +19,6 @@ import {
   filterCounts, forwardIsLeft, hasRating, orderedPoints,
 } from "./logic";
 import { useTraining } from "./hooks/useTraining";
-import { centreClear } from "../../lib/map/clear";
 
 const FOCUS_ZOOM = 12;
 
@@ -59,7 +54,9 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
     selected: point, course,
     select, rate, setCategory, removeSelected, addPick,
   } = store;
-  const [map, setMap] = useState<L.Map | null>(null);
+  // Where the map is brought to, a new object each time it is asked: the
+  // map flies there (GlMapShell's focus), in to FOCUS_ZOOM at least.
+  const [flyTo, setFlyTo] = useState<{ lat: number; lon: number } | null>(null);
   const devTab = useDevTab(s => s.tab);
   const pickDevTab = useDevTab(s => s.pick);
 
@@ -117,12 +114,9 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
   }, [point, positionOf, waypoints.length]);
 
   const focus = useCallback((entry: (typeof walk)[number]) => {
-    if (map) {
-      const to = Math.max(map.getZoom(), FOCUS_ZOOM);
-      map.setView(centreClear(map, [entry.point.lat, entry.point.lon], to), to);
-    }
+    setFlyTo({ lat: entry.point.lat, lon: entry.point.lon });
     select(entry.point);
-  }, [map, select]);
+  }, [select]);
 
   /** Walks the waypoint list and brings the map to whatever it lands
    *  on, the same as clicking that row would. The list is the walk
@@ -261,11 +255,8 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
 
   const onSelect = useCallback((picked: Point) => {
     select(picked);
-    if (map) {
-      const to = Math.max(map.getZoom(), FOCUS_ZOOM);
-      map.setView(centreClear(map, [picked.lat, picked.lon], to), to);
-    }
-  }, [select, map]);
+    setFlyTo({ lat: picked.lat, lon: picked.lon });
+  }, [select]);
   const onAddAt = useCallback((lat: number, lon: number) => { void addPick(lat, lon); }, [addPick]);
 
   // The chart read's progress; its failures are the query client's to
@@ -286,7 +277,7 @@ export default function TrainWorkspace({ dep, dest, panel, setPanel, children }:
           onDeselect={deselect}
           onSelect={onSelect}
           onAddAt={onAddAt}
-          onMapReady={setMap}
+          flyTo={flyTo} flyZoom={FOCUS_ZOOM}
         />
       </div>
     ),
