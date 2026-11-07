@@ -1,4 +1,12 @@
-import L from "leaflet";
+/** A mark drawn as the app's own markup over the map (gl/htmlMarker): its
+ *  html, its box and the point in it that sits on the map's point, px. The
+ *  shape of a div icon's options, so the marks read the same wherever
+ *  they were written for. */
+export interface IconLike { options: { html: string; iconSize: [number, number]; iconAnchor: [number, number]; className?: string } }
+
+export function divIcon(options: IconLike["options"]): IconLike {
+  return { options };
+}
 import { ownShipSvg, type OwnShipLook } from "./ownShipLook";
 import type { AirspaceClass } from "../preferences";
 import { inkOn } from "../scoreScale";
@@ -7,14 +15,13 @@ import { AIRPORT_MARK, airportMarkSvg, text } from "./airportMark";
 import { MAP_BLUE, WAYPOINT_MAGENTA } from "./chartColors";
 
 /** An icon made once for the same arguments and handed out again after:
- *  react-leaflet sets a marker's icon again whenever the icon is a new
- *  object, rebuilding its element, and every redraw of the planner made
- *  every marker's anew -- a narrative arriving, a tab opening redrew the
- *  route's chips (leaflet's createIcon, measured on the Brief tab's first
- *  opening). Plain data in, so the arguments are the key; a few thousand
+ *  a marker's element is made again only when its icon is a new object
+ *  (gl/layers/MarksGl), and every redraw of the planner made every
+ *  marker's anew -- a narrative arriving, a tab opening redrew the
+ *  route's chips (measured on the Brief tab's first opening, 2026-10). Plain data in, so the arguments are the key; a few thousand
  *  kept at most. */
-export function made<A extends unknown[]>(make: (...args: A) => L.DivIcon): (...args: A) => L.DivIcon {
-  const kept = new Map<string, L.DivIcon>();
+export function made<A extends unknown[]>(make: (...args: A) => IconLike): (...args: A) => IconLike {
+  const kept = new Map<string, IconLike>();
   return (...args: A) => {
     const key = JSON.stringify(args);
     let icon = kept.get(key);
@@ -28,15 +35,13 @@ export function made<A extends unknown[]>(make: (...args: A) => L.DivIcon): (...
 }
 
 /**
- * Leaflet's div icons take HTML, so these are HTML -- the same Tailwind
+ * The marks are HTML (gl/htmlMarker places them) -- the same Tailwind
  * classes as the rest of the page, in template strings.
  *
  * Written as JSX and rendered with `renderToStaticMarkup` until it was
  * measured: that one import put the whole of `react-dom/server` (about
  * 200 kB, a second copy of the renderer) into the chunk every page
- * loads, to produce four spans. `className: ""` on each suppresses
- * Leaflet's default `.leaflet-div-icon` box (white fill, grey border),
- * since each draws its own.
+ * loads, to produce four spans.
  */
 
 /** A target a finger's 44 points across (Apple's Human Interface
@@ -59,10 +64,8 @@ export const dotIcon = made(function dotIcon(fill: string, label?: string | numb
   // The tap target (iconSize) is bigger than the visual dot on purpose --
   // a 20px dot is well under a comfortable touch target, but making the
   // dot itself that big would make dense stretches of route hard to read.
-  // Centering it in a larger invisible box needs `position: absolute` +
-  // a transform, not a flex wrapper: Leaflet's own stylesheet sets
-  // `.leaflet-marker-icon { display: block }`, which wins the cascade
-  // over a `flex` utility class of the same specificity.
+  // Centred in a larger invisible box by `position: absolute` and a
+  // transform.
   const tapSize = withLabel ? 36 : 32;
   // leading-none and text-[11px]: a circle has less usable width near
   // its edges than a square of the same size, so bold digits (a
@@ -74,7 +77,7 @@ export const dotIcon = made(function dotIcon(fill: string, label?: string | numb
   const size = withLabel
     ? "grid h-[24px] w-[24px] place-items-center text-[11px] font-bold leading-none tracking-tight"
     : "h-4 w-4";
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [tapSize, tapSize],
     iconAnchor: [tapSize / 2, tapSize / 2],
@@ -102,11 +105,10 @@ const ownShipIconMade = made((headingDeg: number | null, off: boolean, look: Own
 
 function makeOwnShipIcon(headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean) {
   const { size, html } = ownShipHtml(headingDeg, off, look, moving);
-  return L.divIcon({ className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2], html });
+  return divIcon({ className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2], html });
 }
 
-/** Own ship's mark as markup and its box, px: the Leaflet marker's icon and
- *  the WebGL map's marker (OwnShipGl) alike, each turning it to the
+/** Own ship's mark as markup and its box, px: the marker of OwnShipGl, each turning it to the
  *  heading as it draws it. */
 export function ownShipHtml(headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean): { size: number; html: string } {
   // Grey where own ship is off: the last position, no longer watched, as
@@ -164,7 +166,7 @@ export const airportMarkReach = (ident: string) => AIRPORT_MARK / 2 + 2 + Math.c
  * target: a tap there is the dot's or the chart's.
  */
 export const checkpointLabelIcon = made(function checkpointLabelIcon(name: string, side: "right" | "left" = "right") {
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [0, 0],
     iconAnchor: [side === "right" ? -CHECKPOINT_LABEL_GAP : CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT / 2],
@@ -178,7 +180,7 @@ export const checkpointLabelIcon = made(function checkpointLabelIcon(name: strin
  * as the ring is drawn, centred on its line. Not a target.
  */
 export const glideLabelIcon = made(function glideLabelIcon(words: string) {
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [0, 0],
     iconAnchor: [0, 0],
@@ -202,7 +204,7 @@ export const glideLabelIcon = made(function glideLabelIcon(words: string) {
 export const selectionIcon = made(function selectionIcon() {
   const ring = "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-[3px] border-[#ff3b00]" +
     " shadow-[0_0_0_1.5px_#fff,0_0_0_2.5px_rgba(10,20,28,.6),inset_0_0_0_1.5px_#fff,inset_0_0_0_2.5px_rgba(10,20,28,.6)]";
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [0, 0], iconAnchor: [0, 0],
     html: `<span data-selected-airport="" class="${ring} size-10 rounded-full"></span>`,
@@ -219,7 +221,7 @@ export const selectionIcon = made(function selectionIcon() {
  *  off their position", 2026-10-26). Never moved off its point to clear
  *  another label: that put TOC off the line. */
 export const fixMarkIcon = made(function fixMarkIcon(label: string) {
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [TAP, TAP], iconAnchor: [TAP / 2, TAP / 2],
     html:
@@ -237,7 +239,7 @@ export const fixMarkIcon = made(function fixMarkIcon(label: string) {
  */
 export const airportIcon = made(function airportIcon(ident: string) {
   const width = airportChipWidth(ident);
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [width, 24], iconAnchor: [width / 2, 12],
     html:
@@ -269,7 +271,7 @@ export const airportMarkIcon = made(function airportMarkIcon(
   ident: string, space: AirspaceClass | null, weather: string, use: "military" | "private" | null = null,
 ) {
   const half = AIRPORT_MARK / 2;
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [AIRPORT_MARK, AIRPORT_MARK], iconAnchor: [half, half],
     html:
@@ -299,7 +301,7 @@ export const trafficIcon = made((
   const half = TRAFFIC_MARK / 2;
   // The trend's screen points in the box's own units.
   const trend = (Math.round(trendPx / 4) * 4 * 22) / TRAFFIC_MARK;
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [TRAFFIC_MARK, TRAFFIC_MARK],
     iconAnchor: [half, half],

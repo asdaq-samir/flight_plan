@@ -1,8 +1,4 @@
-import L from "leaflet";
-import { memo, useMemo } from "react";
-import { Marker, Polyline } from "react-leaflet";
-import { COURSE_MAGENTA } from "./chartColors";
-import { made } from "./icons";
+import { divIcon, made } from "./icons";
 import { text } from "./airportMark";
 
 /** A way FPL's route line offers beside the route (its chips), as the map
@@ -19,16 +15,6 @@ export interface RouteWay {
   share?: number;
 }
 
-// One style for good: react-leaflet restyles a path whose pathOptions is a
-// new object, and a literal is one at every render.
-// Faded and solid magenta, the course line's own, at the owner's ask
-// ("show all suggested routes on the map with faded magenta instead of
-// blue, and make that route solid magenta as browsed"). Their class takes
-// the Chart ink look's magenta from the stylesheet (index.css).
-const WAY_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 6, opacity: 0.35, lineCap: "round", lineJoin: "round", className: "course-ink" };
-/** The one shown (FPL's Routes' card in sight): solid magenta. */
-const SHOWN_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 7, opacity: 1, lineCap: "round", lineJoin: "round", className: "course-ink" };
-const NO_WAYS: RouteWay[] = [];
 /** Where along each way its chip sits, a share of its length, one apiece. */
 export const WAY_SHARES = [0.35, 0.6, 0.8];
 /** The chip's fill: the line's magenta a step darker, white words at 13
@@ -48,7 +34,7 @@ export const wayIcon = made(function wayIcon(key: string, label: string, name: s
   const height = lines === 2 ? 40 : 24;
   const fill = shown ? WAY_CHIP : "#ffffff";
   const ink = shown ? "#ffffff" : WAY_CHIP;
-  return L.divIcon({
+  return divIcon({
     className: "",
     iconSize: [width, height], iconAnchor: [14, height + 7],
     html: `<span data-route-way="${text(key)}" class="relative flex h-full w-full flex-col justify-center rounded-xl px-2.5 text-[13px] leading-4 font-semibold shadow-[0_1px_4px_rgba(0,0,0,.35)] after:absolute after:-inset-x-1 after:-inset-y-1 after:content-['']" style="background-color:${fill};color:${ink}">` +
@@ -58,26 +44,6 @@ export const wayIcon = made(function wayIcon(key: string, label: string, name: s
   });
 });
 
-const Way = memo(function Way({ way, shown, at: share, onPick }: { way: RouteWay; shown: boolean; at: number; onPick: (key: string) => void }) {
-  const events = useMemo(() => ({ click: (e: L.LeafletMouseEvent) => { L.DomEvent.stopPropagation(e); onPick(way.key); } }), [onPick, way.key]);
-  // The chip `share` of the way along, by distance: each way's at its own
-  // share (WAY_SHARES), so two ways that run close are not labelled on top
-  // of each other (the owner's screenshot, the two times stacked).
-  const at = useMemo(() => wayAt(way.path, share), [way.path, share]);
-  return (
-    <>
-      <Polyline positions={way.path} pathOptions={shown ? SHOWN_STYLE : WAY_STYLE} eventHandlers={events} />
-      <Marker position={at} icon={wayIcon(way.key, way.label, way.name ?? "", shown)} eventHandlers={events} keyboard={false} zIndexOffset={shown ? 1000 : 0} />
-    </>
-  );
-});
-
-/**
- * The ways FPL's route line offers beside the route while it is open,
- * drawn under it in faded magenta as Maps draws the routes it did not
- * pick, each with a chip of its names and time, the one picked at full
- * strength; a tap on either picks that way, as a tap on its chip does.
- */
 /** Where a way's chip sits: `share` of the way along it. */
 export function wayAt(path: [number, number][], share: number): [number, number] {
   const legs = path.slice(1).map((b, i) => {
@@ -95,10 +61,3 @@ export function wayAt(path: [number, number][], share: number): [number, number]
   return path[0]!;
 }
 
-export const RouteWaysLayer = memo(function RouteWaysLayer({ ways = NO_WAYS, shown = null, onPick }: {
-  ways?: RouteWay[];
-  shown?: string | null;
-  onPick: (key: string) => void;
-}) {
-  return <>{ways.map((way, i) => <Way key={way.key} way={way} shown={way.key === shown} at={way.share ?? WAY_SHARES[i % WAY_SHARES.length]!} onPick={onPick} />)}</>;
-});

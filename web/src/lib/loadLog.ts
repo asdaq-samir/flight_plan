@@ -7,8 +7,8 @@ import { keptStore } from "./storage";
  * in setup", 2026-11-05, after a timing of the order the layers come in).
  * The same milestones that timing read, from the page as it draws: the
  * first paint, the map made, its first chart tile, the airspace's rings
- * and altitudes, the VORs and fixes and the airports on their canvases
- * (each canvas's data-* record of what it drew), and when the airspace's
+ * and altitudes, the VORs and fixes and the airports, as the map's
+ * probes record what each layer drew (lib/map/gl/useGlProbe), and when the airspace's
  * and the TFRs' answers came in. Milliseconds from the start of the load.
  *
  * Read by looking, five times a second, not by a MutationObserver: the
@@ -46,8 +46,8 @@ const GIVE_UP_MS = 30_000;
 
 export const useLoadLog = keptStore<LoadEntry[]>("wingtip.loadLog", []);
 
-/** Whether a canvas's record says it drew anything: a list with an entry,
- *  or counts with one over nought ("{}" and "[]" are a canvas with none). */
+/** Whether a probe's record says it drew anything: a list with an entry,
+ *  or counts with one over nought ("{}" and "[]" are a layer with none). */
 function drew(record: string | undefined): boolean {
   if (!record || record === "{}" || record === "[]") return false;
   try {
@@ -57,6 +57,11 @@ function drew(record: string | undefined): boolean {
   } catch { /* not JSON: drawn, as it was written */ }
   return true;
 }
+
+/** Which milestone each of the map's probes stands for. */
+const PROBES: Record<string, Milestone> = {
+  "airspace-lines": "rings", "airspace-edge-labels": "labels", "navaid-marks": "navaids", "airport-marks": "airports",
+};
 
 /** Started once, as the app starts (main.tsx). */
 export function startLoadLog(win: Window = window) {
@@ -74,14 +79,14 @@ export function startLoadLog(win: Window = window) {
   const look = () => {
     const paint = perf.getEntriesByName("first-contentful-paint")[0];
     if (paint) mark("paint", paint.startTime);
-    if (doc.querySelector(".leaflet-container")) mark("map");
-    if (doc.querySelector(".leaflet-tile-pane img.leaflet-tile-loaded")) mark("tile");
-    for (const canvas of doc.querySelectorAll<HTMLCanvasElement>("canvas")) {
-      const d = canvas.dataset;
-      if (drew(d.airspaceLines)) mark("rings");
-      if (drew(d.airspaceEdgeLabels)) mark("labels");
-      if (drew(d.navaidMarks)) mark("navaids");
-      if (drew(d.airportMarks)) mark("airports");
+    if (doc.querySelector(".maplibregl-map")) mark("map");
+    // The chart's first tile drawn (ChartGl's mark), and what each layer has
+    // drawn, as the map's probes say it (lib/map/gl/useGlProbe).
+    if (perf.getEntriesByName("chart-drawn").length) mark("tile");
+    for (const probe of doc.querySelectorAll<HTMLElement>("[data-gl-probe]")) {
+      const name = probe.dataset.glProbe ?? "";
+      const milestone = PROBES[name];
+      if (milestone && drew(probe.getAttribute(`data-${name}`) ?? undefined)) mark(milestone);
     }
     const airspace = answered("/api/planner/airspace/");
     if (airspace) mark("airspaceData", airspace.responseEnd);

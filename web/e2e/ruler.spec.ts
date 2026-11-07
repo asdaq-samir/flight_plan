@@ -1,5 +1,5 @@
 import { test, expect, type CDPSession, type Page } from "@playwright/test";
-import { mapStill, settle, slow } from "./helpers";
+import { chartZoom, mapStill, settle, slow } from "./helpers";
 
 /**
  * The map's ruler (MapRuler), as ForeFlight's: two fingers held still on
@@ -18,13 +18,12 @@ async function fingers(page: Page): Promise<{ cdp: CDPSession; touch: (type: str
   const cdp = await page.context().newCDPSession(page);
   const touch = (type: string, at?: [Finger, Finger]) =>
     cdp.send("Input.dispatchTouchEvent", { type, touchPoints: at ? at.map((p, i) => ({ ...p, id: i + 1 })) : [] });
-  const map = (await page.locator(".leaflet-container").boundingBox())!;
+  const map = (await page.locator(".maplibregl-map").boundingBox())!;
   return { cdp, touch, map };
 }
 
 /** The chart's tile level now: the highest of those drawn. */
-const tileLevel = (page: Page) => page.evaluate(() => Math.max(...[...document.querySelectorAll<HTMLImageElement>("img.leaflet-tile")]
-  .map(img => Number(new URL(img.src).pathname.split("/").at(-3))).filter(Number.isFinite)));
+const tileLevel = (page: Page) => chartZoom(page);
 
 test("two fingers held on the chart bring up the ruler, with its course magnetic and its distance, until they lift", async ({ page }) => {
   test.skip(page.viewportSize()!.width >= 768, "a phone's fingers");

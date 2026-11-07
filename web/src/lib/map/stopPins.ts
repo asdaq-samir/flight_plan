@@ -1,4 +1,4 @@
-import L from "leaflet";
+import { divIcon, type IconLike } from "./icons";
 import { STOP_KINDS, type StopKind } from "../stopKinds";
 
 /** A stop's pin: the caution's orange, its glyph in white (lucide's), its
@@ -8,7 +8,7 @@ import { STOP_KINDS, type StopKind } from "../stopKinds";
  *  asks ("Put airports under the fuel markers"; "at the middle of the
  *  airport markers", 2026-10-26). */
 function stopPin(glyph: string) {
-  return L.divIcon({
+  return divIcon({
     className: "",
     html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
       + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></svg>`,
@@ -27,9 +27,9 @@ export type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel"
  *  with its glyph in white, each fanned eight points right and four up
  *  from the one before so every glyph shows, the first kind in front, its
  *  tip on the field. One icon each set of kinds, made once: a new icon
- *  for every render would have Leaflet draw the marker again. */
-const stackedPins = new Map<string, L.DivIcon>();
-export function stackedPin(kinds: StopKind[]): L.DivIcon {
+ *  for every render would have the marker made again. */
+const stackedPins = new Map<string, IconLike>();
+export function stackedPin(kinds: StopKind[]): IconLike {
   const key = kinds.join(",");
   const kept = stackedPins.get(key);
   if (kept) return kept;
@@ -42,7 +42,7 @@ export function stackedPin(kinds: StopKind[]): L.DivIcon {
     return `<g transform="translate(${i * 8} ${(n - 1 - i) * 4})"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="${colour}" stroke="#fff" stroke-width="2"/>`
       + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></g>`;
   }).reverse().join("");
-  const icon = L.divIcon({
+  const icon = divIcon({
     className: "",
     html: `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">${pins}</svg>`,
     iconSize: [width, height], iconAnchor: [15, height - 1],

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { googleMapsQuery } from "../../../queryClient";
 import { usePreferences, type OverlayStrength } from "../../../preferences";
 import { GOOGLE, useGoogleSession } from "../../googleSession";
-import { USGS_URL } from "../../OverlayTiles";
+import { USGS_URL } from "../../imagery";
 import { useShownOverlay } from "../../useShownOverlay";
 import { useGlLayer, useGlMap, useGlPaint, type Slot } from "../glLayer";
 import { glZoom } from "../glStyle";
@@ -29,6 +29,17 @@ function useCredit(html: string | null) {
   }, [map, html]);
 }
 
+/** Which imagery is over the chart and how strongly, on the map's element
+ *  (data-imagery), for the browser tests. */
+function useImageryShown(kind: string, opacity: number) {
+  const { map } = useGlMap();
+  useEffect(() => {
+    const el = map.getContainer();
+    el.dataset.imagery = `${kind} ${opacity}`;
+    return () => { delete el.dataset.imagery; };
+  }, [map, kind, opacity]);
+}
+
 /** Land and water under the charts where they end (LandWaterTiles): the
  *  USGS's hydrography to zoom 9, enlarged past it. */
 export function LandWaterGl() {
@@ -50,6 +61,7 @@ export function OverlayGl() {
 function Usgs({ opacity }: { opacity: number }) {
   useTiles("overlay-usgs", "imagery", USGS_URL, 16);
   useGlPaint(["overlay-usgs"], { "raster-opacity": opacity });
+  useImageryShown("usgs", opacity);
   useCredit('Imagery <a href="https://www.usgs.gov/programs/national-geospatial-program/national-map" target="_blank" rel="noopener">USGS The National Map</a>');
   return null;
 }
@@ -87,5 +99,6 @@ function Google({ kind, opacity }: { kind: "map" | "satellite"; opacity: number 
 function GoogleTiles({ url, max, opacity }: { url: string; max: number; opacity: number }) {
   useTiles("overlay-google", "imagery", url, max, {}, glZoom(3));
   useGlPaint(["overlay-google"], { "raster-opacity": opacity });
+  useImageryShown("google", opacity);
   return null;
 }

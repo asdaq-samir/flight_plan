@@ -382,9 +382,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (id.includes("node_modules/leaflet/")) return "leaflet";
-          // The MapLibre spike's engine (lib/map/gl), loaded only once a
-          // pilot picks it in the map's settings.
+          // The map's engine (lib/map/gl), with the map's own chunk (routeMapChunk).
           if (id.includes("node_modules/maplibre-gl/")) return "maplibre";
           // TanStack's query client alone: its table (the nav log's and the
           // kneeboard's, both lazy) stays with them, out of the first load.

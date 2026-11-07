@@ -26,13 +26,13 @@ export function noTips() {
 export const slow = (ms: number) => ms * (process.env.CI ? 2 : 1);
 
 export async function settle(page: Page) {
-  // The map's first layout pass: its first tile attached, which is
+  // The map's first layout pass: its first chart tile drawn (ChartGl), which is
   // after the container has been measured and the chart asked for --
   // these tests assert on structure and position, not on the route's
   // data arriving. Capped at the flat 1.5 s this used to sleep every
   // time (44 times a run, 66 s summed), for a page with no map to wait
   // on; usually it is a few hundred milliseconds.
-  await page.locator("img.leaflet-tile").first().waitFor({ state: "attached", timeout: 1500 }).catch(() => {});
+  await page.waitForFunction(() => performance.getEntriesByName("chart-drawn").length > 0, null, { timeout: 1500 }).catch(() => {});
 }
 
 /** The panel over the map (MapPanel): a sheet up from the bottom of a
@@ -551,15 +551,15 @@ export async function openSection(page: Page, title: string) {
   }
 }
 
-/** Once the map has stopped moving: its panes where they were 300 ms
- *  before, and no zoom animating. A route being fitted, or a card
+/** Once the map has stopped moving: not moving now nor 300 ms before
+ *  (GlMapShell's data-moving). A route being fitted, or a card
  *  moving the map to keep the route clear of the panel, moves it after
  *  the page looks settled. */
 export async function mapStill(page: Page) {
-  await expect.poll(() => page.locator(".leaflet-map-pane").evaluate(async pane => {
-    const before = (pane as HTMLElement).style.transform;
+  await expect.poll(() => page.getByTestId("gl-map").first().evaluate(async map => {
+    const before = (map as HTMLElement).dataset.moving;
     await new Promise(r => setTimeout(r, 300));
-    return before === (pane as HTMLElement).style.transform && !pane.closest(".leaflet-zoom-anim");
+    return before === undefined && (map as HTMLElement).dataset.moving === undefined;
   }), { timeout: slow(10000) }).toBe(true);
 }
 
@@ -570,22 +570,16 @@ export async function tapTheChart(page: Page) {
   // Once the map is still: a spot found empty in a move had a field's
   // chip slide under it before the tap (KCWI, on CI's desktop).
   await mapStill(page);
-  const at = await page.locator(".leaflet-container").evaluate(map => {
+  const at = await page.locator(".maplibregl-map").first().evaluate(map => {
     const r = map.getBoundingClientRect();
-    // Clear of every mark by more than a near miss (AirportsLayer's 22),
-    // which a tap there would select.
-    const marks = [...map.querySelectorAll(".leaflet-marker-icon")].map(m => m.getBoundingClientRect());
-    // And the chart's airports, drawn on a canvas (AirportCanvas): each a
-    // mark's 26 across round where it is.
-    for (const c of map.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")) {
-      for (const m of JSON.parse(c.dataset.airportMarks ?? "[]") as { x: number; y: number }[]) {
-        marks.push(new DOMRect(r.left + m.x - 13, r.top + m.y - 13, 26, 26));
-      }
-    }
-    // And the VORs and fixes, on a canvas too (NavaidCanvas): a tap within
-    // 22 of one opens its card.
-    for (const c of map.querySelectorAll<HTMLCanvasElement>("canvas[data-navaid-marks]")) {
-      for (const m of JSON.parse(c.dataset.navaidMarks ?? "[]") as { x: number; y: number }[]) {
+    // Clear of every mark by more than a near miss (a 44-point target),
+    // which a tap there would select: the markers', and those drawn on the
+    // canvas -- the airports, the VORs and fixes, the checkpoints -- each a
+    // mark's 26 across round where its probe says it is (useGlProbe).
+    const marks = [...map.querySelectorAll(".maplibregl-marker")].map(m => m.getBoundingClientRect());
+    for (const probe of map.querySelectorAll<HTMLElement>("[data-airport-marks], [data-navaid-marks], [data-checkpoint-marks]")) {
+      const name = probe.dataset.glProbe!;
+      for (const m of JSON.parse(probe.getAttribute(`data-${name}`) ?? "[]") as { x: number; y: number }[]) {
         marks.push(new DOMRect(r.left + m.x - 13, r.top + m.y - 13, 26, 26));
       }
     }
@@ -594,7 +588,7 @@ export async function tapTheChart(page: Page) {
       for (let fx = 0.15; fx < 0.9; fx += 0.1) {
         const x = r.left + r.width * fx, y = r.top + r.height * fy;
         const hit = document.elementFromPoint(x, y);
-        if (hit && map.contains(hit) && clear(x, y) && (hit.matches("img.leaflet-tile") || hit.matches(".leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container"))) return { x, y };
+        if (hit && map.contains(hit) && clear(x, y) && hit.matches("canvas.maplibregl-canvas")) return { x, y };
       }
     }
     return null;
@@ -632,7 +626,7 @@ export async function tapNear(page: Page, mark: Locator | (() => Promise<{ x: nu
       for (const r of [14, 18]) for (let a = 0; a < 360; a += 30) ring.push([Math.round(r * Math.sin(a * Math.PI / 180)), Math.round(r * Math.cos(a * Math.PI / 180))]);
       for (const [dx, dy] of ring) {
         const hit = document.elementFromPoint(x! + dx!, y! + dy!);
-        if (hit?.matches("img.leaflet-tile, .leaflet-container, .leaflet-pane, .leaflet-layer, .leaflet-tile-container")) return { x: x! + dx!, y: y! + dy! };
+        if (hit?.matches("canvas.maplibregl-canvas")) return { x: x! + dx!, y: y! + dy! };
       }
       return null;
     }, [middle.x, middle.y]);
@@ -703,7 +697,7 @@ export async function airportSearch(page: Page) {
 }
 
 
-/** A chart airport as its canvas drew it (AirportCanvas's
+/** A chart airport as the map drew it (AirportsGl's probe,
  *  `data-airport-marks`): its ident, where it is on the page, whether it
  *  wears its mark (`chip`) and the mark's airspace, use and weather colour. */
 export interface DrawnAirport {
@@ -713,21 +707,20 @@ export interface DrawnAirport {
 /** Every chart airport drawn now, on the page's own pixels: the Class B,
  *  C and D fields' canvas and the others' (AirportsLayer). */
 export async function airportMarks(page: Page): Promise<DrawnAirport[]> {
-  return page.evaluate(() => [...document.querySelectorAll<HTMLCanvasElement>("canvas[data-airport-marks]")].flatMap(c => {
-    const r = c.closest(".leaflet-container")!.getBoundingClientRect();
-    const drawn = JSON.parse(c.dataset.airportMarks ?? "[]") as { x: number; y: number }[];
+  return page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-airport-marks]")].flatMap(c => {
+    const r = c.closest(".maplibregl-map")!.getBoundingClientRect();
+    const drawn = JSON.parse(c.getAttribute("data-airport-marks") ?? "[]") as { x: number; y: number }[];
     return drawn.map(m => ({ ...m, x: m.x + r.left, y: m.y + r.top }));
   })) as Promise<DrawnAirport[]>;
 }
 
-/** The VFR waypoints drawn on the map (WaypointsLayer, on a navaids
- *  canvas of their own), in the page's own points. */
+/** The VFR waypoints drawn on the map (WaypointsGl's probe), in the page's own points. */
 export async function waypointMarks(page: Page): Promise<{ ident: string; x: number; y: number }[]> {
   return page.evaluate(() => {
     const out: { ident: string; x: number; y: number }[] = [];
-    for (const c of document.querySelectorAll<HTMLCanvasElement>("canvas[data-navaid-marks]")) {
-      const r = c.closest(".leaflet-container")!.getBoundingClientRect();
-      for (const m of JSON.parse(c.dataset.navaidMarks ?? "[]") as { ident: string; kind: string; x: number; y: number }[]) {
+    for (const c of document.querySelectorAll<HTMLElement>("[data-navaid-marks]")) {
+      const r = c.closest(".maplibregl-map")!.getBoundingClientRect();
+      for (const m of JSON.parse(c.getAttribute("data-navaid-marks") ?? "[]") as { ident: string; kind: string; x: number; y: number }[]) {
         if (m.kind === "vfr") out.push({ ident: m.ident, x: m.x + r.left, y: m.y + r.top });
       }
     }
@@ -746,4 +739,18 @@ export async function airportMark(page: Page, ident: string): Promise<DrawnAirpo
  *  the card's own, by its test id. */
 export function cardClose(page: Page, testId: string) {
   return (page.viewportSize()?.width ?? 0) < 768 ? page.getByTestId("tab-close") : page.getByTestId(testId);
+}
+
+/** What a map layer has drawn now, as its probe records it (useGlProbe):
+ *  each feature's fields and, for a point or an area, where it is on the
+ *  map in the map's own points. */
+export async function drawn(page: Page, name: string): Promise<Record<string, unknown>[]> {
+  return page.evaluate(n => [...document.querySelectorAll<HTMLElement>(`[data-gl-probe="${n}"]`)]
+    .flatMap(p => JSON.parse(p.getAttribute(`data-${n}`) ?? "[]") as Record<string, unknown>[]), name);
+}
+
+/** The level of the chart's tiles the map draws now (ChartGl's
+ *  data-chart-zoom), NaN before the chart is up. */
+export async function chartZoom(page: Page): Promise<number> {
+  return Number(await page.getByTestId("gl-map").first().getAttribute("data-chart-zoom"));
 }

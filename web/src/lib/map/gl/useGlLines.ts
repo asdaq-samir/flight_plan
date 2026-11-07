@@ -1,6 +1,9 @@
 import type { LineLayerSpecification } from "maplibre-gl";
 import { useMemo } from "react";
 import { useGlData, useGlLayer, type Slot } from "./glLayer";
+import { useGlProbe } from "./useGlProbe";
+
+const DRAWN = () => ({ drawn: true });
 
 export interface GlRun {
   /** [lat, lon], as the app keeps its lines. */
@@ -42,4 +45,6 @@ export function useGlLines(id: string, slot: Slot, runs: GlRun[] | null, casing:
     })),
   } : null), [runs]);
   useGlData(id, data);
+  // Whether it is drawn, for the browser tests (data-<id>, useGlProbe).
+  useGlProbe(id, [id], DRAWN);
 }
