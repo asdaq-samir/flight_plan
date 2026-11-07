@@ -51,14 +51,17 @@ one job (the owner kept both server languages on this split, 2026-11-06):
 
 - One flow, for the owner and every session alike: a `claude/<topic>`
   branch from `main`, a pull request to `main`, and it merges by itself
-  once the "CI passed" check is green and Claude's review has run
-  (auto-merge-agents.yml); nothing merges red. The branch is deleted on
-  merge (the repository's setting).
+  once the "CI passed" check is green (auto-merge-agents.yml); nothing
+  merges red. The branch is deleted on merge (the repository's setting).
+- Claude's review is on demand, not a gate (the owner, 2026-11-06): the
+  "review" label on a pull request asks for one. So run the checks that
+  cover a change, and the aviation-check skill for any figure or rule,
+  before pushing.
 - Never push to `main`. Never force-push. Merge `main` into a branch to
   bring it up to date; never rebase a pushed one.
-- On a pull request, Claude's review is put right on the branch ("Address
-  review:" commits) and a CI failure is fixed ("Fix CI:"), each at most
-  twice.
+- On a pull request, an asked-for review is put right on the branch
+  ("Address review:" commits) and a CI failure is fixed ("Fix CI:"), each
+  at most twice.
 - Write to GitHub gently, as the `ship` skill says: one write at a time,
   ten seconds apart, a long list as one issue's checklist. A burst of API
   writes got the owner's account suspended in October 2026.

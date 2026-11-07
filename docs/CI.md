@@ -61,6 +61,11 @@ C81 -> KDLH read the corridor's sectional tiles: 185 s of a 215 s run
 with the charts left out. The other jobs keep the charts in a cache of
 their own, so this one is separate (`tests-raw-planner-v2-`).
 
+A pull request merges once "CI passed" is green; Claude's review no
+longer gates it and runs only when the "review" label is put on the pull
+request (the owner, 2026-11-06), so agents run the checks that cover their
+change, and the aviation-check skill, before pushing.
+
 Promote tags the images after main's push is green. A nightly failure is
 said in its run and does not hold Promote.
 
