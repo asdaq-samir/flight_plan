@@ -40,11 +40,44 @@ function useImageryShown(kind: string, opacity: number) {
   }, [map, kind, opacity]);
 }
 
+/** At the latest, the land and water asked for this long after the map is
+ *  made, should the chart's tiles not come (no signal, the planner down). */
+const LAND_WATER_LATEST_MS = 4000;
+
 /** Land and water under the charts where they end (LandWaterTiles): the
- *  USGS's hydrography to zoom 9, enlarged past it. */
+ *  USGS's hydrography to zoom 9, enlarged past it. Asked for only once the
+ *  chart's first tile has drawn, or the map has first come to rest: on a
+ *  phone's first load its tiles, from a slower server, shared the
+ *  connection with the chart's, and the page's first paint waited for
+ *  both (nightly Lighthouse, 2026-11-07: Largest Contentful Paint 12.5 s,
+ *  a land-and-water tile). Drawn the same once it is in. */
 export function LandWaterGl() {
+  const chartFirst = useChartDrawnFirst();
+  return chartFirst ? <LandWater /> : null;
+}
+
+function LandWater() {
   useTiles("land-water", "base", "https://basemap.nationalmap.gov/arcgis/rest/services/USGSHydroCached/MapServer/tile/{z}/{y}/{x}", 9);
   return null;
+}
+
+/** Whether the chart's first tile has drawn, or the map has been idle
+ *  once, or LAND_WATER_LATEST_MS have passed. */
+function useChartDrawnFirst(): boolean {
+  const { map } = useGlMap();
+  const [drawn, setDrawn] = useState(false);
+  useEffect(() => {
+    if (drawn) return;
+    const done = () => setDrawn(true);
+    const tile = (e: { sourceId?: string; tile?: unknown }) => {
+      if (e.tile && (e.sourceId === "chart" || e.sourceId === "chart-under")) done();
+    };
+    map.on("sourcedata", tile);
+    map.once("idle", done);
+    const latest = window.setTimeout(done, LAND_WATER_LATEST_MS);
+    return () => { map.off("sourcedata", tile); map.off("idle", done); window.clearTimeout(latest); };
+  }, [map, drawn]);
+  return drawn;
 }
 
 /** What is drawn over the chart at the pilot's ask (OverlayTiles): the
