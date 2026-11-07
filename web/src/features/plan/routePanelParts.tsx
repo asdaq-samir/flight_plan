@@ -20,7 +20,30 @@ export const { Part: PilotPanel, prefetch: prefetchPilotPanel } = fromChunk(() =
 type RoutePanel = typeof import("./routePanel");
 type PropsOf<C> = C extends ComponentType<infer P extends object> ? P : never;
 let routePanel: RoutePanel | null = null;
-export const loadRoutePanel = () => import("./routePanel").then(m => (routePanel = m));
+// Asked for once the page has painted, not as its first render draws the
+// chips and the hidden nav log: 608 KB, 203 KB gzipped, that shared a
+// phone's connection with the fonts, the map's chunks and the engine the
+// first paint waits for (issue #214). Every part has its room meanwhile
+// (its Suspense), and nothing of the chunk shows on a first paint.
+const painted = new Promise<void>(resolve => {
+  // Where paints are not reported (Node's observer under the tests), at once.
+  if (typeof PerformanceObserver === "undefined" || !PerformanceObserver.supportedEntryTypes?.includes("paint")) {
+    resolve();
+    return;
+  }
+  try {
+    new PerformanceObserver((list, observer) => {
+      if (!list.getEntries().some(entry => entry.name === "first-contentful-paint")) return;
+      observer.disconnect();
+      resolve();
+    }).observe({ type: "paint", buffered: true });
+  } catch {
+    resolve();
+  }
+  // Where no paint is reported (a hidden tab, an old browser), soon anyway.
+  window.setTimeout(resolve, 3000);
+});
+export const loadRoutePanel = () => painted.then(() => import("./routePanel")).then(m => (routePanel = m));
 // Each part drawn again only when its own props change (memo): the
 // workspace renders at each answer that streams in, and the route's box,
 // the chips and the nav log were all drawn again each time -- 60 to 85 ms
@@ -53,7 +76,8 @@ export const BriefingNotices = fromRoutePanel("BriefingNotices");
 export const SaveFlightButton = fromRoutePanel("SaveFlightButton");
 export const ReviewAskItem = fromRoutePanel("ReviewAskItem");
 export const ReviewAskSheet = fromRoutePanel("ReviewAskSheet");
-export const RouteBox = fromRoutePanel("RouteBox");
+// The search, on a chunk of its own: the first screen draws it.
+export { RouteBox } from "./routeBoxChunk";
 export const RouteEnds = fromRoutePanel("RouteEnds");
 export const RouteSplit = fromRoutePanel("RouteSplit");
 export const Kneeboard = fromRoutePanel("Kneeboard");

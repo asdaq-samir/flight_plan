@@ -111,7 +111,10 @@ jobs:
       # wingtip.airspace_at import: built with the runner's own Rust, in the
       # light `ci` profile (the image's is the release one; the sums are
       # the same either way, as nothing here is built for fast maths).
-      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      # The runner's own temp, not /tmp: the Mac mini's runners share one
+      # machine, and two jobs building into /tmp/native would install each
+      # other's wheel.
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m native/py/Cargo.toml -o "$RUNNER_TEMP"/native && uv pip install --system "$RUNNER_TEMP"/native/*.whl
       # The engine's own tests, on the shared fixtures the Python reads too:
       # the facade's and each of its crates' (native/crates).
       - run: cargo test --profile ci --manifest-path native/Cargo.toml -p wingtip-engine -p wingtip-geo -p wingtip-weather -p wingtip-figures -p wingtip-radio -p wingtip-airspace -p wingtip-wording -p wingtip-brief -p wingtip-route -p wingtip-pilot
@@ -135,11 +138,11 @@ jobs:
       - name: pdoc (src/wingtip)
         run: |
           uv pip install --system pdoc
-          PYTHONPATH=src python -m pdoc src/wingtip -o /tmp/pdoc-wingtip --no-show-source
+          PYTHONPATH=src python -m pdoc src/wingtip -o "$RUNNER_TEMP"/pdoc-wingtip --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: pdoc-wingtip
-          path: /tmp/pdoc-wingtip
+          path: ${{ runner.temp }}/pdoc-wingtip
           retention-days: 30
 
   # The web front end. Its own job because it needs Node rather than
@@ -279,7 +282,7 @@ jobs:
       - run: pip install uv
       - run: uv pip install --system -r requirements-dev.txt
       # The planner imports wingtip's Rust extension (native/), as in the test job.
-      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/py/Cargo.toml -o /tmp/native && uv pip install --system /tmp/native/*.whl
+      - run: uv pip install --system maturin==1.9.4 && maturin build --profile ci --compatibility linux -m ../native/py/Cargo.toml -o "$RUNNER_TEMP"/native && uv pip install --system "$RUNNER_TEMP"/native/*.whl
       - run: ruff check app tests
       - run: pytest tests/ -v
 
@@ -309,11 +312,11 @@ jobs:
       - name: pdoc (nav-log-agent)
         run: |
           uv pip install --system pdoc
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-nav-log-agent --no-show-source
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o "$RUNNER_TEMP"/pdoc-nav-log-agent --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: pdoc-nav-log-agent
-          path: /tmp/pdoc-nav-log-agent
+          path: ${{ runner.temp }}/pdoc-nav-log-agent
           retention-days: 30
 
   test-crewai-agent:
@@ -335,11 +338,11 @@ jobs:
       - name: pdoc (crewai-agent)
         run: |
           uv pip install --system pdoc
-          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o /tmp/pdoc-crewai-agent --no-show-source
+          PYTHONPATH="$GITHUB_WORKSPACE/src" python -m pdoc app -o "$RUNNER_TEMP"/pdoc-crewai-agent --no-show-source
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
         with:
           name: pdoc-crewai-agent
-          path: /tmp/pdoc-crewai-agent
+          path: ${{ runner.temp }}/pdoc-crewai-agent
           retention-days: 30
 
   # What this run has to do, from what changed: the one job the test
@@ -1602,8 +1605,8 @@ jobs:
         run: |
           printf '%s\n' IMAGE_REGISTRY=registry.example/wingtip PUBLIC_HOST=app.example.com \
             ORIGIN_HOST=origin.app.example.com ORIGIN_SECRET=x POSTGRES_PASSWORD=x NAV_LOG_AGENT_API_KEY=x \
-            MAIL_HOST=smtp.example.com MAIL_FROM=no-reply@example.com > /tmp/prod.env
-          docker compose --env-file /tmp/prod.env -f docker-compose.prod.yml config --quiet
+            MAIL_HOST=smtp.example.com MAIL_FROM=no-reply@example.com > "$RUNNER_TEMP"/prod.env
+          docker compose --env-file "$RUNNER_TEMP"/prod.env -f docker-compose.prod.yml config --quiet
       - name: caddy validate (infra/server/Caddyfile)
         run: |
           docker run --rm -e ORIGIN_HOST=origin.app.example.com -e PUBLIC_HOST=app.example.com -e ORIGIN_SECRET=x \
