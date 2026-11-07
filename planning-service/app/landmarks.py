@@ -37,7 +37,7 @@ from pathlib import Path
 import numpy as np
 from cachetools import LRUCache
 from wingtip import charts, chartvision
-from wingtip.config import CHART_TILE_CACHE_DIR
+from wingtip.config import CHART_TILE_CACHE_DIR, get_settings
 from wingtip.geo import along_track_distance_nm, cross_track_distance_nm, distance_nm
 
 from . import detection
@@ -61,7 +61,7 @@ APRON_TILES = 1
 
 # Where the cells are kept: beside the cycle's tiles, or elsewhere where
 # CHART_LANDMARKS_DIR says (a server whose tiles are in the cloud).
-LANDMARKS_ROOT = Path(os.environ.get("CHART_LANDMARKS_DIR") or CHART_TILE_CACHE_DIR)
+LANDMARKS_ROOT = get_settings().chart_landmarks_dir or CHART_TILE_CACHE_DIR
 
 # Per tile and per kind of blob, five bits: whether that kind's pixels
 # run on into the tile to the right, below, to the left or above, and

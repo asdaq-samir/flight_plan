@@ -4,7 +4,6 @@ reference data is, which model is promoted and how it was trained, which
 corridors are built and how far their labels have come -- and the one
 pipeline action offered from here, a retrain run through Airflow."""
 import json
-import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -16,7 +15,7 @@ from wingtip.terrain import DEFAULT_FAA_CACHE_DIR
 
 from .. import chart_model, chart_refresh, errors
 from ..common import PROCESSED_DIR, paths
-from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS
+from ..settings import CHARTS_REFRESH_WINDOW, CHARTS_REFRESH_WORKERS, get_settings
 from ..schemas import (
     ChartModelSnapshot,
     ChartRefreshStarted,
@@ -37,18 +36,18 @@ router = APIRouter()
 
 # Both optional: unset (the AWS task, or a compose file that leaves them
 # out) reports the agent as "not configured" rather than down.
-NAV_LOG_AGENT_URL = os.environ.get("NAV_LOG_AGENT_URL")
+NAV_LOG_AGENT_URL = get_settings().nav_log_agent_url
 # The gateway, by its compose name; its actuator answers liveness and
 # readiness (the readiness group includes the database).
-WEBAPP_URL = os.environ.get("WEBAPP_URL", "http://webapp:8080")
-CREWAI_AGENT_URL = os.environ.get("CREWAI_AGENT_URL")
+WEBAPP_URL = get_settings().webapp_url
+CREWAI_AGENT_URL = get_settings().crewai_agent_url
 # Airflow, for the retrain button: its API base, the DAG to run, and
 # credentials -- AIRFLOW_USERNAME/AIRFLOW_PASSWORD, or the passwords file
 # Airflow's own standalone mode generates (docker-compose.yml mounts that
 # volume here read-only, so a local stack needs no configuration).
-AIRFLOW_URL = os.environ.get("AIRFLOW_URL")
-AIRFLOW_DAG_ID = os.environ.get("AIRFLOW_DAG_ID", "wingtip_pipeline")
-AIRFLOW_PASSWORDS_FILE = os.environ.get("AIRFLOW_PASSWORDS_FILE")
+AIRFLOW_URL = get_settings().airflow_url
+AIRFLOW_DAG_ID = get_settings().airflow_dag_id
+AIRFLOW_PASSWORDS_FILE = get_settings().airflow_passwords_file
 PROBE_TIMEOUT_S = 3.0
 
 # The FAA downloads a nav log depends on, wherever wingtip keeps them.
@@ -175,7 +174,7 @@ def _weather_datasets() -> list[WeatherDataset]:
 
 
 def _airflow_credentials() -> tuple[str, str] | None:
-    user, password = os.environ.get("AIRFLOW_USERNAME"), os.environ.get("AIRFLOW_PASSWORD")
+    user, password = get_settings().airflow_username, get_settings().airflow_password
     if user and password:
         return user, password
     if AIRFLOW_PASSWORDS_FILE:

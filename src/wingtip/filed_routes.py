@@ -12,17 +12,15 @@ pilots fly, the "most flown" the owner asked for.
 """
 from __future__ import annotations
 
-import os
 import re
 import sqlite3
 import threading
 import time
 import xml.etree.ElementTree as ET
-from pathlib import Path
 
-from .config import DATA_DIR
+from .config import get_settings
 
-STORE = Path(os.environ.get("FILED_STORE", str(DATA_DIR / "raw" / "faa_filed" / "filed.sqlite")))
+STORE = get_settings().filed_store
 #: How long a flight's route counts, s: a year, so a route a season favours
 #: and the airways and fixes of every chart cycle in it are all counted.
 KEEP_S = 365 * 24 * 3600

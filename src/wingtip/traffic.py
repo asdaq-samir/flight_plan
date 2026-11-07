@@ -26,7 +26,6 @@ from __future__ import annotations
 import json
 import logging
 import math
-import os
 import re
 import threading
 import time
@@ -39,7 +38,7 @@ import requests
 from cachetools import TTLCache
 
 from . import airports, geo, registry, weather
-from .config import DATA_DIR
+from .config import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -111,7 +110,7 @@ ADSBX_HOST = "adsbexchange-com1.p.rapidapi.com"
 ADSBX_URL = "https://adsbexchange-com1.p.rapidapi.com/v2/{path}/"
 #: Requests a month at most, short of the plan's 10,000 so a month's end
 #: never brings its overage charges.
-ADSBX_MONTHLY = int(os.environ.get("ADSBX_MONTHLY_REQUESTS", "9000"))
+ADSBX_MONTHLY = get_settings().adsbx_monthly_requests
 #: Never two of the map's region requests to it closer together than
 #: this, s: 9,000 a month is one every five minutes on average; this
 #: keeps a bad hour from spending a week's. A pilot's search is not held
@@ -121,7 +120,7 @@ ADSBX_MIN_GAP_S = 30.0
 #: project's data folder (wingtip.config), where it went to the planner's
 #: working folder from a path of its own, outside the data kept between
 #: containers and not ignored by git.
-ADSBX_USAGE_FILE = Path(os.environ.get("ADSBX_USAGE_FILE", str(DATA_DIR / "raw" / "adsbx_usage.json")))
+ADSBX_USAGE_FILE = get_settings().adsbx_usage_file
 #: Its credit, as the map says it where it draws what it gave.
 ADSBX_SOURCE = {"source": "ADS-B Exchange", "license": "ADS-B Exchange terms"}
 _ADSBX = {"last": -math.inf}
@@ -132,7 +131,7 @@ def _adsbx_spend(search: bool = False) -> bool:
     key, the month has one left and -- for the map's regions, not a pilot's
     search, which is asked at once -- the gap since the last region's is
     kept; the count kept on disk."""
-    if not os.environ.get("ADSBX_RAPIDAPI_KEY"):
+    if not get_settings().adsbx_rapidapi_key:
         return False
     month = time.strftime("%Y-%m", time.gmtime(_wall()))
     with _LOCK:
@@ -163,7 +162,7 @@ def _adsbx(path: str, search: bool = False) -> list[dict]:
         raise TrafficUnavailable("ADS-B Exchange may not be asked now")
     try:
         resp = requests.get(ADSBX_URL.format(path=path), timeout=TIMEOUT_S, headers={
-            **HEADERS, "x-rapidapi-key": os.environ.get("ADSBX_RAPIDAPI_KEY", ""), "x-rapidapi-host": ADSBX_HOST})
+            **HEADERS, "x-rapidapi-key": get_settings().adsbx_rapidapi_key or "", "x-rapidapi-host": ADSBX_HOST})
         _adsbx_counted(resp.headers)
         resp.raise_for_status()
         entries = resp.json().get("ac") or []
@@ -198,7 +197,7 @@ def _adsbfi(hex_id: str) -> list[dict]:
     """adsb.fi's report of an airplane by its address, as `_aircraft` gives
     it; none where it is off, may not be asked yet (ADSBFI_MIN_GAP_S),
     turned us away lately, or does not answer."""
-    if os.environ.get("ADSBFI_OPEN_DATA", "1") == "0":
+    if not get_settings().adsbfi_open_data:
         return []
     with _LOCK:
         now = _clock()
@@ -878,7 +877,7 @@ WATCH_GAP_S = 20.0
 RECORD_KEEP_S = 30 * 86400.0
 #: Where each airplane's recorded track is kept, a file each, so a restart
 #: of the planner does not lose the flights it watched.
-RECORDED_DIR = Path(os.environ.get("RECORDED_TRACKS_DIR", str(DATA_DIR / "raw" / "watched_tracks")))
+RECORDED_DIR = get_settings().recorded_tracks_dir
 _WATCHED: dict[str, float] = {}
 _WATCH_ASKED: dict[str, float] = {}
 #: Whose a watched airplane's last report was, for the map's credit.
@@ -1014,7 +1013,7 @@ def start_following() -> None:
     """The followed airplanes asked for every FOLLOW_EVERY_S on a thread
     of their own, for as long as the planner runs; nothing where adsb.fi
     is off (ADSBFI_OPEN_DATA=0)."""
-    if os.environ.get("ADSBFI_OPEN_DATA", "1") == "0":
+    if not get_settings().adsbfi_open_data:
         return
 
     def run() -> None:
