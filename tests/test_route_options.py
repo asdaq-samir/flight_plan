@@ -307,8 +307,9 @@ def test_the_options_judge_water_from_the_lowest_cruise_and_the_airplanes_speed(
 
     def spy(lat0, lon0, rows, cols, cell, height_ft, speed_kt):
         seen.update(height_ft=height_ft, speed_kt=speed_kt)
-        return np.zeros((rows, cols))
-    monkeypatch.setattr(water, "out_of_glide", spy)
+        per = int(round(cell / water.STEP_DEG))
+        return np.zeros((rows * per, cols * per), dtype=bool)
+    monkeypatch.setattr(water, "out_of_glide_samples", spy)
     route_options.options(DEP, DEST, PROFILE, fields=NO_FIELDS)
     assert seen["height_ft"] == route_options.LOWEST_CRUISE_FT
     assert seen["speed_kt"] > 40.0
