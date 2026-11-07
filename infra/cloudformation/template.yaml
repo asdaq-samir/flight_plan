@@ -727,6 +727,21 @@ Resources:
             CachedMethods: [GET, HEAD]
             Compress: true
             CachePolicyId: !Ref SharedAnswersCachePolicy
+          # The map's FAA overlays as vector tiles (the planner's
+          # /api/overlay-tiles and /api/overlay-tiles/{name}.pmtiles): the
+          # index for the hour it says, the archive -- its build in its
+          # name -- a day at the edge and its cycle in the browser. The map
+          # reads the archive in byte ranges, which CloudFront answers from
+          # what it holds (the Range header is never part of the key); not
+          # compressed, since its tiles are gzipped inside and a range of
+          # a compressed answer would not be the archive's bytes.
+          - PathPattern: api/planner/overlay-tiles*
+            TargetOriginId: server
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            Compress: false
+            CachePolicyId: !Ref SharedAnswersCachePolicy
         # A server error is passed on, never kept: CloudFront would hold
         # one for ten seconds by default, and a planner restarting would
         # then outlast itself at the edge.

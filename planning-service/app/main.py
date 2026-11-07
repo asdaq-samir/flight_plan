@@ -42,6 +42,7 @@ from wingtip import (
 )
 from wingtip import airspace_at, congested
 from wingtip import pack as cycle_pack
+from wingtip import vector_tiles
 from wingtip import traffic as traffic_data
 from wingtip import airports as airport_table
 
@@ -78,11 +79,28 @@ REGISTRY_REFRESH = os.environ.get("REGISTRY_REFRESH", "1") != "0"
 #: planner holds, once a cycle: on, but on a test stack, which reads the
 #: files themselves and need not write 400 MB a run.
 CYCLE_PACK = os.environ.get("CYCLE_PACK", "1") != "0"
+#: Whether the map's overlay tiles (wingtip.vector_tiles) are built here
+#: from the cycle pack, once a cycle: on wherever the pack is, as a
+#: minute or two of tippecanoe once a cycle; its own switch to leave the
+#: pack without them.
+OVERLAY_TILES = os.environ.get("OVERLAY_TILES", "1") != "0"
 # Set once the reference data below is loaded: the health probe reports
 # it, so a test run against a fresh stack can wait for a planner that
 # answers at full speed rather than one still parsing airspace under
 # its first requests.
 WARM = threading.Event()
+def _ensure_overlay_tiles() -> None:
+    """The map's overlay tiles of the cycle pack built where they are not
+    (wingtip.vector_tiles.ensure); a failure leaves the archive there was,
+    and the next start or new edition tries again."""
+    if not OVERLAY_TILES:
+        return
+    try:
+        vector_tiles.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
+    except Exception:  # noqa: BLE001 -- the map asks the in-view endpoints meanwhile
+        log.exception("overlay tiles not built")
+
+
 def _prepare_corridor_charts() -> None:
     """The FAA charts under every corridor already built here -- a
     sectional is a 70 MB download and a minute of preparation the first
@@ -224,6 +242,7 @@ def _warm_reference_data() -> None:
             cycle_pack.ensure_phone()
         except Exception:  # noqa: BLE001 -- the files are read as they were; the next start tries again
             log.exception("cycle pack not built")
+        _ensure_overlay_tiles()
 
     if chart_refresh.AUTO_REFRESH:
         chart_refresh.maybe_refresh()
@@ -281,6 +300,7 @@ def _warm_reference_data() -> None:
                     if CYCLE_PACK:
                         cycle_pack.ensure(altitude.DEFAULT_FAA_CACHE_DIR)
                         cycle_pack.ensure_phone()
+                        _ensure_overlay_tiles()
             except Exception:  # noqa: BLE001 -- the FAA's index out of reach: the next check tries again
                 log.warning("FAA editions not checked", exc_info=True)
         # The aircraft registry, read again once it is a day old (each

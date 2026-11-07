@@ -87,6 +87,12 @@ public class PlannerProxyController {
     static boolean isAirportExtra(String path) {
         return path.startsWith("/api/airport/") && (path.endsWith("/services") || path.endsWith("/photos"));
     }
+
+    /** The overlay tiles' archive itself (/api/overlay-tiles/{name}.pmtiles),
+     *  not their index. */
+    static boolean isOverlayArchive(String path) {
+        return path.startsWith(OVERLAY_TILES_PATH + "/");
+    }
     /** An approach's plate placed on the map (the planner's wingtip.plates),
      *  its d-TPP cycle in its address: carried as the diagram's. */
     private static final String PLATE_PATH = "/api/approach-plate/";
@@ -99,6 +105,13 @@ public class PlannerProxyController {
      *  upstream's Cache-Control. */
     static final String CYCLE_PACKS_PATH = "/api/cycle-packs";
     private static final String CYCLE_PACK_PATH = "/api/cycle-pack/";
+    /** The map's FAA overlays as vector tiles (the planner's
+     *  wingtip.vector_tiles): the index, kept as the airport search is, and
+     *  the cycle's PMTiles archive, its build in its name, kept as an
+     *  airport diagram is. The map reads the archive in byte ranges, so the
+     *  Range asked and the range answered are passed on as the ForeFlight
+     *  pack's are. */
+    static final String OVERLAY_TILES_PATH = "/api/overlay-tiles";
     /** The ForeFlight pack: a file, its name in Content-Disposition. */
     private static final String PACK_PATH = "/api/foreflight-pack/";
 
@@ -197,6 +210,9 @@ public class PlannerProxyController {
             // The phones' packs, for the airspace with no network.
             route("GET", CYCLE_PACKS_PATH),
             route("GET", CYCLE_PACK_PATH + "{cycle}/{file}"),
+            // The map's airspace, airports, navaids and fixes as vector tiles.
+            route("GET", OVERLAY_TILES_PATH),
+            route("GET", OVERLAY_TILES_PATH + "/{file}"),
             route("POST", "/api/checkpoint-notes"),
             route("POST", "/api/checkpoint-notes/generate"),
             // The words with their sources, for the apps' "In words" sections
@@ -317,9 +333,10 @@ public class PlannerProxyController {
             pilots.current(SecurityContextHolder.getContext().getAuthentication())
                     .ifPresent(pilot -> upstreamBuilder.header(PILOT_HEADER, String.valueOf(pilot.getId())));
         }
-        // ForeFlight's downloader asks for the pack in byte ranges.
+        // ForeFlight's downloader asks for the pack in byte ranges, and the
+        // map for the overlay tiles' archive.
         String range = request.getHeader(HttpHeaders.RANGE);
-        if (path.startsWith(PACK_PATH) && range != null) {
+        if ((path.startsWith(PACK_PATH) || isOverlayArchive(path)) && range != null) {
             upstreamBuilder.header(HttpHeaders.RANGE, range);
         }
         HttpRequest upstream = upstreamBuilder.build();
@@ -347,6 +364,7 @@ public class PlannerProxyController {
             if (path.startsWith(TILE_PATH) || path.startsWith(DIAGRAM_PATH) || path.startsWith(PLATE_PATH) || path.startsWith(FAA_CHART_PATH)
                     || path.startsWith(AERIAL_PATH) || path.startsWith(PHOTO_PATH)
                     || path.equals(CYCLE_PACKS_PATH) || path.startsWith(CYCLE_PACK_PATH)
+                    || path.equals(OVERLAY_TILES_PATH) || isOverlayArchive(path)
                     || isAirportExtra(path)
                     || SHARED_PATHS.contains(path)) {
                 response.headers().firstValue(HttpHeaders.CACHE_CONTROL).ifPresent(value -> {
@@ -372,6 +390,15 @@ public class PlannerProxyController {
             if (path.startsWith(PACK_PATH)) {
                 for (String name : new String[] {HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_LENGTH,
                         HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES}) {
+                    response.headers().firstValue(name).ifPresent(value -> builder.header(name, value));
+                }
+            }
+            // The overlay tiles' archive: the range each answer is, and its
+            // ETag, which the map's PMTiles reader checks every range against
+            // so a new build is never read half old and half new.
+            if (isOverlayArchive(path)) {
+                for (String name : new String[] {HttpHeaders.CONTENT_LENGTH, HttpHeaders.CONTENT_RANGE,
+                        HttpHeaders.ACCEPT_RANGES, HttpHeaders.ETAG}) {
                     response.headers().firstValue(name).ifPresent(value -> builder.header(name, value));
                 }
             }

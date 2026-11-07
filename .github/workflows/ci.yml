@@ -126,6 +126,13 @@ jobs:
             echo "::error title=Engine wasm out of date::web/src/lib/engine/wingtip-engine.wasm is not what native/ builds: run scripts/build-engine-wasm.sh and commit the file."
             exit 1
           }
+      # tippecanoe, for tests/test_vector_tiles.py's archive tests (the
+      # map's overlay tiles): the distribution's package here, the pinned
+      # tag in the planner's image; without it those tests are skipped.
+      - name: tippecanoe
+        run: |
+          (sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends tippecanoe) \
+            || echo "::warning title=No tippecanoe::the overlay tiles' archive tests are skipped"
       - run: ruff check src/wingtip tests
       - run: pytest tests/ -v
       # wingtip's API documentation, from its docstrings. pdoc imports every

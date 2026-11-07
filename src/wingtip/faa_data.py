@@ -152,6 +152,9 @@ _NASR_FILES = {
     # And each runway end's: which way its traffic pattern is flown
     # (wingtip.pattern).
     "APT_RWY_END.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
+    # And each runway's length and surface (RWY_LEN, SURFACE_TYPE_CODE):
+    # what the map's airport symbol is drawn by (wingtip.vector_tiles).
+    "APT_RWY.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
     # And each field's contacts: its manager's and its owner's office
     # address and phone, what an airport's card calls and finds in Maps.
     "APT_CON.csv": lambda: find_download_link(find_current_cycle_page(NASR_INDEX_URL), r'href="([^"]*APT_CSV\.zip)"'),
@@ -203,7 +206,7 @@ def ensure_nasr_file(name: str, cache_dir) -> Path:
 # went missing (2026-10-07).
 _EDITIONS = {
     "NAV_CSV": (("NAV_BASE.csv", "NAV_RMK.csv"), None, r'href="([^"]*NAV_CSV\.zip)"'),
-    "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv", "APT_CON.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
+    "APT_CSV": (("APT_BASE.csv", "APT_RMK.csv", "APT_RWY_END.csv", "APT_RWY.csv", "APT_CON.csv"), None, r'href="([^"]*APT_CSV\.zip)"'),
     "FIX_CSV": (("FIX_BASE.csv",), None, r'href="([^"]*FIX_CSV\.zip)"'),
     "FRQ_CSV": (("FRQ.csv",), None, r'href="([^"]*FRQ_CSV\.zip)"'),
     "AWY_CSV": (("AWY_SEG_ALT.csv",), None, r'href="([^"]*AWY_CSV\.zip)"'),
