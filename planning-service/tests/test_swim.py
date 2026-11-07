@@ -152,7 +152,7 @@ def test_the_reader_imports_nothing_of_the_planners():
     # A spawned process starts by importing it: none of wingtip or pandas.
     import subprocess
     import sys
-    code = "import sys, app.swim_reader; print(sorted(m for m in sys.modules if m.split('.')[0] in ('vfr', 'pandas', 'numpy')))"
+    code = "import sys, app.swim_reader; print(sorted(m for m in sys.modules if m.split('.')[0] in ('wingtip', 'pandas', 'numpy')))"
     assert subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True).stdout.strip() == "[]"
 
 

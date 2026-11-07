@@ -7,19 +7,17 @@ of a core at STDDS's 370 messages a second (py-spy, 2026-10-28), all of
 it holding the planner's GIL against the route planning a pilot waits
 on; a process of its own has a GIL of its own.
 
-So it imports nothing of wingtip's but its settings (wingtip.config,
-pathlib and pydantic-settings), nor pandas: a spawned process starts by
+So it imports nothing of wingtip's, nor pandas: a spawned process starts by
 importing this module, and starts in a moment and small.
 """
 import logging
 import math
+import os
 import re
 import threading
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime
-
-from wingtip.config import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +27,7 @@ SETTINGS = ("SWIM_HOST", "SWIM_USERNAME", "SWIM_PASSWORD")
 FEEDS = ("STDDS", "FNS", "TFMS")
 #: The CA certificates the FAA's broker's certificate is checked against:
 #: the image's own (python:3.14-slim's ca-certificates).
-TRUST_STORE = get_settings().swim_trust_store
+TRUST_STORE = os.environ.get("SWIM_TRUST_STORE", "/etc/ssl/certs")
 #: How long to wait before connecting again, s, doubling to the most.
 RETRY_FIRST_S, RETRY_MOST_S = 10.0, 300.0
 
@@ -38,19 +36,14 @@ def _settings(feed: str) -> tuple[str, ...]:
     return (*SETTINGS, f"SWIM_VPN_{feed}", f"SWIM_QUEUE_{feed}")
 
 
-def _setting(name: str) -> str | None:
-    """A SWIM_* variable by its name, from the settings' field of that name."""
-    return getattr(get_settings(), name.lower())
-
-
 def _host(feed: str) -> str:
     """The broker a feed's subscription is on: its own where SCDS put it
     on another (TFMS's on ems1, the others' on ems2), else the shared one."""
-    return _setting(f"SWIM_HOST_{feed}") or get_settings().swim_host
+    return os.environ.get(f"SWIM_HOST_{feed}") or os.environ["SWIM_HOST"]
 
 
 def configured(feed: str) -> bool:
-    return all(_setting(name) for name in _settings(feed))
+    return all(os.environ.get(name) for name in _settings(feed))
 
 
 def _number(element, tag: str) -> float | None:
@@ -220,16 +213,16 @@ def _run(feed: str, out, wanted: list) -> None:
         try:
             service = (MessagingService.builder().from_properties({
                 "solace.messaging.transport.host": _host(feed),
-                "solace.messaging.service.vpn-name": _setting(f"SWIM_VPN_{feed}"),
-                "solace.messaging.authentication.scheme.basic.username": get_settings().swim_username,
-                "solace.messaging.authentication.scheme.basic.password": get_settings().swim_password,
+                "solace.messaging.service.vpn-name": os.environ[f"SWIM_VPN_{feed}"],
+                "solace.messaging.authentication.scheme.basic.username": os.environ["SWIM_USERNAME"],
+                "solace.messaging.authentication.scheme.basic.password": os.environ["SWIM_PASSWORD"],
             }).with_transport_security_strategy(
                 # The FAA's certificate checked against the image's own CAs.
                 TLS.create().with_certificate_validation(True, validate_server_name=True, trust_store_file_path=TRUST_STORE))
                 .with_reconnection_retry_strategy(RetryStrategy.parametrized_retry(5, 3000)).build())
             service.connect()
             receiver = service.create_persistent_message_receiver_builder().build(
-                Queue.durable_exclusive_queue(_setting(f"SWIM_QUEUE_{feed}")))
+                Queue.durable_exclusive_queue(os.environ[f"SWIM_QUEUE_{feed}"]))
             receiver.start()
             out.put(("state", feed, {"connected": True, "error": None}))
             pause = RETRY_FIRST_S
@@ -272,7 +265,7 @@ def main(feeds, out, wanted_in) -> None:
     takes the planner's (views, followed) as they change. It ends when the
     planner does: the planner's end of `wanted_in` closes with it, however
     it ended, and the reading cannot go on without the planner to send to."""
-    logging.basicConfig(level=get_settings().log_level)
+    logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"))
     wanted = [([], set())]
     for feed in feeds:
         threading.Thread(target=_run, args=(feed, out, wanted), name=f"swim-{feed.lower()}", daemon=True).start()
