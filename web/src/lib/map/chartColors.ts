@@ -1,10 +1,8 @@
-import type L from "leaflet";
-
 /**
  * The colours the planner draws on the chart, each written once. They are
  * the chart's own and stay the same in the dark theme, as the sectional
  * under them does, so they are values here rather than index.css tokens:
- * Leaflet takes a path's colour as a value, and the marks and the cards'
+ * MapLibre takes a line's colour as a value, and the marks and the cards'
  * copies of them (the nav log's, the route list's) read the same ones.
  */
 
@@ -21,10 +19,6 @@ export const WAYPOINT_MAGENTA = "#c0309f";
  *  the dark theme, where the chart stays light. */
 export const MAP_BLUE = "#007aff";
 
-/** The white casing under a procedure's or a traffic pattern's line, so
- *  the line reads over any chart. */
-export const LINE_CASING: L.PathOptions = { color: "#ffffff", weight: 7, opacity: 0.9, lineJoin: "round" };
-
 /** Whether the Chart ink look is on (lib/brand puts it on <html> as
  *  data-brand), read where a colour is made outside a render: a canvas,
  *  a marker's html. A component asks lib/brand's useInkLook instead, so
@@ -35,8 +29,8 @@ export function isInkLook(): boolean {
 
 /** One of the ink look's own inks (index.css's --ink-magenta and
  *  --ink-brown on html[data-brand="ink"], the magenta with a shade for
- *  the night), as a value for what a token does not reach: a Leaflet
- *  path's options, a marker's html, a canvas. An SVG path with a class
+ *  the night), as a value for what a token does not reach: a map layer's paint, a
+ *  marker's html. An SVG path with a class
  *  takes the stylesheet's instead (CourseLine's course-core, the
  *  course-ink class on a hold's and a way's line). The light value where
  *  the stylesheet is not loaded (a test), or the look is not yet on

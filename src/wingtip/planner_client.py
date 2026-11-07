@@ -14,14 +14,12 @@ error bodies with, needs no more): the agents import this module and none of win
 geometry, raster or data dependencies, so their images do not install
 them either.
 """
-import os
-
 import requests
 
-from .config import PLAN_LIMIT_S
+from .config import PLAN_LIMIT_S, get_settings
 from .retry import upstream_detail
 
-PLANNING_SERVICE_URL = os.environ.get("PLANNING_SERVICE_URL", "http://planning-service:8000")
+PLANNING_SERVICE_URL = get_settings().planning_service_url
 # The planner answers within its own bound -- with the plan, or with a 504
 # saying what it is still waiting on -- so this waits that long and a
 # little more for the answer to arrive. It was 300 s beside a 240 s bound

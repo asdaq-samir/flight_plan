@@ -25,6 +25,10 @@ playServicesLocation = "21.3.0"
 room = "2.7.2"
 ksp = "2.2.20-2.0.3"
 datastore = "1.1.7"
+# The geoid model that turns the GPS's height above the ellipsoid into
+# height above mean sea level, for phones below Android 14 (own ship's
+# altitude, flight/OwnShip.kt).
+coreLocationAltitude = "1.0.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -70,6 +74,9 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 # background slowing (flight/Ticker.kt) and whether the app is in front
 # (notify/Notifications.kt).
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycle" }
+# AltitudeConverterCompat: mean-sea-level altitude from the fix's
+# ellipsoid height, Android 14's AltitudeConverter brought to older phones.
+androidx-core-location-altitude = { group = "androidx.core", name = "core-location-altitude", version.ref = "coreLocationAltitude" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

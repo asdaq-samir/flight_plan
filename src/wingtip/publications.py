@@ -25,7 +25,7 @@ import os
 import re
 import threading
 import xml.etree.ElementTree as ET
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +34,7 @@ import requests
 from PIL import Image
 from scipy import ndimage
 
+from . import data_cycles
 from .config import DATA_DIR
 from .config import FAA_HEADERS as HEADERS
 from .once import once
@@ -43,12 +44,6 @@ log = logging.getLogger(__name__)
 DTPP_BASE = "https://aeronav.faa.gov/d-tpp"
 DCS_BASE = "https://aeronav.faa.gov/afd"
 CACHE_DIR = DATA_DIR / "raw" / "publications"
-
-#: A known start of each cycle, and its length.
-AIRAC_EPOCH = date(2026, 1, 22)          # cycle 2601
-AIRAC_DAYS = 28
-DCS_EPOCH = date(2026, 9, 3)             # the 3 Sep 2026 edition
-DCS_DAYS = 56
 
 #: How much finer than the PDF's own points the diagram is drawn: 5 is
 #: 360 dots an inch, a d-TPP page (5.4 by 8.25 in) 1937 by 2970, where
@@ -65,22 +60,17 @@ _HELD: dict = {}
 _DRAWING: dict = {}
 
 
-def _cycle_start(on: date, epoch: date, days: int) -> date:
-    return epoch + timedelta(days=((on - epoch).days // days) * days)
-
-
 def dtpp_cycle(on: date | None = None) -> str:
-    """The d-TPP cycle in force on `on` (today): "2610"."""
-    start = _cycle_start(on or date.today(), AIRAC_EPOCH, AIRAC_DAYS)
-    # Its number in its year: how many cycles have started in that year
-    # up to and including it.
-    first = start - timedelta(days=((start - date(start.year, 1, 1)).days // AIRAC_DAYS) * AIRAC_DAYS)
-    return f"{start.year % 100:02d}{(start - first).days // AIRAC_DAYS + 1:02d}"
+    """The d-TPP cycle in force on `on` (today, UTC, from 0901Z): "2610", the AIRAC
+    cycle's number the engine gives (`data_cycle`). Today is by
+    `in_force_day`: the new cycle counts from its 0901Z."""
+    return data_cycles.cycle("airac", None, on or data_cycles.in_force_day())["current_ident"]
 
 
 def dcs_edition(on: date | None = None) -> str:
-    """The Chart Supplement edition in force on `on` (today): "03Sep2026"."""
-    return _cycle_start(on or date.today(), DCS_EPOCH, DCS_DAYS).strftime("%d%b%Y")
+    """The Chart Supplement edition in force on `on` (today, UTC):
+    "03Sep2026", on the 56-day charting cycle."""
+    return data_cycles.start_on("chart", on or data_cycles.in_force_day()).strftime("%d%b%Y")
 
 
 def _charts_of(xml_bytes: bytes) -> dict:

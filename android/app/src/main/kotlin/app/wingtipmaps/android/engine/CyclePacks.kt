@@ -14,6 +14,8 @@ import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 
@@ -65,9 +67,20 @@ class CyclePacks(private val root: File) {
 
     /** The packs of these regions fetched where the phone has not got them
      *  for the planner's cycle, and the regions already kept fetched again
-     *  where the cycle has turned; an older cycle's removed. Quiet where
-     *  the planner cannot be reached: the next keep tries again. */
-    suspend fun keep(wanted: Set<String>) {
+     *  where the cycle has turned. The phone moves to the new cycle, and
+     *  the older one is removed, only once every region it wants of the
+     *  new one is on disk: a pack that failed to come leaves the old
+     *  cycle's packs in use, so a pilot is never left with no airspace
+     *  for the air because one fetch failed. Quiet where the planner
+     *  cannot be reached: the next keep tries again, and finds the packs
+     *  already fetched in the new cycle's folder. */
+    suspend fun keep(wanted: Set<String>) = keeping.withLock { keepOne(wanted) }
+
+    /** One keep at a time: the launch's refresh and the plan's keep write
+     *  the same .part files and the same index. */
+    private val keeping = Mutex()
+
+    private suspend fun keepOne(wanted: Set<String>) {
         val listing = try {
             Planner.fetch("/api/cycle-packs")
         } catch (e: CancellationException) {
@@ -82,11 +95,16 @@ class CyclePacks(private val root: File) {
         val listed = fresh.regions.associateBy { it.name }
         withContext(Dispatchers.IO) {
             File(root, fresh.cycle).mkdirs()
+            var whole = true
             for (name in names.sorted()) {
                 if (name !in listed) continue
                 val file = path(fresh.cycle, name)
                 if (file.isFile) continue
-                val bytes = fetchPack(fresh.cycle, name) ?: continue
+                val bytes = fetchPack(fresh.cycle, name)
+                if (bytes == null) {
+                    whole = false
+                    continue
+                }
                 // Verified before it is kept: a pack cut short by the
                 // connection is no pack, and the engine would say so on
                 // every read.
@@ -94,17 +112,33 @@ class CyclePacks(private val root: File) {
                 // As a Buffer: ByteBuffer's own flip() only exists from
                 // API 34, and the engine wants a direct buffer, not the array.
                 (direct as java.nio.Buffer).flip()
-                if (Packs.verify(direct) != 1) continue
-                val part = File(file.path + ".part")
-                part.writeBytes(bytes)
-                if (!part.renameTo(file)) part.delete()
+                if (Packs.verify(direct) != 1) {
+                    whole = false
+                    continue
+                }
+                if (!writeWhole(file, bytes)) whole = false
             }
+            // The same cycle, or none kept before: what came is used as it
+            // is, with nothing older to fall back on. A new cycle only when
+            // whole.
+            if (kept != null && kept.cycle != fresh.cycle && !whole) return@withContext
             synchronized(lock) {
-                indexFile.writeText(listing)
+                // The index written whole or not at all: a write cut short
+                // would leave no index, and so no packs, for the air.
+                if (!writeWhole(indexFile, listing.toByteArray())) return@withContext
                 root.listFiles()?.filter { it.isDirectory && it.name != fresh.cycle }?.forEach { it.deleteRecursively() }
                 if (kept?.cycle != fresh.cycle) mapped.clear()
             }
         }
+    }
+
+    /** A file written beside itself (.part) and renamed over, so a reader
+     *  sees the old file or the new one whole, never half of one. */
+    private fun writeWhole(file: File, bytes: ByteArray): Boolean {
+        val part = File(file.path + ".part")
+        val written = runCatching { part.writeBytes(bytes) }.isSuccess && part.renameTo(file)
+        if (!written) part.delete()
+        return written
     }
 
     /** The packs kept again for a new cycle where the phone has any. */

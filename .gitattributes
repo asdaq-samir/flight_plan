@@ -1,0 +1,8 @@
+# Files a tool writes, not a person: GitHub folds them in diffs and leaves
+# them out of the repository's language count.
+web/src/lib/engine/wingtip-engine.wasm linguist-generated binary
+planning-service/openapi.json linguist-generated
+springboot-app/openapi.json linguist-generated
+android/app/src/main/kotlin/**/api/generated/** linguist-generated
+# The notebooks are exploration, kept for reading, not the app's code.
+notebooks/*.ipynb linguist-documentation

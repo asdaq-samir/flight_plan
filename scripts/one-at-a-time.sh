@@ -5,7 +5,7 @@
 # load to 9 to 11 and their tests timed out (2026-10-15), so there was one
 # turn. The Mac mini (12 cores, Docker given 16 GB) runs a few at once: the
 # owner asked to make full use of it (2026-11-06), so there are
-# ONE_AT_A_TIME_SLOTS turns (3 by default). A speed measurement needs a quiet
+# ONE_AT_A_TIME_SLOTS turns (4 by default). A speed measurement needs a quiet
 # machine: `--alone` waits until no other turn is held and then holds them
 # all. Waits for its turn, says whose turn it is, runs the command, and gives
 # the turn back however the command ends.
@@ -24,7 +24,7 @@ label=${1:?usage: one-at-a-time.sh [--alone] "<who and what>" <command> [args...
 shift
 [ $# -gt 0 ] || { echo "one-at-a-time: no command to run" >&2; exit 64; }
 lock=${ONE_AT_A_TIME_LOCK:-/tmp/flight-plan-heavy.lock}
-slots=${ONE_AT_A_TIME_SLOTS:-3}
+slots=${ONE_AT_A_TIME_SLOTS:-4}
 # At most this long in line, in seconds: a turn held longer than a suite
 # and its reruns take is something wrong to look at, not to wait out.
 wait_max=${ONE_AT_A_TIME_WAIT:-2700}
