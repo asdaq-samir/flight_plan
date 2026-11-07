@@ -264,6 +264,8 @@ export function useFlightBriefing({
       pending: !nav || !briefing, worked: !nav || (!!nav.aircraft.takeoff && !!nav.aircraft.landing),
       short: [...new Set(checks.filter(c => c.distances.some(d => d.over)).map(c => c.field.ident))],
       crosswind: [...new Set(checks.filter(c => c.crosswindOver).map(c => c.field.ident))],
+      beyond: [...new Set(checks.filter(c => c.distances.some(d => d.beyond)).map(c => c.field.ident))],
+      unchecked: [...new Set(checks.filter(c => c.unchecked || c.distances.some(d => d.unknown)).map(c => c.field.ident))],
     },
     balance: {
       pending: !nav, worked: !!loading && !!loaded,
@@ -311,7 +313,11 @@ export function useFlightBriefing({
         wind: said === "calm" ? "Calm" : said ? `${said.dir.replace(/T$/, "")}/${said.speed}` : null,
         crosswindKt: check ? Math.round(check.crosswindKt) : null,
         radio: call ? { to: call.to, mhz: call.mhz! } : null,
-        finding: !check ? "unknown" : distance?.over ? "stop" : check.crosswindOver ? "caution" : "ok",
+        // A field not checked (no elevation, no runway length) is not known,
+        // never fine; one past the POH's tables is a caution (the engine's
+        // runways finding says the same).
+        finding: !check || check.unchecked || !distance || distance.unknown ? "unknown" : distance.over ? "stop"
+          : check.crosswindOver || distance.beyond ? "caution" : "ok",
       };
     };
     const byKey = (keys: VerdictItem["key"][]) => worstOf(items.filter(i => keys.includes(i.key)).map(i => i.finding));

@@ -225,12 +225,21 @@ export function TakeoffLandingSection({ aircraft, briefing, course, landing: lan
                   />
                   );
                 })}
-                <ListRow
-                  title="Density altitude"
-                  description={`Pressure altitude ${altFt(c.pressureAltFt)} ft · ${Math.round(c.tempC)} °C ${c.reported ? "reported" : "(standard day; no report)"}`}
-                  value={`${altFt(Math.round(c.densityAltFt / 10) * 10)} ft`}
-                  data-testid="density-altitude"
-                />
+                {c.unchecked != null || c.pressureAltFt == null || c.densityAltFt == null ? (
+                  <ListRow
+                    media={<FindingIcon finding="unknown" />}
+                    title="Distances not worked out"
+                    description={`${c.unchecked ?? "the field's elevation is not known"}`.replace(/^./, ch => ch.toUpperCase())}
+                    data-testid="runway-unchecked"
+                  />
+                ) : (
+                  <ListRow
+                    title="Density altitude"
+                    description={`Pressure altitude ${altFt(c.pressureAltFt)} ft${c.tempC != null ? ` · ${Math.round(c.tempC)} °C` : ""} ${c.reported ? "reported" : "(standard day; no report)"}`}
+                    value={`${altFt(Math.round(c.densityAltFt / 10) * 10)} ft`}
+                    data-testid="density-altitude"
+                  />
+                )}
               </ListGroup>
             );
           })}
