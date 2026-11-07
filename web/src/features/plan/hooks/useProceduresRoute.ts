@@ -16,6 +16,7 @@ import type { HoldAt } from "../components/HoldSheet";
 import { useFuelStops } from "./useFuelStops";
 import type { Hold } from "../../../lib/holds";
 import { legOf, type NavLogRow } from "../components/navlog/rows";
+import { callEngine } from "../../../lib/engine/engine";
 import type { Landing } from "../components/procedures/PatternChips";
 import type { RouteLineChoices } from "../components/procedures/RouteLine";
 
@@ -486,22 +487,24 @@ export function useProceduresRoute(props: ProceduresRouteProps) {
     return found >= 0 ? found : undefined;
   };
   // The fuel in the tanks at each point, by its row, at the owner's ask
-  // ("next to airport say ... fuel", "I mean fuel in tanks"): full at the
-  // departure, the start, taxi and takeoff allowance and the legs' own
-  // burn taken from them after, filled again at each field landed at, as
-  // the planner checks each flight (app.planning.route_totals). Under the
-  // reserve, low.
+  // ("next to airport say ... fuel", "I mean fuel in tanks"): the engine's
+  // (fuel_in_tanks) -- full at the departure, the start, taxi and takeoff
+  // allowance and the legs' own burn taken from them after, filled again
+  // at each field landed at, as the planner checks each flight
+  // (app.planning.route_totals); under the reserve, low.
   const tanks = new Map<string, { gal: number; usable: number; low: boolean }>();
   if (fuel) {
-    tanks.set("departure", { gal: fuel.usableGal, usable: fuel.usableGal, low: false });
-    let burned = 0;
-    for (const r of rows) {
-      if (r.kind === "departure") continue;
-      burned += legOf(r)?.fuel_gal ?? Number.NaN;
-      const gal = fuel.usableGal - fuel.taxiGal - burned;
-      if (Number.isFinite(gal)) tanks.set(r.key, { gal: Math.max(0, gal), usable: fuel.usableGal, low: gal < fuel.reserveGal });
-      if (r.kind === "stop" && r.airport.kind !== "fix") burned = 0;
-    }
+    const walked = callEngine("fuel_in_tanks", {
+      points: rows.map(r => ({
+        departure: r.kind === "departure", fuel_gal: r.kind === "departure" ? null : legOf(r)?.fuel_gal ?? null,
+        refuel: r.kind === "stop" && r.airport.kind !== "fix",
+      })),
+      usable_gal: fuel.usableGal, taxi_gal: fuel.taxiGal, reserve_gal: fuel.reserveGal,
+    });
+    rows.forEach((r, i) => {
+      const at = walked[i];
+      if (at) tanks.set(r.kind === "departure" ? "departure" : r.key, { gal: at.gal, usable: fuel.usableGal, low: at.low });
+    });
   }
   const points = rows.filter(r => r.kind !== "checkpoint" && r.kind !== "toc" && r.kind !== "tod");
   // The stop being added, its card before the point at its place.
