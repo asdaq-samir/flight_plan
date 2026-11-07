@@ -16,7 +16,10 @@ PROBE = '''import sys
 def test_leaves_a_module_function_replaced():
     module = next(m for n, m in sorted(sys.modules.items()) if n.startswith("app.") and m is not None
                   and any(callable(v) and not isinstance(v, type) and getattr(v, "__module__", "") == n for v in vars(m).values()))
-    name = next(k for k, v in vars(module).items() if callable(v) and not isinstance(v, type) and getattr(v, "__module__", "") == module.__name__)
+    name = next(
+        k for k, v in vars(module).items()
+        if callable(v) and not isinstance(v, type) and getattr(v, "__module__", "") == module.__name__
+    )
     setattr(module, name, lambda *a, **k: None)
 '''
 
