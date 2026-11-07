@@ -7,6 +7,7 @@ import DevGuard from "../../components/DevGuard";
 import MapPanel from "../../components/MapPanel";
 import { ConsoleInPanelContext, useConsoleOpen, MapInsetsContext, NO_INSETS, type MapInsets, type PanelState } from "../../components/mapChrome";
 import RouteForm from "../../components/RouteForm";
+import { EngineGate } from "../../lib/engine/engineGate";
 import { useNavEdge } from "../../hooks/use-nav-edge";
 import { usePreferences } from "../../lib/preferences";
 import { useWarmAirportIndex } from "../../lib/airportIndex";
@@ -226,6 +227,13 @@ export default function MapPage({ mode }: { mode: Mode }) {
     // it is on screen for one request, and a flash of "loading" where
     // a chart is about to be is worse than a moment of nothing.
     <Suspense fallback={<div className="h-dvh w-full bg-background" />}>
+    {/* The workspace asks the shared engine while it renders (the
+        planner's first render writes its procedures with it): drawn once
+        the engine is there, the page's own background until then, so
+        the page paints without waiting for the .wasm (main.tsx). The map
+        is not held back by it: its chunk and the chart it waits for are
+        larger than the engine. */}
+    <EngineGate fallback={<div className="h-dvh w-full bg-background" />}>
     <Workspace dep={dep} dest={dest} panel={panel} setPanel={setPanel}>
       {pieces => {
         // The route's row built once a render, the same element as the top
@@ -313,6 +321,7 @@ export default function MapPage({ mode }: { mode: Mode }) {
         );
       }}
     </Workspace>
+    </EngineGate>
     </Suspense>
   );
 }

@@ -51,11 +51,29 @@ export function kindCycle(chart: Pick<ChartInfo, "chart_cycle" | "chart_revision
   return layer?.cycle ? { cycle: layer.cycle, revision: layer.revision ?? 0 } : { cycle: chart.chart_cycle, revision: chart.chart_revision ?? 0 };
 }
 
+/**
+ * The "@2x" a kind's tile names carry on this screen: on a 2x or 3x
+ * screen, where the kind was drawn at twice the pixels too (its layer's
+ * `scales`), the 512-pixel tile of the same z/x/y, drawn from the FAA's
+ * sheet at that size. Leaflet lays it out in the tile's own 256 CSS
+ * pixels, so nothing about the grid changes, only how sharp it is: the
+ * 256-pixel tile stretched three times by the browser blurred every
+ * letter and line on a phone. (MapLibre, which counts its zoom in
+ * 512-pixel tiles, takes the same URLs with tileSize 256.) None where the
+ * kind has only 256-pixel tiles, as a cycle drawn before there were any
+ * has, and none on a 1x screen, which would only shrink them.
+ */
+export function tileDensity(chart: Pick<ChartInfo, "chart_layers">, kind: string, pixelRatio = globalThis.devicePixelRatio ?? 1): "" | "@2x" {
+  const layer = chart.chart_layers?.find(l => l.kind === kind);
+  return pixelRatio > 1 && layer?.scales?.includes(2) ? "@2x" : "";
+}
+
 export function tileTemplate(chart: ChartInfo, kind: string): string {
   const { cycle, revision } = kindCycle(chart, kind);
+  const density = tileDensity(chart, kind);
   return chart.chart_tiles_base
-    ? `${chart.chart_tiles_base}/${cycle}/${kind}/{z}/{x}/{y}.png?r=${revision}`
-    : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}.png?c=${cycle}&r=${revision}`;
+    ? `${chart.chart_tiles_base}/${cycle}/${kind}/{z}/{x}/{y}${density}.png?r=${revision}`
+    : `/api/planner/chart-tile/${kind}/{z}/{x}/{y}${density}.png?c=${cycle}&r=${revision}`;
 }
 
 export function tileUrl(chart: ChartInfo, kind: string, z: number, x: number, y: number): string {

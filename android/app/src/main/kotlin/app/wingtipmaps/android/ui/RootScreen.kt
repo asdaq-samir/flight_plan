@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -71,7 +72,8 @@ fun RootScreen(pending: StateFlow<Links.Link?>, onHandled: () -> Unit) {
     val session: Session = viewModel()
     val info by charts.info.collectAsStateWithLifecycle()
     val state by plan.state.collectAsStateWithLifecycle()
-    val template = remember(info) { Charts.template(info) }
+    val density = LocalDensity.current.density
+    val template = remember(info, density) { Charts.template(info, density) }
     val base = remember(info) { Charts.base(info) }
 
     var tab by rememberSaveable { mutableIntStateOf(0) }

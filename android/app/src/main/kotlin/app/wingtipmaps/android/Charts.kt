@@ -76,9 +76,13 @@ class Charts(app: Application) : AndroidViewModel(app) {
             return layers.firstOrNull { it.kind == "sec" } ?: layers.firstOrNull { it.base }
         }
 
-        fun template(info: ChartInfo?): TileTemplate? {
+        /** The base layer's tile address; the 512-pixel tiles on a screen
+         *  denser than 1x ([density], the screen's pixels to a dp) wherever
+         *  the kind was drawn at them. */
+        fun template(info: ChartInfo?, density: Float = 1f): TileTemplate? {
             val base = base(info) ?: return null
-            return TileTemplate(info!!.chartCycle, info.chartRevision ?: 0, info.chartTilesBase, base.kind)
+            val scale = if (density > 1f && base.scales?.contains(2) == true) 2 else 1
+            return TileTemplate(info!!.chartCycle, info.chartRevision ?: 0, info.chartTilesBase, base.kind, scale)
         }
     }
 }

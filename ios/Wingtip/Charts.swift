@@ -43,6 +43,9 @@ final class Charts {
 
     var template: TileTemplate? {
         guard let info, let base else { return nil }
-        return TileTemplate(cycle: info.chartCycle, revision: info.chartRevision ?? 0, tilesBase: info.chartTilesBase, kind: base.kind)
+        // The 512-pixel tiles wherever the kind was drawn at them: every
+        // iPhone's screen is 2x or 3x.
+        return TileTemplate(cycle: info.chartCycle, revision: info.chartRevision ?? 0, tilesBase: info.chartTilesBase, kind: base.kind,
+                            scale: base.scales?.contains(2) == true ? 2 : 1)
     }
 }

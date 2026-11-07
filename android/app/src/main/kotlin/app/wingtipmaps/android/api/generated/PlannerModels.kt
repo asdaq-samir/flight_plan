@@ -937,6 +937,7 @@ data class ChartLayer (
 
     val over: List<String>? = null,
     val revision: Int? = null,
+    val scales: List<Int>? = null,
     val sheets: List<ChartSheet>? = null
 )
 
