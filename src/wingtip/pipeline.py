@@ -1,19 +1,20 @@
 """Callable, non-interactive versions of the notebook 01->02->03 sequence:
 collect, engineer_features, retrain. (evaluate/promote moved to
-wingtip.model_registry -- see that module's docstring for why.) Each function
-here is one Airflow/DockerOperator task body (see
-airflow/dags/wingtip_pipeline_dag.py). The notebooks stay the human-facing/
+wingtip.model_registry -- see that module's docstring for why.) run() is
+the whole training run, every stage in order, which the developer
+console's Retrain starts (`python -m wingtip.pipeline run`, in the
+pipeline-training image). The notebooks stay the human-facing/
 exploratory versions of this same logic (plots, the folium map, the
 interactive hand-labeling cell); this module is the automatable subset --
-everything except labeling itself, which is still a human judgment call
-and out of scope for a scheduled DAG.
+everything except labeling itself, which is still a human judgment call.
 
 scikit-learn/joblib are imported lazily, inside retrain() only, rather than
-at module level -- this module is now shared by two differently-provisioned
-containers (Dockerfile.processing has pandas/requests/pyarrow but NOT
-scikit-learn; Dockerfile.training has scikit-learn/joblib but not requests).
-A module-level sklearn import would make collect()/engineer_features()
-uncallable in the processing image even though neither one touches sklearn.
+at module level -- this module is shared by two differently-provisioned
+containers (Dockerfile.processing has wingtip's own requirements but NOT
+scikit-learn; Dockerfile.training has those and scikit-learn/joblib on
+top, so run() works there). A module-level sklearn import would make
+collect()/engineer_features() uncallable in the processing image even
+though neither one touches sklearn.
 """
 from __future__ import annotations
 
@@ -182,7 +183,7 @@ def collect(
     another route without naming a path wrote over that corridor's.)
 
     A corridor already collected is kept, not downloaded again, unless
-    `refresh` says to: the retrain DAG runs this first, and every retrain
+    `refresh` says to: a training run (run()) collects first, and every retrain
     downloaded the same corridor from Overpass -- a free, shared service
     that answers 504s for minutes at a time, which is what failed the
     retrain of 2026-09-30 -- for candidates that had not moved.
@@ -447,8 +448,8 @@ def training_readiness(features_path: Path = FEATURES_PATH, labels_path: Path = 
     """Whether a retrain would have enough to learn from, and why not:
     what the trainer would get (`usable`), what it needs, and what became
     of the ratings that do not count. Asked before a run is started, so
-    the developer is told in the console rather than by a run failing in
-    Airflow minutes later; and by labeled_split, whose refusal says the
+    the developer is told in the console rather than by a run failing
+    minutes later; and by labeled_split, whose refusal says the
     same. Reads the corridor's candidates as last engineered: the run
     collects them again first, so this is the count as it stands now."""
     from wingtip.chartlabels import CHART_PICKS_PATH
@@ -634,21 +635,171 @@ def _retrain_defaults() -> dict:
 
 
 # The exit code of a stage that has nothing to do -- too few ratings to
-# train on. The DAG's DockerOperator marks a task that ends with it
-# skipped rather than failed (skip_on_exit_code), and the tasks after it
-# skip with it: a run whose landmark model has too few ratings still
-# trains the chart's, and ends a success.
+# train on -- when one stage is run alone (`readiness`, `chart-retrain`):
+# skipped, not failed. run() treats the same news the same way, skipping
+# the stages after it in that model's branch.
 SKIPPED_EXIT_CODE = 99
 
 
+class _Skip(Exception):
+    """A stage with nothing to do: the rest of its branch is skipped, and
+    the run still ends a success."""
+
+
+def _write_run_status(status: dict, path: Path) -> None:
+    """The run's status file, renamed into place so the planner never
+    reads half of one."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(json.dumps(status, indent=2))
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _landmark_branch() -> list:
+    """The landmark model's stages, in the order the retired Airflow DAG ran
+    them: whether its ratings are enough, collect, engineer features,
+    retrain, evaluate, promote."""
+    from wingtip import model_registry
+
+    def landmarks_ready():
+        readiness = training_readiness()
+        if not readiness["ready"]:
+            raise _Skip(readiness["message"])
+        return readiness["message"]
+
+    def evaluate():
+        if not model_registry.evaluate():
+            raise _Skip("The candidate did not beat the promoted model on the held-out ratings; the promoted model stays.")
+        return "The candidate beats the promoted model."
+
+    return [
+        ("landmarks_ready", landmarks_ready),
+        ("collect", lambda: str(collect())),
+        ("feature_engineer", lambda: str(engineer_features())),
+        ("retrain", lambda: f"cv_mae {retrain(**_retrain_defaults())['cv_mae']:.4f}"),
+        ("evaluate", evaluate),
+        ("promote", lambda: str(model_registry.promote())),
+    ]
+
+
+def _chart_branch() -> list:
+    """The chart reader's scorer: retrain from the table the planner wrote
+    when it started the run, evaluate, promote -- through the same gate
+    into data/models/chart/current."""
+    from wingtip import chartmodel, model_registry
+
+    def chart_retrain():
+        try:
+            metrics = chartmodel.retrain()
+        except InsufficientLabelsError as err:
+            raise _Skip(str(err)) from err
+        return f"held-out MAE {metrics.get('held_out_mae')}"
+
+    def chart_evaluate():
+        if not model_registry.evaluate(model_registry.CHART_CANDIDATE_DIR, model_registry.CHART_CURRENT_DIR):
+            raise _Skip("The candidate did not beat the promoted chart model on the held-out ratings; the promoted one stays.")
+        return "The candidate beats the promoted chart model."
+
+    return [
+        ("chart_retrain", chart_retrain),
+        ("chart_evaluate", chart_evaluate),
+        ("chart_promote", lambda: str(model_registry.promote(model_registry.CHART_CANDIDATE_DIR, model_registry.CHART_CURRENT_DIR))),
+    ]
+
+
+class RunGoing(RuntimeError):
+    """Another training run holds the lock."""
+
+
+def run(status_path: Path | None = None, branches: list | None = None) -> dict:
+    """One training run, every stage in order: the landmark model's branch
+    (landmarks_ready, collect, feature_engineer, retrain, evaluate,
+    promote), then the chart model's (chart_retrain, chart_evaluate,
+    chart_promote). What Airflow's wingtip_pipeline DAG ran, without
+    Airflow: it was started by hand anyway (it had no schedule), and a
+    scheduler, a web server and a metadata database to run nine functions
+    in order on request was not worth keeping (the owner, 2026-11-06).
+
+    The promotion rule is model_registry's, unchanged: a candidate goes
+    live only if evaluate() says it beats the promoted model on the
+    held-out ratings; otherwise promote is skipped and the promoted model
+    keeps serving. A stage with nothing to do (too few ratings) skips the
+    rest of its branch, and a stage that fails fails only its branch, as
+    the DAG's two branches did: the run carries on to the other model and
+    ends "failed" if any stage did.
+
+    One run at a time, as the DAG's max_active_runs=1 kept it: evaluate
+    reads the candidate and promote copies it later, both from one fixed
+    place, so an overlapping run's retrain between the two would promote
+    a model that never passed the gate. A second run does not queue: it
+    raises RunGoing before touching the status file, which still belongs
+    to the first (a queued run would leave the console showing the
+    previous run's end while one waits).
+
+    Each stage's start and end is written to `status_path`
+    (model_registry.RUN_STATUS_PATH), which the planner reads for the
+    console's Training group.
+    """
+    import fcntl
+    import traceback
+
+    from wingtip import model_registry
+
+    status_path = Path(status_path or model_registry.RUN_STATUS_PATH)
+    branches = branches if branches is not None else [_landmark_branch(), _chart_branch()]
+    status = {
+        "run_id": datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ"),
+        "state": "running", "stage": None, "started_at": _now(), "finished_at": None, "error": None,
+        "stages": [{"name": name, "state": "pending", "detail": None} for branch in branches for name, _ in branch],
+    }
+    by_name = {stage["name"]: stage for stage in status["stages"]}
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(status_path.with_name(f".{status_path.name}.lock"), "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as err:
+            raise RunGoing("A training run is going already.") from err
+        for branch in branches:
+            skipping = None
+            for name, stage_fn in branch:
+                stage = by_name[name]
+                if skipping:
+                    stage.update(state="skipped", detail=skipping)
+                    continue
+                stage["state"], status["stage"] = "running", name
+                _write_run_status(status, status_path)
+                print(f"[{name}] started", flush=True)
+                try:
+                    stage.update(state="success", detail=stage_fn())
+                except _Skip as skip:
+                    stage.update(state="skipped", detail=str(skip))
+                    skipping = f"Skipped: {skip}"
+                except Exception as err:  # noqa: BLE001 -- reported, and the other branch still runs
+                    traceback.print_exc()
+                    message = f"{type(err).__name__}: {err}"[:400]
+                    stage.update(state="failed", detail=message)
+                    status["error"] = status["error"] or f"{name}: {message}"
+                    skipping = f"Skipped: {name} failed"
+                print(f"[{name}] {stage['state']}: {stage['detail']}", flush=True)
+        status.update(state="failed" if status["error"] else "success", stage=None, finished_at=_now())
+        _write_run_status(status, status_path)
+    return status
+
+
 def _cli() -> None:
-    """Run one stage standalone, e.g. `docker compose run --rm pipeline-training retrain`
+    """Run the whole training run (`docker compose up retrain`)
+    or one stage standalone, e.g. `docker compose run --rm pipeline-training retrain`
     or `docker compose run --rm pipeline-processing collect`.
 
     Kept deliberately close to a SageMaker script-mode entry point (one
     stage per invocation, paths as arguments with sensible defaults, result
     printed to stdout) -- this is the leanest, most reusable form of the
-    pipeline, independent of Airflow or any other orchestrator. `retrain`
+    pipeline, independent of any orchestrator. `retrain`
     specifically honors SM_CHANNEL_FEATURES/SM_CHANNEL_LABELS/SM_MODEL_DIR
     when present (see _retrain_defaults) so this same entry point could
     become an actual SageMaker Training Job's script without modification.
@@ -688,9 +839,25 @@ def _cli() -> None:
     # planner writes; SKIPPED_EXIT_CODE with too few ratings in it.
     sub.add_parser("chart-retrain")
 
+    # Every stage in order, both models (run()); exits 1 if any failed.
+    sub.add_parser("run")
+
     args = parser.parse_args()
     kwargs = {k: v for k, v in vars(args).items() if k != "stage"}
 
+    if args.stage == "run":
+        # Through the imported module, not this __main__ copy, so the
+        # InsufficientLabelsError wingtip.chartmodel raises is the class
+        # run() catches (see chart-retrain below).
+        from wingtip import pipeline
+
+        try:
+            result = pipeline.run()
+        except pipeline.RunGoing as err:
+            print(err)
+            raise SystemExit(2) from err
+        print(json.dumps(result, indent=2))
+        raise SystemExit(1 if result["state"] == "failed" else 0)
     if args.stage == "collect":
         result = collect(**kwargs)
     elif args.stage == "engineer-features":
