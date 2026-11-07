@@ -101,6 +101,14 @@ export function ownShipIcon(headingDeg: number | null, off = false, look: OwnShi
 const ownShipIconMade = made((headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean) => makeOwnShipIcon(headingDeg, off, look, moving));
 
 function makeOwnShipIcon(headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean) {
+  const { size, html } = ownShipHtml(headingDeg, off, look, moving);
+  return L.divIcon({ className: "", iconSize: [size, size], iconAnchor: [size / 2, size / 2], html });
+}
+
+/** Own ship's mark as markup and its box, px: the Leaflet marker's icon and
+ *  the WebGL map's marker (OwnShipGl) alike, each turning it to the
+ *  heading as it draws it. */
+export function ownShipHtml(headingDeg: number | null, off: boolean, look: OwnShipLook, moving: boolean): { size: number; html: string } {
   // Grey where own ship is off: the last position, no longer watched, as
   // Maps greys its dot when it stops knowing where you are. iOS's blue.
   const fill = off ? "#9ca3af" : MAP_BLUE;
@@ -108,16 +116,14 @@ function makeOwnShipIcon(headingDeg: number | null, off: boolean, look: OwnShipL
   const beam = plane && moving;
   // The beam's box twice the plane's, the plane at its middle (ownShipSvg).
   const size = beam ? 68 : plane ? 34 : 28;
-  return L.divIcon({
-    className: "",
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
+  return {
+    size,
     html: !plane && (headingDeg === null || off)
       ? `<div data-own-ship="${off ? "off" : "on"}" class="absolute left-1/2 top-1/2 size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[2.5px] border-white shadow-[0_1px_4px_rgba(0,0,0,.45)]" style="background:${fill}"></div>`
       : ownShipSvg(look, fill, size,
         `data-own-ship="${off ? "off" : "on"}" data-look="${look}" data-moving="${beam}" class="absolute left-0 top-0 drop-shadow-[0_1.5px_3px_rgba(0,0,0,.4)]" style="transform:rotate(${Number(headingDeg ?? 0)}deg)"`,
         beam),
-  });
+  };
 }
 
 /** How far a checkpoint's name sits from its point: clear of its numbered

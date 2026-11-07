@@ -17,7 +17,7 @@ import { MapCard } from "./MapCard";
 import { MapPopup } from "./MapPopup";
 
 /** The FAA's own TFR red, as tfr.faa.gov and every EFB draw one. */
-const TFR_RED = "#dc2626";
+export const TFR_RED = "#dc2626";
 
 // One style each, in force and not yet, rather than a literal at every
 // render: react-leaflet restyles a path whenever its pathOptions is new.
@@ -30,7 +30,7 @@ const NOT_YET: PathOptions = { color: TFR_RED, weight: 1.5, dashArray: "6 5", fi
 const TFRS_A_FRAME = 15;
 
 /** Whether a TFR is in force now: one with no times is taken as so. */
-function inForce(tfr: Tfr, now: number): boolean {
+export function inForce(tfr: Tfr, now: number): boolean {
   const from = tfr.effective ? Date.parse(tfr.effective) : -Infinity;
   const to = tfr.expires ? Date.parse(tfr.expires) : Infinity;
   return from <= now && now <= to;
@@ -98,7 +98,7 @@ const TfrShape = memo(function TfrShape({ tfr, active }: { tfr: Tfr; active: boo
   );
 });
 
-function TfrCard({ tfr, active }: { tfr: Tfr; active: boolean }) {
+export function TfrCard({ tfr, active }: { tfr: Tfr; active: boolean }) {
   const rings = useMemo(() => outsides(tfr.geometry as { type?: string; coordinates?: unknown }), [tfr.geometry]);
   const line = usePointActions(s => s.courseLine);
   const enters = useMemo(() => !!line && rings.length > 0 && lineEnters(rings, line), [rings, line]);

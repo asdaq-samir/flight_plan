@@ -17,7 +17,7 @@ const MIN_BAND = 220;
 /** How far the map may zoom under two fingers held for the ruler, in
  *  levels: a twentieth is 3.5% of its size, more than fingers at rest on
  *  glass wander; past it they are pinching. */
-const PINCHED_LEVELS = 0.05;
+export const PINCHED_LEVELS = 0.05;
 
 /**
  * The ruler (lib/map/ruler): two fingers held still on the map for
@@ -28,6 +28,16 @@ const PINCHED_LEVELS = 0.05;
  * it is drawn over the map, not in it. A pinch that moves before then is
  * Leaflet's as ever: these listeners only watch.
  */
+/** The airplane's cruise speed, for the ruler's time en route: the pilot's
+ *  own airplane's, else its type's. */
+export function useCruiseTas(): number | null {
+  const remembered = usePreferences(p => p.aircraft);
+  const { data: profiles } = useQuery(aircraftProfilesQuery);
+  const { data: mine } = useQuery({ ...aircraftListQuery, enabled: remembered.aircraftId != null });
+  const own = remembered.aircraftId != null ? mine?.find(a => a.id === remembered.aircraftId) : undefined;
+  return cruiseTasOf(own ? { ...remembered, cruiseTasKt: own.cruiseTasKt } : remembered, profiles);
+}
+
 export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
   // Where the fingers were as it came, for what VoiceOver is told, and
   // where they are now.
@@ -35,11 +45,7 @@ export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
   const [declination, setDeclination] = useState<Declination | null>(null);
   // Timed at the airplane the planner flies: its own figures as they are
   // now where it is the pilot's, as the planner flies it (PlanWorkspace).
-  const remembered = usePreferences(p => p.aircraft);
-  const { data: profiles } = useQuery(aircraftProfilesQuery);
-  const { data: mine } = useQuery({ ...aircraftListQuery, enabled: remembered.aircraftId != null });
-  const own = remembered.aircraftId != null ? mine?.find(a => a.id === remembered.aircraftId) : undefined;
-  const tasKt = cruiseTasOf(own ? { ...remembered, cruiseTasKt: own.cruiseTasKt } : remembered, profiles);
+  const tasKt = useCruiseTas();
 
   useEffect(() => {
     const el = map.getContainer();
@@ -137,11 +143,20 @@ export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
     };
   }, [map]);
 
-  const drawn = useMemo(() => ends && placed(map, ends.now, declination, tasKt), [ends, map, declination, tasKt]);
+  const toLatLon = useMemo(() => (p: { x: number; y: number }) => {
+    const ll = map.containerPointToLatLng(L.point(p.x, p.y));
+    return { lat: ll.lat, lon: ll.lng };
+  }, [map]);
+  const drawn = useMemo(() => ends && placed(toLatLon, ends.now, declination, tasKt), [ends, toLatLon, declination, tasKt]);
   // Said once, as the ruler comes, and not again at each move of a finger.
   const first = ends?.first;
-  const spoken = useMemo(() => (first ? placed(map, first, declination, tasKt).words.spoken : ""), [first, map, declination, tasKt]);
+  const spoken = useMemo(() => (first ? placed(toLatLon, first, declination, tasKt).words.spoken : ""), [first, toLatLon, declination, tasKt]);
 
+  return <RulerDrawing drawn={drawn} spoken={spoken} />;
+});
+
+/** The ruler on the screen and its words for a screen reader, on either map. */
+export function RulerDrawing({ drawn, spoken }: { drawn: Placed | null; spoken: string }) {
   return (
     <>
       <div className="sr-only" aria-live="polite" data-testid="ruler-spoken">{spoken}</div>
@@ -171,17 +186,17 @@ export const MapRuler = memo(function MapRuler({ map }: { map: L.Map }) {
       )}
     </>
   );
-});
+}
 
 /** The ruler between `ends` on the screen: its words upright along it,
  *  read from whichever end is then on the left. */
-function placed(map: L.Map, [a, b]: Ends, declination: Declination | null, tasKt: number | null) {
+type XY = { x: number; y: number };
+export type Placed = ReturnType<typeof placed>;
+
+export function placed(at: (p: XY) => { lat: number; lon: number }, [a, b]: readonly [XY, XY], declination: Declination | null, tasKt: number | null) {
   const { angleDeg, flipped } = upright(a, b);
   const [left, right] = flipped ? [b, a] : [a, b];
-  const at = (p: L.Point) => {
-    const ll = map.containerPointToLatLng(p);
-    return { lat: ll.lat, lon: ll.lng };
-  };
   const words = rulerWords(at(left), at(right), declination, tasKt);
-  return { a, b, angleDeg, words, width: Math.max(MIN_BAND, a.distanceTo(b) - 2 * FINGER_CLEAR), middle: a.add(b).divideBy(2) };
+  const width = Math.max(MIN_BAND, Math.hypot(b.x - a.x, b.y - a.y) - 2 * FINGER_CLEAR);
+  return { a, b, angleDeg, words, width, middle: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
 }

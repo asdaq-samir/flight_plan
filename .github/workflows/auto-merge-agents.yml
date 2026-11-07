@@ -6,20 +6,19 @@ name: Auto-merge agents
 # someone to read its notes. Main's ruleset requires the "CI passed" check
 # (ci.yml), so nothing merges red.
 #
-# Claude's are set to merge only once Claude's review of them has run
-# (claude-review.yml), not when they open: #81 merged on its first green
-# CI while the review's fixes were still being made, and its two findings
-# (a cut-off note saved, a cut-off briefing kept) shipped. The review runs
-# whatever happens to it -- a failed one still ends -- so a pull request
-# is never held for ever; a fix the review pushes runs CI again before the
-# merge.
+# Claude's have auto-merge turned on as they open (or leave draft), not
+# after Claude's review: the owner decided on 2026-11-06 ("Ok to not
+# having review") that no review gates a merge, and claude-review.yml now
+# reviews only a pull request given the "review" label. Until then they
+# waited for the review, since #81 merged on its first green CI while the
+# review's fixes were still being made. The gate is unchanged: main's
+# ruleset requires "CI passed", so a pull request still merges only green,
+# and an agent runs the checks that cover its change, and the
+# aviation-check skill, before it pushes.
 
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
-  workflow_run:
-    workflows: ["Claude review"]
-    types: [completed]
 
 permissions:
   contents: write
@@ -28,9 +27,9 @@ permissions:
 jobs:
   claude:
     if: >-
-      github.event_name == 'workflow_run' &&
-      startsWith(github.event.workflow_run.head_branch, 'claude/') &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      !github.event.pull_request.draft &&
+      startsWith(github.event.pull_request.head.ref, 'claude/') &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
     steps:
       - name: Merge once CI passes
@@ -39,11 +38,8 @@ jobs:
           # merge then starts main's workflows.
           GH_TOKEN: ${{ secrets.MERGE_TOKEN || github.token }}
           GH_REPO: ${{ github.repository }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
-        run: |
-          pr=$(gh pr list --head "$BRANCH" --base main --state open --json number,isDraft --jq '.[] | select(.isDraft | not) | .number' | head -1)
-          if [ -z "$pr" ]; then echo "No open pull request from $BRANCH."; exit 0; fi
-          gh pr merge "$pr" --auto --merge
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr merge "$PR" --auto --merge
 
   dependabot:
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
