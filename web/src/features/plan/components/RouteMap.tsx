@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { lazy, memo, Suspense, useMemo, useState } from "react";
 import { hm } from "../../../lib/clock";
 import { threeFigures } from "../../../lib/navaid";
 import L from "leaflet";
@@ -48,6 +48,7 @@ import { hovers } from "../../../lib/map/view";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
 import { useScreenView } from "../../../lib/map/useView";
 import DryRunLayer from "../../../lib/map/DryRunLayer";
+import type { GlCheckpoint, GlEndpoint } from "../../../lib/map/gl/GlMap";
 import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
 import { usePreferences } from "../../../lib/preferences";
 import { STOP_KINDS, type StopKind } from "../../../lib/stopKinds";
@@ -720,6 +721,12 @@ const HoldTracks = memo(function HoldTracks({ legs }: { legs: Leg[] }) {
 /** How close in an airport's card brings the map: its field and its
  *  neighbours on the sectional. */
 const PLACE_ZOOM = 9;
+
+/** The MapLibre spike's map (lib/map/gl), behind the map's settings' Map
+ *  Engine: a chunk of its own, fetched only by a pilot who picks it, so
+ *  Leaflet's pilots load none of MapLibre. */
+const GlMap = lazy(() => import("../../../lib/map/gl/GlMap"));
+
 // A lone departure's: the field and the country round it, a sectional's
 // scale, where a destination is picked.
 const START_ZOOM = 9;
@@ -780,6 +787,36 @@ export default memo(function RouteMap({
   // The course and the plan's first cruise, for a weather area's card.
   const courseLine = (course?.course_line as [number, number][] | undefined) ?? null;
   const cruiseFt = legs[0]?.altitude_ft ?? null;
+
+  // The MapLibre spike: the chart, the airspace, the route and own ship in
+  // one WebGL map, each tap the card it opens on the Leaflet map.
+  const engine = usePreferences(s => s.mapEngine);
+  const showCheckpoints = usePreferences(s => s.waypoints);
+  const ink = useInkLook();
+  const legFacts = useMemo(() => legFactsOf(selected, legs), [selected, legs]);
+  const glCheckpoints = useMemo<GlCheckpoint[]>(() => (engine !== "maplibre" || !showCheckpoints ? [] : selected.map((c, i) => {
+    const key = `${c.lat},${c.lon}`;
+    return {
+      key, lat: c.lat, lon: c.lon, number: i + 1, colour: checkpointColour(scoreColor(c.predicted_score), ink),
+      card: <CheckpointCard candidate={c} number={i + 1} leg={legFacts.get(key)} />,
+      select: () => onSelectCandidate(c),
+    };
+  })), [engine, showCheckpoints, selected, ink, legFacts, onSelectCandidate]);
+  const glEndpoints = useMemo<GlEndpoint[]>(() => (engine !== "maplibre" || !course ? [] : routeAirports(course).map(a => ({
+    ident: pointName(a.ident), lat: a.lat, lon: a.lon,
+    colour: a.kind === "fix" ? COURSE_MAGENTA : chipColourOf(weatherOf(a.ident, airportWeather)),
+    select: () => (a.kind === "fix" ? onSelectPoint(a.lat, a.lon) : onSelectPlace(a.ident)),
+  }))), [engine, course, airportWeather, onSelectPoint, onSelectPlace]);
+  if (engine === "maplibre") {
+    return (
+      <Suspense fallback={<div className="h-full w-full bg-slate-100 dark:bg-slate-900" />}>
+        <GlMap
+          course={course} checkpoints={glCheckpoints} endpoints={glEndpoints} focus={focus} focusZoom={focusZoom}
+          place={place} held={!!focus || !!place || !!heldPoint || !!nearest}
+        />
+      </Suspense>
+    );
+  }
 
   return (
     <MapShell
