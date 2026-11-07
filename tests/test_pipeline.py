@@ -200,9 +200,8 @@ def _labelled(tmp_path, n: int):
 
 
 def test_every_trainer_splits_the_labelled_table_one_way(tmp_path):
-    """Four trainers each built this themselves, and Spark drew its own
-    random split: the comparison set scores on different landmarks side by
-    side."""
+    """One split for every trainer, so their scores are on the same
+    landmarks side by side."""
     from wingtip import pipeline
 
     features, labels = _labelled(tmp_path, 60)

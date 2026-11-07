@@ -46,10 +46,11 @@ explicit path to production on AWS.
   chart*", so reading the chart makes the ground truth and the training
   signal the same thing rather than filtering an OSM extract down to
   approximate it.
-- **Model selection across four frameworks.** Ridge regression, Random
-  Forest, and Gradient Boosting (scikit-learn) benchmarked against PyTorch,
-  TensorFlow/Keras, and Spark MLlib on the same feature set, with nested
-  cross-validation and permutation importance for the sklearn baseline.
+- **scikit-learn model selection.** Each retrain grid-searches Ridge
+  regression, Random Forest and Gradient Boosting against a
+  predict-the-mean baseline by 5-fold cross-validation and keeps the
+  best; the planner scores checkpoints with the promoted model. Notebook
+  03 adds nested cross-validation and permutation importance.
 - **Orchestrated ML pipeline.** An Apache Airflow DAG automates data
   collection, feature engineering, training, evaluation, and model
   promotion — a new model only goes live if it beats the currently
@@ -117,11 +118,7 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 **ML / Data**
 
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=flat-square&logo=scikitlearn&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)
-![TensorFlow](https://img.shields.io/badge/TensorFlow%2FKeras-FF6F00?style=flat-square&logo=tensorflow&logoColor=white)
-![Spark](https://img.shields.io/badge/Spark%20MLlib-E25A1C?style=flat-square&logo=apachespark&logoColor=white)
 ![pandas](https://img.shields.io/badge/pandas-150458?style=flat-square&logo=pandas&logoColor=white)
-![Hugging Face](https://img.shields.io/badge/sentence--transformers-FFD21E?style=flat-square&logo=huggingface&logoColor=black)
 
 **Backend & orchestration**
 
@@ -198,9 +195,9 @@ service discovery at `planning-service.wingtip.internal`.
   where something moved, for `webapp`'s flight watch
   (`/api/flights/{id}/watch`: a saved flight re-briefed every half hour
   up to departure, what changed mailed to the pilot)
-- `/api/model-comparison` — every trained algorithm's accuracy side by
-  side: the dev console charts it, and Plan's info popover names the
-  promoted one from it
+- `/api/model-comparison` — the scikit-learn models the last retrain
+  compared, each by its cross-validated error: the dev console charts
+  it, and Plan's info popover names the promoted one from it
 - `/api/status`, `/api/retrain`, `/api/aircraft-profiles` — the Dev
   drawer's own snapshot of the stack (services, FAA and weather data
   freshness, the model registry, collected corridors and their labels),
@@ -560,10 +557,9 @@ Despite its name, `planning-service` serves no pages; see [Services in detail](#
 
 Notebooks 01-03 walk through what `pipeline.py` automates, and call it:
 01 and 02 run `collect` and `engineer_features` and read the tables back,
-so a notebook and the DAG can never write two different data files; 03-05
-take their labelled table and holdout from `pipeline.labeled_split`, the
-one every trainer uses. 06-08 are standalone comparison/domain exercises;
-08 walks the altitude selection one step at a time with `wingtip.altitude`'s
+so a notebook and the DAG can never write two different data files; 03
+takes its labelled table and holdout from `pipeline.labeled_split`, the
+one every trainer uses. 08 walks the altitude selection one step at a time with `wingtip.altitude`'s
 own pieces and checks its answer against the planner's. Run them via `docker
 compose up ml`. Full per-notebook breakdown is in the
 [Appendix](#appendix).
@@ -655,7 +651,7 @@ CI job breakdown is in the [Appendix](#appendix).
 |---|---|---|
 | `docker compose up db` | PostgreSQL + pgvector | `5432` |
 | `docker compose up webapp` | Spring Boot API and the three browser pages; brings up `db` and `planning-service` too | `8080` |
-| `docker compose up ml` | Jupyter, for notebooks 01-08 | `8888` (token `wingtip`) |
+| `docker compose up ml` | Jupyter, for notebooks 01-03 and 08 | `8888` (token `wingtip`) |
 | `docker compose run --rm pipeline-processing collect` | Runs `pipeline.collect()`: downloads a corridor's candidates once, and again only with `--refresh` | — |
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |
@@ -710,12 +706,11 @@ data/
 | 01 | `data_collection` | Pulls candidate checkpoints along the route corridor (OSM + FAA NASR) | `pipeline.collect` |
 | 02 | `feature_engineering` | Builds the model feature table | `pipeline.engineer_features` |
 | 03 | `sklearn_baseline` | Hand-labeling + Ridge/RandomForest/GradientBoosting selection, nested CV | `pipeline.retrain` |
-| 04 | `pytorch_tensorflow` | PyTorch + Keras MLP vs. the sklearn baseline | Comparison only |
-| 05 | `huggingface_embeddings` | Sentence-transformer embeddings as engineered features | Comparison only |
-| 06 | `spark_mllib` | Spark MLlib GBTRegressor, same comparison | Comparison only |
 | 08 | `altitude_selection` | Terrain/obstacle floor, Class B/C/D airspace, weather, aircraft ceiling → recommended cruise altitude | `wingtip.altitude` |
 
-(There is no 07.)
+(Numbers 04 to 07 are unused: 04, 05 and 06 compared PyTorch, Keras,
+sentence-transformers and Spark MLlib with the scikit-learn baseline,
+and went on 2026-11-06, since only scikit-learn reaches a pilot.)
 
 ### CI, in full
 
@@ -735,7 +730,7 @@ empty commit:
 | `e2e` | The browser suite (`web/e2e`, Playwright) against the stack a pilot uses — the webapp and the planner built from the commit, Postgres and Mailpit — under `docker-compose.ci.yml`, with the planner's reference data (about a gigabyte it fetches for itself) kept in the Actions cache between runs. Run on every push, and on a pull request that touches anything the stack is built from. Its images and the page are built once for each content key by `build (e2e)` and pulled by all eight shards, on a push and on a pull request from one of this repository's branches; only a fork's or Dependabot's pull request, whose token cannot push, has each shard build its own. |
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/wingtip` ones |
 | `test-nav-log-agent` / `test-crewai-agent` | ruff + pytest over each agent's `tests/`, on that agent's own requirements; the database, planning-service and Claude are mocked, so nothing is billed |
-| `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- which each build one of this repo's heavy ML images (torch/tensorflow/Spark) purely so `pdoc` can import the modules inside -- run only on pushes to `main`, and only for whichever of `src/wingtip`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
+| `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- run only on pushes to `main`, and only for whichever of `src/wingtip`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
 | `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
 | `push-ecr` | Pushes the three images the CloudFormation stack deploys (`webapp`, `planning-service`, `nav-log-agent`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 

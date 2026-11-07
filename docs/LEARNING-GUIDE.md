@@ -161,7 +161,7 @@ from its cache.
 
 | Dockerfile | Base | Why it looks like this |
 |---|---|---|
-| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.13-slim` + a JDK | PySpark (notebook 06) needs a JVM even from Python, hence `apt-get install default-jdk-headless`. Installs the CPU-only PyTorch wheel explicitly (`--index-url .../cpu`) — the default wheel bundles several GB of CUDA libraries this machine has no GPU to use. |
+| [`docker/Dockerfile.ml`](../docker/Dockerfile.ml) | `python:3.14-slim` | Jupyter and scikit-learn over `wingtip`'s own list, for notebooks 01–03 and 08, and nothing else: the PyTorch, TensorFlow, Spark and sentence-transformers comparison notebooks, and the JDK and CUDA-free torch wheel they needed, went on 2026-11-06, since only scikit-learn reaches a pilot. Carries no source; compose bind-mounts the checkout. |
 | [`docker/Dockerfile.processing`](../docker/Dockerfile.processing) | `python:3.14-slim` | Deliberately thin: pandas/requests/pyarrow only, no scikit-learn. Mirrors what a SageMaker *Processing Job* container needs. |
 | [`docker/Dockerfile.training`](../docker/Dockerfile.training) | `python:3.14-slim` | Adds scikit-learn/joblib on top. Kept as a *separate* image from `.processing` rather than one shared image, because Processing and Training are different constructs on AWS with different container contracts — see [Section 2](#2-the-ml-pipeline). |
 | [`docker/Dockerfile.airflow`](../docker/Dockerfile.airflow) | `apache/airflow:3.3.1-python3.13` | Adds one provider package (`apache-airflow-providers-docker`) so its DAGs can launch sibling containers. Doesn't need pandas/scikit-learn itself — see [Section 3](#3-orchestration-with-airflow) for why. |
@@ -176,9 +176,7 @@ A Dockerfile is a recipe; an image is the baked result sitting on your
 disk. `docker images` on a working copy of this repo shows two kinds.
 
 **The eight built from this repo**, named after the project directory
-(`wingtip-webapp`, `wingtip-ml`, and so on). `ml` is by far the
-largest, and legitimately so: scikit-learn, PyTorch, TensorFlow, PySpark
-and a JVM in one place. Only three of them run the application — `webapp`,
+(`wingtip-webapp`, `wingtip-ml`, and so on). Only three of them run the application — `webapp`,
 `planning-service` and the database's own image below;
 the rest exist for building, training, orchestrating or testing.
 
