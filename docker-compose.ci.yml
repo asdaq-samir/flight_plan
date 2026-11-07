@@ -61,6 +61,11 @@ services:
       - ./web/dist:/app/static/app:ro
   planning-service:
     image: wingtip-planning-service:ci
+    # Pulled or built before the stack starts, never by `up`. Its build
+    # names the `base` service (additional_contexts), which sits behind a
+    # profile this stack does not enable, so compose refused the file
+    # even with --no-build.
+    build: !reset null
     depends_on: !reset {}
     healthcheck:
       start_period: 60s
