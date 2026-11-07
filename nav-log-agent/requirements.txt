@@ -16,6 +16,7 @@ psycopg[binary]==3.3.6
 pgvector==0.5.0
 sentence-transformers==6.1.0
 requests==2.34.2   # wingtip.planner_client -- the nav log comes from planning-service's /api/plan
+pydantic-settings==2.16.2   # wingtip.config, which wingtip.planner_client reads its address from
 # Nothing else from vfr: planner_client is the only vfr module this agent
-# imports, and it needs requests alone. The geometry, raster and FAA data
+# imports, and it needs requests and pydantic-settings (wingtip.config) alone. The geometry, raster and FAA data
 # dependencies wingtip's other modules need stay in the images that run them.
