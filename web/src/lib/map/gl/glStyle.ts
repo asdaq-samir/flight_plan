@@ -205,7 +205,6 @@ export interface RoutePoint {
 
 export const ROUTE_SOURCE = "route";
 export const CHECKPOINT_SOURCE = "checkpoints";
-export const ENDPOINT_SOURCE = "endpoints";
 
 /** The course: a white casing under the magenta core, as CourseLine. */
 export function routeFeature(line: [number, number][]): GeoJSON.Feature<GeoJSON.LineString> {
@@ -241,20 +240,5 @@ export function routeLayers(font: string[], courseColour = COURSE_MAGENTA): Laye
     layout: { "text-field": ["get", "label"], "text-font": font, "text-size": 11, "text-allow-overlap": true, "text-ignore-placement": true },
     paint: { "text-color": "#ffffff" },
   };
-  // The route's airports: a white dot ringed in the field's weather's
-  // colour (flightCategory), its ident beside it, haloed -- drawn over
-  // everything and never dropped (allow-overlap).
-  const fields: CircleLayerSpecification = {
-    id: "endpoints", type: "circle", source: ENDPOINT_SOURCE,
-    paint: { "circle-radius": 7, "circle-color": "#ffffff", "circle-stroke-color": ["get", "colour"], "circle-stroke-width": 4 },
-  };
-  const idents: SymbolLayerSpecification = {
-    id: "endpoint-idents", type: "symbol", source: ENDPOINT_SOURCE,
-    layout: {
-      "text-field": ["get", "label"], "text-font": font, "text-size": 13, "text-anchor": "left", "text-offset": [1, 0],
-      "text-allow-overlap": true,
-    },
-    paint: { "text-color": "#0b1422", "text-halo-color": "#ffffff", "text-halo-width": 2 },
-  };
-  return [casing, core, dots, numbers, fields, idents];
+  return [casing, core, dots, numbers];
 }

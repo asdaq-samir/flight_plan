@@ -5,7 +5,7 @@ import L from "leaflet";
 import { CircleMarker, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
-import { airportQuery, classBQuery } from "../../../lib/queryClient";
+import { airportQuery, chartQuery, classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
 import { placeWords } from "../../../lib/advisories";
 import type { Candidate, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
@@ -28,6 +28,7 @@ const NO_POINTS: { lat: number; lon: number }[] = [];
 const NO_POINTS_AT: { ident: string; lat: number; lon: number }[] = [];
 const NO_STOP_FIELDS: StopFieldPin[] = [];
 const NO_PROCEDURES: ProcedureDrawing[] = [];
+const NO_CROSSINGS: Record<string, number> = {};
 import { chipColourOf, colourOf } from "../../../lib/map/flightCategory";
 import { CourseLine } from "../../../lib/map/CourseLine";
 import { RouteWaysLayer, type RouteWay } from "../../../lib/map/RouteWaysLayer";
@@ -48,10 +49,11 @@ import { hovers } from "../../../lib/map/view";
 import { useCardedMarker } from "../../../lib/map/useCardedMarker";
 import { useScreenView } from "../../../lib/map/useView";
 import DryRunLayer from "../../../lib/map/DryRunLayer";
-import type { GlCheckpoint, GlEndpoint } from "../../../lib/map/gl/GlMap";
+import type { GlCandidate, GlCheckpoint, GlEndpoint } from "../../../lib/map/gl/GlRouteMap";
 import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
 import { usePreferences } from "../../../lib/preferences";
 import { STOP_KINDS, type StopKind } from "../../../lib/stopKinds";
+import { BREAK_PIN, FUEL_PIN, stackedPin, type StopPin } from "../../../lib/map/stopPins";
 import { inkOn } from "../../../lib/scoreScale";
 import { feet, nm } from "../../../lib/units";
 import { scoreColor } from "../format";
@@ -120,26 +122,6 @@ interface Props {
   onPickWay?: (key: string) => void;
 }
 
-/** A stop's pin: the caution's orange, its glyph in white (lucide's), its
- *  point in the middle of the field's mark drawn under it (StopPin), as
- *  Tesla's trip map pins its chargers (the owner's screenshot,
- *  2026-10-21) -- the field under the pin, with its ident, at the owner's
- *  asks ("Put airports under the fuel markers"; "at the middle of the
- *  airport markers", 2026-10-26). */
-function stopPin(glyph: string) {
-  return L.divIcon({
-    className: "",
-    html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
-      + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></svg>`,
-    iconSize: [30, 38], iconAnchor: [15, 37],
-  });
-}
-/** A suggested fuel stop's: the pump (lucide's Fuel). */
-const FUEL_PIN = stopPin('<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>');
-/** A break's on a long flight the tanks hold (fuelstops.suggest_break): a cup (lucide's Coffee). */
-const BREAK_PIN = stopPin('<path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/>');
-/** A suggested stop pinned on the chart (the totals' fuel_stops). */
-type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" };
 
 function FuelStopPins({ stops, onSelect }: { stops: StopPin[]; onSelect: (ident: string) => void }) {
   return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
@@ -179,35 +161,6 @@ const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPi
 /** A field of the map's Stops (StopsCard) pinned while the sheet is open:
  *  the kinds it has, in a row's order (lib/stopKinds). */
 export type StopFieldPin = { ident: string; lat: number; lon: number; kinds: StopKind[] };
-
-/** A field's stacked pins (the owner's pick of the Stops canvas, I,
- *  2026-10-27): one teardrop for each kind it has, in the kind's colour
- *  with its glyph in white, each fanned eight points right and four up
- *  from the one before so every glyph shows, the first kind in front, its
- *  tip on the field. One icon each set of kinds, made once: a new icon
- *  for every render would have Leaflet draw the marker again. */
-const stackedPins = new Map<string, L.DivIcon>();
-function stackedPin(kinds: StopKind[]): L.DivIcon {
-  const key = kinds.join(",");
-  const kept = stackedPins.get(key);
-  if (kept) return kept;
-  const n = kinds.length;
-  const width = 30 + (n - 1) * 8, height = 38 + (n - 1) * 4;
-  // Back to front: the last kind drawn first, behind the others.
-  const pins = kinds.map((kind, i) => {
-    const { colour, paths } = STOP_KINDS[kind];
-    const glyph = paths.map(d => `<path d="${d}"/>`).join("");
-    return `<g transform="translate(${i * 8} ${(n - 1 - i) * 4})"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="${colour}" stroke="#fff" stroke-width="2"/>`
-      + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></g>`;
-  }).reverse().join("");
-  const icon = L.divIcon({
-    className: "",
-    html: `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">${pins}</svg>`,
-    iconSize: [width, height], iconAnchor: [15, height - 1],
-  });
-  stackedPins.set(key, icon);
-  return icon;
-}
 
 const StopFieldMark = memo(function StopFieldMark({ field, onSelect }: { field: StopFieldPin; onSelect: (ident: string) => void }) {
   // Memoized, not a literal: see AirportsLayer.
@@ -725,7 +678,7 @@ const PLACE_ZOOM = 9;
 /** The MapLibre spike's map (lib/map/gl), behind the map's settings' Map
  *  Engine: a chunk of its own, fetched only by a pilot who picks it, so
  *  Leaflet's pilots load none of MapLibre. */
-const GlMap = lazy(() => import("../../../lib/map/gl/GlMap"));
+const GlRouteMap = lazy(() => import("../../../lib/map/gl/GlRouteMap"));
 
 // A lone departure's: the field and the country round it, a sectional's
 // scale, where a destination is picked.
@@ -797,22 +750,33 @@ export default memo(function RouteMap({
   const glCheckpoints = useMemo<GlCheckpoint[]>(() => (engine !== "maplibre" || !showCheckpoints ? [] : selected.map((c, i) => {
     const key = `${c.lat},${c.lon}`;
     return {
-      key, lat: c.lat, lon: c.lon, number: i + 1, colour: checkpointColour(scoreColor(c.predicted_score), ink),
+      key, lat: c.lat, lon: c.lon, number: i + 1, name: labelOf(c), colour: checkpointColour(scoreColor(c.predicted_score), ink),
       card: <CheckpointCard candidate={c} number={i + 1} leg={legFacts.get(key)} />,
       select: () => onSelectCandidate(c),
     };
   })), [engine, showCheckpoints, selected, ink, legFacts, onSelectCandidate]);
+  const glCandidates = useMemo<GlCandidate[]>(() => (engine !== "maplibre" || !showCheckpoints ? [] : candidates.filter(c => !c.selected).map(c => ({
+    key: `${c.lat},${c.lon}`, lat: c.lat, lon: c.lon, colour: scoreColor(c.predicted_score), card: <CheckpointCard candidate={c} />,
+  }))), [engine, showCheckpoints, candidates]);
   const glEndpoints = useMemo<GlEndpoint[]>(() => (engine !== "maplibre" || !course ? [] : routeAirports(course).map(a => ({
-    ident: pointName(a.ident), lat: a.lat, lon: a.lon,
-    colour: a.kind === "fix" ? COURSE_MAGENTA : chipColourOf(weatherOf(a.ident, airportWeather)),
+    ident: a.kind === "fix" ? pointName(a.ident) : a.ident, lat: a.lat, lon: a.lon, fix: a.kind === "fix", space: a.airspace_class ?? null,
+    colour: chipColourOf(weatherOf(a.ident, airportWeather)),
     select: () => (a.kind === "fix" ? onSelectPoint(a.lat, a.lon) : onSelectPlace(a.ident)),
   }))), [engine, course, airportWeather, onSelectPoint, onSelectPlace]);
+  const { data: chartOnly } = useQuery({ ...chartQuery, enabled: engine === "maplibre" && !course });
   if (engine === "maplibre") {
     return (
       <Suspense fallback={<div className="h-full w-full bg-slate-100 dark:bg-slate-900" />}>
-        <GlMap
-          course={course} checkpoints={glCheckpoints} endpoints={glEndpoints} focus={focus} focusZoom={focusZoom}
-          place={place} held={!!focus || !!place || !!heldPoint || !!nearest}
+        <GlRouteMap
+          course={course} chart={course ?? chartOnly ?? null} checkpoints={glCheckpoints} candidates={glCandidates} endpoints={glEndpoints}
+          focus={focus} focusZoom={focusZoom} place={place} onSelectPlace={onSelectPlace} onSelectPoint={onSelectPoint}
+          chipped={chippedFields} routeBox={routeBox} chippedIdents={chipped} courseLine={courseLine} cruiseFt={cruiseFt}
+          legs={legs} start={start} nearest={nearest} heldPoint={heldPoint} onHoldPoint={onHoldPoint}
+          patterns={patterns} focusedPattern={focusedPattern} patternFocus={patternFocus}
+          procedures={procedures} focusedProcedure={focusedProcedure} procedureFocus={procedureFocus} procedureCover={procedureCover}
+          crossings={crossings ?? NO_CROSSINGS} directs={directs} onProcedureFix={onProcedureFix}
+          fuelStops={fuelStops} stopFields={stopFields} onPickStopField={onPickStopField}
+          ways={ways} wayShown={wayShown} onPickWay={onPickWay}
         />
       </Suspense>
     );
