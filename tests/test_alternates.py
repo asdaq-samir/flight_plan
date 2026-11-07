@@ -110,3 +110,19 @@ def test_the_nearest_that_will_do_are_offered_nearest_first(world):
     charts["KALT"] = [RNAV, ALT_MINS]
     found = alternates.nearby((45.0, -90.0), "KDST", lambda lat, lon: ETA)
     assert [(f["ident"], f["good"]) for f in found] == [("KFAR", True), ("KALT", None)]
+
+
+def test_a_ceiling_of_unknown_height_is_not_taken_as_good(world):
+    """A layer forecast with no height ("OVC///", the AWC's layer with no
+    base) is a ceiling not known (14 CFR 1.1): it neither meets 91.169(b)'s
+    2,000 ft nor an alternate's minimums, so the destination needs an
+    alternate and the field is one for the pilot to look at."""
+    tafs, charts = world
+    charts["KDST"], charts["KALT"] = [ILS], [ILS]
+    unknown = {"timeFrom": ETA - 6 * HOUR, "timeTo": ETA + 6 * HOUR, "change": "",
+               "clouds": [{"cover": "OVC", "base": None}], "visib": "6", "vert_vis": None}
+    tafs["KDST"], tafs["KALT"] = [unknown], [unknown]
+    check = alternates.destination("KDST", ETA)
+    assert check["required"] is True and "unknown height" in check["reasons"][0]
+    alt = alternates.alternate("KALT", ETA)
+    assert alt["good"] is None and alt["meets_standard"] is False
