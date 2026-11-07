@@ -16,6 +16,15 @@ enum Flight {
         (try? Engine.call("underway", json: ["speed_kt": groundspeedKt])) ?? false
     }
 
+    /// Which side of true north the compass points, from the planner's
+    /// signed variation, positive east (wingtip.magnetic; the nav log's
+    /// MH = TH - var). West variation is added to a true course and east
+    /// taken off, "east is least, west is best" (FAA Pilot's Handbook of
+    /// Aeronautical Knowledge, ch. 16, Navigation: Variation).
+    static func variationSide(_ deg: Double) -> (letter: String, word: String) {
+        deg < 0 ? ("W", "west") : ("E", "east")
+    }
+
     struct Left: Equatable, Sendable {
         /// Miles along the course line to the position's nearest point.
         let alongNm: Double
