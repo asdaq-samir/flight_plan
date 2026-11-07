@@ -2,6 +2,7 @@ import type { Totals } from "../../lib/api/types";
 import type { Flown } from "./components/navlog/dryRun";
 import { decimalHours, etaAt, one } from "./format";
 import { duration } from "../../lib/clock";
+import { callEngine } from "../../lib/engine/engine";
 
 /** One of the flight's figures: its name over it, its unit after it. */
 export interface Figure {
@@ -42,15 +43,20 @@ export function nextLanding(totals: Totals | null, destination: string, hop = 0)
   return flight ? { to: flight.destination, totals: flight.totals } : { to: destination, totals };
 }
 
-/** The reserve an estimate's fuel carries before the nav log's own: 45
- *  minutes at the cruise burn, the most the rules ask -- night VFR (14 CFR
- *  91.151(a)(2)) and IFR (91.167(a)(3)) -- as whether the flight is either is
- *  not known yet, so the estimate is never short (the audit's finding: the
- *  day's 30 minutes made it low at night and under IFR); and the start,
- *  taxi and takeoff allowance of the Cessna 172S handbook, 1.4 gal --
- *  wingtip.navlog's NIGHT_RESERVE_MIN and DEFAULT_TAXI_FUEL_GAL. */
-const ESTIMATE_RESERVE_H = 0.75;
-const ESTIMATE_TAXI_GAL = 1.4;
+/** The strip's fuel from the planner's totals, the engine's
+ *  (strip_fuel), the iPhone's and Android's own: the fuel required to the
+ *  landing of hop `hop` (the tanks filled at each stop), less what a
+ *  flight under way has burnt, and the flights the tanks fall short on. */
+function stripFuel(totals: Totals | null, hop = 0, burntGal: number | null = null) {
+  return callEngine("strip_fuel", {
+    fuel_required_gal: totals?.fuel_required_gal ?? null, fuel_margin_gal: totals?.fuel_margin_gal ?? null,
+    hops: (totals?.hops ?? []).map(h => ({
+      departure: h.departure, destination: h.destination,
+      fuel_required_gal: h.totals.fuel_required_gal ?? null, fuel_margin_gal: h.totals.fuel_margin_gal ?? null,
+    })),
+    hop, burnt_gal: burntGal,
+  });
+}
 
 /** The strip's figures, at the owner's ask ("To, Dist, ETE, Fuel. To is
  *  the next stop, fuel is the fuel required"): the next landing, and the
@@ -61,8 +67,7 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
   const guessed = !totals && !local && estimate ? guess(estimate) : null;
   const from = depart || new Date().toISOString();
   if (guessed) {
-    const { distanceNm, minutes, fuelGal } = guessed;
-    const required = fuelGal == null || estimate?.fuelBurnGph == null ? null : fuelGal + ESTIMATE_TAXI_GAL + ESTIMATE_RESERVE_H * estimate.fuelBurnGph;
+    const { distanceNm, minutes, required } = guessed;
     return [
       { name: "To", value: destination || "—", testId: "navlog-to" },
       { name: "Dist", value: whole ? `${Math.ceil(distanceNm)}` : one(distanceNm), unit: "nm" },
@@ -85,15 +90,15 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
   const distance = left ? left.nm : leg?.distance_nm ?? null;
   const minutes = left ? left.min : leg?.ete_min ?? null;
   const time = minutes === null ? "—" : whole ? decimalHours(minutes) : duration(minutes);
-  const planned = landing.totals?.fuel_required_gal ?? null;
-  const required = planned === null ? null : flown ? Math.max(0, planned - flown.burntGal) : planned;
+  const strip = stripFuel(totals, flown?.hop ?? 0, flown ? flown.burntGal : null);
+  const required = strip.required_gal;
   const start = flown ? new Date(flown.now * 1000).toISOString() : from;
   const fuel = required == null ? null : whole ? `${Math.ceil(required)}` : one(required);
   // Red where the tanks do not hold it on any flight of the route -- a
   // later stop's included, which the per-flight lines under the route
   // caught before the owner took them out ("Remove fuel required at the
   // bottom of arrival"): the figure says it now, its breakdown which.
-  const short = shortFlights(totals).length > 0;
+  const short = strip.short.length > 0;
   const fuelFigure = { name: "Fuel", value: fuel ?? "—", unit: fuel === null ? undefined : "gal", testId: fuel === null ? undefined : "navlog-fuel", alert: short };
   const to = { name: "To", value: next.to || "—", testId: "navlog-to" };
   if (local) return [to, { name: "Aloft", value: time, testId: "navlog-ete" }, fuelFigure];
@@ -111,20 +116,18 @@ export function tripFigures({ totals, estimate, local, destination, depart = "",
  *  between two landings, or the whole route with no stops -- "C81 → KMSN". */
 export function shortFlights(totals: Totals | null): { name: string; shortGal: number }[] {
   if (!totals) return [];
-  const flights = totals.hops.length > 0
-    ? totals.hops.map(h => ({ name: `${h.departure} → ${h.destination}`, margin: h.totals.fuel_margin_gal }))
-    : [{ name: "", margin: totals.fuel_margin_gal }];
-  return flights.flatMap(f => (f.margin != null && f.margin < 0 ? [{ name: f.name, shortGal: -f.margin }] : []));
+  return stripFuel(totals).short.map(s => ({ name: s.name, shortGal: s.short_gal }));
 }
 
 /** The figures from the airplane's book alone (FlightLine's `estimate`):
  *  the distance as the course has it, and at cruise speed with no wind
- *  the time, and the fuel at the cruise burn over that time -- each
- *  marked "≈", none of the nav log's climb, wind or legs in it. */
+ *  the time, and the fuel required at the cruise burn over that time with
+ *  the start and taxi allowance and the night or IFR reserve, so it is
+ *  never short -- the engine's (fuel_estimate) -- each marked "≈", none of
+ *  the nav log's climb, wind or legs in it. */
 function guess({ distanceNm, cruiseTasKt, fuelBurnGph }: { distanceNm: number; cruiseTasKt: number | null; fuelBurnGph: number | null }) {
-  const minutes = cruiseTasKt ? (distanceNm / cruiseTasKt) * 60 : null;
-  const fuelGal = minutes != null && fuelBurnGph ? (minutes / 60) * fuelBurnGph : null;
+  const { minutes, required_gal: required } = callEngine("fuel_estimate", { distance_nm: distanceNm, cruise_tas_kt: cruiseTasKt, fuel_burn_gph: fuelBurnGph });
   // Written as the nav log's own time is once it is in (lib/clock duration): this
   // one rounded its minutes on their own, and 119.6 read "1h 60m".
-  return { minutes, distanceNm, fuelGal, time: minutes == null ? "—" : duration(minutes) };
+  return { minutes, distanceNm, required, time: minutes == null ? "—" : duration(minutes) };
 }

@@ -374,32 +374,28 @@ enum Drills {
 }
 
 /// Two-way radio failure under IFR, the parts that are the rule's words
-/// (14 CFR 91.185, the web app's lib/lostComms): the route in the rule's
-/// order and when to leave the clearance limit. The altitude on each
-/// segment, which the web app works out on the page, is left to the
-/// planner (not in its API yet).
+/// (14 CFR 91.185): the route in the rule's order, VFR's words and when to
+/// leave the clearance limit, each the engine's (lost_comms), the web's
+/// and the planner's own; the altitude on each segment the engine's too
+/// (LostCommsSegmentsSections).
 enum LostComms {
+    /// The engine's answer with no segments: its words alone.
+    static func words(approachFix: Bool = false, efc: String = "", eta: String = "") -> LostCommsAnswer? {
+        try? Engine.lostComms(LostCommsAsk(segments: [], assignedFt: nil, expectedFt: nil, expectedFrom: 0,
+                                           approachFix: approachFix, efc: efc, eta: eta))
+    }
+
     /// 91.185(c)(1): the route, in the rule's order -- the first that applies.
-    static let routes: [(key: String, label: String, rule: String)] = [
-        ("assigned", "Assigned", "The route assigned in the last ATC clearance received."),
-        ("vectored", "Vectored", "Being radar vectored: direct from the point of radio failure to the fix, route or airway specified in the vector clearance."),
-        ("expected", "Expected", "No route assigned: the route ATC has advised may be expected in a further clearance."),
-        ("filed", "Filed", "Neither assigned nor expected: the route filed in the flight plan."),
-    ]
+    static var routes: [LostCommsRoute] { words()?.routes ?? [] }
+
+    /// 91.185(b): what VFR conditions call for, as the page opens.
+    static var vfr: String { words()?.vfr ?? "" }
 
     /// 91.185(c)(2): the altitude rule, in words.
     static let altitude = "On each segment, the highest of the altitude assigned in the last clearance, the minimum altitude for IFR operations, and the altitude ATC said to expect in a further clearance."
 
     /// 91.185(c)(3): when to leave the clearance limit, in words.
     static func leaveLimit(approachFix: Bool, efc: String, eta: String) -> String {
-        let at = eta.isEmpty ? "" : ", \(eta)"
-        if approachFix {
-            return efc.isEmpty
-                ? "Begin the descent or the approach as close as possible to your estimated time of arrival\(at), from the filed or amended time en route."
-                : "Hold at the clearance limit, and begin the descent or the approach as close as possible to the expect-further-clearance time, \(efc)."
-        }
-        return efc.isEmpty
-            ? "Leave the clearance limit on arriving over it, proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival\(at)."
-            : "Leave the clearance limit at the expect-further-clearance time, \(efc), proceed to a fix an approach begins from, and begin the descent or the approach as close as possible to your estimated time of arrival\(at)."
+        words(approachFix: approachFix, efc: efc, eta: eta)?.leave ?? ""
     }
 }

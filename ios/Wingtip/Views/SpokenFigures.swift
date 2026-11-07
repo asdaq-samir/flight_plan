@@ -64,20 +64,8 @@ enum SpokenFigures {
     /// A radio frequency, as AirportWords.mhz writes it, figure by figure.
     static func frequency(_ mhz: Double) -> String { digits(AirportWords.mhz(mhz)) }
 
-    /// The compass point in full, as AirportWords.compassPoint abbreviates it.
-    static func compass(_ deg: Double) -> String {
-        switch AirportWords.compassPoint(deg) {
-        case "N": "north"
-        case "NE": "northeast"
-        case "E": "east"
-        case "SE": "southeast"
-        case "S": "south"
-        case "SW": "southwest"
-        case "W": "west"
-        case "NW": "northwest"
-        case let other: other
-        }
-    }
+    /// The compass point in full, the engine's word (AirportWords.compassWord).
+    static func compass(_ deg: Double) -> String { AirportWords.compassWord(deg) }
 
     /// A flight category's code as pilots say it: "VFR" is read as its
     /// letters by VoiceOver already; "LIFR" and "MVFR" are not.

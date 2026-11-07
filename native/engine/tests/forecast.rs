@@ -168,6 +168,33 @@ fn the_hour_through_the_call() {
     assert!(call("taf_hour", "{}").is_err());
 }
 
+// --- A report's ceiling and visibility from a host's reader -----------------
+
+#[test]
+fn a_ceiling_is_the_lowest_broken_overcast_or_obscured_layer() {
+    // 14 CFR 1.1, "ceiling": broken, overcast or an obscuration; few and
+    // scattered are none.
+    let read = |input: Value| ask("ceiling_visibility", input);
+    let sky = json!([{"cover": "FEW", "base_ft": 800}, {"cover": "SCT", "base_ft": 1200}, {"cover": "BKN", "base_ft": 2500}, {"cover": "OVC", "base_ft": 1800}]);
+    assert_eq!(read(json!({"layers": sky}))["ceiling_ft"], json!(1800.0));
+    assert_eq!(read(json!({"layers": [{"cover": "SCT", "base_ft": 900}]}))["ceiling_ft"], Value::Null);
+    assert_eq!(read(json!({"layers": [{"cover": "OVC", "base_ft": 1000}], "vertical_visibility_ft": 300}))["ceiling_ft"], json!(300.0));
+    assert_eq!(read(json!({})), json!({"ceiling_ft": null, "visibility_sm": null}));
+}
+
+#[test]
+fn a_visibility_in_metres_is_read_in_statute_miles() {
+    let vis = |value: f64, unit: &str| ask("ceiling_visibility", json!({"visibility": {"value": value, "unit": unit}}))["visibility_sm"].clone();
+    // 1,609.344 m in a statute mile, to the hundredth; 9999 is 10 km or
+    // more, the AWC's 6+ (WMO No. 306), as CAVOK is.
+    assert_eq!(vis(1600.0, "m"), json!(0.99));
+    assert_eq!(vis(5000.0, "m"), json!(3.11));
+    assert_eq!(vis(9999.0, "m"), json!(6.0));
+    assert_eq!(vis(2.5, "sm"), json!(2.5));
+    assert_eq!(ask("ceiling_visibility", json!({"cavok": true, "visibility": {"value": 800, "unit": "m"}}))["visibility_sm"], json!(6.0));
+    assert!(call("ceiling_visibility", r#"{"visibility": {"value": 3, "unit": "km"}}"#).is_err());
+}
+
 #[test]
 fn a_ceiling_sent_with_no_height_is_not_known_and_says_only_what_the_visibility_settles() {
     // 14 CFR 1.1: an overcast is a ceiling whatever its height; OVC/// at

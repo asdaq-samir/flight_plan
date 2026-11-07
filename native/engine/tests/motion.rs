@@ -695,3 +695,14 @@ fn a_track_is_thinned_by_even_steps_keeping_its_ends() {
     let three = ask("thin_track", json!({ "points": points[..100], "most": 3 }));
     assert_eq!(three.as_array().unwrap().iter().map(|p| n(&p["t"])).collect::<Vec<_>>(), [0.0, 50_000.0, 99_000.0]);
 }
+
+#[test]
+fn a_descent_at_three_to_one_is_about_pattern_altitude_and_3300_ft_ten_miles_out() {
+    // 1,000 ft in 3 nm (profile.rs DESCENT_FT_PER_NM): ten miles out is
+    // 3,333 ft above pattern altitude, to the hundred.
+    let at = |cruise: f64, pattern: Value| ask("descent_altitude", json!({"cruise_ft": cruise, "pattern_ft": pattern, "nm_out": 10}));
+    assert_eq!(at(8500.0, json!(1800)), json!(5100.0));
+    // No higher than the cruise, and the cruise with no pattern altitude.
+    assert_eq!(at(4500.0, json!(1800)), json!(4500.0));
+    assert_eq!(at(6500.0, Value::Null), json!(6500.0));
+}

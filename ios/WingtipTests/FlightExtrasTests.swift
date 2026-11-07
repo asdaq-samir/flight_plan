@@ -197,7 +197,8 @@ struct TrafficExtrasTests {
         #expect(FlightWords.place(PastFlightField(ident: "EGLL", city: "London", region: "GB-ENG")) == "London")
         #expect(FlightWords.against(480) == "500 ft above" && FlightWords.against(-1240) == "1,200 ft below" && FlightWords.against(20) == "level")
         #expect(AirportWords.compassPoint(44) == "NE" && AirportWords.compassPoint(359) == "N")
-        #expect(FlightWords.squawks["7700"] == "emergency")
+        #expect(FlightWords.squawk("7700") == "emergency")
+        #expect(FlightWords.squawk("1200") == nil)
         #expect(TrafficFindView.named(TrafficAircraft(callsign: "N174HA", hex: "a128b9", lat: 0, lon: 0, registration: "N174HA"), "N174"))
     }
 

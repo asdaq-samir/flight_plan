@@ -15,6 +15,18 @@
 //! - `lost_comms`: /api/lost-comms's answer (14 CFR 91.185), from its
 //!   body, `{"segments": [{"name", "minimum_ft"?}], "assigned_ft"?,
 //!   "expected_ft"?, "expected_from"?, "approach_fix"?, "efc"?, "eta"?}`;
+//! - `strip_fuel`: `{"required_gal", "short": [{"name", "short_gal"}]}`,
+//!   the strip's fuel figure on web, iPhone and Android (figures::strip),
+//!   from the planner's totals `{"fuel_required_gal"?, "fuel_margin_gal"?,
+//!   "hops"?: [{"departure", "destination", "fuel_required_gal"?,
+//!   "fuel_margin_gal"?}], "hop"?, "burnt_gal"?}`;
+//! - `fuel_in_tanks`: `[{"gal", "low"}|null]`, a point each, the fuel in
+//!   the tanks along the route, filled at each field landed at, from
+//!   `{"points": [{"departure"?, "fuel_gal"?, "refuel"?}], "usable_gal",
+//!   "taxi_gal", "reserve_gal"}`;
+//! - `fuel_estimate`: `{"minutes", "trip_gal", "required_gal"}`, from the
+//!   airplane's book alone before the nav log's, `{"distance_nm",
+//!   "cruise_tas_kt"?, "fuel_burn_gph"?}`;
 //! - `diversion`: /api/diversion's `solved`, `steps`, `problem` and
 //!   `checks` (ACS PA.VI.C), from the leg's air the planner looks up for
 //!   it, `{"true_course_deg", "distance_nm", "tas_kt", "fuel_burn_gph",
@@ -131,6 +143,9 @@
 //!   `{"text"}`;
 //! - `logbook_csv_write`: the logbook as a CSV file, from `{"entries":
 //!   [LogbookEntry]}`, the gateway's own (camelCase);
+//! - `handbook_within`: whether a figure typed or read in is within the
+//!   bounds a light airplane's is believed within (handbook::BOUNDS),
+//!   from `{"key", "value"}`;
 //! - `handbook_figures`: a handbook specifications page's figures,
 //!   `{"cruiseTasKt"?, "cruisePowerPct"?, "fuelBurnGph"?, "usableFuelGal"?,
 //!   "climbTasKt"?, "serviceCeilingFt"?}` each `{"value", "words"}`, from
@@ -170,6 +185,10 @@
 //!   "elevation_ft"?}`; `underway`: at flying speed, from `{"speed_kt"?}`;
 //! - `plan_profile`: `{"points", "marks", "length_nm"}`, the plan's
 //!   altitudes along the route, from `{"rows"}`, the web's nav log rows;
+//! - `descent_altitude`: feet MSL, about where a three-to-one descent to
+//!   pattern altitude has the airplane `nm_out` from the field, to the
+//!   hundred, no higher than the cruise (the cruise with no pattern
+//!   altitude), from `{"cruise_ft", "pattern_ft"?, "nm_out"}`;
 //! - `dry_run`: the planned flight flown on paper (motion::dry_run's
 //!   to_json), from `{"rows", "start_s", "line"?, "missed"?}`;
 //! - `read_track`: `{"points": [{"t", "lat", "lon", "alt_ft"}]}` or
@@ -389,6 +408,11 @@
 //! - `flight_category`: "VFR", "MVFR", "IFR", "LIFR" or null (AIM 7-1-7),
 //!   from `{"ceiling_ft"?, "visibility_sm"?}`, no visibility LIFR only
 //!   under a 500 ft ceiling and else null;
+//! - `ceiling_visibility`: `{"ceiling_ft", "visibility_sm"}`, each null
+//!   where none is given, a report's or forecast group's ceiling (14 CFR
+//!   1.1) and visibility in statute miles from the groups a host's reader
+//!   found, `{"layers"?: [{"cover", "base_ft"?}], "vertical_visibility_ft"?,
+//!   "visibility"?: {"value", "unit": "sm"|"m"}, "cavok"?}`;
 //! - `taf_hour`: `{"before_worse", "at_times", "at_times_gust_kt",
 //!   "at_times_thunder", "at_times_chance"}`, an hour of a TAF from its
 //!   groups in force (AC 00-45H), from `{"prevailing": {"category"?,
@@ -396,10 +420,12 @@
 //!   (the prevailing weather before it, the same shape), "supplemental":
 //!   [{"category"?, "gust_kt"?, "thunder"?, "chance"?}]}`;
 //! - `traffic_kind` (GDL 90 Table 11's emitter categories) from
-//!   `{"category"?}`; `altitude_band` (14 CFR 71.33(a)) from
+//!   `{"category"?}`; `emitter_category`, the category's DO-260B name
+//!   ("rotorcraft", "glider", ...) or null, from `{"category"?}`; `altitude_band` (14 CFR 71.33(a)) from
 //!   `{"altitude_ft"?}`; `operator_of` from `{"callsign"?}`;
 //!   `in_emergency` (AIM 6-2-2, 6-3-4, 6-4-2) from `{"squawk"?,
-//!   "emergency"?}`;
+//!   "emergency"?}`; `squawk_meaning`: "hijack", "lost radio",
+//!   "emergency" or null, from `{"squawk"?}`;
 //! - `field_relation`: `{"around", "inbound", "departing"}`, from
 //!   `{"plane": {"lat", "lon", "altitude_ft"?, "track_deg"?,
 //!   "vertical_fpm"?}, "field": {"lat", "lon", "elevation_ft"}}`;
@@ -413,7 +439,7 @@
 //! `?` marks a member that may be missing or null. A name not known, or
 //! input not of its shape, is Err with a plain message, never a panic.
 
-use crate::figures::{debrief, diversion, holding, lost_comms};
+use crate::figures::{debrief, diversion, holding, lost_comms, strip};
 use crate::json::{self, Value};
 use crate::pilot::{checklist, csv, endorsements, handbook, logbook};
 
@@ -473,6 +499,44 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             Ok(out)
         }
         "lost_comms" => lost_comms_rule(&ask),
+        "strip_fuel" => strip_fuel_rule(&ask),
+        "fuel_in_tanks" => {
+            let points = ask
+                .list("points")?
+                .iter()
+                .map(|p| {
+                    let flag = |k: &str| matches!(p.get(k), Some(Value::Bool(true)));
+                    Ok(strip::TankPoint { departure: flag("departure"), fuel_gal: opt_num_in(name, p, "fuel_gal")?, refuel: flag("refuel") })
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            let mut out = String::from("[");
+            for (i, at) in strip::tanks(&points, ask.num("usable_gal")?, ask.num("taxi_gal")?, ask.num("reserve_gal")?).iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                match at {
+                    None => out.push_str("null"),
+                    Some((gal, low)) => {
+                        out.push_str("{\"gal\":");
+                        json::number(&mut out, *gal);
+                        out.push_str(if *low { ",\"low\":true}" } else { ",\"low\":false}" });
+                    }
+                }
+            }
+            out.push(']');
+            Ok(out)
+        }
+        "fuel_estimate" => {
+            let (minutes, trip, required) = strip::estimate(ask.num("distance_nm")?, ask.opt_num("cruise_tas_kt")?, ask.opt_num("fuel_burn_gph")?);
+            let mut out = String::from("{\"minutes\":");
+            json::opt_number(&mut out, minutes);
+            out.push_str(",\"trip_gal\":");
+            json::opt_number(&mut out, trip);
+            out.push_str(",\"required_gal\":");
+            json::opt_number(&mut out, required);
+            out.push('}');
+            Ok(out)
+        }
         "diversion" => diversion_rule(&ask),
         "wind_triangle" => {
             let solved = diversion::wind_triangle(ask.num("tc")?, ask.num("tas")?, ask.num("wind_from_deg")?, ask.num("wind_kt")?);
@@ -550,6 +614,13 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             Ok(out)
         }
         "handbook_figures" => Ok(handbook::to_json(&handbook::figures_of_page(ask.str("text")?))),
+        "handbook_within" => {
+            let key = ask.str("key")?;
+            match handbook::figure_within(key, ask.num("value")?) {
+                Some(yes) => Ok(if yes { "true" } else { "false" }.to_owned()),
+                None => Err(format!("handbook_within: no figure is called {key:?}")),
+            }
+        }
         "endorsement_lapse" => {
             let text = |key: &str| match ask.v.get(key) {
                 None | Some(Value::Null) => Ok(None),
@@ -734,6 +805,46 @@ fn weather_validity_rule(ask: &Ask) -> Result<String, String> {
     let now = ask.num("now")?.floor() as i64;
     let yes = validity::in_force(product, now, observed, last_routine, secs("valid_from")?, valid_to);
     Ok(if yes { "true" } else { "false" }.to_owned())
+}
+
+/// The strip's fuel (figures::strip::fuel_figure): `{"required_gal",
+/// "short": [{"name", "short_gal"}]}`.
+fn strip_fuel_rule(ask: &Ask) -> Result<String, String> {
+    let name = ask.name;
+    let hops = match ask.v.get("hops") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(list)) => list
+            .iter()
+            .map(|h| {
+                let s = |k: &str| h.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
+                Ok(strip::Hop {
+                    departure: s("departure"),
+                    destination: s("destination"),
+                    fuel_required_gal: opt_num_in(name, h, "fuel_required_gal")?,
+                    fuel_margin_gal: opt_num_in(name, h, "fuel_margin_gal")?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?,
+        Some(_) => return Err(format!("{name}: \"hops\" is not a list")),
+    };
+    let hop = ask.opt_num("hop")?.unwrap_or(0.0).max(0.0) as usize;
+    let (required, short) =
+        strip::fuel_figure(ask.opt_num("fuel_required_gal")?, ask.opt_num("fuel_margin_gal")?, &hops, hop, ask.opt_num("burnt_gal")?);
+    let mut out = String::from("{\"required_gal\":");
+    json::opt_number(&mut out, required);
+    out.push_str(",\"short\":[");
+    for (i, s) in short.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        out.push_str("{\"name\":");
+        json::string(&mut out, &s.name);
+        out.push_str(",\"short_gal\":");
+        json::number(&mut out, s.short_gal);
+        out.push('}');
+    }
+    out.push_str("]}");
+    Ok(out)
 }
 
 /// A report, a NOTAM or a TFR as sent, read (crate::metar, taf, winds,

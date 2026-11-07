@@ -35,10 +35,6 @@ import type { TrackPoint } from "./track";
 
 export type { ApproachFinding };
 
-/** A localizer's full scale either side of its course, degrees: the
- *  engine's LOCALIZER_DEG (FAA-H-8083-15B chapter 9, AIM 1-1-9), which
- *  judges the course; stated here for the test that works its width. */
-export const LOCALIZER_DEG = 2.5;
 
 /** How the course is flown, by the approach's coded identifier (ARINC
  *  424-18 5.10): a localizer's, a GPS's, or another (VOR, NDB, LDA, back

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { callEngine } from "./engine/engine";
-import { leaveLimit, ROUTES, segmentAltitudes } from "./lostComms";
+import { leaveLimit, lostCommsWords, segmentAltitudes } from "./lostComms";
 import lostCommsFixture from "./fixtures/lostComms.json";
 
 describe("two-way radio failure, 91.185", () => {
@@ -10,12 +10,12 @@ describe("two-way radio failure, 91.185", () => {
       { assignedFt: 4000, expectedFt: 6000, expectedFrom: 1 },
     );
     expect(flown).toEqual([
-      { name: "to SWEDE", fly: 4000, because: "assigned" },
-      { name: "SWEDE to RAYMO", fly: 6000, because: "expected" },
-      { name: "RAYMO to the approach", fly: 6000, because: "expected" },
+      { name: "to SWEDE", fly: 4000, because: "assigned", words: "Fly 4,000 ft: assigned" },
+      { name: "SWEDE to RAYMO", fly: 6000, because: "expected", words: "Fly 6,000 ft: expected" },
+      { name: "RAYMO to the approach", fly: 6000, because: "expected", words: "Fly 6,000 ft: expected" },
     ]);
     // An MEA above both: the MEA.
-    expect(segmentAltitudes([{ name: "x", minimumFt: 7000 }], { assignedFt: 4000, expectedFt: 6000, expectedFrom: 0 })[0]).toEqual({ name: "x", fly: 7000, because: "minimum" });
+    expect(segmentAltitudes([{ name: "x", minimumFt: 7000 }], { assignedFt: 4000, expectedFt: 6000, expectedFrom: 0 })[0]).toEqual({ name: "x", fly: 7000, because: "minimum", words: "Fly 7,000 ft: the minimum" });
     expect(segmentAltitudes([{ name: "x", minimumFt: null }], { assignedFt: null, expectedFt: null, expectedFrom: 0 })[0]!.fly).toBeNull();
   });
 
@@ -32,7 +32,7 @@ describe("two-way radio failure, 91.185", () => {
 // words the same on both (docs/NATIVE.md).
 describe("the shared lost-comms fixture", () => {
   test("the routes in 91.185(c)(1)'s order", () => {
-    expect(ROUTES).toEqual(lostCommsFixture.routes);
+    expect(lostCommsWords().routes).toEqual(lostCommsFixture.routes);
   });
 
   test.each(lostCommsFixture.leaveLimit)("approach fix $approachFix, EFC '$efc', ETA '$eta'", ({ approachFix, efc, eta, words }) => {
@@ -40,8 +40,11 @@ describe("the shared lost-comms fixture", () => {
   });
 });
 
-describe("the page's routes are the engine's", () => {
-  test("the same keys, labels and rules, in 91.185(c)(1)'s order", () => {
-    expect(callEngine("lost_comms", { segments: [] }).routes).toEqual(ROUTES);
+describe("the page's words are the engine's", () => {
+  test("the routes in 91.185(c)(1)'s order, and 91.185(b)'s words for VFR", () => {
+    expect(lostCommsWords().routes).toEqual(callEngine("lost_comms", { segments: [] }).routes);
+    expect(lostCommsWords().vfr).toBe(
+      "In VFR conditions, or on meeting them after the failure: continue VFR and land as soon as practicable (91.185(b)). In IFR conditions, the rest of this page.",
+    );
   });
 });

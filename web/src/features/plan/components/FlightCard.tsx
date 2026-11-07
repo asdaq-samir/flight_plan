@@ -27,7 +27,7 @@ import { awayFrom, nmAway } from "../../../lib/useAway";
 import { clockTime } from "../../../lib/clock";
 import AircraftAlertMenu from "./AircraftAlertMenu";
 import AirplaneSketch from "./AirplaneSketch";
-import { SQUAWKS } from "../../../lib/squawks";
+import { squawkMeaning } from "../../../lib/squawks";
 import PastFlights from "./PastFlights";
 import { lasted, shortWhen, when } from "./pastFlightFormat";
 import { pastFlightQuery, pastFlightsQuery } from "./pastFlightsQuery";
@@ -140,6 +140,7 @@ function FlightSummary({ plane, badge, chip, from, to, progress, startedAt, depa
 }) {
   const rate = plane?.vertical_fpm ?? 0;
   const squawk = plane?.squawk ?? null;
+  const meaning = squawkMeaning(squawk);
   const climb = Math.abs(rate) >= 100 ? `${rate > 0 ? "↑" : "↓"} ${altFt(Math.abs(Math.round(rate / 100) * 100))} fpm` : "level";
   const flown = plane && startedAt ? lasted(now / 1000 - startedAt) : null;
   const open = (ident: string) => (onOpenAirport ? () => onOpenAirport(ident) : undefined);
@@ -183,10 +184,10 @@ function FlightSummary({ plane, badge, chip, from, to, progress, startedAt, depa
       ) : chip && (
         <span className={cn("font-semibold text-foreground", TEXT.detail)} data-testid="flight-chip">{chip}</span>
       )}
-      {squawk && SQUAWKS[squawk] && (
+      {squawk && meaning && (
         // An emergency's code where it is seen first (AIM 6-2-2, 6-3-4, 6-4-2).
         <span className={cn("font-semibold text-destructive-ink tabular-nums", TEXT.detail)} data-testid="flight-squawk-alarm">
-          Squawk {squawk} · {SQUAWKS[squawk]}
+          Squawk {squawk} · {meaning}
         </span>
       )}
       {plane && fix && here && (
@@ -278,6 +279,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
   const here = latest ? carriedOn(latest.plane, (now - latest.at) / 1000) : null;
   const cpa = fix && plane && here ? closestApproach(fix, { ...plane, ...here }) : null;
   const squawk = plane?.squawk ?? null;
+  const meaning = squawkMeaning(squawk);
   const rate = plane?.vertical_fpm ?? 0;
   // Its name the title over the card in the pill's bar (TabBar), as an
   // airport's ident is.
@@ -319,7 +321,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
   // has the flight (the list is minutes behind the trace).
   const endOfToday = !plane ? today?.at(-1) ?? null : null;
   const badge: StateBadge | null = plane
-    ? squawk && SQUAWKS[squawk] ? { word: squawk, tone: "alarm" } : { word: rate >= 300 ? "CLB" : rate <= -300 ? "DES" : "LVL", tone: "air" }
+    ? squawk && meaning ? { word: squawk, tone: "alarm" } : { word: rate >= 300 ? "CLB" : rate <= -300 ? "DES" : "LVL", tone: "air" }
     : last?.landed || (!last && endOfToday && endOfToday.alt_ft == null) ? { word: "GND", tone: "ground" } : null;
   const chip = plane ? null
     : last
@@ -442,7 +444,7 @@ export default function FlightCard({ hex, onClose, onOpenPast, onOpenAirport }: 
             {squawk && (
               <ListRow
                 title="Squawk" data-testid="flight-squawk"
-                value={<span className={cn("font-semibold tabular-nums", SQUAWKS[squawk] ? "text-destructive-ink" : "text-foreground")}>{squawk}{SQUAWKS[squawk] ? ` · ${SQUAWKS[squawk]}` : ""}</span>}
+                value={<span className={cn("font-semibold tabular-nums", meaning ? "text-destructive-ink" : "text-foreground")}>{squawk}{meaning ? ` · ${meaning}` : ""}</span>}
               />
             )}
             {detail?.faa?.owner && (

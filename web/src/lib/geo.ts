@@ -60,13 +60,6 @@ export const FT_PER_NM = 6076.12;
 /** Metres in a nautical mile, the international one. */
 export const M_PER_NM = 1852;
 
-/** Feet lost for every nautical mile of a descent: three to one, 333
- *  ft/nm, as the nav log descends (wingtip.navlog.with_descents) -- a little
- *  steeper than a 3° path's 318 ft/nm (6,076 × tan 3°), the angle a VASI
- *  is normally set at (AIM 2-1-2). It was named FT_PER_NM
- *  too, beside the 6,076 of a nautical mile. */
-export const DESCENT_FT_PER_NM = 1000 / 3;
-
 /** Where a great circle from `a` on a true bearing reaches `nm` out. */
 export function destination(a: LatLon, bearing: number, nm: number): LatLon {
   const d = nm / EARTH_NM, b = rad(bearing), lat1 = rad(a.lat), lon1 = rad(a.lon);

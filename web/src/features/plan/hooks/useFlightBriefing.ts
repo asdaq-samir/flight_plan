@@ -179,6 +179,9 @@ export function useFlightBriefing({
   const setAssessment = useRisk(s => s.setAssessment);
   const margins = [totals?.fuel_margin_gal, ...(totals?.hops ?? []).map(h => h.totals.fuel_margin_gal)]
     .filter((n): n is number => n != null);
+  // The least margin of the route's flights: one figure, for the risk
+  // assessment, the Go / No-Go's fuel and the glance alike.
+  const leastMarginGal = margins.length ? Math.min(...margins) : null;
   // Under IFR, in cloud at or above the freezing level (lib/icing).
   const icing = ifr && nav && briefing ? icingAtAltitude(nav.altitude_selection, legs.map(l => l.altitude_ft), briefing.pireps) : null;
   const hazardNames = briefing ? [...briefing.hazards.map(h => sigmetHazard(h.hazard, h.type ?? "SIGMET")), ...briefing.gairmets.map(gairmetTitle)] : [];
@@ -188,7 +191,7 @@ export function useFlightBriefing({
     tfrOnRoute: tfrsCrossed.length > 0,
     hazards: unchecked("hazards") && unchecked("gairmets") ? 0 : hazardNames.length,
     night: totals?.night === true,
-    fuelMarginGal: margins.length ? Math.min(...margins) : null,
+    fuelMarginGal: leastMarginGal,
     ifr,
     vorCheck: flownOwn === undefined ? undefined : flownOwn.vorCheck
       ? { goodThrough: flownOwn.vorCheck.goodThrough, withinLimit: flownOwn.vorCheck.withinLimit } : null,
@@ -255,7 +258,7 @@ export function useFlightBriefing({
     },
     fuel: {
       pending: !totals,
-      marginGal: margins.length ? Math.min(...margins) : null,
+      marginGal: leastMarginGal,
       requiredGal: totals?.fuel_required_gal ?? (hops.length ? Math.max(...hops.map(h => h.totals.fuel_required_gal ?? 0)) : null),
       reserveMin: totals?.reserve_min ?? hops[0]?.totals.reserve_min ?? null,
       ifr,
@@ -325,7 +328,7 @@ export function useFlightBriefing({
     return {
       before: {
         risk: assessment ? { score: assessment.score, level: assessment.level } : null,
-        spareGal: margins.length ? Math.min(...margins) : null,
+        spareGal: leastMarginGal,
         balance: loaded ? { within: loaded.problems.length === 0, problem: loaded.problems[0] ?? null } : null,
         finding: byKey(["risk", "fuel", "balance", "airspace"]),
       },

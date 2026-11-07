@@ -49,9 +49,13 @@ enum FlightWords {
         "\(flight.inAir ? "In the air" : flight.local ? "Local flight" : flight.landed ? "Landed" : "Last heard") · \(lasted(flight.on - flight.off))"
     }
 
-    /// The transponder codes said in words (AIM 6-2-2 radio failure 7600,
-    /// 6-3-4 emergency 7700, 6-4-2 hijack 7500), as the web app's SQUAWKS.
-    static let squawks = ["7500": "hijack", "7600": "lost radio", "7700": "emergency"]
+    /// A transponder code said in words, where it says more than a code:
+    /// 7500 unlawful interference (AIM 6-3-4), 7600 two-way radio failure
+    /// (AIM 6-4-2), 7700 an emergency (AIM 6-2-2) -- the engine's
+    /// `squawk_meaning`, the web's and Android's.
+    static func squawk(_ code: String?) -> String? {
+        do { return try Engine.call("squawk_meaning", json: ["squawk": code]) as String? } catch { return nil }
+    }
 
     /// Feet against own ship's: "500 ft above", "1,200 ft below", "level".
     static func against(_ feet: Double) -> String {
@@ -261,12 +265,12 @@ struct NowFlightRow: View {
                 .accessibilityLabel(spokenFlying)
             if let squawk = plane.squawk {
                 // An emergency code says its meaning in words beside the
-                // red (FlightWords.squawks), so the colour is not the only
+                // red (FlightWords.squawk), so the colour is not the only
                 // sign of it.
-                Text("Squawk \(squawk)\(FlightWords.squawks[squawk].map { " · \($0)" } ?? "")")
+                Text("Squawk \(squawk)\(FlightWords.squawk(squawk).map { " · \($0)" } ?? "")")
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(FlightWords.squawks[squawk] != nil ? Color.red : Color.secondary)
-                    .accessibilityLabel("Squawk \(SpokenFigures.digits(squawk))\(FlightWords.squawks[squawk].map { ", \($0)" } ?? "")")
+                    .foregroundStyle(FlightWords.squawk(squawk) != nil ? Color.red : Color.secondary)
+                    .accessibilityLabel("Squawk \(SpokenFigures.digits(squawk))\(FlightWords.squawk(squawk).map { ", \($0)" } ?? "")")
             }
             if let fix = ownShip.fix {
                 Text(fromYou(fix)).font(.subheadline).foregroundStyle(.secondary)

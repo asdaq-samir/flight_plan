@@ -41,6 +41,14 @@ export function holdingEntry(inboundDeg: number, headingDeg: number, turns: Turn
   return { entry: held.entry, either: held.either };
 }
 
+/** AIM 5-3-8's words for the entry an airplane heading `headingDeg` to
+ *  the fix flies, for the turns given: the engine's (holding.rs
+ *  entry_steps), its outbound minute a minute and a half above 14,000 ft
+ *  MSL. */
+export function entrySteps(inboundDeg: number, headingDeg: number, turns: Turns, altitudeFt: number): string {
+  return callEngine("holding", { inbound: inboundDeg, heading: headingDeg, turns, altitude_ft: altitudeFt }).steps;
+}
+
 /** The bearing from the fix the airplane comes from, against the inbound
  *  course, for drawing: where it is on the page round the fix. */
 export function approachRelative(inboundDeg: number, headingDeg: number): number {
@@ -61,6 +69,9 @@ export interface HoldingWind {
    *  the wind along the course; the AIM asks only that the outbound time be
    *  set to make the inbound leg's (5-3-8 j.4(a)). */
   ruleSec: number;
+  /** The rows' lines under the figures, the engine's (holding.rs
+   *  wind_words): inbound, outbound and the time. */
+  words: { inbound: string; outbound: string; time: string };
 }
 
 /** The legs flown in a wind from `windFromDeg` at `windKt` at `tasKt`, the
@@ -72,5 +83,6 @@ export function holdingWind(inboundDeg: number, tasKt: number, windFromDeg: numb
   });
   if (!wind) return null;
   const leg = (l: Leg): Leg => ({ heading: l.heading, wca: l.wca, gs: l.gs });
-  return { legMin: wind.leg_min, inbound: leg(wind.inbound), outbound: leg(wind.outbound), outboundSec: wind.outbound_sec, ruleSec: wind.rule_sec };
+  return { legMin: wind.leg_min, inbound: leg(wind.inbound), outbound: leg(wind.outbound), outboundSec: wind.outbound_sec, ruleSec: wind.rule_sec,
+    words: { inbound: wind.inbound_words, outbound: wind.outbound_words, time: wind.time_words } };
 }

@@ -267,6 +267,16 @@ pub fn flight_category_of(ceiling_ft: Option<f64>, ceiling_unknown: bool, visibi
     flight_category(ceiling_ft, visibility_sm)
 }
 
+/// A visibility in metres (WMO No. 306) in statute miles, as US reports
+/// give it: 9999 is "10 km or more", which the AWC writes 6+.
+pub fn metres_to_sm(metres: f64) -> f64 {
+    if metres >= 9999.0 {
+        6.0
+    } else {
+        metres * SM_PER_M
+    }
+}
+
 impl Metar {
     /// The ceiling (sky_ceiling), None where there is none or it is not
     /// known (ceiling_unknown tells them apart).
@@ -369,12 +379,8 @@ pub fn parse(raw: &str) -> Option<Metar> {
             // Metres (WMO No. 306): 9999 is 10 km or more.
             _ if m.visibility_sm.is_none() && w.len() == 4 && w.bytes().all(|b| b.is_ascii_digit()) => {
                 let metres: f64 = w.parse().unwrap();
-                if metres >= 9999.0 {
-                    m.visibility_sm = Some(6.0);
-                    m.visibility_plus = true;
-                } else {
-                    m.visibility_sm = Some(metres * SM_PER_M);
-                }
+                m.visibility_sm = Some(metres_to_sm(metres));
+                m.visibility_plus = metres >= 9999.0;
             }
             _ if w.starts_with('R') && w.contains('/') && w.len() > 4 => {} // runway visual range
             _ if layer(w).is_some() => {

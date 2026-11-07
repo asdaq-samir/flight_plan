@@ -15,24 +15,26 @@
  *
  * Worked out by the shared engine (native/crates/figures/src/figures/debrief.rs,
  * through lib/engine), the very code behind the planner's /api/debrief and
- * the phones' wt_debrief. The tolerances stay here too, for the page's
- * headings and marks; debrief.test.ts holds them to the engine's.
+ * the phones' wt_debrief: the tolerances and each row's mark too, so the
+ * page's headings and ticks are the engine's figures, not copies.
  */
 import type { Flight } from "./api/types";
 import { callEngine } from "./engine/engine";
 import type { TrackPoint } from "./track";
 
-/** PA.VI.A's tolerances: S7's altitude, and its heading applied to the
- *  ground track; S5's distance from the planned route; S6's time at each
- *  checkpoint against its estimate. */
-export const ALTITUDE_FT = 200;
-export const COURSE_DEG = 15;
-export const OFF_ROUTE_NM = 3;
-export const ETA_MIN = 5;
-/** How near the field the downwind is taken to start, and PA.III.B.S5's
+/** PA.VI.A's tolerances, as the engine grades by them: S7's altitude,
+ *  and its heading applied to the ground track; S5's distance from the
+ *  planned route; S6's time at each checkpoint against its estimate; and
+ *  how near the field the downwind is taken to start, with PA.III.B.S5's
  *  pattern altitude. */
-export const PATTERN_NM = 1.5;
-export const PATTERN_FT = 100;
+export interface Tolerances {
+  altitudeFt: number;
+  courseDeg: number;
+  offRouteNm: number;
+  etaMin: number;
+  patternNm: number;
+  patternFt: number;
+}
 
 const enginePoints = (points: TrackPoint[]) => points.map(p => ({ t: p.t, lat: p.lat, lon: p.lon, alt_ft: p.altFt }));
 
@@ -57,6 +59,8 @@ export interface LegGrade {
   courseWithin: number | null;
   /** Its furthest off the course line, nm, signed (+ right). */
   worstOffNm: number | null;
+  /** Within the altitude and the route's tolerances (or not graded). */
+  ok: boolean;
 }
 
 export interface CheckpointPass {
@@ -68,6 +72,12 @@ export interface CheckpointPass {
   passedMin: number | null;
   /** The track's closest to it, nm. */
   closestNm: number | null;
+  /** A field landed at, not a point passed. */
+  landed: boolean;
+  /** Minutes late (+) or early; null without both times. */
+  lateMin: number | null;
+  /** Within the ETA tolerance; null without both times. */
+  ok: boolean | null;
 }
 
 export interface PatternEntry {
@@ -75,9 +85,14 @@ export interface PatternEntry {
   /** The altitude PATTERN_NM from the field, ft MSL. */
   altFt: number;
   patternFt: number;
+  /** Above (+) or below the pattern altitude, ft. */
+  offFt: number;
+  /** Within the pattern altitude's tolerance. */
+  ok: boolean;
 }
 
 export interface Debrief {
+  tolerances: Tolerances;
   takeoff: number;
   landing: number;
   flownMin: number;
@@ -102,7 +117,7 @@ export interface Debrief {
 /** A flight debriefed against its track; null where the track never
  *  flew. `patterns` are the fields' pattern altitudes, ft MSL, by ident. */
 export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<string, number> = {}): Debrief | null {
-  const { debrief: d } = callEngine("debrief", {
+  const { debrief: d, tolerances: t } = callEngine("debrief", {
     checkpoints: flight.checkpoints.map(c => ({
       sequence_no: c.sequenceNo, name: c.name, category: c.category, lat: c.lat, lon: c.lon, along_track_nm: c.alongTrackNm,
       true_course_deg: c.trueCourseDeg, ete_min: c.eteMin, altitude_ft: c.altitudeFt,
@@ -112,13 +127,18 @@ export function debrief(flight: Flight, points: TrackPoint[], patterns: Record<s
   });
   if (!d) return null;
   return {
+    tolerances: {
+      altitudeFt: t.altitude_ft, courseDeg: t.course_deg, offRouteNm: t.off_route_nm, etaMin: t.eta_min, patternNm: t.pattern_nm, patternFt: t.pattern_ft,
+    },
     takeoff: d.takeoff, landing: d.landing, flownMin: d.flown_min, plannedMin: d.planned_min,
     legs: d.legs.map(l => ({
       from: l.from, to: l.to, plannedAltFt: l.planned_alt_ft, altitudeWithin: l.altitude_within, worstAltFt: l.worst_alt_ft,
-      courseDeg: l.course_deg, courseWithin: l.course_within, worstOffNm: l.worst_off_nm,
+      courseDeg: l.course_deg, courseWithin: l.course_within, worstOffNm: l.worst_off_nm, ok: l.ok,
     })),
-    passes: d.passes.map(p => ({ name: p.name, category: p.category, dueMin: p.due_min, passedMin: p.passed_min, closestNm: p.closest_nm })),
-    patterns: d.patterns.map(e => ({ ident: e.ident, altFt: e.alt_ft, patternFt: e.pattern_ft })),
+    passes: d.passes.map(p => ({ name: p.name, category: p.category, dueMin: p.due_min, passedMin: p.passed_min, closestNm: p.closest_nm,
+      landed: p.landed, lateMin: p.late_min, ok: p.ok,
+    })),
+    patterns: d.patterns.map(e => ({ ident: e.ident, altFt: e.alt_ft, patternFt: e.pattern_ft, offFt: e.off_ft, ok: e.ok })),
     profile: d.profile.map(p => ({ alongNm: p.along_nm, altFt: p.alt_ft })),
     planned: d.planned.map(p => ({ fromNm: p.from_nm, toNm: p.to_nm, altFt: p.alt_ft })),
     line: d.line,

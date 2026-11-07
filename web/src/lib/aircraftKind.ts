@@ -1,4 +1,5 @@
 import type { AircraftRegistration } from "./api/types";
+import { callEngine } from "./engine/engine";
 
 /**
  * Which of the seven shapes an airplane is drawn as in the lists of
@@ -7,9 +8,8 @@ import type { AircraftRegistration } from "./api/types";
  * 2026-11-04; the map's traffic keeps its one arrow). Read from what is
  * known of it, the surest first: the FAA registry's aircraft type, engine
  * type and engine count (the Releasable Aircraft Database's ACFTREF, in
- * wingtip.registry's words); its transponder's emitter category (DO-260B:
- * A3 to A6 large, heavy and high-performance, A7 rotorcraft, B1 glider,
- * B2 lighter than air); then its ICAO type designator (ICAO Doc 8643).
+ * wingtip.registry's words); its transponder's emitter category, named
+ * by the engine (emitter_category, DO-260B's names); then its ICAO type designator (ICAO Doc 8643).
  * Neither the registry nor ADS-B says where the wing is, so a single's
  * high or low wing is by model, high where the model is not known.
  */
@@ -41,14 +41,15 @@ export function aircraftKind({ type, category, faa }: KindClues): AircraftKind {
   if (what === "Glider") return "glider";
   if (what === "Balloon" || what === "Blimp or dirigible") return "balloon";
   if (what === "Rotorcraft" || what === "Gyroplane") return "helicopter";
-  if (category === "A7") return "helicopter";
-  if (category === "B1") return "glider";
-  if (category === "B2") return "balloon";
+  const emitter = callEngine("emitter_category", { category: category ?? null });
+  if (emitter === "rotorcraft") return "helicopter";
+  if (emitter === "glider") return "glider";
+  if (emitter === "lighter_than_air") return "balloon";
   const designator = type?.toUpperCase().trim() ?? "";
   if (HELICOPTERS.has(designator)) return "helicopter";
   if (JETS.has(designator) || faa?.engine_type === "Turbo-fan" || faa?.engine_type === "Turbo-jet") return "jet";
   // Large, heavy and high-performance: airliners and the bigger jets.
-  if (category && ["A3", "A4", "A5", "A6"].includes(category)) return "jet";
+  if (emitter === "large" || emitter === "high_vortex_large" || emitter === "heavy" || emitter === "high_performance") return "jet";
   if (TWINS.has(designator) || (faa?.engines ?? 0) >= 2 || what === "Fixed wing multi engine") return "twin";
   if (LOW_WING.has(designator)) return "low";
   const maker = faa?.manufacturer?.toUpperCase() ?? "";

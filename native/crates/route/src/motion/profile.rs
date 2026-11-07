@@ -17,7 +17,7 @@ use crate::json::{self, Value};
 /// Feet lost for every nautical mile of a descent: three to one, 333
 /// ft/nm, as the nav log descends (wingtip.navlog.with_descents) -- a little
 /// steeper than a 3° path's 318 ft/nm (6,076 × tan 3°), the angle a VASI is
-/// normally set at (AIM 2-1-2). The web's lib/geo DESCENT_FT_PER_NM.
+/// normally set at (AIM 2-1-2).
 pub const DESCENT_FT_PER_NM: f64 = 1000.0 / 3.0;
 /// Where the pattern altitude is reached before a field: the downwind's
 /// abeam, about a mile out.
@@ -244,6 +244,27 @@ pub(crate) fn line_json(out: &mut String, line: &[ProfilePoint]) {
         out.push('}');
     }
     out.push(']');
+}
+
+/// About where a three-to-one descent (DESCENT_FT_PER_NM) to pattern
+/// altitude has the airplane `nm_out` from the field, to the hundred feet,
+/// no higher than its cruise: as the nav log flies it, and as the radio
+/// calls say the altitude ten miles out. The cruise where no pattern
+/// altitude is known.
+pub fn descent_altitude(cruise_ft: f64, pattern_ft: Option<f64>, nm_out: f64) -> f64 {
+    match pattern_ft {
+        None => cruise_ft,
+        // JavaScript's Math.round, half up, as the web wrote it.
+        Some(p) => cruise_ft.min(((p + nm_out * DESCENT_FT_PER_NM) / 100.0 + 0.5).floor() * 100.0),
+    }
+}
+
+/// `descent_altitude`: feet MSL, from `{"cruise_ft", "pattern_ft"?, "nm_out"}`.
+pub(super) fn descent_altitude_rule(v: &Value) -> Result<String, String> {
+    let n = "descent_altitude";
+    let mut out = String::new();
+    json::number(&mut out, descent_altitude(num(n, v, "cruise_ft")?, opt(n, v, "pattern_ft")?, num(n, v, "nm_out")?));
+    Ok(out)
 }
 
 /// `plan_profile`: {"points": [{along_nm, plan_ft}], "marks": [{kind:

@@ -84,6 +84,7 @@ pub fn call(name: &str, v: &Value) -> Option<Result<String, String>> {
         "glide_reaches" => glide::reaches_rule(v),
         "underway" => glide::underway_rule(v),
         "plan_profile" => profile::profile_rule(v),
+        "descent_altitude" => profile::descent_altitude_rule(v),
         "dry_run" => dry_run::dry_run_rule(v),
         "read_track" => track::read_rule(v),
         "thin_track" => track::thin_rule(v),

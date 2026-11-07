@@ -574,6 +574,24 @@ export type ReadTrackAnswer =
       error: string;
     };
 export type ThinTrackAnswer = unknown[];
+export type FuelInTanksAnswer = ({
+  gal: number;
+  low: boolean;
+} | null)[];
+export type HandbookWithinAnswer = boolean;
+export type EmitterCategoryAnswer =
+  | "light"
+  | "small"
+  | "large"
+  | "high_vortex_large"
+  | "heavy"
+  | "high_performance"
+  | "rotorcraft"
+  | "glider"
+  | "lighter_than_air"
+  | null;
+export type SquawkMeaningAnswer = "hijack" | "lost radio" | "emergency" | null;
+export type DescentAltitudeAnswer = number;
 
 /**
  * The engine's calls (native/engine/src/call.rs): for each name, the JSON input it takes and the JSON answer it gives. The one source of their shapes: web/src/lib/engine/contract.ts is generated from it (npm run types), and native/engine/tests/contract.rs holds the engine's answers to it. A member left out of `required` may be missing; a type with null may be null.
@@ -1908,6 +1926,62 @@ export interface EngineContract {
   thin_track: {
     input: ThinTrackInput;
     answer: ThinTrackAnswer;
+  };
+  /**
+   * The fuel figure in the strip at the sheet's foot, web, iPhone and Android alike: the fuel required to the landing of hop `hop` (the first where the route has stops, the tanks filled at each; the whole route's where it has none), less what a flight under way has burnt, never below nothing; and the flights the tanks fall short on, a fuel margin under nothing (14 CFR 91.151, 91.167).
+   */
+  strip_fuel: {
+    input: StripFuelInput;
+    answer: StripFuelAnswer;
+  };
+  /**
+   * The fuel in the tanks at each point of the route and whether it is under the reserve: full at the departure, the start, taxi and takeoff allowance and each leg's burn taken from them after, filled again at each field landed at, as the planner checks each flight; null at a point past a leg whose burn is not known, until the next fill.
+   */
+  fuel_in_tanks: {
+    input: FuelInTanksInput;
+    answer: FuelInTanksAnswer;
+  };
+  /**
+   * The figures from the airplane's book alone, before the nav log's: at cruise speed with no wind the minutes over the distance, the fuel at the cruise burn over them, and the fuel required, that with the start and taxi allowance (the Cessna 172S handbook's 1.4 gal, the planner's default) and 45 minutes' reserve at the cruise burn, the most the rules ask (14 CFR 91.151(a)(2), 91.167(a)(3)), so an estimate is never short. Null where the book gives no speed, or no burn for the fuel.
+   */
+  fuel_estimate: {
+    input: FuelEstimateInput;
+    answer: FuelEstimateAnswer;
+  };
+  /**
+   * Whether an airplane's figure, typed in or read off its handbook's page, is within the bounds a light airplane's is believed within; outside them it is a misreading.
+   */
+  handbook_within: {
+    input: HandbookWithinInput;
+    answer: HandbookWithinAnswer;
+  };
+  /**
+   * A report's or a forecast group's ceiling (14 CFR 1.1: the lowest broken or overcast layer, or the vertical visibility into an obscuration) and its visibility in statute miles, from the groups a host's own reader found: metres converted as the engine's METAR reader converts them (9999 the AWC's 6+), to the hundredth; CAVOK 6 (WMO No. 306: 10 km or more). Each null where none is given.
+   */
+  ceiling_visibility: {
+    input: CeilingVisibilityInput;
+    answer: CeilingVisibilityAnswer;
+  };
+  /**
+   * An ADS-B emitter category's name in DO-260B's words (GDL 90 Table 11): A1 to A7 and B1, B2; null for one not sent and for the rest.
+   */
+  emitter_category: {
+    input: EmitterCategoryInput;
+    answer: EmitterCategoryAnswer;
+  };
+  /**
+   * What a squawk says, where it says more than a code: 7500 unlawful interference (AIM 6-3-4), 7600 two-way radio failure (AIM 6-4-2), 7700 an emergency (AIM 6-2-2); null for any other.
+   */
+  squawk_meaning: {
+    input: SquawkMeaningInput;
+    answer: SquawkMeaningAnswer;
+  };
+  /**
+   * About where a three-to-one descent (333 ft/nm, as the nav log descends) to pattern altitude has the airplane nm_out from the field, feet MSL to the hundred, no higher than the cruise; the cruise where no pattern altitude is known.
+   */
+  descent_altitude: {
+    input: DescentAltitudeInput;
+    answer: DescentAltitudeAnswer;
   };
 }
 export interface HoldingInput {
@@ -4644,4 +4718,109 @@ export interface ReadTrackInput {
 export interface ThinTrackInput {
   points: unknown[];
   most?: number | null;
+}
+export interface StripFuelInput {
+  fuel_required_gal?: number | null;
+  fuel_margin_gal?: number | null;
+  hops?:
+    | {
+        departure: string;
+        destination: string;
+        fuel_required_gal?: number | null;
+        fuel_margin_gal?: number | null;
+      }[]
+    | null;
+  /**
+   * The hop flown, 0 where left out.
+   */
+  hop?: number | null;
+  /**
+   * Burnt so far by a flight under way.
+   */
+  burnt_gal?: number | null;
+}
+export interface StripFuelAnswer {
+  required_gal: number | null;
+  short: {
+    /**
+     * "C81 → KMSN"; "" for a route with no stops.
+     */
+    name: string;
+    short_gal: number;
+  }[];
+}
+export interface FuelInTanksInput {
+  points: {
+    departure?: boolean | null;
+    /**
+     * The burn of the leg to it.
+     */
+    fuel_gal?: number | null;
+    /**
+     * The tanks filled on landing there.
+     */
+    refuel?: boolean | null;
+  }[];
+  usable_gal: number;
+  taxi_gal: number;
+  reserve_gal: number;
+}
+export interface FuelEstimateInput {
+  distance_nm: number;
+  cruise_tas_kt?: number | null;
+  fuel_burn_gph?: number | null;
+}
+export interface FuelEstimateAnswer {
+  minutes: number | null;
+  trip_gal: number | null;
+  required_gal: number | null;
+}
+export interface HandbookWithinInput {
+  key:
+    | "cruiseTasKt"
+    | "cruisePowerPct"
+    | "fuelBurnGph"
+    | "usableFuelGal"
+    | "climbTasKt"
+    | "climbFuelBurnGph"
+    | "serviceCeilingFt";
+  value: number;
+}
+export interface CeilingVisibilityInput {
+  layers?:
+    | {
+        /**
+         * As a METAR codes it: FEW, SCT, BKN, OVC, VV; others count for no ceiling.
+         */
+        cover: string;
+        /**
+         * Above the ground.
+         */
+        base_ft?: number | null;
+      }[]
+    | null;
+  /**
+   * Into an obscuration: a ceiling.
+   */
+  vertical_visibility_ft?: number | null;
+  visibility?: {
+    value: number;
+    unit?: "sm" | "m";
+  } | null;
+  cavok?: boolean | null;
+}
+export interface CeilingVisibilityAnswer {
+  ceiling_ft: number | null;
+  visibility_sm: number | null;
+}
+export interface EmitterCategoryInput {
+  category?: string | null;
+}
+export interface SquawkMeaningInput {
+  squawk?: string | null;
+}
+export interface DescentAltitudeInput {
+  cruise_ft: number;
+  pattern_ft?: number | null;
+  nm_out: number;
 }

@@ -32,11 +32,6 @@ import { callEngine, type EngineAnswer } from "./engine/engine";
 import type { LatLon } from "./geo";
 import { isFixIdent } from "./identSchema";
 
-/** Three-quarters of a statute mile, in nautical miles: the middle of the
- *  handbook's half a mile to a mile for the downwind's distance out (the
- *  engine's DOWNWIND_NM, named here for the pages). */
-export const DOWNWIND_NM = 0.75 * 0.868976;
-
 export type LegName = "Upwind" | "Crosswind" | "Downwind" | "Base" | "Final";
 
 export interface TrafficPattern {

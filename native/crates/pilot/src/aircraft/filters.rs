@@ -12,6 +12,26 @@ use crate::geo::{angle_between, bearing_deg, distance_nm};
 /// large ones; A7 rotorcraft. A6, highly maneuverable (over 5 g and fast),
 /// is none of these: other. Not "jets": most business jets send A1 or A2,
 /// and a large turboprop A3.
+/// An emitter category's name in DO-260B's words (GDL 90 Table 11): A1
+/// "light", A2 "small", A3 "large", A4 "high_vortex_large", A5 "heavy",
+/// A6 "high_performance" (highly maneuverable), A7 "rotorcraft", B1
+/// "glider" (a glider or sailplane), B2 "lighter_than_air"; None for one
+/// not sent, and for the rest, which the app draws nothing different for.
+pub fn emitter(category: Option<&str>) -> Option<&'static str> {
+    Some(match category? {
+        "A1" => "light",
+        "A2" => "small",
+        "A3" => "large",
+        "A4" => "high_vortex_large",
+        "A5" => "heavy",
+        "A6" => "high_performance",
+        "A7" => "rotorcraft",
+        "B1" => "glider",
+        "B2" => "lighter_than_air",
+        _ => return None,
+    })
+}
+
 pub fn kind_of(category: Option<&str>) -> &'static str {
     match category.unwrap_or("") {
         "A1" => "light",
@@ -54,7 +74,20 @@ pub fn operator_of(callsign: Option<&str>) -> Option<String> {
 /// interference (AIM 6-3-4), 7600 for a radio failed (AIM 6-4-2), or an
 /// emergency sent in its ADS-B.
 pub fn in_emergency(squawk: Option<&str>, emergency: bool) -> bool {
-    matches!(squawk, Some("7500" | "7600" | "7700")) || emergency
+    squawk_meaning(squawk).is_some() || emergency
+}
+
+/// What a squawk says, where it says more than a code: the three a pilot
+/// sets in trouble -- 7500 unlawful interference (AIM 6-3-4, air piracy),
+/// 7600 two-way radio failure (AIM 6-4-2), 7700 an emergency (AIM 6-2-2) --
+/// in a few words for the airplane's card.
+pub fn squawk_meaning(squawk: Option<&str>) -> Option<&'static str> {
+    match squawk? {
+        "7500" => Some("hijack"),
+        "7600" => Some("lost radio"),
+        "7700" => Some("emergency"),
+        _ => None,
+    }
 }
 
 /// Round an airport, nm: "about" it -- its pattern and one joining it,

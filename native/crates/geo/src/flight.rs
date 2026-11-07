@@ -72,6 +72,11 @@ pub const NIGHT_RESERVE_MIN: f64 = 45.0;
 /// the destination), day or night.
 pub const IFR_RESERVE_MIN: f64 = 45.0;
 
+/// Fuel for engine start, taxi and takeoff, gallons, where an airplane's
+/// profile has no figure of its own: the Cessna 172S handbook's allowance,
+/// as the planner's nav log takes it (wingtip.navlog DEFAULT_TAXI_FUEL_GAL).
+pub const DEFAULT_TAXI_FUEL_GAL: f64 = 1.4;
+
 /// The reserve in minutes for the rules flown and the time of day.
 pub fn reserve_min(ifr: bool, night: bool) -> f64 {
     if ifr {

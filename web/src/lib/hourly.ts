@@ -40,11 +40,6 @@ const SENTENCE_HOURS = 12;
 
 const KT_PER_MPS = 1.943844;
 const KT_PER_KMH = 0.539957;
-const SM_PER_M = 1 / 1609.344;
-/** CAVOK: ten kilometres or more and no cloud under 5,000 ft (ICAO
- *  Annex 3, Appendix 3, 2.2), from a station outside the US -- as good as
- *  a US TAF's P6SM, more than 6 statute miles. */
-const CAVOK_SM = 6;
 
 /** What the sky is, for the hour's glyph: clear (or no cloud said),
  *  few or scattered, and broken, overcast or obscured. */
@@ -85,18 +80,17 @@ const rank = (category: string | null) => (category ? RANK[category] ?? -1 : -1)
 
 type Conditions = Pick<IAbstractWeatherContainer, "clouds" | "visibility" | "verticalVisibility" | "cavok" | "wind" | "weatherConditions">;
 
-function ceilingOf(c: Conditions): number | null {
-  const layers = c.clouds
-    .filter(l => (l.quantity === CloudQuantity.BKN || l.quantity === CloudQuantity.OVC) && l.height != null)
-    .map(l => l.height!);
-  if (c.verticalVisibility != null) layers.push(c.verticalVisibility);
-  return layers.length ? Math.min(...layers) : null;
-}
-
-function visibilityOf(c: Conditions): number | null {
-  if (c.cavok) return CAVOK_SM;
-  if (!c.visibility) return null;
-  return c.visibility.unit === DistanceUnit.Meters ? Math.round(c.visibility.value * SM_PER_M * 100) / 100 : c.visibility.value;
+/** The ceiling (14 CFR 1.1) and visibility, statute miles, of the groups
+ *  the parser found: the engine's (ceiling_visibility), metres and CAVOK
+ *  read as its METAR reader reads them. */
+function ceilingAndVisibility(c: Conditions): { ceilingFt: number | null; visibilitySm: number | null } {
+  const { ceiling_ft, visibility_sm } = callEngine("ceiling_visibility", {
+    layers: c.clouds.map(l => ({ cover: l.quantity, base_ft: l.height ?? null })),
+    vertical_visibility_ft: c.verticalVisibility ?? null,
+    visibility: c.visibility ? { value: c.visibility.value, unit: c.visibility.unit === DistanceUnit.Meters ? "m" : "sm" } : null,
+    cavok: c.cavok ?? false,
+  });
+  return { ceilingFt: ceiling_ft, visibilitySm: visibility_sm };
 }
 
 function skyOf(c: Conditions): Sky {
@@ -133,7 +127,7 @@ function figuresOf(c: Conditions, under?: Conditions) {
     visibility: c.visibility ?? (c.cavok ? undefined : under.visibility),
     cavok: c.cavok ?? (c.visibility || c.clouds.length ? undefined : under.cavok),
   } : c;
-  const ceilingFt = ceilingOf(merged), visibilitySm = visibilityOf(merged);
+  const { ceilingFt, visibilitySm } = ceilingAndVisibility(merged);
   return {
     category: categoryOf(ceilingFt, visibilitySm), ceilingFt, visibilitySm,
     sky: skyOf(merged), precip: precipOf(c),

@@ -11236,6 +11236,522 @@
         "answer"
       ],
       "additionalProperties": false
+    },
+    "strip_fuel": {
+      "description": "The fuel figure in the strip at the sheet's foot, web, iPhone and Android alike: the fuel required to the landing of hop `hop` (the first where the route has stops, the tanks filled at each; the whole route's where it has none), less what a flight under way has burnt, never below nothing; and the flights the tanks fall short on, a fuel margin under nothing (14 CFR 91.151, 91.167).",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "StripFuelInput",
+          "type": "object",
+          "properties": {
+            "fuel_required_gal": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "fuel_margin_gal": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "hops": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "departure": {
+                    "type": "string"
+                  },
+                  "destination": {
+                    "type": "string"
+                  },
+                  "fuel_required_gal": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "fuel_margin_gal": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "departure",
+                  "destination"
+                ]
+              }
+            },
+            "hop": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "description": "The hop flown, 0 where left out."
+            },
+            "burnt_gal": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Burnt so far by a flight under way."
+            }
+          }
+        },
+        "answer": {
+          "title": "StripFuelAnswer",
+          "type": "object",
+          "properties": {
+            "required_gal": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "short": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "\"C81 → KMSN\"; \"\" for a route with no stops."
+                  },
+                  "short_gal": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "name",
+                  "short_gal"
+                ]
+              }
+            }
+          },
+          "required": [
+            "required_gal",
+            "short"
+          ]
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "fuel_in_tanks": {
+      "description": "The fuel in the tanks at each point of the route and whether it is under the reserve: full at the departure, the start, taxi and takeoff allowance and each leg's burn taken from them after, filled again at each field landed at, as the planner checks each flight; null at a point past a leg whose burn is not known, until the next fill.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "FuelInTanksInput",
+          "type": "object",
+          "properties": {
+            "points": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "departure": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ]
+                  },
+                  "fuel_gal": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "The burn of the leg to it."
+                  },
+                  "refuel": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "description": "The tanks filled on landing there."
+                  }
+                }
+              }
+            },
+            "usable_gal": {
+              "type": "number"
+            },
+            "taxi_gal": {
+              "type": "number"
+            },
+            "reserve_gal": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "points",
+            "usable_gal",
+            "taxi_gal",
+            "reserve_gal"
+          ]
+        },
+        "answer": {
+          "title": "FuelInTanksAnswer",
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "gal": {
+                    "type": "number"
+                  },
+                  "low": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "gal",
+                  "low"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "fuel_estimate": {
+      "description": "The figures from the airplane's book alone, before the nav log's: at cruise speed with no wind the minutes over the distance, the fuel at the cruise burn over them, and the fuel required, that with the start and taxi allowance (the Cessna 172S handbook's 1.4 gal, the planner's default) and 45 minutes' reserve at the cruise burn, the most the rules ask (14 CFR 91.151(a)(2), 91.167(a)(3)), so an estimate is never short. Null where the book gives no speed, or no burn for the fuel.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "FuelEstimateInput",
+          "type": "object",
+          "properties": {
+            "distance_nm": {
+              "type": "number"
+            },
+            "cruise_tas_kt": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "fuel_burn_gph": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "distance_nm"
+          ]
+        },
+        "answer": {
+          "title": "FuelEstimateAnswer",
+          "type": "object",
+          "properties": {
+            "minutes": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "trip_gal": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "required_gal": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "minutes",
+            "trip_gal",
+            "required_gal"
+          ]
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "handbook_within": {
+      "description": "Whether an airplane's figure, typed in or read off its handbook's page, is within the bounds a light airplane's is believed within; outside them it is a misreading.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "HandbookWithinInput",
+          "type": "object",
+          "properties": {
+            "key": {
+              "enum": [
+                "cruiseTasKt",
+                "cruisePowerPct",
+                "fuelBurnGph",
+                "usableFuelGal",
+                "climbTasKt",
+                "climbFuelBurnGph",
+                "serviceCeilingFt"
+              ]
+            },
+            "value": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "key",
+            "value"
+          ]
+        },
+        "answer": {
+          "title": "HandbookWithinAnswer",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "ceiling_visibility": {
+      "description": "A report's or a forecast group's ceiling (14 CFR 1.1: the lowest broken or overcast layer, or the vertical visibility into an obscuration) and its visibility in statute miles, from the groups a host's own reader found: metres converted as the engine's METAR reader converts them (9999 the AWC's 6+), to the hundredth; CAVOK 6 (WMO No. 306: 10 km or more). Each null where none is given.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "CeilingVisibilityInput",
+          "type": "object",
+          "properties": {
+            "layers": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "cover": {
+                    "type": "string",
+                    "description": "As a METAR codes it: FEW, SCT, BKN, OVC, VV; others count for no ceiling."
+                  },
+                  "base_ft": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Above the ground."
+                  }
+                },
+                "required": [
+                  "cover"
+                ]
+              }
+            },
+            "vertical_visibility_ft": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Into an obscuration: a ceiling."
+            },
+            "visibility": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": "number"
+                    },
+                    "unit": {
+                      "enum": [
+                        "sm",
+                        "m"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "cavok": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            }
+          }
+        },
+        "answer": {
+          "title": "CeilingVisibilityAnswer",
+          "type": "object",
+          "properties": {
+            "ceiling_ft": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "visibility_sm": {
+              "type": [
+                "number",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "ceiling_ft",
+            "visibility_sm"
+          ]
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "emitter_category": {
+      "description": "An ADS-B emitter category's name in DO-260B's words (GDL 90 Table 11): A1 to A7 and B1, B2; null for one not sent and for the rest.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "EmitterCategoryInput",
+          "type": "object",
+          "properties": {
+            "category": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "answer": {
+          "title": "EmitterCategoryAnswer",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "light",
+            "small",
+            "large",
+            "high_vortex_large",
+            "heavy",
+            "high_performance",
+            "rotorcraft",
+            "glider",
+            "lighter_than_air",
+            null
+          ]
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "squawk_meaning": {
+      "description": "What a squawk says, where it says more than a code: 7500 unlawful interference (AIM 6-3-4), 7600 two-way radio failure (AIM 6-4-2), 7700 an emergency (AIM 6-2-2); null for any other.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "SquawkMeaningInput",
+          "type": "object",
+          "properties": {
+            "squawk": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "answer": {
+          "title": "SquawkMeaningAnswer",
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "hijack",
+            "lost radio",
+            "emergency",
+            null
+          ]
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
+    },
+    "descent_altitude": {
+      "description": "About where a three-to-one descent (333 ft/nm, as the nav log descends) to pattern altitude has the airplane nm_out from the field, feet MSL to the hundred, no higher than the cruise; the cruise where no pattern altitude is known.",
+      "type": "object",
+      "properties": {
+        "input": {
+          "title": "DescentAltitudeInput",
+          "type": "object",
+          "properties": {
+            "cruise_ft": {
+              "type": "number"
+            },
+            "pattern_ft": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "nm_out": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "cruise_ft",
+            "nm_out"
+          ]
+        },
+        "answer": {
+          "title": "DescentAltitudeAnswer",
+          "type": "number"
+        }
+      },
+      "required": [
+        "input",
+        "answer"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -11428,7 +11944,15 @@
     "plan_profile",
     "dry_run",
     "read_track",
-    "thin_track"
+    "thin_track",
+    "strip_fuel",
+    "fuel_in_tanks",
+    "fuel_estimate",
+    "handbook_within",
+    "ceiling_visibility",
+    "emitter_category",
+    "squawk_meaning",
+    "descent_altitude"
   ],
   "additionalProperties": false,
   "definitions": {

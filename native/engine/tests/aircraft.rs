@@ -152,3 +152,24 @@ fn a_registered_type_flies_on_its_stock_profile() {
     assert_eq!(ask("registered_profile", json!({"manufacturer": "Piper", "model": "PA-28-140", "year": 1971})), "pa28140");
     assert_eq!(ask("registered_profile", json!({})), Value::Null);
 }
+
+#[test]
+fn an_emitter_category_by_its_do_260b_name() {
+    // GDL 90 Table 11's categories, as the kept airplanes' shapes read them.
+    let named: Vec<Value> =
+        ["A1", "A3", "A6", "A7", "B1", "B2", "B5", ""].iter().map(|c| ask("emitter_category", json!({"category": c}))).collect();
+    assert_eq!(
+        named,
+        [json!("light"), json!("large"), json!("high_performance"), json!("rotorcraft"), json!("glider"), json!("lighter_than_air"), Value::Null, Value::Null]
+    );
+    assert_eq!(ask("emitter_category", json!({})), Value::Null);
+}
+
+#[test]
+fn a_squawk_says_what_it_means() {
+    // 7500 unlawful interference (AIM 6-3-4), 7600 two-way radio failure
+    // (AIM 6-4-2), 7700 an emergency (AIM 6-2-2); 7777 and 1200 nothing.
+    let said: Vec<Value> = ["7500", "7600", "7700", "7777", "1200"].iter().map(|s| ask("squawk_meaning", json!({"squawk": s}))).collect();
+    assert_eq!(said, [json!("hijack"), json!("lost radio"), json!("emergency"), Value::Null, Value::Null]);
+    assert_eq!(ask("squawk_meaning", json!({"squawk": null})), Value::Null);
+}
