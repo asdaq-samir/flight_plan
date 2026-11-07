@@ -32,6 +32,7 @@ import re
 import threading
 import time
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from itertools import pairwise
 from typing import NamedTuple
@@ -62,16 +63,30 @@ class WeatherServiceError(RuntimeError):
     """
 
 
+#: The client errors that can pass: 408 Request Timeout, 429 Too Many Requests.
+RETRIED_CLIENT_ERRORS = (408, 429)
+
+
 def _get(url: str, params: dict, retries: int = 3, validators: dict | None = None) -> requests.Response:
     """A transient blip (a slow bbox query 504ing, seen 2026-09-18) used
     to raise WeatherServiceError on the first and only attempt instead of
     quietly succeeding on a retry a few seconds later. `validators`, the
     held copy's ETag and Last-Modified, ask for it only if it has changed
-    (a 304 otherwise)."""
+    (a 304 otherwise).
+
+    A request refused as asked (a 4xx but a time-out or too many
+    requests) is not tried again: it is refused the same way each time.
+    The windtemp API answered 400 on 2026-11-06, its tables discontinued
+    with the NAM (NWS Service Change Notice 26-47), and three tries and
+    their back-off put 6.5 s on a plan once a minute before the modelled
+    winds were read (the planner's log, freezing_level 6.46 s)."""
     headers = {**HEADERS, **(validators or {})}
 
     def attempt() -> requests.Response:
         resp = requests.get(url, params=params, headers=headers, timeout=30)
+        status = getattr(resp, "status_code", None)
+        if isinstance(status, int) and 400 <= status < 500 and status not in RETRIED_CLIENT_ERRORS:
+            raise WeatherServiceError(f"aviationweather.gov request to {url} refused: {status} {str(resp.text)[:200]}")
         resp.raise_for_status()
         return resp
 
@@ -1384,16 +1399,39 @@ def gairmet_snapshots_along_route(path: list, window: tuple) -> list:
 
 
 def _fetch_each(names, force: bool = False) -> None:
-    """Every one of `names` attempted, then the first failure raised --
-    one source down must not keep the others from being fetched."""
-    first = None
-    for name in names:
+    """Every one of `names` attempted, all at once, then the first failure
+    (in `names`' order) raised -- one source down must not keep the others
+    from being fetched. At once, not one after another: they are
+    separate files, and a route's read ahead (read_ahead) waits on the
+    slowest of them rather than on their sum."""
+    def fetch(name: str) -> WeatherServiceError | None:
         try:
             _dataset(name, force=force)
         except WeatherServiceError as err:
-            first = first or err
+            if name in WIND_PERIODS:
+                _model_winds(name.removeprefix("winds-"))
+            return err
+        return None
+
+    with ThreadPoolExecutor(max_workers=max(1, len(names))) as pool:
+        failures = list(pool.map(fetch, names))
+    first = next((err for err in failures if err is not None), None)
     if first is not None:
         raise first
+
+
+def _model_winds(fcst_hr: str) -> None:
+    """The GFS's winds for a period whose FB could not be had, read now
+    (wingtip.modelwinds holds them an hour), as _fd_stations would read
+    them under a pilot's plan: with the FB's tables gone (2026-11-06) the
+    first plan after a start, and one an hour after, waited 1.3 s on the
+    NOMADS download (the planner's log, freezing_level)."""
+    from . import modelwinds
+
+    try:
+        modelwinds.stations(fcst_hr)
+    except modelwinds.ModelWindsUnavailable as err:
+        log.warning("no modelled winds for the %s-hour period: %s", fcst_hr, err)
 
 
 #: Every winds forecast period, held and refreshed whether asked for yet or
@@ -1419,6 +1457,26 @@ def refresh() -> None:
     the held copy in place, to be served stale as before; the winds used
     to be written here by hand, and had no such fallback."""
     _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", *WIND_PERIODS), force=True)
+
+
+def read_ahead(fcst_hr: str = "06") -> threading.Thread:
+    """What a route's plan reads, fetched now on a thread of its own where
+    a held copy has run out -- the reports and advisories, and the winds
+    for `fcst_hr` -- and nothing where none has. Asked for as the route
+    is entered (app.prefetch), so a planner left alone past in_use's
+    quarter of an hour, which its own refresh then leaves alone too,
+    downloads them while the chart is read along the route rather than
+    after it, on the plan's way. Each is held by its own rule as ever
+    (_dataset); this only starts the download sooner."""
+    def run() -> None:
+        try:
+            _fetch_each(("metars", "tafs", "airsigmets", "pireps", "gairmets", f"winds-{fcst_hr}"))
+        except WeatherServiceError:
+            pass  # the plan's own reads say what could not be had
+
+    thread = threading.Thread(target=run, name="weather-read-ahead", daemon=True)
+    thread.start()
+    return thread
 
 
 def forecast_hour(hours_ahead: float | None) -> str:
