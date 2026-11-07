@@ -19,7 +19,10 @@ runs:
         # The Mac mini's runners share one Docker daemon, which has the
         # mirror already: restarting it would kill the other jobs'
         # containers. GitHub's machines don't have it, so they restart.
-        if sudo cat "$config" 2>/dev/null | jq -e '."registry-mirrors" | index("https://mirror.gcr.io")' > /dev/null; then
+        # Ask the running daemon, not the file: a file edited without a
+        # restart would pass while pulls still go to Docker Hub. Docker
+        # lists the mirror with a trailing slash.
+        if docker info --format '{{json .RegistryConfig.Mirrors}}' | jq -e 'index("https://mirror.gcr.io/")' > /dev/null; then
           docker info --format 'registry mirrors: {{.RegistryConfig.Mirrors}}'
           exit 0
         fi
