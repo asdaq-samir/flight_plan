@@ -21,7 +21,7 @@ import { DEVELOPER_STATE } from "./e2e/emailSignIn";
  */
 // In CI (the e2e job) four cores carry the whole stack, the browsers
 // and a planner rendering map tiles for a cold cache at once: the
-// waits below are doubled there, a test gets two more goes, and two
+// waits below are doubled there, a test gets one more go, and two
 // workers rather than a share of the cores.
 const ci = !!process.env.CI;
 
@@ -80,12 +80,18 @@ export default defineConfig({
   // latency. It costs nothing when things are fast, and the test
   // timeout above still catches anything genuinely hung.
   expect: { timeout: ci ? 30_000 : 15_000 },
-  // One retry: a handful of tests wait on the planner's live nav log,
-  // and under two workers on a busy machine one has missed a wait once
-  // and passed every run since. A retry keeps a transient miss from
-  // failing the run without hiding a real regression, which fails
-  // twice.
-  retries: ci ? 2 : 1,
+  // One retry, in CI only: a handful of tests wait on the planner's live
+  // nav log, and under two workers on a busy runner one has missed a
+  // wait once and passed every run since. A test that passes on its
+  // retry is "flaky": it does not fail the run (or the merge), and the
+  // nightly flake hunt lists it in the "Flaky tests (nightly)" issue
+  // (docs/CI.md, "Flaky tests"), so it gets fixed rather than retried
+  // for ever. A real regression fails both goes. Locally, none: a test
+  // that fails here is looked at.
+  retries: ci ? 1 : 0,
+  // A test.only left in fails the run in CI rather than quietly running
+  // one test of the shard.
+  forbidOnly: ci,
   // Three quarters of the machine's cores locally (six of eight ran the
   // suite in 4.0 minutes against 4.6 at the default half, with no more
   // flakes); two in CI, where the four-core runner is the stack's too.
@@ -95,7 +101,10 @@ export default defineConfig({
   // worth more than the job's own time limit cutting it off unsaid.
   globalTimeout: ci ? 30 * 60_000 : undefined,
   fullyParallel: true,
-  reporter: "list",
+  // In CI, the github reporter too: each failure and each flaky test an
+  // annotation on the commit's checks. (The e2e job names its reporters
+  // on the command line, with a JSON one for the flake hunt.)
+  reporter: ci ? [["list"], ["github"]] : "list",
   use: {
     baseURL: process.env.BASE_URL ?? "http://localhost:8080",
     // The app registers a service worker that answers API calls itself

@@ -95,3 +95,11 @@ Rule these out before calling something a regression:
 5. **Safari only:** reproduce in WebKit.
 
 A failure that repeats on a quiet, freshly built stack is real. In the report, say which checks ran, with their counts, and which didn't.
+
+## 6. Flaky tests
+
+The unit suites run in a new random order every time (pytest-randomly, vitest's `sequence.shuffle`); docs/CI.md, "Flaky tests", has the whole setup.
+- **A test that fails here and passed before your change, in code you did not touch,** may be order-dependent. Rerun with the seed printed at the top of the failing run (`pytest --randomly-seed=N`, `npx vitest run --sequence.seed=N`); if it fails again in that order and passes alone (`pytest -p no:randomly <file>`), the test before it left something behind. Fix that test, not yours.
+- **Guards fail a test for what it leaves behind:** a module function replaced without `monkeypatch` (Python), fake timers left on (web). The message names it; use `monkeypatch.setattr` or `vi.useRealTimers()` in an `afterEach`.
+- **Browser tests retry once in CI.** One that passed on its retry is reported, not failed; the nightly issue "Flaky tests (nightly)" lists it with the unit tests the nightly five shuffled runs caught. Take a test from that list as work, like any other issue.
+- **No `.only`:** ESLint fails it in unit tests and specs, and Playwright's `forbidOnly` in CI.
