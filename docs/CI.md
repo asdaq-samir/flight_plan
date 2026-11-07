@@ -77,6 +77,41 @@ npx playwright test --project=mobile --grep @smoke
 
 (34 passed in 52 s on the Mac mini, 2026-11-06.)
 
+## API compatibility
+
+The iPhone app in the App Store keeps calling the servers for months
+after each release, from every phone that has not updated. So a pull
+request that changes `planning-service/openapi.json` or
+`springboot-app/openapi.json` runs `api-compat` ("API compatibility"):
+[oasdiff](https://github.com/oasdiff/oasdiff)'s `breaking` check, its
+Docker image pinned by digest, compares each document with main's and
+fails on an ERR-level break -- an endpoint, a response field or an enum
+value removed or renamed, a request parameter or field made required, a
+type narrowed. Adding a field or an endpoint passes. It takes seconds,
+runs only when a document changed, and is one of the jobs "CI passed"
+waits on.
+
+Prefer the additive change: a new field or endpoint beside the old one,
+and the old one removed only once no released app calls it. When a
+break is meant, the pull request adds a line for each change to
+`.github/api-breaks.txt` (oasdiff's `--err-ignore` file): the date, the
+method and path, and oasdiff's words for the change as the failure
+printed them -- with backticks round the names, as oasdiff writes them in
+its ignore matching (single quotes do not match) -- for example
+
+```
+2026-11-06 GET /api/briefing removed the required property `hazards` from the response with the `200` status -- no released app reads it
+```
+
+The lines stay after the merge, as the record of what was broken when.
+To see the breaks before pushing:
+
+```sh
+git show origin/main:planning-service/openapi.json > /tmp/base.json
+docker run --rm -v /tmp:/base -v "$PWD:/head" tufin/oasdiff:v1.34.1 \
+  breaking /base/base.json /head/planning-service/openapi.json --format singleline
+```
+
 ## Where it runs
 
 Most jobs' machine comes from a repository variable, so moving them is a
