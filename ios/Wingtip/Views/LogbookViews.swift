@@ -191,7 +191,7 @@ struct LogbookView: View {
     /// One of the dates the pilot gives, saved as it changes, the others
     /// sent as they stand.
     private func dateBinding(_ key: WritableKeyPath<CurrencyDatesRequest, String?>) -> Binding<String?> {
-        let now = CurrencyDatesRequest(flightReviewOn: currency?.flightReviewOn, medicalExpiresOn: currency?.medicalExpiresOn, ipcOn: currency?.ipcOn)
+        let now = CurrencyDatesRequest(flightReviewOn: currency?.flightReviewOn, ipcOn: currency?.ipcOn, medicalExpiresOn: currency?.medicalExpiresOn)
         return Binding(get: { now[keyPath: key] }, set: { value in
             var next = now
             next[keyPath: key] = value

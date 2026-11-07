@@ -294,13 +294,12 @@ struct StopServicesSections: View {
 
 private enum PreviewData {
     static let runways = [
-        Runway(ends: "09/27", lengthFt: 10162, widthFt: 150, surface: "ASPH", lighted: true,
-               wind: RunwayWind(end: "27", headwindKt: 9, crosswindKt: 4),
-               runwayEnds: [RunwayEnd(ident: "09", headingTrueDeg: 92, lat: 46.8415, lon: -92.2140),
-                            RunwayEnd(ident: "27", headingTrueDeg: 272, lat: 46.8425, lon: -92.1733, traffic: "right")]),
-        Runway(ends: "03/21", lengthFt: 5719, widthFt: 150, surface: "ASPH", lighted: true,
-               runwayEnds: [RunwayEnd(ident: "03", headingTrueDeg: 33, lat: 46.8355, lon: -92.2005),
-                            RunwayEnd(ident: "21", headingTrueDeg: 213, lat: 46.8490, lon: -92.1880)]),
+        Runway(closed: false, ends: "09/27", lengthFt: 10162, lighted: true, runwayEnds: [RunwayEnd(headingTrueDeg: 92, ident: "09", lat: 46.8415, lon: -92.2140),
+                            RunwayEnd(headingTrueDeg: 272, ident: "27", lat: 46.8425, lon: -92.1733, traffic: "right")],
+               surface: "ASPH", widthFt: 150, wind: RunwayWind(crosswindKt: 4, end: "27", headwindKt: 9)),
+        Runway(closed: false, ends: "03/21", lengthFt: 5719, lighted: true, runwayEnds: [RunwayEnd(headingTrueDeg: 33, ident: "03", lat: 46.8355, lon: -92.2005),
+                            RunwayEnd(headingTrueDeg: 213, ident: "21", lat: 46.8490, lon: -92.1880)],
+               surface: "ASPH", widthFt: 150),
     ]
 }
 
@@ -324,10 +323,10 @@ private enum PreviewData {
 
 #Preview("FrequencyRowView") {
     List {
-        FrequencyRowView(frequency: Frequency(type: "TWR", description: "DULUTH TOWER", frequencyMhz: 118.3))
-        FrequencyRowView(frequency: Frequency(type: "GND", description: "GROUND", frequencyMhz: 121.9))
-        FrequencyRowView(frequency: Frequency(type: "CTAF", description: "CTAF", frequencyMhz: 122.8))
-        FrequencyRowView(frequency: Frequency(type: "ATIS", description: "ATIS"))
+        FrequencyRowView(frequency: Frequency(description: "DULUTH TOWER", frequencyMhz: 118.3, type: "TWR"))
+        FrequencyRowView(frequency: Frequency(description: "GROUND", frequencyMhz: 121.9, type: "GND"))
+        FrequencyRowView(frequency: Frequency(description: "CTAF", frequencyMhz: 122.8, type: "CTAF"))
+        FrequencyRowView(frequency: Frequency(description: "ATIS", type: "ATIS"))
     }
 }
 

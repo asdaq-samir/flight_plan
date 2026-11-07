@@ -16,7 +16,7 @@ struct AirportExtrasTests {
         let json = #"{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07,"kind":"small","towered":false,"private":false,"address":"2100 Main St","phone":"815-555-0100","airport_diagram_url":null,"airport_diagram_cycle":null,"chart_supplement_url":"https://aeronav.faa.gov/afd/09oct2026/ec_123.pdf","procedures":[{"kind":"IAP","name":"RNAV (GPS) RWY 24","url":"https://aeronav.faa.gov/d-tpp/2610/00123R24.PDF"}],"radio_notes":["Weather on 3 clicks"],"standard_keying":true,"lighting":["Runway lights on 122.8"],"weather_unavailable":false,"metar":null,"modelled_weather":{"flight_category":"MVFR","visibility_sm":10.0,"ceiling_ft":2500.0,"valid_at":"2026-10-25T13:00:00Z"},"nearby_metar":{"ident":"KUGN","distance_nm":11.0,"bearing_deg":45,"near":false,"metar":{"raw":"KUGN 251255Z 24008KT 10SM FEW030 09/03 A3012","flight_category":"VFR"}},"runways":[{"ends":"06/24","length_ft":3700,"width_ft":60,"surface":"ASPH","lighted":true,"closed":false,"runway_ends":[{"ident":"06","heading_true_deg":58.0,"lat":42.318,"lon":-88.08,"traffic":"left"},{"ident":"24","heading_true_deg":238.0,"lat":42.322,"lon":-88.065,"traffic":"right"}],"turf":[],"wind":null}],"frequencies":[{"type":"CTAF","description":"CTAF","frequency_mhz":122.8}],"pattern":{"agl_ft":1000.0,"altitude_ft":1800.0,"published":false}}"#
         let place = try decode(AirportPlace.self, json)
         #expect(place.procedures?.first?.kind == "IAP" && place.chartSupplementUrl?.hasSuffix(".pdf") == true)
-        #expect(place.radioNotes == ["Weather on 3 clicks"] && place.standardKeying == true && place.`private` == false)
+        #expect(place.radioNotes == ["Weather on 3 clicks"] && place.standardKeying == true && place.isPrivate == false)
         #expect(place.nearbyMetar?.ident == "KUGN" && place.nearbyMetar?.bearingDeg == 45 && place.nearbyMetar?.metar.flightCategory == "VFR")
         #expect(place.runways[0].runwayEnds?[1].traffic == "right" && place.runways[0].runwayEnds?[0].headingTrueDeg == 58)
         // No report of its own: the modelled category is the chip's, marked as not its own.
@@ -116,12 +116,12 @@ struct AirportExtrasTests {
     @Test func runwaysAndWind() {
         #expect(AirportWords.surfaceName("ASPH-G") == "asphalt" && AirportWords.surfaceName("Gravel/Dirt") == "gravel" && AirportWords.surfaceName(nil) == nil)
         #expect(AirportWords.runwayNumber("06") == "6" && AirportWords.runwayNumber("09L") == "9L" && AirportWords.runwayNumber("0") == "0")
-        let wind = RunwayWind(end: "27", headwindKt: 10, crosswindKt: 6, gustCrosswindKt: 9, inUse: true)
+        let wind = RunwayWind(crosswindKt: 6, end: "27", gustCrosswindKt: 9, headwindKt: 10, inUse: true)
         #expect(AirportWords.runwayWind(wind) == "Favors 27: 10 kt headwind, 6 kt crosswind from the right, 9 in the gusts")
-        let tail = RunwayWind(end: "09", headwindKt: -3, crosswindKt: -2, gustCrosswindKt: nil, inUse: nil)
+        let tail = RunwayWind(crosswindKt: -2, end: "09", gustCrosswindKt: nil, headwindKt: -3, inUse: nil)
         #expect(AirportWords.runwayWind(tail) == "Favors 09: 3 kt tailwind, 2 kt crosswind from the left")
-        #expect(AirportWords.runwayWind(RunwayWind(end: "18", headwindKt: 0, crosswindKt: 0)) == "Calm on 18")
-        var runway = Runway(ends: "06/24", lengthFt: 3700, surface: "TURF", lighted: true)
+        #expect(AirportWords.runwayWind(RunwayWind(crosswindKt: 0, end: "18", headwindKt: 0)) == "Calm on 18")
+        var runway = Runway(closed: false, ends: "06/24", lengthFt: 3700, lighted: true, surface: "TURF")
         runway.runwayEnds = [RunwayEnd(ident: "06", traffic: "left"), RunwayEnd(ident: "24", traffic: "right")]
         #expect(AirportWords.runwayDetail(runway) == "turf · lighted · right traffic 24")
         #expect(AirportWords.windLine(dirTrueDeg: 0, speedKt: 12, gustKt: 20) == "360° at 12 kt, gusts 20")
@@ -158,11 +158,11 @@ struct AirportExtrasTests {
     }
 
     @Test func aMilitaryFieldIsOneToKeepOutOf() {
-        var place = AirportPlace(ident: "KSKF", name: "Kelly Field", lat: 29.38, lon: -98.58, kind: "large")
+        var place = AirportPlace(frequencies: [], ident: "KSKF", kind: "large", lat: 29.38, lon: -98.58, name: "Kelly Field", runways: [], towered: false)
         place.military = "military"
         #expect(AirportHead.restriction(place) == "Military, permission required")
         place.military = nil
-        place.`private` = true
+        place.isPrivate = true
         #expect(AirportHead.restriction(place) == "Private, permission required")
         place.metar = Metar(flightCategory: "IFR")
         #expect(AirportHead.category(place)?.own == true)

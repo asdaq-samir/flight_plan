@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.preferencesDataStore
 import app.wingtipmaps.android.api.Planner
 import app.wingtipmaps.android.api.TrafficAircraft
+import app.wingtipmaps.android.api.name
 import app.wingtipmaps.android.api.traffic
 import app.wingtipmaps.android.engine.Engine
 import app.wingtipmaps.android.engine.TrafficMarksAnswerElement

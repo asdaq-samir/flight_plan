@@ -1,33 +1,22 @@
 import Foundation
 
 // The planner's answers the app reads (planning-service/openapi.json,
-// app.schemas), as Codable by hand. Apple's generator was tried first and
-// left out every property the document gives as `anyOf` string and null
-// (FastAPI's way of saying optional): flight_category, municipality,
-// elevation_ft, the METAR itself. These follow the document's names in
-// camel case through Planner.snakeCase; a field the document marks
-// nullable is optional here. Only the properties a screen shows are
-// listed: JSONDecoder ignores the rest, and a screen adds what it needs.
+// app.schemas). Most are generated from the document into
+// Generated/PlannerModels.swift (scripts/api-models-apps.sh, the API
+// prefix), as the web's types are, so a field the planner renames fails
+// the build rather than a screen; the names the app has always used are
+// typealiases of them here, with what the app adds as extensions. Every
+// property is the document's, in camel case through Planner.snakeCase; a
+// field the document marks nullable or leaves out is optional.
+//
+// Still by hand: AirportPin and AheadAlert, which the engine also writes
+// from the cycle packs on the phone (Engine/InView.swift, Engine/Ahead.swift),
+// and ProcedurePick, which is the app's own.
 
-/// One kind of FAA chart and the zooms it has tiles for (ChartLayer).
-struct ChartLayer: Codable, Equatable, Sendable {
-    let kind: String
-    let label: String
-    var base: Bool = false
-    let minZoom: Int
-    let maxZoom: Int
-    var over: [String] = []
-}
-
-/// Which chart the map draws and where its tiles are (ChartInfo).
-struct ChartInfo: Codable, Equatable, Sendable {
-    let chartCycle: String
-    var chartRevision: Int? = 0
-    var chartTilesBase: String?
-    let chartLayers: [ChartLayer]
-    let minZoom: Int
-    let maxZoom: Int
-}
+/// Which chart the map draws and where its tiles are, and each kind of
+/// FAA chart with the zooms it has tiles for.
+typealias ChartInfo = APIChartInfo
+typealias ChartLayer = APIChartLayer
 
 /// A field in the map's view (AirportPin).
 struct AirportPin: Codable, Equatable, Sendable {
@@ -62,254 +51,76 @@ struct AirportPin: Codable, Equatable, Sendable {
     }
 }
 
-/// A field near a point, nearest first (NearestAirport): its distance
-/// and bearing from there, worked out by the planner.
-struct NearestAirport: Codable, Equatable, Sendable, Identifiable {
-    let ident: String
-    let name: String
-    let lat: Double
-    let lon: Double
-    let kind: String
-    let distanceNm: Double
-    let bearingDeg: Double
-    var municipality: String?
-    var flightCategory: String?
-    var longestRunwayFt: Int?
-    var elevationFt: Double?
+/// A field near a point, nearest first: its distance and bearing from
+/// there, worked out by the planner.
+typealias NearestAirport = APINearestAirport
 
+extension NearestAirport: Identifiable {
     var id: String { ident }
 }
 
-/// One airplane the receivers hear (TrafficAircraft), as sent.
-struct TrafficAircraft: Codable, Equatable, Sendable {
-    let hex: String
-    let lat: Double
-    let lon: Double
-    var callsign: String?
-    var registration: String?
-    var type: String?
-    var altitudeFt: Double?
-    var trackDeg: Double?
-    var speedKt: Double?
-    var verticalFpm: Double?
-    var seenS: Double?
-    /// Its transponder's code, where it sends one: 7500, 7600 and 7700
-    /// said in words on its card (AIM 6-2-2, 6-3-4, 6-4-2).
-    var squawk: String?
-}
+/// One airplane the receivers hear, as sent: its transponder's code
+/// 7500, 7600 and 7700 said in words on its card (AIM 6-2-2, 6-3-4,
+/// 6-4-2); and the answer they come in.
+typealias TrafficAircraft = APITrafficAircraft
+typealias TrafficAnswer = APITraffic
 
-struct TrafficAnswer: Codable, Equatable, Sendable {
-    var aircraft: [TrafficAircraft]
-    var source: String?
-    var ageS: Double?
-}
+/// A field found by ident or name.
+typealias AirportSuggestion = APIAirportSuggestion
 
-/// A field found by ident or name (AirportSuggestion).
-struct AirportSuggestion: Codable, Equatable, Sendable, Identifiable {
-    let ident: String
-    let name: String
-    var kind: String?
-    var municipality: String?
-    var region: String?
-
+extension AirportSuggestion: Identifiable {
     var id: String { ident }
 }
 
-/// A METAR as the planner reads it, with the report as sent (Metar).
-struct Metar: Codable, Equatable, Sendable {
-    var raw: String?
-    var observedAt: String?
-    var flightCategory: String?
-    var windDirTrueDeg: Double?
-    var windSpeedKt: Double?
-    var windGustKt: Double?
-    var visibilitySm: Double?
-    var ceilingFt: Double?
-    var tempC: Double?
-    var dewpointC: Double?
-    var altimeterInHg: Double?
-}
+/// A METAR as the planner reads it, with the report as sent; the
+/// forecast model's weather at a field with no report.
+typealias Metar = APIMetar
+typealias ModelledWeather = APIModelledWeather
 
-/// The forecast model's weather at a field with no report (ModelledWeather).
-struct ModelledWeather: Codable, Equatable, Sendable {
-    let flightCategory: String
-    let visibilitySm: Double
-    var ceilingFt: Double?
-    let validAt: String
-}
-
-/// The wind on a runway's better end (RunwayWind).
-struct RunwayWind: Codable, Equatable, Sendable {
-    let end: String
-    let headwindKt: Double
-    let crosswindKt: Double
-    var gustCrosswindKt: Double?
-    var inUse: Bool?
-}
-
-struct Runway: Codable, Equatable, Sendable {
-    var ends: String?
-    var lengthFt: Int?
-    var widthFt: Int?
-    var surface: String?
-    var lighted: Bool = false
-    var closed: Bool = false
-    var wind: RunwayWind?
-    /// Its ends' headings and pattern sides (the airport card's rows).
-    var runwayEnds: [RunwayEnd]?
-}
-
-struct Frequency: Codable, Equatable, Sendable {
-    var type: String?
-    var description: String?
-    var frequencyMhz: Double?
-}
-
-/// The traffic pattern's altitude: the FAA's where it publishes one, else
-/// AC 90-66C's 1,000 ft over the field (TrafficPattern).
-struct TrafficPattern: Codable, Equatable, Sendable {
-    var altitudeFt: Double?
-    var published: Bool = false
-}
+/// A runway, the wind on its better end, a field's frequencies, and the
+/// traffic pattern's altitude: the FAA's where it publishes one, else AC
+/// 90-66C's 1,000 ft over the field.
+typealias Runway = APIRunway
+typealias RunwayWind = APIRunwayWind
+typealias Frequency = APIFrequency
+typealias TrafficPattern = APITrafficPattern
 
 /// One of the planner's airplane types and the handbook figures it flies
-/// on (AircraftProfile, data/aircraft/*.json).
-struct AircraftProfile: Codable, Equatable, Sendable {
-    let name: String
-    var type: String?
-    var designator: String?
-    let cruiseTasKt: Double
-    let fuelBurnGph: Double
-    let serviceCeilingFt: Double
-    var usableFuelGal: Double?
-    var cruisePowerPct: Double?
-    var climbTasKt: Double?
-}
+/// on (data/aircraft/*.json).
+typealias AircraftProfile = APIAircraftProfile
 
 /// A checkpoint off the chart along the route, ranked by the chart model
 /// (Candidate): the selected ones are the nav log's fixes.
-struct Checkpoint: Codable, Equatable, Sendable, Identifiable {
-    let id: String
-    let category: String
-    let lat: Double
-    let lon: Double
-    let predictedScore: Double
-    let alongTrackNm: Double
-    var selected: Bool = false
-    var name: String?
-    var waypoint: String?
-    var hop: Int? = 0
-}
+typealias Checkpoint = APICandidate
 
-/// The ground and the airspace under the route's line (RouteProfile).
-struct ProfileGround: Codable, Equatable, Sendable {
-    let alongNm: Double
-    let groundFt: Double
-}
+extension Checkpoint: Identifiable {}
 
-struct ProfileAirspace: Codable, Equatable, Sendable, Identifiable {
-    let name: String
-    /// B, C, D: the document's `class`, which Swift keeps for itself.
-    let airspaceClass: String
-    let fromNm: Double
-    let toNm: Double
-    let floorFt: Double
-    var ceilingFt: Double?
-    var ident: String?
+/// The ground and the airspace under the route's line; an airspace's
+/// `class` (B, C, D) is airspaceClass, the name Swift leaves free.
+typealias RouteProfile = APIRouteProfile
+typealias ProfileGround = APIProfileGround
+typealias ProfileAirspace = APIProfileAirspace
 
+extension ProfileAirspace: Identifiable {
     var id: String { "\(name)-\(fromNm)" }
-
-    enum CodingKeys: String, CodingKey {
-        case name, fromNm, toNm, floorFt, ceilingFt, ident
-        case airspaceClass = "class"
-    }
 }
 
-struct RouteProfile: Codable, Equatable, Sendable {
-    let lengthNm: Double
-    let terrain: [ProfileGround]
-    let airspace: [ProfileAirspace]
-}
+/// The briefing for a route: what a flight service briefer says, in the
+/// planner's order. Every judgment in it is the planner's; the app shows
+/// it and computes none. Where and when the flight meets each hazard is
+/// its onRoute (BriefLegs.swift).
+typealias Briefing = APIBriefing
+typealias Hazard = APIHazard
+typealias GAirmet = APIGAirmet
+typealias Pirep = APIPirep
+typealias Forecast = APIForecast
+/// A TAF station near the route: the worst it forecasts over the whole
+/// flight (`ceilingFt`, `visibilitySm`), and when the flight gets there.
+typealias ForecastStation = APIForecastStation
+typealias RouteTfr = APIRouteTfr
 
-/// The briefing for a route (Briefing): what a flight service briefer
-/// says, in the planner's order. Every judgment in it is the planner's;
-/// the app shows it and computes none.
-struct Hazard: Codable, Equatable, Sendable {
-    var type: String?
-    var hazard: String?
-    var raw: String?
-    var altitudeLowFt: Double?
-    var altitudeHighFt: Double?
-    /// Where and when the flight meets it (BriefLegs.swift).
-    var onRoute: OnRoute?
-}
-
-struct GAirmet: Codable, Equatable, Sendable {
-    let hazard: String
-    var severity: String?
-    var dueTo: String?
-    var validAt: String?
-    var altitudeLowFt: Double?
-    var altitudeHighFt: Double?
-    var onRoute: OnRoute?
-}
-
-struct RouteTfr: Codable, Equatable, Sendable, Identifiable {
-    let notamId: String
-    let alongTrackNm: Double
-    var crosses: Bool = false
-    var activeNow: Bool = false
-    var title: String?
-    var kind: String?
-    var purpose: String?
-    var effective: String?
-    var expires: String?
-    var floorFt: Double?
-    var ceilingFt: Double?
-    var onRoute: OnRoute?
-
+extension RouteTfr: Identifiable {
     var id: String { notamId }
-}
-
-struct Pirep: Codable, Equatable, Sendable {
-    let alongTrackNm: Double
-    var raw: String?
-    var aircraft: String?
-    var altitudeFt: Double?
-    var turbulence: String?
-    var icing: String?
-    var urgent: Bool? = false
-    var observedAt: String?
-    var onRoute: OnRoute?
-}
-
-struct ForecastStation: Codable, Equatable, Sendable {
-    var ident: String?
-    var raw: String?
-    var minCeilingFt: Double?
-    var minVisibilitySm: Double?
-}
-
-struct Forecast: Codable, Equatable, Sendable {
-    var minCeilingFt: Double?
-    var minVisibilitySm: Double?
-    var stations: [ForecastStation] = []
-}
-
-struct Briefing: Codable, Equatable, Sendable {
-    var hazards: [Hazard] = []
-    var forecast: Forecast?
-    var metars: [String: Metar?] = [:]
-    var gairmets: [GAirmet]? = []
-    var pireps: [Pirep]? = []
-    var tfrs: [RouteTfr]? = []
-    var vfrNotRecommended: [String]? = []
-    var weatherUnavailable: [String] = []
-    /// The fields below VFR where the flight meets them, and the fixes
-    /// the hazards' legs run between (BriefLegs.swift).
-    var fieldsBelowVfr: [FieldBelowVfr]?
-    var legFixes: [RoutePoint]?
-    var legsFrom: String?
 }
 
 /// One thing ahead of the airplane (AheadAlert, wingtip.alerts): airspace, a
@@ -343,79 +154,31 @@ struct AheadAlert: Codable, Equatable, Sendable, Identifiable {
 /// wingtip.route_options): the direct line and the ways round what it meets
 /// -- storms, weather under minimums, terrain over the ceiling, TFRs --
 /// each with its stops, its time, its fuel and what it still crosses.
-/// Every judgment in it is the planner's.
-struct RouteHazard: Codable, Equatable, Sendable {
-    var kind: String?
-    var name: String?
-    var title: String?
-    var detail: String?
-}
+/// Every judgment in it is the planner's. A way's `crosses` and
+/// `marginal` index into the hazards; a chip of the route line, as the
+/// planner words and orders it for the web app and the phone alike, has
+/// `key` "none" for the route as typed, "fuel" for it with its fuel
+/// stops, else the way's kinds.
+typealias RouteOptions = APIRouteOptions
+typealias RouteOption = APIRouteOption
+typealias RouteChip = APIRouteChip
+typealias RouteHazard = APIRouteHazard
 
-struct RouteOption: Codable, Equatable, Sendable, Identifiable {
-    let kind: String
-    var kinds: [String] = []
-    let title: String
-    var stops: [String] = []
-    var fuel: [String] = []
-    /// The way as pairs of latitude and longitude.
-    var path: [[Double]] = []
-    let distanceNm: Double
-    var groundMin: Double = 0
-    let fuelGal: Double
-    var landings: Int = 0
-    /// Indexes into the hazards this way still crosses, and those it
-    /// passes near.
-    var crosses: [Int] = []
-    var marginal: [Int] = []
-    var floorFt: Int?
-
+extension RouteOption: Identifiable {
     var id: String { kind + ":" + stops.joined(separator: ",") }
 }
 
-/// One chip of the route line, as the planner words and orders it for
-/// the web app and the phone alike (RouteChip): `key` "none" for the
-/// route as typed, "fuel" for it with its fuel stops, else the way's
-/// kinds; the stops it puts in the route, and the hazards it crosses by
-/// their index in RouteOptions.hazards.
-struct RouteChip: Codable, Equatable, Sendable, Identifiable {
-    let key: String
-    let label: String
-    var stops: [String] = []
-    var fuel: [String] = []
-    var crosses: [Int]?
-
+extension RouteChip: Identifiable {
     var id: String { key + ":" + stops.joined(separator: ",") }
 }
 
-struct RouteOptions: Codable, Equatable, Sendable {
-    var options: [RouteOption] = []
-    /// The route line's chips in the order shown, "None" first; empty
-    /// when there is no way but the route itself.
-    var chips: [RouteChip]?
-    var own: RouteOption?
-    var hazards: [RouteHazard] = []
-    var unchecked: [String] = []
-    /// What the direct line crosses, and the ends.
-    var direct: [Int] = []
-    var ends: [Int] = []
-}
+/// A field's instrument procedures from the FAA's CIFP (wingtip.procedures):
+/// departures, arrivals and approaches, each with its transitions, for
+/// the pull-downs the route's fields get.
+typealias ProcedureList = APIProcedureList
+typealias ProcedureSummary = APIProcedureSummary
 
-/// A field's instrument procedures from the FAA's CIFP (ProcedureList,
-/// wingtip.procedures): departures, arrivals and approaches, each with its
-/// transitions, for the pull-downs the route's fields get.
-struct ProcedureSummary: Codable, Equatable, Sendable, Identifiable {
-    let id: String
-    let kind: String
-    let name: String
-    var runway: String?
-    var transitions: [String] = []
-}
-
-struct ProcedureList: Codable, Equatable, Sendable {
-    let airport: String
-    let cycle: String
-    var procedures: [ProcedureSummary] = []
-}
+extension ProcedureSummary: Identifiable {}
 
 /// A procedure picked for a field of the route, as the planner takes it
 /// (web lib/procedures proceduresParam): `ident:id[:transition]`.
@@ -442,36 +205,7 @@ struct ProcedurePick: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
-/// A field's card (AirportPlace).
-struct AirportPlace: Codable, Equatable, Sendable {
-    let ident: String
-    let name: String
-    let lat: Double
-    let lon: Double
-    let kind: String
-    var towered: Bool = false
-    var runways: [Runway] = []
-    var frequencies: [Frequency] = []
-    var elevationFt: Double?
-    var municipality: String?
-    var region: String?
-    var airspaceClass: String?
-    var military: String?
-    var phone: String?
-    var lighting: [String]? = []
-    var metar: Metar?
-    var modelledWeather: ModelledWeather?
-    var pattern: TrafficPattern?
-    // The rest of the card (AirportExtras.swift): where it is on the
-    // ground, its FAA pages, its radio's notes, a nearby report.
-    var address: String?
-    var `private`: Bool?
-    var airportDiagramUrl: String?
-    var airportDiagramCycle: String?
-    var chartSupplementUrl: String?
-    var procedures: [TerminalChart]?
-    var radioNotes: [String]?
-    var standardKeying: Bool?
-    var weatherUnavailable: Bool?
-    var nearbyMetar: NearbyMetar?
-}
+/// A field's card: its weather, runways, frequencies and pattern, where
+/// it is on the ground, its FAA pages, its radio's notes, a nearby report
+/// (AirportExtras.swift says the rest).
+typealias AirportPlace = APIAirportPlace

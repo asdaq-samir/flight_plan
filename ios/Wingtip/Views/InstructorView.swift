@@ -140,7 +140,7 @@ struct CertificateSection: View {
             DatePicker(untilKind == "RE" ? "Recent experience through" : "Certificate expires", selection: $until, displayedComponents: .date)
             Button(saving ? "Saving…" : "Save") {
                 saving = true
-                let request = InstructorRequest(fullName: fullName.trimmingCharacters(in: .whitespaces), certificate: certificate.trimmingCharacters(in: .whitespaces),
+                let request = InstructorRequest(certificate: certificate.trimmingCharacters(in: .whitespaces), fullName: fullName.trimmingCharacters(in: .whitespaces),
                                                 until: Day.string(until), untilKind: untilKind)
                 Task { await save(request); saving = false }
             }

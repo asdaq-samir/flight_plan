@@ -105,12 +105,12 @@ struct StripDataTests {
     }
 
     private static func course() throws -> Course {
-        let json = #"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth International","lat":46.84,"lon":-92.19},"stops":[{"ident":"KJVL","name":"Southern Wisconsin Regional","lat":42.62,"lon":-89.04}],"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[42.62,-89.04],[46.84,-92.19]]}"#
+        let json = #"{"departure":{"ident":"C81","name":"Campbell","lat":42.32,"lon":-88.07},"destination":{"ident":"KDLH","name":"Duluth International","lat":46.84,"lon":-92.19},"stops":[{"ident":"KJVL","name":"Southern Wisconsin Regional","lat":42.62,"lon":-89.04}],"distance_nm":323.5,"bearing_deg":325.0,"course_line":[[42.32,-88.07],[42.62,-89.04],[46.84,-92.19]],"chart_cycle":"09-03-2026","chart_layers":[],"min_zoom":5,"max_zoom":12}"#
         return try decoder.decode(Course.self, from: Data(json.utf8))
     }
 
     private static let checkpoints = [
-        Checkpoint(id: "rockford", category: "city", lat: 42.27, lon: -89.09, predictedScore: 0.9, alongTrackNm: 30, selected: true, name: "Rockford", waypoint: nil, hop: 0),
+        Checkpoint(alongTrackNm: 30, category: "city", hop: 0, id: "rockford", lat: 42.27, lon: -89.09, name: "Rockford", predictedScore: 0.9, selected: true, waypoint: nil),
     ]
 
     @Test func thePointsAreTheLegsEndsInOrderAStopWhereTheRouteLandsTheDestinationLast() throws {
@@ -200,15 +200,15 @@ struct StripDataTests {
 
     @Test func theRadioChipsAreTheAtisTheTowerOrTheCtaf() {
         let towered = [
-            Frequency(type: "ATIS", description: "ATIS", frequencyMhz: 124.1),
-            Frequency(type: "TWR", description: "Tower", frequencyMhz: 118.3),
-            Frequency(type: "CTAF", description: "CTAF", frequencyMhz: 118.3),
+            Frequency(description: "ATIS", frequencyMhz: 124.1, type: "ATIS"),
+            Frequency(description: "Tower", frequencyMhz: 118.3, type: "TWR"),
+            Frequency(description: "CTAF", frequencyMhz: 118.3, type: "CTAF"),
         ]
         #expect(StripData.radioChips(towered, towered: true).map(\.label) == ["ATIS", "TOWER"])
         #expect(StripData.radioChips(towered, towered: true).map(\.words) == ["ATIS 124.1", "Tower 118.3"])
         let untowered = [
-            Frequency(type: "AWOS", description: "AWOS-3", frequencyMhz: 119.025),
-            Frequency(type: "UNICOM", description: "UNICOM/CTAF", frequencyMhz: 122.7),
+            Frequency(description: "AWOS-3", frequencyMhz: 119.025, type: "AWOS"),
+            Frequency(description: "UNICOM/CTAF", frequencyMhz: 122.7, type: "UNICOM"),
         ]
         #expect(StripData.radioChips(untowered, towered: false).map(\.words) == ["AWOS 119.025", "CTAF 122.7"])
         // No frequency listed: MULTICOM's 122.9 (AC 90-66C 9.6).
