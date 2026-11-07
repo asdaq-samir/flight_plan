@@ -167,3 +167,16 @@ fn the_hour_through_the_call() {
     );
     assert!(call("taf_hour", "{}").is_err());
 }
+
+#[test]
+fn a_ceiling_sent_with_no_height_is_not_known_and_says_only_what_the_visibility_settles() {
+    // 14 CFR 1.1: an overcast is a ceiling whatever its height; OVC/// at
+    // 10 SM is not VFR, it is not known.
+    let unknown = |v: Value| ask("flight_category", json!({"ceiling_ft": null, "ceiling_unknown": true, "visibility_sm": v}));
+    assert_eq!(unknown(json!(10)), Value::Null);
+    assert_eq!(unknown(json!(2)), Value::Null);
+    assert_eq!(unknown(json!(0.5)), json!("LIFR"));
+    assert_eq!(unknown(Value::Null), Value::Null);
+    // Not said, as before: no ceiling at 10 SM is VFR.
+    assert_eq!(ask("flight_category", json!({"ceiling_ft": null, "ceiling_unknown": false, "visibility_sm": 10})), json!("VFR"));
+}

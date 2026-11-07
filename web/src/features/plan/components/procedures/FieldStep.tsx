@@ -363,7 +363,7 @@ export function FieldStep({ vm, a, row, last, leads }: {
   const fitOf = (kind: "takeoff" | "landing") => (runway: Runway, end: RunwayEnd) => (fit ? endFit({
     aircraft: fit.aircraft, runway, end, kind,
     wind: reportedWind && { dirTrueDeg: reportedWind.wind_dir_true_deg, speedKt: reportedWind.wind_speed_kt, gustKt: reportedWind.wind_gust_kt },
-    elevationFt: a.elevationFt ?? 0, altimeterInHg: card?.metar?.altimeter_in_hg, tempC: card?.metar?.temp_c,
+    elevationFt: a.elevationFt ?? null, altimeterInHg: card?.metar?.altimeter_in_hg, tempC: card?.metar?.temp_c,
     weightLb: kind === "takeoff" ? fit.takeoffLb : fit.landingLb,
   }) : null);
   const chips = (kind: "takeoff" | "landing", chosen: string | null, landing: Landing | null, note: string | null, pick: (end: string) => void, label?: string) =>
