@@ -95,12 +95,12 @@ struct WordsTests {
     /// The figures the phone assembles carry the planner's ids, so a chip
     /// means the same whichever model wrote the sentence.
     @Test func theBriefingsFiguresCarryThePlannersIds() throws {
-        var briefing = Briefing()
-        briefing.metars = ["KMSN": Metar(raw: "KMSN 031853Z 27008KT 10SM FEW045 12/03 A3012", flightCategory: "VFR"), "KDLH": nil]
-        briefing.hazards = [Hazard(type: "SIGMET", hazard: "CONVECTIVE", raw: "WSUS31 ...")]
-        briefing.gairmets = [GAirmet(hazard: "IFR", severity: nil, dueTo: "clouds", altitudeHighFt: -1)]
-        briefing.tfrs = [RouteTfr(notamId: "6/1234", alongTrackNm: 12, crosses: true, activeNow: false, title: "Stadium")]
-        briefing.forecast = Forecast(minCeilingFt: 3000, minVisibilitySm: 6, stations: [ForecastStation(ident: "KMSN", raw: "TAF KMSN ...")])
+        var briefing = Briefing(airports: [:], forecast: Forecast(minCeilingFt: nil, minVisibilitySm: nil, stations: []), hazards: [], metars: [:], weatherUnavailable: [])
+        briefing.metars = ["KMSN": Metar(flightCategory: "VFR", raw: "KMSN 031853Z 27008KT 10SM FEW045 12/03 A3012"), "KDLH": nil]
+        briefing.hazards = [Hazard(hazard: "CONVECTIVE", raw: "WSUS31 ...", type: "SIGMET")]
+        briefing.gairmets = [GAirmet(altitudeHighFt: -1, dueTo: "clouds", hazard: "IFR", severity: nil)]
+        briefing.tfrs = [RouteTfr(activeNow: false, alongTrackNm: 12, crosses: true, notamId: "6/1234", title: "Stadium")]
+        briefing.forecast = Forecast(minCeilingFt: 3000, minVisibilitySm: 6, stations: [ForecastStation(icaoId: "KMSN", raw: "TAF KMSN ...")])
         briefing.vfrNotRecommended = ["IFR along the route"]
         briefing.weatherUnavailable = ["pireps"]
         let ids = WordsFigures.weather(briefing, dep: "KMSN", dest: "KDLH", stops: [], eteMin: 95).map(\.id)
