@@ -1,7 +1,13 @@
-import type { CSSProperties } from "react";
+import { Suspense, useEffect, type CSSProperties } from "react";
 import { Check } from "lucide-react";
-import { Toaster } from "./ui/sonner";
 import { useNavEdge } from "../hooks/use-nav-edge";
+import { fromChunk } from "../lib/fromChunk";
+import { loadToasts, useToastsWanted } from "../lib/toast";
+
+// sonner on a chunk of its own, with the shadcn Toaster round it: mounted
+// once a toast is asked for or the page is idle, not in the first load
+// (lib/toast, issue #290).
+const { Part: Toaster } = fromChunk(() => import("./ui/sonner"), m => m.Toaster);
 
 /**
  * The app's one Toaster -- PageStatus's progress line (across every page
@@ -25,7 +31,17 @@ import { useNavEdge } from "../hooks/use-nav-edge";
  */
 export default function AppToaster() {
   const edge = useNavEdge();
+  const wanted = useToastsWanted();
+  // Fetched once the page is idle, so the first toast does not wait on it.
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((go: () => void) => window.setTimeout(go, 2000));
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout;
+    const handle = idle(() => void loadToasts());
+    return () => cancel(handle);
+  }, []);
+  if (!wanted) return null;
   return (
+    <Suspense fallback={null}>
     <Toaster
       position={edge === "bottom" ? "top-center" : "bottom-center"}
       duration={2000}
@@ -65,5 +81,6 @@ export default function AppToaster() {
       // Each goes by itself in a few seconds.
       swipeDirections={[]}
     />
+    </Suspense>
   );
 }
