@@ -318,7 +318,7 @@ public class PlannerProxyController {
                     + " checkpoint-note generations used. Notes already written still show; more tomorrow.");
         }
         if ("POST".equals(method) && path.equals(NARRATIVE_PATH)) {
-            if (body != null && body.length() > NARRATIVE_BODY_LIMIT) {
+            if (body != null && body.getBytes(StandardCharsets.UTF_8).length > NARRATIVE_BODY_LIMIT) {
                 return StreamingProxy.error(413, "a nav log is at most " + (NARRATIVE_BODY_LIMIT / 1024) + " KB");
             }
             if (!narratives.allow(SlidingWindowLimiter.callerOf(request), paidCallsPerDay, Instant.now())) {
