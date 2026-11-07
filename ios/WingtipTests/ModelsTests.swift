@@ -47,13 +47,15 @@ struct CheckpointColourTests {
 /// with no report, the planner's own "VFR flight not recommended".
 struct BriefingTests {
     @Test func aBriefingWithAMissingReportAndANoGo() throws {
-        let json = #"{"hazards":[{"type":"SIGMET","hazard":"CONVECTIVE","raw":"WSUS31 KKCI 241455","altitude_low_ft":null,"altitude_high_ft":45000.0}],"forecast":{"min_ceiling_ft":800.0,"min_visibility_sm":2.0,"stations":[{"ident":"KDLH","raw":"TAF KDLH 241130Z"}]},"metars":{"C81":null,"KDLH":{"raw":"KDLH 241553Z 25012KT 2SM BR OVC008","flight_category":"IFR"}},"airports":{},"gairmets":[],"pireps":[],"tfrs":[{"notam_id":"6/1234","along_track_nm":40.0,"crosses":true,"active_now":false,"title":"Stadium"}],"vfr_not_recommended":["IFR at the destination: ceiling 800 ft, visibility 2 SM"],"weather_unavailable":[]}"#
+        let json = #"{"hazards":[{"type":"SIGMET","hazard":"CONVECTIVE","raw":"WSUS31 KKCI 241455","altitude_low_ft":null,"altitude_high_ft":45000.0}],"forecast":{"min_ceiling_ft":800.0,"min_visibility_sm":2.0,"stations":[{"icaoId":"KDLH","ceiling_ft":800.0,"visibility_sm":2.0,"raw":"TAF KDLH 241130Z"}]},"metars":{"C81":null,"KDLH":{"raw":"KDLH 241553Z 25012KT 2SM BR OVC008","flight_category":"IFR"}},"airports":{},"gairmets":[],"pireps":[],"tfrs":[{"notam_id":"6/1234","along_track_nm":40.0,"crosses":true,"active_now":false,"title":"Stadium"}],"vfr_not_recommended":["IFR at the destination: ceiling 800 ft, visibility 2 SM"],"weather_unavailable":[]}"#
         let briefing = try Planner.snakeCase.decode(Briefing.self, from: Data(json.utf8))
         #expect(briefing.vfrNotRecommended?.count == 1 && briefing.hazards[0].hazard == "CONVECTIVE")
         #expect(briefing.metars["KDLH"]??.flightCategory == "IFR")
         // A station with no report: its key there, its value nothing.
         #expect(briefing.metars["C81"].flatMap { $0 } == nil && briefing.metars.count == 2)
-        #expect(briefing.tfrs?.first?.crosses == true && briefing.forecast?.minCeilingFt == 800)
+        #expect(briefing.tfrs?.first?.crosses == true && briefing.forecast.minCeilingFt == 800)
+        // The TAF station by the planner's own names (ForecastStation).
+        #expect(briefing.forecast.stations[0].icaoId == "KDLH" && briefing.forecast.stations[0].ceilingFt == 800)
     }
 }
 
@@ -173,7 +175,7 @@ struct TrainingTests {
 @MainActor
 struct TrafficTests {
     private func plane(_ ft: Double?, fpm: Double? = nil) -> TrafficAircraft {
-        TrafficAircraft(hex: "a1b2c3", lat: 41.9, lon: -87.9, altitudeFt: ft, verticalFpm: fpm)
+        TrafficAircraft(altitudeFt: ft, hex: "a1b2c3", lat: 41.9, lon: -87.9, verticalFpm: fpm)
     }
 
     /// TCAS's way of writing a height against own ship's, in hundreds of

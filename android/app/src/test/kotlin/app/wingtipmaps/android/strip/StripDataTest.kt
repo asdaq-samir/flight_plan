@@ -71,7 +71,7 @@ class StripDataTest {
         assertEquals("3h", StripData.duration(180.0))
         assertEquals("0m", StripData.duration(0.2))
         assertEquals("FL-045", StripData.flightLevel(4500.0))
-        assertEquals("FL----", StripData.flightLevel(null))
+        assertEquals("FL-___", StripData.flightLevel(null))
         assertEquals("C81 → KJVL → KDLH", StripData.routeName("C81", "KDLH", listOf("KJVL")))
         assertEquals("KDLH local", StripData.routeName("KDLH", "KDLH", emptyList()))
         assertEquals("C81 → KJVL → KDLH · C172 · FL-045 · leaving now", StripData.headLine(state))

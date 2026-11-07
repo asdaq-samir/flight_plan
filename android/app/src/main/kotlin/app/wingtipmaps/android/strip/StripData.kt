@@ -182,10 +182,11 @@ object StripData {
     fun timeAt(leaveMs: Long, minutes: Double?, zone: ZoneId = ZoneId.systemDefault()): String? =
         minutes?.let { clockTime(leaveMs + (it * 60_000).toLong(), zone) }
 
-    /** The altitude as the app writes it everywhere, "FL-045" (lib/units
+    /** The altitude as the app writes it everywhere, "FL-045", and "FL-___"
+     *  with none yet, three blanks to fill (lib/units
      *  flightLevel; the owner's pick, knowingly beside the FAA's usage). */
     fun flightLevel(ft: Double?): String =
-        if (ft == null) "FL----" else "FL-" + String.format(Locale.US, "%03d", (ft / 100).roundToInt())
+        if (ft == null) "FL-___" else "FL-" + String.format(Locale.US, "%03d", (ft / 100).roundToInt())
 
     /** The route by its points, "C81 → KJVL → KDLH"; one airport to itself
      *  "KDLH local" (identSchema's routeName). */

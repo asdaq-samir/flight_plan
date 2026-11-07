@@ -75,3 +75,23 @@ fn variation_and_weather_expiry() {
         assert_eq!(got, c["inForce"].as_bool().unwrap(), "{}", c["why"]);
     }
 }
+
+/// The same cases asked by name, as the web's Observed and the plan's
+/// winds ask them (callEngine), so the call reads its input as the rule
+/// takes it.
+#[test]
+fn weather_expiry_asked_by_name() {
+    for c in fixture()["weatherInForce"].as_array().unwrap() {
+        let input = serde_json::json!({
+            "product": c["product"], "now": c["now"], "observed": c.get("observed"), "last_routine": c.get("lastRoutine"),
+            "valid_from": c.get("validFrom"), "valid_to": c.get("validTo"),
+        });
+        let got = wingtip_engine::call::call("weather_in_force", &input.to_string()).unwrap();
+        assert_eq!(got, c["inForce"].as_bool().unwrap().to_string(), "{}", c["why"]);
+    }
+    // A METAR observed at 10,000 s stops counting when the next hourly one
+    // is due (AIM 7-1-28, "METAR-hourly").
+    let expires = wingtip_engine::call::call("weather_expires_at", r#"{"product":"metar","observed":10000}"#).unwrap();
+    assert_eq!(expires.parse::<f64>().unwrap(), 13_600.0);
+    assert_eq!(wingtip_engine::call::call("weather_expires_at", r#"{"product":"taf"}"#).unwrap(), "null");
+}

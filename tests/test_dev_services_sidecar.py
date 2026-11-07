@@ -14,7 +14,7 @@ _spec = importlib.util.spec_from_file_location("dev_services_server", _PATH)
 server = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(server)
 
-ALLOWED = ("ml", "airflow")
+ALLOWED = ("ml", "retrain")
 
 
 class FakeDocker:
@@ -42,7 +42,7 @@ def test_states_report_every_allowed_service():
     api = FakeDocker({"ml": "exited"})
     assert server.states("flight_plan", ALLOWED, api) == [
         {"name": "ml", "state": "exited"},
-        {"name": "airflow", "state": "absent"},
+        {"name": "retrain", "state": "absent"},
     ]
 
 
@@ -69,9 +69,9 @@ def test_start_refuses_anything_off_the_list_without_touching_docker(name):
 
 
 def test_start_needs_an_existing_container():
-    status, body = server.start("airflow", "flight_plan", ALLOWED, FakeDocker({}))
+    status, body = server.start("retrain", "flight_plan", ALLOWED, FakeDocker({}))
     assert status == 409
-    assert "docker compose up -d airflow" in body["detail"]
+    assert "docker compose create retrain" in body["detail"]
 
 
 def test_lookups_are_scoped_to_the_project():

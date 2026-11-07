@@ -2,12 +2,10 @@
 
 ![Python](https://img.shields.io/badge/Python%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
 ![Java](https://img.shields.io/badge/Java%2025-437291?style=flat-square&logo=openjdk&logoColor=white)
-![Go](https://img.shields.io/badge/Go-00ADD8?style=flat-square&logo=go&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)
-![Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=flat-square&logo=apacheairflow&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square)
 ![Claude](https://img.shields.io/badge/Claude%20API-D97757?style=flat-square&logo=anthropic&logoColor=white)
 
@@ -52,15 +50,15 @@ explicit path to production on AWS.
   predict-the-mean baseline by 5-fold cross-validation and keeps the
   best; the planner scores checkpoints with the promoted model. Notebook
   03 adds nested cross-validation and permutation importance.
-- **Orchestrated ML pipeline.** An Apache Airflow DAG automates data
-  collection, feature engineering, training, evaluation, and model
-  promotion — a new model only goes live if it beats the currently
-  deployed one on held-out metrics.
-- **Container architecture that mirrors its cloud target.** Compute is
-  split along the same boundaries it will occupy on AWS: a
-  Processing-Job-shaped container, a Training-Job-shaped container, and
-  Airflow launching both as isolated, independently-versioned tasks — the
-  same orchestration pattern used against managed services like SageMaker.
+- **A repeatable training run.** One command
+  (`python -m wingtip.pipeline run`) runs data collection, feature
+  engineering, training, evaluation, and model promotion in order — a new
+  model only goes live if it beats the currently deployed one on
+  held-out metrics. The developer console's Retrain starts it as a
+  container and follows it stage by stage. It replaced an Apache Airflow
+  DAG (2026-11-06): the DAG had no schedule and was only ever started by
+  hand, and a scheduler, a web server and a metadata database for that
+  were not worth running.
 - **Domain-accurate flight planning.** Dead-reckoning leg calculations
   (wind correction angle, true/magnetic heading, groundspeed, ETE, fuel
   burn) built from FAA-standard formulas against live NOAA winds-aloft and
@@ -131,7 +129,7 @@ Java, and some in the web and phone apps -- and issue #482 moves them
 in, in phases: copies the engine already has, small rules, weather parsing,
 altitude selection, the nav log, then route options.
 
-The system runs today as nine Docker services:
+The system runs today as eight Docker services (`retrain` is the training image run as the whole training run, not an image of its own):
 
 | Service | Role |
 |---|---|
@@ -139,8 +137,7 @@ The system runs today as nine Docker services:
 | `nav-log-agent` | LangGraph agent (MCP server) that assembles the full nav log and briefing |
 | `crewai-agent` | The same task, built in CrewAI, for framework comparison |
 | `db` | PostgreSQL + pgvector — application data and agent long-term memory |
-| `airflow` | Orchestrates the ML training pipeline |
-| `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as isolated jobs |
+| `pipeline-processing` / `pipeline-training` | Data collection, feature engineering, and model training, run as one-off jobs; `retrain` is the whole training run (`python -m wingtip.pipeline run`) in the training image, the container the developer console's Retrain starts |
 | `ml` | Jupyter environment for model development and experimentation -- on demand, behind the `notebooks` profile: `docker compose up ml` |
 | `planning-service` | FastAPI: works out a flight for the apps -- course, checkpoints scored by the chart model in-process, nav log, weather, the assistant -- with the engine inside it for every rule |
 
@@ -159,11 +156,10 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?style=flat-square&logo=scikitlearn&logoColor=white)
 ![pandas](https://img.shields.io/badge/pandas-150458?style=flat-square&logo=pandas&logoColor=white)
 
-**Backend & orchestration**
+**Backend**
 
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-6DB33F?style=flat-square&logo=springboot&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
-![Airflow](https://img.shields.io/badge/Apache%20Airflow-017CEE?style=flat-square&logo=apacheairflow&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL%20%2B%20pgvector-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 
 **Front end**
@@ -186,8 +182,7 @@ works too. AWS counterpart: `architecture-aws.drawio`, rendered in
 
 ![Docker](https://img.shields.io/badge/Docker%20Compose-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2088FF?style=flat-square&logo=githubactions&logoColor=white)
-![AWS](https://img.shields.io/badge/AWS%3A%20SageMaker%20%C2%B7%20Fargate%20%C2%B7%20RDS%20%C2%B7%20CloudFormation-232F3E?style=flat-square)
-![Go](https://img.shields.io/badge/Go%20Lambda-00ADD8?style=flat-square&logo=go&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS%3A%20EC2%20%C2%B7%20CloudFront%20%C2%B7%20Fargate%20%C2%B7%20CloudFormation-232F3E?style=flat-square)
 
 **Live data sources** (no logos, but they're where the domain accuracy
 comes from): the FAA's own VFR Sectional tile service — which the
@@ -242,7 +237,8 @@ service discovery at `planning-service.wingtip.internal`.
 - `/api/status`, `/api/retrain`, `/api/aircraft-profiles` — the Dev
   drawer's own snapshot of the stack (services, FAA and weather data
   freshness, the model registry, collected corridors and their labels),
-  a retrain run through Airflow, and the stock aircraft profiles the nav
+  a retrain (the training run's container, started through the
+  dev-services sidecar), and the stock aircraft profiles the nav
   log's aircraft picker offers
 - Cruise altitudes — the nav log works the floor and ceiling out leg by
   leg (a Class B shelf caps only the legs under it)
@@ -412,12 +408,12 @@ $29 a month) and the runbook.
 | `db` | Postgres on the same server, dumped to S3 nightly |
 | Chart tiles | A Fargate Spot task per 56-day cycle, published to S3, served by CloudFront |
 | Mailpit | Amazon SES |
-| `crewai-agent`, `airflow`, the pipelines, `ml`, `dev-services` | Development only |
+| `crewai-agent`, the pipelines and the training run, `ml`, `dev-services` | Development only |
 | CI/CD | GitHub Actions → GHCR + ECR, then `deploy.sh` on the server over SSM |
 
 ### Status
 
-The ML pipeline, orchestration layer, dead-reckoning engine, altitude
+The ML pipeline and its training run, dead-reckoning engine, altitude
 selection logic, both Gen AI agents, and CI are built, integrated, and
 working end to end. The AWS side is fully written and validated
 (`cfn-lint` clean, every image builds) — see
@@ -444,7 +440,7 @@ an engineering gap:
   now.
 
   The OSM landmark model, its collection and its feature stores still
-  train in the DAG and are compared on Performance; nothing in the
+  train in the training run and are compared on Performance; nothing in the
   planner asks them any more.
 
 - **A second route.** Every label so far comes from one corridor, so
@@ -500,13 +496,12 @@ Nothing else to install natively; every service builds its own image.
 data/             raw/processed/labels/aircraft/models — see Appendix for detail
 notebooks/        numbered, run-in-order exploratory notebooks (01-08)
 src/wingtip/          shared Python package — pipeline.py, model_registry.py, navlog.py, altitude.py, etc.
-airflow/dags/     the wingtip_pipeline DAG (local) and wingtip_pipeline_aws_dag.py (AWS, see README-AWS.md)
-docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training / airflow
+docker/           Dockerfiles + requirements for ml / pipeline-processing / pipeline-training
                   (each including wingtip's own list, src/requirements.txt)
 springboot-app/   Spring Boot API (webapp) — routes, DB, proxies planning-service
 nav-log-agent/    LangGraph agent (MCP server) — assembles the full nav log + briefing
 crewai-agent/     the same task, built in CrewAI, for framework comparison
-infra/            CloudFormation template + Go Lambda for the AWS target architecture
+infra/            CloudFormation template and the production server's files
 tests/            pytest suite for src/wingtip
 docs/             this file, README-AWS.md, LEARNING-GUIDE.md, architecture diagrams
 ```
@@ -518,7 +513,6 @@ bring up only what you need. Full command reference is in the
 ```bash
 docker compose up webapp                           # UI + API at :8080; brings up db, planning-service
 docker compose up ml                               # Jupyter at :8888 (token "wingtip")
-docker compose up airflow                          # DAG UI at :8081
 docker compose up nav-log-agent                    # MCP server at :8082
 docker compose run --rm crewai-agent python -m app.main \
   --departure-ident C81 --destination-ident KDLH   # one-shot CLI
@@ -573,7 +567,6 @@ stack. Anything not listed here does not exist.
 | Spring Boot OpenAPI spec | [`localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) | `webapp` |
 | Health / readiness | [`localhost:8080/actuator/health`](http://localhost:8080/actuator/health) | `webapp` |
 | Planning + chart-vision API docs | [`localhost:8084/docs`](http://localhost:8084/docs) | `planning-service` |
-| Airflow DAG UI | [`localhost:8081`](http://localhost:8081) | `airflow` |
 | Jupyter | [`localhost:8888`](http://localhost:8888) (token `wingtip`) | `ml` |
 
 All three pages are served by `webapp`, not by `planning-service`: the
@@ -599,7 +592,7 @@ Despite its name, `planning-service` serves no pages; see [Services in detail](#
 
 Notebooks 01-03 walk through what `pipeline.py` automates, and call it:
 01 and 02 run `collect` and `engineer_features` and read the tables back,
-so a notebook and the DAG can never write two different data files; 03
+so a notebook and the training run can never write two different data files; 03
 takes its labelled table and holdout from `pipeline.labeled_split`, the
 one every trainer uses. 08 walks the altitude selection one step at a time with `wingtip.altitude`'s
 own pieces and checks its answer against the planner's. Run them via `docker
@@ -698,7 +691,7 @@ CI job breakdown is in the [Appendix](#appendix).
 | `docker compose run --rm pipeline-processing engineer-features` | Runs `pipeline.engineer_features()` | — |
 | `docker compose run --rm pipeline-training retrain` | Runs `pipeline.retrain()` | — |
 | `docker compose run --rm pipeline-training python -m wingtip.model_registry evaluate` | Runs `evaluate`/`promote` | — |
-| `docker compose up airflow` | Orchestrates the full pipeline as a DAG | `8081` |
+| `docker compose run --rm pipeline-training run` | The whole training run, every stage in order (`pipeline.run()`); each model promoted only if it beats the one serving. The console's Retrain starts the same thing as the `retrain` container (`docker compose create retrain` once) | — |
 | `docker compose up nav-log-agent` | LangGraph MCP server (needs `ANTHROPIC_API_KEY`) | `8082` |
 | `docker compose run --rm crewai-agent python -m app.main --departure-ident C81 --destination-ident KDLH` | One-shot CrewAI CLI (needs `ANTHROPIC_API_KEY`) | — |
 | `docker compose up planning-service` | Planning + chart-vision API; `webapp` proxies to it and starts it | `8084` |
@@ -710,9 +703,10 @@ Notes:
   not services, behind the `pipeline` profile: a plain `docker compose up`
   leaves them out (the training image's default command is a full
   retrain), and naming one in `run` or `build` works as it always did.
-- `airflow`'s DAG launches Collect/Feature-Engineer/Retrain as sibling
-  containers via `DockerOperator`; build them first
-  (`docker compose build pipeline-processing pipeline-training`).
+- The training run writes each stage's start and end to
+  `data/models/run.json`, which the planner reads, beside the `retrain`
+  container's state from the dev-services sidecar, for the console's
+  Training group. One run at a time: a second waits on the first's lock.
 - `nav-log-agent`/`crewai-agent` are behind the `ai` profile, so a plain
   `docker compose up` leaves them out. Start them with
   `docker compose --profile ai up -d`, or by naming one
@@ -724,7 +718,7 @@ Notes:
   `generate_nav_log_briefing` and the flight planning drawer's streamed narrative
   spend Anthropic credit. `crewai-agent` needs a key for everything.
 - Full port list: `webapp` 8080, `db` 5432
-  (`wingtip`/`wingtip`/`wingtip`), `airflow` 8081, `nav-log-agent` 8082,
+  (`wingtip`/`wingtip`/`wingtip`), `nav-log-agent` 8082,
   `planning-service` 8084, `ml` 8888. Addresses are in
   [Where things live](#where-things-live).
 
@@ -773,7 +767,7 @@ empty commit:
 | `test-planning-service` | ruff + pytest over `planning-service/tests/` — its own dependency set (`planning-service/requirements-dev.txt`), separate from `test`'s unrelated `src/wingtip` ones |
 | `test-nav-log-agent` / `test-crewai-agent` | ruff + pytest over each agent's `tests/`, on that agent's own requirements; the database, planning-service and Claude are mocked, so nothing is billed |
 | `docs` | Regenerates Javadoc + godoc on every push/PR. The three `pdoc` steps -- run only on pushes to `main`, and only for whichever of `src/wingtip`, `nav-log-agent` or `crewai-agent` `changes` says actually changed; a push that only touched `web/` skips all three rather than paying six figures of milliseconds to rebuild and re-document code nobody edited. Output uploads as a `documentation` artifact. |
-| `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`; the local Airflow image loads its DAG), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
+| `build-images` | Builds every service Dockerfile, publishes each to GHCR on push to `main`. Every Python image's last build step imports that service's own code and the packages it imports lazily (`import app.main, rasterio.vrt, …`, `import wingtip.pipeline, …`), so a missing dependency fails the build -- here and in a local `docker compose build` alike -- the check that would have caught 2026-09-22's missing `pyproj` in four images |
 | `push-ecr` | Pushes the three images the CloudFormation stack deploys (`webapp`, `planning-service`, `nav-log-agent`) to ECR via OIDC, reusing `build-images`' cache; activates automatically once `AWS_ROLE_ARN`/`AWS_REGION` repo variables exist |
 
 `build-images` gates on the test jobs, so a failing test never produces a
@@ -792,12 +786,6 @@ Non-obvious things worth knowing up front:
 - **`docker compose up <service>` reuses a stale container** if the image
   was rebuilt but the container wasn't recreated. Use
   `docker compose up -d --force-recreate <service>`.
-- **`DockerOperator` in Airflow resolves volume mounts against the host's
-  filesystem**, outside the `airflow` container's own view of it.
-  `PROJECT_HOST_PATH` (`docker-compose.yml`) supplies the host's real path.
-- **`aws-lambda-go` v1.55.0+ requires a newer Go toolchain than
-  `golang:1.25-alpine` ships.** `infra/lambda-retrain-trigger/go.mod` pins
-  `v1.47.0` deliberately.
 - **`crewai` needs the `anthropic` extra installed explicitly**
   (`crewai[anthropic]`) — plain `crewai` raises `ImportError` the moment
   an `Agent` with `llm="anthropic/<model>"` is constructed.

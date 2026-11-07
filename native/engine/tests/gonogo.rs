@@ -39,7 +39,7 @@ fn a_cruising_altitude_is_written_fl_dash_as_the_owner_asked() {
     assert_eq!(words::flight_level(Some(4500.0)), "FL-045");
     assert_eq!(words::flight_level(Some(12_500.0)), "FL-125");
     assert_eq!(words::flight_level(Some(0.0)), "FL-000");
-    assert_eq!(words::flight_level(None), "FL----");
+    assert_eq!(words::flight_level(None), "FL-___");
     // String(-5).padStart(3, "0"), as the web pads it.
     assert_eq!(words::flight_level(Some(-500.0)), "FL-0-5");
 }
