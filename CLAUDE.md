@@ -99,7 +99,8 @@ Python wants `pip install -r requirements-dev.txt` in that directory first.
 
 An API that changes changes its document, which the web app's types come
 from: `python -m app.openapi` in planning-service, or `WRITE_OPENAPI=1 mvn
--B test` in springboot-app; then `npm run types` in web; commit all three.
+-B test` in springboot-app; then `npm run types` in web and
+`scripts/api-models-apps.sh` for the phones' models; commit them all.
 
 The browser tests (Playwright, `web/e2e`) need the whole stack and run in
 CI; write or update the spec for a change a pilot sees, and let CI run it.
