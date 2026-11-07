@@ -2,36 +2,29 @@ name: Native Android
 
 # The native Android app (android/, docs/NATIVE-ANDROID.md): Compose over
 # the same planner and gateway as the website, with the shared Rust engine
-# linked in. Every change to it is built on GitHub's Linux runner: the
-# engine first (native/ffi/build-android.sh, for the three ABIs), then
-# the unit tests, lint and a debug APK a tester can install by hand (the
-# run's artifact); then the instrumented tests, the engine held to the
-# web's shared fixtures through the app's own bridge, on an emulator. No
-# Google Play lane yet.
+# linked in. Its build -- the engine for the three ABIs, the unit tests,
+# lint and a debug APK -- is native-android-build.yml, which ci.yml calls
+# on a pull request that touches the app, so "CI passed" covers it. Here,
+# that build again on main and on claude/native-*, and every night (or by
+# hand) the instrumented tests after it: the engine held to the web's
+# shared fixtures through the app's own bridge, on an emulator. No Google
+# Play lane yet.
 #
 # Actions are pinned as in ci.yml (its opening comment says why).
 on:
-  pull_request:
-    paths:
-      - android/**
-      - native/engine/**
-      - native/crates/**
-      - native/ffi/**
-      - native/Cargo.*
-      - web/src/lib/fixtures/**
-      - .github/workflows/native-android.yml
+  # Not pull_request: ci.yml runs the build for one (its `changes` job's
+  # `android`), where "CI passed" waits for it.
   push:
     # And a native-app branch of Claude's: its builds run from the branch
     # itself (a dispatch by name needs the file on main first).
     branches: [main, "claude/native-*"]
     paths:
       - android/**
-      - native/engine/**
-      - native/crates/**
-      - native/ffi/**
-      - native/Cargo.*
+      - native/**
       - web/src/lib/fixtures/**
+      - scripts/api-models-apps.*
       - .github/workflows/native-android.yml
+      - .github/workflows/native-android-build.yml
   workflow_dispatch:
   # The instrumented tests on an emulator, every night: ten minutes and
   # more of a runner, so not on each change (the owner, 2026-11-06:
@@ -39,6 +32,8 @@ on:
   schedule:
     - cron: "47 9 * * *"
 
+# Its own runs only: a pull request's build runs inside CI's run and
+# under CI's group.
 concurrency:
   group: native-android-${{ github.ref }}
   cancel-in-progress: true
@@ -54,67 +49,7 @@ env:
 
 jobs:
   build:
-    # GitHub's runner, not LINUX_RUNNER (the Mac mini, Apple silicon): the
-    # Android SDK's Linux tools and its emulator are x86 only.
-    runs-on: ubuntu-26.04
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-      # The Android Gradle plugin compiles for Java 21.
-      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad  # v6
-        with:
-          distribution: temurin
-          java-version: "21"
-      # The runner's Android SDK; what the build lacks (its platform,
-      # build tools, CMake and NDK) the Gradle plugin fetches once the
-      # licences are taken.
-      - name: The SDK's licences
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
-      # The engine's libraries as the last run that built this engine left
-      # them: built here for three ABIs in 90 s, and again in the device
-      # job in 81 s (run 42110144706), though the engine changes far less
-      # often than the app. Keyed on the engine's own files; the device job
-      # finds what the build job kept a minute before.
-      - name: The engine, as last built
-        id: engine
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: android/app/engine
-          key: engine-android-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
-      - name: The engine, for the app
-        # wingtip-engine through its C functions (native/ffi), for each
-        # ABI, with the runner's own rustup and NDK, where the engine changed.
-        if: steps.engine.outputs.cache-hit != 'true'
-        run: native/ffi/build-android.sh
-      # Kept at once, not at the job's end, so the device job has it
-      # whatever the unit tests and lint say.
-      - name: The engine, kept
-        if: steps.engine.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: android/app/engine
-          key: engine-android-${{ hashFiles('native/engine/**', 'native/crates/**', 'native/ffi/**', 'native/Cargo.*') }}
-      - name: The site's host
-        id: site
-        run: echo "host=$(python3 -c "from urllib.parse import urlparse; print(urlparse('$WINGTIP_URL').hostname)")" >> "$GITHUB_OUTPUT"
-      - name: Tested, linted and built, a debug APK
-        working-directory: android
-        env:
-          WINGTIP_HOST: ${{ steps.site.outputs.host }}
-        run: ./gradlew --no-daemon --stacktrace testDebugUnitTest lintDebug assembleDebug
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-        with:
-          name: wingtip-native-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
-      - name: The lint report, on failure
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
-        with:
-          name: wingtip-native-lint
-          path: android/app/build/reports/lint-results-debug.html
-          if-no-files-found: ignore
-          retention-days: 7
+    uses: ./.github/workflows/native-android-build.yml
 
   device:
     needs: build
