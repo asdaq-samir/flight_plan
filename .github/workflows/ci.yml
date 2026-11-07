@@ -53,10 +53,17 @@ on:
 
 # A new push to an open PR should replace the run already queued for its
 # previous commit, not queue behind it -- otherwise every fixup push pays
-# for a run whose result nobody will read.
+# for a run whose result nobody will read. Only on a pull request: on
+# main each push's run is what Promote deploys and what build-images
+# pushes images from, so a merge right behind another must not cancel
+# it, and the night's run (same ref) must not cancel a push's or be
+# cancelled by one. The event is in the group for that reason; main's
+# runs queue instead (GitHub keeps one waiting, so of three quick merges
+# the middle one's run can still be replaced -- the next run builds
+# everything changed since the last green one, so nothing is lost).
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Stated here rather than left to the repository's own default, which is
 # a setting outside this file that can change without a commit touching
@@ -380,6 +387,7 @@ jobs:
       infra: ${{ steps.plan.outputs.infra }}
       android: ${{ steps.plan.outputs.android }}
       ios: ${{ steps.plan.outputs.ios }}
+      api: ${{ steps.plan.outputs.api }}
       docs-only: ${{ steps.docsonly.outputs.only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -442,6 +450,14 @@ jobs:
               # tests/test_requirements.py reads these
               - planning-service/requirements*.txt
               - docker/requirements*.txt
+              # the shared fixtures the engine's rules are tested against
+              # (test_flight_rules.py and the rest)
+              - web/src/lib/fixtures/**
+              # test_dockerfiles.py: every image's wingtip-native stage
+              - '*/Dockerfile'
+              - docker/Dockerfile.*
+              # test_dev_services_sidecar.py
+              - docker/dev-services/**
             test-web:
               - web/**
               - .nvmrc
@@ -454,6 +470,8 @@ jobs:
               - android/app/src/main/kotlin/app/wingtipmaps/android/api/generated/**
             test-webapp:
               - springboot-app/**
+              # the planner's answers PlannerClient reads are generated from it
+              - planning-service/openapi.json
             test-planning-service:
               - planning-service/**
               - src/**
@@ -464,6 +482,11 @@ jobs:
             test-crewai-agent:
               - crewai-agent/**
               - src/**
+            # The two APIs the phones call, for api-compat.
+            api:
+              - planning-service/openapi.json
+              - springboot-app/openapi.json
+              - .github/api-breaks.txt
             # The production stack's own files.
             infra:
               - infra/cloudformation/**
@@ -549,7 +572,7 @@ jobs:
           images = [{"service": s} for s in IMAGES if due(s)]
           outputs = {"images": json.dumps(images)}
           for name in ("test-root", "test-web", "test-webapp", "test-planning-service",
-                       "test-nav-log-agent", "test-crewai-agent", "docs", "infra"):
+                       "test-nav-log-agent", "test-crewai-agent", "docs", "infra", "api"):
               outputs[name] = "true" if due(name) else "false"
           # The phones' builds gate a merge: a pull request, or a run
           # started by hand on one's branch. Main's pushes and the nights
@@ -1655,6 +1678,54 @@ jobs:
     if: needs.changes.outputs.ios == 'true'
     uses: ./.github/workflows/native-ios-test.yml
 
+  # Nothing a phone already calls may break. An iPhone app in the App
+  # Store keeps calling these servers for months after a release, from
+  # every phone that has not updated, so a field or an endpoint removed
+  # or renamed, a parameter made required, or a type narrowed in either
+  # API's OpenAPI document breaks all of them at once. oasdiff (stock,
+  # pinned by digest) compares each document in the pull request with
+  # the one on main and fails on its ERR-level breaking changes; adding
+  # is always fine. A break that is meant -- an endpoint no released
+  # phone calls -- goes in .github/api-breaks.txt, one line per change
+  # as oasdiff words it, which the pull request commits with the change
+  # (docs/CI.md). Pull requests only, and only when a document changed:
+  # it is one small image and two comparisons, seconds.
+  api-compat:
+    name: API compatibility
+    runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.api == 'true'
+    env:
+      OASDIFF_IMAGE: tufin/oasdiff:v1.34.1@sha256:67a23cfea7d251e2ae34ee703ac8733c5d96bc2e7b90fd0f4d475ec99367b85f
+    steps:
+      # Two commits deep: a pull request's checkout is its merge with
+      # main, and the merge's first parent is the main it was made on --
+      # so the comparison is with exactly the main this would land on.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 2
+      - uses: ./.github/actions/hub-mirror
+      - name: oasdiff breaking, each document against main's
+        run: |
+          docker pull -q "$OASDIFF_IMAGE"
+          status=0
+          for doc in planning-service/openapi.json springboot-app/openapi.json; do
+            mkdir -p "/tmp/base/$(dirname "$doc")"
+            if ! git show "HEAD^1:$doc" > "/tmp/base/$doc" 2>/dev/null; then
+              echo "$doc is new: nothing on main to break"
+              continue
+            fi
+            echo "::group::$doc"
+            docker run --rm -v /tmp/base:/base:ro -v "$PWD:/head:ro" "$OASDIFF_IMAGE" \
+              breaking "/base/$doc" "/head/$doc" --fail-on ERR --format githubactions \
+              --err-ignore /head/.github/api-breaks.txt || status=1
+            echo "::endgroup::"
+          done
+          if [ "$status" != 0 ]; then
+            echo "::error title=API break::A change above breaks the phones already in pilots' hands. Make it additive (a new field or endpoint beside the old), or, if no released app calls it, add oasdiff's line for it to .github/api-breaks.txt (docs/CI.md)."
+          fi
+          exit $status
+
   # Lighthouse's report against the industry's thresholds: Google's
   # "good" Core Web Vitals (web.dev/vitals -- LCP within 2.5 s, CLS 0.1 at
   # most; TBT within 200 ms standing in for INP, which needs a real tap)
@@ -1920,7 +1991,7 @@ jobs:
   passed:
     name: CI passed
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-26.04' }}
-    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra, android, ios]
+    needs: [changes, test, test-web, test-webapp, test-planning-service, test-nav-log-agent, test-crewai-agent, e2e, e2e-images, build-images, docs, infra, android, ios, api-compat]
     if: always()
     steps:
       - name: Every job passed or was not needed

@@ -2,7 +2,9 @@
 the nav log that needs them: the chart's read along each hop, for its
 checkpoints (app.chart_model), and the ground under it, from USGS's
 point service (wingtip.terrain) -- measured on a new route at 3 to 6 s and
-9 s, one after the other, of the 15 s from the route to its nav log.
+9 s, one after the other, of the 15 s from the route to its nav log --
+and the weather, where the planner has been left alone long enough for
+its held copies to run out (wingtip.weather.read_ahead).
 
 Asked for by /api/course, the first thing the web app asks for a route,
 and so by the web app reading Fly Here's route ahead as an airport's card
@@ -15,7 +17,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 from cachetools import TTLCache
-from wingtip import chartlabels, terrain
+from wingtip import chartlabels, terrain, weather
 
 from . import chart_model
 from .common import load_route
@@ -49,6 +51,10 @@ def _read(dep: str, dest: str, stops: str) -> None:
         r = load_route(dep, dest, stops)
     except Exception:  # noqa: BLE001 -- the route's own requests say what is wrong with it
         return
+    # The weather the plan reads, where a held copy has run out: on a
+    # thread of its own, downloaded while the chart is read rather than
+    # after it (wingtip.weather.read_ahead).
+    weather.read_ahead()
     hops = [hop for hop in r.hops if hop.length_nm <= MAX_HOP_NM]
     for hop in hops:
         # The chart's read is a job of its own: started here, not waited on.

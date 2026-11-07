@@ -72,7 +72,9 @@ class ModelWindsUnavailable(RuntimeError):
 
 _HELD: dict = {}
 _NOT_UP: dict = {}
-_LOCK = threading.Lock()
+#: One download at a time for each period, not for all three: a plan for
+#: now does not wait on the 24-hour period's download.
+_LOCKS = {hr: threading.Lock() for hr in _PERIODS}
 
 
 def stations(fcst_hr: str = "06"):
@@ -83,7 +85,7 @@ def stations(fcst_hr: str = "06"):
     from .weather import FdStations
 
     now = time.time()
-    with _LOCK:
+    with _LOCKS.setdefault(fcst_hr, threading.Lock()):
         held = _HELD.get(fcst_hr)
         if held is not None and now - held[0] < FRESH_S:
             return held[1]
