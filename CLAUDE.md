@@ -111,6 +111,8 @@ On the owner's Mac run only the specs a change touches, and every browser
 run, test suite, image build and measurement through
 `scripts/one-at-a-time.sh`: up to four run at once on the Mac mini, and a
 speed measurement takes `--alone`, the whole machine (the `checks` skill).
+A quick check -- one type check, lint or unit run of a minute or two --
+runs outside it, so it isn't stuck behind long builds.
 
 ## The app on the phone
 
