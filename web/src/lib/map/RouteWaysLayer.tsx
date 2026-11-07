@@ -30,7 +30,7 @@ const WAY_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 6, opacity: 0.
 const SHOWN_STYLE: L.PathOptions = { color: COURSE_MAGENTA, weight: 7, opacity: 1, lineCap: "round", lineJoin: "round", className: "course-ink" };
 const NO_WAYS: RouteWay[] = [];
 /** Where along each way its chip sits, a share of its length, one apiece. */
-const WAY_SHARES = [0.35, 0.6, 0.8];
+export const WAY_SHARES = [0.35, 0.6, 0.8];
 /** The chip's fill: the line's magenta a step darker, white words at 13
  *  points on it 6:1 (WCAG 1.4.3 asks 4.5; the line's own #e600e6 is 3.8). */
 const WAY_CHIP = "#b000b0";
@@ -38,7 +38,7 @@ const WAY_CHIP = "#b000b0";
 /** The chip on a way's line: its names and time, as Maps marks the
  *  routes beside the one picked, in the line's magenta; 24 tall, its
  *  44-point hit area a pseudo-element round it. */
-const wayIcon = made(function wayIcon(key: string, label: string, name: string, shown: boolean) {
+export const wayIcon = made(function wayIcon(key: string, label: string, name: string, shown: boolean) {
   // A callout as Maps puts on its routes: the one shown filled in
   // magenta with its name under its time, the others white with the time in
   // magenta; a tail down to the line. Sized to its words, so the marker
@@ -63,21 +63,7 @@ const Way = memo(function Way({ way, shown, at: share, onPick }: { way: RouteWay
   // The chip `share` of the way along, by distance: each way's at its own
   // share (WAY_SHARES), so two ways that run close are not labelled on top
   // of each other (the owner's screenshot, the two times stacked).
-  const at = useMemo((): [number, number] => {
-    const legs = way.path.slice(1).map((b, i) => {
-      const a = way.path[i]!;
-      return Math.hypot(b[0] - a[0], (b[1] - a[1]) * Math.cos((a[0] * Math.PI) / 180));
-    });
-    let left = legs.reduce((sum, d) => sum + d, 0) * share;
-    for (let i = 0; i < legs.length; i++) {
-      if (left <= legs[i]! || i === legs.length - 1) {
-        const a = way.path[i]!, b = way.path[i + 1]!, t = legs[i] ? Math.min(1, left / legs[i]!) : 0;
-        return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-      }
-      left -= legs[i]!;
-    }
-    return way.path[0]!;
-  }, [way.path, share]);
+  const at = useMemo(() => wayAt(way.path, share), [way.path, share]);
   return (
     <>
       <Polyline positions={way.path} pathOptions={shown ? SHOWN_STYLE : WAY_STYLE} eventHandlers={events} />
@@ -92,6 +78,23 @@ const Way = memo(function Way({ way, shown, at: share, onPick }: { way: RouteWay
  * pick, each with a chip of its names and time, the one picked at full
  * strength; a tap on either picks that way, as a tap on its chip does.
  */
+/** Where a way's chip sits: `share` of the way along it. */
+export function wayAt(path: [number, number][], share: number): [number, number] {
+  const legs = path.slice(1).map((b, i) => {
+    const a = path[i]!;
+    return Math.hypot(b[0] - a[0], (b[1] - a[1]) * Math.cos((a[0] * Math.PI) / 180));
+  });
+  let left = legs.reduce((sum, d) => sum + d, 0) * share;
+  for (let i = 0; i < legs.length; i++) {
+    if (left <= legs[i]! || i === legs.length - 1) {
+      const a = path[i]!, b = path[i + 1]!, t = legs[i] ? Math.min(1, left / legs[i]!) : 0;
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    }
+    left -= legs[i]!;
+  }
+  return path[0]!;
+}
+
 export const RouteWaysLayer = memo(function RouteWaysLayer({ ways = NO_WAYS, shown = null, onPick }: {
   ways?: RouteWay[];
   shown?: string | null;
