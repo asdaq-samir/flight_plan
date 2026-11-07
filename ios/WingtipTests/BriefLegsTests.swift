@@ -17,8 +17,8 @@ struct BriefLegsTests {
     private func on(legs: [Int] = [1, 2], enter: String = "2026-10-04T14:20:00Z", leave: String = "2026-10-04T14:45:00Z",
                     validFrom: String? = "2026-10-04T13:00:00Z", validTo: String? = "2026-10-04T15:00:00Z",
                     when: String? = "during", source: String = "SIGMET", issued: String? = nil) -> OnRoute {
-        OnRoute(legs: legs, fromNm: 40, toNm: 70, enter: enter, leave: leave, validFrom: validFrom, validTo: validTo,
-                when: when, source: source, issued: issued)
+        OnRoute(enter: enter, fromNm: 40, issued: issued, leave: leave, legs: legs, source: source, toNm: 70,
+                validFrom: validFrom, validTo: validTo, when: when)
     }
 
     @Test func aBriefingsHazardsWithTheirLegsTimesAndFields() throws {
@@ -46,7 +46,7 @@ struct BriefLegsTests {
         #expect(briefing.fieldsBelowVfr?.first?.flightCategory == "IFR" && briefing.fieldsBelowVfr?.first?.onRoute.legs == [2])
         #expect(briefing.legFixes?.count == 4 && briefing.legsFrom == "navlog")
         // A briefing from before the planner placed them still reads.
-        let older = try decode(Briefing.self, #"{"hazards":[{"hazard":"ICE"}],"metars":{},"weather_unavailable":[]}"#)
+        let older = try decode(Briefing.self, #"{"hazards":[{"hazard":"ICE"}],"forecast":{"min_ceiling_ft":null,"min_visibility_sm":null,"stations":[]},"metars":{},"airports":{},"weather_unavailable":[]}"#)
         #expect(older.hazards[0].onRoute == nil && older.legFixes == nil)
     }
 
@@ -87,7 +87,8 @@ struct BriefLegsTests {
     @Test func theNavLogsLegsAreAskedForWithTheirFixesInTheOrderFlown() throws {
         let course = try decode(Course.self, #"""
         {"departure":{"ident":"C81","name":"Campbell","lat":42.1,"lon":-88.1},"destination":{"ident":"KDLH","name":"Duluth","lat":46.8,"lon":-92.2},
-         "stops":[{"ident":"KMSN","name":"Madison","lat":43.1,"lon":-89.3}],"distance_nm":300,"bearing_deg":330,"course_line":[]}
+         "stops":[{"ident":"KMSN","name":"Madison","lat":43.1,"lon":-89.3}],"distance_nm":300,"bearing_deg":330,"course_line":[],
+         "chart_cycle":"09-03-2026","chart_layers":[],"min_zoom":5,"max_zoom":12}
         """#)
         let checkpoint = try decode(Checkpoint.self, #"{"id":"a","category":"lake","lat":42.6,"lon":-88.6,"predicted_score":3,"along_track_nm":20,"selected":true,"hop":0}"#)
         let leg = { (ete: Double?, ground: Double?) in

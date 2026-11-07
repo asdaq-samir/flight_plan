@@ -7,10 +7,12 @@
 /// What a report is, for its valid time.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Product {
-    /// A routine METAR: issued every hour (AC 00-45H, Aviation Weather
-    /// Services, its METAR section; the Federal Meteorological Handbook
-    /// No. 1, ch. 2, routine observations), so it counts until the next
-    /// routine report is due an hour after it was observed.
+    /// A routine METAR: issued every hour (AIM 7-1-28's key, "METAR-hourly";
+    /// AC 00-45H, Aviation Weather Services, its METAR section; the Federal
+    /// Meteorological Handbook No. 1, ch. 2, routine observations), so it
+    /// counts until the next routine report is due an hour after it was
+    /// observed. Past that the screens call it an old report (the web's
+    /// Observed, through the `weather_in_force` call).
     Metar,
     /// A SPECI: issued between the routine reports when the weather
     /// changes (FMH-1 ch. 2, special observations). It changes nothing about when the hour's

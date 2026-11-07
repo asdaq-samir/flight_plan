@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { closeCard, openTab, settle, slow } from "./helpers";
+import { closeCard, drawn, openTab, settle, slow } from "./helpers";
 
 /**
  * An approach taught (ApproachLesson), at the owner's ask ("do it all",
@@ -73,7 +73,7 @@ test("a picked approach is taught: briefed a step at a time, flown fix by fix wi
   await brief.getByTestId("approach-brief-next").click();
   await expect(brief).toContainText("Initial Approach Fix");
   await expect(brief).toContainText("Cross at or above 3,300 ft");
-  await expect(page.locator(".leaflet-lesson-pane path")).not.toHaveCount(0);
+  await expect.poll(async () => (await drawn(page, "lesson")).length).toBeGreaterThan(0);
 
   // Fly: the airplane taken fix by fix, a coaching word at each.
   await lesson.getByTestId("approach-lesson-steps").getByRole("radio", { name: "Fly" }).click();
@@ -102,5 +102,5 @@ test("a picked approach is taught: briefed a step at a time, flown fix by fix wi
   // under it (SheetCard); its own from md up.
   await closeCard(page, "approach-lesson-close");
   await expect(lesson).toHaveCount(0);
-  await expect(page.locator(".leaflet-lesson-pane path")).toHaveCount(0);
+  await expect.poll(async () => (await drawn(page, "lesson")).length).toBe(0);
 });

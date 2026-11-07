@@ -95,6 +95,14 @@ async function load() {
 
 const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 
+/** The held prompt answered, once the module has asked for it: taken at
+ * once, it failed now and then in a full, loaded run ("pending.shift(...)
+ * is not a function") when the ask was still a few awaits away. */
+async function answerPrompt() {
+  await vi.waitFor(() => expect(pending.length).toBeGreaterThan(0), { timeout: 2000, interval: 5 });
+  pending.shift()!();
+}
+
 beforeEach(() => {
   vi.resetModules();
   granted = false;
@@ -198,7 +206,7 @@ describe("opening an input", () => {
     expect(contexts).toHaveLength(1);
     expect(contexts[0]!.resume).toHaveBeenCalled();
     expect(sessionLog).toEqual([]);
-    pending.shift()!();
+    await answerPrompt();
     await opened;
     expect(sessionLog).toEqual(["play-and-record"]);
     release();
@@ -214,7 +222,7 @@ describe("opening an input", () => {
     hold = true;
     const picked = m.pick("gma");
     expect(sessionLog).toEqual(["play-and-record", "auto"]);
-    pending.shift()!();
+    await answerPrompt();
     await picked;
     expect(sessionLog).toEqual(["play-and-record", "auto", "play-and-record"]);
     release();
@@ -384,7 +392,7 @@ describe("the list a hint", () => {
     // The id refused; the default asked for, its prompt not yet answered.
     expect(devices.getUserMedia).toHaveBeenCalledTimes(2);
     listening.release();
-    pending.shift()!();
+    await answerPrompt();
     for (let i = 0; i < 5; i++) await settle();
     expect(devices.getUserMedia).toHaveBeenCalledTimes(2);
     expect(tracks.every(t => t.readyState === "ended")).toBe(true);
@@ -421,7 +429,7 @@ describe("holds", () => {
     const release = m.hold();
     const opened = m.find();
     release();
-    pending.shift()!();
+    await answerPrompt();
     await opened;
     expect(tracks[0]!.stop).toHaveBeenCalled();
     expect(m.heldTrack()).toBeNull();
@@ -479,7 +487,7 @@ describe("the input remembered", () => {
       audio: { deviceId: { exact: "gma" }, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
     expect(listening.track()).toBeNull();
-    pending.shift()!();
+    await answerPrompt();
     await settle();
     expect(listening.track()?.label).toBe("GMA 350c");
     listening.release();

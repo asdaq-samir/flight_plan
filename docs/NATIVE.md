@@ -13,13 +13,23 @@ is docs/NATIVE-ANDROID.md.
 - `ios/project.yml`: the Xcode project, made by XcodeGen on the runner.
   Nothing under `ios/` is a generated file; the project is never
   committed.
-- `ios/Wingtip/API`: the planner's and the gateway's calls, with the
-  answers' shapes as Codable by hand (`Models.swift`), in the document's
-  own names. Apple's swift-openapi-generator was tried first (24 October)
-  and left out every property FastAPI gives as `anyOf` string and null,
-  which is most of them, so the generated client was taken out again. A
-  model lists only the properties a screen shows; add one when a screen
-  needs it, from `planning-service/openapi.json`.
+- `ios/Wingtip/API`: the planner's and the gateway's calls, the app's
+  own thin client (`Planner`, `Gateway`). The answers' shapes are
+  generated from the servers' OpenAPI documents, as the web's types are:
+  `scripts/api-models-apps.sh` runs quicktype (models only, plain
+  Codable, no runtime library) into `API/Generated` (the planner's types
+  prefixed `API`, the gateway's `GW`), committed, and CI fails when they
+  are not what the documents give, so a field a server renames fails the
+  build rather than a screen. `Models.swift` and its neighbours keep the
+  app's names as typealiases of them, with what the app adds as
+  extensions. To read a new answer, add its schema to the script's list,
+  run it, and alias it. (Apple's swift-openapi-generator was tried first,
+  24 October, and left out every property FastAPI gives as `anyOf`
+  string and null, so it was taken out again; quicktype reads those as
+  optionals.) Still by hand: the nav log's streamed lines (`NavLog.swift`),
+  AirportPin and AheadAlert (the engine writes them from the cycle packs
+  too), and the gateway's answers (their names and dates differ from the
+  app's models), each a switch of its own.
 - `ios/Wingtip`: the app. `Config` (the host), `Session` (who is signed
   in), `Charts` (which chart, from `/api/chart`, kept for offline),
   `Tiles` (the tile address, the store on disk, the MapKit overlay) and
@@ -43,8 +53,11 @@ is docs/NATIVE-ANDROID.md.
   pilot's account and records, and the engine answers every rule. The shared fixtures
   in `web/src/lib/fixtures` are read by the web's vitest tests and by
   `ios/WingtipTests/SharedFixturesTests.swift` (project.yml bundles the
-  folder into the test target by its path, not a copy), which now hold
-  the engine to them through the phone's own bridge. The few rules still
+  folder into the test target by its path, not a copy), and
+  `BridgeFixturesTests.swift` holds the engine's raw JSON answers to
+  them through the phone's own bridge (`Engine.callText` over
+  `wt_call`), so a bridge that changes a key, a number, a null or a
+  character fails CI though the Rust and web tests pass. The few rules still
   in Swift are in the table below with their fixtures; issue #482 moves
   them into the engine. Every other figure
   comes from the planner; the app shows the server's answer, with its

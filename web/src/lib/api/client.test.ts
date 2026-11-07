@@ -111,6 +111,9 @@ describe("ndjson", () => {
     try {
       const silent = new ReadableStream<Uint8Array>({ start() {} });
       const reading = read(silent);
+      // Awaited below, once the clock has moved: set up first, so the
+      // rejection is never unhandled.
+      // eslint-disable-next-line vitest/valid-expect
       const failed = expect(reading).rejects.toSatisfy(err => describeError(err) === "No answer in time");
       await vi.advanceTimersByTimeAsync(STREAM_QUIET_MS + 1);
       await failed;

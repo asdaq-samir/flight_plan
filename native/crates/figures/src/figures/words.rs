@@ -97,8 +97,10 @@ pub fn to_fixed(n: f64, digits: usize) -> String {
 /// the FAA writes altitudes (lib/units grouped): rounded on the
 /// magnitude, halves away from zero.
 pub fn grouped(n: f64) -> String {
-    let magnitude = js_round_f(n.abs()) as u64;
-    let plain = magnitude.to_string();
+    let magnitude = js_round_f(n.abs());
+    // The whole number's exact digits, past a u64's reach too (1e21 is
+    // 22 figures, as toLocaleString writes them).
+    let plain = format!("{magnitude:.0}");
     let mut digits = String::new();
     for (i, c) in plain.chars().enumerate() {
         if i > 0 && (plain.len() - i) % 3 == 0 {
@@ -106,7 +108,7 @@ pub fn grouped(n: f64) -> String {
         }
         digits.push(c);
     }
-    if n < 0.0 && magnitude > 0 {
+    if n < 0.0 && magnitude > 0.0 {
         format!("-{digits}")
     } else {
         digits
@@ -129,13 +131,14 @@ pub fn pounds(lb: f64) -> String {
 }
 
 /// A cruising altitude as the owner asked it written, hundreds of feet in
-/// three figures: "FL-045" for 4,500 ft, "FL----" with none yet (lib/units
-/// flightLevel; the owner, 2026-10-27: "make it in the format FL-***").
+/// three figures: "FL-045" for 4,500 ft, "FL-___" with none yet (lib/units
+/// flightLevel; the owner, 2026-10-27: "make it in the format FL-***", and
+/// 2026-11-04: "FL should have three underscores").
 /// The figures padded as String(n).padStart(3, "0") pads them, a minus
 /// sign and all.
 pub fn flight_level(ft: Option<f64>) -> String {
     match ft {
-        None => "FL----".to_owned(),
+        None => "FL-___".to_owned(),
         Some(ft) => {
             let hundreds = js_num(js_round_f(ft / 100.0));
             format!("FL-{}{hundreds}", "0".repeat(3usize.saturating_sub(hundreds.chars().count())))

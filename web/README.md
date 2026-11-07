@@ -28,10 +28,10 @@ component (`MapPage`) in two modes:
 - `/app/dev` — the developer's page: walk a route's detected waypoints
   on the sectional and rate each one, producing ML training data, with
   the dev console dropping down over the chart in tabs — Model
-  Training (collect a corridor, ratings so far, retrain through
-  Airflow), Performance (every algorithm trained, the promoted one)
+  Training (collect a corridor, ratings so far, retrain: the training
+  run as a container the planner starts), Performance (every algorithm trained, the promoted one)
   and System (which services answer, how fresh the FAA and weather
-  data is, the doors into Jupyter, Airflow and the two agents — each a
+  data is, the doors into Jupyter and the agents — each a
   link that starts the container if it isn't running). `/app/label`
   redirects here (its own query string carried over); `/app/settings`
   redirects to Plan, where everything it used to hold now lives in the

@@ -2,7 +2,7 @@ import type { AircraftRegistration } from "./api/types";
 
 /**
  * Which of the seven shapes an airplane is drawn as in the lists of
- * airplanes kept (Favorites, Recents, My Plane), at the owner's ask
+ * airplanes kept (Favorites, Recents, My Airplane), at the owner's ask
  * ("shouldn't we do different icons for different types of planes?",
  * 2026-11-04; the map's traffic keeps its one arrow). Read from what is
  * known of it, the surest first: the FAA registry's aircraft type, engine

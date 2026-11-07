@@ -199,8 +199,8 @@ struct DeviceKeptTests {
     }
 
     @Test func anAirplanesNameAndLine() {
-        let plane = TrafficAircraft(hex: "a1b2c3", lat: 46.8, lon: -92.2, callsign: nil, registration: "N3429J", type: "P28A")
+        let plane = TrafficAircraft(callsign: nil, hex: "a1b2c3", lat: 46.8, lon: -92.2, registration: "N3429J", type: "P28A")
         #expect(KeptAirplane.name(plane) == "N3429J")
-        #expect(AirplaneRow.line(TrafficAircraft(hex: "x", lat: 0, lon: 0, type: "B738", altitudeFt: 34_960, speedKt: 451.6)) == "B738 · 35,000 ft · 452 kt")
+        #expect(AirplaneRow.line(TrafficAircraft(altitudeFt: 34_960, hex: "x", lat: 0, lon: 0, speedKt: 451.6, type: "B738")) == "B738 · 35,000 ft · 452 kt")
     }
 }

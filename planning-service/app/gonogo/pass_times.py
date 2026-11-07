@@ -12,10 +12,6 @@ from zoneinfo import ZoneInfo
 
 from . import ask
 
-#: The minutes either side of a pass time a TFR's window is widened by:
-#: an ETA is an estimate, and a few minutes early is still inside.
-PASS_MARGIN_MIN = 30
-
 _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 _MICROSECOND = timedelta(microseconds=1)
 
@@ -43,7 +39,7 @@ def pass_time(legs: list[dict], depart: datetime, along_nm: float) -> datetime |
 
 
 def tfr_when(t: dict, at: datetime) -> str:
-    """A TFR's window against the pass time, widened by PASS_MARGIN_MIN:
+    """A TFR's window against the pass time, widened by the engine's PASS_MARGIN_MIN (30 minutes):
     "before", "after" or "in-force"; one with no start or no end is open
     that way."""
     def at_us(key):

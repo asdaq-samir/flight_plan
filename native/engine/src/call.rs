@@ -75,8 +75,10 @@
 //!   "special_use": [{"name", "when"}]}, "altitude": {"pending",
 //!   "problem"?, "cautions", "flown"?}, "fuel": {"pending", "margin_gal"?,
 //!   "required_gal"?, "reserve_min"?, "ifr"?}, "runways": {"pending",
-//!   "worked", "short", "crosswind"}, "balance": {"pending", "worked",
-//!   "problems", "takeoff"?}, "risk"?: {"level", "line"}};
+//!   "worked", "short", "crosswind", "beyond"?, "unchecked"?}, "balance":
+//!   {"pending", "worked", "problems", "takeoff"?}, "risk"?: {"level",
+//!   "line"}}; a section that leaves out the lists it is decided by is
+//!   "unknown", never "ok";
 //! - `gonogo_under_minimums`: the sentences where the weather is under the
 //!   pilot's minimums, from `{"minimums": {"ceiling_ft"?, "visibility_sm"?,
 //!   "crosswind_kt"?, "wind_kt"?}, "landings": [ident], "dest", and the
@@ -237,11 +239,12 @@
 //!   end's `{"ident", "heading_true_deg", "traffic"}`, from
 //!   `{"end_headings", "variation_deg", "right": [end key]}`;
 //! - `runway_end_fit`: `{"crosswind_kt", "crosswind_over", "needed_ft",
-//!   "length_ft", "short", "close"}` (SAFO 19001's 15 per cent), from
+//!   "length_ft", "short", "close", "unknown", "beyond"}` (SAFO 19001's
+//!   15 per cent; unknown where the distance or length is not), from
 //!   `{"aircraft"?: {"takeoff"?, "landing"?, "crosswind"?:
 //!   {"demonstrated_kt"?}}, "runway", "end": {"heading_true_deg"?},
-//!   "wind"?: {"dir_true_deg"?, "speed_kt"?, "gust_kt"?}, "elevation_ft",
-//!   "altimeter_in_hg"?, "temp_c"?, "weight_lb"?, "kind"}`;
+//!   "wind"?: {"dir_true_deg"?, "speed_kt"?, "gust_kt"?}, "elevation_ft"
+//!   (null: not known, no distance), "altimeter_in_hg"?, "temp_c"?, "weight_lb"?, "kind"}`;
 //! - `traffic_pattern` and `departure_pattern`: lib/trafficPattern's
 //!   TrafficPattern (snake_case) or null, from `{"ident", "runway",
 //!   "end_ident", "altitude_ft"?, "toward"?: {"lat", "lon"}}`;
@@ -281,8 +284,64 @@
 //!   5-1-6), from `{"at", "stations"}`; `morse` (AIM 1-1-3) from
 //!   `{"ident"}`; `service_volume` (AIM 1-1-8 TBL 1-1-1) from `{"code"?}`;
 //!   `navaid_hours` from `{"hours"?}`;
+//! - `weather_expires_at`: when a report stops counting, Unix seconds, or
+//!   null where nothing says (crate::validity: a METAR an hour after it
+//!   was observed, AIM 7-1-28's "METAR-hourly"; a SPECI when the next
+//!   routine report is due; a TAF, the FB winds or an advisory at the end
+//!   of its valid time), from `{"product": "metar"|"speci"|"taf"|"winds"|
+//!   "advisory", "observed"?, "last_routine"?, "valid_to"?}`;
+//!   `weather_in_force`: whether it still counts at `now`, from the same
+//!   with `"now"` and, for a forecast, `"valid_from"?`;
 //! - `magnetic_variation`: degrees east, the World Magnetic Model's (wmm,
 //!   as wingtip.magnetic), from `{"lat", "lon", "date": "YYYY-MM-DD"}`.
+//!
+//! The planner's own rules, moved here from its Python (#482 phase 0) so
+//! the phones and the web answer as it does:
+//!
+//! - `airspace_column`: the bands over a point (crate::rules, the planner's
+//!   AirspaceBand each), from `{"ground_ft"?, "volumes": [{"class", "name"?,
+//!   "floor_ft", "floor_ref": "SFC"|"AGL"|"MSL", "ceiling_ft"}],
+//!   "in_veil"?}`; `mode_c_veil`: `{"ident", "name", "distance_nm"}` or
+//!   null, from `{"lat", "lon", "airports": [{"ident", "name"?, "lat"?,
+//!   "lon"?}]}` (14 CFR 91.215(b)(2));
+//! - `notams_fns`: an FNS message's NOTAMs, from `{"text"}`; `notam_text`:
+//!   a NOTAM as sent, as a list of one, or null, from `{"text"}`;
+//!   `metar_read` from `{"raw"}`, `taf_read` from `{"raw", "near"}`,
+//!   `winds_read` from `{"text", "now"}`, `tfr_detail_read` from
+//!   `{"text"}`: the planner's dicts, or null;
+//! - `ceiling_ft` (14 CFR 1.1) from `{"layers": [{"cover", "base_ft"?}],
+//!   "vert_vis_ft"?}`, null where there is none or it is not known;
+//!   `sky_ceiling` from the same, `{"ceiling_ft", "ceiling_unknown"}`,
+//!   which tells those apart (a lowest layer sent with no height,
+//!   "OVC///"); `report_flight_category` (AC 00-45H, a missing figure no
+//!   limit) from `{"ceiling_ft"?, "ceiling_unknown"?, "visibility_sm"?}`,
+//!   with an unknown ceiling only what the visibility settles;
+//!   `vfr_basic_minimums` (91.155(c), (d)) `{"ceiling_ft", "visibility_sm"}`
+//!   from `{}`;
+//! - `reserve_min` (91.151(a), 91.167(a)(3)) from `{"ifr"?, "night"?}`;
+//!   `isa_temp_c` from `{"altitude_ft"}`, `density_ratio` from
+//!   `{"altitude_ft", "oat_c"}`, `density_altitude_ft` from `{"sigma"}`,
+//!   `pressure_altitude_ft` from `{"elevation_ft", "altimeter_inhg"}`,
+//!   `is_eastbound` and `lowest_vfr_cruising_altitude` (91.159(a)) from
+//!   `{"magnetic_course_deg", "floor_ft"}`, `distance_nm` from `{"lat1",
+//!   "lon1", "lat2", "lon2"}`, `region_of` from `{"lat", "lon"}`,
+//!   `descent_ft_per_nm` from `{}`;
+//! - `words_num`, `words_one`, `words_to_fixed` (`{"n", "digits"?}`),
+//!   `words_grouped` from `{"n"}`; `words_alt_ft` and `words_flight_level`
+//!   from `{"ft"?}`; `words_ceiling_and_visibility` from `{"ceiling_ft"?,
+//!   "visibility_sm"?}` (crate::figures::words);
+//! - `gonogo_hazard_window`: "before", "during", "after" or null, from
+//!   `{"enter", "leave", "valid_from"?, "valid_to"?, "margin_min"?}`
+//!   (seconds since 1970; PASS_MARGIN_MIN where no margin is given).
+//!
+//! The FAA's data sets on their cycles (crate::cycles):
+//!
+//! - `data_cycle`: whether an edition is in force on a day, `{"kind",
+//!   "cycle_days", "current", "current_ident", "next", "effective",
+//!   "expires", "state": "in_force"|"expired"|"not_yet"|"unknown",
+//!   "behind"}`, from `{"kind": "airac"|"chart"|"dof", "effective"?:
+//!   "YYYY-MM-DD" (the date the edition is named by), "on": "YYYY-MM-DD"}`
+//!   (the FAA's 28 and 56 Day Product Schedule; the DOF page).
 //!
 //! Instrument approaches taught and debriefed (crate::approach, the web's
 //! lib/approachDebrief and lib/approachLesson), a drawing the planner's
@@ -596,6 +655,15 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
         | "departure_pattern" | "arrival_circuit" | "departure_circuit" => {
             crate::runway::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}")))
         }
+        "weather_expires_at" | "weather_in_force" => weather_validity_rule(&ask),
+        "airspace_column" => crate::rules::column_json(ask.v),
+        "mode_c_veil" => crate::rules::veil_json(ask.v),
+        "notams_fns" | "notam_text" | "metar_read" | "taf_read" | "winds_read" | "tfr_detail_read" | "ceiling_ft"
+        | "sky_ceiling" | "report_flight_category" | "vfr_basic_minimums" => weather_rule(&ask),
+        "reserve_min" | "isa_temp_c" | "density_ratio" | "density_altitude_ft" | "pressure_altitude_ft" | "is_eastbound"
+        | "lowest_vfr_cruising_altitude" | "distance_nm" | "region_of" | "descent_ft_per_nm" => flight_rule(&ask),
+        "words_num" | "words_one" | "words_to_fixed" | "words_grouped" | "words_alt_ft" | "words_flight_level"
+        | "words_ceiling_and_visibility" => words_rule(&ask),
         "magnetic_variation" => {
             let date = ask.str("date")?;
             let bad = || format!("magnetic_variation: \"date\" is not YYYY-MM-DD: {date:?}");
@@ -613,6 +681,17 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             json::number(&mut out, crate::wmm::declination(ask.num("lat")?, ask.num("lon")?, decimal));
             Ok(out)
         }
+        "data_cycle" => {
+            let kind = ask.str("kind")?;
+            let kind = crate::cycles::Kind::from_name(kind).ok_or_else(|| format!("data_cycle: \"kind\" is not airac, chart or dof: {kind:?}"))?;
+            let on = ask.str("on")?;
+            let on = crate::cycles::day_of(on).ok_or_else(|| format!("data_cycle: \"on\" is not YYYY-MM-DD: {on:?}"))?;
+            let effective = match ask.opt_str("effective")? {
+                "" => None,
+                e => Some(crate::cycles::day_of(e).ok_or_else(|| format!("data_cycle: \"effective\" is not YYYY-MM-DD: {e:?}"))?),
+            };
+            Ok(crate::cycles::to_json(&crate::cycles::cycle(kind, effective, on)))
+        }
         _ if crate::wording::NAMES.contains(&name) => crate::wording::answer(name, ask.v),
         // A field's weather (forecast::calls), the traffic list's filters and
         // the registry's airplanes (aircraft::calls).
@@ -628,6 +707,146 @@ pub fn call(name: &str, input: &str) -> Result<String, String> {
             None => crate::gonogo::calls::call(name, ask.v).unwrap_or_else(|| Err(format!("the engine has no rule called {name:?}"))),
         },
     }
+}
+
+/// When a weather report stops counting (crate::validity), as the
+/// planner's wingtip_native.weather_expires_at and weather_in_force take
+/// it: `weather_expires_at` the instant, Unix seconds, or null, and
+/// `weather_in_force` whether it still counts at `now`.
+fn weather_validity_rule(ask: &Ask) -> Result<String, String> {
+    use crate::validity::{self, Product};
+    let product = match ask.str("product")? {
+        "metar" => Product::Metar,
+        "speci" => Product::Speci,
+        "taf" => Product::Taf,
+        "winds" => Product::WindsAloft,
+        "advisory" => Product::Advisory,
+        other => return Err(format!("{}: \"product\" is metar, speci, taf, winds or advisory, not {other:?}", ask.name)),
+    };
+    // Whole seconds, as the reports' own times are.
+    let secs = |key: &str| ask.opt_num(key).map(|n| n.map(|s| s.floor() as i64));
+    let (observed, last_routine, valid_to) = (secs("observed")?, secs("last_routine")?, secs("valid_to")?);
+    if ask.name == "weather_expires_at" {
+        let mut out = String::new();
+        json::opt_number(&mut out, validity::expires_at(product, observed, last_routine, valid_to).map(|t| t as f64));
+        return Ok(out);
+    }
+    let now = ask.num("now")?.floor() as i64;
+    let yes = validity::in_force(product, now, observed, last_routine, secs("valid_from")?, valid_to);
+    Ok(if yes { "true" } else { "false" }.to_owned())
+}
+
+/// A report, a NOTAM or a TFR as sent, read (crate::metar, taf, winds,
+/// notam, tfr), each answer the planner's own dicts; and the figures read
+/// off a report: its ceiling, its flight category and the basic VFR
+/// minimums they are held to.
+fn weather_rule(ask: &Ask) -> Result<String, String> {
+    let read = |found: Option<String>| found.unwrap_or_else(|| "null".to_owned());
+    // Whole seconds, as the reports' own times are.
+    let secs = |key: &str| ask.num(key).map(|s| s.floor() as i64);
+    match ask.name {
+        "notams_fns" => Ok(crate::notam::to_json(&crate::notam::from_fns(ask.str("text")?))),
+        "notam_text" => Ok(read(crate::notam::from_text(ask.str("text")?).map(|n| crate::notam::to_json(&[n])))),
+        "metar_read" => Ok(read(crate::metar::parse(ask.str("raw")?).map(|m| crate::metar::to_json(&m)))),
+        "taf_read" => Ok(read(crate::taf::parse(ask.str("raw")?, secs("near")?).map(|t| crate::taf::to_json(&t)))),
+        "winds_read" => Ok(read(crate::winds::parse(ask.str("text")?, secs("now")?).map(|p| crate::winds::to_json(&p)))),
+        "tfr_detail_read" => {
+            let text = ask.str("text")?;
+            if let Err(e) = crate::xml::parse(text) {
+                return Err(format!("tfr_detail_read: not XML: {} at {}", e.what, e.at));
+            }
+            Ok(read(crate::tfr::parse_detail(text).map(|d| crate::tfr::to_json(&d))))
+        }
+        "ceiling_ft" | "sky_ceiling" => {
+            let mut layers = Vec::new();
+            if let Some(listed) = ask.v.get("layers").filter(|l| !matches!(l, Value::Null)) {
+                for l in listed.as_array().ok_or_else(|| format!("{}: \"layers\" is not a list", ask.name))? {
+                    layers.push((l.get("cover").and_then(Value::as_str).unwrap_or(""), opt_num_in(ask.name, l, "base_ft")?));
+                }
+            }
+            let (ceiling, unknown) = crate::metar::sky_ceiling_of(layers, ask.opt_num("vert_vis_ft")?);
+            let mut out = String::new();
+            if ask.name == "ceiling_ft" {
+                json::opt_number(&mut out, ceiling);
+            } else {
+                out.push_str("{\"ceiling_ft\":");
+                json::opt_number(&mut out, ceiling);
+                out.push_str(",\"ceiling_unknown\":");
+                out.push_str(if unknown { "true" } else { "false" });
+                out.push('}');
+            }
+            Ok(out)
+        }
+        "report_flight_category" => {
+            let mut out = String::new();
+            let category = crate::metar::flight_category_of(
+                ask.opt_num("ceiling_ft")?,
+                ask.opt_bool("ceiling_unknown")?,
+                ask.opt_num("visibility_sm")?,
+            );
+            json::opt_string(&mut out, category);
+            Ok(out)
+        }
+        _ => {
+            let mut out = String::from("{\"ceiling_ft\":");
+            json::number(&mut out, crate::rules::SURFACE_AREA_CEILING_FT);
+            out.push_str(",\"visibility_sm\":");
+            json::number(&mut out, crate::rules::SURFACE_AREA_VISIBILITY_SM);
+            out.push('}');
+            Ok(out)
+        }
+    }
+}
+
+/// The flight's figures (crate::flight, geo, phone, motion) as the
+/// planner's wingtip_native functions of the same names work them out.
+fn flight_rule(ask: &Ask) -> Result<String, String> {
+    use crate::flight;
+    let mut out = String::new();
+    let figure = match ask.name {
+        "reserve_min" => flight::reserve_min(ask.opt_bool("ifr")?, ask.opt_bool("night")?),
+        "isa_temp_c" => flight::isa_temp_c(ask.num("altitude_ft")?),
+        "density_ratio" => flight::density_ratio(ask.num("altitude_ft")?, ask.num("oat_c")?),
+        "density_altitude_ft" => flight::density_altitude_ft(ask.num("sigma")?),
+        "pressure_altitude_ft" => flight::pressure_altitude_ft(ask.num("elevation_ft")?, ask.num("altimeter_inhg")?),
+        "lowest_vfr_cruising_altitude" => flight::lowest_vfr_cruising_altitude(ask.num("floor_ft")?, ask.num("magnetic_course_deg")?),
+        "distance_nm" => crate::geo::distance_nm(ask.num("lat1")?, ask.num("lon1")?, ask.num("lat2")?, ask.num("lon2")?),
+        "descent_ft_per_nm" => crate::motion::profile::DESCENT_FT_PER_NM,
+        "is_eastbound" => return Ok(flight::is_eastbound(ask.num("magnetic_course_deg")?).to_string()),
+        _ => {
+            json::string(&mut out, &crate::phone::region_of(ask.num("lat")?, ask.num("lon")?));
+            return Ok(out);
+        }
+    };
+    json::number(&mut out, figure);
+    Ok(out)
+}
+
+/// A figure written as the web app writes it (crate::figures::words), for
+/// the planner's words that are compared with the web's word for word.
+fn words_rule(ask: &Ask) -> Result<String, String> {
+    use crate::figures::words;
+    let mut out = String::new();
+    let written = match ask.name {
+        "words_num" => words::js_opt(ask.opt_num("n")?),
+        "words_one" => {
+            json::number(&mut out, words::one(ask.num("n")?));
+            return Ok(out);
+        }
+        "words_to_fixed" => {
+            let digits = ask.opt_num("digits")?.unwrap_or(1.0);
+            if !(0.0..=20.0).contains(&digits) || digits.fract() != 0.0 {
+                return Err(format!("words_to_fixed: \"digits\" is a whole number from 0 to 20, not {digits}"));
+            }
+            words::to_fixed(ask.num("n")?, digits as usize)
+        }
+        "words_grouped" => words::grouped(ask.num("n")?),
+        "words_alt_ft" => words::alt_ft(ask.opt_num("ft")?),
+        "words_flight_level" => words::flight_level(ask.opt_num("ft")?),
+        _ => words::ceiling_and_visibility(ask.opt_num("ceiling_ft")?, ask.opt_num("visibility_sm")?),
+    };
+    json::string(&mut out, &written);
+    Ok(out)
 }
 
 /// The input of one call, read with the rule's name in each complaint.

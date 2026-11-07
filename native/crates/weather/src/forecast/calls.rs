@@ -41,7 +41,15 @@ pub fn call(name: &str, v: &Value) -> R<String> {
     let mut out = String::new();
     match name {
         "flight_category" => {
-            json::opt_string(&mut out, category_of(opt_num(name, v, "ceiling_ft")?, opt_num(name, v, "visibility_sm")?));
+            let (ceiling, visibility) = (opt_num(name, v, "ceiling_ft")?, opt_num(name, v, "visibility_sm")?);
+            // A ceiling sent with no height ("OVC///") is one not known, not
+            // none (14 CFR 1.1): only what the visibility settles is said.
+            let category = if opt_bool(name, v, "ceiling_unknown")? {
+                crate::metar::flight_category_of(None, true, visibility)
+            } else {
+                category_of(ceiling, visibility)
+            };
+            json::opt_string(&mut out, category);
         }
         "taf_hour" => {
             let prevailing = figures(name, v.get("prevailing").ok_or_else(|| format!("{name}: \"prevailing\" is missing"))?)?;

@@ -16,7 +16,7 @@ from wingtip import model_registry, tfr, weather
 from wingtip.weather import WeatherServiceError
 
 from app.main import app
-from app.routers import system
+from app.routers import devservices, system
 
 client = TestClient(app)
 
@@ -82,7 +82,7 @@ def test_checkpoints_translates_a_chart_that_would_not_read_to_502(monkeypatch):
 def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     monkeypatch.setattr(system, "NAV_LOG_AGENT_URL", "http://nav-log-agent:8000")
     monkeypatch.setattr(system, "CREWAI_AGENT_URL", None)
-    monkeypatch.setattr(system, "AIRFLOW_URL", None)
+    monkeypatch.setattr(devservices, "SIDECAR_URL", None)
     monkeypatch.setattr(system, "probe", lambda url: (True, "HTTP 401"))
     monkeypatch.setattr(system, "_webapp_status", lambda: (
         system.ServiceStatus(up=True, detail="HTTP 200"), system.ServiceStatus(up=False, detail="HTTP 503")))
@@ -98,35 +98,93 @@ def test_status_reports_every_service_and_the_data_on_disk(monkeypatch):
     assert body["services"]["crewai_agent"] is None
     assert body["services"]["webapp"] == {"up": True, "detail": "HTTP 200"}
     assert body["services"]["db"] == {"up": False, "detail": "HTTP 503"}
-    assert body["pipeline"]["airflow_configured"] is False
+    assert body["pipeline"]["startable"] is False
+    assert "docker compose up retrain" in body["pipeline"]["detail"]
     # Every weather source, the winds for each forecast period included.
     assert {w["name"] for w in body["weather"]} == {
         "metars", "tafs", "airsigmets", "pireps", "gairmets", "winds-06", "winds-12", "winds-24",
     }
     for corridor in body["corridors"]:
         assert corridor["departure_ident"].isupper() and "by_rating" in corridor["labels"]
+    # Each FAA data set on disk, with whether it is in its cycle.
+    for cycle in body["data_cycles"]:
+        assert cycle["state"] in {"in_force", "expired", "not_yet", "unknown"} and cycle["current"]
 
 
-def test_retrain_writes_the_chart_models_table_and_says_how_when_airflow_is_not_configured(monkeypatch):
+class FakeSidecar:
+    """The dev-services sidecar: the retrain container's state, and what
+    a start does to it."""
+
+    def __init__(self, state: str):
+        self.state = state
+        self.calls = []
+
+    def __call__(self, method, path):
+        self.calls.append((method, path))
+        if method == "GET":
+            return FakeResponse(200, [{"name": "retrain", "state": self.state}])
+        started = self.state != "running"
+        self.state = "running"
+        return FakeResponse(200, {"name": "retrain", "state": "running", "started": started})
+
+
+class FakeResponse:
+    def __init__(self, status_code: int, body):
+        self.status_code = status_code
+        self._body = body
+        self.text = str(body)
+
+    def json(self):
+        return self._body
+
+
+def test_retrain_writes_the_chart_models_table_and_says_how_without_the_sidecar(monkeypatch):
     written = []
-    monkeypatch.setattr(system, "AIRFLOW_URL", None)
+    monkeypatch.setattr(devservices, "SIDECAR_URL", None)
     monkeypatch.setattr(system, "_training", lambda: None)
     monkeypatch.setattr(system.chart_model, "write_training_table", lambda: written.append(True))
 
     resp = client.post("/api/retrain")
 
     assert resp.status_code == 501
-    assert "pipeline-training chart-retrain" in resp.json()["detail"]
+    assert "docker compose up retrain" in resp.json()["detail"]
     # Written first, so the command it gives trains on the ratings as they are.
     assert written == [True]
 
 
+def test_retrain_starts_the_training_runs_container(monkeypatch):
+    sidecar = FakeSidecar("exited")
+    monkeypatch.setattr(devservices, "_sidecar", sidecar)
+    monkeypatch.setattr(system, "_training", lambda: None)
+    monkeypatch.setattr(system.chart_model, "write_training_table", lambda: None)
+
+    resp = client.post("/api/retrain")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"started": True, "state": "running"}
+    assert ("POST", "/services/retrain/start") in sidecar.calls
+
+
+def test_retrain_while_a_run_is_going_leaves_it_and_its_table_alone(monkeypatch):
+    # One run at a time: the table a run trains on is not written under it.
+    written = []
+    sidecar = FakeSidecar("running")
+    monkeypatch.setattr(devservices, "_sidecar", sidecar)
+    monkeypatch.setattr(system, "_training", lambda: None)
+    monkeypatch.setattr(system.chart_model, "write_training_table", lambda: written.append(True))
+
+    resp = client.post("/api/retrain")
+
+    assert resp.status_code == 409
+    assert written == []
+    assert not any(method == "POST" for method, _ in sidecar.calls)
+
+
 def test_retrain_with_too_few_ratings_says_why_instead_of_starting_a_run(monkeypatch):
-    # It started the run, which failed in Airflow minutes later with the
-    # news in a log nobody was shown.
-    started = []
-    monkeypatch.setattr(system, "AIRFLOW_URL", "http://airflow:8080")
-    monkeypatch.setattr(system, "_airflow_credentials", lambda: started.append("asked") or ("a", "b"))
+    # It started the run, which failed minutes later with the news in a
+    # log nobody was shown.
+    sidecar = FakeSidecar("exited")
+    monkeypatch.setattr(devservices, "_sidecar", sidecar)
     monkeypatch.setattr(system, "_training", lambda: system.TrainingReadiness(
         usable=28, needed=30, ready=False, rated=32, off_detection=4, reading=[],
         message="28 of the 30 ratings training needs."))
@@ -135,7 +193,33 @@ def test_retrain_with_too_few_ratings_says_why_instead_of_starting_a_run(monkeyp
 
     assert resp.status_code == 409
     assert resp.json()["detail"] == "28 of the 30 ratings training needs."
-    assert started == []
+    assert sidecar.calls == []
+
+
+def test_the_pipeline_status_is_the_runs_own_file_and_its_container(tmp_path, monkeypatch):
+    run_file = tmp_path / "run.json"
+    monkeypatch.setattr(model_registry, "RUN_STATUS_PATH", run_file)
+    run_file.write_text(json.dumps({
+        "run_id": "20261106T120000Z", "state": "running", "stage": "chart_retrain", "error": None,
+        "stages": [{"name": "chart_retrain", "state": "running", "detail": None}],
+    }))
+
+    monkeypatch.setattr(devservices, "_sidecar", FakeSidecar("running"))
+    going = system._pipeline_status()
+    assert going.startable is True
+    assert (going.last_run.state, going.last_run.stage) == ("running", "chart_retrain")
+
+    # The container stopped with the file still saying running: the run
+    # was cut short, which reads as a failure, not a run going for ever.
+    monkeypatch.setattr(devservices, "_sidecar", FakeSidecar("exited"))
+    stopped = system._pipeline_status()
+    assert stopped.last_run.state == "failed"
+    assert stopped.last_run.error == "The run stopped before it finished."
+
+    # Just started: the container runs before the run has written itself down.
+    run_file.write_text(json.dumps({"run_id": "earlier", "state": "success", "stages": []}))
+    monkeypatch.setattr(devservices, "_sidecar", FakeSidecar("running"))
+    assert system._pipeline_status().last_run.state == "running"
 
 
 def test_aircraft_profiles_lists_the_stock_profiles():
@@ -170,6 +254,33 @@ def test_the_briefing_says_why_vfr_is_not_recommended(monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json()["vfr_not_recommended"] == ["forecast ceiling as low as 800 ft along the route"]
+
+
+def test_the_briefing_carries_a_ceiling_of_unknown_height_through(monkeypatch):
+    """OVC/// reported at the departure and forecast at the destination
+    (wingtip.weather._sky_ceiling): not known, not none, so the briefing
+    says so where it would say no ceiling."""
+    monkeypatch.setattr(weather, "hazards_along_route", lambda start, end: [])
+    monkeypatch.setattr(weather, "ceiling_visibility_along_route", lambda start, end, window=None: {
+        "min_ceiling_ft": None, "min_visibility_sm": 10.0, "ceiling_unknown_at": ["KDLH"], "stations": [
+            {"icaoId": "KDLH", "lat": 46.8421, "lon": -92.1936, "elevation_ft": 1424, "ceiling_ft": None,
+             "ceiling_unknown": True, "visibility_sm": 10.0}]})
+    monkeypatch.setattr(weather, "metar_for_idents", lambda idents: {ident: (
+        {"raw": "KC81 251755Z AUTO 10SM OVC///", "flight_category": None, "ceiling_ft": None, "ceiling_unknown": True,
+         "visibility_sm": 10.0} if ident in ("C81", "KC81") else None) for ident in idents})
+    monkeypatch.setattr(weather, "tafs_over", lambda asked: {
+        "KDLH": {"ceiling_ft": None, "ceiling_unknown": True, "visibility_sm": 10.0, "raw": "TAF KDLH ..."}})
+    monkeypatch.setattr(airports, "get_runways", lambda ident: [])
+    monkeypatch.setattr(airports, "get_frequencies", lambda ident: [])
+
+    body = client.get("/api/briefing", params={"dep": "C81", "dest": "KDLH"}).json()
+
+    assert body["forecast"]["ceiling_unknown_at"] == ["KDLH"]
+    station = body["forecast"]["stations"][0]
+    assert (station["ceiling_unknown"], station["eta_ceiling_unknown"]) == (True, True)
+    assert body["metars"]["C81"]["ceiling_unknown"] is True
+    assert body["vfr_not_recommended"] == [
+        "C81 currently reporting a ceiling of unknown height", "forecast ceiling of unknown height at KDLH"]
 
 
 def test_the_briefing_forecast_is_read_over_the_flight(monkeypatch):

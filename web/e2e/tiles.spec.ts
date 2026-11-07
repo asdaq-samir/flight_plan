@@ -31,15 +31,16 @@ for (const path of ["/app/dev"] as const) {
     test.setTimeout(slow(90000));
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
-    const tacTiles = page.locator('img.leaflet-tile[src*="/tac/"]');
-    const sectionalTiles = page.locator('img.leaflet-tile[src*="/sec/"]');
-    await expect(page.locator("img.leaflet-tile").first()).toBeAttached({ timeout: slow(15000) });
-    expect(await tacTiles.count()).toBe(0);
+    // The charts the map draws (ChartGl's data-chart-kinds), and the TAC's
+    // tiles that came back drawn.
+    const kinds = () => page.getByTestId("gl-map").getAttribute("data-chart-kinds");
+    let tacDrawn = 0;
+    page.on("response", r => { if (/\/tac\/\d+\//.test(r.url()) && r.ok()) tacDrawn += 1; });
+    await expect.poll(kinds, { timeout: slow(15000) }).toBe("sec");
 
-    // Wheel-zoom in over the departure marker, a level at a time
-    // (Leaflet's own 60 px per level), well past the sectional's own
-    // zooms; Leaflet zooms about the cursor, so C81 stays under it.
-    const marker = page.locator(".leaflet-marker-icon", { hasText: "C81" }).first();
+    // Wheel-zoom in over the departure marker, well past the sectional's
+    // own zooms; the map zooms about the cursor, so C81 stays under it.
+    const marker = page.locator(".maplibregl-marker", { hasText: "C81" }).first();
     await expect(marker).toBeVisible();
     const box = (await marker.boundingBox())!;
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -47,8 +48,8 @@ for (const path of ["/app/dev"] as const) {
       await page.mouse.wheel(0, -60);
       await page.waitForTimeout(400);
     }
-    await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(10000) });
-    expect(await tacTiles.count()).toBe(0);
+    expect(await kinds()).toBe("sec");
+    expect(tacDrawn).toBe(0);
 
     // Pinned: both chart layers are asked for, the sectional and the TAC.
     await openMapSettings(page);
@@ -57,13 +58,8 @@ for (const path of ["/app/dev"] as const) {
     await pin.click();
     await expect(pin).toHaveAttribute("aria-checked", "true");
     await page.keyboard.press("Escape");
-    await expect(tacTiles.first()).toBeAttached({ timeout: slow(10000) });
-    await expect.poll(
-      () => page.evaluate(() =>
-        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/tac/"]')]
-          .some(img => img.complete && img.naturalWidth > 0)),
-      { timeout: slow(45000) },
-    ).toBe(true);
+    await expect.poll(kinds, { timeout: slow(10000) }).toBe("sec tac");
+    await expect.poll(() => tacDrawn, { timeout: slow(45000) }).toBeGreaterThan(0);
 
     // Remembered per browser: a reload still has it pinned, and
     // unpinning it takes the TAC layer away again.
@@ -75,7 +71,7 @@ for (const path of ["/app/dev"] as const) {
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-checked", "false");
     await page.keyboard.press("Escape");
-    await expect(tacTiles).toHaveCount(0);
+    await expect.poll(kinds).toBe("sec");
   });
 
   test(`${path}: the base chart can be the IFR low enroute chart, and back`, async ({ page }) => {
@@ -86,26 +82,20 @@ for (const path of ["/app/dev"] as const) {
     test.setTimeout(slow(90000));
     await page.goto(`${path}?dep=C81&dest=KDLH`);
     await settle(page);
-    const ifrTiles = page.locator('img.leaflet-tile[src*="/ifr_low/"]');
-    const sectionalTiles = page.locator('img.leaflet-tile[src*="/sec/"]');
-    await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(15000) });
-    expect(await ifrTiles.count()).toBe(0);
+    const kinds = () => page.getByTestId("gl-map").getAttribute("data-chart-kinds");
+    let ifrDrawn = 0;
+    page.on("response", r => { if (/\/ifr_low\/\d+\//.test(r.url()) && r.ok()) ifrDrawn += 1; });
+    await expect.poll(kinds, { timeout: slow(15000) }).toBe("sec");
 
     await openMapSettings(page);
     await page.getByTestId("base-chart-select").getByRole("radio", { name: "IFR low" }).click();
     // The terminal sheet's row is the IFR area chart over the IFR charts.
     await expect(page.getByTestId("map-settings").getByText("IFR Area Charts")).toBeVisible();
-    await expect(ifrTiles.first()).toBeAttached({ timeout: slow(10000) });
-    await expect.poll(
-      () => page.evaluate(() =>
-        [...document.querySelectorAll<HTMLImageElement>('img.leaflet-tile[src*="/ifr_low/"]')]
-          .some(img => img.complete && img.naturalWidth > 0)),
-      { timeout: slow(45000) },
-    ).toBe(true);
-    expect(await sectionalTiles.count()).toBe(0);
+    await expect.poll(kinds, { timeout: slow(10000) }).toBe("ifr_low");
+    await expect.poll(() => ifrDrawn, { timeout: slow(45000) }).toBeGreaterThan(0);
 
     await page.getByTestId("base-chart-select").getByRole("radio", { name: "Sectional" }).click();
-    await expect(sectionalTiles.first()).toBeAttached({ timeout: slow(10000) });
+    await expect.poll(kinds, { timeout: slow(10000) }).toBe("sec");
     await expect(page.getByTestId("map-settings").getByText("Terminal Area Charts")).toBeVisible();
   });
 }

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "react-router-dom";
 import { BrainCircuit, ExternalLink, RefreshCw } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "../../lib/toast";
 import { showError } from "../../lib/problems";
 import { Bar, BarChart, Cell, LabelList, XAxis, YAxis } from "recharts";
 import { cn } from "cn";
@@ -265,29 +265,56 @@ function ChartModelGroup({ chart }: { chart: NonNullable<Status["model"]>["chart
   );
 }
 
+/** What a stage of the run is called on the page. */
+const STAGE_NAMES: Record<string, string> = {
+  landmarks_ready: "Landmark ratings",
+  collect: "Collect landmarks",
+  feature_engineer: "Landmark features",
+  retrain: "Train the landmark model",
+  evaluate: "Weigh it against the one serving",
+  promote: "Promote it",
+  chart_retrain: "Train the chart model",
+  chart_evaluate: "Weigh it against the one serving",
+  chart_promote: "Promote it",
+};
+
+const STAGE_STATES: Record<string, string> = {
+  pending: "Waiting", running: "Running", success: "Done", skipped: "Skipped", failed: "Failed",
+};
+
 /**
- * The pipeline that would replace the models: whether Airflow, which
- * Retrain starts, is running, how its last run went as a badge beside the
- * heading, and how to retrain by hand without it. Retrain itself is the
- * head's (PerfHead). (Airflow is a link in Status's Elsewhere in the
- * stack.)
+ * The training run that would replace the models: how its last run went
+ * as a badge beside the heading, then a row a stage -- the one under way,
+ * and what each came to or why it was skipped -- from the file the run
+ * writes as it goes. Where the planner cannot start one, why and the
+ * command to run it by hand. Retrain itself is the head's (PerfHead).
  */
 function TrainingGroup() {
   const { pipeline, lastRun, running } = useRetrain();
+  const stages = lastRun?.stages ?? [];
   return (
     <ListGroup
       title="Training"
-      badge={pipeline?.airflow_reachable && (lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
-      footer={!pipeline?.airflow_reachable
-        ? <>Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose run --rm pipeline-training chart-retrain</code>.</>
+      badge={(lastRun || running) && <RunBadge state={lastRun?.state} running={running} />}
+      footer={!pipeline?.startable
+        ? <>{pipeline?.detail ?? "The planner cannot start a run from here."} Retrain by hand with <code className="rounded bg-muted px-1 py-0.5 font-mono text-foreground">docker compose up retrain</code>.</>
         : undefined}
     >
-      <ListRow
-        title="Airflow"
-        description={pipeline?.airflow_reachable ? "The training DAG, which Retrain starts" : pipeline?.detail ?? "Not reachable from here"}
-        value={pipeline?.airflow_reachable ? "Running" : "Not running"}
-        data-testid="airflow-row"
-      />
+      {!lastRun && (
+        <ListRow muted title={running ? "Starting the run…" : "No run yet"} data-testid="run-row" />
+      )}
+      {lastRun?.error && (
+        <ListRow title={<span className="text-destructive-ink">{lastRun.error}</span>} data-testid="run-error" />
+      )}
+      {stages.map(s => (
+        <ListRow
+          key={s.name}
+          title={STAGE_NAMES[s.name] ?? s.name}
+          description={s.detail ?? undefined}
+          value={STAGE_STATES[s.state] ?? s.state}
+          data-testid={`stage-${s.name}`}
+        />
+      ))}
     </ListGroup>
   );
 }
@@ -489,9 +516,9 @@ function useOnMap(corridors: Status["corridors"]) {
  *  what loads a route. It offered to collect one first, from
  *  OpenStreetMap, before the chart was read instead. This planner cannot
  *  train in-process (no scikit-learn of its own, on purpose), so the
- *  retrain goes through Airflow, the same DAG the AWS trigger Lambda
- *  starts; without Airflow reachable the Performance tab says how to run
- *  the pipeline by hand instead. */
+ *  retrain is a container of its own (`python -m wingtip.pipeline run`)
+ *  the planner starts; where it cannot, the Performance tab says how to
+ *  run it by hand instead. */
 function TrainingTab() {
   return (
     <div className="space-y-6">
@@ -642,7 +669,6 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
     { label: "webapp API docs", href: "/swagger-ui/index.html" },
     { label: "planning-service API docs", href: `http://${host}:8084/docs`, localOnly: true },
     { label: "Jupyter (the notebooks)", href: `http://${host}:8888`, localOnly: true, service: "ml" },
-    { label: "Airflow (the training DAG)", href: `http://${host}:8081`, localOnly: true, service: "airflow" },
     // The sidecar can start it; its one page is the MCP stream, which
     // answers 401 without the bearer token -- enough to see it is up.
     {
@@ -671,6 +697,10 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
       name: DATASET_NAMES[w.name] ?? w.name, file: w.name, source: "aviationweather.gov", updated: w.fetched_at,
     })),
   ];
+
+  // The FAA data sets past their cycle, said at the Reference data row's
+  // end for the owner (wingtip.data_cycles).
+  const staleData = (status?.data_cycles ?? []).filter(c => c.state === "expired").length;
 
   // At the services row's end, what is wrong if anything is: how many
   // are down or did not answer, in red, else how many are up; one the
@@ -714,18 +744,39 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           content: (
             // When it was fetched -- the one thing looked for -- at the
             // row's end, and the file and its source under its name.
-            <ListGroup footer="The files the planner reads and how old each copy is.">
-              {datasets.map(d => (
-                <ListRow
-                  key={d.file} title={d.name}
-                  description={<><span className="font-mono">{d.file}</span> · {d.source}</>}
-                  value={d.updated ? agoOrDate(d.updated) : "not fetched yet"}
-                />
-              ))}
-              {datasets.length === 0 && (
-                <ListRow muted title={<>{status ? "Nothing on disk yet." : waiting(failed)}</>} />
+            <div className="flex flex-col gap-5">
+              <ListGroup footer="The files the planner reads and how old each copy is.">
+                {datasets.map(d => (
+                  <ListRow
+                    key={d.file} title={d.name}
+                    description={<><span className="font-mono">{d.file}</span> · {d.source}</>}
+                    value={d.updated ? agoOrDate(d.updated) : "not fetched yet"}
+                  />
+                ))}
+                {datasets.length === 0 && (
+                  <ListRow muted title={<>{status ? "Nothing on disk yet." : waiting(failed)}</>} />
+                )}
+              </ListGroup>
+              {/* Each FAA data set's edition against its cycle (the
+                  engine's data_cycle): with the refreshes off in
+                  production, an edition out of date is the owner's to
+                  fetch, and the planner logs it as well. */}
+              {!!status?.data_cycles?.length && (
+                <ListGroup title="FAA cycles">
+                  {status.data_cycles.map(c => (
+                    <ListRow
+                      key={c.key} title={c.name} data-testid="dev-data-cycle"
+                      description={`${c.kind.toUpperCase()} · edition ${c.edition ?? "unknown"} · current ${c.current}`}
+                      value={(
+                        <StatusBadge tone={c.state === "in_force" ? "up" : c.state === "expired" ? "down" : "checking"}>
+                          {c.state === "expired" ? `${c.behind} behind` : c.state.replace("_", " ")}
+                        </StatusBadge>
+                      )}
+                    />
+                  ))}
+                </ListGroup>
               )}
-            </ListGroup>
+            </div>
           ),
         },
         charts: {
@@ -789,7 +840,10 @@ function SystemTab({ status, failed, onRefresh, refreshing }: {
           <PageRow page="services" title="Services" value={<StatusBadge tone={summary.tone}>{summary.label}</StatusBadge>} />
           {/* The count alone at the row's end: with the oldest's date as
               well the name wrapped on a phone. The page has the dates. */}
-          <PageRow page="data" title="Reference data" value={status ? `${datasets.length} files` : undefined} />
+          <PageRow
+            page="data" title="Reference data"
+            value={!status ? undefined : staleData ? <StatusBadge tone="down">{`${staleData} out of date`}</StatusBadge> : `${datasets.length} files`}
+          />
           <PageRow page="charts" title="Charts" value={status?.charts ? `cycle ${status.charts.cycle}` : undefined} />
           <PageRow page="errors" title="Recent errors" value={status ? (status.recent_errors ?? []).length : undefined} />
           <PageRow page="speed" title="Speed" />

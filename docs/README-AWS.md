@@ -96,10 +96,9 @@ offers one.
 | Left out | Why | In production |
 |---|---|---|
 | crewai-agent | The same briefing nav-log-agent writes, built to compare frameworks | The comparison popover's CrewAI side reports it unavailable |
-| Airflow, the pipelines, SageMaker | Retraining runs on the owner's machine | The console's retrain button says Airflow is not configured; a new model is uploaded (below) |
+| The pipelines and the training run | Retraining runs on the owner's machine (`python -m wingtip.pipeline run`) | The console's retrain button says there is no sidecar to start it, and gives the command; a new model is uploaded (below) |
 | Mailpit | A development mailer | Sign-in mail goes through Amazon SES |
 | dev-services, Jupyter | Development tools | The console's service buttons say there is no sidecar |
-| The Go retrain Lambda and API Gateway | Triggered Airflow, which is not here | — |
 
 ## What it costs
 
@@ -217,7 +216,16 @@ its settings, but has no images to run until the first push to ECR.
 1. In GitHub, Settings → Secrets and variables → Actions → Variables,
    add `AWS_ROLE_ARN` (the `DeployRoleArn` output), `AWS_REGION`
    (`us-east-1`) and `AWS_SERVER_NAME` (the `ServerName` output).
-2. Fill in the owner's values in the `AppSecret` output's secret, as
+2. In GitHub, Settings → Environments, create `production` and under
+   "Deployment branches and tags" choose "Selected branches and tags"
+   with `main` alone. The deploy role trusts only a job in this
+   environment (`sub` `repo:<owner>/<repo>:environment:production`), not
+   any workflow on `main`: ci-autofix.yml runs as `main` with an OIDC
+   token while it runs a branch's code. Without the branch rule a
+   workflow on any branch could name the environment and get the role;
+   a job that names an environment that does not exist creates it with
+   no rules at all, so create it first.
+3. Fill in the owner's values in the `AppSecret` output's secret, as
    [`infra/server/env.example`](../infra/server/env.example) lists them:
 
    ```bash
@@ -226,8 +234,9 @@ its settings, but has no images to run until the first push to ECR.
    rm app-secret.json
    ```
 
-3. The next green CI run on `main` promotes its images, pushes the four
-   the server runs to ECR (`promote.yml`, `push-ecr`) and runs
+4. The next green CI run on `main` promotes its images, copies the three
+   the server runs from GHCR to ECR as `sha-<commit>` and `latest`
+   (`promote.yml`, `push-ecr`: the images CI tested, not rebuilt) and runs
    [`infra/server/deploy.sh`](../infra/server/deploy.sh) on the server
    (`deploy`). To deploy without waiting for one:
 
@@ -270,7 +279,15 @@ under it.
 ### The chart model
 
 The planner ranks checkpoints with the chart model when one is there,
-and by its own rules when not. To serve the one trained on the Mac:
+and by its own rules when not. It is trained on the Mac, by the
+development console's Retrain or by hand:
+
+```bash
+docker compose run --rm pipeline-training run
+```
+
+which promotes it into `data/models/chart/current` only if it beats the
+one there on the held-out ratings. To serve it:
 
 ```bash
 aws s3 sync data/models/chart/current s3://<ServerBucketName>/models/chart/current/
@@ -284,10 +301,14 @@ Mac is promoted the same way.
 ### Deploys
 
 A pull request merged to `main` deploys itself once CI passes: Promote
-pushes the images and runs `deploy.sh` over SSM, and the job fails if it
-does. A deploy restarts only the services whose image changed. The
-server's copy of the repository follows `main` too (`git pull` in
-`deploy.sh`), for `docker-compose.prod.yml` and the Caddyfile.
+copies the images CI tested to ECR and runs `deploy.sh <commit>` over
+SSM, and the job fails if it does. The server checks out that commit,
+for `docker-compose.prod.yml` and the Caddyfile, and runs its images
+(`IMAGE_TAG=sha-<commit>`), so files and images always match whatever
+has merged since. A deploy restarts only the services whose image
+changed. `deploy.sh` with no commit, by hand, takes `main` and `latest`.
+To go back to an earlier commit, run `deploy.sh <its full hash>`: ECR
+keeps the last 20 images of each service.
 
 ### On the server
 
@@ -340,7 +361,9 @@ At 07:17 UTC every night `backup.sh` copies to
 the database (`postgres.dump`: accounts, aircraft, flights, the briefing
 agent's memory) and the planner's `data/labels` (`labels.tar.gz`: the
 checkpoint notes pilots and Claude have written). The bucket keeps 14
-days. The dump is written to a file and checked with `pg_restore --list`
+days, and is versioned: a backup overwritten or deleted stays as an
+older version for 30 days more (`aws s3api list-object-versions`). The
+server may write only `backups/` and `ground_grid/`. The dump is written to a file and checked with `pg_restore --list`
 before it is uploaded, so a truncated one never replaces a good day, and a
 failed backup emails `BudgetEmail` (confirm the SNS subscription mail once).
 The data disk is also snapshotted daily at 05:00 UTC, seven kept. To

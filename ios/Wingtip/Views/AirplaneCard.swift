@@ -489,8 +489,8 @@ struct FAARecordSection: View {
 }
 
 private enum PreviewData {
-    static let plane = TrafficAircraft(hex: "a8c2e1", lat: 46.84, lon: -92.19, callsign: "N3429J", registration: "N3429J", type: "P28A",
-                                       altitudeFt: 4500, trackDeg: 215, speedKt: 112, verticalFpm: 0, squawk: "1200")
+    static let plane = TrafficAircraft(altitudeFt: 4500, callsign: "N3429J", hex: "a8c2e1", lat: 46.84, lon: -92.19, registration: "N3429J",
+                                       speedKt: 112, squawk: "1200", trackDeg: 215, type: "P28A", verticalFpm: 0)
     static let faa = FAARecord(nNumber: "N3429J", airworthiness: "Standard", airworthinessDate: "1998-04-02", city: "Duluth",
                                engine: "Lycoming O-320", engineType: "Reciprocating", expires: "2028-06-30", horsepower: 150,
                                manufacturer: "Piper", model: "PA-28-140", owner: "Lake Superior Flying Club", ownerType: "Corporation",

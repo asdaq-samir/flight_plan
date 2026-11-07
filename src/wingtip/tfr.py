@@ -207,10 +207,14 @@ def all_tfrs() -> list:
 
 def in_force(tfr: dict, start: datetime, end: datetime) -> bool:
     """Whether a TFR is in force at any time from `start` to `end` (UTC):
-    one with no times is taken as in force."""
-    effective = datetime.fromisoformat(tfr["effective"].replace("Z", "+00:00")) if tfr.get("effective") else None
-    expires = datetime.fromisoformat(tfr["expires"].replace("Z", "+00:00")) if tfr.get("expires") else None
-    return (effective is None or effective <= end) and (expires is None or expires >= start)
+    one with no times is taken as in force. The engine's window
+    (pass_times.rs, `gonogo_hazard_window`), with no margin."""
+    def at(key: str) -> float | None:
+        return datetime.fromisoformat(tfr[key].replace("Z", "+00:00")).timestamp() if tfr.get(key) else None
+    when = json.loads(wingtip_native.call("gonogo_hazard_window", json.dumps({
+        "enter": start.timestamp(), "leave": end.timestamp(), "valid_from": at("effective"), "valid_to": at("expires"),
+        "margin_min": 0})))
+    return when not in ("before", "after")
 
 
 def along_route(path: list, start: datetime, end: datetime, near_nm: float = NEAR_NM) -> list:

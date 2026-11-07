@@ -187,3 +187,13 @@ def test_a_pilots_own_altitude_is_written_as_the_owner_asked_and_a_ticked_check_
     assert by_key(body)["altitude"]["detail"] == "FL-045, your own"
     pressure = next(f for f in body["risk"]["factors"] if f["key"] == "pressure")
     assert (pressure["group"], pressure["finding"]) == ("The day", None)
+
+
+def test_a_ceiling_of_unknown_height_is_not_checked(stubbed):
+    """C81 reporting OVC/// with ten miles: no ceiling known (14 CFR 1.1),
+    so the weather is not "ok" but says what it could not check."""
+    metar = {**briefing()["metars"]["C81"], "ceiling_unknown": True}
+    stubbed["briefing"] = briefing(metars={"C81": metar, "KDLH": None})
+    items = by_key(client.post("/api/go-no-go", json=ask()).json())
+    assert items["weather"]["finding"] == "caution"
+    assert items["weather"]["detail"] == "Not checked: the ceiling at C81"

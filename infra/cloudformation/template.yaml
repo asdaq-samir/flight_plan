@@ -204,14 +204,20 @@ Resources:
             Prefix: tiles/
             ExpirationInDays: 120
 
-  # The nightly backups (backups/, kept 14 days) and the chart
-  # model the planner ranks checkpoints with (models/, uploaded by hand).
-  # Kept if the stack goes: it is what a new server is restored from.
+  # The nightly backups (backups/, kept 14 days), the ground grid a
+  # server builds once (ground_grid/) and the chart model the planner
+  # ranks checkpoints with (models/, uploaded by hand). Kept if the stack
+  # goes: it is what a new server is restored from. Versioned, so a
+  # server that is compromised, or a deploy gone wrong, cannot destroy a
+  # backup by writing over it or deleting it: the old copy stays a
+  # noncurrent version for 30 days, which is how long there is to notice.
   ServerBucket:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
+      VersioningConfiguration:
+        Status: Enabled
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -223,6 +229,12 @@ Resources:
             Status: Enabled
             Prefix: backups/
             ExpirationInDays: 14
+          - Id: OverwrittenAndDeleted
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+            # A delete leaves only a marker once its versions are gone.
+            ExpiredObjectDeleteMarker: true
 
   # ---------------------------------------------------------------------
   # Secrets: three the stack generates, one the owner fills in
@@ -298,9 +310,18 @@ Resources:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
                 Resource: [!Ref DbPasswordSecret, !Ref AgentKeySecret, !Ref OriginSecret, !Ref AppSecret]
+              # Reads anything (models/ comes from the owner); writes only
+              # where it keeps things: backup.sh's backups/ and the ground
+              # grid deploy.sh builds once (ground_grid/). So a server
+              # cannot replace the chart model the next server loads.
               - Effect: Allow
-                Action: [s3:GetObject, s3:PutObject]
+                Action: s3:GetObject
                 Resource: !Sub "${ServerBucket.Arn}/*"
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource:
+                  - !Sub "${ServerBucket.Arn}/backups/*"
+                  - !Sub "${ServerBucket.Arn}/ground_grid/*"
               - Effect: Allow
                 Action: s3:ListBucket
                 Resource: !GetAtt ServerBucket.Arn
@@ -927,7 +948,7 @@ Resources:
   DeployRole:
     Type: AWS::IAM::Role
     Properties:
-      Description: GitHub Actions on main pushes the images and runs deploy.sh on the server.
+      Description: GitHub Actions in the production environment (promote.yml) pushes the images and runs deploy.sh on the server.
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
         Statement:
@@ -938,8 +959,14 @@ Resources:
             Condition:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
-              StringLike:
-                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepo}:ref:refs/heads/main"
+                # Only a job in the `production` environment: promote.yml's
+                # push-ecr and deploy. Not "any workflow on main" -- the
+                # workflow_run workflows (ci-autofix.yml) run as main too,
+                # with id-token for the Claude app, while running a
+                # branch's code. The environment allows only main to
+                # deploy (docs/README-AWS.md), so a branch's workflow that
+                # names it is refused before it gets a token.
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubRepo}:environment:production"
       Policies:
         - PolicyName: PushAndDeploy
           PolicyDocument:

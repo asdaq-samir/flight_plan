@@ -44,6 +44,7 @@ the coarse read here can be wrong, and the plan says so where it is.
 """
 from __future__ import annotations
 
+import json
 import math
 import re
 import time
@@ -83,15 +84,11 @@ FIELD_WX_NM = 10.0
 #: own figure, not a rule's -- a reporting field is some 30 nm from the
 #: next in most of the country, so a marginal report colours the way to it.
 MARGINAL_NM = 30.0
-#: 14 CFR 91.155(a) and (c): 3 sm in Class E under 10,000 ft, and no VFR
-#: under a ceiling below 1,000 ft in a surface area -- the least any
-#: minimums here come to, whatever the pilot's own.
-LEGAL_CEILING_FT = 1000.0
-LEGAL_VISIBILITY_SM = 3.0
-#: AIM 7-1-7's flight categories: at or under these, MVFR (VFR is above
-#: 3,000 ft and 5 sm).
-MVFR_CEILING_FT = 3000.0
-MVFR_VISIBILITY_SM = 5.0
+#: 14 CFR 91.155(c) and (d): no VFR under a ceiling below 1,000 ft or in
+#: under 3 sm in a surface area -- the least any minimums here come to,
+#: whatever the pilot's own (the engine's figures, as wingtip.weather has them).
+LEGAL_CEILING_FT = float(weather.VFR_MIN_CEILING_FT)
+LEGAL_VISIBILITY_SM = float(weather.VFR_MIN_VISIBILITY_SM)
 #: A METAR is read for a flight leaving within this long, s; later, the
 #: TAFs alone, as a report is of now.
 METAR_AHEAD_S = 2 * 3600
@@ -180,6 +177,9 @@ class _Grid:
         self.dear = np.zeros((self.rows, self.cols))
         #: The share of each cell out of glide of dry land, 0 to 1 (wingtip.water).
         self.offshore = np.zeros((self.rows, self.cols))
+        #: The same at every sample (water.out_of_glide_samples), True out of
+        #: glide; None where the water was not read.
+        self.far: np.ndarray | None = None
         self.hazards: list[dict] = []
         #: Each cell's floor, ft (_ground), once read.
         self.floor: np.ndarray | None = None
@@ -290,7 +290,7 @@ def _weather(grid: _Grid, window: tuple, ceiling_ft: float, visibility_sm: float
             grid.close(grid.near(lat, lon, STORM_NM), "storm", f"Thunderstorms forecast at {ident}")
         worst = weather._worst_in_window(station["fcsts"], start, end) or {}
         _field_weather(grid, ident, lat, lon, worst.get("ceiling_ft"), worst.get("visibility_sm"),
-                       ceiling_ft, visibility_sm, "forecast")
+                       ceiling_ft, visibility_sm, "forecast", worst.get("ceiling_unknown", False))
     if start - time.time() > METAR_AHEAD_S:
         return
     for ident, report in weather._dataset("metars").items():
@@ -302,21 +302,35 @@ def _weather(grid: _Grid, window: tuple, ceiling_ft: float, visibility_sm: float
         if ident in seen:
             continue
         _field_weather(grid, ident, lat, lon, report.get("ceiling_ft"), report.get("visibility_sm"),
-                       ceiling_ft, visibility_sm, "reported")
+                       ceiling_ft, visibility_sm, "reported", report.get("ceiling_unknown", False))
+
+
+def _category(ceiling: float | None, visibility: float | None, ceiling_unknown: bool = False) -> str | None:
+    """A report's flight category, a missing figure no limit; None where
+    it gives neither, or the ceiling is not known and the visibility
+    does not settle it (metar.rs flight_category_of)."""
+    return json.loads(wingtip_native.call("report_flight_category", json.dumps(
+        {"ceiling_ft": ceiling, "ceiling_unknown": ceiling_unknown, "visibility_sm": visibility})))
 
 
 def _field_weather(grid: _Grid, ident: str, lat: float, lon: float, ceiling, visibility,
-                   min_ceiling_ft: float, min_visibility_sm: float, how: str) -> None:
+                   min_ceiling_ft: float, min_visibility_sm: float, how: str, ceiling_unknown: bool = False) -> None:
     low = (ceiling is not None and ceiling < min_ceiling_ft) or (visibility is not None and visibility < min_visibility_sm)
     words = ", ".join(w for w in (
         f"ceiling {int(ceiling):,} ft" if ceiling is not None else "",
+        # A layer reported with no height ("OVC///") is a ceiling not
+        # known, not none (14 CFR 1.1; wingtip.weather._sky_ceiling).
+        "ceiling of unknown height" if ceiling_unknown else "",
         f"visibility {visibility:g} sm" if visibility is not None else "",
     ) if w)
     if low:
         grid.close(grid.near(lat, lon, FIELD_WX_NM), "weather", f"{ident} {how} under minimums ({words})")
-    # Inclusive: AIM 7-1-7's MVFR is a ceiling of 1,000 to 3,000 ft and/or
-    # visibility 3 to 5 miles, so exactly 3,000 ft or 5 miles is marginal.
-    elif (ceiling is not None and ceiling <= MVFR_CEILING_FT) or (visibility is not None and visibility <= MVFR_VISIBILITY_SM):
+    # Marginal: a report's flight category worse than VFR (AC 00-45H, AIM
+    # 7-1-7: MVFR is a ceiling of 1,000 to 3,000 ft and/or visibility 3 to
+    # 5 miles, inclusive), the engine's (metar.rs flight_category).
+    # A ceiling of unknown height could be any: marked, as a pilot is
+    # warned and never stopped by the planner, not passed as VFR.
+    elif ceiling_unknown or _category(ceiling, visibility) not in (None, "VFR"):
         grid.mark(grid.near(lat, lon, MARGINAL_NM), "marginal", f"{ident} {how} marginal ({words})")
 
 
@@ -788,7 +802,12 @@ def options(dep: dict, dest: dict, profile: dict, *, depart: datetime | None = N
         unchecked.append("terrain")
     grid.floor = floor
     try:
-        grid.offshore = water.out_of_glide(grid.lat0, grid.lon0, grid.rows, grid.cols, CELL_DEG)
+        # The glide from the lowest the grid flies a cruise (LOWEST_CRUISE_FT),
+        # taken as the height over the water: where a way is flown higher it
+        # glides further, so the shore's reach errs short, the safe side.
+        grid.far = water.out_of_glide_samples(grid.lat0, grid.lon0, grid.rows, grid.cols, CELL_DEG,
+                                              height_ft=LOWEST_CRUISE_FT, speed_kt=tas)
+        grid.offshore = water.cell_shares(grid.far, grid.rows, grid.cols)
     except (water.WaterUnavailable, OSError, ValueError) as error:
         # The shores not to be had: no way kept over land, and the pilot told.
         logger.warning("route options: water not read (%s)", error)
@@ -941,6 +960,23 @@ def _own(grid: _Grid, gs: np.ndarray, path: list[tuple], idents: list[str], land
 _WEATHER_OF = {"storm": "storm", "weather": "ifr", "sigmet": "ifr", "marginal": "mvfr"}
 
 
+def _far_nm(grid: _Grid, a: tuple, b: tuple) -> float:
+    """The miles of the line from `a` to `b` out of glide of dry land, read
+    at the water's own samples (grid.far) every half sample, not by its
+    cells' shares: a way along a shore cell's dry side is in glide though
+    the cell is partly far out, and would be counted out of it."""
+    nm = float(geo.distance_nm(a[0], a[1], b[0], b[1]))
+    if grid.far is None or nm <= 0:
+        return 0.0
+    rows, cols = grid.far.shape
+    step = CELL_DEG * grid.rows / rows
+    n = max(2, int(math.ceil(nm / (step * 60.0 / 2))) + 1)
+    t = (np.arange(n) + 0.5) / n
+    r = np.clip(((a[0] + (b[0] - a[0]) * t - grid.lat0) / step).astype(int), 0, rows - 1)
+    c = np.clip(((a[1] + (b[1] - a[1]) * t - grid.lon0) / step).astype(int), 0, cols - 1)
+    return nm * float(grid.far[r, c].mean())
+
+
 def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dict:
     """What a way through `path` meets, cell by cell in the order it flies
     them: the weather as a strip of runs ({"kind": vfr|mvfr|ifr|storm,
@@ -959,7 +995,7 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
         if not cells or minutes <= 0:
             continue
         each = minutes / len(cells)
-        water_nm += float(geo.distance_nm(a[0], a[1], b[0], b[1])) / len(cells) * sum(float(grid.offshore[c]) for c in cells)
+        water_nm += _far_nm(grid, a, b)
         bearing = math.atan2((b[1] - a[1]) * math.cos(math.radians((a[0] + b[0]) / 2)), b[0] - a[0])
         k = _step_index(round(math.cos(bearing)), round(math.sin(bearing)))
         for c in cells:
@@ -979,7 +1015,7 @@ def _along(grid: _Grid, gs: np.ndarray, path: list[tuple], tas_kt: float) -> dic
         # The highest ground with 91.119's 1,000 ft alone: the coarse read's
         # own margin is the planner's to keep, not a figure for the pilot.
         "floor_ft": int(math.ceil(max(0.0, floor - terrain_detour.COARSE_MARGIN_FT) / 100.0) * 100),
-        # Its miles out of glide of dry land (wingtip.water.GLIDE_NM).
+        # Its miles out of glide of dry land (wingtip.water.glide_nm).
         "water_nm": round(water_nm),
     }
 

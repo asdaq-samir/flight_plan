@@ -15,10 +15,10 @@ options -- and issue #482 moves them into the engine, in that order;
 a new rule goes into the engine, not here (native/README.md says how).
 
 Nothing here serves HTTP, and nothing here imports a web framework.
-`planning-service`, the pipeline containers, Airflow and both Gen AI
-agents are all callers. That separation is the point — the same
-`navlog.py` runs inside a FastAPI request, a notebook cell, an Airflow
-task and a LangGraph tool, unchanged.
+`planning-service`, the pipeline containers and both Gen AI agents are
+all callers. That separation is the point — the same `navlog.py` runs
+inside a FastAPI request, a notebook cell, a pipeline container and a
+LangGraph tool, unchanged.
 
 ## Contents
 
@@ -119,7 +119,8 @@ question the previous rung raises.
 
 7. **Make it repeatable** (`pipeline.py`, `model_registry.py`). Wrap
    collect → engineer → retrain → evaluate → promote as callable
-   functions, so a notebook, a container and a DAG all run the same code.
+   functions, so a notebook, a container and the training run
+   (`python -m wingtip.pipeline run`) all run the same code.
 
 ### The method
 

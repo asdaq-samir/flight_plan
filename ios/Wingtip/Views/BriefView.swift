@@ -131,17 +131,15 @@ struct BriefView: View {
                         }
                     }
                     FieldsBelowVfrSection(fields: briefing.fieldsBelowVfr ?? [])
-                    if let forecast = briefing.forecast {
-                        Section("Forecast along the route") {
-                            LabeledContent("Lowest ceiling", value: forecast.minCeilingFt.map { "\(Int($0).formatted()) ft" } ?? "—")
-                                .id(rowId("forecast", 0, anchorAt: weatherAt, anchor: VerdictTarget.weatherAnchor))
-                            LabeledContent("Lowest visibility", value: forecast.minVisibilitySm.map { String(format: "%g SM", $0) } ?? "—")
-                            ForEach(Array(forecast.stations.enumerated()), id: \.offset) { _, station in
-                                if let raw = station.raw {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        if let ident = station.ident { Text(ident).font(.headline) }
-                                        Text(raw).font(.footnote.monospaced()).foregroundStyle(.secondary)
-                                    }
+                    Section("Forecast along the route") {
+                        LabeledContent("Lowest ceiling", value: briefing.forecast.minCeilingFt.map { "\(Int($0).formatted()) ft" } ?? "—")
+                            .id(rowId("forecast", 0, anchorAt: weatherAt, anchor: VerdictTarget.weatherAnchor))
+                        LabeledContent("Lowest visibility", value: briefing.forecast.minVisibilitySm.map { String(format: "%g SM", $0) } ?? "—")
+                        ForEach(Array(briefing.forecast.stations.enumerated()), id: \.offset) { _, station in
+                            if let raw = station.raw {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(station.icaoId).font(.headline)
+                                    Text(raw).font(.footnote.monospaced()).foregroundStyle(.secondary)
                                 }
                             }
                         }

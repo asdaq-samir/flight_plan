@@ -1,59 +1,38 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { hm } from "../../../lib/clock";
 import { threeFigures } from "../../../lib/navaid";
-import L from "leaflet";
-import { CircleMarker, Marker, Polyline, useMap, useMapEvents } from "react-leaflet";
 import { Badge } from "../../../components/ui/badge";
-import { useQuery } from "@tanstack/react-query";
-import { airportQuery, classBQuery } from "../../../lib/queryClient";
+import { chartQuery, classBQuery } from "../../../lib/queryClient";
 import { pointName } from "../../../lib/identSchema";
 import { placeWords } from "../../../lib/advisories";
 import type { Candidate, Course, Leg, ProcedureDrawing } from "../../../lib/api/types";
 import type { BriefingState } from "../hooks/usePlan";
-import { AirportsAsk, AirportsLayer } from "../../../lib/map/AirportsLayer";
-import { airportBox, overlaps, useDrawnAirports } from "../../../lib/map/declutter";
-import { useAfterPaint } from "../../../hooks/use-after-paint";
-import { WaypointsLayer } from "../../../lib/map/WaypointsLayer";
-import { TfrLayer } from "../../../lib/map/TfrLayer";
-import { WeatherLayer } from "../../../lib/map/WeatherLayer";
-import { PatternLayer } from "../../../lib/map/PatternLayer";
-import { PlateLayer } from "../../../lib/map/PlateLayer";
-import { ProcedureLayer } from "../../../lib/map/ProcedureLayer";
-import LessonLayer from "../../../lib/map/LessonLayer";
 import { proceduresOf, sameField } from "../../../lib/procedures";
 import type { TrafficPattern } from "../../../lib/trafficPattern";
+import { chipColourOf } from "../../../lib/map/flightCategory";
+import type { RouteWay } from "../../../lib/map/routeWays";
+import { checkpointColour } from "../../../lib/map/chartColors";
+import { useInkLook } from "../../../lib/brand";
+import { MapCard } from "../../../lib/map/MapCard";
+import GlRouteMap, { type GlCandidate, type GlCheckpoint, type GlEndpoint } from "../../../lib/map/gl/GlRouteMap";
+import { usePreferences } from "../../../lib/preferences";
+import type { StopKind } from "../../../lib/stopKinds";
+import type { StopPin } from "../../../lib/map/stopPins";
+import { inkOn } from "../../../lib/scoreScale";
+import { feet } from "../../../lib/units";
+import { scoreColor } from "../format";
 
 const NO_PATTERNS: TrafficPattern[] = [];
 const NO_POINTS: { lat: number; lon: number }[] = [];
 const NO_POINTS_AT: { ident: string; lat: number; lon: number }[] = [];
 const NO_STOP_FIELDS: StopFieldPin[] = [];
 const NO_PROCEDURES: ProcedureDrawing[] = [];
-import { chipColourOf, colourOf } from "../../../lib/map/flightCategory";
-import { CourseLine } from "../../../lib/map/CourseLine";
-import { RouteWaysLayer, type RouteWay } from "../../../lib/map/RouteWaysLayer";
-import { COURSE_MAGENTA, MAP_BLUE, checkpointColour } from "../../../lib/map/chartColors";
-import { useInkLook } from "../../../lib/brand";
-import { FlownTrackLayer } from "../../../lib/map/FlownTrackLayer";
-import { LegHighlightLayer } from "../../../lib/map/LegHighlightLayer";
-import { Halo } from "../../../lib/map/Halo";
-import {
-  AIRPORT_MARK, CHECKPOINT_LABEL_GAP, CHECKPOINT_LABEL_HEIGHT, airportMarkIcon, airportMarkReach, checkpointLabelIcon, checkpointLabelWidth, dotIcon, fixMarkIcon,
-} from "../../../lib/map/icons";
-import { FitTo, FocusOn } from "../../../lib/map/MapEffects";
-import { MapCard } from "../../../lib/map/MapCard";
-import { MapPopup } from "../../../lib/map/MapPopup";
-import { MapShell } from "../../../lib/map/MapShell";
-import { MapTooltip } from "../../../lib/map/MapTooltip";
-import { hovers } from "../../../lib/map/view";
-import { useCardedMarker } from "../../../lib/map/useCardedMarker";
-import { useScreenView } from "../../../lib/map/useView";
-import DryRunLayer from "../../../lib/map/DryRunLayer";
-import { DRY_RUN, usePastFlight } from "../../../lib/map/pastFlight";
-import { usePreferences } from "../../../lib/preferences";
-import { STOP_KINDS, type StopKind } from "../../../lib/stopKinds";
-import { inkOn } from "../../../lib/scoreScale";
-import { feet, nm } from "../../../lib/units";
-import { scoreColor } from "../format";
+const NO_CROSSINGS: Record<string, number> = {};
+
+/** A field of the map's Stops (StopsCard) pinned while the sheet is open:
+ *  the kinds it has, in a row's order (lib/stopKinds). */
+export type StopFieldPin = { ident: string; lat: number; lon: number; kinds: StopKind[] };
 
 interface Props {
   course: Course | null;
@@ -119,141 +98,6 @@ interface Props {
   onPickWay?: (key: string) => void;
 }
 
-/** A stop's pin: the caution's orange, its glyph in white (lucide's), its
- *  point in the middle of the field's mark drawn under it (StopPin), as
- *  Tesla's trip map pins its chargers (the owner's screenshot,
- *  2026-10-21) -- the field under the pin, with its ident, at the owner's
- *  asks ("Put airports under the fuel markers"; "at the middle of the
- *  airport markers", 2026-10-26). */
-function stopPin(glyph: string) {
-  return L.divIcon({
-    className: "",
-    html: '<svg width="30" height="38" viewBox="0 0 30 38" aria-hidden="true"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="#d9480f" stroke="#fff" stroke-width="2"/>'
-      + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></svg>`,
-    iconSize: [30, 38], iconAnchor: [15, 37],
-  });
-}
-/** A suggested fuel stop's: the pump (lucide's Fuel). */
-const FUEL_PIN = stopPin('<path d="M3 22h12"/><path d="M4 9h10"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/>');
-/** A break's on a long flight the tanks hold (fuelstops.suggest_break): a cup (lucide's Coffee). */
-const BREAK_PIN = stopPin('<path d="M10 2v2"/><path d="M14 2v2"/><path d="M6 2v2"/><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1"/>');
-/** A suggested stop pinned on the chart (the totals' fuel_stops). */
-type StopPin = { ident: string; lat: number; lon: number; reason?: "fuel" | "break" };
-
-function FuelStopPins({ stops, onSelect }: { stops: StopPin[]; onSelect: (ident: string) => void }) {
-  return stops.map(stop => <FuelStopPin key={stop.ident} stop={stop} onSelect={onSelect} />);
-}
-
-const FuelStopPin = memo(function FuelStopPin({ stop, onSelect }: { stop: StopPin; onSelect: (ident: string) => void }) {
-  // Memoized, not a literal: see AirportsLayer.
-  const handlers = useMemo(() => ({ click: () => onSelect(stop.ident) }), [onSelect, stop.ident]);
-  const isBreak = stop.reason === "break";
-  const icon = isBreak ? BREAK_PIN : FUEL_PIN;
-  // The field under the pin in its class of airspace's look and its
-  // METAR's colour, as the chart marks it: the card's own answer, which
-  // the stop's row asks for too. A small field the chart leaves off at
-  // this zoom was a pin over nothing, no ident to it (the owner's
-  // screenshot, 2026-10-26).
-  // Asked for a fuel stop or a break, a few on a route.
-  const { data: place } = useQuery(airportQuery(stop.ident));
-  const space = place?.airspace_class ?? null;
-  const weather = colourOf(place?.metar?.flight_category);
-  const use = place?.military === "military" ? "military" : null;
-  return (
-    <>
-      <Marker
-        position={[stop.lat, stop.lon]} icon={airportMarkIcon(pointName(stop.ident), space, weather, use)}
-        eventHandlers={handlers} zIndexOffset={450}
-      />
-      <Marker
-        position={[stop.lat, stop.lon]} icon={icon} title={`Suggested ${isBreak ? "stop" : "fuel stop"} ${stop.ident}`}
-        eventHandlers={handlers} zIndexOffset={500}
-      >
-        <MapTooltip>{`${pointName(stop.ident)} · ${isBreak ? "Break" : "Fuel stop"}`}</MapTooltip>
-      </Marker>
-    </>
-  );
-});
-
-/** A field of the map's Stops (StopsCard) pinned while the sheet is open:
- *  the kinds it has, in a row's order (lib/stopKinds). */
-export type StopFieldPin = { ident: string; lat: number; lon: number; kinds: StopKind[] };
-
-/** A field's stacked pins (the owner's pick of the Stops canvas, I,
- *  2026-10-27): one teardrop for each kind it has, in the kind's colour
- *  with its glyph in white, each fanned eight points right and four up
- *  from the one before so every glyph shows, the first kind in front, its
- *  tip on the field. One icon each set of kinds, made once: a new icon
- *  for every render would have Leaflet draw the marker again. */
-const stackedPins = new Map<string, L.DivIcon>();
-function stackedPin(kinds: StopKind[]): L.DivIcon {
-  const key = kinds.join(",");
-  const kept = stackedPins.get(key);
-  if (kept) return kept;
-  const n = kinds.length;
-  const width = 30 + (n - 1) * 8, height = 38 + (n - 1) * 4;
-  // Back to front: the last kind drawn first, behind the others.
-  const pins = kinds.map((kind, i) => {
-    const { colour, paths } = STOP_KINDS[kind];
-    const glyph = paths.map(d => `<path d="${d}"/>`).join("");
-    return `<g transform="translate(${i * 8} ${(n - 1 - i) * 4})"><path d="M15 37C15 37 2 23.5 2 14a13 13 0 0 1 26 0c0 9.5-13 23-13 23z" fill="${colour}" stroke="#fff" stroke-width="2"/>`
-      + `<g transform="translate(7.5 6.5) scale(0.62)" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">${glyph}</g></g>`;
-  }).reverse().join("");
-  const icon = L.divIcon({
-    className: "",
-    html: `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" aria-hidden="true">${pins}</svg>`,
-    iconSize: [width, height], iconAnchor: [15, height - 1],
-  });
-  stackedPins.set(key, icon);
-  return icon;
-}
-
-const StopFieldMark = memo(function StopFieldMark({ field, onSelect }: { field: StopFieldPin; onSelect: (ident: string) => void }) {
-  // Memoized, not a literal: see AirportsLayer.
-  const handlers = useMemo(() => ({ click: () => onSelect(field.ident) }), [onSelect, field.ident]);
-  const kinds = field.kinds.join(",");
-  // From its key, not the array: the same kinds the same icon.
-  const icon = useMemo(() => stackedPin(kinds.split(",") as StopKind[]), [kinds]);
-  const names = field.kinds.map(k => STOP_KINDS[k].name).join(", ");
-  return (
-    <>
-      {/* The field under the pins, as a suggested stop's: its own mark,
-          not asked for again for each of dozens along a long route. */}
-      <Marker position={[field.lat, field.lon]} icon={airportMarkIcon(pointName(field.ident), null, colourOf(undefined))} eventHandlers={handlers} zIndexOffset={440} />
-      {/* Made again for another set of kinds (its key): Leaflet sets a
-          marker's title once, as it is made, so the pins of the kind picked
-          kept the name of every kind it had been drawn with. */}
-      <Marker key={kinds} position={[field.lat, field.lon]} icon={icon} title={`${field.ident}: ${names}`} eventHandlers={handlers} zIndexOffset={490}>
-        <MapTooltip>{`${pointName(field.ident)} · ${names}`}</MapTooltip>
-      </Marker>
-    </>
-  );
-});
-
-/** A finger held on the chart, or a right-click, asks what airspace is
- *  there (AirspaceCard): Leaflet's contextmenu, which it raises for a
- *  long press on a phone as well (TapHold) and keeps the browser's own
- *  menu from. The point wears a pin while its card is open. */
-// Constants, not literals: react-leaflet restyles a path whenever its
-// pathOptions is a new object.
-const HELD_DOT: L.PathOptions = { color: "#ffffff", weight: 2, fillColor: MAP_BLUE, fillOpacity: 1 };
-
-function HeldPoint({ point, onHold }: { point: Props["heldPoint"]; onHold: Props["onHoldPoint"] }) {
-  // Memoized, not a literal: see AirportsLayer.
-  const handlers = useMemo(() => ({
-    contextmenu: (e: L.LeafletMouseEvent) => onHold({ lat: e.latlng.lat, lon: e.latlng.lng }),
-  }), [onHold]);
-  useMapEvents(handlers);
-  if (!point) return null;
-  return (
-    <>
-      {/* The ring a picked point wears on the map (Halo), round the dot:
-          the taxiway yellow it was went into the sectional's yellow. */}
-      <Halo at={point} />
-      <CircleMarker center={[point.lat, point.lon]} radius={6} interactive={false} pathOptions={HELD_DOT} />
-    </>
-  );
-}
 
 /** What a checkpoint's popup says: the same small card whether the
  *  point was chosen for the route (numbered, in flight order) or is one
@@ -366,202 +210,6 @@ function routeAirports(course: Course, each = false) {
   return each ? all : all.filter((a, i) => all.findIndex(b => b.ident === a.ident) === i);
 }
 
-/**
- * The route's departure, stops and destination, drawn at every zoom, so
- * on a route whose checkpoints are still too far out to draw they are
- * the only ones there to tap. An airport's mark (airportMarkIcon) in
- * its class of airspace's look -- the course's, else Class B's when the
- * field is one on the Class B layer (which then leaves it to this rather
- * than drawing a second mark on top) -- its dot the field's own current
- * METAR's colour, and a tap opens its card in the panel
- * (PlaceCard), as every airport on the chart does: it was a weather card
- * over the chart. A waypoint flown through brings the map to it, as the
- * nav log's rows do.
- */
-function Endpoints({ course, weather, onSelectPoint, onSelectPlace }: {
-  course: Course; weather: BriefingState; onSelectPoint: Props["onSelectPoint"]; onSelectPlace: Props["onSelectPlace"];
-}) {
-  const classBShown = usePreferences(p => p.classB);
-  // The Class B layer's own answer, read from its cache rather than asked
-  // for again; only while that layer is showing.
-  const { data: classB } = useQuery({ ...classBQuery, enabled: false });
-  return (
-    <>
-      {routeAirports(course).map(a => {
-        // A waypoint flown through: the sectional's magenta, no weather.
-        // A present position, Fly Here's start, by its coordinates in the
-        // same chip (pointName): own ship's arrow is there too, while on.
-        if (a.kind === "fix") {
-          return (
-            <Marker
-              key={a.ident} position={[a.lat, a.lon]} icon={fixMarkIcon(pointName(a.ident))}
-              eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(a.lat, a.lon); } }}
-            >
-              <MapTooltip><span className="font-semibold">{pointName(a.ident)}</span> · {a.name}</MapTooltip>
-            </Marker>
-          );
-        }
-        const field = classBShown ? classB?.find(b => b.ident === a.ident) : undefined;
-        const w = weatherOf(a.ident, weather);
-        return (
-          <Marker
-            key={a.ident} position={[a.lat, a.lon]}
-            icon={airportMarkIcon(a.ident, a.airspace_class ?? (field ? "B" : null), chipColourOf(w))}
-            // Over the checkpoints' dots: the field the route leaves from or
-            // lands at is the one thing on the chart it must not lose --
-            // KMDW's chip lay under checkpoint 1's dot.
-            zIndexOffset={500}
-            eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPlace(a.ident); } }}
-          >
-            {hovers && <MapTooltip>{a.ident} · {a.name} · {w.category ?? "no report"}</MapTooltip>}
-          </Marker>
-        );
-      })}
-    </>
-  );
-}
-
-// A candidate's style, one object for each score's colour: react-leaflet
-// restyles a path whenever its pathOptions is a new object.
-const candidateStyles = new Map<string, L.PathOptions>();
-function candidateStyle(fill: string): L.PathOptions {
-  let style = candidateStyles.get(fill);
-  if (!style) candidateStyles.set(fill, style = { color: "#5b6b76", weight: 1, opacity: 0.65, fillColor: fill, fillOpacity: 0.5 });
-  return style;
-}
-
-/** A point the model scored, drawn again only when it changes (memo), as
- *  the airports' marks are (lib/map/AirportsLayer). */
-const CandidateMark = memo(function CandidateMark({ candidate: c, previewed, events }: {
-  candidate: Candidate;
-  /** Its hover preview, but while its own card is open. */
-  previewed: boolean;
-  events: L.LeafletEventHandlerFnMap;
-}) {
-  return (
-    <CircleMarker center={[c.lat, c.lon]} radius={4} pathOptions={candidateStyle(scoreColor(c.predicted_score))} eventHandlers={events}>
-      {previewed && <MapTooltip><CheckpointCard candidate={c} /></MapTooltip>}
-      {/* The map flies in to it as it is picked (FocusOn): no pan of the
-          card's own, which stopped that flight on a phone. */}
-      <MapPopup panCard={false}><CheckpointCard candidate={c} /></MapPopup>
-    </CircleMarker>
-  );
-});
-
-/** The chosen checkpoints and the candidates they were chosen from, at
- *  every zoom, or neither: the settings' Waypoints. The candidates
- *  started at zoom 7, and a route zoomed out to its region showed its
- *  checkpoints alone. Hovering previews the same card a tap opens, the way
- *  Class B airports do -- `useCardedMarker` takes the preview away once
- *  that marker's own popup is open, so the two never draw at once. */
-function Checkpoints({ candidates, selected, onSelectCandidate, airports, focus, legs }: Pick<Props, "candidates" | "selected" | "onSelectCandidate" | "focus" | "legs"> & {
-  /** The route's own airports, whose chips a name keeps off. */
-  airports: { ident: string; lat: number; lon: number }[];
-}) {
-  const show = usePreferences(s => s.waypoints);
-  // The dots' ink: their scores' colours, or the Chart ink look's brown
-  // (checkpointColour); asked here so they are drawn again as the look
-  // changes.
-  const ink = useInkLook();
-  const { carded, cardEvents } = useCardedMarker<string>();
-  const spaced = useSpaced(selected, airports);
-  // Named once the map is in close, or the one picked (its row, its dot):
-  // further out its number alone, as the nav log numbers it -- a route's
-  // two dozen dark names covered the chart at half (the design review,
-  // 2026-10-28, the owner's "I want all").
-  const zoom = useRestZoom();
-  const picked = (c: Candidate) => !!focus && focus.lat === c.lat && focus.lon === c.lon;
-  const labelled = useLabelled(
-    selected.filter(c => spaced.has(`${c.lat},${c.lon}`) && (zoom >= NAME_ZOOM || picked(c))), airports,
-  );
-  const legFacts = useMemo(() => legFactsOf(selected, legs), [selected, legs]);
-  if (!show) return null;
-  return (
-    <>
-      {/* Every point the model scored, small and dim: the selection is
-          only judgable next to what it was selecting from. */}
-      {candidates.filter(c => !c.selected).map(c => {
-        const key = `${c.lat},${c.lon}`;
-        return <CandidateMark key={key} candidate={c} previewed={carded !== key} events={cardEvents(key)} />;
-      })}
-      {selected.map((c, i) => {
-        const key = `${c.lat},${c.lon}`;
-        // Drawn where it has room: zoomed out, a long route's dots piled
-        // into one brown line along it (the style audit, 2026-10-26).
-        // The one whose card is open (`carded`) kept on the map whatever
-        // its room: picked, the map flies in to it, and at a zoom on the
-        // way it had no room, was taken off and its card with it, a tenth
-        // of a second after it opened (checkpoints:68, map:72 on a phone).
-        if (!spaced.has(key) && carded !== key) return null;
-        return (
-          <Marker
-            key={key} position={[c.lat, c.lon]} icon={dotIcon(checkpointColour(scoreColor(c.predicted_score), ink), i + 1)}
-            eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectCandidate(c); }, ...cardEvents(key) }}
-          >
-            {carded !== key && <MapTooltip><CheckpointCard candidate={c} number={i + 1} /></MapTooltip>}
-            <MapPopup panCard={false}><CheckpointCard candidate={c} number={i + 1} leg={legFacts.get(key)} /></MapPopup>
-          </Marker>
-        );
-      })}
-      {selected.map(c => {
-        const label = labelled.get(`${c.lat},${c.lon}`);
-        return label && (
-          <Marker
-            key={`label ${c.lat},${c.lon}`} position={[c.lat, c.lon]} icon={checkpointLabelIcon(label.name, label.side)}
-            interactive={false} keyboard={false}
-          />
-        );
-      })}
-    </>
-  );
-}
-
-/** The zoom from which every checkpoint in sight is named: a phone's width
- *  some 20 nm, about the scale the sectional is printed at (1:500,000),
- *  where the chart's own names are legible and a route's names no longer
- *  lie on one another along it. */
-const NAME_ZOOM = 10;
-
-/** How far apart two checkpoints' dots are kept on the screen, points:
- *  their 24-point dots and a little room between them. */
-const DOT_ROOM = 30;
-
-/**
- * Which checkpoints have room for their dots in the map as it is, in route
- * order: one closer than DOT_ROOM to a dot already kept, or over one of the
- * route's airports' marks, waits until the map is closer in -- each keeps
- * its number in the route, so the gaps read as such.
- */
-function useSpaced(selected: Candidate[], airports: { lat: number; lon: number }[]): Set<string> {
-  const map = useMap();
-  const zoom = useRestZoom();
-  return useMemo(() => {
-    const marks = airports.map(a => map.project([a.lat, a.lon], zoom));
-    const kept: L.Point[] = [];
-    const out = new Set<string>();
-    for (const c of selected) {
-      const p = map.project([c.lat, c.lon], zoom);
-      // The first always: it is the one a pilot looks for off the field,
-      // and the ForeFlight and Garmin exports' first point.
-      if (kept.length && (kept.some(k => k.distanceTo(p) < DOT_ROOM) || marks.some(m => m.distanceTo(p) < AIRPORT_MARK))) continue;
-      kept.push(p);
-      out.add(`${c.lat},${c.lon}`);
-    }
-    return out;
-  }, [selected, airports, zoom, map]);
-}
-
-/** The zoom the map has come to rest at: what spaces the route's marks is
- *  worked out once a zoom has ended, not at its start, where the marks
- *  added and taken away in the middle of Leaflet's zoom shook on the
- *  chart (the owner's notice, 2026-10-26). Distances at a zoom are the
- *  same wherever the map is centred (project). */
-function useRestZoom(): number {
-  const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents(useMemo(() => ({ zoomend: () => setZoom(map.getZoom()) }), [map]));
-  return zoom;
-}
 
 /** A checkpoint's name as its label shows it, in sentence case (the
  *  design review, 2026-10-28): the chart's name for the place as the
@@ -585,155 +233,24 @@ const labelOf = (c: Pick<Candidate, "waypoint" | "name" | "category">) => {
   return (waypoint || c.name || "").split(/\s+/).map(w => (/\d/.test(w) ? w : placeWords(w))).join(" ");
 };
 
-/**
- * Which checkpoints' names fit beside their dots in the map as it is, and
- * on which side, in route order: after the dot, or before it where the
- * screen's edge or a name already placed is in the way; left out where
- * neither fits -- over a name, another checkpoint's dot or one of the
- * route's airports' chips (FOREST VIEW lay over KMDW's) -- until the map
- * is closer in, where ForeFlight piles them on one another along a whole
- * route. Worked out again as the map settles after a move, and at each
- * whole level a zoom passes (useScreenView).
- */
-function useLabelled(
-  selected: Candidate[], airports: { ident: string; lat: number; lon: number }[],
-): Map<string, { name: string; side: "right" | "left" }> {
-  const map = useMap();
-  const view = useScreenView();
-  return useMemo(() => {
-    const { width } = view;
-    const at = selected.map(c => map.latLngToContainerPoint([c.lat, c.lon]));
-    const dots = at.map(p => L.bounds([p.x - 12, p.y - 12], [p.x + 12, p.y + 12]));
-    const chips = airports.map(a => {
-      // The mark and its ident, which runs right of it.
-      const p = map.latLngToContainerPoint([a.lat, a.lon]), half = AIRPORT_MARK / 2;
-      return L.bounds([p.x - half, p.y - half], [p.x + airportMarkReach(a.ident), p.y + half]);
-    });
-    const placed: L.Bounds[] = [];
-    const kept = new Map<string, { name: string; side: "right" | "left" }>();
-    selected.forEach((c, i) => {
-      const name = labelOf(c);
-      if (!name) return;
-      const p = at[i]!;
-      const w = checkpointLabelWidth(name);
-      const top = p.y - CHECKPOINT_LABEL_HEIGHT / 2, bottom = p.y + CHECKPOINT_LABEL_HEIGHT / 2;
-      const sides = [
-        { side: "right" as const, box: L.bounds([p.x + CHECKPOINT_LABEL_GAP, top], [p.x + CHECKPOINT_LABEL_GAP + w, bottom]) },
-        { side: "left" as const, box: L.bounds([p.x - CHECKPOINT_LABEL_GAP - w, top], [p.x - CHECKPOINT_LABEL_GAP, bottom]) },
-      ];
-      const fits = sides.find(({ box }) => box.min!.x >= 0 && box.max!.x <= width
-        && !placed.some(b => b.intersects(box)) && !dots.some((d, j) => j !== i && d.intersects(box))
-        && !chips.some(c => c.intersects(box)));
-      if (!fits) return;
-      placed.push(fits.box);
-      kept.set(`${c.lat},${c.lon}`, { name, side: fits.side });
-    });
-    return kept;
-  }, [selected, airports, view, map]);
-}
-
-/** How far apart two TOC/TOD pills' middles are kept, points: a pill's
- *  width and height (fixMarkIcon) and a little room. */
-const PILL_ROOM = { x: 58, y: 26 };
-
-/** Each leg's top of climb and of descent, where the nav log has a row
- *  for it: a tap brings the map there and selects the row, as a
- *  checkpoint's does. A fix's pill on the course (fixMarkIcon), over the
- *  checkpoints' dots: under them, a TOC between two was hidden (the
- *  owner's "Those pills look a bit off their position", 2026-10-26). */
-function LegPoints({ legs, onSelectPoint }: { legs: Leg[]; onSelectPoint: Props["onSelectPoint"] }) {
-  // Each pill where it has room, in route order: zoomed out, a short
-  // climb's TOC and the next leg's lay on one another (the style audit,
-  // 2026-10-26); closer in, every one. And none over an airport's mark or
-  // its ident (declutter's fields): zoomed out to a region, a stop's TOD
-  // and the next flight's TOC lay on KENW and C81, and KMSN's ident under
-  // its TOD (a probe on the phone viewport, 2026-11-03).
-  const map = useMap();
-  const zoom = useRestZoom();
-  const fields = useDrawnAirports(s => s.fields);
-  const roomy = useMemo(() => {
-    const kept: L.Point[] = [];
-    const out = new Set<string>();
-    const marks = fields.map(f => airportBox(map.project([f.lat, f.lon], zoom), f.ident));
-    legs.forEach((leg, i) => {
-      for (const [key, at] of [[`toc-${i}`, leg.toc], [`tod-${i}`, leg.tod]] as const) {
-        if (!at) continue;
-        const p = map.project([at.lat, at.lon], zoom);
-        if (kept.some(k => Math.abs(k.x - p.x) < PILL_ROOM.x && Math.abs(k.y - p.y) < PILL_ROOM.y)) continue;
-        const pill = { x0: p.x - PILL_ROOM.x / 2, y0: p.y - PILL_ROOM.y / 2, x1: p.x + PILL_ROOM.x / 2, y1: p.y + PILL_ROOM.y / 2 };
-        if (marks.some(m => overlaps(m, pill))) continue;
-        kept.push(p);
-        out.add(key);
-      }
-    });
-    return out;
-  }, [legs, map, zoom, fields]);
-  return (
-    <>
-      {legs.flatMap((leg, i) => [
-        leg.toc && roomy.has(`toc-${i}`) && (
-          <Marker
-            key={`toc-${i}`} position={[leg.toc.lat, leg.toc.lon]} icon={fixMarkIcon("TOC")} zIndexOffset={400}
-            eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.toc!.lat, leg.toc!.lon); } }}
-          >
-            <MapTooltip>Top of climb · {feet(leg.toc.altitude_ft)}</MapTooltip>
-          </Marker>
-        ),
-        leg.tod && roomy.has(`tod-${i}`) && (
-          <Marker
-            key={`tod-${i}`} position={[leg.tod.lat, leg.tod.lon]} icon={fixMarkIcon("TOD")} zIndexOffset={400}
-            eventHandlers={{ click: e => { L.DomEvent.stopPropagation(e); onSelectPoint(leg.tod!.lat, leg.tod!.lon); } }}
-          >
-            <MapTooltip>Top of descent · {leg.tod.fpm} fpm to {feet(leg.tod.to_ft)}{leg.tod.fix ? ` by ${leg.tod.fix}` : ""}</MapTooltip>
-          </Marker>
-        ),
-      ])}
-    </>
-  );
-}
-
-/** A hold's racetrack in the course line's own magenta and weight
- *  (lib/map/CourseLine), dashed: flown round, not along. Its class takes
- *  the Chart ink look's magenta from the stylesheet (index.css). */
-const HOLD_LINE: L.PathOptions = { color: COURSE_MAGENTA, weight: 2.5, opacity: 1, dashArray: "6 5", interactive: false, className: "course-ink" };
-
-/** Each hold the pilot put on the route (the legs' `hold`, plan.with_holds):
- *  one turn round its racetrack from its point, as Garmin's and
- *  ForeFlight's pilot-defined holds are drawn. */
-const HoldTracks = memo(function HoldTracks({ legs }: { legs: Leg[] }) {
-  return (
-    <>
-      {legs.map((leg, i) => leg.hold && (
-        <Polyline key={`hold-${i}-${leg.hold.fix}`} positions={leg.hold.path as [number, number][]} pathOptions={HOLD_LINE} />
-      ))}
-    </>
-  );
-});
 
 /**
- * The planned route on the chart: the course line, the chart's own
- * airports made tappable, the route's two, the checkpoints, the
- * selection ring, own ship. Everything under them
- * -- the container, the chart tiles, the fit, the corner controls --
- * is `MapShell`, which the training map shares.
+ * The planned route on the chart, on MapLibre's one WebGL map
+ * (lib/map/gl, GlRouteMap): the chart, the chart's own airports made
+ * tappable, the route's, the checkpoints, the selection ring, own ship,
+ * every layer over them. Here the page's state is turned into what the
+ * map draws -- each checkpoint's card, each airport's weather -- and the
+ * map itself is GlRouteMap's.
  */
-/** How close in an airport's card brings the map: its field and its
- *  neighbours on the sectional. */
-const PLACE_ZOOM = 9;
-// A lone departure's: the field and the country round it, a sectional's
-// scale, where a destination is picked.
-const START_ZOOM = 9;
-
 // Drawn again only when its own props change (memo): the workspace
 // renders at each answer that streams in, and the whole map went with it.
 export default memo(function RouteMap({
   course, candidates, selected, focus, onSelectCandidate, onSelectPoint,
   airportWeather, place, start = null, onSelectPlace, legs, heldPoint, onHoldPoint, nearest = null, patterns = NO_PATTERNS, patternFocus = null,
-  procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
+  procedures = NO_PROCEDURES, procedureFocus = null, procedureCover, crossings = NO_CROSSINGS, directs = "", onProcedureFix, fuelStops = NO_POINTS_AT,
   stopFields = NO_STOP_FIELDS, onPickStopField, ways, wayShown = null, onPickWay,
 }: Props) {
   const focusZoom = course?.max_zoom ?? 12;
-  const dryRunning = usePastFlight(p => p.hex === DRY_RUN);
   // The pattern just picked, its corners and its entry, to bring in.
   const focusedPattern = useMemo(() => {
     const [ident, end] = (patternFocus ?? "").split(":");
@@ -746,11 +263,10 @@ export default memo(function RouteMap({
     const d = picked && procedures.find(q => sameField(q.airport, picked.ident) && q.id === picked.id && q.transition === picked.transition);
     return d ? [...d.lines, ...d.holds].flatMap(l => l.points.map(([lat, lon]) => ({ lat, lon }))) : NO_POINTS;
   }, [procedures, procedureFocus]);
-  // The route's airports, one array while the course is the same answer:
-  // the checkpoints' names keep off their chips.
+  // The route's airports, one array while the course is the same answer.
   const airports = useMemo(() => (course ? routeAirports(course) : []), [course]);
   // The fields that wear a chip of their own already: the route's own,
-  // and the Class B ones while they are on (ClassBLayer).
+  // and the Class B ones while they are on (ClassBGl).
   const showClassB = usePreferences(s => s.classB);
   const { data: classBAirports } = useQuery({ ...classBQuery, enabled: false });
   const chippedFields = useMemo(() => [
@@ -773,77 +289,52 @@ export default memo(function RouteMap({
     };
   }, [course]);
 
-  // The chart first, its overlays a frame after: the map's first draw was
-  // one task with every layer in it, 0.2 s of a phone's (4x) as the
-  // planner opened, a third of it the layers' (2026-10-10).
-  const layered = useAfterPaint();
   // The course and the plan's first cruise, for a weather area's card.
   const courseLine = (course?.course_line as [number, number][] | undefined) ?? null;
   const cruiseFt = legs[0]?.altitude_ft ?? null;
 
+  // The chosen checkpoints and the candidates they were chosen from, at
+  // every zoom, or neither: the settings' VFR Checkpoints. Their dots in
+  // their scores' colours, or the Chart ink look's brown
+  // (checkpointColour), each with the card a tap opens.
+  const showCheckpoints = usePreferences(s => s.waypoints);
+  const ink = useInkLook();
+  const legFacts = useMemo(() => legFactsOf(selected, legs), [selected, legs]);
+  const glCheckpoints = useMemo<GlCheckpoint[]>(() => (!showCheckpoints ? [] : selected.map((c, i) => {
+    const key = `${c.lat},${c.lon}`;
+    return {
+      key, lat: c.lat, lon: c.lon, number: i + 1, name: labelOf(c), colour: checkpointColour(scoreColor(c.predicted_score), ink),
+      card: <CheckpointCard candidate={c} number={i + 1} leg={legFacts.get(key)} />,
+      select: () => onSelectCandidate(c),
+    };
+  })), [showCheckpoints, selected, ink, legFacts, onSelectCandidate]);
+  const glCandidates = useMemo<GlCandidate[]>(() => (!showCheckpoints ? [] : candidates.filter(c => !c.selected).map(c => ({
+    key: `${c.lat},${c.lon}`, lat: c.lat, lon: c.lon, colour: scoreColor(c.predicted_score), card: <CheckpointCard candidate={c} />,
+  }))), [showCheckpoints, candidates]);
+  // The route's departure, stops and destination, drawn at every zoom: an
+  // airport's mark in its class of airspace's look, its dot the field's
+  // own current METAR's colour, a tap its card; a waypoint flown through
+  // the chart's magenta pill, a tap brings the map to it.
+  const glEndpoints = useMemo<GlEndpoint[]>(() => (!course ? [] : routeAirports(course).map(a => ({
+    ident: a.kind === "fix" ? pointName(a.ident) : a.ident, lat: a.lat, lon: a.lon, fix: a.kind === "fix",
+    space: a.airspace_class ?? (showClassB && classBAirports?.some(b => b.ident === a.ident) ? "B" : null),
+    colour: chipColourOf(weatherOf(a.ident, airportWeather)),
+    select: () => (a.kind === "fix" ? onSelectPoint(a.lat, a.lon) : onSelectPlace(a.ident)),
+  }))), [course, airportWeather, onSelectPoint, onSelectPlace, showClassB, classBAirports]);
+  // The chart alone while there is no route, for the Class B chips' sheets.
+  const { data: chartOnly } = useQuery({ ...chartQuery, enabled: !course });
+
   return (
-    <MapShell
-      course={course} onSelectPlace={onSelectPlace} held={!!focus || !!place || !!heldPoint || !!nearest}
-    >
-      {/* The chart's own airports with no route as well: a tap on a field
-          opens its card, and Fly Here makes the route. */}
-      <AirportsAsk />
-      {layered && <AirportsLayer selected={place} onSelect={onSelectPlace} others={chippedFields} route={routeBox} />}
-      {/* The weather under the TFRs and the route (WeatherLayer). */}
-      {layered && <WeatherLayer line={courseLine} altitudeFt={cruiseFt} />}
-      {layered && <TfrLayer />}
-      {layered && <WaypointsLayer exclude={chipped} />}
-      {/* The airport whose card opens comes to the middle of the chart
-          clear of the panel, in close enough to find it, as a place
-          picked in Maps does: from the search bar it was wherever the
-          map happened to be, a ring over half the country. */}
-      <FocusOn point={place} zoom={PLACE_ZOOM} />
-      {!place && <FitTo points={start ? [start] : NO_POINTS_AT} fitKey={start?.ident ?? null} maxZoom={START_ZOOM} />}
-      {/* Nearest's fields, all in sight above its card. Not while one of
-          them has its own card up, which brings that one in. */}
-      {!place && <FitTo points={nearest ?? []} fitKey={nearest?.length ? nearest.map(a => a.ident).join(",") : null} />}
-      <HeldPoint point={heldPoint} onHold={onHoldPoint} />
-      {/* The Stops' fields round the pilot as well as along a route, all
-          of them brought into sight above the sheet as it opens, at the
-          owner's ask ("when places button is pressed make sure to zoom out
-          to fit all places on the map", 2026-10-29). */}
-      <FitTo points={stopFields} fitKey={stopFields.length ? `stops:${stopFields.map(f => f.ident).join(",")}` : null} />
-      {/* The Stops' fields round the pilot as well as along a route. */}
-      {stopFields.map(field => <StopFieldMark key={field.ident} field={field} onSelect={onPickStopField ?? onSelectPlace} />)}
-      {course && (
-        <>
-          {/* Under the course line, as Maps draws the routes not picked. */}
-          {onPickWay && <RouteWaysLayer ways={ways} shown={wayShown} onPick={onPickWay} />}
-          {/* The legs a hazard in the Brief is on, at the pilot's tap. */}
-          <LegHighlightLayer course={course} />
-          <CourseLine
-            line={course.course_line as [number, number][]}
-            tooltip={`${routeAirports(course, true).map(a => pointName(a.ident)).join(" → ")} · ${nm(course.distance_nm)}`}
-          />
-          {fuelStops.length > 0 && <FuelStopPins stops={fuelStops} onSelect={onSelectPlace} />}
-          {/* A saved flight's flown track over it, from its debrief. */}
-          <FlownTrackLayer course={course} />
-          {/* The planned flight's dry run: its airplane along the line. */}
-          {dryRunning && <DryRunLayer />}
-          <PatternLayer patterns={patterns} />
-          {/* Each approach's plate under its lines, where it could be placed. */}
-          <PlateLayer drawings={procedures} />
-          <ProcedureLayer drawings={procedures} crossings={crossings} directs={directs} onFix={onProcedureFix} />
-          {/* The approach lesson's step over it: its fix ringed, its part
-              drawn over, its airplane (ApproachLesson). */}
-          <LessonLayer />
-          {/* A procedure just picked, all of it in sight clear of the panel. */}
-          <FitTo points={focusedProcedure} fitKey={focusedProcedure.length ? procedureFocus : null} maxZoom={12} cover={procedureCover} />
-          {/* A pattern just picked, all of it in sight clear of the panel. */}
-          <FitTo points={focusedPattern} fitKey={focusedPattern.length ? patternFocus : null} maxZoom={13} />
-          <Endpoints course={course} weather={airportWeather} onSelectPoint={onSelectPoint} onSelectPlace={onSelectPlace} />
-          <LegPoints legs={legs} onSelectPoint={onSelectPoint} />
-          <HoldTracks legs={legs} />
-          <Checkpoints candidates={candidates} selected={selected} onSelectCandidate={onSelectCandidate} airports={airports} focus={focus} legs={legs} />
-          {focus && <Halo at={focus} />}
-          <FocusOn point={focus} zoom={focusZoom} />
-        </>
-      )}
-    </MapShell>
+    <GlRouteMap
+      course={course} chart={course ?? chartOnly ?? null} checkpoints={glCheckpoints} candidates={glCandidates} endpoints={glEndpoints}
+      focus={focus} focusZoom={focusZoom} place={place} onSelectPlace={onSelectPlace} onSelectPoint={onSelectPoint}
+      chipped={chippedFields} routeBox={routeBox} chippedIdents={chipped} courseLine={courseLine} cruiseFt={cruiseFt}
+      legs={legs} start={start} nearest={nearest} heldPoint={heldPoint} onHoldPoint={onHoldPoint}
+      patterns={patterns} focusedPattern={focusedPattern} patternFocus={patternFocus}
+      procedures={procedures} focusedProcedure={focusedProcedure} procedureFocus={procedureFocus} procedureCover={procedureCover}
+      crossings={crossings} directs={directs} onProcedureFix={onProcedureFix}
+      fuelStops={fuelStops} stopFields={stopFields} onPickStopField={onPickStopField}
+      ways={ways} wayShown={wayShown} onPickWay={onPickWay}
+    />
   );
 });

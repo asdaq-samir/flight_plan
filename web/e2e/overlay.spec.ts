@@ -46,18 +46,17 @@ test("the USGS's imagery over the chart, credited, at the strength picked; no Go
   await expect(overlay.getByRole("radio")).toHaveText(["None", "Imagery"]);
   await overlay.getByRole("radio", { name: "Imagery" }).click();
   // The map's own layer, not the choice's picture of it.
-  await expect.poll(() => page.locator('.leaflet-layer img[src*="USGSImageryOnly"]').count(), { timeout: slow(15000) }).toBeGreaterThan(0);
-  await expect(page.locator(".leaflet-control-attribution", { hasText: "USGS The National Map" })).toBeVisible();
-  // Half to begin with, then full.
-  const layer = page.locator(".leaflet-layer", { has: page.locator('img[src*="USGSImageryOnly"]') });
-  await expect(layer).toHaveCSS("opacity", "0.6");
-  // Above the base chart and the terminal sheet (zIndex 5), on purpose.
-  await expect(layer).toHaveCSS("z-index", "6");
+  const imagery = () => page.getByTestId("gl-map").getAttribute("data-imagery");
+  await expect.poll(imagery, { timeout: slow(15000) }).toMatch(/^usgs /);
+  await expect(page.locator(".maplibregl-ctrl-attrib", { hasText: "USGS The National Map" })).toBeVisible();
+  // Half to begin with, then full; over the base chart and the terminal
+  // sheet, on purpose (its slot, BaseGl).
+  await expect.poll(imagery).toBe("usgs 0.6");
   await page.getByTestId("overlay-strength").getByRole("radio", { name: "Full" }).click();
-  await expect(layer).toHaveCSS("opacity", "1");
+  await expect.poll(imagery).toBe("usgs 1");
   // Off: gone, its credit too.
   await overlay.getByRole("radio", { name: "None" }).click();
-  await expect(page.locator('.leaflet-layer img[src*="USGSImageryOnly"]')).toHaveCount(0);
+  await expect.poll(imagery).toBeNull();
   await expect(page.getByTestId("overlay-strength")).toHaveCount(0);
 });
 
@@ -69,7 +68,7 @@ test("Google's map or its satellite over the chart where the deployment has a ke
   await page.getByTestId("overlay-select").getByRole("radio", { name: "Google" }).click();
   await expect.poll(() => asked.some(u => u.includes("/v1/createSession?key=AIza-test")), { timeout: slow(15000) }).toBe(true);
   await expect.poll(() => asked.some(u => /\/v1\/2dtiles\/\d+\/\d+\/\d+\?session=test-session&key=AIza-test/.test(u))).toBe(true);
-  await expect(page.locator(".leaflet-control-attribution", { hasText: "Google Maps · Map data ©2026 Google" })).toBeVisible();
+  await expect(page.locator(".maplibregl-ctrl-attrib", { hasText: "Google Maps · Map data ©2026 Google" })).toBeVisible();
   // Its satellite: a session of its own, with Google's roads over it.
   await page.getByTestId("google-overlay-select").getByRole("radio", { name: "Satellite" }).click();
   await expect.poll(() => asked.filter(u => u.includes("/v1/createSession")).length).toBe(2);
