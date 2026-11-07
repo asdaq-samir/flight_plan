@@ -79,63 +79,32 @@ jobs:
           for job in $(jobs -p); do wait "$job" || failed=1; done
           exit "$failed"
 
-  # Pushes every image the production server runs
+  # Copies every image the production server runs
   # (docker-compose.prod.yml; the stack's ECR repositories in
-  # infra/cloudformation/template.yaml) to ECR, alongside the GHCR
-  # publish above. Reads build-images' registry cache, so this is a cache
-  # hit, not a second real build -- of the commit CI passed, not of
-  # whatever main is by now. Authenticates via OIDC (no long-lived AWS
-  # keys stored as secrets) -- activates automatically once
+  # infra/cloudformation/template.yaml) from GHCR to ECR, as
+  # `sha-<commit>` and `latest`: the very images CI tested, by a copy of
+  # their manifests and layers, not a second build that only hoped to hit
+  # the cache. An image this commit did not rebuild has no `sha-` tag in
+  # GHCR (build-images builds what changed), so its `latest` there, which
+  # the promote job above moves in commit order, is the one copied: the
+  # image of the last commit that changed it. Authenticates via OIDC (no
+  # long-lived AWS keys stored as secrets) -- activates once
   # AWS_ROLE_ARN/AWS_REGION are set as repo variables (Settings ->
   # Secrets and variables -> Actions -> Variables; the stack's
-  # DeployRoleArn output); skipped entirely until then. The role's trust
-  # policy sees this workflow on main (`workflow_run` runs on the default
-  # branch).
+  # DeployRoleArn output); skipped entirely until then. The role trusts
+  # only jobs in the `production` environment (template.yaml's
+  # DeployRole), which only main may deploy to (docs/README-AWS.md).
   push-ecr:
-    # GitHub's runner, not LINUX_RUNNER (the Mac mini, Apple silicon): it
-    # builds and pushes images for AWS's x86 machines.
+    # GitHub's runner, not LINUX_RUNNER (the Mac mini): AWS's machines
+    # are x86, and so is everything this job touches.
     runs-on: ubuntu-26.04
     needs: promote
     if: vars.AWS_ROLE_ARN != ''
+    environment: production
     permissions:
-      contents: read
       id-token: write
       packages: read
-    strategy:
-      matrix:
-        include:
-          # The three images the production server runs
-          # (docker-compose.prod.yml). crewai-agent and the pipeline stay
-          # out of production: the same briefing nav-log-agent writes, and
-          # retraining runs on the owner's machine (docs/README-AWS.md).
-          #
-          # Repo root as context, for the same reason as images.hcl:
-          # the Dockerfile builds web/ as its first stage.
-          - service: webapp
-            ecrRepo: webapp
-            context: .
-            dockerfile: ./springboot-app/Dockerfile
-          - service: planning-service
-            ecrRepo: planning-service
-            context: .
-            dockerfile: planning-service/Dockerfile
-          - service: nav-log-agent
-            ecrRepo: nav-log-agent
-            context: .
-            dockerfile: nav-log-agent/Dockerfile
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4
-        # Docker Hub's images through Google's public mirror first, as in
-        # CI's image job (ci.yml): Docker Hub limits a runner's pulls.
-        with:
-          buildkitd-config-inline: |
-            [registry."docker.io"]
-              mirrors = ["mirror.gcr.io"]
-      # The registry cache is private, like the images: without this the
-      # cache is refused, quietly, and every image built from nothing.
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
         with:
           registry: ghcr.io
@@ -147,13 +116,24 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
       - id: ecr-login
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd  # v2
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7
-        with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          push: true
-          tags: ${{ steps.ecr-login.outputs.registry }}/wingtip/${{ matrix.ecrRepo }}:latest
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}/${{ matrix.service }}:buildcache
+      - name: CI's images, to ECR
+        env:
+          GHCR: ghcr.io/${{ github.repository }}
+          ECR: ${{ steps.ecr-login.outputs.registry }}/wingtip
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          # The three images the production server runs
+          # (docker-compose.prod.yml). crewai-agent and the pipeline stay
+          # out of production (docs/README-AWS.md).
+          for service in webapp planning-service nav-log-agent; do
+            source="$GHCR/$service:sha-$SHA"
+            if ! docker buildx imagetools inspect --raw "$source" > /dev/null 2>&1; then
+              source="$GHCR/$service:latest"
+            fi
+            echo "$service: $source"
+            docker buildx imagetools create --tag "$ECR/$service:sha-$SHA" --tag "$ECR/$service:latest" "$source"
+          done
 
   # Then the server takes them: deploy.sh over SSM Run Command (no SSH,
   # no open port), which pulls the new images and restarts what changed.
@@ -162,11 +142,12 @@ jobs:
   # AWS_SERVER_NAME is set as a repo variable (the stack's ServerName
   # output).
   deploy:
-    # GitHub's runner, not LINUX_RUNNER (the Mac mini, Apple silicon): it
-    # builds and pushes images for AWS's x86 machines.
+    # GitHub's runner, not LINUX_RUNNER: the production credentials stay
+    # off the machine the branches' code runs on.
     runs-on: ubuntu-26.04
     needs: push-ecr
     if: vars.AWS_SERVER_NAME != ''
+    environment: production
     permissions:
       id-token: write
     steps:
@@ -174,15 +155,18 @@ jobs:
         with:
           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION }}
+      # deploy.sh is given the commit CI passed: the server checks it out
+      # and runs its `sha-` images (infra/server/deploy.sh).
       - name: Run deploy.sh on the server
         env:
           SERVER: ${{ vars.AWS_SERVER_NAME }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           instance=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$SERVER" Name=instance-state-name,Values=running \
             --query 'Reservations[0].Instances[0].InstanceId' --output text)
           if [ "$instance" = None ]; then echo "::error title=No server::none running as $SERVER"; exit 1; fi
           id=$(aws ssm send-command --instance-ids "$instance" --document-name AWS-RunShellScript \
-            --comment "deploy ${GITHUB_SHA::7}" --parameters 'commands=["/srv/wingtip/repo/infra/server/deploy.sh"]' \
+            --comment "deploy ${SHA::7}" --parameters "commands=[\"/srv/wingtip/repo/infra/server/deploy.sh $SHA\"]" \
             --query Command.CommandId --output text)
           # Pulling new images can outlast the CLI's own wait (100 s), so
           # the status is asked after for up to 15 minutes.

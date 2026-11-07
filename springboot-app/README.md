@@ -11,7 +11,9 @@ Everything else in this repo sits behind it on a private network.
 It is one of the project's four layers, and the one that should have no
 aviation logic. A figure it needs should come from the planner over HTTP
 (`PlannerClient`, which today asks for a flight's briefing and what
-changed in it), which asks the Rust engine; Spring keeps identity and persistence, the
+changed in it, and reads the planner's answers as models generated at
+build time from `planning-service/openapi.json` by the pom's
+openapi-generator plugin), which asks the Rust engine; Spring keeps identity and persistence, the
 things it is good at. The owner kept Java here on that line on
 2026-11-06 rather than folding it into the Python: the HTTP boundary is
 already clean and a merge would give a pilot nothing. Some rules are
