@@ -89,6 +89,7 @@ from .config import (
     VFR_SECTIONAL_MIN_ZOOM,
     VFR_TAC_MAX_ZOOM,
     VFR_TAC_MIN_ZOOM,
+    get_settings,
 )
 from . import chart_faces
 from .geo import tile_lat_lon, tile_xy
@@ -516,7 +517,7 @@ def _lock_for(key: tuple) -> threading.Lock:
 # asks for a dozen sheets in one breath. The per-sheet locks above stop
 # the same sheet being prepared twice; this stops different sheets being
 # prepared all at once. Two by default; CI sets one (docker-compose.ci.yml).
-_PREPARE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("CHARTS_PREPARE_AT_ONCE", "2")))
+_PREPARE_SLOTS = threading.BoundedSemaphore(get_settings().charts_prepare_at_once)
 
 # Whether a tile may send for a sheet it needs that is not on disk -- a
 # 70 MB download and a minute of preparation, with the tile waiting.
@@ -530,7 +531,7 @@ _PREPARE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("CHARTS_PREPARE_A
 # so never cached, and was drawn again on every request -- the planner
 # busy drawing the country under the Class B test while every other
 # test on the stack waited on it.
-FETCH_FOR_TILES = os.environ.get("CHARTS_FETCH_FOR_TILES", "1") != "0"
+FETCH_FOR_TILES = get_settings().charts_fetch_for_tiles
 
 
 def _load_ready(directory: Path, kind: ChartKind, name: str, cycle: str) -> Chart | None:

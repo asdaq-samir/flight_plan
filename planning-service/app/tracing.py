@@ -6,7 +6,8 @@ FAA, the USGS -- the webapp's span above it all, so a slow
 plan is one trace from the page's call down. Without it, nothing is
 loaded and nothing is sent."""
 import logging
-import os
+
+from .settings import get_settings
 
 log = logging.getLogger(__name__)
 
@@ -14,7 +15,8 @@ log = logging.getLogger(__name__)
 def instrument(app) -> bool:
     """Instruments `app` and `requests` when an OTLP endpoint is set;
     False, and nothing done, when it is not."""
-    if not os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+    settings = get_settings()
+    if not settings.otel_exporter_otlp_endpoint:
         return False
     from opentelemetry import trace
     from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -24,10 +26,10 @@ def instrument(app) -> bool:
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-    provider = TracerProvider(resource=Resource.create({"service.name": os.environ.get("OTEL_SERVICE_NAME", "planner")}))
+    provider = TracerProvider(resource=Resource.create({"service.name": settings.otel_service_name}))
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
     trace.set_tracer_provider(provider)
     FastAPIInstrumentor.instrument_app(app)
     RequestsInstrumentor().instrument()
-    log.info("tracing to %s", os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"])
+    log.info("tracing to %s", settings.otel_exporter_otlp_endpoint)
     return True

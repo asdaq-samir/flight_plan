@@ -21,18 +21,16 @@ international ones too.
 """
 from __future__ import annotations
 
-import os
 import re
 import sqlite3
 import threading
 import time
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
-from pathlib import Path
 
-from .config import DATA_DIR
+from .config import get_settings
 
-STORE = Path(os.environ.get("NOTAM_STORE", str(DATA_DIR / "raw" / "faa_notams" / "notams.sqlite")))
+STORE = get_settings().notam_store
 #: How long an ended NOTAM is kept, s: a day, for a briefing read just after.
 KEEP_ENDED_S = 24 * 3600
 
