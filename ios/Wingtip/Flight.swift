@@ -8,6 +8,14 @@ import Foundation
 /// taken off what the planner required. Arithmetic on the planner's
 /// figures, no rule of its own.
 enum Flight {
+    /// Whether a groundspeed is flying speed, by the engine's rule
+    /// (motion/glide.rs underway, AIRBORNE_KT 40 kt, the debrief's
+    /// airborne line), the web's and OwnTrail's same: the app keeps no
+    /// figure of its own for it.
+    static func underway(_ groundspeedKt: Double?) -> Bool {
+        (try? Engine.call("underway", json: ["speed_kt": groundspeedKt])) ?? false
+    }
+
     struct Left: Equatable, Sendable {
         /// Miles along the course line to the position's nearest point.
         let alongNm: Double

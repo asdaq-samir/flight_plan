@@ -22,8 +22,8 @@ struct LegDetailView: View {
                     .accessibilityValue("\(leg.wcaDeg < 0 ? "minus" : "plus") \(SpokenFigures.number(abs(leg.wcaDeg))) degrees")
                 LabeledContent("True heading", value: AirportWords.degrees(leg.trueHeadingDeg))
                     .accessibilityValue(SpokenFigures.degrees(leg.trueHeadingDeg))
-                LabeledContent("Variation", value: "\(Formats.number(abs(leg.magneticVariationDeg), decimals: 0))° \(leg.magneticVariationDeg < 0 ? "E" : "W")")
-                    .accessibilityValue("\(SpokenFigures.number(abs(leg.magneticVariationDeg))) degrees \(leg.magneticVariationDeg < 0 ? "east" : "west")")
+                LabeledContent("Variation", value: "\(Formats.number(abs(leg.magneticVariationDeg), decimals: 0))° \(leg.magneticVariationDeg < 0 ? "W" : "E")")
+                    .accessibilityValue("\(SpokenFigures.number(abs(leg.magneticVariationDeg))) degrees \(leg.magneticVariationDeg < 0 ? "west" : "east")")
                 LabeledContent("Magnetic heading", value: AirportWords.degrees(leg.magneticHeadingDeg))
                     .accessibilityValue(SpokenFigures.degrees(leg.magneticHeadingDeg))
             }
